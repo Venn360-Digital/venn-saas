@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Search, LogOut, User, Settings, Building2 } from 'lucide-react'
+import { Bell, LogOut, User, Settings, Building2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
 
 interface UserData {
@@ -63,17 +62,7 @@ export function Topbar() {
     }
 
     return (
-        <div className="flex h-14 items-center justify-between border-b border-border bg-background px-6">
-            {/* Search */}
-            <div className="flex flex-1 items-center gap-4">
-                <div className="relative w-96">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar conversas, contatos, negócios..."
-                        className="border-border/50 bg-muted/50 pl-10 focus:border-primary/50 focus:ring-primary/20"
-                    />
-                </div>
-            </div>
+        <div className="flex h-14 items-center justify-end border-b border-border bg-background px-6">
 
             {/* Actions */}
             <div className="flex items-center gap-3">
