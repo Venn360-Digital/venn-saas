@@ -1,0 +1,85 @@
+import { Agent } from '@prisma/client'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Edit2, Power, Trash2, Bot } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+interface AgentCardProps {
+    agent: Agent
+    onEdit: (agent: Agent) => void
+    onDelete: (id: string) => void
+    onToggleStatus: (id: string, currentStatus: boolean) => void
+}
+
+export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCardProps) {
+    return (
+        <Card className="flex flex-col transition-all hover:shadow-md">
+            <CardHeader className="flex flex-row items-start justify-between pb-2">
+                <div className="flex items-center gap-3">
+                    <div
+                        className="flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{ backgroundColor: agent.primaryColor || '#3B82F6' }}
+                    >
+                        {agent.avatar ? (
+                            <img src={agent.avatar} alt={agent.name} className="h-full w-full rounded-lg object-cover" />
+                        ) : (
+                            <Bot className="h-6 w-6 text-white" />
+                        )}
+                    </div>
+                    <div>
+                        <CardTitle className="text-base font-semibold text-foreground">
+                            {agent.name}
+                        </CardTitle>
+                        <p className="text-xs text-muted-foreground">{agent.llmModel}</p>
+                    </div>
+                </div>
+                <Badge
+                    variant={agent.isActive ? 'default' : 'secondary'}
+                    className={cn(
+                        "cursor-pointer hover:opacity-80",
+                        agent.isActive ? "bg-green-600 hover:bg-green-700" : "bg-gray-400"
+                    )}
+                    onClick={() => onToggleStatus(agent.id, agent.isActive)}
+                >
+                    {agent.isActive ? 'Ativo' : 'Pausado'}
+                </Badge>
+            </CardHeader>
+
+            <CardContent className="flex-1 pb-4">
+                <p className="line-clamp-2 text-sm text-muted-foreground">
+                    {agent.description || 'Sem descrição definida.'}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {agent.voiceTone && (
+                        <Badge variant="outline" className="text-xs">
+                            Tom: {agent.voiceTone}
+                        </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
+                        {agent.llmProvider}
+                    </Badge>
+                </div>
+            </CardContent>
+
+            <CardFooter className="flex justify-end gap-2 border-t bg-muted/10 pt-4">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => onEdit(agent)}
+                >
+                    <Edit2 className="h-4 w-4" />
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+                    onClick={() => onDelete(agent.id)}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </CardFooter>
+        </Card>
+    )
+}

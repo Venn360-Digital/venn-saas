@@ -1,0 +1,127 @@
+import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import { z } from 'zod'
+
+const productSchema = z.object({
+    name: z.string().min(1, 'Nome é obrigatório'),
+    description: z.string().optional(),
+    sku: z.string().optional(),
+    category: z.enum(['product', 'service']),
+    price: z.number().optional(),
+    group: z.string().optional(),
+})
+
+// GET - List products with pagination and search
+export async function GET(request: NextRequest) {
+    try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const workspaceUser = await prisma.workspaceUser.findFirst({
+            where: { userId: user.id },
+            select: { workspaceId: true }
+        })
+
+        if (!workspaceUser) {
+            return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        const { searchParams } = new URL(request.url)
+        const page = parseInt(searchParams.get('page') || '1')
+        const limit = parseInt(searchParams.get('limit') || '20')
+        const search = searchParams.get('search') || ''
+        const category = searchParams.get('category') || ''
+
+        const skip = (page - 1) * limit
+
+        // Build where clause
+        const where: any = { workspaceId: workspaceUser.workspaceId }
+
+        // Search across multiple fields
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } },
+                { sku: { contains: search, mode: 'insensitive' } },
+                { group: { contains: search, mode: 'insensitive' } },
+            ]
+        }
+
+        // Filter by category
+        if (category && category !== 'all') {
+            where.category = category
+        }
+
+        const [products, total] = await Promise.all([
+            prisma.productService.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.productService.count({ where })
+        ])
+
+        return NextResponse.json({
+            data: products,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
+        })
+    } catch (error) {
+        console.error('[PRODUCTS_GET]', error)
+        return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    }
+}
+
+// POST - Create product
+export async function POST(request: NextRequest) {
+    try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const workspaceUser = await prisma.workspaceUser.findFirst({
+            where: { userId: user.id },
+            select: { workspaceId: true }
+        })
+
+        if (!workspaceUser) {
+            return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        const body = await request.json()
+        const validatedData = productSchema.parse(body)
+
+        const product = await prisma.productService.create({
+            data: {
+                workspaceId: workspaceUser.workspaceId,
+                name: validatedData.name,
+                description: validatedData.description,
+                sku: validatedData.sku,
+                category: validatedData.category,
+                price: validatedData.price,
+                group: validatedData.group,
+            }
+        })
+
+        return NextResponse.json(product, { status: 201 })
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ errors: error.issues }, { status: 400 })
+        }
+        console.error('[PRODUCTS_POST]', error)
+        return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    }
+}

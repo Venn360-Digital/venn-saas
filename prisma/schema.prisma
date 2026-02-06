@@ -1,0 +1,637 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ============================================
+// 1. MULTI-TENANCY CORE
+// ============================================
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  lastName       String?              // Sobrenome
+  phone          String?              // WhatsApp
+  hashedPassword String?              // Senha hash (para alteração de senha)
+  avatar         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Multi-workspace support
+  workspaces    WorkspaceUser[]
+  activities    Activity[]
+  
+  @@map("users")
+}
+
+model Workspace {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  avatar        String?
+  settings      Json?    // Tema, idioma, fuso horário
+  
+  // Company Details
+  cnpj          String?              // CNPJ da empresa
+  address       String?              // Endereço completo
+  phone         String?              // Telefone comercial
+  logo          String?              // Logo para relatórios
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  users         WorkspaceUser[]
+  agents        Agent[]
+  contacts      Contact[]
+  deals         Deal[]
+  conversations Conversation[]
+  integrations  Integration[]
+  subscription  Subscription?
+  departments   Department[]
+  tags          Tag[]
+  products      ProductService[]
+  activities    Activity[]
+  pipelineStages PipelineStage[]
+  quickResponses QuickResponse[]
+  usageLogs     UsageLog[]
+
+  
+  @@map("workspaces")
+}
+
+model WorkspaceUser {
+  id           String      @id @default(cuid())
+  workspaceId  String
+  userId       String
+  role         String      // OWNER, ADMIN, GESTOR
+  departmentId String?
+  canTransfer  Boolean     @default(false)
+  isActive     Boolean     @default(true)
+  permissions  Json?       // Granular permissions
+  createdAt    DateTime    @default(now())
+  
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department? @relation(fields: [departmentId], references: [id])
+  
+  @@unique([workspaceId, userId])
+  @@index([departmentId])
+  @@map("workspace_users")
+}
+
+// ============================================
+// 2. QUICK RESPONSES
+// ============================================
+
+model QuickResponse {
+  id          String   @id @default(cuid())
+  workspaceId String
+  
+  command     String   // Ex: /saudacao, /precos
+  text        String   @db.Text
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@unique([workspaceId, command])
+  @@index([workspaceId])
+  @@map("quick_responses")
+}
+
+// ============================================
+// 3. AI AGENTS & RULES
+// ============================================
+
+model Agent {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  name          String
+  description   String?
+  avatar        String?
+  
+  // AI Configuration
+  llmProvider   String   // "openai" | "gemini" | "claude"
+  llmModel      String   // "gpt-4o", "gemini-2.0-flash-exp", "claude-3-5-sonnet-20241022"
+  systemPrompt  String   @db.Text
+  temperature   Float    @default(0.7)
+  
+  // PERFIL
+  initialMessage    String?  @db.Text  // Mensagem inicial do agente
+  agentFunction     String?             // "sdr_atendimento" | "vendas" | "suporte"
+  
+  // TRABALHO
+  jobDescription    String?  @db.Text  // Funções e atribuições
+  companyName       String?             // Nome da empresa
+  companySector     String?             // Setor da empresa
+  companyWebsite    String?             // Site da empresa
+  companyDescription String? @db.Text   // Descrição da empresa
+  
+  // Visual & Tone
+  primaryColor  String   @default("#3B82F6")
+  voiceTone     String?  // "formal", "casual", "friendly"
+  language      String   @default("pt-BR")
+  
+  // VOZ (para futuro)
+  voiceEnabled      Boolean  @default(false)
+  voiceModel        String?             // Modelo de voz
+  voiceTraining     String?  @db.Text  // Instruções de treinamento
+  
+  // VISUAL
+  visualConfig      Json?               // { userMessageColor, userFontColor, agentMessageColor, agentFontColor }
+  
+  // Knowledge Base
+  knowledgeBase Json?    // Funções, FAQs, dados da empresa
+  
+  // PREFERÊNCIAS DA CONVERSA (Menu Comandos de Intenção)
+  preferences   Json?    // { showTypingIndicator, responseSpeed, keepContext, useEmojis, allowManualTakeover, restrictTopics, interactionLimit }
+
+  
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rules         AgentRule[]
+  conversations Conversation[]
+  knowledgeDocs KnowledgeDocument[]
+  integrations  AgentIntegration[]
+  webhooks      AgentWebhook[]
+  customFields  AgentCustomField[]
+  usageLogs     UsageLog[]
+
+  
+  @@index([workspaceId])
+  @@map("agents")
+}
+
+model AgentRule {
+  id          String   @id @default(cuid())
+  agentId     String
+  name        String
+  description String?
+  
+  // Condição → Ação (JSON/YAML)
+  conditions  Json     // Array de { type, operator, value }
+  actions     Json     // Array de { type, params }
+  
+  priority    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@index([agentId])
+  @@map("agent_rules")
+}
+
+// Integrações de canais do agente
+model AgentIntegration {
+  id          String   @id @default(cuid())
+  agentId     String
+  
+  // Tipo de canal
+  channel     String   // "site" | "whatsapp_qr" | "whatsapp_business" | "instagram" | "telegram" | "mercadolivre"
+  
+  // Status da conexão
+  status      String   @default("disconnected") // "connected" | "disconnected" | "pending" | "error"
+  
+  // Configurações específicas do canal (JSON)
+  config      Json?    // { qrCode, sessionId, accessToken, phoneNumber, etc }
+  
+  // Metadados
+  connectedAt DateTime?
+  lastActiveAt DateTime?
+  errorMessage String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@unique([agentId, channel])
+  @@index([agentId])
+  @@map("agent_integrations")
+}
+
+// Webhooks do agente
+model AgentWebhook {
+  id          String   @id @default(cuid())
+  agentId     String
+  
+  // Configuração
+  name        String
+  type        String   // "inbound" | "outbound"
+  url         String
+  
+  // Autenticação
+  authType    String?  // "none" | "basic" | "bearer" | "api_key"
+  authConfig  Json?    // { username, password } | { token } | { key, header }
+  
+  // Status e saúde
+  status      String   @default("active") // "active" | "inactive" | "error"
+  healthScore Int      @default(100)      // 0-100
+  lastTriggeredAt DateTime?
+  lastErrorAt DateTime?
+  errorCount  Int      @default(0)
+  
+  // Eventos que disparam (para outbound)
+  events      Json?    // ["message.received", "conversation.started", etc]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@index([agentId])
+  @@map("agent_webhooks")
+}
+
+// Campos customizados do agente
+model AgentCustomField {
+  id          String   @id @default(cuid())
+  agentId     String
+  
+  // Nome/Variável (ex: {{customer_name}})
+  variable    String
+  
+  // Tipo do campo
+  fieldType   String   // "text" | "number" | "date" | "boolean" | "select"
+  
+  // Configurações do campo (opções para select, etc)
+  config      Json?
+  
+  // Valor padrão
+  defaultValue String?
+  
+  // Ordem de exibição
+  order       Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@unique([agentId, variable])
+  @@index([agentId])
+  @@map("agent_custom_fields")
+}
+
+// ============================================
+// 3. CRM - CONTACTS & DEALS
+// ============================================
+
+model Contact {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  
+  // Basic Info
+  name          String?
+  email         String?
+  phone         String?
+  avatar        String?
+  
+  notes         String?  @db.Text  // Observações
+  
+  // Custom Fields
+  customFields  Json?
+  
+  // Metadata
+  source        String?  // "whatsapp", "instagram", "manual"
+  lastContactAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  deals         Deal[]
+  activities    Activity[]
+  tags          ContactTag[]
+  
+  @@index([workspaceId])
+  @@index([phone])
+  @@index([email])
+  @@map("contacts")
+}
+
+model Deal {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  contactId       String?
+  
+  title           String
+  value           Float?
+  currency        String   @default("BRL")
+  
+  // Pipeline
+  stageId         String
+  probability     Int      @default(0) // 0-100
+  
+  // Metadata
+  source          String?
+  notes           String?  @db.Text
+  closedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact         Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  stage           PipelineStage  @relation(fields: [stageId], references: [id])
+  activities      Activity[]
+  
+  @@index([workspaceId])
+  @@index([stageId])
+  @@map("deals")
+}
+
+model PipelineStage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int
+  color       String   @default("#6B7280")
+  
+  deals       Deal[]
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([workspaceId])
+  @@map("pipeline_stages")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String?
+  contactId   String?
+  dealId      String?
+  
+  type        String   // "call", "meeting", "email", "task", "note"
+  title       String
+  description String?  @db.Text
+  
+  // Scheduling
+  dueDate     DateTime?
+  startTime   String?    // "09:00"
+  endTime     String?    // "10:00"
+  completedAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([dueDate])
+  @@map("activities")
+}
+
+// ============================================
+// 4. MESSAGING & CONVERSATIONS
+// ============================================
+
+model Conversation {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  contactId     String
+  agentId       String?
+  
+  channel       String   // "whatsapp", "instagram", "web"
+  channelId     String?  // External ID (WhatsApp conversation ID)
+  
+  status        String   @default("active") // "active", "closed", "snoozed"
+  assignedTo    String?  // User ID
+  
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent         Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  messages      Message[]
+  
+  @@index([workspaceId])
+  @@index([contactId])
+  @@index([status])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  
+  direction      String   // "inbound", "outbound"
+  content        String   @db.Text
+  contentType    String   @default("text") // "text", "image", "audio", "video", "file"
+  mediaUrl       String?
+  
+  // Metadata
+  sentBy         String?  // "agent" | "human" | user_id
+  externalId     String?  // WhatsApp message ID
+  status         String   @default("sent") // "sent", "delivered", "read", "failed"
+  
+  createdAt      DateTime @default(now())
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// ============================================
+// 5. INTEGRATIONS (WhatsApp, Instagram, etc)
+// ============================================
+
+model Integration {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  
+  provider      String   // "whatsapp", "instagram", "meta_ads", "google_ads"
+  status        String   @default("pending") // "pending", "connected", "error"
+  
+  // Credentials (encrypted)
+  credentials   Json?    // API keys, tokens
+  
+  // WhatsApp specific
+  phoneNumber   String?
+  qrCode        String?  @db.Text
+  
+  metadata      Json?
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([workspaceId])
+  @@index([provider])
+  @@map("integrations")
+}
+
+// ============================================
+// 6. BILLING & SUBSCRIPTIONS
+// ============================================
+
+model Subscription {
+  id          String   @id @default(cuid())
+  workspaceId String   @unique
+  
+  plan        String   // "flow", "pro", "advanced"
+  status      String   @default("active") // "active", "past_due", "canceled", "trialing"
+  
+  // Limits
+  maxAgents   Int      @default(1)
+  maxMessages Int      @default(100)
+  
+  // Credits
+  credits      Int      @default(0)        // Créditos de IA disponíveis
+  creditsUsed  Int      @default(0)        // Créditos utilizados no mês
+  
+  // Billing
+  stripeId       String?
+  paymentMethod  Json?                     // { type, last4, brand }
+  trialEndsAt    DateTime?                 // Data fim do trial
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+model UsageLog {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  agentId      String?
+  
+  provider     String   // "openai", "gemini", "claude"
+  model        String   // "gpt-4o", "gemini-2.0-flash-exp", etc
+  
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  
+  costUsd      Decimal  @db.Decimal(10, 6)
+  
+  metadata     Json?    // { conversationId, userId, contactId, etc }
+  createdAt    DateTime @default(now())
+  
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent        Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  
+  @@index([workspaceId, createdAt])
+  @@index([agentId])
+  @@map("usage_logs")
+}
+
+// ============================================
+// 7. ORGANIZATION (Departments, Tags, Products)
+// ============================================
+
+model Department {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  users       WorkspaceUser[]
+  
+  @@index([workspaceId])
+  @@map("departments")
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String   @default("#6B7280")
+  
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts    ContactTag[]
+  
+  @@index([workspaceId])
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId   String
+  tagId       String
+  
+  contact     Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag         Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+model ProductService {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?  @db.Text
+  sku         String?  // Código do produto
+  category    String   @default("product") // "product" or "service"
+  price       Float?
+  currency    String   @default("BRL")
+  group       String?  // Grupo/categoria do produto
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([workspaceId])
+  @@index([name])
+  @@index([sku])
+  @@map("products_services")
+}
+
+// ============================================
+// 8. KNOWLEDGE BASE (RAG)
+// ============================================
+
+model KnowledgeDocument {
+  id          String   @id @default(cuid())
+  agentId     String
+  
+  title       String
+  content     String   @db.Text
+  type        String   // "faq", "doc", "website", "video"
+  url         String?
+  
+  // Vector embeddings (Supabase Vector - pgvector)
+  embedding   Unsupported("vector(1536)")?
+  
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  @@index([agentId])
+  @@map("knowledge_documents")
+}
