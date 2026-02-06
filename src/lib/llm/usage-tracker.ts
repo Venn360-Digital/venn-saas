@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { LLMProviderName } from '@/types/llm'
 import { Decimal } from '@prisma/client/runtime/library'
+import { Prisma } from '@prisma/client'
 
 // Pricing per 1M tokens (as of 2024)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -98,7 +99,7 @@ export async function trackUsage(
             completionTokens: usage.completionTokens,
             totalTokens: usage.totalTokens,
             costUsd: new Decimal(costUsd),
-            metadata: context.metadata,
+            metadata: context.metadata as Prisma.InputJsonValue ?? undefined,
         }
     })
 

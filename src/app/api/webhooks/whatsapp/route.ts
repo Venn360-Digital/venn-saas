@@ -165,12 +165,11 @@ async function handleNewMessage(event: WebhookEvent) {
     await prisma.message.create({
         data: {
             conversationId: conversation.id,
-            role: 'user',
+            direction: 'inbound',
             content: messageContent,
-            metadata: {
-                whatsappMessageId: message.key.id,
-                senderNumber,
-            }
+            contentType: 'text',
+            sentBy: 'user',
+            externalId: message.key.id,
         }
     })
 
@@ -191,7 +190,7 @@ async function handleNewMessage(event: WebhookEvent) {
         const messages = [
             { role: 'system' as const, content: agent.systemPrompt },
             ...history.map(m => ({
-                role: m.role as 'user' | 'assistant',
+                role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
                 content: m.content
             }))
         ]
@@ -214,8 +213,10 @@ async function handleNewMessage(event: WebhookEvent) {
         await prisma.message.create({
             data: {
                 conversationId: conversation.id,
-                role: 'assistant',
+                direction: 'outbound',
                 content: response.content,
+                contentType: 'text',
+                sentBy: 'agent',
             }
         })
 

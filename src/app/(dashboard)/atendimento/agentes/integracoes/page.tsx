@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
@@ -10,7 +11,7 @@ import { useAgentIntegrations } from '@/hooks/useAgentIntegrations'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function IntegracoesPage() {
+function IntegracoesContent() {
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'canais'
 
@@ -97,5 +98,17 @@ export default function IntegracoesPage() {
         >
             {renderTab()}
         </AgentCreationLayout>
+    )
+}
+
+export default function IntegracoesPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        }>
+            <IntegracoesContent />
+        </Suspense>
     )
 }

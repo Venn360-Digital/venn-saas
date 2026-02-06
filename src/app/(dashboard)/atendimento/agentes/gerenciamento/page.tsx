@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
@@ -10,7 +11,7 @@ import { useAgentManagement } from '@/hooks/useAgentManagement'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function GerenciamentoPage() {
+function GerenciamentoContent() {
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'campos'
 
@@ -37,7 +38,6 @@ export default function GerenciamentoPage() {
         isSaving,
     } = useAgentManagement(urlAgentId)
 
-    // Carregar dados quando em modo edição
     useEffect(() => {
         if (urlAgentId) {
             loadManagementData(urlAgentId).finally(() => setLoading(false))
@@ -107,5 +107,17 @@ export default function GerenciamentoPage() {
         >
             {renderTab()}
         </AgentCreationLayout>
+    )
+}
+
+export default function GerenciamentoPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        }>
+            <GerenciamentoContent />
+        </Suspense>
     )
 }

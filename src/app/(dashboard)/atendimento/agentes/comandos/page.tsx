@@ -1,8 +1,8 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
 import { PreferenciasTab } from '@/components/agents/creation/tabs/PreferenciasTab'
@@ -10,7 +10,7 @@ import { useAgentCommands } from '@/hooks/useAgentCommands'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function ComandosPage() {
+function ComandosContent() {
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'condicoes'
 
@@ -33,7 +33,6 @@ export default function ComandosPage() {
         isSaving,
     } = useAgentCommands(urlAgentId)
 
-    // Carregar dados quando em modo edição
     useEffect(() => {
         if (urlAgentId) {
             loadCommands(urlAgentId).finally(() => setLoading(false))
@@ -92,5 +91,17 @@ export default function ComandosPage() {
         >
             {renderTab()}
         </AgentCreationLayout>
+    )
+}
+
+export default function ComandosPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        }>
+            <ComandosContent />
+        </Suspense>
     )
 }

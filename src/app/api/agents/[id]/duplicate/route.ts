@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 // POST - Duplicar agente
 export async function POST(
@@ -56,27 +57,25 @@ export async function POST(
                 voiceEnabled: originalAgent.voiceEnabled,
                 voiceModel: originalAgent.voiceModel,
                 voiceTraining: originalAgent.voiceTraining,
-                visualConfig: originalAgent.visualConfig,
-                knowledgeBase: originalAgent.knowledgeBase,
-                preferences: originalAgent.preferences,
+                visualConfig: originalAgent.visualConfig ?? undefined,
+                knowledgeBase: originalAgent.knowledgeBase ?? undefined,
+                preferences: originalAgent.preferences ?? undefined,
                 isActive: true,
-                // Duplicar regras
                 rules: {
                     create: originalAgent.rules.map(rule => ({
                         name: rule.name,
                         description: rule.description,
-                        conditions: rule.conditions,
-                        actions: rule.actions,
+                        conditions: rule.conditions as Prisma.InputJsonValue,
+                        actions: rule.actions as Prisma.InputJsonValue,
                         priority: rule.priority,
                         isActive: rule.isActive,
                     }))
                 },
-                // Duplicar campos customizados
                 customFields: {
                     create: originalAgent.customFields.map(field => ({
                         variable: field.variable,
                         fieldType: field.fieldType,
-                        config: field.config,
+                        config: field.config as Prisma.InputJsonValue ?? undefined,
                         defaultValue: field.defaultValue,
                         order: field.order,
                     }))

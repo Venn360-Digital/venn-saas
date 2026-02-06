@@ -120,7 +120,7 @@ export async function POST(
         return NextResponse.json(rule, { status: 201 })
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return new NextResponse(JSON.stringify({ errors: error.errors }), { status: 400 })
+            return new NextResponse(JSON.stringify({ errors: error.issues }), { status: 400 })
         }
         console.error('[RULES_POST]', error)
         return new NextResponse('Internal Error', { status: 500 })

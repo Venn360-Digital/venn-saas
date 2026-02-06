@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -13,19 +14,15 @@ import { useAgentCreation } from '@/hooks/useAgentCreation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function NovoAgentePage() {
+function NovoAgenteContent() {
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'perfil'
 
-    // IMPORTANTE: Capturar agentId diretamente dos searchParams a cada render
-    // e armazenar em useRef para garantir que não mude
     const urlAgentId = searchParams.get('id')
     const agentIdRef = useRef<string | null>(urlAgentId)
 
-    // Atualizar ref quando URL mudar
     useEffect(() => {
         agentIdRef.current = urlAgentId
-        console.log('[PAGE] agentIdRef updated to:', agentIdRef.current)
     }, [urlAgentId])
 
     const [workspaceId, setWorkspaceId] = useState<string>('')
@@ -47,19 +44,8 @@ export default function NovoAgentePage() {
         isSaving,
     } = useAgentCreation(workspaceId)
 
-    // Handler de save usando useCallback para garantir que ref seja lido corretamente
     const handleSave = useCallback(() => {
         const currentAgentId = agentIdRef.current
-
-        console.log('=========================================')
-        console.log('[PAGE] SAVE BUTTON CLICKED')
-        console.log('[PAGE] agentIdRef.current:', currentAgentId)
-        console.log('[PAGE] urlAgentId:', urlAgentId)
-        console.log('[PAGE] typeof currentAgentId:', typeof currentAgentId)
-        console.log('[PAGE] Is edit mode:', !!currentAgentId)
-        console.log('=========================================')
-
-        // Passar o agentId diretamente
         originalHandleSave(currentAgentId)
     }, [originalHandleSave, urlAgentId])
 
@@ -67,11 +53,9 @@ export default function NovoAgentePage() {
         fetchWorkspace()
     }, [])
 
-    // Carregar dados do agente quando em modo edição
     useEffect(() => {
         const agentId = agentIdRef.current
         if (agentId && workspaceId && !dataLoaded) {
-            console.log('[PAGE] useEffect - Loading agent data for ID:', agentId)
             loadAgentData(agentId)
         }
     }, [workspaceId, dataLoaded, urlAgentId])
@@ -82,7 +66,6 @@ export default function NovoAgentePage() {
             const { data: { user } } = await supabase.auth.getUser()
 
             if (user) {
-                // Buscar workspaces do usuário
                 const response = await fetch('/api/workspaces')
                 if (response.ok) {
                     const workspaces = await response.json()
@@ -90,7 +73,6 @@ export default function NovoAgentePage() {
                         setWorkspaceId(workspaces[0].id)
                     }
                 } else {
-                    // Fallback: tentar buscar agentes e deixar a API resolver
                     const agentsResponse = await fetch('/api/agents?workspaceId=current')
                     if (agentsResponse.ok) {
                         setWorkspaceId('current')
@@ -105,14 +87,11 @@ export default function NovoAgentePage() {
 
     const loadAgentData = async (agentId: string) => {
         try {
-            console.log('[PAGE] Fetching agent from API:', agentId)
             const response = await fetch(`/api/agents/${agentId}`)
             if (!response.ok) throw new Error('Failed to load agent')
 
             const agent = await response.json()
-            console.log('[PAGE] Agent data loaded:', agent.name)
 
-            // Carregar dados nas abas
             setPerfil({
                 name: agent.name,
                 initialMessage: agent.initialMessage || '',
@@ -213,5 +192,17 @@ export default function NovoAgentePage() {
         >
             {renderTab()}
         </AgentCreationLayout>
+    )
+}
+
+export default function NovoAgentePage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        }>
+            <NovoAgenteContent />
+        </Suspense>
     )
 }
