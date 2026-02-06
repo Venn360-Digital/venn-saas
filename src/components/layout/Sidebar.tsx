@@ -33,9 +33,9 @@ const menuStructure: SidebarSection[] = [
         label: 'Favoritos',
         icon: Star,
         items: [
-            { label: 'Conversas', href: '/favoritos/conversas' },
-            { label: 'Negócios', href: '/favoritos/negocios' },
-            { label: 'Agenda', href: '/favoritos/agenda' },
+            { label: 'Conversas', href: '/atendimento/conversas' },
+            { label: 'Negócios', href: '/vendas/negocios' },
+            { label: 'Agenda', href: '/vendas/agenda' },
         ],
     },
     {
