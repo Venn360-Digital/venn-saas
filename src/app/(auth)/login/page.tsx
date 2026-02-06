@@ -61,7 +61,14 @@ export default function LoginPage() {
                 router.refresh()
             }
         } catch (error: any) {
-            toast.error(error.message || 'Erro ao autenticar')
+            // Handle specific Supabase auth errors
+            if (error.message?.includes('Invalid login credentials')) {
+                toast.error('Credenciais inválidas. Verifique seu email e senha ou crie uma conta.')
+            } else if (error.message?.includes('Email not confirmed')) {
+                toast.error('Email não confirmado. Verifique sua caixa de entrada.')
+            } else {
+                toast.error(error.message || 'Erro ao autenticar')
+            }
             console.error(error)
         } finally {
             setLoading(false)

@@ -57,7 +57,7 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                         id="workspace-name"
                         value={name}
                         onChange={(e) => handleNameChange(e.target.value)}
-                        placeholder="Venn360"
+                        placeholder="Sua Empresa"
                         className="mt-2 border-gray-700 bg-[#0A0E27] text-white placeholder:text-gray-500"
                     />
                 </div>
@@ -71,8 +71,8 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                         <Input
                             id="workspace-url"
                             value={slug}
-                            onChange={(e) => setSlug(e.target.value)}
-                            placeholder="venn360"
+                            onChange={(e) => setSlug(generateSlug(e.target.value))}
+                            placeholder="suaempresa"
                             className="flex-1 border-gray-700 bg-[#0A0E27] text-white placeholder:text-gray-500"
                         />
                     </div>
