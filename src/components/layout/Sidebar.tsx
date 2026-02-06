@@ -81,17 +81,10 @@ const menuStructure: SidebarSection[] = [
 
 export function Sidebar() {
     const pathname = usePathname()
-    const [expandedSections, setExpandedSections] = useState<string[]>([
-        'Atendimento & IA',
-        'Vendas (CRM)',
-    ])
+    const [expandedSection, setExpandedSection] = useState<string | null>('Atendimento & IA')
 
     const toggleSection = (label: string) => {
-        setExpandedSections((prev) =>
-            prev.includes(label)
-                ? prev.filter((s) => s !== label)
-                : [...prev, label]
-        )
+        setExpandedSection((prev) => (prev === label ? null : label))
     }
 
     return (
@@ -120,7 +113,7 @@ export function Sidebar() {
                 <ul className="space-y-1">
                     {menuStructure.map((section) => {
                         const Icon = section.icon
-                        const isExpanded = expandedSections.includes(section.label)
+                        const isExpanded = expandedSection === section.label
                         const isActive = pathname === section.href
 
                         // Single link (no items)
