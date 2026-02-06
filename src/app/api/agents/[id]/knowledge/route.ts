@@ -14,17 +14,16 @@ const knowledgeDocSchema = z.object({
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id: agentId } = await params
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
             return new NextResponse('Unauthorized', { status: 401 })
         }
-
-        const agentId = params.id
 
         // Verify user has access to this agent
         const agent = await prisma.agent.findFirst({
@@ -70,9 +69,10 @@ export async function GET(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id: agentId } = await params
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
@@ -80,7 +80,6 @@ export async function POST(
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        const agentId = params.id
         const body = await request.json()
 
         // Verify user has access to this agent
@@ -127,8 +126,9 @@ export async function POST(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
+    // Note: params not used in DELETE, documentId comes from searchParams
     try {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
