@@ -90,7 +90,7 @@ export function Sidebar() {
     return (
         <div className="flex h-screen w-64 flex-col bg-sidebar">
             {/* Logo */}
-            <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-4">
+            <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
                 <Link href="/dashboard" className="flex items-center gap-2">
                     <svg
                         className="h-7 w-7 text-primary"
