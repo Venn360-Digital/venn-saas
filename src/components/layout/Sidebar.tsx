@@ -90,19 +90,19 @@ export function Sidebar() {
     return (
         <div className="flex h-screen w-64 flex-col bg-sidebar">
             {/* Logo */}
-            <div className="flex h-14 items-center border-b border-sidebar-border px-4">
+            <div className="flex h-14 items-center justify-center border-b border-sidebar-border">
                 <Link href="/dashboard">
                     {/* Dark mode logo (for night theme) */}
                     <img
                         src="/images/logo_night.png"
                         alt="Kaly AI Agent"
-                        className="hidden dark:block h-[90px] w-auto"
+                        className="hidden dark:block h-[80px] w-auto"
                     />
                     {/* Light mode logo (for day theme) */}
                     <img
                         src="/images/logo_day.png"
                         alt="Kaly AI Agent"
-                        className="block dark:hidden h-[90px] w-auto"
+                        className="block dark:hidden h-[80px] w-auto"
                     />
                 </Link>
             </div>
