@@ -96,13 +96,13 @@ export function Sidebar() {
                     <img
                         src="/images/logo_night.png"
                         alt="Kaly AI Agent"
-                        className="hidden dark:block h-[140px] w-auto"
+                        className="hidden dark:block h-[90px] w-auto"
                     />
                     {/* Light mode logo (for day theme) */}
                     <img
                         src="/images/logo_day.png"
                         alt="Kaly AI Agent"
-                        className="block dark:hidden h-[140px] w-auto"
+                        className="block dark:hidden h-[90px] w-auto"
                     />
                 </Link>
             </div>
