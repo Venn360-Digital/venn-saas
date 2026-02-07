@@ -90,21 +90,20 @@ export function Sidebar() {
     return (
         <div className="flex h-screen w-64 flex-col bg-sidebar">
             {/* Logo */}
-            <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-                <Link href="/dashboard" className="flex items-center gap-2">
-                    <svg
-                        className="h-7 w-7 text-primary"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                    >
-                        <path d="M12 2L4 6v12l8 4 8-4V6l-8-4zm0 2.18l6 3v1.72l-6 3-6-3V7.18l6-3zm-6 6.27l5 2.5v5.6l-5-2.5v-5.6zm7 8.1v-5.6l5-2.5v5.6l-5 2.5z" />
-                    </svg>
-                    <div className="flex flex-col">
-                        <span className="text-lg font-bold text-sidebar-foreground">KALY</span>
-                        <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-primary/80">
-                            AI AGENT
-                        </span>
-                    </div>
+            <div className="flex h-14 items-center border-b border-sidebar-border px-4">
+                <Link href="/dashboard">
+                    {/* Dark mode logo (for night theme) */}
+                    <img
+                        src="/images/logo_night.png"
+                        alt="Kaly AI Agent"
+                        className="hidden dark:block h-8 w-auto"
+                    />
+                    {/* Light mode logo (for day theme) */}
+                    <img
+                        src="/images/logo_day.png"
+                        alt="Kaly AI Agent"
+                        className="block dark:hidden h-8 w-auto"
+                    />
                 </Link>
             </div>
 
