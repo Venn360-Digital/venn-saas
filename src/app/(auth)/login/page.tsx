@@ -89,19 +89,11 @@ export default function LoginPage() {
             <div className="relative z-10 w-full max-w-md">
                 {/* Logo */}
                 <div className="mb-8 flex flex-col items-center">
-                    <div className="mb-4 flex items-center gap-2">
-                        <svg
-                            className="h-8 w-8 text-purple-500"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                        >
-                            <path d="M12 2L4 6v12l8 4 8-4V6l-8-4zm0 2.18l6 3v1.72l-6 3-6-3V7.18l6-3zm-6 6.27l5 2.5v5.6l-5-2.5v-5.6zm7 8.1v-5.6l5-2.5v5.6l-5 2.5z" />
-                        </svg>
-                        <span className="text-2xl font-bold text-white">KALY</span>
-                    </div>
-                    <span className="text-[10px] font-medium uppercase tracking-[0.3em] text-purple-400/80">
-                        AI AGENT
-                    </span>
+                    <img
+                        src="/images/logo_night.png"
+                        alt="Kaly AI Agent"
+                        className="h-[80px] w-auto"
+                    />
                 </div>
 
                 {/* Welcome text */}
