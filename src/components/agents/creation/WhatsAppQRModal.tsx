@@ -31,20 +31,24 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
         setQrCode(null)
 
         try {
-            const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp/qr`, {
+            const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`, {
                 method: 'POST',
             })
 
             if (!response.ok) {
-                throw new Error('Falha ao gerar QR Code')
+                const errorData = await response.json().catch(() => ({}))
+                throw new Error(errorData.error || 'Falha ao gerar QR Code')
             }
 
             const data = await response.json()
-            setQrCode(data.qrCode)
-            setStatus('waiting')
 
-            // Start polling for connection status
-            pollConnectionStatus()
+            if (data.qrcode) {
+                setQrCode(data.qrcode)
+                setStatus('waiting')
+                pollConnectionStatus()
+            } else {
+                throw new Error('QR Code não retornado pela API')
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erro desconhecido')
             setStatus('error')
@@ -57,7 +61,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
 
         const checkStatus = async () => {
             try {
-                const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp/status`)
+                const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`)
                 const data = await response.json()
 
                 if (data.status === 'connected') {
@@ -119,13 +123,11 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
                     {status === 'waiting' && qrCode && (
                         <div className="flex flex-col items-center gap-4">
                             <div className="rounded-lg border bg-white p-4">
-                                {/* QR Code placeholder - in production, render actual QR */}
-                                <div className="flex h-48 w-48 items-center justify-center bg-gray-100 text-xs text-gray-500">
-                                    <div className="text-center">
-                                        <p className="font-mono text-[8px] break-all">{qrCode.substring(0, 50)}...</p>
-                                        <p className="mt-2">QR Code</p>
-                                    </div>
-                                </div>
+                                <img
+                                    src={qrCode}
+                                    alt="WhatsApp QR Code"
+                                    className="h-48 w-48"
+                                />
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" />
