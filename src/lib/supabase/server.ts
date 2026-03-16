@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 
 export async function createClient() {
     const cookieStore = await cookies()
+    const dbSchema = (process.env.SUPABASE_DB_SCHEMA || 'public') as 'public' | 'dev'
 
     return createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,6 +23,9 @@ export async function createClient() {
                         // This can be ignored if you have middleware refreshing user sessions.
                     }
                 },
+            },
+            db: {
+                schema: dbSchema,
             },
         }
     )

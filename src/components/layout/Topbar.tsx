@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, LogOut, User, Settings, Building2 } from 'lucide-react'
+import { Bell, LogOut, User, Settings, Building2, Volume2, VolumeX, Calendar, Clock, Phone, Video, Mail, RotateCcw, ClipboardList, FileText } from 'lucide-react'
+import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,6 +14,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
 interface UserData {
@@ -31,27 +38,113 @@ interface UserData {
     role: string | null
 }
 
+interface Reminder {
+    id: string
+    title: string
+    type: string
+    dueDate: string | null
+    startTime: string | null
+    reminderMinutes: number
+    contact: { id: string; name: string | null } | null
+    deal: { id: string; title: string } | null
+}
+
+const TYPE_ICONS: Record<string, typeof Phone> = {
+    call: Phone, meeting: Calendar, videocall: Video, email: Mail,
+    followup: RotateCcw, task: ClipboardList, note: FileText,
+}
+const TYPE_COLORS: Record<string, string> = {
+    call: 'text-green-400', meeting: 'text-blue-400', videocall: 'text-cyan-400',
+    email: 'text-amber-400', followup: 'text-orange-400', task: 'text-teal-400', note: 'text-slate-400',
+}
+
+function formatReminderTime(r: Reminder): string {
+    if (!r.dueDate) return ''
+    const d = new Date(r.dueDate)
+    const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+    return r.startTime ? `${dateStr} às ${r.startTime}` : dateStr
+}
+
 export function Topbar() {
     const [userData, setUserData] = useState<UserData | null>(null)
     const [loading, setLoading] = useState(true)
+    const [soundEnabled, setSoundEnabled] = useState(true)
+    const [reminders, setReminders] = useState<Reminder[]>([])
+    const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const router = useRouter()
 
     useEffect(() => {
-        loadUserData()
+        const stored = localStorage.getItem('kaly-sound-enabled')
+        if (stored !== null) setSoundEnabled(stored === 'true')
     }, [])
+
+    useEffect(() => {
+        localStorage.setItem('kaly-sound-enabled', String(soundEnabled))
+        window.dispatchEvent(new CustomEvent('kaly-sound-change', { detail: soundEnabled }))
+    }, [soundEnabled])
+
+    useEffect(() => { loadUserData() }, [])
+
+    // Poll reminders every 60 seconds
+    const loadReminders = useCallback(async () => {
+        try {
+            const res = await fetch('/api/activities/reminders')
+            if (res.ok) {
+                const data: Reminder[] = await res.json()
+                setReminders(data)
+                // Play sound for new reminders
+                if (data.length > 0 && soundEnabled) {
+                    const stored = localStorage.getItem('kaly-last-reminder-count')
+                    const lastCount = stored ? parseInt(stored) : 0
+                    if (data.length > lastCount) {
+                        try { new Audio('/sounds/notification.mp3').play().catch(() => { }) } catch { }
+                    }
+                    localStorage.setItem('kaly-last-reminder-count', String(data.length))
+                }
+            }
+        } catch { /* ignore */ }
+    }, [soundEnabled])
+
+    useEffect(() => {
+        loadReminders()
+        const interval = setInterval(loadReminders, 60000) // every 60s
+        return () => clearInterval(interval)
+    }, [loadReminders])
 
     const loadUserData = async () => {
         try {
             const res = await fetch('/api/auth/me')
-            if (res.ok) {
-                const data = await res.json()
-                setUserData(data)
-            }
+            if (res.ok) setUserData(await res.json())
         } catch (error) {
             console.error('Error loading user data:', error)
         } finally {
             setLoading(false)
         }
+    }
+
+    const handleDismissReminder = async (id: string) => {
+        setDismissedIds(prev => new Set([...prev, id]))
+        try {
+            await fetch('/api/activities/reminders', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ activityIds: [id] }),
+            })
+            setReminders(prev => prev.filter(r => r.id !== id))
+        } catch { /* ignore */ }
+    }
+
+    const handleDismissAll = async () => {
+        const ids = reminders.map(r => r.id)
+        setDismissedIds(prev => new Set([...prev, ...ids]))
+        try {
+            await fetch('/api/activities/reminders', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ activityIds: ids }),
+            })
+            setReminders([])
+        } catch { /* ignore */ }
     }
 
     const handleLogout = async () => {
@@ -61,16 +154,102 @@ export function Topbar() {
         router.refresh()
     }
 
+    const activeReminders = reminders.filter(r => !dismissedIds.has(r.id))
+
     return (
         <div className="flex h-14 items-center justify-end border-b border-border bg-background px-6">
 
             {/* Actions */}
             <div className="flex items-center gap-3">
-                {/* Notifications */}
-                <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
-                    <Bell className="h-5 w-5" />
-                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
+                {/* Sound Toggle */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => setSoundEnabled(prev => !prev)}
+                    title={soundEnabled ? 'Desativar som de notificações' : 'Ativar som de notificações'}
+                >
+                    {soundEnabled ? (
+                        <Volume2 className="h-5 w-5" />
+                    ) : (
+                        <VolumeX className="h-5 w-5 opacity-50" />
+                    )}
                 </Button>
+
+                {/* Notifications Bell */}
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+                            <Bell className="h-5 w-5" />
+                            {activeReminders.length > 0 && (
+                                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                    {activeReminders.length > 9 ? '9+' : activeReminders.length}
+                                </span>
+                            )}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-80 p-0">
+                        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                            <h3 className="text-sm font-semibold">Lembretes</h3>
+                            {activeReminders.length > 0 && (
+                                <button onClick={handleDismissAll}
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                                    Limpar todos
+                                </button>
+                            )}
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                            {activeReminders.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                                    <Bell className="h-8 w-8 mb-2 opacity-30" />
+                                    <p className="text-sm">Nenhum lembrete pendente</p>
+                                </div>
+                            ) : (
+                                activeReminders.map((r) => {
+                                    const Icon = TYPE_ICONS[r.type] || Calendar
+                                    const color = TYPE_COLORS[r.type] || 'text-muted-foreground'
+                                    return (
+                                        <div key={r.id}
+                                            className="flex items-start gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-accent/30 transition-colors">
+                                            <div className={cn("mt-0.5 p-1.5 rounded-md bg-accent", color)}>
+                                                <Icon className="h-3.5 w-3.5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <Link href="/vendas/agenda"
+                                                    className="text-sm font-medium hover:text-primary transition-colors block truncate">
+                                                    {r.title}
+                                                </Link>
+                                                <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" />
+                                                        {formatReminderTime(r)}
+                                                    </span>
+                                                </div>
+                                                {(r.contact || r.deal) && (
+                                                    <div className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+                                                        {r.contact?.name}{r.contact && r.deal && ' • '}{r.deal?.title}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button onClick={() => handleDismissReminder(r.id)}
+                                                className="text-xs text-muted-foreground hover:text-foreground flex-shrink-0 mt-1">
+                                                ✕
+                                            </button>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+                        {activeReminders.length > 0 && (
+                            <div className="border-t border-border px-4 py-2">
+                                <Link href="/vendas/agenda"
+                                    className="text-xs text-primary hover:underline">
+                                    Ver todas as atividades →
+                                </Link>
+                            </div>
+                        )}
+                    </PopoverContent>
+                </Popover>
 
                 {/* User Menu */}
                 <DropdownMenu>

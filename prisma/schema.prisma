@@ -30,6 +30,7 @@ model User {
   // Multi-workspace support
   workspaces    WorkspaceUser[]
   activities    Activity[]
+  deals         Deal[]
   
   @@map("users")
 }
@@ -65,8 +66,10 @@ model Workspace {
   pipelineStages PipelineStage[]
   quickResponses QuickResponse[]
   usageLogs     UsageLog[]
+  agencies      Agency[]
+  medias        Media[]
+  customFields  CustomFieldDefinition[]
 
-  
   @@map("workspaces")
 }
 
@@ -74,7 +77,7 @@ model WorkspaceUser {
   id           String      @id @default(cuid())
   workspaceId  String
   userId       String
-  role         String      // OWNER, ADMIN, GESTOR
+  role         String      // OWNER, ADMIN, GESTOR, ATENDENTE
   departmentId String?
   canTransfer  Boolean     @default(false)
   isActive     Boolean     @default(true)
@@ -322,6 +325,7 @@ model Contact {
   activities    Activity[]
   tags          ContactTag[]
   
+  @@unique([workspaceId, phone])
   @@index([workspaceId])
   @@index([phone])
   @@index([email])
@@ -332,14 +336,23 @@ model Deal {
   id              String   @id @default(cuid())
   workspaceId     String
   contactId       String?
+  userId          String?  // Deal owner
+  agencyId        String?
+  mediaId         String?
   
   title           String
   value           Float?
   currency        String   @default("BRL")
+  status          String   @default("open") // "open", "won", "lost"
+  lossReason      String?  // "price", "competitor", "timing", "no_budget", "no_need", "no_response", "other"
+  lossNotes       String?  @db.Text
   
   // Pipeline
   stageId         String
   probability     Int      @default(0) // 0-100
+  
+  // Tracking (JSON: contact1/2/3, scheduled, attended, rework)
+  trackingData    Json?
   
   // Metadata
   source          String?
@@ -350,11 +363,19 @@ model Deal {
   
   workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact         Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agency          Agency?        @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  media           Media?         @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   stage           PipelineStage  @relation(fields: [stageId], references: [id])
   activities      Activity[]
   
   @@index([workspaceId])
   @@index([stageId])
+  @@index([status])
+  @@index([contactId, status])
+  @@index([userId])
+  @@index([agencyId])
+  @@index([mediaId])
   @@map("deals")
 }
 
@@ -373,6 +394,34 @@ model PipelineStage {
   @@map("pipeline_stages")
 }
 
+model Agency {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime @default(now())
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals       Deal[]
+  
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("agencies")
+}
+
+model Media {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  createdAt   DateTime @default(now())
+  
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals       Deal[]
+  
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@map("medias")
+}
+
 model Activity {
   id          String   @id @default(cuid())
   workspaceId String
@@ -380,7 +429,7 @@ model Activity {
   contactId   String?
   dealId      String?
   
-  type        String   // "call", "meeting", "email", "task", "note"
+  type        String   // "call", "meeting", "email", "task", "note", "videocall", "followup"
   title       String
   description String?  @db.Text
   
@@ -389,6 +438,20 @@ model Activity {
   startTime   String?    // "09:00"
   endTime     String?    // "10:00"
   completedAt DateTime?
+  
+  // Reminders
+  reminderMinutes Int?   // null = no reminder, 15, 30, 60, 1440 (1 day)
+  reminderSentAt  DateTime? // track if reminder was already sent
+  
+  // Recurrence
+  recurrenceType     String?  // "daily", "weekly", "monthly", "yearly"
+  recurrenceEnd      DateTime?
+  recurrenceParentId String?  // link to parent recurring activity
+  recurrenceParent   Activity?  @relation("ActivityRecurrence", fields: [recurrenceParentId], references: [id], onDelete: SetNull)
+  recurrenceChildren Activity[] @relation("ActivityRecurrence")
+  
+  // Google Calendar sync
+  googleCalendarEventId String?  // Google Calendar event ID for sync
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -401,6 +464,7 @@ model Activity {
   @@index([workspaceId])
   @@index([userId])
   @@index([dueDate])
+  @@index([recurrenceParentId])
   @@map("activities")
 }
 
@@ -421,6 +485,7 @@ model Conversation {
   assignedTo    String?  // User ID
   
   lastMessageAt DateTime?
+  lastReadAt    DateTime?              // When conversation was last read by any operator
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
@@ -428,6 +493,7 @@ model Conversation {
   contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   agent         Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
   messages      Message[]
+  tags          ConversationTag[]
   
   @@index([workspaceId])
   @@index([contactId])
@@ -444,10 +510,16 @@ model Message {
   contentType    String   @default("text") // "text", "image", "audio", "video", "file"
   mediaUrl       String?
   
+  // Reply (quoted message)
+  replyToId      String?
+  replyTo        Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[] @relation("MessageReplies")
+  
   // Metadata
   sentBy         String?  // "agent" | "human" | user_id
   externalId     String?  // WhatsApp message ID
   status         String   @default("sent") // "sent", "delivered", "read", "failed"
+  isInternal     Boolean  @default(false)  // Internal note (visible only to operators)
   
   createdAt      DateTime @default(now())
   
@@ -565,16 +637,28 @@ model Department {
 }
 
 model Tag {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  color       String   @default("#6B7280")
+  id            String   @id @default(cuid())
+  workspaceId   String
+  name          String
+  color         String   @default("#6B7280")
   
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contacts    ContactTag[]
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts      ContactTag[]
+  conversations ConversationTag[]
   
   @@index([workspaceId])
   @@map("tags")
+}
+
+model ConversationTag {
+  conversationId String
+  tagId          String
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([conversationId, tagId])
+  @@map("conversation_tags")
 }
 
 model ContactTag {
@@ -634,4 +718,27 @@ model KnowledgeDocument {
   
   @@index([agentId])
   @@map("knowledge_documents")
+}
+
+// ============================================
+// CUSTOM FIELD DEFINITIONS (Workspace-scoped)
+// ============================================
+
+model CustomFieldDefinition {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  name          String              // Display name
+  key           String              // Programmatic key (snake_case)
+  type          String              // "text", "number", "date", "select", "checkbox"
+  options       Json?               // For select type: ["Option A", "Option B"]
+  required      Boolean  @default(false)
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
+  @@map("custom_field_definitions")
 }

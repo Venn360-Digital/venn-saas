@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ThemeToggle } from './ThemeToggle'
 
 interface SidebarSection {
@@ -21,6 +21,8 @@ interface SidebarSection {
     icon: React.ElementType
     href?: string
     items?: { label: string; href: string; badge?: string }[]
+    // Which roles can see this section. Empty = all roles.
+    allowedRoles?: string[]
 }
 
 const menuStructure: SidebarSection[] = [
@@ -28,6 +30,7 @@ const menuStructure: SidebarSection[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         href: '/dashboard',
+        allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
     },
     {
         label: 'Favoritos',
@@ -44,6 +47,7 @@ const menuStructure: SidebarSection[] = [
         items: [
             { label: 'Agentes de IA', href: '/atendimento/agentes' },
             { label: 'Conversas', href: '/atendimento/conversas' },
+            { label: 'Etiquetas', href: '/atendimento/etiquetas' },
             { label: 'Modelos', href: '/atendimento/modelos', badge: 'Em breve' },
             { label: 'Respostas Rápidas', href: '/atendimento/respostas-rapidas' },
         ],
@@ -57,12 +61,12 @@ const menuStructure: SidebarSection[] = [
             { label: 'Agenda', href: '/vendas/agenda' },
             { label: 'Produtos e Serviços', href: '/vendas/produtos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
-            { label: 'Etiquetas', href: '/vendas/etiquetas' },
         ],
     },
     {
         label: 'Marketing',
         icon: Megaphone,
+        allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
         items: [
             { label: 'Campanhas', href: '/marketing/campanhas' },
             { label: 'Templates', href: '/marketing/templates' },
@@ -71,6 +75,7 @@ const menuStructure: SidebarSection[] = [
     {
         label: 'Gerenciamento',
         icon: Settings,
+        allowedRoles: ['OWNER', 'ADMIN'],
         items: [
             { label: 'Conta', href: '/gerenciamento/conta' },
             { label: 'Usuários', href: '/gerenciamento/usuarios' },
@@ -82,6 +87,23 @@ const menuStructure: SidebarSection[] = [
 export function Sidebar() {
     const pathname = usePathname()
     const [expandedSection, setExpandedSection] = useState<string | null>('Atendimento & IA')
+    const [userRole, setUserRole] = useState<string>('ADMIN') // default until loaded
+
+    useEffect(() => {
+        fetch('/api/me')
+            .then(res => res.json())
+            .then(data => {
+                if (data.role) setUserRole(data.role)
+            })
+            .catch(() => { })
+    }, [])
+
+    const filteredMenu = useMemo(() => {
+        return menuStructure.filter(section => {
+            if (!section.allowedRoles || section.allowedRoles.length === 0) return true
+            return section.allowedRoles.includes(userRole)
+        })
+    }, [userRole])
 
     const toggleSection = (label: string) => {
         setExpandedSection((prev) => (prev === label ? null : label))
@@ -110,7 +132,7 @@ export function Sidebar() {
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto p-4">
                 <ul className="space-y-1">
-                    {menuStructure.map((section) => {
+                    {filteredMenu.map((section) => {
                         const Icon = section.icon
                         const isExpanded = expandedSection === section.label
                         const isActive = pathname === section.href

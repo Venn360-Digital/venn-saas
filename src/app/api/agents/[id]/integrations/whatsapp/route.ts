@@ -50,8 +50,68 @@ export async function POST(
             }, { status: 400 })
         }
 
-        // Create or reconnect instance
-        const result = await evolutionAPI.createInstance(instanceName)
+        let result
+        let qrcodeData: string | null = null
+
+        try {
+            // Try creating a new instance
+            result = await evolutionAPI.createInstance(instanceName)
+            qrcodeData = result.qrcode?.base64 || null
+        } catch (createError: any) {
+            // Instance already exists (403) - try to reconnect
+            if (createError.message?.includes('403') || createError.message?.includes('already in use')) {
+                console.log('[WHATSAPP_INTEGRATION] Instance exists, trying to reconnect...')
+
+                // Check current state
+                try {
+                    const state = await evolutionAPI.getConnectionState(instanceName)
+                    if (state.instance.state === 'open') {
+                        // Already connected, update DB and return
+                        integration = await prisma.agentIntegration.upsert({
+                            where: { agentId_channel: { agentId, channel: 'whatsapp_qr' } },
+                            create: {
+                                agentId,
+                                channel: 'whatsapp_qr',
+                                status: 'connected',
+                                config: { instanceName },
+                            },
+                            update: {
+                                status: 'connected',
+                                connectedAt: new Date(),
+                                lastActiveAt: new Date(),
+                                errorMessage: null,
+                            }
+                        })
+
+                        return NextResponse.json({
+                            success: true,
+                            integration: { id: integration.id, status: 'connected' },
+                            qrcode: null,
+                            alreadyConnected: true,
+                        })
+                    }
+                } catch {
+                    // State check failed, continue to get QR
+                }
+
+                // Not connected — get a new QR code
+                try {
+                    const qr = await evolutionAPI.getQRCode(instanceName)
+                    qrcodeData = qr.base64 || null
+                } catch {
+                    // If connect also fails, delete and recreate
+                    console.log('[WHATSAPP_INTEGRATION] Connect failed, deleting and recreating...')
+                    try {
+                        await evolutionAPI.deleteInstance(instanceName)
+                    } catch { /* ignore delete errors */ }
+
+                    result = await evolutionAPI.createInstance(instanceName)
+                    qrcodeData = result.qrcode?.base64 || null
+                }
+            } else {
+                throw createError
+            }
+        }
 
         // Upsert integration record
         integration = await prisma.agentIntegration.upsert({
@@ -62,16 +122,16 @@ export async function POST(
                 status: 'pending',
                 config: {
                     instanceName,
-                    instanceId: result.instance.instanceId,
-                    hash: result.hash,
+                    instanceId: result?.instance?.instanceId,
+                    hash: result?.hash,
                 }
             },
             update: {
                 status: 'pending',
                 config: {
                     instanceName,
-                    instanceId: result.instance.instanceId,
-                    hash: result.hash,
+                    instanceId: result?.instance?.instanceId,
+                    hash: result?.hash,
                 },
                 errorMessage: null,
             }
@@ -83,11 +143,12 @@ export async function POST(
                 id: integration.id,
                 status: integration.status,
             },
-            qrcode: result.qrcode?.base64 ? `data:image/png;base64,${result.qrcode.base64}` : null,
+            qrcode: qrcodeData,
         })
     } catch (error) {
-        console.error('[WHATSAPP_INTEGRATION] Error:', error)
-        return NextResponse.json({ error: 'Erro ao conectar WhatsApp' }, { status: 500 })
+        const message = error instanceof Error ? error.message : 'Erro desconhecido'
+        console.error('[WHATSAPP_INTEGRATION] Error:', message, error)
+        return NextResponse.json({ error: `Erro ao conectar WhatsApp: ${message}` }, { status: 500 })
     }
 }
 
@@ -130,11 +191,33 @@ export async function GET(
         }
 
         // Check actual status from Evolution API
-        const config = integration.config as { instanceName?: string } | null
+        const config = integration.config as Record<string, any> | null
         if (config?.instanceName) {
             try {
                 const state = await evolutionAPI.getConnectionState(config.instanceName)
                 const isConnected = state.instance.state === 'open'
+
+                let phoneNumber = config.phoneNumber as string | undefined
+
+                // If connected and no phone stored, fetch it
+                if (isConnected && !phoneNumber) {
+                    try {
+                        const instances = await evolutionAPI.fetchInstances(config.instanceName)
+                        if (instances.length > 0 && instances[0].ownerJid) {
+                            phoneNumber = instances[0].ownerJid.replace('@s.whatsapp.net', '')
+
+                            // Store phone in config
+                            await prisma.agentIntegration.update({
+                                where: { id: integration.id },
+                                data: {
+                                    config: { ...config, phoneNumber }
+                                }
+                            })
+                        }
+                    } catch {
+                        // ignore fetch errors
+                    }
+                }
 
                 // Update DB if status changed
                 if (isConnected && integration.status !== 'connected') {
@@ -151,9 +234,11 @@ export async function GET(
                 return NextResponse.json({
                     status: isConnected ? 'connected' : integration.status,
                     connected: isConnected,
-                    lastActiveAt: integration.lastActiveAt
+                    lastActiveAt: integration.lastActiveAt,
+                    phoneNumber: phoneNumber || null,
                 })
-            } catch {
+            } catch (err) {
+                console.error('[WHATSAPP_INTEGRATION] Evolution API state check failed:', err)
                 // Evolution API not available, return DB status
             }
         }
@@ -161,7 +246,8 @@ export async function GET(
         return NextResponse.json({
             status: integration.status,
             connected: integration.status === 'connected',
-            errorMessage: integration.errorMessage
+            errorMessage: integration.errorMessage,
+            phoneNumber: (config as any)?.phoneNumber || null,
         })
     } catch (error) {
         console.error('[WHATSAPP_INTEGRATION] Error:', error)

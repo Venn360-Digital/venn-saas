@@ -9,7 +9,7 @@ const updateUserSchema = z.object({
     lastName: z.string().optional(),
     phone: z.string().optional(),
     departmentId: z.string().optional().nullable(),
-    role: z.enum(['ADMIN', 'GESTOR']).optional(),
+    role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']).optional(),
     canTransfer: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })

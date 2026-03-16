@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Phone } from 'lucide-react'
 import { Globe, MessageCircle, Instagram, ShoppingBag, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WhatsAppQRModal } from '../WhatsAppQRModal'
@@ -65,6 +66,28 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
     const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
     const [whatsappModalOpen, setWhatsappModalOpen] = useState(false)
     const [disconnecting, setDisconnecting] = useState<string | null>(null)
+    const [phoneNumber, setPhoneNumber] = useState<string | null>(null)
+    const phoneFetched = useRef(false)
+
+    // Fetch phone number when WhatsApp is connected
+    useEffect(() => {
+        const whatsappStatus = getChannelStatus('whatsapp_qr')
+        if (whatsappStatus === 'connected' && agentId && !phoneFetched.current) {
+            phoneFetched.current = true
+            fetch(`/api/agents/${agentId}/integrations/whatsapp`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.phoneNumber) {
+                        setPhoneNumber(data.phoneNumber)
+                    }
+                })
+                .catch(() => { })
+        }
+        if (whatsappStatus !== 'connected') {
+            phoneFetched.current = false
+            setPhoneNumber(null)
+        }
+    }, [integrations, agentId])
 
     const getChannelStatus = (channelId: string) => {
         const integration = integrations.find(i => i.channel === channelId)
@@ -200,6 +223,14 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
                                     {channel.id === 'whatsapp_qr' && isConnected ? (
                                         <div className="text-sm">
                                             <p className="text-green-400 font-medium">✓ WhatsApp conectado</p>
+                                            {phoneNumber && (
+                                                <div className="flex items-center gap-2 mt-2 text-foreground">
+                                                    <Phone className="h-4 w-4 text-green-400" />
+                                                    <span className="font-mono">
+                                                        +{phoneNumber.replace(/^(\d{2})(\d{2})(\d{5})(\d{4})$/, '$1 ($2) $3-$4')}
+                                                    </span>
+                                                </div>
+                                            )}
                                             <p className="text-muted-foreground mt-1">
                                                 Seu agente está recebendo e respondendo mensagens automaticamente.
                                             </p>

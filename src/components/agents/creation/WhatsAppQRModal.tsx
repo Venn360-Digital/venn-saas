@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     Dialog,
     DialogContent,
@@ -24,11 +24,71 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
     const [status, setStatus] = useState<ConnectionStatus>('idle')
     const [qrCode, setQrCode] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const isOpenRef = useRef(isOpen)
+    const pollingRef = useRef<NodeJS.Timeout | null>(null)
+
+    // Keep ref in sync
+    useEffect(() => {
+        isOpenRef.current = isOpen
+    }, [isOpen])
+
+    // Cleanup polling on unmount or close
+    useEffect(() => {
+        if (!isOpen && pollingRef.current) {
+            clearTimeout(pollingRef.current)
+            pollingRef.current = null
+        }
+        return () => {
+            if (pollingRef.current) {
+                clearTimeout(pollingRef.current)
+                pollingRef.current = null
+            }
+        }
+    }, [isOpen])
+
+    const startPolling = useCallback(() => {
+        let attempts = 0
+        const maxAttempts = 60
+
+        const checkStatus = async () => {
+            if (!isOpenRef.current || attempts >= maxAttempts) {
+                console.log('[WhatsApp] Polling stopped:', { isOpen: isOpenRef.current, attempts })
+                return
+            }
+
+            try {
+                const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`)
+                const data = await response.json()
+                console.log('[WhatsApp] Poll response:', data)
+
+                if (data.status === 'connected') {
+                    setStatus('connected')
+                    onConnected()
+                    return
+                }
+            } catch (err) {
+                console.error('[WhatsApp] Poll error:', err)
+            }
+
+            attempts++
+            if (isOpenRef.current && attempts < maxAttempts) {
+                pollingRef.current = setTimeout(checkStatus, 2000)
+            }
+        }
+
+        checkStatus()
+    }, [agentId, onConnected])
 
     const generateQRCode = useCallback(async () => {
         setStatus('generating')
         setError(null)
         setQrCode(null)
+
+        // Stop any existing polling
+        if (pollingRef.current) {
+            clearTimeout(pollingRef.current)
+            pollingRef.current = null
+        }
 
         try {
             const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`, {
@@ -41,11 +101,15 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             }
 
             const data = await response.json()
+            console.log('[WhatsApp] Create response:', { hasQR: !!data.qrcode, status: data.integration?.status })
 
-            if (data.qrcode) {
+            if (data.alreadyConnected) {
+                setStatus('connected')
+                onConnected()
+            } else if (data.qrcode) {
                 setQrCode(data.qrcode)
                 setStatus('waiting')
-                pollConnectionStatus()
+                startPolling()
             } else {
                 throw new Error('QR Code não retornado pela API')
             }
@@ -53,35 +117,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             setError(err instanceof Error ? err.message : 'Erro desconhecido')
             setStatus('error')
         }
-    }, [agentId])
-
-    const pollConnectionStatus = useCallback(async () => {
-        const maxAttempts = 60 // 2 minutes with 2s interval
-        let attempts = 0
-
-        const checkStatus = async () => {
-            try {
-                const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`)
-                const data = await response.json()
-
-                if (data.status === 'connected') {
-                    setStatus('connected')
-                    onConnected()
-                    return true
-                }
-
-                attempts++
-                if (attempts < maxAttempts && isOpen) {
-                    setTimeout(checkStatus, 2000)
-                }
-            } catch (err) {
-                console.error('Error polling status:', err)
-            }
-            return false
-        }
-
-        checkStatus()
-    }, [agentId, isOpen, onConnected])
+    }, [agentId, startPolling])
 
     useEffect(() => {
         if (isOpen && status === 'idle') {

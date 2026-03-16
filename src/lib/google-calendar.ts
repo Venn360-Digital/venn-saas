@@ -1,0 +1,230 @@
+import prisma from '@/lib/prisma'
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
+
+interface CalendarEventResult {
+    success: boolean
+    eventId?: string
+    error?: string
+}
+
+// Refresh access token if expired
+async function getValidAccessToken(integration: any): Promise<string | null> {
+    const creds = integration.credentials as any
+    if (!creds?.refresh_token) return null
+
+    // If token still valid (5min buffer)
+    if (creds.expiry_date && Date.now() < creds.expiry_date - 300000) {
+        return creds.access_token
+    }
+
+    try {
+        const res = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: GOOGLE_CLIENT_ID,
+                client_secret: GOOGLE_CLIENT_SECRET,
+                refresh_token: creds.refresh_token,
+                grant_type: 'refresh_token',
+            }),
+        })
+
+        if (!res.ok) {
+            console.error('[GCAL_SYNC] Token refresh failed')
+            await prisma.integration.update({
+                where: { id: integration.id },
+                data: { status: 'error' },
+            })
+            return null
+        }
+
+        const tokens = await res.json()
+        await prisma.integration.update({
+            where: { id: integration.id },
+            data: {
+                credentials: {
+                    ...creds,
+                    access_token: tokens.access_token,
+                    expiry_date: Date.now() + (tokens.expires_in * 1000),
+                },
+            },
+        })
+
+        return tokens.access_token
+    } catch (error) {
+        console.error('[GCAL_SYNC] Token refresh error:', error)
+        return null
+    }
+}
+
+// Build Google Calendar event from activity data
+function buildCalendarEvent(activity: any) {
+    const description = [
+        activity.description || '',
+        activity.contact?.name ? `Contato: ${activity.contact.name} ${activity.contact.phone || ''}` : '',
+        activity.deal?.title ? `Negócio: ${activity.deal.title}` : '',
+        `Tipo: ${activity.type}`,
+        'Criado no Kaly CRM',
+    ].filter(Boolean).join('\n')
+
+    const timeZone = 'America/Sao_Paulo'
+
+    if (activity.dueDate && activity.startTime) {
+        const dateStr = new Date(activity.dueDate).toISOString().split('T')[0]
+        const startDateTime = `${dateStr}T${activity.startTime}:00`
+        const endTime = activity.endTime || addHour(activity.startTime)
+        const endDateTime = `${dateStr}T${endTime}:00`
+
+        return {
+            summary: activity.title,
+            description,
+            start: { dateTime: startDateTime, timeZone },
+            end: { dateTime: endDateTime, timeZone },
+            reminders: activity.reminderMinutes ? {
+                useDefault: false,
+                overrides: [{ method: 'popup', minutes: activity.reminderMinutes }],
+            } : { useDefault: true },
+        }
+    }
+
+    if (activity.dueDate) {
+        const dateStr = new Date(activity.dueDate).toISOString().split('T')[0]
+        return {
+            summary: activity.title,
+            description,
+            start: { date: dateStr },
+            end: { date: dateStr },
+        }
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    return {
+        summary: activity.title,
+        description,
+        start: { date: today },
+        end: { date: today },
+    }
+}
+
+function addHour(time: string): string {
+    const [h, m] = time.split(':').map(Number)
+    return `${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+/**
+ * Automatically sync an activity to Google Calendar.
+ * Call this after creating or updating an activity.
+ * Fails silently — does not block the main operation.
+ */
+export async function syncActivityToGoogleCalendar(
+    workspaceId: string,
+    activity: any,
+): Promise<CalendarEventResult> {
+    try {
+        // Check if workspace has a connected Google Calendar
+        const integration = await prisma.integration.findFirst({
+            where: {
+                workspaceId,
+                provider: 'google_calendar',
+                status: 'connected',
+            },
+        })
+
+        if (!integration) {
+            return { success: false, error: 'not_connected' }
+        }
+
+        const accessToken = await getValidAccessToken(integration)
+        if (!accessToken) {
+            return { success: false, error: 'token_expired' }
+        }
+
+        const event = buildCalendarEvent(activity)
+
+        // Check if this activity was already synced (has a Google event ID)
+        const existingEventId = activity.googleCalendarEventId
+
+        let res: Response
+
+        if (existingEventId) {
+            // Update existing event
+            res = await fetch(
+                `https://www.googleapis.com/calendar/v3/calendars/primary/events/${existingEventId}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(event),
+                }
+            )
+        } else {
+            // Create new event
+            res = await fetch(
+                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(event),
+                }
+            )
+        }
+
+        if (res.ok) {
+            const eventData = await res.json()
+            // Update last sync timestamp
+            await prisma.integration.update({
+                where: { id: integration.id },
+                data: { lastSyncAt: new Date() },
+            })
+            return { success: true, eventId: eventData.id }
+        } else {
+            const err = await res.text()
+            console.error('[GCAL_SYNC] API error:', err)
+            return { success: false, error: err }
+        }
+    } catch (error) {
+        console.error('[GCAL_SYNC] Error:', error)
+        return { success: false, error: String(error) }
+    }
+}
+
+/**
+ * Delete an event from Google Calendar when activity is deleted.
+ * Fails silently.
+ */
+export async function deleteActivityFromGoogleCalendar(
+    workspaceId: string,
+    googleCalendarEventId: string,
+): Promise<void> {
+    try {
+        const integration = await prisma.integration.findFirst({
+            where: {
+                workspaceId,
+                provider: 'google_calendar',
+                status: 'connected',
+            },
+        })
+
+        if (!integration) return
+
+        const accessToken = await getValidAccessToken(integration)
+        if (!accessToken) return
+
+        await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleCalendarEventId}`,
+            {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${accessToken}` },
+            }
+        )
+    } catch (error) {
+        console.error('[GCAL_SYNC] Delete error:', error)
+    }
+}

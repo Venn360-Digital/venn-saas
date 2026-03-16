@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { syncActivityToGoogleCalendar, deleteActivityFromGoogleCalendar } from '@/lib/google-calendar'
 
 // PATCH - Update/complete activity
 export async function PATCH(
@@ -37,7 +38,7 @@ export async function PATCH(
         }
 
         const body = await request.json()
-        const { title, type, description, dueDate, startTime, endTime, completed } = body
+        const { title, type, description, dueDate, startTime, endTime, completed, reminderMinutes, recurrenceType, recurrenceEnd, contactId, dealId, userId } = body
 
         const activity = await prisma.activity.update({
             where: { id },
@@ -49,12 +50,31 @@ export async function PATCH(
                 ...(startTime !== undefined && { startTime }),
                 ...(endTime !== undefined && { endTime }),
                 ...(completed !== undefined && { completedAt: completed ? new Date() : null }),
+                ...(reminderMinutes !== undefined && { reminderMinutes: reminderMinutes || null }),
+                ...(recurrenceType !== undefined && { recurrenceType: recurrenceType || null }),
+                ...(recurrenceEnd !== undefined && { recurrenceEnd: recurrenceEnd ? new Date(recurrenceEnd) : null }),
+                ...(contactId !== undefined && { contactId: contactId || null }),
+                ...(dealId !== undefined && { dealId: dealId || null }),
+                ...(userId !== undefined && { userId: userId || null }),
             },
             include: {
                 contact: { select: { id: true, name: true, phone: true } },
-                deal: { select: { id: true, title: true } }
+                deal: { select: { id: true, title: true } },
+                user: { select: { id: true, name: true } }
             }
         })
+
+        // Auto-sync update to Google Calendar (fire & forget)
+        syncActivityToGoogleCalendar(workspaceUser.workspaceId, activity)
+            .then(result => {
+                if (result.success && result.eventId && !activity.googleCalendarEventId) {
+                    prisma.activity.update({
+                        where: { id: activity.id },
+                        data: { googleCalendarEventId: result.eventId },
+                    }).catch(() => { })
+                }
+            })
+            .catch(() => { })
 
         return NextResponse.json(activity)
     } catch (error) {
@@ -95,6 +115,14 @@ export async function DELETE(
 
         if (!existingActivity) {
             return NextResponse.json({ error: 'Activity not found' }, { status: 404 })
+        }
+
+        // Delete from Google Calendar if synced
+        if (existingActivity.googleCalendarEventId) {
+            deleteActivityFromGoogleCalendar(
+                workspaceUser.workspaceId,
+                existingActivity.googleCalendarEventId,
+            ).catch(() => { })
         }
 
         await prisma.activity.delete({ where: { id } })

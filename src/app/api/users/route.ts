@@ -13,7 +13,7 @@ const createUserSchema = z.object({
     password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
     phone: z.string().optional(),
     departmentId: z.string().optional().nullable(),
-    role: z.enum(['ADMIN', 'GESTOR']),
+    role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']),
     canTransfer: z.boolean().default(false),
     isActive: z.boolean().default(true),
 })

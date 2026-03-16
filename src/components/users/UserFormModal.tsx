@@ -40,7 +40,7 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
         password: '',
         phone: '',
         departmentId: '',
-        role: 'GESTOR' as 'ADMIN' | 'GESTOR',
+        role: 'GESTOR' as 'ADMIN' | 'GESTOR' | 'ATENDENTE',
         canTransfer: false,
         isActive: true,
     })
@@ -56,7 +56,7 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
                 password: '',
                 phone: user.phone || '',
                 departmentId: user.departmentId || '',
-                role: (user.role === 'ADMIN' || user.role === 'OWNER' ? 'ADMIN' : 'GESTOR') as 'ADMIN' | 'GESTOR',
+                role: (user.role === 'ADMIN' || user.role === 'OWNER' ? 'ADMIN' : user.role === 'ATENDENTE' ? 'ATENDENTE' : 'GESTOR') as 'ADMIN' | 'GESTOR' | 'ATENDENTE',
                 canTransfer: user.canTransfer,
                 isActive: user.isActive,
             })
@@ -245,11 +245,11 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
                         <label className="mb-2 block text-sm font-medium text-gray-300">
                             Função
                         </label>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-3">
                             <label
-                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${formData.role === 'ADMIN'
-                                        ? 'border-purple-500 bg-purple-500/10'
-                                        : 'border-gray-700 hover:border-gray-600'
+                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${formData.role === 'ADMIN'
+                                    ? 'border-purple-500 bg-purple-500/10'
+                                    : 'border-gray-700 hover:border-gray-600'
                                     } ${user?.isFirstAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <input
@@ -257,21 +257,21 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
                                     name="role"
                                     value="ADMIN"
                                     checked={formData.role === 'ADMIN'}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' })}
+                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' | 'ATENDENTE' })}
                                     disabled={user?.isFirstAdmin}
                                     className="mt-1 accent-purple-500"
                                 />
                                 <div>
-                                    <p className="font-medium text-white">Administrador</p>
-                                    <p className="text-xs text-gray-400">
-                                        Acesso total a todas as funcionalidades e agentes.
+                                    <p className="font-medium text-white text-sm">Administrador</p>
+                                    <p className="text-[11px] text-gray-400">
+                                        Acesso total.
                                     </p>
                                 </div>
                             </label>
                             <label
-                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${formData.role === 'GESTOR'
-                                        ? 'border-purple-500 bg-purple-500/10'
-                                        : 'border-gray-700 hover:border-gray-600'
+                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${formData.role === 'GESTOR'
+                                    ? 'border-purple-500 bg-purple-500/10'
+                                    : 'border-gray-700 hover:border-gray-600'
                                     } ${user?.isFirstAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <input
@@ -279,14 +279,36 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
                                     name="role"
                                     value="GESTOR"
                                     checked={formData.role === 'GESTOR'}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' })}
+                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' | 'ATENDENTE' })}
                                     disabled={user?.isFirstAdmin}
                                     className="mt-1 accent-purple-500"
                                 />
                                 <div>
-                                    <p className="font-medium text-white">Gestor</p>
-                                    <p className="text-xs text-gray-400">
-                                        Acessa todos os módulos. Não visualiza o menu Gerenciamento.
+                                    <p className="font-medium text-white text-sm">Gestor</p>
+                                    <p className="text-[11px] text-gray-400">
+                                        Sem Gerenciamento.
+                                    </p>
+                                </div>
+                            </label>
+                            <label
+                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${formData.role === 'ATENDENTE'
+                                    ? 'border-purple-500 bg-purple-500/10'
+                                    : 'border-gray-700 hover:border-gray-600'
+                                    } ${user?.isFirstAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="role"
+                                    value="ATENDENTE"
+                                    checked={formData.role === 'ATENDENTE'}
+                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' | 'ATENDENTE' })}
+                                    disabled={user?.isFirstAdmin}
+                                    className="mt-1 accent-purple-500"
+                                />
+                                <div>
+                                    <p className="font-medium text-white text-sm">Atendente</p>
+                                    <p className="text-[11px] text-gray-400">
+                                        Só suas conversas.
                                     </p>
                                 </div>
                             </label>

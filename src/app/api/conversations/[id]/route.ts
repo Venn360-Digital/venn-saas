@@ -1,0 +1,314 @@
+import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+
+// GET: Get conversation details with messages
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        }
+
+        const workspaceUser = await prisma.workspaceUser.findFirst({
+            where: { userId: user.id },
+            select: { workspaceId: true }
+        })
+
+        if (!workspaceUser) {
+            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        }
+
+        const { searchParams } = new URL(request.url)
+        const cursor = searchParams.get('cursor')
+        const limit = parseInt(searchParams.get('limit') || '50')
+
+        const conversation = await prisma.conversation.findFirst({
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+            },
+            include: {
+                contact: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        email: true,
+                        avatar: true,
+                        notes: true,
+                        source: true,
+                        tags: {
+                            include: { tag: { select: { id: true, name: true, color: true } } }
+                        },
+                    }
+                },
+                agent: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatar: true,
+                    }
+                },
+                tags: {
+                    include: {
+                        tag: { select: { id: true, name: true, color: true } }
+                    }
+                },
+            }
+        })
+
+        if (!conversation) {
+            return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+        }
+
+        // Fetch messages with cursor-based pagination
+        const messages = await prisma.message.findMany({
+            where: {
+                conversationId: id,
+                ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+            include: {
+                replyTo: {
+                    select: {
+                        id: true,
+                        content: true,
+                        direction: true,
+                        contentType: true,
+                        sentBy: true,
+                    }
+                }
+            }
+        })
+
+        const hasMore = messages.length > limit
+        const resultMessages = hasMore ? messages.slice(0, limit) : messages
+
+        // Resolve operator names for human-sent messages
+        const humanSenderIds = [...new Set(
+            resultMessages
+                .filter(m => m.sentBy && m.sentBy !== 'agent' && m.sentBy !== 'user')
+                .map(m => m.sentBy!)
+        )]
+        const humanSenders = humanSenderIds.length > 0
+            ? await prisma.user.findMany({
+                where: { id: { in: humanSenderIds } },
+                select: { id: true, name: true }
+            })
+            : []
+        const senderMap = new Map(humanSenders.map(u => [u.id, u.name]))
+
+        // Resolve assignee name
+        let assignedToName: string | null = null
+        if (conversation.assignedTo) {
+            const assignee = await prisma.user.findUnique({
+                where: { id: conversation.assignedTo },
+                select: { name: true }
+            })
+            assignedToName = assignee?.name || null
+        }
+
+        // Merge conversation tags + contact tags (deduplicated)
+        const tagMap = new Map<string, { id: string; name: string; color: string }>()
+        for (const ct of conversation.tags) {
+            tagMap.set(ct.tag.id, ct.tag)
+        }
+        for (const ct of conversation.contact.tags) {
+            tagMap.set(ct.tag.id, ct.tag)
+        }
+        const mergedTags = Array.from(tagMap.values())
+
+        // Strip contact.tags from the response to keep it clean
+        const { tags: _contactTags, ...contactData } = conversation.contact
+
+        return NextResponse.json({
+            conversation: {
+                id: conversation.id,
+                channel: conversation.channel,
+                status: conversation.status,
+                assignedTo: conversation.assignedTo,
+                assignedToName,
+                contact: contactData,
+                agent: conversation.agent,
+                tags: mergedTags,
+                createdAt: conversation.createdAt,
+            },
+            messages: resultMessages.reverse().map(m => ({
+                ...m,
+                senderName: m.sentBy === 'agent'
+                    ? conversation.agent?.name || 'Bot'
+                    : m.sentBy === 'user'
+                        ? conversation.contact.name || conversation.contact.phone
+                        : senderMap.get(m.sentBy!) || 'Atendente',
+            })),
+            hasMore,
+            nextCursor: hasMore ? resultMessages[resultMessages.length - 1].createdAt.toISOString() : null,
+        })
+    } catch (error) {
+        console.error('[CONVERSATION_DETAIL] Error:', error)
+        return NextResponse.json({ error: 'Erro ao buscar conversa' }, { status: 500 })
+    }
+}
+
+// PATCH: Update conversation (assign, close, reopen, transfer)
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        }
+
+        const workspaceUser = await prisma.workspaceUser.findFirst({
+            where: { userId: user.id },
+            select: { workspaceId: true, canTransfer: true }
+        })
+
+        if (!workspaceUser) {
+            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        }
+
+        const body = await request.json()
+        const { action, targetUserId } = body
+
+        const conversation = await prisma.conversation.findFirst({
+            where: { id, workspaceId: workspaceUser.workspaceId }
+        })
+
+        if (!conversation) {
+            return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+        }
+
+        let updateData: Record<string, any> = {}
+
+        switch (action) {
+            case 'assign':
+                updateData = { assignedTo: user.id }
+                break
+            case 'unassign':
+                updateData = { assignedTo: null }
+                break
+            case 'close':
+                updateData = { status: 'closed' }
+                break
+            case 'reopen':
+                updateData = { status: 'active', assignedTo: null }
+                break
+            case 'transfer':
+                if (!workspaceUser.canTransfer) {
+                    return NextResponse.json({ error: 'Sem permissão para transferir' }, { status: 403 })
+                }
+                if (!targetUserId) {
+                    return NextResponse.json({ error: 'Usuário destino obrigatório' }, { status: 400 })
+                }
+                // Verify target user exists in same workspace
+                const targetWU = await prisma.workspaceUser.findFirst({
+                    where: {
+                        workspaceId: workspaceUser.workspaceId,
+                        userId: targetUserId,
+                        isActive: true,
+                    }
+                })
+                if (!targetWU) {
+                    return NextResponse.json({ error: 'Usuário destino não encontrado' }, { status: 404 })
+                }
+                updateData = { assignedTo: targetUserId }
+                break
+            default:
+                return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
+        }
+
+        const updated = await prisma.conversation.update({
+            where: { id },
+            data: updateData,
+        })
+
+        // When assigning/transferring, set the user as deal owner for the contact's open deal
+        if ((action === 'assign' || action === 'transfer') && conversation.contactId) {
+            const assignUserId = action === 'transfer' ? targetUserId! : user.id
+            await prisma.deal.updateMany({
+                where: {
+                    contactId: conversation.contactId,
+                    workspaceId: workspaceUser.workspaceId,
+                    status: 'open',
+                    userId: null, // only set if no owner yet
+                },
+                data: { userId: assignUserId },
+            })
+        }
+
+        return NextResponse.json(updated)
+    } catch (error) {
+        console.error('[CONVERSATION_PATCH] Error:', error)
+        return NextResponse.json({ error: 'Erro ao atualizar conversa' }, { status: 500 })
+    }
+}
+
+// DELETE: Permanently delete a conversation and all its messages
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        }
+
+        const workspaceUser = await prisma.workspaceUser.findFirst({
+            where: { userId: user.id },
+            select: { workspaceId: true }
+        })
+
+        if (!workspaceUser) {
+            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        }
+
+        // Verify conversation belongs to this workspace
+        const conversation = await prisma.conversation.findFirst({
+            where: { id, workspaceId: workspaceUser.workspaceId },
+            select: { id: true }
+        })
+
+        if (!conversation) {
+            return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+        }
+
+        // Delete in correct order respecting FK constraints
+        // 1. Delete all messages (including replies)
+        await prisma.message.updateMany({
+            where: { conversationId: id, replyToId: { not: null } },
+            data: { replyToId: null }
+        })
+        await prisma.message.deleteMany({ where: { conversationId: id } })
+
+        // 2. Delete conversation tags
+        await prisma.conversationTag.deleteMany({ where: { conversationId: id } })
+
+        // 3. Delete the conversation itself
+        await prisma.conversation.delete({ where: { id } })
+
+        console.log('[CONVERSATION_DELETE] Permanently deleted conversation:', id)
+
+        return NextResponse.json({ ok: true })
+    } catch (error) {
+        console.error('[CONVERSATION_DELETE] Error:', error)
+        return NextResponse.json({ error: 'Erro ao excluir conversa' }, { status: 500 })
+    }
+}
