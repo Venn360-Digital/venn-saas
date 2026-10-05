@@ -20,7 +20,12 @@ interface SidebarSection {
     label: string
     icon: React.ElementType
     href?: string
-    items?: { label: string; href: string; badge?: string }[]
+    /**
+     * `disabled` marks a planned destination that has no page yet. Rendering it
+     * as a link would send the user to a hard 404 — which is what Campanhas and
+     * Templates did.
+     */
+    items?: { label: string; href: string; badge?: string; disabled?: boolean }[]
     // Which roles can see this section. Empty = all roles.
     allowedRoles?: string[]
 }
@@ -59,7 +64,7 @@ const menuStructure: SidebarSection[] = [
             { label: 'Negócios', href: '/vendas/negocios' },
             { label: 'Contatos', href: '/vendas/contatos' },
             { label: 'Agenda', href: '/vendas/agenda' },
-            { label: 'Produtos e Serviços', href: '/vendas/produtos' },
+            { label: 'Produtos e Serviços', href: '/vendas/produtos-servicos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
         ],
     },
@@ -68,8 +73,8 @@ const menuStructure: SidebarSection[] = [
         icon: Megaphone,
         allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
         items: [
-            { label: 'Campanhas', href: '/marketing/campanhas' },
-            { label: 'Templates', href: '/marketing/templates' },
+            { label: 'Campanhas', href: '/marketing/campanhas', badge: 'Em breve', disabled: true },
+            { label: 'Templates', href: '/marketing/templates', badge: 'Em breve', disabled: true },
         ],
     },
     {
@@ -178,6 +183,28 @@ export function Sidebar() {
                                     <ul className="ml-8 space-y-1">
                                         {section.items.map((item) => {
                                             const isItemActive = pathname === item.href
+
+                                            const badge = item.badge && (
+                                                <span className="rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] text-sidebar-foreground/60">
+                                                    {item.badge}
+                                                </span>
+                                            )
+
+                                            if (item.disabled) {
+                                                return (
+                                                    <li key={item.href}>
+                                                        <span
+                                                            aria-disabled="true"
+                                                            title="Disponível em breve"
+                                                            className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2 text-sm text-sidebar-foreground/35"
+                                                        >
+                                                            <span>{item.label}</span>
+                                                            {badge}
+                                                        </span>
+                                                    </li>
+                                                )
+                                            }
+
                                             return (
                                                 <li key={item.href}>
                                                     <Link
@@ -190,11 +217,7 @@ export function Sidebar() {
                                                         )}
                                                     >
                                                         <span>{item.label}</span>
-                                                        {item.badge && (
-                                                            <span className="rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] text-sidebar-foreground/60">
-                                                                {item.badge}
-                                                            </span>
-                                                        )}
+                                                        {badge}
                                                     </Link>
                                                 </li>
                                             )

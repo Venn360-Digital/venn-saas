@@ -89,14 +89,23 @@ export default function RespostasRapidasPage() {
     }
 
     const deleteResponse = async (id: string) => {
+        // This was the only destructive action in the app that fired with no
+        // confirmation at all — one stray click removed the response.
+        if (!confirm('Tem certeza que deseja excluir esta resposta rápida?')) return
+
         try {
             const res = await fetch(`/api/quick-responses/${id}`, { method: 'DELETE' })
-            if (res.ok) {
-                setResponses(responses.filter(r => r.id !== id))
-                toast.success('Resposta removida')
+
+            if (!res.ok) {
+                toast.error('Não foi possível remover a resposta')
+                return
             }
+
+            setResponses(responses.filter(r => r.id !== id))
+            toast.success('Resposta removida')
         } catch (error) {
             console.error('Error deleting response:', error)
+            toast.error('Erro ao remover resposta')
         }
     }
 

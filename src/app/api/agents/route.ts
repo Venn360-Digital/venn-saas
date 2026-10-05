@@ -63,7 +63,11 @@ export async function GET(request: NextRequest) {
         // This allows the app to work before the Workspace Selector UI is fully implemented
         if (!workspaceId || workspaceId === 'current' || workspaceId === 'undefined') {
             const firstWorkspace = await prisma.workspaceUser.findFirst({
-                where: { userId: user.id },
+                where: { userId: user.id, isActive: true },
+                // Stable pick while there is no workspace selector: without an
+                // order, a multi-workspace user could read from one tenant and
+                // write to another between requests.
+                orderBy: { createdAt: 'asc' },
                 select: { workspaceId: true }
             })
 
@@ -118,18 +122,14 @@ export async function POST(request: NextRequest) {
         const searchParams = request.nextUrl.searchParams
         let workspaceId = searchParams.get('workspaceId')
 
-        console.log('===========================================')
-        console.log('[AGENTS_POST] *** NEW REQUEST ***')
-        console.log('[AGENTS_POST] User ID:', user.id)
-        console.log('[AGENTS_POST] WorkspaceId from params:', workspaceId)
-        console.log('[AGENTS_POST] Body name:', body.name)
-        console.log('[AGENTS_POST] Request URL:', request.url)
-        console.log('===========================================')
-
         // Workaround for default workspace
         if (!workspaceId || workspaceId === 'current' || workspaceId === 'undefined') {
             let firstWorkspace = await prisma.workspaceUser.findFirst({
-                where: { userId: user.id },
+                where: { userId: user.id, isActive: true },
+                // Stable pick while there is no workspace selector: without an
+                // order, a multi-workspace user could read from one tenant and
+                // write to another between requests.
+                orderBy: { createdAt: 'asc' },
                 select: { workspaceId: true }
             })
 
@@ -181,12 +181,39 @@ export async function POST(request: NextRequest) {
             where: {
                 workspaceId,
                 userId: user.id,
+                isActive: true,
                 role: { in: ['OWNER', 'ADMIN'] }
             }
         })
 
         if (!isOwnerOrAdmin) {
             return new NextResponse('Forbidden: Only Admins can create agents', { status: 403 })
+        }
+
+        // Plan limit. `maxAgents` was stored on the subscription and shown on the
+        // Plano tab, but nothing enforced it — every plan could create unlimited
+        // agents.
+        const subscription = await prisma.subscription.findUnique({
+            where: { workspaceId },
+            select: { maxAgents: true, plan: true },
+        })
+
+        if (subscription) {
+            const agentCount = await prisma.agent.count({ where: { workspaceId } })
+
+            if (agentCount >= subscription.maxAgents) {
+                return NextResponse.json(
+                    {
+                        error: 'Limite de agentes do plano atingido',
+                        message:
+                            `Seu plano (${subscription.plan}) permite ${subscription.maxAgents} ` +
+                            `agente(s). Faça upgrade para criar mais.`,
+                        limit: subscription.maxAgents,
+                        current: agentCount,
+                    },
+                    { status: 409 }
+                )
+            }
         }
 
         const validatedData = createAgentSchema.parse(body)

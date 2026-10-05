@@ -30,7 +30,11 @@ export async function PATCH(
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -118,7 +122,11 @@ export async function DELETE(
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
