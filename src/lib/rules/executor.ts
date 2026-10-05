@@ -82,7 +82,7 @@ export class RuleExecutor {
         await this.dispatchMessage({
             conversationId: context.conversationId,
             content,
-            instanceName: context.channel.instanceName,
+            integrationId: context.channel.integrationId,
             to: context.channel.to,
         })
 

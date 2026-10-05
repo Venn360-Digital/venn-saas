@@ -94,21 +94,93 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # Evolution API (WhatsApp)
+  # Evolution Go — WhatsApp QR channel (whatsmeow)
   # ---------------------------------------------------------------------------
-  # Shares the Supabase Postgres through a dedicated `evolution` database
-  # (created by evolution-db-init) so the host has one database to tune and back
-  # up, and its own Redis logical database for Baileys session cache.
-  evolution-api:
-    image: atendai/evolution-api:v2.2.3
+  # Replaces the Baileys-based Evolution API v2 QR channel. Deliberately NOT
+  # exposed through Traefik: the app reaches it over the Compose network, and the
+  # only reason to open a browser at it is the one-time license activation at
+  # /manager, which goes through an SSH tunnel (see infra/README.md).
+  evolution-go:
+    image: evoapicloud/evolution-go:latest
     restart: unless-stopped
     depends_on:
-      evolution-db-init:
+      evolution-go-db-init:
+        condition: service_completed_successfully
+    environment:
+      SERVER_PORT: "8080"
+      CLIENT_NAME: kaly
+      GLOBAL_API_KEY: ${EVOLUTION_GO_API_KEY}
+
+      POSTGRES_AUTH_DB: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/evogo_users?sslmode=disable
+
+      # We persist messages ourselves; a second copy here would only duplicate
+      # the messages table and grow without bound.
+      DATABASE_SAVE_MESSAGES: "false"
+
+      # Media bytes ride along on the webhook as base64, so the worker uploads
+      # straight to Supabase Storage with no second round trip. This is what keeps
+      # an audio note from delaying the agent's reply.
+      WEBHOOKFILES: "true"
+      MINIO_ENABLED: "false"
+
+      # Re-attach instances after a restart, so a deploy does not silently drop
+      # every paired number.
+      CONNECT_ON_STARTUP: "true"
+
+      WADEBUG: INFO
+      LOGTYPE: json
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/server/ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Evolution Go wants two databases of its own, and the Supabase Postgres image
+  # only runs init scripts on an empty data directory.
+  evolution-go-db-init:
+    image: postgres:15-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        for name in evogo_auth evogo_users; do
+          if psql -h db -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$$name'" | grep -q 1; then
+            echo "database '$$name' already exists"
+          else
+            echo "creating database '$$name'"
+            psql -h db -U postgres -c "CREATE DATABASE $$name"
+          fi
+        done
+
+  # ---------------------------------------------------------------------------
+  # Evolution API v2 — official Meta Cloud API channel only
+  # ---------------------------------------------------------------------------
+  # Opt-in: `docker compose --profile business up -d`. The Baileys QR integration
+  # is gone, so this exists purely for WHATSAPP-BUSINESS. There is no UI yet for
+  # collecting the Meta credentials it needs, so it stays off by default rather
+  # than idling ~300 MB.
+  evolution-v2:
+    image: atendai/evolution-api:v2.2.3
+    profiles: ["business"]
+    restart: unless-stopped
+    depends_on:
+      evolution-v2-db-init:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
     environment:
-      SERVER_URL: https://evo.${DOMAIN}
+      SERVER_URL: https://evo-api.${DOMAIN}
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
       AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
 
@@ -117,8 +189,6 @@ services:
       DATABASE_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/evolution
       DATABASE_CONNECTION_CLIENT_NAME: evolution
 
-      # Persist only what the app actually reads back. Storing full message
-      # history here would duplicate our own messages table.
       DATABASE_SAVE_DATA_INSTANCE: "true"
       DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
       DATABASE_SAVE_MESSAGE_UPDATE: "false"
@@ -133,29 +203,21 @@ services:
       CACHE_REDIS_SAVE_INSTANCES: "true"
       CACHE_LOCAL_ENABLED: "false"
 
-      # Instances are created and wired by our API, which sets the webhook per
-      # instance; these are the global defaults.
       WEBHOOK_GLOBAL_ENABLED: "false"
       WEBHOOK_GLOBAL_URL: ${WEBHOOK_URL}
 
       LOG_LEVEL: ERROR,WARN,INFO
       LOG_COLOR: "false"
       DEL_INSTANCE: "false"
-      QRCODE_LIMIT: "30"
       LANGUAGE: pt-BR
     volumes:
-      - evolution-instances:/evolution/instances
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.evolution.rule=Host(`evo.${DOMAIN}`)
-      - traefik.http.routers.evolution.entrypoints=websecure
-      - traefik.http.routers.evolution.tls.certresolver=le
-      - traefik.http.services.evolution.loadbalancer.server.port=8080
+      - evolution-v2-instances:/evolution/instances
+    expose:
+      - "8080"
 
-  # One-shot: Evolution needs its own database, and the Supabase Postgres image
-  # only runs its init scripts on an empty data directory.
-  evolution-db-init:
+  evolution-v2-db-init:
     image: postgres:15-alpine
+    profiles: ["business"]
     restart: "no"
     depends_on:
       db:
@@ -232,6 +294,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      evolution-go:
+        condition: service_started
     env_file: .env
     environment:
       WORKER_QUEUES: all
@@ -244,4 +308,4 @@ services:
 volumes:
   traefik-acme:
   redis-data:
-  evolution-instances:
+  evolution-v2-instances:

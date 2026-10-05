@@ -66,6 +66,14 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
                     onConnected()
                     return
                 }
+
+                // Evolution Go produces the QR a moment after the socket opens,
+                // and rotates it while pairing — so the poll is what supplies it,
+                // not just what detects success.
+                if (data.qrcode) {
+                    setQrCode(data.qrcode)
+                    setStatus('waiting')
+                }
             } catch (err) {
                 console.error('[WhatsApp] Poll error:', err)
             }
@@ -106,12 +114,12 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             if (data.alreadyConnected) {
                 setStatus('connected')
                 onConnected()
-            } else if (data.qrcode) {
-                setQrCode(data.qrcode)
+            } else {
+                // A missing QR here is not a failure: the socket may not have
+                // emitted one yet. Wait for the poll to deliver it.
+                if (data.qrcode) setQrCode(data.qrcode)
                 setStatus('waiting')
                 startPolling()
-            } else {
-                throw new Error('QR Code não retornado pela API')
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erro desconhecido')

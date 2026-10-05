@@ -1,20 +1,47 @@
 # Kaly — deployment on a single VPS (Stay Cloud)
 
 Everything runs on one host via Docker Compose: Traefik, self-hosted Supabase,
-Evolution API, Redis, the Next.js app and the worker process.
+Evolution Go, Redis, the Next.js app and the worker process.
 
 | Service | Reachable at | Notes |
 | --- | --- | --- |
 | App (Next.js) | `https://app.<domain>` | Traefik label |
 | Supabase API (Kong) | `https://api.<domain>` | Traefik file provider |
-| Evolution API | `https://evo.<domain>` | Traefik label |
+| Evolution Go | — | internal; SSH tunnel for `/manager` |
+| Evolution API v2 | — | opt-in profile, internal |
 | Supabase Studio | — | SSH tunnel only, see below |
 | Postgres | — | internal; SSH tunnel for `psql` |
 | Redis | — | internal only |
 | Worker | — | health on `:3001/health`, Docker-internal |
 
+Only `app` and `api` are published. Nothing else needs to be: the app reaches
+Evolution Go over the Compose network, and the webhook travels the same way.
+
 Sizing: this stack is built for **8 GB RAM / 4 vCPU**. Supabase alone is ~10
 containers.
+
+## WhatsApp providers
+
+Baileys is not used anywhere. Two providers sit behind one interface
+(`src/lib/whatsapp`), selected by the integration's channel:
+
+| Channel | Provider | Library | Status |
+| --- | --- | --- | --- |
+| `whatsapp_qr` | Evolution Go | whatsmeow | in use |
+| `whatsapp_business` | Evolution API v2 | Meta Cloud API | wired, no UI yet |
+
+Evolution Go's authentication is worth knowing before debugging it: the
+`apikey` header carries the **global key** for admin routes only
+(`/instance/create`, `/instance/all`, `/instance/delete/:id`), and the
+**per-instance token** everywhere else. The send endpoints take no instance
+parameter — the token *is* the addressing. That token lives in
+`AgentIntegration.config.token`, and losing it makes the instance unreachable;
+`/instance/all` is the only place it can be recovered from.
+
+The Business channel is implemented but not surfaced: it needs Meta credentials
+(`accessToken`, `phoneNumberId`, `businessId`) in `config.business`, and there is
+no form for collecting them yet. Start it with
+`docker compose --profile business up -d` when that lands.
 
 ---
 
@@ -120,11 +147,31 @@ Inbound WhatsApp contacts are auto-assigned to the first pipeline stage. A
 workspace with no stages gets contacts and conversations but no deals (the worker
 logs a warning). `POST /api/pipelines/seed` creates the defaults.
 
+### Activate the Evolution Go license
+
+Evolution Go requires a one-time activation before it will serve requests. The
+license is free — a community tier with no instance or message limits — but
+activation is mandatory and the instance then sends periodic heartbeats (version,
+aggregated counters, enabled features, server IP; not message content).
+
+Evolution Go is not published, so reach its manager over a tunnel:
+
+```bash
+ssh -N -L 8080:localhost:8080 root@<vps>
+```
+
+Then open `http://localhost:8080/manager`, log in with `EVOLUTION_GO_API_KEY`
+from `infra/.env`, and complete the activation.
+
 ### WhatsApp instances must be re-paired
 
-Baileys sessions do not survive the move off Railway: the host and IP change
-invalidate them. Every connected agent has to read a fresh QR code —
-Atendimento → Agentes → Integrações. Plan a window for this.
+Sessions do not survive this migration, for two reasons: the host and IP change,
+and the QR channel moves from Baileys to whatsmeow, which stores its session
+state in an entirely different place. Every connected agent has to read a fresh
+QR code — Atendimento → Agentes → Integrações. Plan a window for this.
+
+Note that whatsmeow keeps session state in Postgres (`evogo_users`), not in a
+file volume, so `pg_dumpall` already covers it.
 
 ---
 
@@ -201,8 +248,9 @@ Worker log verbosity is `LOG_LEVEL` (`debug` | `info` | `warn` | `error`).
 ## How requests flow
 
 ```
-WhatsApp → Evolution API → POST app/api/webhooks/evolution
-                              └─ validates, enqueues, returns 200 in ms
+WhatsApp → Evolution Go → POST app/api/webhooks/evolution-go
+         (whatsmeow)        └─ normalises the envelope, enqueues,
+                               returns 200 in ms
                                    │
                               Redis (BullMQ)
                                    │
@@ -220,7 +268,17 @@ WhatsApp → Evolution API → POST app/api/webhooks/evolution
 ```
 
 The webhook no longer waits on media downloads or the model. That is what makes
-the send retryable and keeps Evolution from timing out on a slow answer.
+the send retryable and keeps the provider from timing out on a slow answer.
+
+Each provider posts its own envelope to its own endpoint
+(`/api/webhooks/evolution-go`, `/api/webhooks/evolution`) and the route normalises
+it before enqueuing, so no processor branches on provider. The inner WhatsApp
+protobuf object is identical for both, which is why one decoder serves them.
+
+Media bytes arrive inline as base64 (`WEBHOOKFILES=true`), so the worker uploads
+straight to Supabase Storage. Payloads above 2 MB are stripped from the job and
+fetched via `POST /message/downloadmedia` instead — a base64 video would otherwise
+sit in Redis and crowd out the queue.
 
 ---
 
@@ -231,9 +289,19 @@ certificate was requested. Fix DNS, then
 `docker compose restart traefik`. Inspect with
 `docker compose logs traefik | grep -i acme`.
 
-**App returns 503 on `/api/webhooks/evolution`.** `REDIS_URL` is missing or Redis
-is unreachable. The route answers 503 rather than dropping the event, so Evolution
+**App returns 503 on a webhook endpoint.** `REDIS_URL` is missing or Redis is
+unreachable. The route answers 503 rather than dropping the event, so the provider
 retries. Check `docker compose ps redis`.
+
+**Evolution Go rejects every call with 401.** Either the global key does not match
+`EVOLUTION_GO_API_KEY`, or a per-instance call is using the global key. Admin
+routes take the global key; everything else takes the instance token. A 401 on
+`/send/text` almost always means `config.token` is missing or stale — reconnect the
+integration to mint a new one.
+
+**"A instância existe no Evolution Go mas o token não pôde ser recuperado."** The
+instance name is taken by one whose token we no longer have. Delete it in the
+Evolution Go manager (over the tunnel) and reconnect.
 
 **Messages arrive but the agent never answers.** In order: is the agent
 `isActive`? Is the conversation assigned to a human (the agent stays quiet by

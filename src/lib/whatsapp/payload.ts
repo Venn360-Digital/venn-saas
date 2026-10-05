@@ -1,17 +1,21 @@
 /**
- * Decoding of the Baileys message payload Evolution forwards to us.
+ * Decoding of the WhatsApp protobuf message object.
+ *
+ * Shared by both providers on purpose: whatsmeow (Evolution Go) and the Meta
+ * Cloud API (Evolution v2) both hand us the same wire-level `Message` shape, keyed
+ * by which `*Message` field is present. Only the envelope around it differs, and
+ * that lives in ./envelopes.ts.
  *
  * Kept free of IO so it can be unit-tested against recorded webhook bodies.
  */
 
 /**
- * A Baileys message payload. The shape is a large discriminated union keyed by
- * which `*Message` field is present, and Evolution forwards it verbatim without
- * a published schema — so it is read defensively rather than typed structurally.
+ * A WhatsApp protobuf message object. No provider publishes a schema for it, so
+ * it is read defensively rather than typed structurally.
  */
-export type BaileysPayload = Record<string, Record<string, unknown> | string | undefined>
+export type WhatsAppMessagePayload = Record<string, Record<string, unknown> | string | undefined>
 
-/** Evolution's `data` object around the payload. */
+/** The provider's `data` object wrapping the payload. */
 export type EvolutionData = Record<string, unknown>
 
 export type ContentType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'reaction'
@@ -22,61 +26,26 @@ export interface DecodedMessage {
     mediaUrl: string | null
 }
 
-export interface InboundEnvelope {
-    key: { id?: string; remoteJid?: string; fromMe?: boolean } | undefined
-    message: BaileysPayload | undefined
-    pushName: string | null
-    profilePicUrl: string | null
-}
-
-export function readEnvelope(data: EvolutionData): InboundEnvelope {
-    return {
-        key: data.key as InboundEnvelope['key'],
-        message: data.message as BaileysPayload | undefined,
-        pushName: (data.pushName as string) ?? null,
-        profilePicUrl: (data.profilePicUrl as string) ?? null,
-    }
-}
-
-/** Strip the WhatsApp JID suffix down to a bare MSISDN. */
-export function toMsisdn(remoteJid: string): string {
-    return remoteJid.replace('@s.whatsapp.net', '')
-}
-
-/**
- * Messages we never process: our own echoes, group chats and status broadcasts.
- */
-export function shouldIgnore(envelope: InboundEnvelope): string | null {
-    if (envelope.key?.fromMe) return 'fromMe'
-
-    const remoteJid = envelope.key?.remoteJid || ''
-    if (!remoteJid) return 'missing remoteJid'
-    if (remoteJid.endsWith('@g.us')) return 'group chat'
-    if (remoteJid === 'status@broadcast') return 'status broadcast'
-
-    return null
-}
-
 /** Read a nested field without asserting the whole payload's shape. */
-function field(payload: BaileysPayload, group: string, key: string): string | undefined {
+function field(payload: WhatsAppMessagePayload, group: string, key: string): string | undefined {
     const value = payload[group]
     if (!value || typeof value !== 'object') return undefined
     const inner = (value as Record<string, unknown>)[key]
     return typeof inner === 'string' && inner.length > 0 ? inner : undefined
 }
 
-function has(payload: BaileysPayload, group: string): boolean {
+function has(payload: WhatsAppMessagePayload, group: string): boolean {
     return Boolean(payload[group])
 }
 
 /** Prefer the URL Evolution resolved; fall back to the raw (encrypted) one. */
-function mediaUrlFor(payload: BaileysPayload, data: EvolutionData, group: string): string | null {
+function mediaUrlFor(payload: WhatsAppMessagePayload, data: EvolutionData, group: string): string | null {
     const fromEvolution = typeof data.mediaUrl === 'string' ? data.mediaUrl : undefined
     return fromEvolution ?? field(payload, group, 'url') ?? null
 }
 
 export function decodeMessage(
-    payload: BaileysPayload | undefined,
+    payload: WhatsAppMessagePayload | undefined,
     data: EvolutionData
 ): DecodedMessage {
     if (!payload) return { content: '[Mensagem vazia]', contentType: 'text', mediaUrl: null }

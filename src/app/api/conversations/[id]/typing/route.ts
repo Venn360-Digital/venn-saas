@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
-import { evolutionAPI } from '@/lib/whatsapp/evolution-api'
+import { resolveIntegration } from '@/lib/whatsapp'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // POST: Send typing indicator to contact + broadcast to realtime
@@ -44,11 +44,11 @@ export async function POST(
         if (conversation.channel === 'whatsapp' && conversation.contact.phone) {
             const whatsappIntegration = conversation.agent?.integrations?.[0]
             if (whatsappIntegration) {
-                const config = whatsappIntegration.config as { instanceName: string }
                 try {
-                    await evolutionAPI.sendPresence(
-                        config.instanceName,
-                        conversation.contact.phone + '@s.whatsapp.net',
+                    const { provider, credentials } = resolveIntegration(whatsappIntegration)
+                    await provider.sendPresence(
+                        credentials,
+                        conversation.contact.phone,
                         isTyping ? 'composing' : 'paused'
                     )
                 } catch (e) {

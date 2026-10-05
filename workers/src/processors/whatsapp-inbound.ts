@@ -1,5 +1,6 @@
 import type { Job } from 'bullmq'
 import prisma from '@/lib/prisma'
+import { decodeMessage, toMsisdn } from '@/lib/whatsapp'
 import type { RuleContext } from '@/types/rules'
 import { env } from '../env'
 import { createLogger } from '../logger'
@@ -7,48 +8,44 @@ import type { WhatsAppInboundJob } from '../queues'
 import { archiveInboundMedia } from '../services/media'
 import { delayForSpeed, scheduleAiReply } from '../services/ai-reply-schedule'
 import { isHumanHandled, resolveInboundContext } from '../services/conversation'
-import { findIntegrationByInstance, instanceNameOf, touchIntegration } from '../services/integration'
+import { findIntegrationByRef, providerFor, touchIntegration } from '../services/integration'
 import { readPreferences } from '../services/prompt'
 import { applyAgentRules } from '../services/rules'
 import { emitAgentEvent } from '../services/webhook-events'
-import { decodeMessage, readEnvelope, shouldIgnore, toMsisdn } from '../services/whatsapp-payload'
 
 const log = createLogger('INBOUND')
 
 /**
  * Persist one inbound WhatsApp message and decide what happens next.
  *
- * This is the body of what used to run inside the Evolution webhook request.
- * Moving it here is what buys us retries, ordered per-contact processing, and a
- * webhook that answers in milliseconds instead of waiting on media downloads and
- * an LLM round trip.
+ * Provider-agnostic: the webhook route already normalised Evolution Go's
+ * whatsmeow envelope or Evolution v2's into the same `NormalizedInbound`, and the
+ * inner WhatsApp protobuf object is identical for both.
+ *
+ * This is the body of what used to run inside the webhook request. Moving it here
+ * is what buys retries, per-contact ordering, and a webhook that answers in
+ * milliseconds instead of waiting on media and an LLM round trip.
  */
 export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Promise<void> {
-    const { instance, data } = job.data
-    const envelope = readEnvelope(data)
+    const { provider: providerName, inbound } = job.data
 
-    const ignoreReason = shouldIgnore(envelope)
-    if (ignoreReason) {
-        log.debug(`ignoring message (${ignoreReason})`)
-        return
-    }
-
-    const integration = await findIntegrationByInstance(instance)
+    const integration = await findIntegrationByRef(inbound.instance)
     if (!integration) {
         // Nothing to retry against: the instance is not (or no longer) ours.
-        log.warn(`no integration for instance "${instance}"; dropping`)
+        log.warn(`no integration for ${providerName} instance`, inbound.instance)
         return
     }
 
     const { agent } = integration
     const workspace = agent.workspace
 
-    if (!agent.isActive) {
-        log.info(`agent ${agent.id} is inactive; message stored only`)
-    }
+    const decoded = decodeMessage(inbound.message, {})
+    const phone = toMsisdn(inbound.chatJid)
 
-    const decoded = decodeMessage(envelope.message, data)
-    const phone = toMsisdn(envelope.key!.remoteJid!)
+    if (!phone) {
+        log.warn('message without a resolvable sender; dropping')
+        return
+    }
 
     log.info(`message from ${phone} [${decoded.contentType}]: ${decoded.content.slice(0, 60)}`)
 
@@ -58,8 +55,8 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         workspaceId: workspace.id,
         agentId: agent.id,
         phone,
-        pushName: envelope.pushName,
-        profilePicUrl: envelope.profilePicUrl,
+        pushName: inbound.pushName,
+        profilePicUrl: inbound.profilePicUrl,
     })
 
     // Reactions and empty bodies create the contact/conversation but add no turn.
@@ -68,7 +65,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         return
     }
 
-    const externalId = envelope.key?.id
+    const externalId = inbound.externalId
     if (externalId) {
         const duplicate = await prisma.message.findFirst({
             where: { conversationId: conversation.id, externalId },
@@ -91,19 +88,22 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         : undefined
 
     let mediaUrl = decoded.mediaUrl ?? undefined
-    if (decoded.contentType !== 'text' && envelope.message) {
+    if (decoded.contentType !== 'text') {
         try {
+            const { provider, credentials } = providerFor(integration)
             const archived = await archiveInboundMedia({
-                instanceName: instanceNameOf(integration),
-                key: envelope.key,
-                messagePayload: envelope.message,
                 workspaceId: workspace.id,
                 conversationId: conversation.id,
+                base64: inbound.mediaBase64,
+                mimetype: inbound.mediaMimetype,
+                provider,
+                credentials,
+                downloadPayload: inbound.downloadPayload,
             })
             if (archived) mediaUrl = archived
         } catch (error) {
-            // WhatsApp's own URL is encrypted and will not render, but keeping the
-            // text of the message is still better than failing the job.
+            // The provider's own URL is encrypted and will not render, but keeping
+            // the text of the message still beats failing the job.
             log.error('media archiving failed; keeping original url', error)
         }
     }
@@ -161,7 +161,10 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         return
     }
 
-    if (!agent.isActive) return
+    if (!agent.isActive) {
+        log.info(`agent ${agent.id} is inactive; message stored only`)
+        return
+    }
 
     const openDeal = await prisma.deal.findFirst({
         where: { workspaceId: workspace.id, contactId: contact.id, status: 'open' },
@@ -177,7 +180,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         dealId: openDeal?.id ?? null,
         message: decoded.content,
         minutesSinceLastMessage,
-        channel: { instanceName: instanceNameOf(integration), to: phone },
+        channel: { integrationId: integration.id, to: phone },
     }
 
     const rules = await applyAgentRules(agent, ruleContext)
@@ -198,7 +201,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
             conversationId: conversation.id,
             agentId: agent.id,
             workspaceId: workspace.id,
-            instanceName: instanceNameOf(integration),
+            integrationId: integration.id,
             to: phone,
         },
         delayForSpeed(prefs.responseSpeed, env.INBOUND_DEBOUNCE_SECONDS)

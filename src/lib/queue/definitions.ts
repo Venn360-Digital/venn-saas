@@ -7,6 +7,13 @@
  * exits the process when it is incomplete.
  */
 import type { JobsOptions } from 'bullmq'
+import type {
+    NormalizedAck,
+    NormalizedConnection,
+    NormalizedInbound,
+    NormalizedPresence,
+} from '@/lib/whatsapp/envelopes'
+import type { WhatsAppProviderName } from '@/lib/whatsapp/types'
 
 /**
  * Queue registry.
@@ -40,28 +47,35 @@ export const ALL_QUEUES: QueueName[] = Object.values(QUEUE)
 // Job payloads
 // ---------------------------------------------------------------------------
 
-/** Raw Evolution `messages.upsert` event, forwarded verbatim from the webhook. */
+/**
+ * An inbound WhatsApp message, already normalised out of its provider's envelope.
+ *
+ * Normalisation happens in the webhook route because it is pure and cheap; what it
+ * buys is a worker that never branches on provider.
+ */
 export interface WhatsAppInboundJob {
-    instance: string
-    /** Evolution's `data` object: { key, message, pushName, profilePicUrl, ... } */
-    data: Record<string, unknown>
-    /** When the webhook received it, for end-to-end latency metrics. */
+    provider: WhatsAppProviderName
+    inbound: NormalizedInbound
     receivedAt: string
 }
 
-/** Cheap Evolution events that only touch a few rows. */
+/** The cheap events: delivery receipts, connection state, typing. */
 export interface WhatsAppEventJob {
-    event: 'connection.update' | 'messages.update' | 'send.message' | 'presence.update'
-    instance: string
-    data: unknown
+    provider: WhatsAppProviderName
+    event: NormalizedAck | NormalizedConnection | NormalizedPresence
     receivedAt: string
 }
 
 export interface WhatsAppOutboundJob {
     /** Our Message row, so the worker can stamp externalId/status when sent. */
     messageId: string
-    instanceName: string
-    /** Bare MSISDN, no @s.whatsapp.net suffix. */
+    /**
+     * The integration to send through. The worker resolves provider and
+     * credentials from it, so a job never carries a token and stays valid if the
+     * instance is re-paired between enqueue and send.
+     */
+    integrationId: string
+    /** Bare MSISDN, no JID suffix. */
     to: string
     kind: 'text' | 'media' | 'audio'
     content: string
@@ -74,8 +88,7 @@ export interface AiReplyJob {
     conversationId: string
     agentId: string
     workspaceId: string
-    /** Instance to answer through; resolved when the inbound message landed. */
-    instanceName: string
+    integrationId: string
     /** Contact MSISDN to reply to. */
     to: string
 }

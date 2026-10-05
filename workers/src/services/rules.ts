@@ -15,8 +15,8 @@ const evaluator = new RuleEvaluator()
  * own agent is not threaded through the executor's dispatch signature, and
  * message.sent for rule replies is covered by the message row itself.
  */
-const executor = new RuleExecutor(async ({ conversationId, content, instanceName, to }) => {
-    await enqueueOutboundText({ conversationId, content, instanceName, to, sentBy: 'agent' })
+const executor = new RuleExecutor(async ({ conversationId, content, integrationId, to }) => {
+    await enqueueOutboundText({ conversationId, content, integrationId, to, sentBy: 'agent' })
 })
 
 const EMPTY: RuleExecutionResult = {

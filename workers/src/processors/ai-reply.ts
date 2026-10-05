@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq'
 import prisma from '@/lib/prisma'
-import { evolutionAPI } from '@/lib/whatsapp/evolution-api'
+import { findIntegrationById, providerFor } from '../services/integration'
 import { createLogger } from '../logger'
 import type { AiReplyJob } from '../queues'
 import { OutOfCreditsError, generateReply } from '../services/ai-reply'
@@ -16,7 +16,7 @@ const log = createLogger('AI_REPLY_JOB')
  * customer has usually finished typing and the whole burst is in history.
  */
 export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
-    const { conversationId, agentId, workspaceId, instanceName, to } = job.data
+    const { conversationId, agentId, workspaceId, integrationId, to } = job.data
 
     const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
@@ -46,12 +46,19 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         return
     }
 
+    const integration = await findIntegrationById(integrationId)
+    if (!integration) {
+        log.warn(`integration ${integrationId} not found; cannot answer`)
+        return
+    }
+
     const prefs = readPreferences(agent)
 
     // Typing indicator while the model works. Cosmetic, never fatal.
     if (prefs.showTypingIndicator) {
         try {
-            await evolutionAPI.sendPresence(instanceName, to, 'composing')
+            const { provider, credentials } = providerFor(integration)
+            await provider.sendPresence(credentials, to, 'composing')
         } catch (error) {
             log.debug('could not send typing presence', error)
         }
@@ -89,9 +96,14 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         return
     }
 
-    await enqueueOutboundText({ conversationId, content, instanceName, to, sentBy: 'agent', agentId })
+    await enqueueOutboundText({ conversationId, content, integrationId, to, sentBy: 'agent', agentId })
 
     if (prefs.showTypingIndicator) {
-        await evolutionAPI.sendPresence(instanceName, to, 'paused').catch(() => undefined)
+        try {
+            const { provider, credentials } = providerFor(integration)
+            await provider.sendPresence(credentials, to, 'paused')
+        } catch {
+            // Clearing the indicator is best-effort.
+        }
     }
 }

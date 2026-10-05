@@ -20,9 +20,14 @@ const schema = z.object({
     SUPABASE_DB_SCHEMA: z.string().default('public'),
     SUPABASE_STORAGE_BUCKET: z.string().default('attachments'),
 
-    // Evolution API (WhatsApp)
-    EVOLUTION_API_URL: z.string().min(1, 'EVOLUTION_API_URL is required'),
-    EVOLUTION_API_KEY: z.string().min(1, 'EVOLUTION_API_KEY is required'),
+    // Evolution Go — serves the WhatsApp QR channel (whatsmeow)
+    EVOLUTION_GO_URL: z.string().min(1, 'EVOLUTION_GO_URL is required'),
+    EVOLUTION_GO_API_KEY: z.string().min(1, 'EVOLUTION_GO_API_KEY is required'),
+
+    // Evolution API v2 — only the official Meta Cloud API channel. Optional,
+    // because a deployment that uses no business channel never calls it.
+    EVOLUTION_API_URL: z.string().optional(),
+    EVOLUTION_API_KEY: z.string().optional(),
 
     // LLM providers — optional individually; the factory validates the one in use
     OPENAI_API_KEY: z.string().optional(),

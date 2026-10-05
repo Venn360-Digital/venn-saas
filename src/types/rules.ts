@@ -63,9 +63,13 @@ export interface RuleContext {
     /** Minutes since the previous message in the thread; drives `time_elapsed`. */
     minutesSinceLastMessage?: number
 
-    /** Channel coordinates, needed by `send_message`. */
+    /**
+     * Channel coordinates, needed by `send_message`. Addresses the integration
+     * rather than a provider instance, so a rule's reply resolves the provider the
+     * same way the agent's own replies do.
+     */
     channel?: {
-        instanceName: string
+        integrationId: string
         to: string
     }
 }
@@ -74,7 +78,7 @@ export interface RuleContext {
 export type RuleMessageDispatcher = (input: {
     conversationId: string
     content: string
-    instanceName: string
+    integrationId: string
     to: string
 }) => Promise<void>
 
