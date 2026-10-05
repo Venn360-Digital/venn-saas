@@ -75,7 +75,10 @@ COPY --from=app-build /app/.next/static ./.next/static
 COPY --from=app-build /app/public ./public
 # Prisma migrations ship with the image so `migrate deploy` can run from here.
 COPY --from=app-build /app/prisma ./prisma
-COPY --from=app-build /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# node_modules/prisma carries the CLI entry point (build/index.js) together with
+# the wasm it loads from its own directory. The .bin/prisma shim is deliberately
+# not copied: it is a standalone 2 MB bundle that resolves that wasm relative to
+# .bin/, so on its own it fails with ENOENT.
 COPY --from=app-build /app/node_modules/prisma ./node_modules/prisma
 COPY --from=app-build /app/node_modules/@prisma ./node_modules/@prisma
 # Next's output tracing does not reliably pick up the generated client's query

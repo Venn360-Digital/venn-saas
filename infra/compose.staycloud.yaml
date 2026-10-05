@@ -42,7 +42,7 @@ services:
     env_file: ../.env
     # Runs to completion before app and worker start, so neither ever talks to a
     # schema older than its own image.
-    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
     networks: [shared]
 
   # ---------------------------------------------------------------------------

@@ -259,7 +259,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
     # Runs to completion before app and worker start, so neither ever talks to a
     # schema older than the image it was built from.
-    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
 
   app:
     image: odontobox360-app:latest
