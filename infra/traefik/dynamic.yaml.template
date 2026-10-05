@@ -19,14 +19,16 @@ http:
       rule: "Host(`api.__DOMAIN__`)"
       entryPoints:
         - websecure
-      service: supabase-kong
+      service: supabase-gateway
       tls:
         certResolver: le
 
   services:
-    supabase-kong:
+    supabase-gateway:
       loadBalancer:
         servers:
-          # Service name on the shared Compose network; 8000 is Kong's HTTP port.
-          - url: "http://kong:8000"
+          # Upstream renamed the gateway service from `kong` to `api-gw` (the
+          # gateway is pluggable now — see docker-compose.kong.yml and the
+          # envoy/caddy/nginx variants). The name here must track that file.
+          - url: "http://api-gw:8000"
         passHostHeader: true

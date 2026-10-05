@@ -7,14 +7,16 @@
 #   - `include` merges everything into one Compose project, which means every
 #     service below shares the default network with Supabase's and can reach
 #     `db`, `kong`, `auth` and friends by service name.
-#   - Traefik terminates TLS for app / api / evolution. Supabase's own services
-#     are routed through Traefik's file provider (infra/traefik/dynamic.yaml)
-#     rather than labels, because an included service cannot be re-declared here.
+#   - Traefik terminates TLS for app and api. Supabase's own services are routed
+#     through Traefik's file provider (infra/traefik/dynamic.yaml) rather than
+#     labels, because an included service cannot be re-declared here. The gateway
+#     service is `api-gw` upstream, not `kong` — it was renamed when the gateway
+#     became pluggable.
 #
 # Usage:
 #   cd infra
 #   ./scripts/fetch-supabase.sh
-#   node scripts/generate-secrets.mjs --domain <your-domain>
+#   node scripts/setup-env.mjs --domain <your-domain>
 #   docker compose up -d
 #
 # See infra/README.md for the full runbook, including the firewall step — the

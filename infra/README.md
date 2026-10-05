@@ -85,26 +85,50 @@ Pulls `supabase/supabase`'s `docker/` directory into `infra/supabase/` and recor
 the commit in `infra/supabase/.supabase-ref`. Nothing in that directory should be
 edited — upgrading is re-running the script and reviewing the diff.
 
+It is gitignored, so it is fetched on the host rather than cloned with the repo.
+That means the VPS needs git and outbound network access at setup time.
+
+Two upstream details worth knowing, because they have bitten this setup already:
+the API gateway service is named **`api-gw`**, not `kong` (the gateway became
+pluggable — see the `docker-compose.kong.yml` / `envoy` / `caddy` / `nginx`
+overlays), and **`supavisor` publishes `POSTGRES_PORT` on the host**, which is why
+step 2 is not optional.
+
 Pin a specific commit with `SUPABASE_DOCKER_REF=<sha> ./infra/scripts/fetch-supabase.sh`.
 
-## 4. Generate secrets
+## 4. Build the environment
 
 ```bash
-node infra/scripts/generate-secrets.mjs --domain <your-domain>
+node infra/scripts/setup-env.mjs --domain <your-domain>
 ```
 
 Writes `infra/.env` (mode 0600, gitignored) and renders
 `infra/traefik/dynamic.yaml`.
 
-The anon and service-role keys are **not** given to you by self-hosted Supabase:
-they are HS256 JWTs signed with `JWT_SECRET`, carrying `role: anon` /
-`role: service_role` and `iss: supabase`. The script signs them so the stack does
-not boot into a state where every request is rejected.
+Three stages, and the order matters:
+
+1. Copies upstream's `.env.example`. The Supabase compose references **82
+   variables with no default** — SMTP, MFA, SAML, SMS, pooler sizing, Studio
+   defaults — and that file is the only authoritative list. Enumerating them by
+   hand is how you get a stack that boots and then fails in one service.
+2. Runs upstream's own `utils/generate-keys.sh`, which signs `ANON_KEY` and
+   `SERVICE_ROLE_KEY` the way its services expect and covers values that are easy
+   to miss (`PG_META_CRYPTO_KEY`, `REALTIME_DB_ENC_KEY`, the S3 protocol keys).
+3. Applies ours: domain-derived URLs, Redis, Evolution Go, the app's variables,
+   and explicit `false` for the features we do not use. `DATABASE_URL` comes last
+   because it embeds the password stage 2 generated.
+
+It also blanks `COMPOSE_FILE`. Upstream sets it for its own `run.sh`, and Docker
+Compose reads that variable straight out of `.env` — left in place it would make
+`docker compose` in `infra/` load upstream's `docker-compose.yml` instead of our
+`compose.yaml`.
 
 Then fill in by hand, in `infra/.env`:
 
 - `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `ANTHROPIC_API_KEY`
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `SMTP_*` — password resets and e-mail confirmation need a real sender. Without
+  it a user who forgets their password cannot recover it.
 
 Store `infra/.env` in a password manager. Regenerating `JWT_SECRET` invalidates
 every session and every key already issued.

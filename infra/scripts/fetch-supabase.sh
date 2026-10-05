@@ -38,9 +38,11 @@ fi
 mkdir -p "$TARGET"
 cp -R "$TMP/docker/." "$TARGET/"
 
-# Upstream ships its own .env.example; ours is infra/.env.example and is the only
-# env file the stack reads. Removing theirs avoids two sources of truth.
-rm -f "$TARGET/.env.example" "$TARGET/.env"
+# Keep .env.example. The compose file needs ~80 variables that have no defaults,
+# and upstream's example is the only authoritative list of them — it is the
+# template setup-env.mjs builds infra/.env from. Only a stale .env is removed, so
+# a re-fetch never clobbers live secrets.
+rm -f "$TARGET/.env"
 
 printf 'ref=%s\ncommit=%s\nfetched_at=%s\n' \
     "$REF" "$RESOLVED" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -49,5 +51,6 @@ printf 'ref=%s\ncommit=%s\nfetched_at=%s\n' \
 echo "==> Vendored at commit $RESOLVED"
 echo "    Volumes and seeds: $TARGET/volumes"
 echo
-echo "Next: review $TARGET/docker-compose.yml, then run"
+echo "Next:"
+echo "  node infra/scripts/setup-env.mjs --domain <your-domain>"
 echo "  docker compose -f infra/compose.yaml config >/dev/null   # validate"
