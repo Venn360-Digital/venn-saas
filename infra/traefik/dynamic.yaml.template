@@ -16,7 +16,7 @@
 http:
   routers:
     supabase-api:
-      rule: "Host(`api.__DOMAIN__`)"
+      rule: "Host(`__API_HOST__`)"
       entryPoints:
         - websecure
       service: supabase-gateway

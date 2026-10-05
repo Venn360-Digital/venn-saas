@@ -5,8 +5,8 @@ Evolution Go, Redis, the Next.js app and the worker process.
 
 | Service | Reachable at | Notes |
 | --- | --- | --- |
-| App (Next.js) | `https://app.<domain>` | Traefik label |
-| Supabase API (Kong) | `https://api.<domain>` | Traefik file provider |
+| App (Next.js) | `https://$APP_HOST` | Traefik label |
+| Supabase API gateway | `https://$API_HOST` | Traefik file provider |
 | Evolution Go | — | internal; SSH tunnel for `/manager` |
 | Evolution API v2 | — | opt-in profile, internal |
 | Supabase Studio | — | SSH tunnel only, see below |
@@ -49,9 +49,17 @@ no form for collecting them yet. Start it with
 
 - Ubuntu 22.04+ (or Debian 12), Docker Engine 24+ with Compose v2.20+
   (`include:` support is required).
-- DNS A records pointing at the VPS for `app`, `api` and `evo` on your domain.
-  Create them **before** first boot — Traefik requests certificates over the
-  HTTP-01 challenge and will fail against names that do not resolve yet.
+- DNS A records for both hostnames pointing at the VPS. Create them **before**
+  first boot — Traefik requests certificates over the HTTP-01 challenge and will
+  fail against a name that does not resolve yet.
+- **Ports 80 and 443 free.** Traefik binds them. A VPS that ships its own
+  deploy panel usually has a reverse proxy there already; check with
+  `ss -tlnp '( sport = :80 or sport = :443 )'` before starting, and decide whether
+  to use that proxy instead of ours rather than fighting it for the ports.
+- Behind Cloudflare, set both records to **DNS only** (grey cloud) for the initial
+  setup. With the orange cloud on, Cloudflare terminates TLS at its edge and its
+  "Always Use HTTPS" redirect intercepts the HTTP-01 challenge, so Traefik never
+  gets its certificate.
 
 ```bash
 docker --version && docker compose version
@@ -99,8 +107,16 @@ Pin a specific commit with `SUPABASE_DOCKER_REF=<sha> ./infra/scripts/fetch-supa
 ## 4. Build the environment
 
 ```bash
-node infra/scripts/setup-env.mjs --domain <your-domain>
+node infra/scripts/setup-env.mjs \
+  --app-host odontobox.venn360.com \
+  --api-host odontobox-api.venn360.com
 ```
+
+The two hostnames are independent, not siblings of one domain. That keeps URLs
+short — no four-level subdomains — and makes a later move to a dedicated domain a
+two-value change. `--domain example.com` is shorthand for `app.` / `api.` under it,
+and `--email` overrides the Let's Encrypt contact (derived from the app host
+otherwise).
 
 Writes `infra/.env` (mode 0600, gitignored) and renders
 `infra/traefik/dynamic.yaml`.

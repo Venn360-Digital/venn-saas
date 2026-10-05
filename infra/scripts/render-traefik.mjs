@@ -3,37 +3,37 @@
  * Render infra/traefik/dynamic.yaml from its template.
  *
  * The Traefik file provider does not expand environment variables in a plain
- * .yaml, so the domain is substituted here instead. Run this on its own if the
- * domain changes without regenerating secrets.
+ * .yaml, so the hostname is substituted here instead. Run this on its own if the
+ * hostnames change without regenerating secrets.
  *
- * Usage: node infra/scripts/render-traefik.mjs [--domain example.com]
- *        (falls back to DOMAIN in infra/.env)
+ * Usage: node infra/scripts/render-traefik.mjs [--api-host api.example.com]
+ *        (falls back to API_HOST in infra/.env)
  */
 import fs from 'node:fs'
 import path from 'node:path'
 
 const infraDir = path.resolve(import.meta.dirname, '..')
 
-function domainFromArgs() {
+function apiHostFromArgs() {
     const args = process.argv.slice(2)
-    const i = args.indexOf('--domain')
+    const i = args.indexOf('--api-host')
     return i !== -1 ? args[i + 1] : undefined
 }
 
-function domainFromEnvFile() {
+function apiHostFromEnvFile() {
     const envPath = path.join(infraDir, '.env')
     if (!fs.existsSync(envPath)) return undefined
-    const match = fs.readFileSync(envPath, 'utf8').match(/^DOMAIN=(.+)$/m)
+    const match = fs.readFileSync(envPath, 'utf8').match(/^API_HOST=(.+)$/m)
     return match?.[1].trim()
 }
 
-export function renderTraefik(domain) {
+export function renderTraefik(apiHost) {
     const templatePath = path.join(infraDir, 'traefik', 'dynamic.yaml.template')
     const outputPath = path.join(infraDir, 'traefik', 'dynamic.yaml')
 
     const rendered = fs
         .readFileSync(templatePath, 'utf8')
-        .replaceAll('__DOMAIN__', domain)
+        .replaceAll('__API_HOST__', apiHost)
         .replace('# Traefik file provider — TEMPLATE.', '# GENERATED from dynamic.yaml.template — edit the template, not this file.')
 
     fs.writeFileSync(outputPath, rendered)
@@ -42,13 +42,13 @@ export function renderTraefik(domain) {
 
 // Only act when invoked directly, so generate-secrets.mjs can import renderTraefik.
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
-    const domain = domainFromArgs() ?? domainFromEnvFile()
+    const apiHost = apiHostFromArgs() ?? apiHostFromEnvFile()
 
-    if (!domain) {
-        console.error('No domain given and DOMAIN not found in infra/.env')
-        console.error('Usage: node infra/scripts/render-traefik.mjs --domain example.com')
+    if (!apiHost) {
+        console.error('No API host given and API_HOST not found in infra/.env')
+        console.error('Usage: node infra/scripts/render-traefik.mjs --api-host api.example.com')
         process.exit(1)
     }
 
-    console.log(`Wrote ${renderTraefik(domain)} for domain "${domain}"`)
+    console.log(`Wrote ${renderTraefik(apiHost)} for host "${apiHost}"`)
 }

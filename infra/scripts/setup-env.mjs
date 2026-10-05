@@ -21,7 +21,13 @@
  *      POSTGRES_PASSWORD that stage 2 generates.
  *
  * Usage:
- *   node infra/scripts/setup-env.mjs --domain example.com [--force]
+ *   node infra/scripts/setup-env.mjs --app-host app.example.com --api-host api.example.com
+ *   node infra/scripts/setup-env.mjs --domain example.com   # shorthand: app.<d> / api.<d>
+ *
+ * The two hostnames are set independently because they need not be siblings of a
+ * single domain. Running the app at odontobox.venn360.com with its API at
+ * odontobox-api.venn360.com avoids four-level subdomains, and keeps a later move
+ * to a dedicated domain a two-value change rather than a rework.
  */
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -37,13 +43,36 @@ function flag(name) {
     return value && !value.startsWith('--') ? value : true
 }
 
-const domain = flag('domain')
 const force = Boolean(flag('force'))
 
-if (!domain || domain === true) {
-    console.error('Usage: node infra/scripts/setup-env.mjs --domain <example.com> [--force]')
+const domainArg = flag('domain')
+const appHostArg = flag('app-host')
+const apiHostArg = flag('api-host')
+
+const str = (v) => (typeof v === 'string' && v.length > 0 ? v : undefined)
+
+const domain = str(domainArg)
+const appHost = str(appHostArg) ?? (domain ? `app.${domain}` : undefined)
+const apiHost = str(apiHostArg) ?? (domain ? `api.${domain}` : undefined)
+
+if (!appHost || !apiHost) {
+    console.error('Usage:')
+    console.error('  node infra/scripts/setup-env.mjs --app-host <host> --api-host <host> [--email <addr>] [--force]')
+    console.error('  node infra/scripts/setup-env.mjs --domain <example.com> [--force]')
     process.exit(1)
 }
+
+if (appHost === apiHost) {
+    console.error('--app-host and --api-host must differ: Traefik routes by hostname.')
+    process.exit(1)
+}
+
+/**
+ * Let's Encrypt wants a contact address. Derived from the app host's registrable
+ * name unless given, which is the common case and avoids one more required flag.
+ */
+const acmeEmail =
+    str(flag('email')) ?? `admin@${domain ?? appHost.split('.').slice(-2).join('.')}`
 
 const infraDir = path.resolve(import.meta.dirname, '..')
 const supabaseDir = path.join(infraDir, 'supabase')
@@ -114,15 +143,16 @@ const evolutionV2Key = token(24)
 const overrides = {
     COMPOSE_FILE: '',
 
-    // Our edge
-    DOMAIN: domain,
-    ACME_EMAIL: `admin@${domain}`,
+    // Our edge. APP_HOST and API_HOST are what Traefik matches on.
+    APP_HOST: appHost,
+    API_HOST: apiHost,
+    ACME_EMAIL: acmeEmail,
 
     // Supabase public identity
-    SITE_URL: `https://app.${domain}`,
-    API_EXTERNAL_URL: `https://api.${domain}`,
-    SUPABASE_PUBLIC_URL: `https://api.${domain}`,
-    ADDITIONAL_REDIRECT_URLS: `https://app.${domain}/**`,
+    SITE_URL: `https://${appHost}`,
+    API_EXTERNAL_URL: `https://${apiHost}`,
+    SUPABASE_PUBLIC_URL: `https://${apiHost}`,
+    ADDITIONAL_REDIRECT_URLS: `https://${appHost}/**`,
 
     STUDIO_DEFAULT_ORGANIZATION: 'Venn360',
     STUDIO_DEFAULT_PROJECT: 'OdontoBox360',
@@ -136,13 +166,13 @@ const overrides = {
     // App — Prisma talks to the database directly rather than through the
     // pooler, because migrations need a session-level connection.
     DATABASE_URL: `postgresql://postgres:${postgresPassword}@db:5432/postgres?schema=public`,
-    NEXT_PUBLIC_SUPABASE_URL: `https://api.${domain}`,
+    NEXT_PUBLIC_SUPABASE_URL: `https://${apiHost}`,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: env.get('ANON_KEY') ?? '',
     SUPABASE_SERVICE_ROLE_KEY: env.get('SERVICE_ROLE_KEY') ?? '',
     SUPABASE_DB_SCHEMA: 'public',
     NEXT_PUBLIC_SUPABASE_DB_SCHEMA: 'public',
     SUPABASE_STORAGE_BUCKET: 'attachments',
-    NEXT_PUBLIC_APP_URL: `https://app.${domain}`,
+    NEXT_PUBLIC_APP_URL: `https://${appHost}`,
 
     // Queue
     REDIS_PASSWORD: redisPassword,
@@ -223,7 +253,7 @@ const PLACEHOLDERS = {
     ANTHROPIC_API_KEY: '',
     GOOGLE_CLIENT_ID: '',
     GOOGLE_CLIENT_SECRET: '',
-    GOOGLE_REDIRECT_URI: `https://app.${domain}/api/integrations/google/callback`,
+    GOOGLE_REDIRECT_URI: `https://${appHost}/api/integrations/google/callback`,
 }
 
 let content = fs.readFileSync(envPath, 'utf8')
@@ -253,11 +283,14 @@ if (appended.length > 0) {
 
 fs.writeFileSync(envPath, content, { mode: 0o600 })
 
-const traefikPath = renderTraefik(domain)
+const traefikPath = renderTraefik(apiHost)
 
 console.log('')
 console.log(`Wrote ${envPath} (mode 0600)`)
 console.log(`Wrote ${traefikPath}`)
+console.log('')
+console.log(`  app  →  https://${appHost}`)
+console.log(`  api  →  https://${apiHost}`)
 console.log('')
 console.log('Studio login (SSH tunnel only — it is not published):')
 console.log(`  user: ${env.get('DASHBOARD_USERNAME') ?? 'supabase'}`)
