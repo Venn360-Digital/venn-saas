@@ -98,8 +98,6 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params
-        console.log('[USER_PATCH] Updating user:', id)
-
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
@@ -124,43 +122,66 @@ export async function PATCH(
             return NextResponse.json({ error: 'Permissão negada' }, { status: 403 })
         }
 
-        // Check if is the first admin (protected)
-        const allWorkspaceUsers = await prisma.workspaceUser.findMany({
-            where: { workspaceId: currentWorkspaceUser.workspaceId },
-            orderBy: { createdAt: 'asc' },
-            take: 1
+        // Target must live in the caller's workspace. The role check above only
+        // proved the CALLER is an OWNER/ADMIN somewhere — it said nothing about
+        // the target, so an admin of one workspace could previously promote,
+        // demote or deactivate members of any other workspace.
+        const target = await prisma.workspaceUser.findFirst({
+            where: { id, workspaceId: currentWorkspaceUser.workspaceId },
+            select: { id: true, userId: true, role: true, createdAt: true }
         })
 
-        const isFirstAdmin = allWorkspaceUsers[0]?.id === id && allWorkspaceUsers[0]?.role === 'ADMIN'
+        if (!target) {
+            return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+        }
+
+        // Only an OWNER may act on an OWNER; otherwise an ADMIN could demote the
+        // workspace owner.
+        if (target.role === 'OWNER' && currentWorkspaceUser.role !== 'OWNER') {
+            return NextResponse.json(
+                { error: 'Apenas o proprietário pode alterar outro proprietário' },
+                { status: 403 }
+            )
+        }
+
+        // The founding member is protected whatever their role. The previous
+        // check only applied when that member happened to be an ADMIN, which left
+        // an OWNER-founded workspace demotable by any admin.
+        const firstMember = await prisma.workspaceUser.findFirst({
+            where: { workspaceId: currentWorkspaceUser.workspaceId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, role: true }
+        })
+
+        const isFoundingMember = firstMember?.id === id
 
         const body = await request.json()
         const validatedData = updateUserSchema.parse(body)
 
-        // Prevent changing role of first admin
-        if (isFirstAdmin && validatedData.role && validatedData.role !== 'ADMIN') {
+        if (isFoundingMember && validatedData.role && validatedData.role !== firstMember?.role) {
             return NextResponse.json(
                 { error: 'Não é possível alterar a função do administrador principal' },
                 { status: 400 }
             )
         }
 
+        if (isFoundingMember && validatedData.isActive === false) {
+            return NextResponse.json(
+                { error: 'Não é possível desativar o administrador principal' },
+                { status: 400 }
+            )
+        }
+
         // Update User model
         if (validatedData.name || validatedData.lastName || validatedData.phone) {
-            const targetWorkspaceUser = await prisma.workspaceUser.findUnique({
-                where: { id },
-                select: { userId: true }
+            await prisma.user.update({
+                where: { id: target.userId },
+                data: {
+                    name: validatedData.name,
+                    lastName: validatedData.lastName,
+                    phone: validatedData.phone,
+                }
             })
-
-            if (targetWorkspaceUser) {
-                await prisma.user.update({
-                    where: { id: targetWorkspaceUser.userId },
-                    data: {
-                        name: validatedData.name,
-                        lastName: validatedData.lastName,
-                        phone: validatedData.phone,
-                    }
-                })
-            }
         }
 
         // Update WorkspaceUser
@@ -205,7 +226,7 @@ export async function PATCH(
             departmentName: workspaceUser.department?.name,
             canTransfer: workspaceUser.canTransfer,
             isActive: workspaceUser.isActive,
-            isFirstAdmin,
+            isFirstAdmin: isFoundingMember,
         })
     } catch (error) {
         console.error('[USER_PATCH] Error:', error)
@@ -223,8 +244,6 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params
-        console.log('[USER_DELETE] Deleting user:', id)
-
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
@@ -249,14 +268,39 @@ export async function DELETE(
             return NextResponse.json({ error: 'Permissão negada' }, { status: 403 })
         }
 
-        // Check if is the first admin (protected)
-        const allWorkspaceUsers = await prisma.workspaceUser.findMany({
-            where: { workspaceId: currentWorkspaceUser.workspaceId },
-            orderBy: { createdAt: 'asc' },
-            take: 1
+        // Same omission as PATCH, with a worse outcome: the delete ran on the raw
+        // id, so an admin of one workspace could remove any member of any other
+        // workspace — including its owner.
+        const target = await prisma.workspaceUser.findFirst({
+            where: { id, workspaceId: currentWorkspaceUser.workspaceId },
+            select: { id: true, userId: true, role: true }
         })
 
-        if (allWorkspaceUsers[0]?.id === id) {
+        if (!target) {
+            return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+        }
+
+        if (target.role === 'OWNER' && currentWorkspaceUser.role !== 'OWNER') {
+            return NextResponse.json(
+                { error: 'Apenas o proprietário pode remover outro proprietário' },
+                { status: 403 }
+            )
+        }
+
+        if (target.userId === user.id) {
+            return NextResponse.json(
+                { error: 'Você não pode remover seu próprio acesso' },
+                { status: 400 }
+            )
+        }
+
+        const firstMember = await prisma.workspaceUser.findFirst({
+            where: { workspaceId: currentWorkspaceUser.workspaceId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true }
+        })
+
+        if (firstMember?.id === id) {
             return NextResponse.json(
                 { error: 'Não é possível excluir o administrador principal' },
                 { status: 400 }
@@ -267,8 +311,6 @@ export async function DELETE(
         await prisma.workspaceUser.delete({
             where: { id }
         })
-
-        console.log('[USER_DELETE] Deleted workspace user:', id)
 
         return NextResponse.json({ success: true })
     } catch (error) {

@@ -168,7 +168,7 @@ function LoginForm() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
                                     disabled={loading}
-                                    minLength={6}
+                                    minLength={8}
                                     className="border-white/10 bg-white/5 pl-10 pr-10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
                                 />
                                 <button
