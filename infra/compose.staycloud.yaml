@@ -13,9 +13,13 @@
 #   - Nothing in /opt/app/compose is touched, so a StayCloud panel update to those
 #     files cannot break us.
 #
-# Deploy:
-#   cd /opt/app/odontobox360
-#   docker compose -f infra/compose.staycloud.yaml up -d --build
+# Deploy, from the repository root:
+#   docker compose -f infra/compose.staycloud.yaml --env-file .env up -d --build
+#
+# Both flags are needed and do different jobs: --env-file feeds the ${...}
+# interpolation in this file, while `env_file:` on each service passes variables
+# into the container — and that path is resolved relative to this file, not the
+# project root, hence ../.env.
 
 name: odontobox360
 
@@ -35,7 +39,7 @@ services:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
         NEXT_PUBLIC_SUPABASE_DB_SCHEMA: ${NEXT_PUBLIC_SUPABASE_DB_SCHEMA}
     restart: "no"
-    env_file: .env
+    env_file: ../.env
     # Runs to completion before app and worker start, so neither ever talks to a
     # schema older than its own image.
     command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
@@ -51,7 +55,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    env_file: .env
+    env_file: ../.env
     labels:
       - traefik.enable=true
       - traefik.http.routers.odontobox.rule=Host(`${APP_HOST}`)
@@ -80,7 +84,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    env_file: .env
+    env_file: ../.env
     environment:
       WORKER_QUEUES: all
       ENABLE_SCHEDULER: "true"
