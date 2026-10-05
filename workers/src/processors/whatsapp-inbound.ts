@@ -46,7 +46,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         log.info(`agent ${agent.id} is inactive; message stored only`)
     }
 
-    const decoded = decodeMessage(envelope.message, data as Record<string, any>)
+    const decoded = decodeMessage(envelope.message, data)
     const phone = toMsisdn(envelope.key!.remoteJid!)
 
     log.info(`message from ${phone} [${decoded.contentType}]: ${decoded.content.slice(0, 60)}`)

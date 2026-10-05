@@ -4,6 +4,16 @@
  * Kept free of IO so it can be unit-tested against recorded webhook bodies.
  */
 
+/**
+ * A Baileys message payload. The shape is a large discriminated union keyed by
+ * which `*Message` field is present, and Evolution forwards it verbatim without
+ * a published schema — so it is read defensively rather than typed structurally.
+ */
+export type BaileysPayload = Record<string, Record<string, unknown> | string | undefined>
+
+/** Evolution's `data` object around the payload. */
+export type EvolutionData = Record<string, unknown>
+
 export type ContentType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'reaction'
 
 export interface DecodedMessage {
@@ -14,15 +24,15 @@ export interface DecodedMessage {
 
 export interface InboundEnvelope {
     key: { id?: string; remoteJid?: string; fromMe?: boolean } | undefined
-    message: Record<string, any> | undefined
+    message: BaileysPayload | undefined
     pushName: string | null
     profilePicUrl: string | null
 }
 
-export function readEnvelope(data: Record<string, unknown>): InboundEnvelope {
+export function readEnvelope(data: EvolutionData): InboundEnvelope {
     return {
         key: data.key as InboundEnvelope['key'],
-        message: data.message as Record<string, any> | undefined,
+        message: data.message as BaileysPayload | undefined,
         pushName: (data.pushName as string) ?? null,
         profilePicUrl: (data.profilePicUrl as string) ?? null,
     }
@@ -47,72 +57,92 @@ export function shouldIgnore(envelope: InboundEnvelope): string | null {
     return null
 }
 
+/** Read a nested field without asserting the whole payload's shape. */
+function field(payload: BaileysPayload, group: string, key: string): string | undefined {
+    const value = payload[group]
+    if (!value || typeof value !== 'object') return undefined
+    const inner = (value as Record<string, unknown>)[key]
+    return typeof inner === 'string' && inner.length > 0 ? inner : undefined
+}
+
+function has(payload: BaileysPayload, group: string): boolean {
+    return Boolean(payload[group])
+}
+
+/** Prefer the URL Evolution resolved; fall back to the raw (encrypted) one. */
+function mediaUrlFor(payload: BaileysPayload, data: EvolutionData, group: string): string | null {
+    const fromEvolution = typeof data.mediaUrl === 'string' ? data.mediaUrl : undefined
+    return fromEvolution ?? field(payload, group, 'url') ?? null
+}
+
 export function decodeMessage(
-    payload: Record<string, any> | undefined,
-    data: Record<string, any>
+    payload: BaileysPayload | undefined,
+    data: EvolutionData
 ): DecodedMessage {
     if (!payload) return { content: '[Mensagem vazia]', contentType: 'text', mediaUrl: null }
 
-    if (payload.conversation) {
-        return { content: payload.conversation, contentType: 'text', mediaUrl: null }
+    const conversation = payload.conversation
+    if (typeof conversation === 'string' && conversation.length > 0) {
+        return { content: conversation, contentType: 'text', mediaUrl: null }
     }
 
-    if (payload.extendedTextMessage?.text) {
-        return { content: payload.extendedTextMessage.text, contentType: 'text', mediaUrl: null }
-    }
+    // Text with a link preview, mention or reply attached.
+    const extended = field(payload, 'extendedTextMessage', 'text')
+    if (extended) return { content: extended, contentType: 'text', mediaUrl: null }
 
-    if (payload.imageMessage) {
+    if (has(payload, 'imageMessage')) {
         return {
-            content: payload.imageMessage.caption || '📷 Imagem',
+            content: field(payload, 'imageMessage', 'caption') ?? '📷 Imagem',
             contentType: 'image',
-            mediaUrl: data.mediaUrl || payload.imageMessage.url || null,
+            mediaUrl: mediaUrlFor(payload, data, 'imageMessage'),
         }
     }
 
-    if (payload.audioMessage) {
+    if (has(payload, 'audioMessage')) {
         return {
             content: '🎵 Áudio',
             contentType: 'audio',
-            mediaUrl: data.mediaUrl || payload.audioMessage.url || null,
+            mediaUrl: mediaUrlFor(payload, data, 'audioMessage'),
         }
     }
 
-    if (payload.videoMessage) {
+    if (has(payload, 'videoMessage')) {
         return {
-            content: payload.videoMessage.caption || '🎬 Vídeo',
+            content: field(payload, 'videoMessage', 'caption') ?? '🎬 Vídeo',
             contentType: 'video',
-            mediaUrl: data.mediaUrl || payload.videoMessage.url || null,
+            mediaUrl: mediaUrlFor(payload, data, 'videoMessage'),
         }
     }
 
-    if (payload.documentMessage) {
-        const fileName = payload.documentMessage.fileName || 'Documento'
+    if (has(payload, 'documentMessage')) {
+        const fileName = field(payload, 'documentMessage', 'fileName') ?? 'Documento'
         return {
             content: `📄 ${fileName}`,
             contentType: 'file',
-            mediaUrl: data.mediaUrl || payload.documentMessage.url || null,
+            mediaUrl: mediaUrlFor(payload, data, 'documentMessage'),
         }
     }
 
-    if (payload.stickerMessage) {
+    if (has(payload, 'stickerMessage')) {
         return { content: '🏷️ Sticker', contentType: 'image', mediaUrl: null }
     }
 
-    if (payload.contactMessage) {
+    if (has(payload, 'contactMessage')) {
+        const name = field(payload, 'contactMessage', 'displayName') ?? 'N/A'
+        return { content: `👤 Contato: ${name}`, contentType: 'text', mediaUrl: null }
+    }
+
+    if (has(payload, 'locationMessage')) {
+        const location = payload.locationMessage as Record<string, unknown>
         return {
-            content: `👤 Contato: ${payload.contactMessage.displayName || 'N/A'}`,
+            content: `📍 Localização: ${location.degreesLatitude}, ${location.degreesLongitude}`,
             contentType: 'text',
             mediaUrl: null,
         }
     }
 
-    if (payload.locationMessage) {
-        const { degreesLatitude: lat, degreesLongitude: lng } = payload.locationMessage
-        return { content: `📍 Localização: ${lat}, ${lng}`, contentType: 'text', mediaUrl: null }
-    }
-
     // Reactions carry no conversational content; the caller drops them.
-    if (payload.reactionMessage) {
+    if (has(payload, 'reactionMessage')) {
         return { content: '', contentType: 'reaction', mediaUrl: null }
     }
 

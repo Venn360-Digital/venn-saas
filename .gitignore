@@ -40,3 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env
+
+# infra: generated and vendored
+infra/.env
+infra/supabase/
+infra/supabase.bak/
+infra/traefik/dynamic.yaml
+infra/volumes/
+
+# workers
+workers/dist/

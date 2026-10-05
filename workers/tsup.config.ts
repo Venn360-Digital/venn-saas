@@ -8,12 +8,13 @@ export default defineConfig({
     platform: 'node',
     sourcemap: true,
     clean: true,
-    // Bundled so the runtime image does not need the app's full dependency tree,
-    // but these three must stay external: Prisma loads its native query engine at
-    // runtime, and the LangChain packages do dynamic requires that break bundling
-    // (the Next.js config lists them under serverExternalPackages for the same reason).
-    external: ['@prisma/client', '.prisma/client'],
-    noExternal: [],
+    // Only our own source is bundled — that is what resolves the `@/*` aliases and
+    // the server-only shim. Runtime dependencies stay external on purpose:
+    // Prisma loads a native query engine at runtime, and the LangChain packages do
+    // dynamic requires that a bundle breaks (next.config.ts lists them under
+    // serverExternalPackages for the same reason). The runtime image therefore
+    // ships node_modules alongside this bundle.
+    skipNodeModulesBundle: true,
     esbuildOptions(options) {
         options.alias = {
             ...options.alias,

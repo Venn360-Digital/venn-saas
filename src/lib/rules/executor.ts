@@ -47,19 +47,19 @@ export class RuleExecutor {
     ): Promise<void> {
         switch (action.type) {
             case 'send_message':
-                await this.sendMessage(action.params, context, result)
+                await this.sendMessage(action.params as Record<string, unknown>, context, result)
                 break
             case 'notify_human':
-                await this.notifyHuman(action.params, context, result)
+                await this.notifyHuman(action.params as Record<string, unknown>, context, result)
                 break
             case 'add_tag':
-                await this.addTag(action.params, context)
+                await this.addTag(action.params as Record<string, unknown>, context)
                 break
             case 'move_pipeline':
-                await this.movePipeline(action.params, context)
+                await this.movePipeline(action.params as Record<string, unknown>, context)
                 break
             case 'schedule_followup':
-                await this.scheduleFollowup(action.params, context)
+                await this.scheduleFollowup(action.params as Record<string, unknown>, context)
                 break
             default:
                 console.warn(`[RULE_EXECUTOR] Unknown action type: ${action.type}`)
@@ -68,7 +68,7 @@ export class RuleExecutor {
 
     /** Canned reply. Suppresses the agent's own generated answer for this turn. */
     private async sendMessage(
-        params: Record<string, any>,
+        params: Record<string, unknown>,
         context: RuleContext,
         result: RuleExecutionResult
     ): Promise<void> {
@@ -94,7 +94,7 @@ export class RuleExecutor {
      * operator sees why it arrived.
      */
     private async notifyHuman(
-        params: Record<string, any>,
+        params: Record<string, unknown>,
         context: RuleContext,
         result: RuleExecutionResult
     ): Promise<void> {
@@ -130,7 +130,7 @@ export class RuleExecutor {
      * Returns undefined to leave the thread unassigned ("em espera").
      */
     private async resolveAssignee(
-        params: Record<string, any>,
+        params: Record<string, unknown>,
         workspaceId: string
     ): Promise<string | undefined> {
         if (params.userId) {
@@ -154,7 +154,7 @@ export class RuleExecutor {
     }
 
     /** Tag the conversation and the contact, creating the tag on first use. */
-    private async addTag(params: Record<string, any>, context: RuleContext): Promise<void> {
+    private async addTag(params: Record<string, unknown>, context: RuleContext): Promise<void> {
         const name = String(params.tagName ?? params.name ?? '').trim()
         if (!name) throw new Error('add_tag requires a "tagName" param')
 
@@ -188,7 +188,7 @@ export class RuleExecutor {
     }
 
     /** Move the contact's open deal to another stage, by id or by stage name. */
-    private async movePipeline(params: Record<string, any>, context: RuleContext): Promise<void> {
+    private async movePipeline(params: Record<string, unknown>, context: RuleContext): Promise<void> {
         const stage = await this.resolveStage(params, context.workspaceId)
         if (!stage) throw new Error('move_pipeline could not resolve the target stage')
 
@@ -219,7 +219,7 @@ export class RuleExecutor {
     }
 
     private async resolveStage(
-        params: Record<string, any>,
+        params: Record<string, unknown>,
         workspaceId: string
     ): Promise<{ id: string } | null> {
         if (params.stageId) {
@@ -241,7 +241,7 @@ export class RuleExecutor {
 
     /** Create a follow-up task on the agenda, N minutes/days out. */
     private async scheduleFollowup(
-        params: Record<string, any>,
+        params: Record<string, unknown>,
         context: RuleContext
     ): Promise<void> {
         const delayMinutes = Number(params.delayMinutes ?? params.inMinutes ?? 24 * 60)

@@ -1,0 +1,32 @@
+# Traefik file provider — TEMPLATE.
+#
+# Rendered to dynamic.yaml by infra/scripts/generate-secrets.mjs (and by
+# scripts/render-traefik.mjs on its own, if the domain changes). The file
+# provider does not interpolate environment variables in a plain .yaml, so the
+# domain is substituted ahead of time.
+#
+# Routes the Supabase services, which come from the vendored upstream compose and
+# therefore carry no labels of ours — an included Compose service cannot be
+# re-declared in infra/compose.yaml to add them.
+#
+# Only the API gateway is published. Studio is deliberately absent: it has full
+# database access, so it is reached over an SSH tunnel instead
+# (see infra/README.md).
+
+http:
+  routers:
+    supabase-api:
+      rule: "Host(`api.__DOMAIN__`)"
+      entryPoints:
+        - websecure
+      service: supabase-kong
+      tls:
+        certResolver: le
+
+  services:
+    supabase-kong:
+      loadBalancer:
+        servers:
+          # Service name on the shared Compose network; 8000 is Kong's HTTP port.
+          - url: "http://kong:8000"
+        passHostHeader: true

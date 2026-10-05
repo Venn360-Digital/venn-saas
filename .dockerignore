@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+.agent
+.tasks
+temp-kaly
+workers/dist
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+infra/volumes
+README.md
