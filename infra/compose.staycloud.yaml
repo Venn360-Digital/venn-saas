@@ -1,0 +1,150 @@
+# OdontoBox360 — our services, layered onto the stack already running on the host.
+#
+# This is NOT infra/compose.yaml. That file stands up a whole world of its own —
+# Traefik, Supabase, Redis — and must never run here: the host already has all
+# three, it owns ports 80/443, and 3.9 GB cannot hold a second copy.
+#
+# Instead this is a lean project of its own that joins the existing
+# `compose_default` network as external. Consequences worth knowing:
+#
+#   - `supabase-db`, `postgres` and `redis` resolve by container name.
+#   - Traefik's docker provider picks up the labels below with no change to its
+#     own configuration; the certificate resolver is `le`, the name it already uses.
+#   - Nothing in /opt/app/compose is touched, so a StayCloud panel update to those
+#     files cannot break us.
+#
+# Deploy:
+#   cd /opt/app/odontobox360
+#   docker compose -f infra/compose.staycloud.yaml up -d --build
+
+name: odontobox360
+
+services:
+  # ---------------------------------------------------------------------------
+  # Schema
+  # ---------------------------------------------------------------------------
+  migrate:
+    image: odontobox360-app:latest
+    build: &app_build
+      context: ../
+      dockerfile: Dockerfile
+      target: app
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_SUPABASE_DB_SCHEMA: ${NEXT_PUBLIC_SUPABASE_DB_SCHEMA}
+    restart: "no"
+    env_file: .env
+    # Runs to completion before app and worker start, so neither ever talks to a
+    # schema older than its own image.
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    networks: [shared]
+
+  # ---------------------------------------------------------------------------
+  # Application
+  # ---------------------------------------------------------------------------
+  app:
+    image: odontobox360-app:latest
+    build: *app_build
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.odontobox.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.odontobox.entrypoints=web,websecure
+      - traefik.http.routers.odontobox.tls=true
+      - traefik.http.routers.odontobox.tls.certresolver=le
+      - traefik.http.services.odontobox.loadbalancer.server.port=3000
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks: [shared]
+
+  worker:
+    image: odontobox360-worker:latest
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      WORKER_QUEUES: all
+      ENABLE_SCHEDULER: "true"
+    logging: *logs
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    networks: [shared]
+
+  # ---------------------------------------------------------------------------
+  # WhatsApp — Evolution Go (whatsmeow)
+  # ---------------------------------------------------------------------------
+  # Deliberately unrouted: the app reaches it by container name, and the one-time
+  # licence activation at /manager goes through an SSH tunnel. Its two databases
+  # live in the `postgres` instance, not in supabase-db — WhatsApp session
+  # credentials are the highest-value target on this host and have no business
+  # sharing a server with the clinical data.
+  evolution-go:
+    image: evoapicloud/evolution-go:latest
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8080"
+      CLIENT_NAME: odontobox360
+      GLOBAL_API_KEY: ${EVOLUTION_GO_API_KEY}
+      POSTGRES_AUTH_DB: postgresql://postgres:${EVO_DB_PASSWORD}@postgres:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://postgres:${EVO_DB_PASSWORD}@postgres:5432/evogo_users?sslmode=disable
+
+      # We persist messages ourselves; a second copy here would only duplicate
+      # the messages table and grow without bound.
+      DATABASE_SAVE_MESSAGES: "false"
+
+      # Media rides along on the webhook as base64, so the worker uploads straight
+      # to Supabase Storage with no second round trip. This is what keeps an audio
+      # note from delaying the agent's reply.
+      WEBHOOKFILES: "true"
+      MINIO_ENABLED: "false"
+
+      # Re-attach paired numbers after a restart, so a deploy does not silently
+      # drop every WhatsApp session.
+      CONNECT_ON_STARTUP: "true"
+
+      WADEBUG: INFO
+      LOGTYPE: json
+      TZ: ${TZ:-America/Sao_Paulo}
+    expose:
+      - "8080"
+    logging: *logs
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/server/ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks: [shared]
+
+networks:
+  shared:
+    # Created by the stack in /opt/app/compose. Joining it rather than making our
+    # own is what lets us resolve supabase-db, postgres and redis by name, and
+    # what lets their Traefik see our labels.
+    name: compose_default
+    external: true
