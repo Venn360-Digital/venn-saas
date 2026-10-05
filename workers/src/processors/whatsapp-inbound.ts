@@ -10,6 +10,7 @@ import { isHumanHandled, resolveInboundContext } from '../services/conversation'
 import { findIntegrationByInstance, instanceNameOf, touchIntegration } from '../services/integration'
 import { readPreferences } from '../services/prompt'
 import { applyAgentRules } from '../services/rules'
+import { emitAgentEvent } from '../services/webhook-events'
 import { decodeMessage, readEnvelope, shouldIgnore, toMsisdn } from '../services/whatsapp-payload'
 
 const log = createLogger('INBOUND')
@@ -107,7 +108,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         }
     }
 
-    await prisma.message.create({
+    const stored = await prisma.message.create({
         data: {
             conversationId: conversation.id,
             direction: 'inbound',
@@ -117,6 +118,27 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
             sentBy: 'user',
             externalId,
         },
+    })
+
+    // `previous` was read before the insert, so its absence means this message
+    // opened the thread.
+    if (!previous) {
+        await emitAgentEvent(agent.id, 'conversation.started', {
+            conversationId: conversation.id,
+            contactId: contact.id,
+            contactPhone: phone,
+            contactName: contact.name,
+        })
+    }
+
+    await emitAgentEvent(agent.id, 'message.received', {
+        conversationId: conversation.id,
+        messageId: stored.id,
+        contactId: contact.id,
+        contactPhone: phone,
+        content: decoded.content,
+        contentType: decoded.contentType,
+        mediaUrl: mediaUrl ?? null,
     })
 
     // A reply from the contact proves they saw everything we sent before it.

@@ -9,6 +9,12 @@ import { enqueueOutboundText } from './outbound'
 const log = createLogger('RULES')
 
 const evaluator = new RuleEvaluator()
+/**
+ * The executor is channel-agnostic, so the dispatcher it receives is what knows
+ * how to put a message on the wire. `agentId` is intentionally absent: the rule's
+ * own agent is not threaded through the executor's dispatch signature, and
+ * message.sent for rule replies is covered by the message row itself.
+ */
 const executor = new RuleExecutor(async ({ conversationId, content, instanceName, to }) => {
     await enqueueOutboundText({ conversationId, content, instanceName, to, sentBy: 'agent' })
 })

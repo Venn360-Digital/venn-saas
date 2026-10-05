@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { QUEUE, getQueue } from '../queues'
+import { emitAgentEvent } from './webhook-events'
 
 export interface EnqueueOutboundTextInput {
     conversationId: string
@@ -8,6 +9,8 @@ export interface EnqueueOutboundTextInput {
     to: string
     /** "agent" for AI/rule messages, a user id for operator messages. */
     sentBy: string
+    /** Set to emit the message.sent agent event; omit for operator messages. */
+    agentId?: string
 }
 
 /**
@@ -20,7 +23,7 @@ export interface EnqueueOutboundTextInput {
 export async function enqueueOutboundText(
     input: EnqueueOutboundTextInput
 ): Promise<{ messageId: string }> {
-    const { conversationId, content, instanceName, to, sentBy } = input
+    const { conversationId, content, instanceName, to, sentBy, agentId } = input
 
     const message = await prisma.message.create({
         data: {
@@ -50,6 +53,15 @@ export async function enqueueOutboundText(
         // One send per message row, so a retried enqueue cannot double-send.
         { jobId: `send:${message.id}` }
     )
+
+    if (agentId) {
+        await emitAgentEvent(agentId, 'message.sent', {
+            conversationId,
+            messageId: message.id,
+            to,
+            content,
+        })
+    }
 
     return { messageId: message.id }
 }

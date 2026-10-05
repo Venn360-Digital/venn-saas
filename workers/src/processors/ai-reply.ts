@@ -89,7 +89,7 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         return
     }
 
-    await enqueueOutboundText({ conversationId, content, instanceName, to, sentBy: 'agent' })
+    await enqueueOutboundText({ conversationId, content, instanceName, to, sentBy: 'agent', agentId })
 
     if (prefs.showTypingIndicator) {
         await evolutionAPI.sendPresence(instanceName, to, 'paused').catch(() => undefined)
