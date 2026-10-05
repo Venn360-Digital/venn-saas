@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
@@ -9,7 +10,7 @@ const contactSchema = z.object({
     phone: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
     source: z.string().optional().nullable(),
-    customFields: z.record(z.any()).optional().nullable(),
+    customFields: z.record(z.string(), z.any()).optional().nullable(),
 })
 
 // GET - List contacts with pagination + advanced filters
@@ -183,7 +184,7 @@ export async function POST(request: NextRequest) {
                 phone: validatedData.phone || null,
                 notes: validatedData.notes || null,
                 source: validatedData.source || 'manual',
-                customFields: validatedData.customFields || undefined,
+                customFields: (validatedData.customFields ?? undefined) as Prisma.InputJsonValue | undefined,
             }
         })
 

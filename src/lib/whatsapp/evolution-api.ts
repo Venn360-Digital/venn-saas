@@ -76,7 +76,8 @@ class EvolutionAPIClient {
             throw new Error(`Evolution API error: ${response.status} - ${error}`)
         }
 
-        return response.json()
+        // Cast is required outside a DOM lib, where json() resolves to unknown.
+        return (await response.json()) as T
     }
 
     /**

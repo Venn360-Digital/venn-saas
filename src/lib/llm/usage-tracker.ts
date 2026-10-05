@@ -107,7 +107,9 @@ export async function trackUsage(
     // 1 credit = $0.01 USD
     const creditsConsumed = Math.ceil(costUsd * 100) // Convert USD to credits (cents)
 
-    await prisma.subscription.update({
+    // updateMany, not update: a workspace without a subscription row would make
+    // update() throw, which used to abort the caller mid-reply.
+    await prisma.subscription.updateMany({
         where: { workspaceId: context.workspaceId },
         data: {
             creditsUsed: { increment: creditsConsumed }

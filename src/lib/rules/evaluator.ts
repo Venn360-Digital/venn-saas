@@ -1,55 +1,89 @@
-import { AgentRuleConfig, RuleCondition, ConditionType, Operator } from '@/types/rules'
+import { AgentRuleConfig, RuleCondition, Operator, RuleContext } from '@/types/rules'
 
+/**
+ * Decides whether a rule's conditions are satisfied for a given message.
+ *
+ * All conditions must hold (AND). OR semantics would need a nested group shape
+ * in `AgentRule.conditions`, which the editor does not produce yet.
+ */
 export class RuleEvaluator {
-    /**
-     * Evaluates if a rule should be triggered based on context.
-     * Currently supports 'AND' logic (all conditions must be true).
-     */
-    async evaluate(config: AgentRuleConfig, context: any): Promise<boolean> {
+    evaluate(config: AgentRuleConfig, context: RuleContext): boolean {
         if (!config.conditions || config.conditions.length === 0) return true
-
-        for (const condition of config.conditions) {
-            const isMet = await this.evaluateCondition(condition, context)
-            if (!isMet) return false
-        }
-
-        return true
+        return config.conditions.every((condition) => this.evaluateCondition(condition, context))
     }
 
-    private async evaluateCondition(condition: RuleCondition, context: any): Promise<boolean> {
-        const { type, operator, value } = condition
-
-        switch (type) {
+    private evaluateCondition(condition: RuleCondition, context: RuleContext): boolean {
+        switch (condition.type) {
             case 'message_contains':
-                return this.evaluateMessageContains(context.message, value, operator)
+                return this.matchText(context.message, condition.value, condition.operator)
+
             case 'user_intent':
-                // Placeholder: Needs LLM classification result in context
-                return context.intent === value
+                // Requires an upstream classification step. Without one the rule
+                // must not fire, or every intent rule would match blindly.
+                if (!context.intent) return false
+                return this.matchText(context.intent, condition.value, condition.operator)
+
+            case 'time_elapsed':
+                return this.matchElapsed(
+                    context.minutesSinceLastMessage,
+                    condition.value,
+                    condition.operator
+                )
+
             case 'custom':
-                // Placeholder for custom logic
+                // No extension point wired yet; never auto-fire.
                 return false
+
             default:
                 return false
         }
     }
 
-    private evaluateMessageContains(message: string, value: string | string[], operator: Operator): boolean {
-        if (!message) return false
-        const content = message.toLowerCase()
-        const targetValues = Array.isArray(value) ? value : [value]
+    /** Case-insensitive text match; `value` may be a single string or a list (any-of). */
+    private matchText(subject: string | undefined, value: unknown, operator: Operator): boolean {
+        if (!subject) return false
 
-        return targetValues.some(target => {
-            const t = String(target).toLowerCase()
+        const haystack = subject.toLowerCase()
+        const needles = (Array.isArray(value) ? value : [value])
+            .filter((v) => v !== null && v !== undefined)
+            .map((v) => String(v).toLowerCase().trim())
+            .filter((v) => v.length > 0)
+
+        if (needles.length === 0) return false
+
+        return needles.some((needle) => {
             switch (operator) {
                 case 'contains':
-                    return content.includes(t)
+                    return haystack.includes(needle)
                 case 'equals':
-                    return content === t
+                    return haystack === needle
                 case 'starts_with':
-                    return content.startsWith(t)
+                    return haystack.startsWith(needle)
                 default:
                     return false
             }
         })
+    }
+
+    private matchElapsed(
+        elapsedMinutes: number | undefined,
+        value: unknown,
+        operator: Operator
+    ): boolean {
+        if (elapsedMinutes === undefined) return false
+
+        const threshold = Number(value)
+        if (!Number.isFinite(threshold)) return false
+
+        switch (operator) {
+            case 'greater_than':
+                return elapsedMinutes > threshold
+            case 'less_than':
+                return elapsedMinutes < threshold
+            case 'equals':
+                return Math.round(elapsedMinutes) === Math.round(threshold)
+            default:
+                return false
+        }
     }
 }
