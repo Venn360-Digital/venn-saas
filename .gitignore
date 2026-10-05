@@ -45,8 +45,23 @@ next-env.d.ts
 infra/.env
 infra/supabase/
 infra/supabase.bak/
+infra/supabase.bak.*/
 infra/traefik/dynamic.yaml
 infra/volumes/
 
 # workers
 workers/dist/
+
+# Python bytecode caches.
+# These are machine-local build artefacts: binary, regenerated on every run, and
+# tied to one interpreter version (core.cpython-313.pyc). They have no business in
+# the repository, and StayCloud's deploy scanner rejects the invalid bytes.
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local AI agent toolkit (Antigravity Kit): agents, skills, workflows and their
+# Python helpers. Machine-local tooling, not part of the application — it has no
+# role in building or running OdontoBox360, and its __pycache__ artefacts are what
+# broke the StayCloud deploy. Project planning docs live in .tasks/ instead.
+.agent/
