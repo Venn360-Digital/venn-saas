@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Search, Plus, MoreVertical, Pencil, Trash2, Tag, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface TagItem {
     id: string
@@ -63,6 +64,9 @@ const COLOR_PALETTE = [
 ]
 
 export default function EtiquetasPage() {
+    // Presentation only — the API enforces the same rule. Without this an
+    // ATENDENTE would see Edit/Delete controls that answer 403.
+    const { canEdit } = usePermissions()
     const [tags, setTags] = useState<TagItem[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -194,10 +198,12 @@ export default function EtiquetasPage() {
                     <h1 className="text-2xl font-semibold">Etiquetas</h1>
                     <p className="text-gray-400">Gerencie as etiquetas para segmentar seus leads e contatos.</p>
                 </div>
-                <Button onClick={() => handleOpenDialog()} className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova etiqueta
-                </Button>
+                {canEdit && (
+                    <Button onClick={() => handleOpenDialog()} className="bg-purple-600 hover:bg-purple-700">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nova etiqueta
+                    </Button>
+                )}
             </div>
 
             {/* Search */}
@@ -245,26 +251,28 @@ export default function EtiquetasPage() {
                                     </TableCell>
                                     <TableCell className="font-medium">{tag.name}</TableCell>
                                     <TableCell>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleOpenDialog(tag)}>
-                                                    <Pencil className="h-4 w-4 mr-2" />
-                                                    Editar
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => handleDelete(tag.id)}
-                                                    className="text-red-400"
-                                                >
-                                                    <Trash2 className="h-4 w-4 mr-2" />
-                                                    Excluir
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                        {canEdit && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleOpenDialog(tag)}>
+                                                        <Pencil className="h-4 w-4 mr-2" />
+                                                        Editar
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleDelete(tag.id)}
+                                                        className="text-red-400"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                        Excluir
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}

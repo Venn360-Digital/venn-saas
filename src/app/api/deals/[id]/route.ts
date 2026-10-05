@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 
 const dealInclude = {
@@ -127,9 +128,14 @@ export async function DELETE(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true }
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+
+        // Deleting takes related records with it; an ATENDENTE may create and edit, not remove.
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
+        }
 
         const existingDeal = await prisma.deal.findFirst({
             where: { id, workspaceId: workspaceUser.workspaceId }

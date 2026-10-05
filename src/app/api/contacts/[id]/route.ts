@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 
 // GET - Get contact details with full history
@@ -214,11 +215,16 @@ export async function DELETE(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true }
         })
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        // Deleting takes related records with it; an ATENDENTE may create and edit, not remove.
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
         }
 
         const existingContact = await prisma.contact.findFirst({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 
 // PATCH - Update custom field definition
@@ -19,9 +20,14 @@ export async function PATCH(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true }
         })
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+
+        // Workspace configuration: shared across every operator, so it is not an ATENDENTE's to change.
+        if (!hasEditorRole(wu.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
+        }
 
         const existing = await prisma.customFieldDefinition.findFirst({
             where: { id, workspaceId: wu.workspaceId }
@@ -65,9 +71,14 @@ export async function DELETE(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true }
         })
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+
+        // Workspace configuration: shared across every operator, so it is not an ATENDENTE's to change.
+        if (!hasEditorRole(wu.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
+        }
 
         const existing = await prisma.customFieldDefinition.findFirst({
             where: { id, workspaceId: wu.workspaceId }

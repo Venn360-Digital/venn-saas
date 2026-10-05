@@ -27,6 +27,28 @@ export const MANAGER_ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN']
 /** Roles allowed to change shared records (pipelines, products, tags, …). */
 export const EDITOR_ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN', 'GESTOR']
 
+export const PERMISSION_DENIED = 'Você não tem permissão para esta ação'
+
+/**
+ * Whether a role may change records that are shared across the workspace.
+ *
+ * Two kinds of record are gated by this, for different reasons:
+ *
+ *   - Workspace configuration — products, departments, tags, pipeline stages,
+ *     custom fields, quick responses, agencies, media sources. These are setup,
+ *     not daily work, and an ATENDENTE editing a pipeline stage changes the board
+ *     for everyone.
+ *   - Deletion of operational records — contacts, deals, activities. Creating and
+ *     editing those *is* the attendant's job, so only removal is held back; a
+ *     deleted contact takes its conversations and deals with it.
+ *
+ * Hiding a menu is not authorisation: the sidebar already gated these sections by
+ * role while the API accepted the call from anyone.
+ */
+export function hasEditorRole(role: string): boolean {
+    return (EDITOR_ROLES as string[]).includes(role)
+}
+
 export interface WorkspaceMember {
     userId: string
     workspaceId: string

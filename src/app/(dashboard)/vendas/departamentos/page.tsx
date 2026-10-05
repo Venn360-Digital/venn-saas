@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Search, Plus, MoreVertical, Pencil, Trash2, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface Department {
     id: string
@@ -52,6 +53,9 @@ interface Pagination {
 const PAGE_SIZES = [20, 50, 100]
 
 export default function DepartamentosPage() {
+    // Presentation only — the API enforces the same rule. Without this an
+    // ATENDENTE would see Edit/Delete controls that answer 403.
+    const { canEdit } = usePermissions()
     const [departments, setDepartments] = useState<Department[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -183,10 +187,12 @@ export default function DepartamentosPage() {
                     <h1 className="text-2xl font-semibold">Departamentos</h1>
                     <p className="text-gray-400">Os departamentos são principalmente usados como setores para o atendimento.</p>
                 </div>
-                <Button onClick={() => handleOpenDialog()} className="bg-purple-600 hover:bg-purple-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo departamento
-                </Button>
+                {canEdit && (
+                    <Button onClick={() => handleOpenDialog()} className="bg-purple-600 hover:bg-purple-700">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Novo departamento
+                    </Button>
+                )}
             </div>
 
             {/* Search */}
@@ -231,26 +237,28 @@ export default function DepartamentosPage() {
                                         {department.description || '-'}
                                     </TableCell>
                                     <TableCell>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleOpenDialog(department)}>
-                                                    <Pencil className="h-4 w-4 mr-2" />
-                                                    Editar
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => handleDelete(department.id)}
-                                                    className="text-red-400"
-                                                >
-                                                    <Trash2 className="h-4 w-4 mr-2" />
-                                                    Excluir
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+                                        {canEdit && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleOpenDialog(department)}>
+                                                        <Pencil className="h-4 w-4 mr-2" />
+                                                        Editar
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleDelete(department.id)}
+                                                        className="text-red-400"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                        Excluir
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}

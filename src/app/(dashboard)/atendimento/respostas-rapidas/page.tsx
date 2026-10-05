@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Trash2, Edit, Info } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface QuickResponse {
     id?: string
@@ -14,6 +15,9 @@ interface QuickResponse {
 }
 
 export default function RespostasRapidasPage() {
+    // Presentation only — the API enforces the same rule. Without this an
+    // ATENDENTE would see Edit/Delete controls that answer 403.
+    const { canEdit } = usePermissions()
     const [responses, setResponses] = useState<QuickResponse[]>([])
     const [loading, setLoading] = useState(true)
     const [isAdding, setIsAdding] = useState(false)
@@ -120,10 +124,12 @@ export default function RespostasRapidasPage() {
                         Configurar mensagens rápidas para o chat
                     </p>
                 </div>
-                <Button onClick={() => setIsAdding(true)} className="bg-primary hover:bg-primary/90">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Nova resposta
-                </Button>
+                {canEdit && (
+                    <Button onClick={() => setIsAdding(true)} className="bg-primary hover:bg-primary/90">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Nova resposta
+                    </Button>
+                )}
             </div>
 
             {/* Table */}
@@ -155,21 +161,30 @@ export default function RespostasRapidasPage() {
                                     </div>
                                     <div className="text-sm truncate">{response.text}</div>
                                     <div className="flex items-center justify-end gap-2">
-                                        <button
-                                            onClick={() => toggleActive(response)}
-                                            className={`h-5 w-10 rounded-full transition-colors ${response.isActive ? 'bg-green-500' : 'bg-muted'
-                                                }`}
-                                        >
-                                            <div className={`h-4 w-4 rounded-full bg-white transition-transform ${response.isActive ? 'translate-x-5' : 'translate-x-0.5'
-                                                }`} />
-                                        </button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => deleteResponse(response.id!)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        {canEdit ? (
+                                            <>
+                                                <button
+                                                    onClick={() => toggleActive(response)}
+                                                    className={`h-5 w-10 rounded-full transition-colors ${response.isActive ? 'bg-green-500' : 'bg-muted'
+                                                        }`}
+                                                >
+                                                    <div className={`h-4 w-4 rounded-full bg-white transition-transform ${response.isActive ? 'translate-x-5' : 'translate-x-0.5'
+                                                        }`} />
+                                                </button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => deleteResponse(response.id!)}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            // Read-only: show the state without offering to change it.
+                                            <span className="text-xs text-muted-foreground">
+                                                {response.isActive ? 'Ativa' : 'Inativa'}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ))}

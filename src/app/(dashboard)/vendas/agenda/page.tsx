@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Activity {
@@ -115,6 +116,9 @@ function isSameDay(d1: Date, d2: Date): boolean {
 
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function AgendaPage() {
+    // Presentation only — the API enforces the same rule. Without this an
+    // ATENDENTE would see Delete controls that answer 403.
+    const { canEdit } = usePermissions()
     const [activities, setActivities] = useState<Activity[]>([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState('today')
@@ -709,11 +713,13 @@ export default function AgendaPage() {
                                             onClick={() => handleOpenDialog(activity)}>
                                             <Pencil className="h-4 w-4" />
                                         </Button>
-                                        <Button variant="ghost" size="icon"
-                                            className="h-8 w-8 text-destructive hover:text-destructive"
-                                            onClick={() => handleDelete(activity.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        {canEdit && (
+                                            <Button variant="ghost" size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                onClick={() => handleDelete(activity.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             )

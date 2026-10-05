@@ -13,8 +13,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { ThemeToggle } from './ThemeToggle'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface SidebarSection {
     label: string
@@ -92,23 +93,18 @@ const menuStructure: SidebarSection[] = [
 export function Sidebar() {
     const pathname = usePathname()
     const [expandedSection, setExpandedSection] = useState<string | null>('Atendimento & IA')
-    const [userRole, setUserRole] = useState<string>('ADMIN') // default until loaded
-
-    useEffect(() => {
-        fetch('/api/me')
-            .then(res => res.json())
-            .then(data => {
-                if (data.role) setUserRole(data.role)
-            })
-            .catch(() => { })
-    }, [])
+    // Previously this defaulted to 'ADMIN' until /api/me answered, so an
+    // ATENDENTE saw the admin sections flash before they disappeared.
+    const { role, loading } = usePermissions()
 
     const filteredMenu = useMemo(() => {
         return menuStructure.filter(section => {
             if (!section.allowedRoles || section.allowedRoles.length === 0) return true
-            return section.allowedRoles.includes(userRole)
+            // Withhold role-gated sections until the role is known.
+            if (loading || !role) return false
+            return section.allowedRoles.includes(role)
         })
-    }, [userRole])
+    }, [role, loading])
 
     const toggleSection = (label: string) => {
         setExpandedSection((prev) => (prev === label ? null : label))
