@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-import bcrypt from 'bcryptjs'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 // Schema for creating a new user
@@ -10,7 +9,7 @@ const createUserSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
     lastName: z.string().optional(),
     email: z.string().email('E-mail inválido'),
-    password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
     phone: z.string().optional(),
     departmentId: z.string().optional().nullable(),
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']),
@@ -30,7 +29,11 @@ export async function GET(request: NextRequest) {
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true, role: true }
         })
 
@@ -132,7 +135,11 @@ export async function POST(request: NextRequest) {
         }
 
         const currentWorkspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true, role: true }
         })
 
@@ -189,9 +196,6 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Hash password for local storage too
-        const hashedPassword = await bcrypt.hash(validatedData.password, 10)
-
         // Create user in database
         const newUser = await prisma.user.create({
             data: {
@@ -200,7 +204,8 @@ export async function POST(request: NextRequest) {
                 name: validatedData.name,
                 lastName: validatedData.lastName,
                 phone: validatedData.phone,
-                hashedPassword,
+                // No local password copy: Supabase Auth owns the credential, and a
+                // second hash here only risks being mistaken for authoritative.
             }
         })
 

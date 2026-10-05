@@ -196,7 +196,7 @@ export function EmpresaTab() {
                     Logo da empresa
                 </Label>
                 <p className="text-xs text-gray-500 mt-1">
-                    A logo da empresa substituirá a logo da Kaly no menu lateral. O tamanho máximo da imagem deve ser 160px de largura por 25px de altura.
+                    A logo da empresa substituirá a logo do OdontoBox360 no menu lateral. O tamanho máximo da imagem deve ser 160px de largura por 25px de altura.
                 </p>
                 <div
                     onClick={handleLogoClick}

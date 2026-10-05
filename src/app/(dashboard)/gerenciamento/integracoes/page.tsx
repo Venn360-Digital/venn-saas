@@ -32,7 +32,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     {
         id: 'google-calendar',
         name: 'Google Calendar',
-        description: 'Exporte atividades do Kaly para o Google Calendar do workspace',
+        description: 'Exporte atividades do OdontoBox360 para o Google Calendar do workspace',
         icon: '📅',
         iconBgColor: 'bg-blue-600',
         provider: 'google_calendar',

@@ -89,8 +89,9 @@ export function PerfilTab() {
             return
         }
 
-        if (passwordData.newPassword.length < 6) {
-            toast.error('A nova senha deve ter pelo menos 6 caracteres')
+        // Matches the API, which now enforces 8.
+        if (passwordData.newPassword.length < 8) {
+            toast.error('A nova senha deve ter pelo menos 8 caracteres')
             return
         }
 

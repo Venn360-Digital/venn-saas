@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
@@ -27,12 +28,21 @@ export async function PATCH(
         const validatedData = updateSchema.parse(body)
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
-            select: { workspaceId: true }
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
+            select: { workspaceId: true, role: true }
         })
 
         if (!workspaceUser) {
             return new NextResponse('Workspace not found', { status: 404 })
+        }
+
+        // Workspace configuration: shared across every operator, so it is not an ATENDENTE's to change.
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
         }
 
         // Verify ownership
@@ -75,12 +85,21 @@ export async function DELETE(
         const { id } = await Promise.resolve(params)
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
-            select: { workspaceId: true }
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
+            select: { workspaceId: true, role: true }
         })
 
         if (!workspaceUser) {
             return new NextResponse('Workspace not found', { status: 404 })
+        }
+
+        // Workspace configuration: shared across every operator, so it is not an ATENDENTE's to change.
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
         }
 
         // Verify ownership

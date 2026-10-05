@@ -40,7 +40,11 @@ export async function GET(request: NextRequest) {
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -80,13 +84,28 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        const deals = await prisma.deal.findMany({
-            where,
-            include: dealInclude,
-            orderBy: { createdAt: 'desc' }
-        })
+        // Bounded. This query had no `take`, so a workspace with thousands of
+        // deals loaded all of them — with `dealInclude` relations — on every
+        // board render. The response stays an array so existing callers keep
+        // working; the total travels in a header for when the UI paginates.
+        const limit = Math.min(Number(searchParams.get('limit')) || 500, 1000)
 
-        return NextResponse.json(deals)
+        const [deals, total] = await Promise.all([
+            prisma.deal.findMany({
+                where,
+                include: dealInclude,
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+            }),
+            prisma.deal.count({ where }),
+        ])
+
+        return NextResponse.json(deals, {
+            headers: {
+                'X-Total-Count': String(total),
+                'X-Returned-Count': String(deals.length),
+            },
+        })
     } catch (error) {
         console.error('[DEALS_GET]', error)
         return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -101,7 +120,11 @@ export async function POST(request: NextRequest) {
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })

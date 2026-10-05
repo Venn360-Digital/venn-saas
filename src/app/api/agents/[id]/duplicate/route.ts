@@ -18,11 +18,13 @@ export async function POST(
 
         const { id: agentId } = await Promise.resolve(params)
 
-        // Buscar agente original com todas as relações
+        // Buscar agente original com todas as relações.
+        // isActive on the membership: a deactivated member must not be able to
+        // duplicate agents, same as they cannot create them.
         const originalAgent = await prisma.agent.findFirst({
             where: {
                 id: agentId,
-                workspace: { users: { some: { userId: user.id } } }
+                workspace: { users: { some: { userId: user.id, isActive: true } } }
             },
             include: {
                 rules: true,
@@ -32,6 +34,50 @@ export async function POST(
 
         if (!originalAgent) {
             return new NextResponse('Agent not found', { status: 404 })
+        }
+
+        // Only managers may create agents, and duplication is creation.
+        const canManage = await prisma.workspaceUser.findFirst({
+            where: {
+                workspaceId: originalAgent.workspaceId,
+                userId: user.id,
+                isActive: true,
+                role: { in: ['OWNER', 'ADMIN'] },
+            },
+            select: { id: true },
+        })
+
+        if (!canManage) {
+            return NextResponse.json(
+                { error: 'Apenas administradores podem duplicar agentes' },
+                { status: 403 }
+            )
+        }
+
+        // Duplication bypassed the plan limit that POST /api/agents enforces.
+        const subscription = await prisma.subscription.findUnique({
+            where: { workspaceId: originalAgent.workspaceId },
+            select: { maxAgents: true, plan: true },
+        })
+
+        if (subscription) {
+            const agentCount = await prisma.agent.count({
+                where: { workspaceId: originalAgent.workspaceId },
+            })
+
+            if (agentCount >= subscription.maxAgents) {
+                return NextResponse.json(
+                    {
+                        error: 'Limite de agentes do plano atingido',
+                        message:
+                            `Seu plano (${subscription.plan}) permite ${subscription.maxAgents} ` +
+                            `agente(s). Faça upgrade para duplicar.`,
+                        limit: subscription.maxAgents,
+                        current: agentCount,
+                    },
+                    { status: 409 }
+                )
+            }
         }
 
         // Criar cópia do agente

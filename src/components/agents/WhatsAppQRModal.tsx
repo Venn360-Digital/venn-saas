@@ -41,8 +41,10 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
                 setQrCode(data.qrcode)
                 setStatus('qr_ready')
             } else {
-                setError('QR Code não gerado')
-                setStatus('error')
+                // Evolution Go emits the QR a moment after the socket opens, so an
+                // empty response here is a transient state, not an error. The
+                // status poll picks the code up when it appears.
+                setStatus('connecting')
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Erro desconhecido')
@@ -58,6 +60,13 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             if (data.connected || data.status === 'connected') {
                 setStatus('connected')
                 onConnected()
+                return
+            }
+
+            // The provider rotates the code while pairing; keep showing the latest.
+            if (data.qrcode) {
+                setQrCode(data.qrcode)
+                setStatus('qr_ready')
             }
         } catch (err) {
             console.error('Status check error:', err)
@@ -71,9 +80,10 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
         }
     }, [isOpen, startConnection])
 
-    // Poll for connection status when QR is shown
+    // Poll while pairing: 'connecting' is still waiting for the first QR,
+    // 'qr_ready' is waiting for the scan.
     useEffect(() => {
-        if (status !== 'qr_ready') return
+        if (status !== 'qr_ready' && status !== 'connecting') return
 
         const interval = setInterval(checkStatus, 3000)
         return () => clearInterval(interval)
@@ -109,7 +119,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
 
                 {/* Content based on status */}
                 <div className="flex flex-col items-center justify-center min-h-[300px]">
-                    {status === 'loading' && (
+                    {(status === 'loading' || status === 'connecting') && (
                         <div className="flex flex-col items-center gap-4">
                             <Loader2 className="h-12 w-12 animate-spin text-green-500" />
                             <p className="text-muted-foreground">Gerando QR Code...</p>

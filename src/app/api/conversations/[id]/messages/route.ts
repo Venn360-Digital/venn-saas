@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
-import { evolutionAPI } from '@/lib/whatsapp/evolution-api'
+import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -18,7 +18,11 @@ export async function POST(
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
 
@@ -148,50 +152,51 @@ export async function POST(
         if (!isInternal && conversation.channel === 'whatsapp' && conversation.contact.phone) {
             const whatsappIntegration = conversation.agent?.integrations?.[0]
             if (whatsappIntegration) {
-                const config = whatsappIntegration.config as { instanceName: string }
+                // Queued rather than sent inline: the operator's message gets the
+                // same retry and provider-resolution the agent's replies get, and a
+                // flaky provider call no longer loses the text. The row is already
+                // persisted, so the inbox shows it immediately and Realtime carries
+                // the status change from pending to sent.
+                const captionIsPlaceholder =
+                    textContent === '📷 Imagem' ||
+                    textContent === '🎬 Vídeo' ||
+                    textContent === `📄 ${fileName}`
+
+                const kind =
+                    contentType === 'text' ? 'text' as const
+                        : contentType === 'audio' ? 'audio' as const
+                            : 'media' as const
+
                 try {
-                    let sendResult: { key: { id: string } } | null = null
-
-                    if (contentType === 'text') {
-                        sendResult = await evolutionAPI.sendTextMessage(
-                            config.instanceName,
-                            conversation.contact.phone,
-                            textContent
-                        )
-                    } else if (contentType === 'audio' && mediaUrl) {
-                        sendResult = await evolutionAPI.sendAudio(
-                            config.instanceName,
-                            conversation.contact.phone,
-                            mediaUrl
-                        )
-                    } else if (mediaUrl) {
-                        const mediatype = contentType === 'image' ? 'image'
-                            : contentType === 'video' ? 'video'
-                                : 'document'
-                        sendResult = await evolutionAPI.sendMedia(
-                            config.instanceName,
-                            conversation.contact.phone,
-                            mediaUrl,
-                            mediatype,
-                            textContent !== `📷 Imagem` && textContent !== `🎬 Vídeo` && textContent !== `📄 ${fileName}` ? textContent : undefined,
-                            fileName
-                        )
-                    }
-
-                    // Save the externalId from WhatsApp response — needed for delivery status tracking
-                    const externalId = sendResult?.key?.id || null
                     await prisma.message.update({
                         where: { id: message.id },
-                        data: {
-                            status: 'sent',
-                            ...(externalId ? { externalId } : {}),
-                        }
+                        data: { status: 'pending' },
                     })
+
+                    await getQueue(QUEUE.WHATSAPP_OUTBOUND).add(
+                        'send-operator-message',
+                        {
+                            messageId: message.id,
+                            integrationId: whatsappIntegration.id,
+                            to: conversation.contact.phone,
+                            kind,
+                            content: captionIsPlaceholder && kind !== 'text' ? '' : textContent,
+                            mediaUrl: mediaUrl || undefined,
+                            fileName: fileName || undefined,
+                        },
+                        // One send per message row, so a retried request cannot
+                        // double-post.
+                        { jobId: `send:${message.id}` }
+                    )
                 } catch (error) {
-                    console.error('[SEND_MESSAGE] WhatsApp send failed:', error)
+                    const reason =
+                        error instanceof MissingRedisUrlError
+                            ? 'fila indisponível (REDIS_URL)'
+                            : 'falha ao enfileirar'
+                    console.error(`[SEND_MESSAGE] ${reason}:`, error)
                     await prisma.message.update({
                         where: { id: message.id },
-                        data: { status: 'failed' }
+                        data: { status: 'failed' },
                     })
                 }
             }

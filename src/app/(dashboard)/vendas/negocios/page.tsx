@@ -74,6 +74,7 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -330,6 +331,9 @@ function DealCard({
     stages: Stage[]
     onMoveToStage: (deal: Deal, stageId: string) => void
 }) {
+    // Presentation only — the API enforces the same rule. Resolved here rather
+    // than threaded as yet another prop through the kanban.
+    const { canEdit } = usePermissions()
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: deal.id })
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
@@ -392,10 +396,14 @@ function DealCard({
                         <DropdownMenuItem onClick={() => onStatusChange(deal, 'lost')} className="text-red-400">
                             <XCircle className="h-4 w-4 mr-2" /> Marcar como Perdido
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onDelete(deal)} className="text-destructive">
-                            <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                        </DropdownMenuItem>
+                        {canEdit && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => onDelete(deal)} className="text-destructive">
+                                    <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                                </DropdownMenuItem>
+                            </>
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -419,6 +427,7 @@ function StageColumn({
     onDeleteStage: (stage: Stage) => void
     isOver?: boolean
 }) {
+    const { canEdit } = usePermissions()
     const { setNodeRef } = useDroppable({ id: `stage-${stage.id}` })
     const totalValue = stage.deals.reduce((sum, d) => sum + (d.value || 0), 0)
 
@@ -438,10 +447,14 @@ function StageColumn({
                             <DropdownMenuItem onClick={() => onEditStage(stage)}>
                                 <Pencil className="h-4 w-4 mr-2" /> Renomear
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => onDeleteStage(stage)} className="text-destructive">
-                                <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                            </DropdownMenuItem>
+                            {canEdit && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => onDeleteStage(stage)} className="text-destructive">
+                                        <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>

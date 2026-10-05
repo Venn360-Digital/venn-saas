@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { syncActivityToGoogleCalendar, deleteActivityFromGoogleCalendar } from '@/lib/google-calendar'
 
@@ -18,7 +19,11 @@ export async function PATCH(
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
 
@@ -98,12 +103,21 @@ export async function DELETE(
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
-            select: { workspaceId: true }
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
+            select: { workspaceId: true, role: true }
         })
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        // Deleting takes related records with it; an ATENDENTE may create and edit, not remove.
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
         }
 
         const existingActivity = await prisma.activity.findFirst({

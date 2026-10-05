@@ -47,7 +47,11 @@ export async function GET(request: NextRequest) {
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
 
@@ -146,6 +150,11 @@ export async function GET(request: NextRequest) {
             ]
         }
 
+        // Bounded: the agenda had no `take`, so every activity ever created in the
+        // workspace was loaded on each render. 1000 covers a wide date range while
+        // keeping the query finite.
+        const limit = Math.min(Number(searchParams.get('limit')) || 1000, 2000)
+
         const activities = await prisma.activity.findMany({
             where,
             include: {
@@ -153,7 +162,8 @@ export async function GET(request: NextRequest) {
                 deal: { select: { id: true, title: true } },
                 user: { select: { id: true, name: true } }
             },
-            orderBy: { dueDate: 'asc' }
+            orderBy: { dueDate: 'asc' },
+            take: limit,
         })
 
         return NextResponse.json(activities)
@@ -174,7 +184,11 @@ export async function POST(request: NextRequest) {
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
 

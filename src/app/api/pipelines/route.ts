@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 
 // GET - List pipeline stages with deals
@@ -13,7 +14,11 @@ export async function GET(request: NextRequest) {
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
             select: { workspaceId: true }
         })
 
@@ -38,6 +43,10 @@ export async function GET(request: NextRequest) {
             ]
         }
 
+        // Cards shown per column. The board is a kanban, not a report; the real
+        // total per stage travels in `_count` so the UI can show "+N mais".
+        const dealsPerStage = Math.min(Number(searchParams.get('perStage')) || 100, 500)
+
         const stages = await prisma.pipelineStage.findMany({
             where: { workspaceId: workspaceUser.workspaceId },
             include: {
@@ -57,8 +66,13 @@ export async function GET(request: NextRequest) {
                             select: { id: true, name: true }
                         },
                     },
-                    orderBy: { createdAt: 'desc' }
-                }
+                    orderBy: { createdAt: 'desc' },
+                    // Bounded per column. This nested include had no limit, so the
+                    // board query pulled every deal in the workspace with four
+                    // relations each — the heaviest query in the app.
+                    take: dealsPerStage,
+                },
+                _count: { select: { deals: true } },
             },
             orderBy: { order: 'asc' }
         })
@@ -81,12 +95,21 @@ export async function POST(request: NextRequest) {
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id },
-            select: { workspaceId: true }
+            where: { userId: user.id, isActive: true },
+            // Stable pick while there is no workspace selector: without an
+            // order, a multi-workspace user could read from one tenant and
+            // write to another between requests.
+            orderBy: { createdAt: 'asc' },
+            select: { workspaceId: true, role: true }
         })
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        // Workspace configuration: shared across every operator, so it is not an ATENDENTE's to change.
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
         }
 
         const body = await request.json()

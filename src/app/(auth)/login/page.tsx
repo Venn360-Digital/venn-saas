@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,13 +9,28 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [isSignUp, setIsSignUp] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const router = useRouter()
+    const searchParams = useSearchParams()
+
+    /**
+     * Where to land after signing in. The middleware puts the blocked path in
+     * `redirectTo`, so a user who followed a deep link is returned to it instead
+     * of being dropped on the dashboard.
+     *
+     * Only same-origin paths are accepted: an attacker-supplied absolute URL here
+     * would turn the login screen into an open redirect.
+     */
+    const redirectTo = (() => {
+        const raw = searchParams.get('redirectTo')
+        if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard'
+        return raw
+    })()
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -51,11 +66,10 @@ export default function LoginPage() {
                 toast.success('Login realizado com sucesso!')
 
                 if (!checkData.hasWorkspace) {
-                    // No workspace, redirect to onboarding
+                    // Onboarding comes first regardless of where they were headed.
                     router.push('/onboarding')
                 } else {
-                    // Has workspace, go to dashboard
-                    router.push('/dashboard')
+                    router.push(redirectTo)
                 }
 
                 router.refresh()
@@ -91,7 +105,7 @@ export default function LoginPage() {
                 <div className="mb-8 flex flex-col items-center">
                     <img
                         src="/images/logo_night.png"
-                        alt="Kaly AI Agent"
+                        alt="OdontoBox360"
                         className="h-[80px] w-auto"
                     />
                 </div>
@@ -154,7 +168,7 @@ export default function LoginPage() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
                                     disabled={loading}
-                                    minLength={6}
+                                    minLength={8}
                                     className="border-white/10 bg-white/5 pl-10 pr-10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
                                 />
                                 <button
@@ -236,5 +250,13 @@ export default function LoginPage() {
                 </div>
             </div>
         </div>
+    )
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={null}>
+            <LoginForm />
+        </Suspense>
     )
 }

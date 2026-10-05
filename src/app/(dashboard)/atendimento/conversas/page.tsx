@@ -398,14 +398,14 @@ export default function ConversasPage() {
 
     // Sound preference listener
     useEffect(() => {
-        const stored = localStorage.getItem('kaly-sound-enabled')
+        const stored = localStorage.getItem('odontobox360-sound-enabled')
         if (stored !== null) soundEnabledRef.current = stored === 'true'
 
         const handler = (e: Event) => {
             soundEnabledRef.current = (e as CustomEvent).detail
         }
-        window.addEventListener('kaly-sound-change', handler)
-        return () => window.removeEventListener('kaly-sound-change', handler)
+        window.addEventListener('odontobox360-sound-change', handler)
+        return () => window.removeEventListener('odontobox360-sound-change', handler)
     }, [])
 
     // Play WhatsApp-style notification sound

@@ -74,13 +74,13 @@ export function Topbar() {
     const router = useRouter()
 
     useEffect(() => {
-        const stored = localStorage.getItem('kaly-sound-enabled')
+        const stored = localStorage.getItem('odontobox360-sound-enabled')
         if (stored !== null) setSoundEnabled(stored === 'true')
     }, [])
 
     useEffect(() => {
-        localStorage.setItem('kaly-sound-enabled', String(soundEnabled))
-        window.dispatchEvent(new CustomEvent('kaly-sound-change', { detail: soundEnabled }))
+        localStorage.setItem('odontobox360-sound-enabled', String(soundEnabled))
+        window.dispatchEvent(new CustomEvent('odontobox360-sound-change', { detail: soundEnabled }))
     }, [soundEnabled])
 
     useEffect(() => { loadUserData() }, [])
@@ -94,12 +94,12 @@ export function Topbar() {
                 setReminders(data)
                 // Play sound for new reminders
                 if (data.length > 0 && soundEnabled) {
-                    const stored = localStorage.getItem('kaly-last-reminder-count')
+                    const stored = localStorage.getItem('odontobox360-last-reminder-count')
                     const lastCount = stored ? parseInt(stored) : 0
                     if (data.length > lastCount) {
                         try { new Audio('/sounds/notification.mp3').play().catch(() => { }) } catch { }
                     }
-                    localStorage.setItem('kaly-last-reminder-count', String(data.length))
+                    localStorage.setItem('odontobox360-last-reminder-count', String(data.length))
                 }
             }
         } catch { /* ignore */ }

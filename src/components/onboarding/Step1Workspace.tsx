@@ -15,6 +15,21 @@ interface Step1WorkspaceProps {
     onNext: () => void
 }
 
+/**
+ * Host shown before the workspace slug. Derived from NEXT_PUBLIC_APP_URL rather
+ * than hardcoded, so it follows the deployment instead of naming a brand domain
+ * in the source.
+ */
+const workspaceUrlPrefix = (() => {
+    const raw = process.env.NEXT_PUBLIC_APP_URL
+    if (!raw) return 'app.odontobox360.com.br'
+    try {
+        return new URL(raw).host
+    } catch {
+        return raw.replace(/^https?:\/\//, '').replace(/\/$/, '')
+    }
+})()
+
 export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps) {
     const [name, setName] = useState(data.workspaceName)
     const [slug, setSlug] = useState(data.workspaceSlug)
@@ -67,7 +82,7 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                         URL do workspace
                     </Label>
                     <div className="mt-2 flex items-center gap-2">
-                        <span className="text-gray-500">platform.kaly.app/</span>
+                        <span className="text-gray-500">{workspaceUrlPrefix}/</span>
                         <Input
                             id="workspace-url"
                             value={slug}

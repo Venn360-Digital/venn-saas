@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
-import { evolutionAPI } from '@/lib/whatsapp/evolution-api'
+import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { resolveIntegration } from '@/lib/whatsapp'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // POST: Send typing indicator to contact + broadcast to realtime
@@ -11,18 +11,21 @@ export async function POST(
 ) {
     try {
         const { id: conversationId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
 
-        if (!user) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status })
         }
 
         const body = await request.json()
-        const { isTyping } = body
+        const isTyping = Boolean(body?.isTyping)
 
+        // Scoped by workspace. Without this, any authenticated user could make us
+        // send a WhatsApp typing indicator to another tenant's contact — a real
+        // outbound action against a real phone number — and broadcast on their
+        // Realtime channel.
         const conversation = await prisma.conversation.findFirst({
-            where: { id: conversationId },
+            where: { id: conversationId, workspaceId: auth.member.workspaceId },
             include: {
                 contact: { select: { phone: true } },
                 agent: {
@@ -44,11 +47,11 @@ export async function POST(
         if (conversation.channel === 'whatsapp' && conversation.contact.phone) {
             const whatsappIntegration = conversation.agent?.integrations?.[0]
             if (whatsappIntegration) {
-                const config = whatsappIntegration.config as { instanceName: string }
                 try {
-                    await evolutionAPI.sendPresence(
-                        config.instanceName,
-                        conversation.contact.phone + '@s.whatsapp.net',
+                    const { provider, credentials } = resolveIntegration(whatsappIntegration)
+                    await provider.sendPresence(
+                        credentials,
+                        conversation.contact.phone,
                         isTyping ? 'composing' : 'paused'
                     )
                 } catch (e) {
@@ -68,7 +71,7 @@ export async function POST(
                 conversationId,
                 isTyping,
                 source: 'operator',
-                userId: user.id,
+                userId: auth.member.userId,
             }
         })
         supabaseAdminClient.removeChannel(channel)

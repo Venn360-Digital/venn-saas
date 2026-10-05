@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
 
 // POST: Mark conversation as read
 export async function POST(
@@ -9,11 +9,17 @@ export async function POST(
 ) {
     try {
         const { id: conversationId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
 
-        if (!user) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status })
+        }
+
+        // Previously the update ran on the id straight from the URL, so any
+        // authenticated user could mark any workspace's conversation as read.
+        const allowed = await assertConversationAccess(conversationId, auth.member.workspaceId)
+        if (!allowed) {
+            return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }
 
         await prisma.conversation.update({

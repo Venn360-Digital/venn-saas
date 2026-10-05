@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface ContactTag { tag: { id: string; name: string; color: string } }
@@ -62,6 +63,9 @@ const DEAL_FILTER_OPTIONS = [
 
 // ─── Main Component ─────────────────────────────────────────────────
 export default function ContatosPage() {
+    // Presentation only — the API enforces the same rule. Without this an
+    // ATENDENTE would see Delete controls that answer 403.
+    const { canEdit } = usePermissions()
     // Data state
     const [contacts, setContacts] = useState<Contact[]>([])
     const [loading, setLoading] = useState(true)
@@ -467,7 +471,9 @@ export default function ContatosPage() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="bg-[#0F1629] border-gray-800">
                                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDialog(contact) }}><Edit className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }} className="text-red-500"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                                                {canEdit && (
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }} className="text-red-500"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
@@ -695,12 +701,14 @@ export default function ContatosPage() {
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Campos Personalizados do Workspace</h3>
-                                        <Button variant="outline" size="sm" className="border-gray-700" onClick={() => setShowFieldManager(!showFieldManager)}>
-                                            <Settings className="h-3.5 w-3.5 mr-1.5" /> {showFieldManager ? 'Fechar' : 'Gerenciar campos'}
-                                        </Button>
+                                        {canEdit && (
+                                            <Button variant="outline" size="sm" className="border-gray-700" onClick={() => setShowFieldManager(!showFieldManager)}>
+                                                <Settings className="h-3.5 w-3.5 mr-1.5" /> {showFieldManager ? 'Fechar' : 'Gerenciar campos'}
+                                            </Button>
+                                        )}
                                     </div>
 
-                                    {showFieldManager && (
+                                    {showFieldManager && canEdit && (
                                         <div className="p-4 rounded-lg border border-gray-700 bg-[#0A0E27] space-y-3">
                                             <div className="flex gap-3 items-end">
                                                 <div className="flex-1"><Label className="text-xs">Nome do campo</Label><Input value={newFieldName} onChange={e => setNewFieldName(e.target.value)} placeholder="Ex: Empresa" className="mt-1 bg-[#0F1629] border-gray-700" /></div>

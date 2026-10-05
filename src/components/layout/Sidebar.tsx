@@ -13,14 +13,20 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ThemeToggle } from './ThemeToggle'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface SidebarSection {
     label: string
     icon: React.ElementType
     href?: string
-    items?: { label: string; href: string; badge?: string }[]
+    /**
+     * `disabled` marks a planned destination that has no page yet. Rendering it
+     * as a link would send the user to a hard 404 — which is what Campanhas and
+     * Templates did.
+     */
+    items?: { label: string; href: string; badge?: string; disabled?: boolean }[]
     // Which roles can see this section. Empty = all roles.
     allowedRoles?: string[]
 }
@@ -59,7 +65,7 @@ const menuStructure: SidebarSection[] = [
             { label: 'Negócios', href: '/vendas/negocios' },
             { label: 'Contatos', href: '/vendas/contatos' },
             { label: 'Agenda', href: '/vendas/agenda' },
-            { label: 'Produtos e Serviços', href: '/vendas/produtos' },
+            { label: 'Produtos e Serviços', href: '/vendas/produtos-servicos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
         ],
     },
@@ -68,8 +74,8 @@ const menuStructure: SidebarSection[] = [
         icon: Megaphone,
         allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
         items: [
-            { label: 'Campanhas', href: '/marketing/campanhas' },
-            { label: 'Templates', href: '/marketing/templates' },
+            { label: 'Campanhas', href: '/marketing/campanhas', badge: 'Em breve', disabled: true },
+            { label: 'Templates', href: '/marketing/templates', badge: 'Em breve', disabled: true },
         ],
     },
     {
@@ -87,23 +93,56 @@ const menuStructure: SidebarSection[] = [
 export function Sidebar() {
     const pathname = usePathname()
     const [expandedSection, setExpandedSection] = useState<string | null>('Atendimento & IA')
-    const [userRole, setUserRole] = useState<string>('ADMIN') // default until loaded
+    // Previously this defaulted to 'ADMIN' until /api/me answered, so an
+    // ATENDENTE saw the admin sections flash before they disappeared.
+    const { role, loading } = usePermissions()
+
+    /**
+     * Plan and credit usage.
+     *
+     * This block used to be hardcoded — "Plano: Kaly PRO", a bar fixed at 0% and
+     * "0 de 5k" — while /api/account/subscription had the real figures all along.
+     */
+    const [plan, setPlan] = useState<{
+        name: string
+        credits: number
+        creditsUsed: number
+    } | null>(null)
 
     useEffect(() => {
-        fetch('/api/me')
-            .then(res => res.json())
-            .then(data => {
-                if (data.role) setUserRole(data.role)
+        let cancelled = false
+
+        fetch('/api/account/subscription')
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (cancelled || !data) return
+                setPlan({
+                    name: data.planName ?? data.plan ?? '—',
+                    credits: Number(data.credits) || 0,
+                    creditsUsed: Number(data.creditsUsed) || 0,
+                })
             })
-            .catch(() => { })
+            .catch(() => {
+                // Non-fatal: the footer just shows nothing.
+            })
+
+        return () => {
+            cancelled = true
+        }
     }, [])
+
+    const creditPercent = plan && plan.credits > 0
+        ? Math.min(100, Math.round((plan.creditsUsed / plan.credits) * 100))
+        : 0
 
     const filteredMenu = useMemo(() => {
         return menuStructure.filter(section => {
             if (!section.allowedRoles || section.allowedRoles.length === 0) return true
-            return section.allowedRoles.includes(userRole)
+            // Withhold role-gated sections until the role is known.
+            if (loading || !role) return false
+            return section.allowedRoles.includes(role)
         })
-    }, [userRole])
+    }, [role, loading])
 
     const toggleSection = (label: string) => {
         setExpandedSection((prev) => (prev === label ? null : label))
@@ -117,13 +156,13 @@ export function Sidebar() {
                     {/* Dark mode logo (for night theme) */}
                     <img
                         src="/images/logo_night.png"
-                        alt="Kaly AI Agent"
+                        alt="OdontoBox360"
                         className="hidden dark:block h-[80px] w-auto"
                     />
                     {/* Light mode logo (for day theme) */}
                     <img
                         src="/images/logo_day.png"
-                        alt="Kaly AI Agent"
+                        alt="OdontoBox360"
                         className="block dark:hidden h-[80px] w-auto"
                     />
                 </Link>
@@ -178,6 +217,28 @@ export function Sidebar() {
                                     <ul className="ml-8 space-y-1">
                                         {section.items.map((item) => {
                                             const isItemActive = pathname === item.href
+
+                                            const badge = item.badge && (
+                                                <span className="rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] text-sidebar-foreground/60">
+                                                    {item.badge}
+                                                </span>
+                                            )
+
+                                            if (item.disabled) {
+                                                return (
+                                                    <li key={item.href}>
+                                                        <span
+                                                            aria-disabled="true"
+                                                            title="Disponível em breve"
+                                                            className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2 text-sm text-sidebar-foreground/35"
+                                                        >
+                                                            <span>{item.label}</span>
+                                                            {badge}
+                                                        </span>
+                                                    </li>
+                                                )
+                                            }
+
                                             return (
                                                 <li key={item.href}>
                                                     <Link
@@ -190,11 +251,7 @@ export function Sidebar() {
                                                         )}
                                                     >
                                                         <span>{item.label}</span>
-                                                        {item.badge && (
-                                                            <span className="rounded-full bg-sidebar-accent px-2 py-0.5 text-[10px] text-sidebar-foreground/60">
-                                                                {item.badge}
-                                                            </span>
-                                                        )}
+                                                        {badge}
                                                     </Link>
                                                 </li>
                                             )
@@ -211,24 +268,29 @@ export function Sidebar() {
             <div className="border-t border-sidebar-border p-4">
                 {/* Plan Info */}
                 <div className="mb-4 rounded-lg bg-sidebar-accent p-3">
-                    <p className="text-xs font-semibold text-primary">Plano: Kaly PRO</p>
+                    <p className="text-xs font-semibold text-primary">
+                        Plano: {plan?.name ?? '—'}
+                    </p>
                     <p className="mt-1 text-[10px] text-sidebar-foreground/60">
                         Créditos utilizados no mês
                     </p>
                     <div className="mt-2 flex items-center gap-2">
                         <div className="h-1.5 flex-1 rounded-full bg-sidebar-border">
                             <div
-                                className="h-full rounded-full bg-primary"
-                                style={{ width: '0%' }}
+                                className="h-full rounded-full bg-primary transition-all"
+                                style={{ width: `${creditPercent}%` }}
                             />
                         </div>
-                        <span className="text-[10px] text-sidebar-foreground/60">0 de 5k</span>
+                        <span className="text-[10px] text-sidebar-foreground/60">
+                            {plan ? `${plan.creditsUsed} de ${plan.credits}` : '—'}
+                        </span>
                     </div>
                     <Button
+                        asChild
                         size="sm"
                         className="mt-3 w-full bg-primary text-primary-foreground hover:bg-primary/90"
                     >
-                        Ver planos
+                        <Link href="/gerenciamento/conta?tab=plano">Ver planos</Link>
                     </Button>
                 </div>
 
