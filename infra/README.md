@@ -1,4 +1,4 @@
-# Kaly — deployment on a single VPS (Stay Cloud)
+# OdontoBox360 — deployment on a single VPS (Stay Cloud)
 
 Everything runs on one host via Docker Compose: Traefik, self-hosted Supabase,
 Evolution Go, Redis, the Next.js app and the worker process.
@@ -227,7 +227,7 @@ One Postgres instance holds both the app schema and Evolution's `evolution`
 database:
 
 ```bash
-docker compose exec -T db pg_dumpall -U postgres | gzip > kaly-$(date +%F).sql.gz
+docker compose exec -T db pg_dumpall -U postgres | gzip > odontobox360-$(date +%F).sql.gz
 ```
 
 Also back up the `evolution-instances` volume (WhatsApp auth state) and

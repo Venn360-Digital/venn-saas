@@ -12,7 +12,7 @@ async function main() {
 
     // For now, let's create a default Workspace that we can manually assign to any user
 
-    const workspaceSlug = 'kaly-hq'
+    const workspaceSlug = 'odontobox360-hq'
 
     const existingWorkspace = await prisma.workspace.findUnique({
         where: { slug: workspaceSlug }
@@ -26,7 +26,7 @@ async function main() {
     // Create workspace
     const workspace = await prisma.workspace.create({
         data: {
-            name: 'Kaly HQ',
+            name: 'OdontoBox360 HQ',
             slug: workspaceSlug,
             settings: { theme: 'light', language: 'pt-BR' },
         }

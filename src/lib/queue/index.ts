@@ -14,11 +14,11 @@ export type { QueueConnection } from './connection'
  * connection per queue per reload.
  */
 const globalForQueues = globalThis as unknown as {
-    kalyQueues?: Map<QueueName, Queue>
+    odontoboxQueues?: Map<QueueName, Queue>
 }
 
-const registry = globalForQueues.kalyQueues ?? new Map<QueueName, Queue>()
-if (process.env.NODE_ENV !== 'production') globalForQueues.kalyQueues = registry
+const registry = globalForQueues.odontoboxQueues ?? new Map<QueueName, Queue>()
+if (process.env.NODE_ENV !== 'production') globalForQueues.odontoboxQueues = registry
 
 export function getQueue<N extends QueueName>(name: N): Queue<JobPayloads[N]> {
     let queue = registry.get(name)

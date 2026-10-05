@@ -8,7 +8,7 @@
  * request, so it is generated here rather than assembled by hand.
  *
  * Usage:
- *   node infra/scripts/generate-secrets.mjs --domain kaly.com.br [--force]
+ *   node infra/scripts/generate-secrets.mjs --domain odontobox360.com.br [--force]
  */
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -86,7 +86,7 @@ const values = {
     VAULT_ENC_KEY: token(24),
     DASHBOARD_USERNAME: 'admin',
     DASHBOARD_PASSWORD: token(18),
-    POOLER_TENANT_ID: 'kaly',
+    POOLER_TENANT_ID: 'odontobox360',
     LOGFLARE_PUBLIC_ACCESS_TOKEN: token(24),
     LOGFLARE_PRIVATE_ACCESS_TOKEN: token(24),
 

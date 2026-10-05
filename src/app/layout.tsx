@@ -7,7 +7,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Kaly v2',
+  title: 'OdontoBox360',
   description: 'AI Agents & CRM Platform',
 }
 

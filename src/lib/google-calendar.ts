@@ -66,7 +66,7 @@ function buildCalendarEvent(activity: any) {
         activity.contact?.name ? `Contato: ${activity.contact.name} ${activity.contact.phone || ''}` : '',
         activity.deal?.title ? `Negócio: ${activity.deal.title}` : '',
         `Tipo: ${activity.type}`,
-        'Criado no Kaly CRM',
+        'Criado no OdontoBox360',
     ].filter(Boolean).join('\n')
 
     const timeZone = 'America/Sao_Paulo'

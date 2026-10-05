@@ -1,4 +1,4 @@
-# Kaly — single-host stack for the Stay Cloud VPS.
+# OdontoBox360 — single-host stack for the Stay Cloud VPS.
 #
 # Layout:
 #   - Supabase comes from the official self-hosted compose, vendored under
@@ -21,7 +21,7 @@
 # vendored Supabase compose publishes ports on the host and they MUST NOT be
 # reachable from the internet.
 
-name: kaly
+name: odontobox360
 
 include:
   - path: supabase/docker-compose.yml
@@ -108,7 +108,7 @@ services:
         condition: service_completed_successfully
     environment:
       SERVER_PORT: "8080"
-      CLIENT_NAME: kaly
+      CLIENT_NAME: odontobox360
       GLOBAL_API_KEY: ${EVOLUTION_GO_API_KEY}
 
       POSTGRES_AUTH_DB: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/evogo_auth?sslmode=disable
@@ -240,7 +240,7 @@ services:
   # Application
   # ---------------------------------------------------------------------------
   migrate:
-    image: kaly-app:latest
+    image: odontobox360-app:latest
     build:
       context: ..
       target: app
@@ -260,7 +260,7 @@ services:
     command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
 
   app:
-    image: kaly-app:latest
+    image: odontobox360-app:latest
     build:
       context: ..
       target: app
@@ -284,7 +284,7 @@ services:
       - traefik.http.services.app.loadbalancer.server.port=3000
 
   worker:
-    image: kaly-worker:latest
+    image: odontobox360-worker:latest
     build:
       context: ..
       target: worker

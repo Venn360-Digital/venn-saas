@@ -81,7 +81,7 @@ export default function OnboardingPage() {
                     <div className="mb-6 flex justify-center">
                         <div className="flex items-center gap-2">
                             <div className="text-2xl font-bold text-purple-500">⚡</div>
-                            <span className="text-2xl font-bold">KALY</span>
+                            <span className="text-2xl font-bold">OdontoBox360</span>
                         </div>
                     </div>
                     <h1 className="mb-2 text-3xl font-bold">Olá, Usuário!</h1>

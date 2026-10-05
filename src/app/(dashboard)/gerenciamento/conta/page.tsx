@@ -1,15 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
 import { PlanoTab } from '@/components/account/PlanoTab'
 
-export default function ContaPage() {
-    const [activeTab, setActiveTab] = useState('perfil')
+const TABS = ['perfil', 'empresa', 'plano'] as const
+
+function ContaContent() {
+    const searchParams = useSearchParams()
+
+    // Deep-linkable, so the sidebar's "Ver planos" can land on the right tab.
+    const requested = searchParams.get('tab')
+    const [activeTab, setActiveTab] = useState(
+        requested && (TABS as readonly string[]).includes(requested) ? requested : 'perfil'
+    )
 
     return (
         <div className="min-h-screen p-6 text-white">
@@ -60,5 +69,13 @@ export default function ContaPage() {
                 </TabsContent>
             </Tabs>
         </div>
+    )
+}
+
+export default function ContaPage() {
+    return (
+        <Suspense fallback={null}>
+            <ContaContent />
+        </Suspense>
     )
 }

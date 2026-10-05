@@ -34,7 +34,7 @@ async function resolveWorkspace(userId: string): Promise<string | null> {
 }
 
 function instanceNameFor(workspaceId: string, agentId: string): string {
-    return `kaly_${workspaceId}_${agentId}`.substring(0, 50)
+    return `odontobox_${workspaceId}_${agentId}`.substring(0, 50)
 }
 
 async function persistConfig(

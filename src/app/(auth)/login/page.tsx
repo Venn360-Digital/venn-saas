@@ -105,7 +105,7 @@ function LoginForm() {
                 <div className="mb-8 flex flex-col items-center">
                     <img
                         src="/images/logo_night.png"
-                        alt="Kaly AI Agent"
+                        alt="OdontoBox360"
                         className="h-[80px] w-auto"
                     />
                 </div>
