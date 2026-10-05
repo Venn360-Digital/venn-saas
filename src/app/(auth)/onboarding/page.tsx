@@ -33,15 +33,19 @@ export default function OnboardingPage() {
                 return
             }
 
-            // Check if user already has a workspace
-            const { data: workspaceUsers } = await supabase
-                .from('workspace_users')
-                .select('workspaceId')
-                .eq('userId', user.id)
-                .limit(1)
+            // Ask the server, rather than querying the table from the browser.
+            //
+            // This was the application's only PostgREST call — a client-side
+            // SELECT on workspace_users. Routing it through our own endpoint means
+            // no application table is reachable over /rest/v1 at all, so the anon
+            // key (which ships in this bundle) can only reach Auth, Storage and
+            // Realtime, each of which authorises on its own. It is also the more
+            // correct check: the endpoint filters on isActive, which the direct
+            // query did not, so a deactivated member no longer skips onboarding.
+            const res = await fetch('/api/auth/check-workspace')
+            const { hasWorkspace } = await res.json()
 
-            if (workspaceUsers && workspaceUsers.length > 0) {
-                // User already has workspace, redirect to dashboard
+            if (hasWorkspace) {
                 router.push('/dashboard')
                 return
             }
