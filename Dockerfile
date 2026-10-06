@@ -48,11 +48,19 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_SUPABASE_DB_SCHEMA
+# Cap the compiler's heap. Node sizes its old space from total system memory, so
+# on a small host it will happily grow until the machine swaps — building this app
+# on a 2 vCPU / 3.9 GB VPS alongside a running Supabase stack took the whole box
+# unresponsive, TCP accepting but nothing able to answer. A fixed ceiling makes the
+# build fail loudly on its own heap instead of dragging everything else down.
+ARG NODE_HEAP_MB=1536
+
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_SUPABASE_DB_SCHEMA=$NEXT_PUBLIC_SUPABASE_DB_SCHEMA \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    NODE_OPTIONS=--max-old-space-size=$NODE_HEAP_MB
 
 RUN npm run build
 
