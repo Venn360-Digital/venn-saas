@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { MoreVertical, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
     Dialog,
@@ -13,28 +15,18 @@ import {
     DialogFooter,
 } from '@/components/ui/dialog'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
-import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Search, Plus, MoreVertical, Pencil, Trash2, Users, ChevronLeft, ChevronRight } from 'lucide-react'
-import { toast } from 'sonner'
+} from '@/components/ui/dropdown-menu'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Toolbar } from '@/components/shared/Toolbar'
+import { DataTable, type Column } from '@/components/shared/DataTable'
+import { Pagination } from '@/components/shared/Pagination'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { FormField } from '@/components/shared/FormField'
 import { usePermissions } from '@/hooks/usePermissions'
 
 interface Department {
@@ -43,322 +35,308 @@ interface Department {
     description: string | null
 }
 
-interface Pagination {
+interface PaginationState {
     page: number
     limit: number
     total: number
     totalPages: number
 }
 
-const PAGE_SIZES = [20, 50, 100]
-
 export default function DepartamentosPage() {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
+
     const [departments, setDepartments] = useState<Department[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
-    const [pagination, setPagination] = useState<Pagination>({
+    const [query, setQuery] = useState('')
+    const [pagination, setPagination] = useState<PaginationState>({
         page: 1,
         limit: 20,
         total: 0,
-        totalPages: 0
+        totalPages: 0,
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editingDepartment, setEditingDepartment] = useState<Department | null>(null)
-    const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-    })
+    const [editing, setEditing] = useState<Department | null>(null)
+    const [deleting, setDeleting] = useState<Department | null>(null)
+    const [formData, setFormData] = useState({ name: '', description: '' })
 
-    const loadDepartments = useCallback(async () => {
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setQuery(search)
+            setPagination((prev) => ({ ...prev, page: 1 }))
+        }, 300)
+        return () => clearTimeout(timer)
+    }, [search])
+
+    const load = useCallback(async () => {
         setLoading(true)
         try {
             const params = new URLSearchParams({
                 page: pagination.page.toString(),
                 limit: pagination.limit.toString(),
-                search,
+                search: query,
             })
             const res = await fetch(`/api/departments?${params}`)
             if (res.ok) {
                 const data = await res.json()
                 setDepartments(data.data)
-                setPagination(prev => ({
+                setPagination((prev) => ({
                     ...prev,
                     total: data.pagination.total,
-                    totalPages: data.pagination.totalPages
+                    totalPages: data.pagination.totalPages,
                 }))
             }
         } catch (error) {
-            console.error('Error loading departments:', error)
-            toast.error('Erro ao carregar departamentos')
+            console.error('[DEPARTAMENTOS] load', error)
+            toast.error('Não foi possível carregar os departamentos')
         } finally {
             setLoading(false)
         }
-    }, [pagination.page, pagination.limit, search])
+    }, [pagination.page, pagination.limit, query])
 
     useEffect(() => {
-        loadDepartments()
-    }, [loadDepartments])
+        load()
+    }, [load])
 
-    // Debounce search
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setPagination(prev => ({ ...prev, page: 1 }))
-        }, 300)
-        return () => clearTimeout(timer)
-    }, [search])
-
-    const handleOpenDialog = (department?: Department) => {
+    function handleOpenDialog(department?: Department) {
         if (department) {
-            setEditingDepartment(department)
+            setEditing(department)
             setFormData({
                 name: department.name,
-                description: department.description || '',
+                description: department.description ?? '',
             })
         } else {
-            setEditingDepartment(null)
-            setFormData({
-                name: '',
-                description: '',
-            })
+            setEditing(null)
+            setFormData({ name: '', description: '' })
         }
         setIsDialogOpen(true)
     }
 
-    const handleSave = async () => {
+    async function handleSave() {
         if (!formData.name.trim()) {
-            toast.error('Nome é obrigatório')
+            toast.error('Informe um nome para o departamento')
             return
         }
 
         try {
-            const payload = {
-                name: formData.name,
-                description: formData.description || undefined,
-            }
-
-            const url = editingDepartment
-                ? `/api/departments/${editingDepartment.id}`
-                : '/api/departments'
-
-            const res = await fetch(url, {
-                method: editingDepartment ? 'PATCH' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
+            const res = await fetch(
+                editing ? `/api/departments/${editing.id}` : '/api/departments',
+                {
+                    method: editing ? 'PATCH' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: formData.name,
+                        description: formData.description || undefined,
+                    }),
+                }
+            )
 
             if (res.ok) {
-                toast.success(editingDepartment ? 'Departamento atualizado!' : 'Departamento criado!')
+                toast.success(editing ? 'Departamento atualizado' : 'Departamento criado')
                 setIsDialogOpen(false)
-                loadDepartments()
+                load()
             } else {
                 const error = await res.json()
-                toast.error(error.error || 'Erro ao salvar departamento')
+                toast.error(error.error ?? 'Não foi possível salvar o departamento')
             }
-        } catch (error) {
-            toast.error('Erro ao salvar departamento')
+        } catch {
+            toast.error('Não foi possível salvar o departamento')
         }
     }
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir este departamento?')) return
-
+    async function handleDelete() {
+        if (!deleting) return
         try {
-            const res = await fetch(`/api/departments/${id}`, { method: 'DELETE' })
+            const res = await fetch(`/api/departments/${deleting.id}`, { method: 'DELETE' })
             if (res.ok) {
-                toast.success('Departamento excluído!')
-                loadDepartments()
+                toast.success('Departamento excluído')
+                load()
             } else {
-                toast.error('Erro ao excluir departamento')
+                toast.error('Não foi possível excluir o departamento')
             }
-        } catch (error) {
-            toast.error('Erro ao excluir departamento')
+        } catch {
+            toast.error('Não foi possível excluir o departamento')
         }
     }
+
+    const columns: Column<Department>[] = [
+        {
+            id: 'name',
+            header: 'Nome',
+            cell: (d) => <span className="font-medium">{d.name}</span>,
+        },
+        {
+            id: 'description',
+            header: 'Descrição',
+            hideBelow: 'sm',
+            cell: (d) =>
+                d.description ? (
+                    <span className="text-muted-foreground">{d.description}</span>
+                ) : (
+                    <span className="text-muted-foreground">—</span>
+                ),
+        },
+    ]
 
     return (
-        <div className="p-6 min-h-screen text-white">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-semibold">Departamentos</h1>
-                    <p className="text-gray-400">Os departamentos são principalmente usados como setores para o atendimento.</p>
-                </div>
-                {canEdit && (
-                    <Button onClick={() => handleOpenDialog()} className="bg-purple-600 hover:bg-purple-700">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Novo departamento
-                    </Button>
-                )}
+        <>
+            <PageHeader
+                title="Departamentos"
+                description="Organize a equipe por área para direcionar atendimentos e negócios."
+                actions={
+                    canEdit ? (
+                        <Button onClick={() => handleOpenDialog()}>
+                            <Plus />
+                            Novo departamento
+                        </Button>
+                    ) : null
+                }
+            />
+
+            <div className="space-y-3 px-4 pb-6 md:px-6">
+                <Toolbar
+                    search={search}
+                    onSearchChange={setSearch}
+                    placeholder="Buscar departamentos…"
+                />
+
+                <DataTable
+                    columns={columns}
+                    rows={departments}
+                    getRowId={(d) => d.id}
+                    loading={loading}
+                    rowActions={
+                        canEdit
+                            ? (d) => (
+                                  <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                          <Button
+                                              variant="ghost"
+                                              size="icon-sm"
+                                              aria-label={`Ações do departamento ${d.name}`}
+                                          >
+                                              <MoreVertical />
+                                          </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                          <DropdownMenuItem onClick={() => handleOpenDialog(d)}>
+                                              <Pencil className="mr-2 size-4" />
+                                              Editar
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                              onClick={() => setDeleting(d)}
+                                              className="text-destructive focus:text-destructive"
+                                          >
+                                              <Trash2 className="mr-2 size-4" />
+                                              Excluir
+                                          </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                  </DropdownMenu>
+                              )
+                            : undefined
+                    }
+                    empty={
+                        <EmptyState
+                            variant="inline"
+                            icon={Users}
+                            title={
+                                query
+                                    ? 'Nenhum departamento encontrado'
+                                    : 'Nenhum departamento ainda'
+                            }
+                            description={
+                                query
+                                    ? 'Tente outro termo de busca.'
+                                    : 'Crie o primeiro para organizar a equipe por área.'
+                            }
+                            action={
+                                canEdit && !query ? (
+                                    <Button onClick={() => handleOpenDialog()}>
+                                        <Plus />
+                                        Novo departamento
+                                    </Button>
+                                ) : null
+                            }
+                        />
+                    }
+                    footer={
+                        <Pagination
+                            page={pagination.page}
+                            totalPages={pagination.totalPages}
+                            total={pagination.total}
+                            limit={pagination.limit}
+                            onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
+                            onLimitChange={(limit) =>
+                                setPagination((p) => ({ ...p, limit, page: 1 }))
+                            }
+                        />
+                    }
+                />
             </div>
 
-            {/* Search */}
-            <div className="flex gap-4 mb-6">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                        placeholder="Buscar departamentos..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10 bg-[#0A0E27] border-gray-700"
-                    />
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="bg-[#0A0E27] rounded-lg border border-gray-800">
-                {loading ? (
-                    <div className="flex items-center justify-center h-64">
-                        <span className="text-gray-400">Carregando...</span>
-                    </div>
-                ) : departments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                        <Users className="h-12 w-12 mb-4 text-gray-600" />
-                        <p className="font-medium">Nenhum departamento</p>
-                        <p className="text-sm">Crie seu primeiro departamento para organizar seu atendimento.</p>
-                    </div>
-                ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="border-gray-800 hover:bg-transparent">
-                                <TableHead className="text-gray-400">Nome</TableHead>
-                                <TableHead className="text-gray-400">Descrição</TableHead>
-                                <TableHead className="text-gray-400 w-12"></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {departments.map((department) => (
-                                <TableRow key={department.id} className="border-gray-800 hover:bg-gray-800/50">
-                                    <TableCell className="font-medium">{department.name}</TableCell>
-                                    <TableCell className="text-gray-300">
-                                        {department.description || '-'}
-                                    </TableCell>
-                                    <TableCell>
-                                        {canEdit && (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                        <MoreVertical className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => handleOpenDialog(department)}>
-                                                        <Pencil className="h-4 w-4 mr-2" />
-                                                        Editar
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={() => handleDelete(department.id)}
-                                                        className="text-red-400"
-                                                    >
-                                                        <Trash2 className="h-4 w-4 mr-2" />
-                                                        Excluir
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                )}
-
-                {/* Pagination */}
-                {departments.length > 0 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-800">
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <span>Exibindo</span>
-                            <Select
-                                value={pagination.limit.toString()}
-                                onValueChange={(value) => setPagination(prev => ({ ...prev, limit: parseInt(value), page: 1 }))}
-                            >
-                                <SelectTrigger className="w-20 h-8 bg-transparent border-gray-700">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {PAGE_SIZES.map(size => (
-                                        <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <span>de {pagination.total} itens</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={pagination.page <= 1}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                                className="border-gray-700"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <span className="text-sm text-gray-400">
-                                Página {pagination.page} de {pagination.totalPages || 1}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={pagination.page >= pagination.totalPages}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                                className="border-gray-700"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Create/Edit Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="bg-[#1a1f3e] border-gray-800 text-white max-w-md">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>
-                            {editingDepartment ? 'Editar Departamento' : 'Adicionar Departamento'}
+                            {editing ? 'Editar departamento' : 'Novo departamento'}
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-4">
-                        <p className="text-sm text-gray-400">Digite o nome para o novo departamento.</p>
-
-                        <div>
-                            <Label htmlFor="name" className="sr-only">Nome do departamento</Label>
+                    <div className="space-y-5 py-2">
+                        <FormField label="Nome" htmlFor="dept-name" required>
                             <Input
-                                id="name"
+                                id="dept-name"
                                 value={formData.name}
-                                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder="Nome do departamento"
-                                className="bg-[#0A0E27] border-gray-700"
+                                onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                                }
+                                placeholder="Recepção"
+                                autoFocus
                             />
-                        </div>
+                        </FormField>
 
-                        <div>
-                            <Label htmlFor="description" className="sr-only">Descrição</Label>
+                        <FormField
+                            label="Descrição"
+                            htmlFor="dept-description"
+                            hint="Opcional. Ajuda a equipe a saber o que cai aqui."
+                        >
                             <Textarea
-                                id="description"
+                                id="dept-description"
                                 value={formData.description}
-                                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                placeholder="Descrição (opcional)"
-                                className="bg-[#0A0E27] border-gray-700 min-h-[80px]"
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        description: e.target.value,
+                                    }))
+                                }
+                                placeholder="Primeiro contato, agendamento e confirmação"
                             />
-                        </div>
+                        </FormField>
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-gray-700">
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                             Cancelar
                         </Button>
-                        <Button onClick={handleSave} className="bg-purple-600 hover:bg-purple-700">
-                            {editingDepartment ? 'Salvar' : 'Adicionar'}
+                        <Button onClick={handleSave}>
+                            {editing ? 'Salvar' : 'Criar departamento'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+
+            <ConfirmDialog
+                open={deleting !== null}
+                onOpenChange={(open) => !open && setDeleting(null)}
+                title="Excluir departamento"
+                description={`"${deleting?.name}" será removido. Atendimentos e negócios ligados a ele ficam sem departamento.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={handleDelete}
+            />
+        </>
     )
 }
