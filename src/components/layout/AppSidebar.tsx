@@ -49,13 +49,32 @@ export function AppSidebar() {
         [role, loading]
     )
 
-    /** Opens the section that contains the current route, rather than a fixed one. */
-    const activeSection = useMemo(
-        () =>
-            navSections.find((s) => s.items?.some((i) => pathname.startsWith(i.href)))
-                ?.label ?? null,
-        [pathname]
-    )
+    /**
+     * Which section the current route belongs to.
+     *
+     * Favoritos is skipped in the lookup because it repeats destinations that
+     * live in other sections — matching it first would mean never opening the
+     * section a page actually belongs to. It is the fallback instead, so the
+     * sidebar opens on Favoritos wherever the route maps to no section of its
+     * own, the dashboard included.
+     */
+    const sectionForRoute = useMemo(() => {
+        const owner = navSections.find(
+            (s) =>
+                s.label !== 'Favoritos' &&
+                s.items?.some((i) => pathname.startsWith(i.href))
+        )
+        return owner?.label ?? 'Favoritos'
+    }, [pathname])
+
+    // One open section at a time: opening any other closes the previous one.
+    const [openSection, setOpenSection] = useState<string | null>(sectionForRoute)
+
+    // Follow navigation, without fighting a section the user opened by hand —
+    // this only runs when the route moves to a different section.
+    useEffect(() => {
+        setOpenSection(sectionForRoute)
+    }, [sectionForRoute])
 
     return (
         <Sidebar collapsible="icon">
@@ -92,7 +111,10 @@ export function AppSidebar() {
                                 <Collapsible
                                     key={section.label}
                                     asChild
-                                    defaultOpen={activeSection === section.label}
+                                    open={openSection === section.label}
+                                    onOpenChange={(open) =>
+                                        setOpenSection(open ? section.label : null)
+                                    }
                                     className="group/collapsible"
                                 >
                                     <SidebarMenuItem>
