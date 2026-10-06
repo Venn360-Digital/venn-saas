@@ -1,35 +1,32 @@
-import { Sidebar } from '@/components/layout/Sidebar'
+import { AppSidebar } from '@/components/layout/AppSidebar'
 import { Topbar } from '@/components/layout/Topbar'
-import { Breadcrumbs } from '@/components/layout/Breadcrumbs'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 
+/**
+ * The shell owns navigation and nothing else.
+ *
+ * It used to wrap every page in `container mx-auto p-6` plus a breadcrumb block,
+ * which the inbox then had to fight: it set its own full-height calc against a
+ * topbar it assumed was 64px tall (it is 56), inside padding it did not want.
+ * Page padding and breadcrumbs now belong to PageHeader, so a screen that wants
+ * the whole viewport simply does not render one.
+ *
+ * The rail also has a mobile story for the first time — the old sidebar was an
+ * unconditional w-64 div, so below about 900px the content was crushed and there
+ * was no way to dismiss it.
+ */
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
     return (
-        <div className="flex h-screen overflow-hidden">
-            {/* Sidebar */}
-            <Sidebar />
-
-            {/* Main Content */}
-            <div className="flex flex-1 flex-col overflow-hidden">
-                {/* Topbar */}
+        <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset className="min-w-0">
                 <Topbar />
-
-                {/* Content Area */}
-                <main className="flex-1 overflow-y-auto bg-muted/20">
-                    <div className="container mx-auto p-6">
-                        {/* Breadcrumbs */}
-                        <div className="mb-6">
-                            <Breadcrumbs />
-                        </div>
-
-                        {/* Page Content */}
-                        {children}
-                    </div>
-                </main>
-            </div>
-        </div>
+                <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+            </SidebarInset>
+        </SidebarProvider>
     )
 }

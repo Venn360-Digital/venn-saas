@@ -42,6 +42,10 @@ export async function updateSession(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     const isPublicPath =
+        // GoTrue fetches the e-mail templates over HTTP. Without this the
+        // middleware answers its request with a redirect to /login, and the
+        // login page's markup becomes the body of the e-mail.
+        pathname.startsWith('/email/') ||
         pathname.startsWith('/login') ||
         pathname.startsWith('/register') ||
         pathname.startsWith('/auth') ||

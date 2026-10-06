@@ -1,8 +1,9 @@
 'use client'
 
+import { activityType } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { Bell, LogOut, User, Settings, Building2, Volume2, VolumeX, Calendar, Clock, Phone, Video, Mail, RotateCcw, ClipboardList, FileText } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Bell, LogOut, User, Settings, Volume2, VolumeX, Clock} from 'lucide-react'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,8 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { pageTitleFor } from '@/lib/nav'
 
 interface UserData {
     user: {
@@ -49,14 +52,6 @@ interface Reminder {
     deal: { id: string; title: string } | null
 }
 
-const TYPE_ICONS: Record<string, typeof Phone> = {
-    call: Phone, meeting: Calendar, videocall: Video, email: Mail,
-    followup: RotateCcw, task: ClipboardList, note: FileText,
-}
-const TYPE_COLORS: Record<string, string> = {
-    call: 'text-green-400', meeting: 'text-blue-400', videocall: 'text-cyan-400',
-    email: 'text-amber-400', followup: 'text-orange-400', task: 'text-teal-400', note: 'text-slate-400',
-}
 
 function formatReminderTime(r: Reminder): string {
     if (!r.dueDate) return ''
@@ -72,6 +67,7 @@ export function Topbar() {
     const [reminders, setReminders] = useState<Reminder[]>([])
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const router = useRouter()
+    const pathname = usePathname()
 
     useEffect(() => {
         const stored = localStorage.getItem('odontobox360-sound-enabled')
@@ -157,10 +153,18 @@ export function Topbar() {
     const activeReminders = reminders.filter(r => !dismissedIds.has(r.id))
 
     return (
-        <div className="flex h-14 items-center justify-end border-b border-border bg-background px-6">
+        <div className="flex h-14 items-center justify-between gap-3 border-b border-border bg-background px-4 md:px-6">
+
+            {/* The left side used to be empty, so on a narrow screen there was
+                nothing to open the navigation with and nothing saying where you
+                were. */}
+            <div className="flex min-w-0 items-center gap-2">
+                <SidebarTrigger />
+                <h1 className="truncate text-h4">{pageTitleFor(pathname)}</h1>
+            </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 sm:gap-3">
                 {/* Sound Toggle */}
                 <Button
                     variant="ghost"
@@ -182,7 +186,7 @@ export function Topbar() {
                         <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
                             <Bell className="h-5 w-5" />
                             {activeReminders.length > 0 && (
-                                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center num rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
                                     {activeReminders.length > 9 ? '9+' : activeReminders.length}
                                 </span>
                             )}
@@ -206,8 +210,7 @@ export function Topbar() {
                                 </div>
                             ) : (
                                 activeReminders.map((r) => {
-                                    const Icon = TYPE_ICONS[r.type] || Calendar
-                                    const color = TYPE_COLORS[r.type] || 'text-muted-foreground'
+                                    const { icon: Icon, color } = activityType(r.type)
                                     return (
                                         <div key={r.id}
                                             className="flex items-start gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-accent/30 transition-colors">
@@ -276,17 +279,17 @@ export function Topbar() {
                             {userData?.user.email}
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                            <User className="mr-2 h-4 w-4" />
-                            Perfil
+                        <DropdownMenuItem asChild>
+                            <Link href="/gerenciamento/conta?tab=perfil">
+                                <User className="mr-2 h-4 w-4" />
+                                Perfil
+                            </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Settings className="mr-2 h-4 w-4" />
-                            Configurações
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Building2 className="mr-2 h-4 w-4" />
-                            Trocar Workspace
+                        <DropdownMenuItem asChild>
+                            <Link href="/gerenciamento/conta">
+                                <Settings className="mr-2 h-4 w-4" />
+                                Configurações
+                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem

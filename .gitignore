@@ -65,3 +65,6 @@ __pycache__/
 # role in building or running OdontoBox360, and its __pycache__ artefacts are what
 # broke the StayCloud deploy. Project planning docs live in .tasks/ instead.
 .agent/
+
+# macOS
+.DS_Store

@@ -203,7 +203,7 @@ export function PlanoTab() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <span className="text-gray-400">Carregando...</span>
+                <span className="text-muted-foreground">Carregando...</span>
             </div>
         )
     }
@@ -217,12 +217,12 @@ export function PlanoTab() {
         <div className="max-w-4xl space-y-6">
             {/* Trial Banner */}
             {isTrialing && (
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 border border-gray-700">
+                <div className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border">
                     <div className="flex items-center gap-3">
-                        <Gift className="h-6 w-6 text-purple-400" />
+                        <Gift className="h-6 w-6 text-primary" />
                         <div>
                             <p className="font-medium">Sua assinatura está em período de avaliação.</p>
-                            <p className="text-sm text-gray-400">
+                            <p className="text-sm text-muted-foreground">
                                 Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString()} créditos de IA
                             </p>
                         </div>
@@ -230,7 +230,7 @@ export function PlanoTab() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="text-gray-400"
+                        className="text-muted-foreground"
                     >
                         <X className="h-5 w-5" />
                     </Button>
@@ -240,65 +240,65 @@ export function PlanoTab() {
             {/* Action Cards */}
             <div className="space-y-4">
                 {/* Change Payment Method */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-gray-800">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
                     <div>
                         <h3 className="font-medium">Alterar forma de pagamento</h3>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                             Caso deseje alterar a forma de pagamento, basta clicar no botão ao lado
                         </p>
                     </div>
                     <Button
                         onClick={() => setShowPaymentModal(true)}
-                        className="bg-purple-600 hover:bg-purple-700"
+
                     >
                         Alterar forma de pagamento
                     </Button>
                 </div>
 
                 {/* Change Plan */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-gray-800">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
                     <div>
                         <h3 className="font-medium">Alterar plano</h3>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                             Caso deseje alterar o plano da sua conta, basta clicar no botão ao lado
                         </p>
                     </div>
                     <Button
                         onClick={() => setShowPlanModal(true)}
-                        className="bg-purple-600 hover:bg-purple-700"
+
                     >
                         Alterar plano
                     </Button>
                 </div>
 
                 {/* Buy Credits */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-gray-800">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
                     <div>
                         <h3 className="font-medium">Comprar créditos</h3>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                             Ao comprar créditos, você será cobrado R$ {subscription?.creditPrice?.toFixed(2) || '49,90'} por mês para cada lote adquirido.
                         </p>
                     </div>
                     <Button
                         onClick={() => setShowCreditsModal(true)}
-                        className="bg-purple-600 hover:bg-purple-700"
+
                     >
                         Comprar créditos
                     </Button>
                 </div>
 
                 {/* Cancel Plan */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-gray-800">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
                     <div>
                         <h3 className="font-medium">Cancelar plano</h3>
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                             Caso deseje cancelar a sua conta, basta clicar no botão ao lado
                         </p>
                     </div>
                     <Button
                         onClick={() => setShowCancelModal(true)}
                         variant="outline"
-                        className="border-gray-700"
+                        className="border-border"
                     >
                         Cancelar plano
                     </Button>
@@ -307,25 +307,25 @@ export function PlanoTab() {
 
             {/* Current Plan */}
             <div className="pt-4">
-                <span className="text-gray-400">Plano atual: </span>
-                <span className="text-purple-400 font-medium">{subscription?.planName}</span>
+                <span className="text-muted-foreground">Plano atual: </span>
+                <span className="text-primary font-medium">{subscription?.planName}</span>
             </div>
 
             {/* Change Plan Modal */}
             <Dialog open={showPlanModal} onOpenChange={setShowPlanModal}>
-                <DialogContent className="bg-[#1a1f3e] border-gray-800 text-white max-w-4xl">
+                <DialogContent className="max-w-4xl">
                     <DialogHeader>
                         <DialogTitle className="sr-only">Alterar Plano</DialogTitle>
                     </DialogHeader>
 
                     {/* Trial Banner in Modal */}
                     {isTrialing && (
-                        <div className="flex items-center justify-between p-4 rounded-lg bg-gray-800/50 border border-gray-700 mb-4">
+                        <div className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border mb-4">
                             <div className="flex items-center gap-3">
-                                <Gift className="h-6 w-6 text-purple-400" />
+                                <Gift className="h-6 w-6 text-primary" />
                                 <div>
                                     <p className="font-medium">Sua assinatura está em período de avaliação.</p>
-                                    <p className="text-sm text-gray-400">
+                                    <p className="text-sm text-muted-foreground">
                                         Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString()} créditos de IA
                                     </p>
                                 </div>
@@ -350,37 +350,37 @@ export function PlanoTab() {
                                     key={planKey}
                                     onClick={() => setSelectedPlan(planKey)}
                                     className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all ${isSelected
-                                            ? 'border-purple-500 bg-purple-500/10'
-                                            : 'border-gray-700 bg-[#0A0E27] hover:border-gray-600'
+                                            ? 'border-primary bg-primary-subtle'
+                                            : 'border-border bg-card hover:border-border-strong'
                                         }`}
                                 >
                                     {isPopular && (
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 text-black text-xs font-bold rounded-full">
+                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-brand-accent text-brand-accent-foreground text-xs font-medium rounded-full">
                                             MAIS POPULAR
                                         </div>
                                     )}
 
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${planKey === 'flow' ? 'bg-yellow-500/20' :
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${planKey === 'flow' ? 'bg-warning-subtle' :
                                             planKey === 'pro' ? 'bg-cyan-500/20' :
-                                                'bg-gray-500/20'
+                                                'bg-muted'
                                         }`}>
-                                        <Icon className={`h-5 w-5 ${planKey === 'flow' ? 'text-yellow-500' :
+                                        <Icon className={`h-5 w-5 ${planKey === 'flow' ? 'text-warning-subtle-foreground' :
                                                 planKey === 'pro' ? 'text-cyan-500' :
-                                                    'text-gray-400'
+                                                    'text-muted-foreground'
                                             }`} />
                                     </div>
 
                                     <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
                                     <div className="mb-4">
                                         <span className="text-3xl font-bold">R$ {plan.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                        <span className="text-gray-400">/mês</span>
+                                        <span className="text-muted-foreground">/mês</span>
                                     </div>
-                                    <p className="text-sm text-gray-400 mb-4">Cobrança mensal</p>
+                                    <p className="text-sm text-muted-foreground mb-4">Cobrança mensal</p>
 
                                     <ul className="space-y-2 mb-6">
                                         {planFeatures[planKey].map((feature, idx) => (
                                             <li key={idx} className="flex items-center gap-2 text-sm">
-                                                <Check className={`h-4 w-4 ${planKey === 'pro' ? 'text-cyan-500' : 'text-purple-500'
+                                                <Check className={`h-4 w-4 ${planKey === 'pro' ? 'text-cyan-500' : 'text-primary'
                                                     }`} />
                                                 <span>{feature}</span>
                                             </li>
@@ -389,8 +389,8 @@ export function PlanoTab() {
 
                                     <Button
                                         className={`w-full ${planKey === 'pro'
-                                                ? 'bg-cyan-500 hover:bg-cyan-600 text-black'
-                                                : 'bg-transparent border border-gray-600 hover:bg-gray-800'
+                                                ? 'bg-brand-accent text-brand-accent-foreground hover:bg-brand-accent-hover'
+                                                : 'bg-transparent border border-border-strong hover:bg-accent'
                                             }`}
                                         onClick={(e) => {
                                             e.stopPropagation()
@@ -410,18 +410,18 @@ export function PlanoTab() {
 
             {/* Buy Credits Modal */}
             <Dialog open={showCreditsModal} onOpenChange={setShowCreditsModal}>
-                <DialogContent className="bg-[#1a1f3e] border-gray-800 text-white max-w-md">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Comprar créditos</DialogTitle>
                     </DialogHeader>
 
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                         Cada lote de 1000 créditos custa R$ {subscription?.creditPrice?.toFixed(2) || '49,90'} por mês
                     </p>
 
                     <div className="space-y-4 py-4">
                         <div>
-                            <label className="text-sm text-gray-400 block mb-2">
+                            <label className="text-sm text-muted-foreground block mb-2">
                                 Escolha a quantidade de créditos desejado
                             </label>
                             <Input
@@ -430,22 +430,22 @@ export function PlanoTab() {
                                 onChange={(e) => setCreditQuantity(Math.max(1000, parseInt(e.target.value) || 1000))}
                                 step={1000}
                                 min={1000}
-                                className="bg-[#0A0E27] border-gray-700"
+
                             />
                         </div>
 
                         <div>
-                            <label className="text-sm text-gray-400 block mb-2">Valor total</label>
-                            <div className="p-3 bg-[#0A0E27] border border-gray-700 rounded-md">
+                            <label className="text-sm text-muted-foreground block mb-2">Valor total</label>
+                            <div className="p-3 bg-muted border border-border rounded-md">
                                 <span className="text-lg font-bold">R$ {calculateCreditPrice()}</span>
                             </div>
                         </div>
 
                         {subscription?.paymentMethod && (
                             <div>
-                                <label className="text-sm text-gray-400 block mb-2">Número do cartão</label>
-                                <div className="flex items-center gap-3 p-3 bg-[#0A0E27] border border-gray-700 rounded-md">
-                                    <CreditCard className="h-5 w-5 text-gray-400" />
+                                <label className="text-sm text-muted-foreground block mb-2">Número do cartão</label>
+                                <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-md">
+                                    <CreditCard className="h-5 w-5 text-muted-foreground" />
                                     <span>•••• •••• •••• {subscription.paymentMethod.last4}</span>
                                 </div>
                             </div>
@@ -453,7 +453,7 @@ export function PlanoTab() {
 
                         <Button
                             variant="outline"
-                            className="w-full border-gray-700"
+                            className="w-full border-border"
                             onClick={() => {
                                 setShowCreditsModal(false)
                                 setShowPaymentModal(true)
@@ -467,14 +467,14 @@ export function PlanoTab() {
                         <Button
                             variant="outline"
                             onClick={() => setShowCreditsModal(false)}
-                            className="border-gray-700"
+                            className="border-border"
                         >
                             Cancelar
                         </Button>
                         <Button
                             onClick={handleBuyCredits}
                             disabled={processing}
-                            className="bg-purple-600 hover:bg-purple-700"
+
                         >
                             {processing ? 'Processando...' : 'Comprar créditos'}
                         </Button>
@@ -484,19 +484,19 @@ export function PlanoTab() {
 
             {/* Payment Method Modal */}
             <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-                <DialogContent className="bg-[#1a1f3e] border-gray-800 text-white max-w-md">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Alterar forma de pagamento</DialogTitle>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-muted-foreground">
                             Funcionalidade de pagamento será integrada com Stripe em breve.
                         </p>
 
-                        <div className="p-4 bg-[#0A0E27] border border-gray-700 rounded-lg text-center">
-                            <CreditCard className="h-12 w-12 text-gray-500 mx-auto mb-2" />
-                            <p className="text-gray-400">Adicione um cartão de crédito ou débito</p>
+                        <div className="p-4 bg-muted border border-border rounded-lg text-center">
+                            <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-muted-foreground">Adicione um cartão de crédito ou débito</p>
                         </div>
                     </div>
 
@@ -504,7 +504,7 @@ export function PlanoTab() {
                         <Button
                             variant="outline"
                             onClick={() => setShowPaymentModal(false)}
-                            className="border-gray-700"
+                            className="border-border"
                         >
                             Fechar
                         </Button>
@@ -514,16 +514,16 @@ export function PlanoTab() {
 
             {/* Cancel Plan Modal */}
             <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
-                <DialogContent className="bg-[#1a1f3e] border-gray-800 text-white max-w-md">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Cancelar plano</DialogTitle>
                     </DialogHeader>
 
                     <div className="py-4">
-                        <p className="text-gray-300">
+                        <p className="text-foreground">
                             Tem certeza que deseja cancelar sua assinatura?
                         </p>
-                        <p className="text-sm text-gray-400 mt-2">
+                        <p className="text-sm text-muted-foreground mt-2">
                             Você continuará tendo acesso ao plano até o fim do período de cobrança atual.
                         </p>
                     </div>
@@ -532,7 +532,7 @@ export function PlanoTab() {
                         <Button
                             variant="outline"
                             onClick={() => setShowCancelModal(false)}
-                            className="border-gray-700"
+                            className="border-border"
                         >
                             Voltar
                         </Button>

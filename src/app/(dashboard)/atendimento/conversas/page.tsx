@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
+    ArrowLeft,
     Search,
     Bot,
     MessageSquare,
@@ -23,13 +24,11 @@ import {
     Paperclip,
     Reply,
     Mic,
-    Square,
     Copy,
     Tag,
     StickyNote,
     Mail,
     PanelRight,
-    Plus,
     Check,
     CheckCheck,
     Loader2,
@@ -271,7 +270,7 @@ function MediaContent({ msg }: { msg: Message }) {
                     href={msg.mediaUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-black/10 rounded-lg px-3 py-2 hover:bg-black/20 transition-colors"
+                    className="inline-flex items-center gap-2 bg-foreground/10 rounded-lg px-3 py-2 hover:bg-foreground/20 transition-colors"
                 >
                     <FileText className="h-4 w-4" />
                     <span className="text-sm underline">{msg.content}</span>
@@ -1053,9 +1052,12 @@ export default function ConversasPage() {
 
     return (
         <>
-            <div className="flex h-[calc(100vh-64px)]">
+            <div className="flex h-full min-h-0">
                 {/* Left Sidebar — Conversation List */}
-                <div className="w-[320px] border-r bg-card flex flex-col">
+                <div className={cn(
+                    "w-full border-r bg-card flex-col md:flex md:w-[320px] md:shrink-0",
+                    selectedConversation ? "hidden" : "flex"
+                )}>
                     {/* Header */}
                     <div className="p-4 border-b">
                         <h1 className="text-xl font-bold mb-3">Conversas</h1>
@@ -1170,7 +1172,7 @@ export default function ConversasPage() {
                                                         )}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
-                                                        <span className="flex-shrink-0 bg-green-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                                                        <span className="flex-shrink-0 bg-green-500 text-foreground text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
                                                             {conv.unreadCount}
                                                         </span>
                                                     )}
@@ -1236,7 +1238,10 @@ export default function ConversasPage() {
                 </div>
 
                 {/* Right Panel — Chat View */}
-                <div className="flex-1 flex flex-col bg-background">
+                <div className={cn(
+                    "min-w-0 flex-1 flex-col bg-background md:flex",
+                    selectedConversation ? "flex" : "hidden"
+                )}>
                     {!selectedConversation || !conv ? (
                         /* Empty state */
                         <div className="flex-1 flex items-center justify-center">
@@ -1262,7 +1267,18 @@ export default function ConversasPage() {
                         <>
                             {/* Chat Header */}
                             <div className="flex items-center justify-between px-4 py-3 border-b bg-card">
-                                <div className="flex items-center gap-3">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    {/* Without this the list is unreachable on a
+                                        phone once a conversation is open. */}
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="-ml-1 shrink-0 md:hidden"
+                                        aria-label="Voltar para a lista"
+                                        onClick={() => setSelectedConversation(null)}
+                                    >
+                                        <ArrowLeft />
+                                    </Button>
                                     <ContactAvatar
                                         avatar={conv.contact.avatar}
                                         name={conv.contact.name}
@@ -1496,11 +1512,16 @@ export default function ConversasPage() {
                                                     <div
                                                         className={cn(
                                                             'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm relative',
+                                                            // Incoming was bg-muted with no edge, which on the
+                                                            // page surface is all but invisible — the worst
+                                                            // light-mode defect in the app. Outgoing used
+                                                            // bg-primary/80, which lightens over white, and the
+                                                            // human variant paired a blue fill with navy type.
                                                             isInbound
-                                                                ? 'bg-muted text-foreground rounded-bl-md'
+                                                                ? 'bg-card border border-border text-foreground rounded-bl-md'
                                                                 : isAgent
-                                                                    ? 'bg-primary/80 text-primary-foreground rounded-br-md'
-                                                                    : 'bg-blue-600 text-white rounded-br-md'
+                                                                    ? 'bg-primary text-primary-foreground rounded-br-md'
+                                                                    : 'bg-info text-info-foreground rounded-br-md'
                                                         )}
                                                         onContextMenu={(e) => handleContextMenu(e, msg)}
                                                     >
@@ -1522,7 +1543,7 @@ export default function ConversasPage() {
                                                                 'rounded-lg px-3 py-1.5 mb-1.5 border-l-2 cursor-pointer text-[11px]',
                                                                 isInbound
                                                                     ? 'bg-background/50 border-muted-foreground/30'
-                                                                    : 'bg-white/10 border-white/30'
+                                                                    : 'bg-accent border-border-strong'
                                                             )}>
                                                                 <span className={cn(
                                                                     'font-semibold block text-[10px]',
@@ -1550,7 +1571,7 @@ export default function ConversasPage() {
                                         {/* Typing indicator */}
                                         {contactTyping && (
                                             <div className="flex justify-start">
-                                                <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
+                                                <div className="bg-card border border-border rounded-2xl rounded-bl-md px-4 py-3">
                                                     <div className="flex items-center gap-1">
                                                         <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
                                                         <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -1761,7 +1782,7 @@ export default function ConversasPage() {
 
                                 {/* Contact Side Panel */}
                                 {showContactPanel && conv && (
-                                    <div className="w-[280px] flex-shrink-0 border-l bg-card overflow-y-auto">
+                                    <div className="hidden w-[280px] shrink-0 overflow-y-auto border-l bg-card xl:block">
                                         <div className="p-4 space-y-4">
                                             {/* Contact header */}
                                             <div className="text-center">

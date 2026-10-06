@@ -8,7 +8,7 @@ export default function ModelosPage() {
     const router = useRouter()
 
     return (
-        <div className="flex h-[calc(100vh-64px)] items-center justify-center bg-background">
+        <div className="flex h-full min-h-[24rem] items-center justify-center bg-background">
             {/* Modal Card */}
             <div className="rounded-xl border bg-card p-8 max-w-md text-center">
                 {/* Icon */}

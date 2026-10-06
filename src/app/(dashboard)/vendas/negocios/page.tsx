@@ -1,14 +1,14 @@
 'use client'
 
+import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
-    Plus, MoreHorizontal, User, DollarSign, GripVertical,
+    Plus, MoreHorizontal, User, DollarSign,
     Search, List, LayoutGrid, Trash2, Pencil, X,
     Trophy, XCircle, ArrowRight, Calendar, Check,
     Phone, MessageCircle, UserCheck, RefreshCw, CalendarRange,
-    Settings, Palette, Clock, FileText, CheckCircle2, Circle,
-    AlertTriangle, Video, Mail, RotateCcw
-} from 'lucide-react'
+    Settings, Clock, CheckCircle2, Circle,
+    AlertTriangle} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -168,26 +168,18 @@ const LOSS_REASONS = [
     { id: 'other', label: 'Outro', icon: '📝' },
 ]
 
-const ACTIVITY_TYPES_CONFIG: Record<string, { label: string; icon: typeof Phone; color: string }> = {
-    call: { label: 'Ligação', icon: Phone, color: 'text-blue-400' },
-    meeting: { label: 'Reunião', icon: Calendar, color: 'text-amber-400' },
-    videocall: { label: 'Videochamada', icon: Video, color: 'text-purple-400' },
-    email: { label: 'E-mail', icon: Mail, color: 'text-green-400' },
-    followup: { label: 'Follow-up', icon: RotateCcw, color: 'text-orange-400' },
-    note: { label: 'Nota', icon: FileText, color: 'text-slate-400' },
-    task: { label: 'Tarefa', icon: CheckCircle2, color: 'text-teal-400' },
-}
+const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 
 // ─── Tracking Indicators ─────────────────────────────────────────────
 function TrackingIndicators({ tracking }: { tracking: TrackingData | null }) {
     if (!tracking) return null
 
     const indicators = [
-        { key: 'contact1', icon: Phone, label: '1º Contato', color: 'text-blue-400' },
-        { key: 'contact2', icon: Phone, label: '2º Contato', color: 'text-indigo-400' },
-        { key: 'contact3', icon: Phone, label: '3º Contato', color: 'text-violet-400' },
-        { key: 'scheduled', icon: Calendar, label: 'Agendou', color: 'text-amber-400' },
-        { key: 'attended', icon: UserCheck, label: 'Compareceu', color: 'text-green-400' },
+        { key: 'contact1', icon: Phone, label: '1º Contato', color: 'text-chart-1' },
+        { key: 'contact2', icon: Phone, label: '2º Contato', color: 'text-chart-3' },
+        { key: 'contact3', icon: Phone, label: '3º Contato', color: 'text-chart-4' },
+        { key: 'scheduled', icon: Calendar, label: 'Agendou', color: 'text-warning-subtle-foreground' },
+        { key: 'attended', icon: UserCheck, label: 'Compareceu', color: 'text-success-subtle-foreground' },
         { key: 'rework', icon: RefreshCw, label: 'Retrabalho', color: 'text-orange-400' },
     ] as const
 
@@ -434,12 +426,12 @@ function StageColumn({
     return (
         <div className="flex-shrink-0 w-72" ref={setNodeRef}>
             <div className="rounded-t-lg px-4 py-2 flex items-center justify-between" style={{ backgroundColor: stage.color }}>
-                <h3 className="font-semibold text-white truncate">{stage.name}</h3>
+                <h3 className="font-semibold text-foreground truncate">{stage.name}</h3>
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-white/80 bg-white/20 px-2 py-0.5 rounded-full">{stage.deals.length}</span>
+                    <span className="text-xs text-muted-foreground bg-accent px-2 py-0.5 rounded-full">{stage.deals.length}</span>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <button className="text-white/70 hover:text-white transition-colors p-0.5 rounded hover:bg-white/10">
+                            <button className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent">
                                 <Settings className="h-3.5 w-3.5" />
                             </button>
                         </DropdownMenuTrigger>
@@ -1213,7 +1205,7 @@ export default function NegociosPage() {
                                             {deal.value != null && deal.value > 0 ? <span className="text-green-400">R$ {deal.value.toLocaleString('pt-BR')}</span> : <span className="text-muted-foreground">—</span>}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white" style={{ backgroundColor: (deal as any).stage?.color || '#6B7280' }}>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: (deal as any).stage?.color || '#6B7280' }}>
                                                 {(deal as any).stage?.name || '—'}
                                             </span>
                                         </TableCell>
@@ -1554,7 +1546,7 @@ export default function NegociosPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setLossDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleConfirmLoss} disabled={!lossReason} className="bg-red-600 hover:bg-red-700 text-white">
+                        <Button onClick={handleConfirmLoss} disabled={!lossReason} className="bg-red-600 hover:bg-red-700 text-foreground">
                             Confirmar Perda
                         </Button>
                     </DialogFooter>

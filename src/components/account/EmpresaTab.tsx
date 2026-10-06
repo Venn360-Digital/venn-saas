@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Building2, Upload } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface WorkspaceData {
@@ -118,7 +118,7 @@ export function EmpresaTab() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <span className="text-gray-400">Carregando...</span>
+                <span className="text-muted-foreground">Carregando...</span>
             </div>
         )
     }
@@ -127,22 +127,22 @@ export function EmpresaTab() {
         <div className="max-w-2xl space-y-6">
             {/* Company Name (Read-only) */}
             <div>
-                <Label className="text-sm text-gray-400">
+                <Label className="text-sm text-muted-foreground">
                     Nome da empresa
                 </Label>
                 <Input
                     value={workspace?.name || ''}
                     disabled
-                    className="mt-2 bg-[#0A0E27] border-gray-700 text-gray-400"
+                    className="mt-2 text-muted-foreground"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                     Este é o identificador do seu workspace e não pode ser alterado.
                 </p>
             </div>
 
             {/* CNPJ */}
             <div>
-                <Label htmlFor="cnpj" className="text-sm text-gray-400">
+                <Label htmlFor="cnpj" className="text-sm text-muted-foreground">
                     CNPJ
                 </Label>
                 <Input
@@ -154,13 +154,13 @@ export function EmpresaTab() {
                     }))}
                     placeholder="00.000.000/0000-00"
                     maxLength={18}
-                    className="mt-2 bg-[#0A0E27] border-gray-700"
+                    className="mt-2"
                 />
             </div>
 
             {/* Address */}
             <div>
-                <Label htmlFor="address" className="text-sm text-gray-400">
+                <Label htmlFor="address" className="text-sm text-muted-foreground">
                     Endereço
                 </Label>
                 <Input
@@ -168,13 +168,13 @@ export function EmpresaTab() {
                     value={formData.address}
                     onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                     placeholder="Rua, número, bairro, cidade - UF"
-                    className="mt-2 bg-[#0A0E27] border-gray-700"
+                    className="mt-2"
                 />
             </div>
 
             {/* Phone */}
             <div>
-                <Label htmlFor="phone" className="text-sm text-gray-400">
+                <Label htmlFor="phone" className="text-sm text-muted-foreground">
                     Telefone
                 </Label>
                 <Input
@@ -186,21 +186,21 @@ export function EmpresaTab() {
                     }))}
                     placeholder="(00) 00000-0000"
                     maxLength={15}
-                    className="mt-2 bg-[#0A0E27] border-gray-700"
+                    className="mt-2"
                 />
             </div>
 
             {/* Logo */}
             <div>
-                <Label className="text-sm text-gray-400">
+                <Label className="text-sm text-muted-foreground">
                     Logo da empresa
                 </Label>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                     A logo da empresa substituirá a logo do OdontoBox360 no menu lateral. O tamanho máximo da imagem deve ser 160px de largura por 25px de altura.
                 </p>
                 <div
                     onClick={handleLogoClick}
-                    className="mt-3 flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-700 rounded-lg bg-[#0A0E27] cursor-pointer hover:border-gray-600 transition-colors"
+                    className="mt-3 flex flex-col items-center justify-center h-32 border-2 border-dashed border-border rounded-lg bg-card cursor-pointer hover:border-border-strong transition-colors"
                 >
                     {formData.logo ? (
                         <img
@@ -210,9 +210,9 @@ export function EmpresaTab() {
                         />
                     ) : (
                         <>
-                            <Upload className="h-8 w-8 text-gray-500 mb-2" />
-                            <span className="text-sm text-gray-500">Tamanho recomendado da imagem:</span>
-                            <span className="text-sm text-gray-500">25px de altura por 160px de largura</span>
+                            <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                            <span className="text-sm text-muted-foreground">Tamanho recomendado da imagem:</span>
+                            <span className="text-sm text-muted-foreground">25px de altura por 160px de largura</span>
                         </>
                     )}
                 </div>
@@ -230,7 +230,7 @@ export function EmpresaTab() {
                 <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-purple-600 hover:bg-purple-700"
+
                 >
                     {saving ? 'Salvando...' : 'Salvar'}
                 </Button>

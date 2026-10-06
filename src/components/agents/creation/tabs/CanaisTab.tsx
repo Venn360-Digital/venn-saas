@@ -1,5 +1,6 @@
 'use client'
 
+import { BRAND_COLORS, NEUTRAL_CHANNEL } from '@/lib/brand-colors'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Phone } from 'lucide-react'
 import { Globe, MessageCircle, Instagram, ShoppingBag, ChevronDown, Loader2 } from 'lucide-react'
@@ -27,21 +28,21 @@ const CHANNELS = [
         name: 'Site',
         description: 'Adicione o Agente no seu site',
         icon: Globe,
-        color: 'bg-gray-600',
+        color: NEUTRAL_CHANNEL,
     },
     {
         id: 'whatsapp_qr',
         name: 'WhatsApp (não oficial)',
         description: 'Conecte via QR Code',
         icon: MessageCircle,
-        color: 'bg-green-600',
+        color: BRAND_COLORS.whatsapp,
     },
     {
         id: 'whatsapp_business',
         name: 'WhatsApp Business (oficial)',
         description: 'Utilize o método oficial de integração',
         icon: MessageCircle,
-        color: 'bg-green-700',
+        color: BRAND_COLORS.whatsappDark,
         comingSoon: true,
     },
     {
@@ -49,7 +50,7 @@ const CHANNELS = [
         name: 'Instagram',
         description: 'Adicione o seu Agente no Instagram',
         icon: Instagram,
-        color: 'bg-gradient-to-r from-purple-500 to-pink-500',
+        color: BRAND_COLORS.instagram,
         comingSoon: true,
     },
     {
@@ -162,7 +163,7 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
                                         'flex h-12 w-12 items-center justify-center rounded-lg',
                                         channel.color
                                     )}>
-                                        <Icon className="h-6 w-6 text-white" />
+                                        <Icon className="h-6 w-6 text-foreground" />
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">

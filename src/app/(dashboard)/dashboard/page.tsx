@@ -1,156 +1,274 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import {
+    CalendarClock,
+    CircleDollarSign,
+    Inbox,
     MessageSquare,
-    TrendingUp,
+    Target,
+    TriangleAlert,
     Users,
-    Bot,
-    ArrowUp,
-    ArrowDown,
-    Lightbulb,
-    Sparkles
 } from 'lucide-react'
 
-// Mock data - will be replaced with real data from DB
-const metrics = [
-    {
-        title: 'Leads',
-        value: '1,234',
-        change: '+12.5%',
-        trend: 'up',
-        icon: Users,
-    },
-    {
-        title: 'Vendas',
-        value: 'R$ 45.5K',
-        change: '+8.2%',
-        trend: 'up',
-        icon: TrendingUp,
-    },
-    {
-        title: 'Mensagens',
-        value: '5,678',
-        change: '-2.4%',
-        trend: 'down',
-        icon: MessageSquare,
-    },
-    {
-        title: 'Taxa de Conversão',
-        value: '3.2%',
-        change: '+0.5%',
-        trend: 'up',
-        icon: Bot,
-    },
-]
+import { getWorkspaceMember } from '@/lib/auth/workspace'
+import {
+    PERIOD_KEYS,
+    PERIOD_LABELS,
+    getDashboardSummary,
+    resolvePeriod,
+} from '@/lib/dashboard/summary'
+import { activityType } from '@/lib/activity-types'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { KpiCard } from '@/components/shared/KpiCard'
+import { EmptyState } from '@/components/shared/EmptyState'
 
-export default function DashboardPage() {
+const BRL = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+})
+
+/**
+ * Stays a server component, so the figures are already in the HTML — no client
+ * fetch, no loading flash on the first screen of the product. The period switch
+ * is a link rather than state for the same reason.
+ */
+export default async function DashboardPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ period?: string }>
+}) {
+    const auth = await getWorkspaceMember()
+    if (!auth.ok) redirect('/login')
+
+    const { period: raw } = await searchParams
+    const period = resolvePeriod(raw)
+    const data = await getDashboardSummary(auth.member.workspaceId, period)
+
+    const { kpis, snapshot, byStage, recentActivities } = data
+    const totalInStages = byStage.reduce((sum, s) => sum + s.count, 0)
+
     return (
-        <div className="space-y-6">
-            {/* Page Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
-                    Visão geral do seu negócio
-                </p>
-            </div>
-
-            {/* Metrics Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {metrics.map((metric) => {
-                    const Icon = metric.icon
-                    const TrendIcon = metric.trend === 'up' ? ArrowUp : ArrowDown
-
-                    return (
-                        <Card key={metric.title} className="border-border/50 bg-card transition-shadow hover:shadow-md">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">
-                                    {metric.title}
-                                </CardTitle>
-                                <div className="rounded-lg bg-primary/10 p-2">
-                                    <Icon className="h-4 w-4 text-primary" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-foreground">{metric.value}</div>
-                                <div className="mt-1 flex items-center text-xs">
-                                    <TrendIcon
-                                        className={`mr-1 h-3 w-3 ${metric.trend === 'up' ? 'text-green-500' : 'text-red-500'
-                                            }`}
-                                    />
-                                    <span
-                                        className={
-                                            metric.trend === 'up' ? 'text-green-500' : 'text-red-500'
-                                        }
-                                    >
-                                        {metric.change}
-                                    </span>
-                                    <span className="ml-1 text-muted-foreground">
-                                        vs último mês
-                                    </span>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )
-                })}
-            </div>
-
-            {/* AI Insights Panel */}
-            <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background">
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <div className="rounded-lg bg-primary/10 p-2">
-                            <Sparkles className="h-5 w-5 text-primary" />
-                        </div>
-                        <CardTitle className="text-lg">Insights da IA</CardTitle>
+        <>
+            <PageHeader
+                title="Dashboard"
+                description={`Últimos ${PERIOD_LABELS[period]}`}
+                actions={
+                    <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+                        {PERIOD_KEYS.map((key) => (
+                            <Button
+                                key={key}
+                                asChild
+                                size="sm"
+                                variant={key === period ? 'secondary' : 'ghost'}
+                                className={cn(key === period && 'shadow-sm')}
+                            >
+                                <Link href={`/dashboard?period=${key}`} scroll={false}>
+                                    {PERIOD_LABELS[key]}
+                                </Link>
+                            </Button>
+                        ))}
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-3">
-                        <div className="rounded-lg border border-border/50 bg-card p-4 transition-colors hover:border-primary/30">
-                            <p className="text-sm text-foreground">
-                                <span className="font-semibold text-primary">📈 Oportunidade Detectada:</span>{' '}
-                                Leads vindos da campanha "Google Ads - Verão" têm 3x mais chances de conversão no período da tarde.
-                            </p>
-                        </div>
-                        <div className="rounded-lg border border-border/50 bg-card p-4 transition-colors hover:border-primary/30">
-                            <p className="text-sm text-foreground">
-                                <span className="font-semibold text-primary">🤖 Agente Ativo:</span>{' '}
-                                Seu agente "Atendimento Rápido" respondeu 234 conversas hoje com 92% de satisfação.
-                            </p>
-                        </div>
-                        <div className="rounded-lg border border-border/50 bg-card p-4 transition-colors hover:border-primary/30">
-                            <p className="text-sm text-foreground">
-                                <span className="font-semibold text-amber-500">⚠️ Atenção:</span>{' '}
-                                15 leads não receberam follow-up há mais de 3 dias. Considere agendar uma ação.
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+                }
+            />
 
-            {/* Recent Activity & Charts - Placeholder */}
-            <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="border-border/50">
-                    <CardHeader>
-                        <CardTitle className="text-base">Atividades Recentes</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">
-                            Em breve: Lista de atividades recentes
-                        </p>
-                    </CardContent>
-                </Card>
+            <div className="space-y-6 px-4 pb-8 md:px-6">
+                <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard
+                        label="Contatos novos"
+                        value={kpis.contacts.value.toLocaleString('pt-BR')}
+                        icon={Users}
+                        delta={kpis.contacts.delta ?? undefined}
+                        hint="vs. período anterior"
+                    />
+                    <KpiCard
+                        label="Mensagens recebidas"
+                        value={kpis.messages.value.toLocaleString('pt-BR')}
+                        icon={MessageSquare}
+                        delta={kpis.messages.delta ?? undefined}
+                        hint="vs. período anterior"
+                    />
+                    <KpiCard
+                        label="Negócios ganhos"
+                        value={BRL.format(kpis.revenue.value)}
+                        icon={CircleDollarSign}
+                        delta={kpis.revenue.delta ?? undefined}
+                        hint={`${kpis.revenue.count} fechado${kpis.revenue.count === 1 ? '' : 's'}`}
+                    />
+                    <KpiCard
+                        label="Taxa de conversão"
+                        value={`${kpis.conversion.value.toFixed(1).replace('.', ',')}%`}
+                        icon={Target}
+                        delta={kpis.conversion.delta ?? undefined}
+                        hint={`${kpis.conversion.closed} negócio${kpis.conversion.closed === 1 ? '' : 's'} fechado${kpis.conversion.closed === 1 ? '' : 's'}`}
+                    />
+                </section>
 
-                <Card className="border-border/50">
-                    <CardHeader>
-                        <CardTitle className="text-base">Status dos Canais</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">
-                            Em breve: Status de integrações WhatsApp/Instagram
-                        </p>
-                    </CardContent>
-                </Card>
+                {/* Snapshots. These describe right now, so they carry no period
+                    delta — showing one would invite a comparison that does not
+                    mean anything. */}
+                <section className="grid gap-4 sm:grid-cols-3">
+                    <KpiCard
+                        label="Conversas abertas"
+                        value={snapshot.openConversations.toLocaleString('pt-BR')}
+                        icon={Inbox}
+                        hint="agora"
+                        href="/atendimento/conversas"
+                    />
+                    <KpiCard
+                        label="Atividades de hoje"
+                        value={snapshot.activitiesToday.toLocaleString('pt-BR')}
+                        icon={CalendarClock}
+                        hint="pendentes"
+                        href="/vendas/agenda"
+                    />
+                    <KpiCard
+                        label="Atrasadas"
+                        value={snapshot.overdueActivities.toLocaleString('pt-BR')}
+                        icon={TriangleAlert}
+                        hint="precisam de atenção"
+                        href="/vendas/agenda"
+                        className={cn(
+                            snapshot.overdueActivities > 0 &&
+                                'border-warning-subtle bg-warning-subtle'
+                        )}
+                    />
+                </section>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <section className="rounded-lg border border-border bg-card">
+                        <header className="border-b border-border px-5 py-4">
+                            <h2 className="text-h3">Negócios por etapa</h2>
+                            <p className="mt-0.5 text-sm text-muted-foreground">
+                                Onde o funil está parado
+                            </p>
+                        </header>
+                        <div className="px-5 py-4">
+                            {byStage.length === 0 ? (
+                                <EmptyState
+                                    variant="inline"
+                                    icon={Target}
+                                    title="Nenhum funil configurado"
+                                    description="Crie as etapas para acompanhar os negócios."
+                                    action={
+                                        <Button asChild size="sm">
+                                            <Link href="/vendas/negocios">Ir para negócios</Link>
+                                        </Button>
+                                    }
+                                />
+                            ) : (
+                                <ul className="space-y-3">
+                                    {byStage.map((stage) => {
+                                        const share =
+                                            totalInStages > 0
+                                                ? (stage.count / totalInStages) * 100
+                                                : 0
+                                        return (
+                                            <li key={stage.id}>
+                                                <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                                                    <span className="flex min-w-0 items-center gap-2">
+                                                        <span
+                                                            aria-hidden="true"
+                                                            className="size-2 shrink-0 rounded-full"
+                                                            // The stage's own stored
+                                                            // colour, so the chart stays
+                                                            // honest about the pipeline
+                                                            // the user built.
+                                                            style={{
+                                                                backgroundColor: stage.color,
+                                                            }}
+                                                        />
+                                                        <span className="truncate">
+                                                            {stage.name}
+                                                        </span>
+                                                    </span>
+                                                    <span className="num shrink-0 text-muted-foreground">
+                                                        {stage.count}
+                                                    </span>
+                                                </div>
+                                                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                                    <div
+                                                        className="h-full rounded-full"
+                                                        style={{
+                                                            width: `${share}%`,
+                                                            backgroundColor: stage.color,
+                                                        }}
+                                                    />
+                                                </div>
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className="rounded-lg border border-border bg-card">
+                        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+                            <div>
+                                <h2 className="text-h3">Atividades recentes</h2>
+                                <p className="mt-0.5 text-sm text-muted-foreground">
+                                    O que a equipe registrou
+                                </p>
+                            </div>
+                            <Button asChild variant="ghost" size="sm">
+                                <Link href="/vendas/agenda">Ver todas</Link>
+                            </Button>
+                        </header>
+                        <div className="px-5 py-4">
+                            {recentActivities.length === 0 ? (
+                                <EmptyState
+                                    variant="inline"
+                                    icon={CalendarClock}
+                                    title="Nenhuma atividade ainda"
+                                    description="Ligações, retornos e tarefas aparecem aqui."
+                                />
+                            ) : (
+                                <ul className="divide-y divide-border">
+                                    {recentActivities.map((activity) => {
+                                        const type = activityType(activity.type)
+                                        const Icon = type.icon
+                                        return (
+                                            <li
+                                                key={activity.id}
+                                                className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0"
+                                            >
+                                                <span
+                                                    className={cn(
+                                                        'mt-0.5 rounded-md p-1.5',
+                                                        type.bg,
+                                                        type.color
+                                                    )}
+                                                >
+                                                    <Icon className="size-3.5" />
+                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm">
+                                                        {activity.title}
+                                                    </p>
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        {type.label}
+                                                        {activity.contact?.name
+                                                            ? ` · ${activity.contact.name}`
+                                                            : ''}
+                                                    </p>
+                                                </div>
+                                                {activity.completedAt ? (
+                                                    <span className="shrink-0 text-xs text-success-subtle-foreground">
+                                                        Concluída
+                                                    </span>
+                                                ) : null}
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+                    </section>
+                </div>
             </div>
-        </div>
+        </>
     )
 }

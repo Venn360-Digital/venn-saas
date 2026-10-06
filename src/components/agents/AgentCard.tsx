@@ -2,7 +2,7 @@ import { Agent } from '@prisma/client'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Edit2, Power, Trash2, Bot } from 'lucide-react'
+import { Edit2, Trash2, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AgentCardProps {
@@ -24,7 +24,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                         {agent.avatar ? (
                             <img src={agent.avatar} alt={agent.name} className="h-full w-full rounded-lg object-cover" />
                         ) : (
-                            <Bot className="h-6 w-6 text-white" />
+                            <Bot className="h-6 w-6 text-foreground" />
                         )}
                     </div>
                     <div>
@@ -38,7 +38,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                     variant={agent.isActive ? 'default' : 'secondary'}
                     className={cn(
                         "cursor-pointer hover:opacity-80",
-                        agent.isActive ? "bg-green-600 hover:bg-green-700" : "bg-gray-400"
+                        agent.isActive ? "bg-success hover:bg-success/90" : "bg-muted-foreground"
                     )}
                     onClick={() => onToggleStatus(agent.id, agent.isActive)}
                 >

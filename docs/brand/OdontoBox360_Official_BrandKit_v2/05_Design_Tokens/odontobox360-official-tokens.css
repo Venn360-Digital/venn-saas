@@ -1,0 +1,10 @@
+/* OdontoBox360 Official Tokens */
+:root {
+  --odbox-deep-navy: #0B1F3B;
+  --odbox-teal: #06B6D4;
+  --odbox-mint: #A7F3D0;
+  --odbox-ice: #E6F7F5;
+  --odbox-gradient-main: linear-gradient(135deg, #0B1F3B 0%, #06B6D4 58%, #A7F3D0 100%);
+  --odbox-dark-surface: #07182f;
+  --odbox-light-surface: #F8FBFD;
+}

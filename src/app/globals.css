@@ -4,39 +4,126 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Typography. Open Sans carries headings and body; Inter is loaded only for
+     figures, where its tabular numerals keep columns aligned. Monospace is the
+     system stack on purpose — font-mono here only ever labels IDs, API keys and
+     webhook URLs, never body copy, so a third webfont would be build cost for
+     nothing. */
+  --font-sans: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-numeric: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Type scale. The reference documents H1 40 / H2 22 / H3 28 / H4 24 / H5 20 —
+     non-monotonic, because its "H2" is a marketing eyebrow rather than a second
+     heading level. The pixel values are kept; which role gets which is remapped
+     so the app's hierarchy actually descends. */
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.2;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 700;
+
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h1--font-weight: 700;
+
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h2--font-weight: 600;
+
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.3;
+  --text-h3--font-weight: 600;
+
+  --text-h4: 1rem;
+  --text-h4--line-height: 1.4;
+  --text-h4--font-weight: 600;
+
+  --text-eyebrow: 1.375rem;
+  --text-eyebrow--line-height: 1.2;
+  --text-eyebrow--font-weight: 400;
+
+  /* Surfaces */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* Action */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+
+  /* Neutral surfaces. `accent` is shadcn's hover surface (menus, ghost
+     buttons) — it is NOT the brand accent. Putting the mint here would turn
+     every dropdown hover green. */
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Brand accent and status roles */
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-foreground: var(--brand-navy-foreground);
+  --color-brand-navy-muted: var(--brand-navy-muted);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-mint: var(--brand-mint);
+  --color-brand-ice: var(--brand-ice);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-foreground: var(--info-subtle-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+
+  /* Lines and focus */
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -46,135 +133,236 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Light Mode (Day) */
-:root {
-  --radius: 0.5rem;
-  
-  /* Backgrounds */
-  --background: #ffffff;
-  --foreground: #0f0f14;
-  
-  /* Cards & Surfaces */
-  --card: #ffffff;
-  --card-foreground: #0f0f14;
-  --popover: #ffffff;
-  --popover-foreground: #0f0f14;
-  
-  /* Primary - Purple */
-  --primary: #7c3aed;
-  --primary-foreground: #ffffff;
-  
-  /* Secondary */
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  
-  /* Muted */
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  
-  /* Accent */
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  
-  /* Destructive */
-  --destructive: #ef4444;
-  
-  /* Borders & Inputs */
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #7c3aed;
-  
-  /* Charts */
-  --chart-1: #7c3aed;
-  --chart-2: #a855f7;
-  --chart-3: #c084fc;
-  --chart-4: #22c55e;
-  --chart-5: #f97316;
-  
-  /* Sidebar - Light */
-  --sidebar: #fafafa;
-  --sidebar-foreground: #18181b;
-  --sidebar-primary: #7c3aed;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #7c3aed;
+/* Figures. Applied by DataTable's `numeric` column flag and by KpiCard's value,
+   so digits line up in columns without anyone having to remember to ask. */
+@utility num {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
 }
 
-/* Dark Mode (Night) */
+/* Light — the default. Anchored on the official brand tokens
+   (05_Design_Tokens in the brand kit): deep navy #0B1F3B, teal #06B6D4, mint
+   #A7F3D0, ice #E6F7F5, light surface #F8FBFD. Those seven values are a brand
+   palette, not a UI system, so the interface roles are derived from them — but
+   every brand colour below is the official value, unmodified. */
+:root {
+  --radius: 0.625rem;
+
+  --background: #f8fbfd;
+  --foreground: #0b1f3b;
+  --card: #ffffff;
+  --card-foreground: #0b1f3b;
+  --popover: #ffffff;
+  --popover-foreground: #0b1f3b;
+
+  /* The official teal, exactly as published. White on it is 2.43:1 and fails
+     badly — but the brand's own navy on it is 6.79:1, which is how the logo is
+     built too: navy "Odonto", teal "Box". So the pairing is the fix, not a
+     darker teal. */
+  --primary: #06b6d4;
+  --primary-foreground: #0b1f3b;
+  /* Hover darkens rather than fading toward transparent, which over a light page
+     would make the hover lighter than rest. Navy on it: 5.36:1. */
+  --primary-hover: #05a1bc;
+  --primary-active: #048da5;
+  --primary-subtle: #e6f7f5;
+  --primary-subtle-foreground: #0a5566;
+
+  /* Three distinct steps, not three names for the same grey: `muted` is the
+     quietest fill, `secondary` is a button surface, and `accent` is the hover
+     above it. */
+  --muted: #eef4f7;
+  --muted-foreground: #53707f;
+  --secondary: #e4edf2;
+  --secondary-foreground: #0b1f3b;
+  --accent: #d5e5ec;
+  --accent-foreground: #0b1f3b;
+
+  /* The official brand colours, kept addressable by name for the places that
+     should wear the brand rather than a UI role. */
+  --brand-navy: #0b1f3b;
+  --brand-navy-foreground: #ffffff;
+  --brand-navy-muted: #9fc2d4;
+  --brand-teal: #06b6d4;
+  --brand-mint: #a7f3d0;
+  --brand-ice: #e6f7f5;
+  --brand-accent: #06b6d4;
+  --brand-accent-foreground: #0b1f3b;
+  --brand-accent-hover: #05a1bc;
+
+  /* The official mint is far too pale to carry text, so it serves as the tint
+     and a deeper green does the filling. */
+  --success: #13b57e;
+  --success-foreground: #022c20;
+  --success-subtle: #a7f3d0;
+  --success-subtle-foreground: #065f46;
+
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+  --warning-subtle: #fef3c7;
+  --warning-subtle-foreground: #7c2d12;
+
+  /* The teal darkened until it carries white, for the places that need a
+     blue-family fill with light type. */
+  --info: #0e7490;
+  --info-foreground: #ffffff;
+  --info-subtle: #e0f4f9;
+  --info-subtle-foreground: #0a5566;
+
+  --destructive: #c62828;
+  --destructive-foreground: #ffffff;
+  --destructive-hover: #a81f1f;
+  --destructive-subtle: #fdecec;
+  --destructive-subtle-foreground: #9b1b1b;
+
+  --border: #dce7ec;
+  --border-strong: #c0d4de;
+  --input: #c0d4de;
+  /* A focus ring carries no text, so this is the one control that can wear the
+     bright official teal at full strength — and it is more visible for it. */
+  --ring: #06b6d4;
+
+  --chart-1: #06b6d4;
+  --chart-2: #13b57e;
+  --chart-3: #0b1f3b;
+  --chart-4: #7dd3e8;
+  --chart-5: #065f46;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0b1f3b;
+  --sidebar-primary: #06b6d4;
+  --sidebar-primary-foreground: #0b1f3b;
+  --sidebar-accent: #e6f7f5;
+  --sidebar-accent-foreground: #0b1f3b;
+  --sidebar-border: #dce7ec;
+  --sidebar-ring: #06b6d4;
+}
+
+/* Dark. The official dark surface is #07182f. The teal needs no variant here:
+   it is the same published value, with the same dark type on it (6.88:1), so the
+   action colour is literally identical in both themes. */
 .dark {
-  --radius: 0.5rem;
-  
-  /* Backgrounds - Near black */
-  --background: #0f0f14;
-  --foreground: #fafafa;
-  
-  /* Cards & Surfaces */
-  --card: #1a1a1f;
-  --card-foreground: #fafafa;
-  --popover: #1a1a1f;
-  --popover-foreground: #fafafa;
-  
-  /* Primary - Purple (brighter for dark mode) */
-  --primary: #9333ea;
-  --primary-foreground: #ffffff;
-  
-  /* Secondary */
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  
-  /* Muted */
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  
-  /* Accent */
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  
-  /* Destructive */
-  --destructive: #ef4444;
-  
-  /* Borders & Inputs */
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #9333ea;
-  
-  /* Charts */
-  --chart-1: #9333ea;
-  --chart-2: #a855f7;
-  --chart-3: #c084fc;
-  --chart-4: #22c55e;
-  --chart-5: #f97316;
-  
-  /* Sidebar - Dark */
-  --sidebar: #0d0d0d;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #9333ea;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1a1a1f;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #9333ea;
+  --background: #07182f;
+  --foreground: #e4f1f7;
+  --card: #0e2440;
+  --card-foreground: #e4f1f7;
+  --popover: #0e2440;
+  --popover-foreground: #e4f1f7;
+
+  --primary: #06b6d4;
+  --primary-foreground: #04212b;
+  --primary-hover: #38c9e0;
+  --primary-active: #5fd5e8;
+  --primary-subtle: #0e3a4a;
+  --primary-subtle-foreground: #7fdcec;
+
+  --muted: #102b49;
+  --muted-foreground: #8fafc4;
+  --secondary: #16304f;
+  --secondary-foreground: #e4f1f7;
+  --accent: #1e3e60;
+  --accent-foreground: #e4f1f7;
+
+  --brand-navy: #0b1f3b;
+  --brand-navy-foreground: #ffffff;
+  --brand-navy-muted: #9fc2d4;
+  --brand-teal: #06b6d4;
+  --brand-mint: #a7f3d0;
+  --brand-ice: #e6f7f5;
+  --brand-accent: #06b6d4;
+  --brand-accent-foreground: #04212b;
+  --brand-accent-hover: #38c9e0;
+
+  /* Here the official mint is the TEXT, against a deep green tint — the one
+     place it reaches full contrast (9.74:1). */
+  --success: #34d399;
+  --success-foreground: #022c20;
+  --success-subtle: #0c3b2e;
+  --success-subtle-foreground: #a7f3d0;
+
+  --warning: #e0a33c;
+  --warning-foreground: #2a1a00;
+  --warning-subtle: #3a2a10;
+  --warning-subtle-foreground: #f3c77a;
+
+  --info: #22a5c4;
+  --info-foreground: #04212b;
+  --info-subtle: #0e3a4a;
+  --info-subtle-foreground: #8fd6e8;
+
+  /* The same red as light: lighter variants drop white below AA, and this one
+     still separates cleanly from the dark surface. */
+  --destructive: #c62828;
+  --destructive-foreground: #ffffff;
+  --destructive-hover: #d93b3b;
+  --destructive-subtle: #3a1715;
+  --destructive-subtle-foreground: #f08c89;
+
+  /* A real colour rather than rgba(255,255,255,.1): an alpha border composites
+     differently over --card than over --popover, so one token drew two
+     different lines. */
+  --border: #1d3a5c;
+  --border-strong: #2a4e76;
+  --input: #2a4e76;
+  --ring: #06b6d4;
+
+  --chart-1: #06b6d4;
+  --chart-2: #34d399;
+  --chart-3: #7dd3e8;
+  --chart-4: #22a5c4;
+  --chart-5: #a7f3d0;
+
+  /* One step below the page, so the rail recedes instead of advancing. */
+  --sidebar: #050f1f;
+  --sidebar-foreground: #e4f1f7;
+  --sidebar-primary: #06b6d4;
+  --sidebar-primary-foreground: #04212b;
+  --sidebar-accent: #122a47;
+  --sidebar-accent-foreground: #e4f1f7;
+  --sidebar-border: #1d3a5c;
+  --sidebar-ring: #06b6d4;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Defaults so a bare heading is never unstyled. PageHeader and CardTitle
+     still set their size explicitly, so the hierarchy lives in the component
+     rather than in a cascade nobody reads. */
+  h1 {
+    @apply text-h1;
+  }
+  h2 {
+    @apply text-h2;
+  }
+  h3 {
+    @apply text-h3;
+  }
+  h4 {
+    @apply text-h4;
   }
 }
 
-/* Smooth theme transitions */
-* {
-  transition-property: background-color, border-color, color;
-  transition-timing-function: ease;
-  transition-duration: 200ms;
-}
+/* The global `* { transition: background-color, border-color, color 200ms }`
+   that used to live here is gone: ThemeProvider already sets
+   disableTransitionOnChange, so it bought nothing and charged a transition to
+   every element in the app. Components that should animate declare it. */
 
-/* Disable transitions on page load to prevent flash */
-.no-transitions * {
-  transition: none !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

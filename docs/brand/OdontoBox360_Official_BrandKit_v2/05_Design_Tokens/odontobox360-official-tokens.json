@@ -1,0 +1,13 @@
+{
+  "color": {
+    "deepNavy": "#0B1F3B",
+    "teal": "#06B6D4",
+    "mint": "#A7F3D0",
+    "ice": "#E6F7F5",
+    "darkSurface": "#07182f",
+    "lightSurface": "#F8FBFD"
+  },
+  "gradient": {
+    "main": "linear-gradient(135deg, #0B1F3B 0%, #06B6D4 58%, #A7F3D0 100%)"
+  }
+}

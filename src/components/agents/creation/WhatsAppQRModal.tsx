@@ -166,7 +166,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
 
                     {status === 'waiting' && qrCode && (
                         <div className="flex flex-col items-center gap-4">
-                            <div className="rounded-lg border bg-white p-4">
+                            <div className="rounded-lg border bg-card p-4">
                                 <img
                                     src={qrCode}
                                     alt="WhatsApp QR Code"

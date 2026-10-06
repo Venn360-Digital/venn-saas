@@ -1,8 +1,31 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import { FormField } from '@/components/shared/FormField'
+import { cn } from '@/lib/utils'
 
 interface WorkspaceUser {
     id: string
@@ -31,7 +54,21 @@ interface UserFormModalProps {
     departments: Department[]
 }
 
-export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }: UserFormModalProps) {
+type Role = 'ADMIN' | 'GESTOR' | 'ATENDENTE'
+
+const ROLES: { value: Role; label: string; description: string }[] = [
+    { value: 'ADMIN', label: 'Administrador', description: 'Acesso total, incluindo conta e usuários.' },
+    { value: 'GESTOR', label: 'Gestor', description: 'Atendimento e vendas, sem gerenciamento.' },
+    { value: 'ATENDENTE', label: 'Atendente', description: 'Apenas as próprias conversas.' },
+]
+
+export function UserFormModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    user,
+    departments,
+}: UserFormModalProps) {
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState({
         name: '',
@@ -40,12 +77,14 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
         password: '',
         phone: '',
         departmentId: '',
-        role: 'GESTOR' as 'ADMIN' | 'GESTOR' | 'ATENDENTE',
+        role: 'GESTOR' as Role,
         canTransfer: false,
         isActive: true,
     })
 
     const isEditing = !!user
+    // The workspace owner cannot be demoted, here or in the API.
+    const roleLocked = !!user?.isFirstAdmin
 
     useEffect(() => {
         if (user) {
@@ -56,7 +95,11 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
                 password: '',
                 phone: user.phone || '',
                 departmentId: user.departmentId || '',
-                role: (user.role === 'ADMIN' || user.role === 'OWNER' ? 'ADMIN' : user.role === 'ATENDENTE' ? 'ATENDENTE' : 'GESTOR') as 'ADMIN' | 'GESTOR' | 'ATENDENTE',
+                role: (user.role === 'ADMIN' || user.role === 'OWNER'
+                    ? 'ADMIN'
+                    : user.role === 'ATENDENTE'
+                      ? 'ATENDENTE'
+                      : 'GESTOR') as Role,
                 canTransfer: user.canTransfer,
                 isActive: user.isActive,
             })
@@ -75,15 +118,12 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
         }
     }, [user, isOpen])
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
 
         try {
-            const url = isEditing ? `/api/users/${user.id}` : '/api/users'
-            const method = isEditing ? 'PATCH' : 'POST'
-
-            const payload: any = {
+            const payload: Record<string, unknown> = {
                 name: formData.name,
                 lastName: formData.lastName,
                 phone: formData.phone,
@@ -93,289 +133,252 @@ export function UserFormModal({ isOpen, onClose, onSuccess, user, departments }:
                 isActive: formData.isActive,
             }
 
-            // Only include email and password for new users
+            // Credentials are only set at creation; changing them later goes
+            // through the account screen.
             if (!isEditing) {
                 payload.email = formData.email
                 payload.password = formData.password
             }
 
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            })
+            const response = await fetch(
+                isEditing ? `/api/users/${user.id}` : '/api/users',
+                {
+                    method: isEditing ? 'PATCH' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                }
+            )
 
             const data = await response.json()
 
             if (response.ok) {
-                toast.success(isEditing ? 'Usuário atualizado com sucesso' : 'Usuário criado com sucesso')
+                toast.success(isEditing ? 'Usuário atualizado' : 'Usuário criado')
                 onSuccess()
             } else {
-                toast.error(data.error || 'Erro ao salvar usuário')
+                toast.error(data.error ?? 'Não foi possível salvar o usuário')
             }
         } catch (error) {
-            console.error('Error saving user:', error)
-            toast.error('Erro ao salvar usuário')
+            console.error('[USER_FORM] save', error)
+            toast.error('Não foi possível salvar o usuário')
         } finally {
             setLoading(false)
         }
     }
 
-    if (!isOpen) return null
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 p-6">
-                {/* Header */}
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <h2 className="text-xl font-semibold text-white">
-                            {isEditing ? 'Editar usuário' : 'Novo usuário'}
-                        </h2>
-                        <p className="text-sm text-gray-400">
-                            {isEditing ? 'Atualize os dados do usuário' : 'Preencha os dados para criar um novo usuário'}
-                        </p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="rounded-lg p-2 hover:bg-gray-800 transition-colors"
-                    >
-                        <X className="h-5 w-5 text-gray-400" />
-                    </button>
-                </div>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            {/* Was a hand-rolled `fixed inset-0` overlay: no focus trap, no escape
+                key, no labelled dialog role. The primitive handles all three. */}
+            <DialogContent className="max-h-[90svh] max-w-lg overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{isEditing ? 'Editar usuário' : 'Novo usuário'}</DialogTitle>
+                    <DialogDescription>
+                        {isEditing
+                            ? 'Atualize os dados e as permissões desta pessoa.'
+                            : 'A pessoa recebe acesso assim que você salvar.'}
+                    </DialogDescription>
+                </DialogHeader>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Name and LastName */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-300">
-                                Nome *
-                            </label>
-                            <input
-                                type="text"
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField label="Nome" htmlFor="user-name" required>
+                            <Input
+                                id="user-name"
                                 value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="Ex: João"
+                                onChange={(e) =>
+                                    setFormData({ ...formData, name: e.target.value })
+                                }
                                 required
-                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                                autoComplete="given-name"
                             />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-300">
-                                Sobrenome
-                            </label>
-                            <input
-                                type="text"
+                        </FormField>
+
+                        <FormField label="Sobrenome" htmlFor="user-lastname">
+                            <Input
+                                id="user-lastname"
                                 value={formData.lastName}
-                                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                                placeholder="Ex: Silva"
-                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                                onChange={(e) =>
+                                    setFormData({ ...formData, lastName: e.target.value })
+                                }
+                                autoComplete="family-name"
                             />
-                        </div>
+                        </FormField>
                     </div>
 
-                    {/* Email and Password (only for new users) */}
-                    {!isEditing && (
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-300">
-                                    E-mail *
-                                </label>
-                                <input
+                    {!isEditing ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <FormField label="E-mail" htmlFor="user-email" required>
+                                <Input
+                                    id="user-email"
                                     type="email"
                                     value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    placeholder="email@exemplo.com"
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, email: e.target.value })
+                                    }
+                                    placeholder="nome@clinica.com.br"
                                     required
-                                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                                    autoComplete="email"
                                 />
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-300">
-                                    Senha *
-                                </label>
-                                <input
+                            </FormField>
+
+                            <FormField
+                                label="Senha"
+                                htmlFor="user-password"
+                                required
+                                hint="Mínimo de 8 caracteres"
+                            >
+                                <Input
+                                    id="user-password"
                                     type="password"
                                     value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    placeholder="Mínimo 8 caracteres"
-                                    required={!isEditing}
-                                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, password: e.target.value })
+                                    }
+                                    minLength={8}
+                                    required
+                                    autoComplete="new-password"
                                 />
+                            </FormField>
+                        </div>
+                    ) : null}
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField label="Telefone" htmlFor="user-phone">
+                            <Input
+                                id="user-phone"
+                                value={formData.phone}
+                                onChange={(e) =>
+                                    setFormData({ ...formData, phone: e.target.value })
+                                }
+                                placeholder="31 99999 9999"
+                                autoComplete="tel"
+                            />
+                        </FormField>
+
+                        <FormField label="Departamento" htmlFor="user-department">
+                            <Select
+                                value={formData.departmentId || 'none'}
+                                onValueChange={(v) =>
+                                    setFormData({
+                                        ...formData,
+                                        departmentId: v === 'none' ? '' : v,
+                                    })
+                                }
+                            >
+                                <SelectTrigger id="user-department">
+                                    <SelectValue placeholder="Sem departamento" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Sem departamento</SelectItem>
+                                    {departments.map((d) => (
+                                        <SelectItem key={d.id} value={d.id}>
+                                            {d.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Função</Label>
+                        {/* Was three bare <input type="radio"> styled with
+                            accent-color, which cannot be themed beyond the dot and
+                            gave no keyboard grouping. */}
+                        <RadioGroup
+                            value={formData.role}
+                            onValueChange={(v) => setFormData({ ...formData, role: v as Role })}
+                            disabled={roleLocked}
+                            className="grid gap-2 sm:grid-cols-3"
+                        >
+                            {ROLES.map((role) => {
+                                const selected = formData.role === role.value
+                                return (
+                                    <Label
+                                        key={role.value}
+                                        htmlFor={`role-${role.value}`}
+                                        className={cn(
+                                            'flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors',
+                                            selected
+                                                ? 'border-primary bg-primary-subtle'
+                                                : 'border-border hover:border-border-strong',
+                                            roleLocked && 'cursor-not-allowed opacity-60'
+                                        )}
+                                    >
+                                        <RadioGroupItem
+                                            id={`role-${role.value}`}
+                                            value={role.value}
+                                            className="mt-0.5"
+                                        />
+                                        <span className="min-w-0">
+                                            <span className="block text-sm font-medium">
+                                                {role.label}
+                                            </span>
+                                            <span className="block text-xs text-muted-foreground">
+                                                {role.description}
+                                            </span>
+                                        </span>
+                                    </Label>
+                                )
+                            })}
+                        </RadioGroup>
+                        {roleLocked ? (
+                            <p className="text-xs text-muted-foreground">
+                                O administrador principal não pode mudar de função.
+                            </p>
+                        ) : null}
+                    </div>
+
+                    <div className="space-y-3 rounded-lg border border-border p-4">
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <Label htmlFor="user-transfer">Pode transferir conversas</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Permite passar um atendimento para outra pessoa.
+                                </p>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Phone */}
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-300">
-                            WhatsApp
-                        </label>
-                        <input
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            placeholder="(00) 00000-0000"
-                            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
-                        />
-                    </div>
-
-                    {/* Department */}
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-300">
-                            Departamento
-                        </label>
-                        <select
-                            value={formData.departmentId}
-                            onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white focus:border-purple-500 focus:outline-none"
-                        >
-                            <option value="">Selecione um departamento</option>
-                            {departments.map((dept) => (
-                                <option key={dept.id} value={dept.id}>
-                                    {dept.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Role */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-300">
-                            Função
-                        </label>
-                        <div className="grid grid-cols-3 gap-3">
-                            <label
-                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${formData.role === 'ADMIN'
-                                    ? 'border-purple-500 bg-purple-500/10'
-                                    : 'border-gray-700 hover:border-gray-600'
-                                    } ${user?.isFirstAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <input
-                                    type="radio"
-                                    name="role"
-                                    value="ADMIN"
-                                    checked={formData.role === 'ADMIN'}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' | 'ATENDENTE' })}
-                                    disabled={user?.isFirstAdmin}
-                                    className="mt-1 accent-purple-500"
-                                />
-                                <div>
-                                    <p className="font-medium text-white text-sm">Administrador</p>
-                                    <p className="text-[11px] text-gray-400">
-                                        Acesso total.
-                                    </p>
-                                </div>
-                            </label>
-                            <label
-                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${formData.role === 'GESTOR'
-                                    ? 'border-purple-500 bg-purple-500/10'
-                                    : 'border-gray-700 hover:border-gray-600'
-                                    } ${user?.isFirstAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <input
-                                    type="radio"
-                                    name="role"
-                                    value="GESTOR"
-                                    checked={formData.role === 'GESTOR'}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' | 'ATENDENTE' })}
-                                    disabled={user?.isFirstAdmin}
-                                    className="mt-1 accent-purple-500"
-                                />
-                                <div>
-                                    <p className="font-medium text-white text-sm">Gestor</p>
-                                    <p className="text-[11px] text-gray-400">
-                                        Sem Gerenciamento.
-                                    </p>
-                                </div>
-                            </label>
-                            <label
-                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${formData.role === 'ATENDENTE'
-                                    ? 'border-purple-500 bg-purple-500/10'
-                                    : 'border-gray-700 hover:border-gray-600'
-                                    } ${user?.isFirstAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <input
-                                    type="radio"
-                                    name="role"
-                                    value="ATENDENTE"
-                                    checked={formData.role === 'ATENDENTE'}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as 'ADMIN' | 'GESTOR' | 'ATENDENTE' })}
-                                    disabled={user?.isFirstAdmin}
-                                    className="mt-1 accent-purple-500"
-                                />
-                                <div>
-                                    <p className="font-medium text-white text-sm">Atendente</p>
-                                    <p className="text-[11px] text-gray-400">
-                                        Só suas conversas.
-                                    </p>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    {/* Can Transfer Toggle */}
-                    <div className="flex items-center justify-between rounded-lg border border-gray-700 p-4">
-                        <div>
-                            <p className="font-medium text-white">Transferência de conversa</p>
-                            <p className="text-sm text-gray-400">
-                                Permite transferir a conversa para outro atendente
-                            </p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, canTransfer: !formData.canTransfer })}
-                            className={`relative h-6 w-11 rounded-full transition-colors ${formData.canTransfer ? 'bg-purple-600' : 'bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${formData.canTransfer ? 'translate-x-5' : 'translate-x-0'
-                                    }`}
+                            <Switch
+                                id="user-transfer"
+                                checked={formData.canTransfer}
+                                onCheckedChange={(v) =>
+                                    setFormData({ ...formData, canTransfer: v })
+                                }
                             />
-                        </button>
-                    </div>
-
-                    {/* Status Toggle */}
-                    <div className="flex items-center justify-between rounded-lg border border-gray-700 p-4">
-                        <div>
-                            <p className="font-medium text-white">Status do usuário</p>
-                            <p className="text-sm text-gray-400">
-                                Ativo (pode fazer login no sistema)
-                            </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-                            className={`relative h-6 w-11 rounded-full transition-colors ${formData.isActive ? 'bg-purple-600' : 'bg-gray-600'
-                                }`}
-                        >
-                            <span
-                                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${formData.isActive ? 'translate-x-5' : 'translate-x-0'
-                                    }`}
+
+                        <div className="flex items-start justify-between gap-4 border-t border-border pt-3">
+                            <div className="min-w-0">
+                                <Label htmlFor="user-active">Ativo</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Desativar remove o acesso sem apagar o histórico.
+                                </p>
+                            </div>
+                            <Switch
+                                id="user-active"
+                                checked={formData.isActive}
+                                onCheckedChange={(v) => setFormData({ ...formData, isActive: v })}
                             />
-                        </button>
+                        </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="flex justify-end gap-3 pt-4">
-                        <button
+                    <DialogFooter>
+                        <Button
                             type="button"
+                            variant="outline"
                             onClick={onClose}
-                            className="rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800 transition-colors"
+                            disabled={loading}
                         >
                             Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="rounded-lg bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-700 transition-colors disabled:opacity-50"
-                        >
-                            {loading ? 'Salvando...' : isEditing ? 'Salvar' : 'Adicionar'}
-                        </button>
-                    </div>
+                        </Button>
+                        <Button type="submit" disabled={loading}>
+                            {loading ? <Loader2 className="animate-spin" /> : null}
+                            {isEditing ? 'Salvar' : 'Criar usuário'}
+                        </Button>
+                    </DialogFooter>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     )
 }
+
+export default UserFormModal
