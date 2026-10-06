@@ -164,10 +164,10 @@ export function PerfilTab() {
                             className="h-full w-full object-cover"
                         />
                     ) : (
-                        <User className="h-10 w-10 text-white" />
+                        <User className="h-10 w-10 text-foreground" />
                     )}
                     <div className="absolute bottom-0 right-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center border-2 border-border">
-                        <Camera className="h-3 w-3 text-white" />
+                        <Camera className="h-3 w-3 text-foreground" />
                     </div>
                 </div>
                 <input

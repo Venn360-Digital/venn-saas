@@ -110,7 +110,7 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                 <Button
                     onClick={onBack}
                     variant="outline"
-                    className="border-border bg-transparent text-white hover:bg-accent"
+                    className="border-border bg-transparent text-foreground hover:bg-accent"
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Voltar

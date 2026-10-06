@@ -76,6 +76,8 @@
   --color-brand-accent-foreground: var(--brand-accent-foreground);
   --color-brand-accent-hover: var(--brand-accent-hover);
   --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-foreground: var(--brand-navy-foreground);
+  --color-brand-navy-muted: var(--brand-navy-muted);
 
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
@@ -180,7 +182,12 @@
   --brand-accent: #21b896;
   --brand-accent-foreground: #073d31;
   --brand-accent-hover: #1ca183;
+  /* The brand panel on the sign-in screen is navy in BOTH themes, so type on it
+     can take neither `foreground` (which inverts) nor `primary-foreground`. It
+     gets its own pair. */
   --brand-navy: #0f3351;
+  --brand-navy-foreground: #ffffff;
+  --brand-navy-muted: #a8c2d6;
 
   --success: #21b896;
   --success-foreground: #073d31;
@@ -261,6 +268,8 @@
   --brand-accent-foreground: #062b22;
   --brand-accent-hover: #4cd9b9;
   --brand-navy: #0f3351;
+  --brand-navy-foreground: #ffffff;
+  --brand-navy-muted: #a8c2d6;
 
   --success: #2fcca8;
   --success-foreground: #062b22;

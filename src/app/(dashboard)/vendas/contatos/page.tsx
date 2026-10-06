@@ -1,5 +1,7 @@
 'use client'
 
+import { TagChip } from '@/components/shared/TagChip'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Search, Upload, Download, User, Phone, Mail, MoreHorizontal, Trash2, Edit, Tag, Check, X, Filter, ChevronLeft, ChevronRight, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -343,19 +345,19 @@ export default function ContatosPage() {
             {/* Header */}
             <div className="mb-6 flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Contatos</h1>
-                    <p className="text-gray-400">
+                    <h1 className="text-2xl font-bold text-foreground">Contatos</h1>
+                    <p className="text-muted-foreground">
                         {pagination.total} contato{pagination.total !== 1 ? 's' : ''} encontrado{pagination.total !== 1 ? 's' : ''}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="border-gray-700" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
+                    <Button variant="outline" className="border-border" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
                         <Upload className="h-4 w-4 mr-2" /> Importar
                     </Button>
-                    <Button variant="outline" className="border-gray-700" onClick={handleExport}>
+                    <Button variant="outline" className="border-border" onClick={handleExport}>
                         <Download className="h-4 w-4 mr-2" /> Exportar
                     </Button>
-                    <Button onClick={() => handleOpenDialog()} className="bg-purple-600 hover:bg-purple-700">
+                    <Button onClick={() => handleOpenDialog()} >
                         <Plus className="h-4 w-4 mr-2" /> Novo Contato
                     </Button>
                 </div>
@@ -364,21 +366,21 @@ export default function ContatosPage() {
             {/* Search + Filter bar */}
             <div className="mb-4 flex items-center gap-3">
                 <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contatos..." className="pl-10 bg-[#0A0E27] border-gray-700" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contatos..." className="pl-10" />
                 </div>
-                <Button variant={showFilters ? 'secondary' : 'outline'} className={showFilters ? '' : 'border-gray-700'} onClick={() => setShowFilters(!showFilters)}>
-                    <Filter className="h-4 w-4 mr-2" /> Filtros {hasActiveFilters && <span className="ml-1 w-2 h-2 rounded-full bg-purple-500 inline-block" />}
+                <Button variant={showFilters ? 'secondary' : 'outline'} className={showFilters ? '' : 'border-border'} onClick={() => setShowFilters(!showFilters)}>
+                    <Filter className="h-4 w-4 mr-2" /> Filtros {hasActiveFilters && <span className="ml-1 w-2 h-2 rounded-full bg-primary inline-block" />}
                 </Button>
             </div>
 
             {/* Filter panel */}
             {showFilters && (
-                <div className="mb-4 p-4 rounded-lg border border-gray-800 bg-[#0F1629] flex flex-wrap gap-4 items-end">
+                <div className="mb-4 p-4 rounded-lg border border-border bg-card flex flex-wrap gap-4 items-end">
                     <div className="w-44">
-                        <Label className="text-xs text-gray-400">Etiqueta</Label>
+                        <Label className="text-xs text-muted-foreground">Etiqueta</Label>
                         <Select value={filterTagId} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <SelectTrigger className="mt-1 h-9 bg-[#0A0E27] border-gray-700"><SelectValue placeholder="Todas" /></SelectTrigger>
+                            <SelectTrigger className="mt-1 h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">Todas</SelectItem>
                                 {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
@@ -386,33 +388,33 @@ export default function ContatosPage() {
                         </Select>
                     </div>
                     <div className="w-40">
-                        <Label className="text-xs text-gray-400">Origem</Label>
+                        <Label className="text-xs text-muted-foreground">Origem</Label>
                         <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <SelectTrigger className="mt-1 h-9 bg-[#0A0E27] border-gray-700"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 {SOURCE_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="w-44">
-                        <Label className="text-xs text-gray-400">Deal</Label>
+                        <Label className="text-xs text-muted-foreground">Deal</Label>
                         <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <SelectTrigger className="mt-1 h-9 bg-[#0A0E27] border-gray-700"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="w-36">
-                        <Label className="text-xs text-gray-400">De</Label>
-                        <Input type="date" value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} className="mt-1 h-9 bg-[#0A0E27] border-gray-700" />
+                        <Label className="text-xs text-muted-foreground">De</Label>
+                        <Input type="date" value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} className="mt-1 h-9" />
                     </div>
                     <div className="w-36">
-                        <Label className="text-xs text-gray-400">Até</Label>
-                        <Input type="date" value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} className="mt-1 h-9 bg-[#0A0E27] border-gray-700" />
+                        <Label className="text-xs text-muted-foreground">Até</Label>
+                        <Input type="date" value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} className="mt-1 h-9" />
                     </div>
                     {hasActiveFilters && (
-                        <Button variant="ghost" size="sm" className="text-xs text-gray-400" onClick={() => { setFilterTagId(''); setFilterSource(''); setFilterDeal(''); setFilterDateFrom(''); setFilterDateTo(''); setPagination(p => ({ ...p, page: 1 })) }}>
+                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => { setFilterTagId(''); setFilterSource(''); setFilterDeal(''); setFilterDateFrom(''); setFilterDateTo(''); setPagination(p => ({ ...p, page: 1 })) }}>
                             <X className="h-3 w-3 mr-1" /> Limpar
                         </Button>
                     )}
@@ -420,59 +422,59 @@ export default function ContatosPage() {
             )}
 
             {/* Table */}
-            <div className="rounded-lg border border-gray-800 bg-[#0F1629]">
+            <div className="rounded-lg border border-border bg-card">
                 {loading ? (
-                    <div className="flex items-center justify-center h-64"><span className="text-gray-400">Carregando...</span></div>
+                    <div className="flex items-center justify-center h-64"><span className="text-muted-foreground">Carregando...</span></div>
                 ) : contacts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64">
-                        <User className="h-12 w-12 text-gray-600 mb-4" />
-                        <h3 className="font-medium text-white mb-1">Nenhum contato encontrado</h3>
-                        <p className="text-gray-400 text-sm">Adicione seu primeiro contato.</p>
+                        <User className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="font-medium text-foreground mb-1">Nenhum contato encontrado</h3>
+                        <p className="text-muted-foreground text-sm">Adicione seu primeiro contato.</p>
                     </div>
                 ) : (
                     <Table>
                         <TableHeader>
-                            <TableRow className="border-gray-800 hover:bg-transparent">
-                                <TableHead className="text-gray-400">Nome</TableHead>
-                                <TableHead className="text-gray-400">Telefone</TableHead>
-                                <TableHead className="text-gray-400">E-mail</TableHead>
-                                <TableHead className="text-gray-400">Etiquetas</TableHead>
-                                <TableHead className="text-gray-400">Origem</TableHead>
-                                <TableHead className="text-gray-400 w-10"></TableHead>
+                            <TableRow className="border-border hover:bg-transparent">
+                                <TableHead className="text-muted-foreground">Nome</TableHead>
+                                <TableHead className="text-muted-foreground">Telefone</TableHead>
+                                <TableHead className="text-muted-foreground">E-mail</TableHead>
+                                <TableHead className="text-muted-foreground">Etiquetas</TableHead>
+                                <TableHead className="text-muted-foreground">Origem</TableHead>
+                                <TableHead className="text-muted-foreground w-10"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {contacts.map((contact) => (
-                                <TableRow key={contact.id} className="border-gray-800 cursor-pointer hover:bg-white/5" onClick={() => handleOpenDialog(contact)}>
+                                <TableRow key={contact.id} className="border-border cursor-pointer hover:bg-muted" onClick={() => handleOpenDialog(contact)}>
                                     <TableCell>
                                         <div className="flex items-center gap-3">
                                             <Avatar className="h-8 w-8">
-                                                <AvatarFallback className="bg-purple-600 text-white text-xs">{getInitials(contact.name)}</AvatarFallback>
+                                                <AvatarFallback className="bg-primary text-primary-foreground text-xs">{getInitials(contact.name)}</AvatarFallback>
                                             </Avatar>
-                                            <span className="text-white">{contact.name || '-'}</span>
+                                            <span className="text-foreground">{contact.name || '-'}</span>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-gray-300">{contact.phone || '-'}</TableCell>
-                                    <TableCell className="text-gray-300">{contact.email || '-'}</TableCell>
+                                    <TableCell className="text-foreground">{contact.phone || '-'}</TableCell>
+                                    <TableCell className="text-foreground">{contact.email || '-'}</TableCell>
                                     <TableCell>
                                         <div className="flex flex-wrap gap-1">
                                             {contact.tags?.length > 0 ? contact.tags.map(ct => (
-                                                <Badge key={ct.tag.id} variant="outline" className="text-xs font-medium border-0" style={{ backgroundColor: ct.tag.color + '25', color: ct.tag.color }}>{ct.tag.name}</Badge>
-                                            )) : <span className="text-gray-600 text-xs">—</span>}
+                                                <TagChip key={ct.tag.id} size="sm" name={ct.tag.name} color={ct.tag.color} />
+                                            )) : <span className="text-muted-foreground text-xs">—</span>}
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-400">{contact.source || 'manual'}</span>
+                                        <StatusBadge value={contact.source || 'manual'} tone="neutral" />
                                     </TableCell>
                                     <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="bg-[#0F1629] border-gray-800">
+                                            <DropdownMenuContent align="end" className="bg-card border-border">
                                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDialog(contact) }}><Edit className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
                                                 {canEdit && (
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }} className="text-red-500"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
                                                 )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -485,14 +487,14 @@ export default function ContatosPage() {
 
                 {/* Pagination bar (inside the card, like Etiquetas) */}
                 {contacts.length > 0 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-800">
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span>Exibindo</span>
                             <Select
                                 value={pagination.limit.toString()}
                                 onValueChange={(value) => setPagination(prev => ({ ...prev, limit: parseInt(value), page: 1 }))}
                             >
-                                <SelectTrigger className="w-20 h-8 bg-transparent border-gray-700">
+                                <SelectTrigger className="w-20 h-8 bg-transparent border-border">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -510,11 +512,11 @@ export default function ContatosPage() {
                                 size="sm"
                                 disabled={pagination.page <= 1}
                                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                                className="border-gray-700"
+                                className="border-border"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            <span className="text-sm text-gray-400">
+                            <span className="text-sm text-muted-foreground">
                                 Página {pagination.page} de {pagination.totalPages || 1}
                             </span>
                             <Button
@@ -522,7 +524,7 @@ export default function ContatosPage() {
                                 size="sm"
                                 disabled={pagination.page >= pagination.totalPages}
                                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                                className="border-gray-700"
+                                className="border-border"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
@@ -533,13 +535,13 @@ export default function ContatosPage() {
 
             {/* ═══ Create/Edit Contact Dialog (Full-screen) ═══ */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="!w-[90vw] !max-w-[1400px] max-h-[90vh] overflow-y-auto bg-[#0F1629] border-gray-800 text-white">
+                <DialogContent className="!w-[90vw] !max-w-[1400px] max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
                     <DialogHeader>
                         <DialogTitle>{editingContact ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
                     </DialogHeader>
 
                     {loadingDetail ? (
-                        <div className="flex items-center justify-center h-40"><span className="text-gray-400">Carregando...</span></div>
+                        <div className="flex items-center justify-center h-40"><span className="text-muted-foreground">Carregando...</span></div>
                     ) : (
                         <Tabs defaultValue="dados" className="pt-2">
                             <TabsList className="mb-4">
@@ -553,40 +555,40 @@ export default function ContatosPage() {
                                 <div className="grid grid-cols-2 gap-6">
                                     {/* Left Column: Basic info */}
                                     <div className="space-y-4">
-                                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Informações Básicas</h3>
+                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Informações Básicas</h3>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div><Label>Nome</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Nome do contato" className="mt-1 bg-[#0A0E27] border-gray-700" /></div>
-                                            <div><Label>Telefone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" className="mt-1 bg-[#0A0E27] border-gray-700" /></div>
+                                            <div><Label>Nome</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Nome do contato" className="mt-1" /></div>
+                                            <div><Label>Telefone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" className="mt-1" /></div>
                                         </div>
-                                        <div><Label>E-mail</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" className="mt-1 bg-[#0A0E27] border-gray-700" /></div>
-                                        <div><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o contato..." className="mt-1 bg-[#0A0E27] border-gray-700" rows={3} /></div>
+                                        <div><Label>E-mail</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" className="mt-1" /></div>
+                                        <div><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o contato..." className="mt-1" rows={3} /></div>
 
                                         {/* Custom field values */}
                                         {customFieldDefs.length > 0 && (
                                             <>
-                                                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider pt-2">Campos Personalizados</h3>
+                                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-2">Campos Personalizados</h3>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     {customFieldDefs.map(field => (
                                                         <div key={field.id}>
                                                             <Label className="text-xs">{field.name}</Label>
                                                             {field.type === 'text' && (
-                                                                <Input value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1 bg-[#0A0E27] border-gray-700" />
+                                                                <Input value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
                                                             )}
                                                             {field.type === 'number' && (
-                                                                <Input type="number" value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1 bg-[#0A0E27] border-gray-700" />
+                                                                <Input type="number" value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
                                                             )}
                                                             {field.type === 'date' && (
-                                                                <Input type="date" value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1 bg-[#0A0E27] border-gray-700" />
+                                                                <Input type="date" value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
                                                             )}
                                                             {field.type === 'checkbox' && (
                                                                 <div className="flex items-center gap-2 mt-2">
                                                                     <Switch checked={!!customFieldValues[field.key]} onCheckedChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))} />
-                                                                    <span className="text-sm text-gray-400">{customFieldValues[field.key] ? 'Sim' : 'Não'}</span>
+                                                                    <span className="text-sm text-muted-foreground">{customFieldValues[field.key] ? 'Sim' : 'Não'}</span>
                                                                 </div>
                                                             )}
                                                             {field.type === 'select' && Array.isArray(field.options) && (
                                                                 <Select value={customFieldValues[field.key] || ''} onValueChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))}>
-                                                                    <SelectTrigger className="mt-1 bg-[#0A0E27] border-gray-700"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                                                     <SelectContent>
                                                                         {field.options.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                                                                     </SelectContent>
@@ -601,19 +603,24 @@ export default function ContatosPage() {
 
                                     {/* Right Column: Tags + Stats */}
                                     <div className="space-y-4">
-                                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Etiquetas</h3>
+                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Etiquetas</h3>
                                         {allTags.length === 0 ? (
-                                            <p className="text-xs text-gray-500">Nenhuma etiqueta cadastrada.</p>
+                                            <p className="text-xs text-muted-foreground">Nenhuma etiqueta cadastrada.</p>
                                         ) : (
                                             <div className="flex flex-wrap gap-1.5">
                                                 {allTags.map(tag => {
                                                     const sel = selectedTagIds.includes(tag.id)
                                                     return (
-                                                        <button key={tag.id} type="button"
+                                                        <button
+                                                            key={tag.id}
+                                                            type="button"
+                                                            aria-pressed={sel}
                                                             onClick={() => setSelectedTagIds(prev => sel ? prev.filter(i => i !== tag.id) : [...prev, tag.id])}
-                                                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer border ${sel ? 'border-transparent ring-1 ring-offset-1 ring-offset-[#0F1629]' : 'border-gray-700 opacity-50 hover:opacity-80'}`}
-                                                            style={{ backgroundColor: tag.color + (sel ? '30' : '15'), color: tag.color }}>
-                                                            {sel && <Check className="h-3 w-3" />}{tag.name}
+                                                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${sel ? 'border-primary bg-primary-subtle text-primary-subtle-foreground' : 'border-border bg-card text-foreground hover:bg-accent'}`}>
+                                                            {sel
+                                                                ? <Check className="size-3" />
+                                                                : <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />}
+                                                            {tag.name}
                                                         </button>
                                                     )
                                                 })}
@@ -623,24 +630,24 @@ export default function ContatosPage() {
                                         {/* Quick stats (edit mode only) */}
                                         {editingContact?.stats && (
                                             <>
-                                                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider pt-4">Resumo</h3>
+                                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-4">Resumo</h3>
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800">
-                                                        <div className="flex items-center gap-2 text-gray-400 mb-1"><MessageSquare className="h-4 w-4" /><span className="text-xs">Mensagens</span></div>
-                                                        <span className="text-lg font-bold text-white">{editingContact.stats.totalMessages}</span>
+                                                    <div className="p-3 rounded-lg bg-card border border-border">
+                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><MessageSquare className="h-4 w-4" /><span className="text-xs">Mensagens</span></div>
+                                                        <span className="text-lg font-semibold text-foreground num">{editingContact.stats.totalMessages}</span>
                                                     </div>
-                                                    <div className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800">
-                                                        <div className="flex items-center gap-2 text-gray-400 mb-1"><Phone className="h-4 w-4" /><span className="text-xs">Conversas</span></div>
-                                                        <span className="text-lg font-bold text-white">{editingContact.stats.totalConversations}</span>
+                                                    <div className="p-3 rounded-lg bg-card border border-border">
+                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><Phone className="h-4 w-4" /><span className="text-xs">Conversas</span></div>
+                                                        <span className="text-lg font-semibold text-foreground num">{editingContact.stats.totalConversations}</span>
                                                     </div>
-                                                    <div className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800">
-                                                        <div className="flex items-center gap-2 text-gray-400 mb-1"><TrendingUp className="h-4 w-4" /><span className="text-xs">Negócios</span></div>
-                                                        <span className="text-lg font-bold text-white">{editingContact.stats.totalDeals}</span>
-                                                        {editingContact.stats.openDeals > 0 && <span className="ml-1 text-xs text-green-400">({editingContact.stats.openDeals} aberto{editingContact.stats.openDeals > 1 ? 's' : ''})</span>}
+                                                    <div className="p-3 rounded-lg bg-card border border-border">
+                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><TrendingUp className="h-4 w-4" /><span className="text-xs">Negócios</span></div>
+                                                        <span className="text-lg font-semibold text-foreground num">{editingContact.stats.totalDeals}</span>
+                                                        {editingContact.stats.openDeals > 0 && <span className="ml-1 text-xs text-success-subtle-foreground">({editingContact.stats.openDeals} aberto{editingContact.stats.openDeals > 1 ? 's' : ''})</span>}
                                                     </div>
-                                                    <div className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800">
-                                                        <div className="flex items-center gap-2 text-gray-400 mb-1"><Calendar className="h-4 w-4" /><span className="text-xs">Primeiro contato</span></div>
-                                                        <span className="text-sm font-medium text-white">{editingContact.stats.firstContact ? format(new Date(editingContact.stats.firstContact), 'dd/MM/yy', { locale: ptBR }) : '—'}</span>
+                                                    <div className="p-3 rounded-lg bg-card border border-border">
+                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><Calendar className="h-4 w-4" /><span className="text-xs">Primeiro contato</span></div>
+                                                        <span className="text-sm font-medium text-foreground">{editingContact.stats.firstContact ? format(new Date(editingContact.stats.firstContact), 'dd/MM/yy', { locale: ptBR }) : '—'}</span>
                                                     </div>
                                                 </div>
                                             </>
@@ -655,37 +662,37 @@ export default function ContatosPage() {
                                     <div className="grid grid-cols-2 gap-6">
                                         {/* Conversations */}
                                         <div>
-                                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Conversas ({editingContact.conversations?.length || 0})</h3>
+                                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Conversas ({editingContact.conversations?.length || 0})</h3>
                                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                                {editingContact.conversations?.length === 0 && <p className="text-sm text-gray-500">Nenhuma conversa</p>}
+                                                {editingContact.conversations?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma conversa</p>}
                                                 {editingContact.conversations?.map(conv => (
-                                                    <div key={conv.id} className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800 flex items-center justify-between">
+                                                    <div key={conv.id} className="p-3 rounded-lg bg-card border border-border flex items-center justify-between">
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <Badge variant="outline" className={`text-[10px] ${conv.status === 'active' ? 'border-green-500 text-green-400' : 'border-gray-600 text-gray-400'}`}>{conv.status === 'active' ? 'Ativa' : 'Fechada'}</Badge>
-                                                                <span className="text-xs text-gray-400">{conv.channel}</span>
-                                                                {conv.agentName && <span className="text-xs text-gray-500">via {conv.agentName}</span>}
+                                                                <Badge variant="outline" className={`text-[10px] ${conv.status === 'active' ? 'border-success text-success-subtle-foreground' : 'border-border-strong text-muted-foreground'}`}>{conv.status === 'active' ? 'Ativa' : 'Fechada'}</Badge>
+                                                                <span className="text-xs text-muted-foreground">{conv.channel}</span>
+                                                                {conv.agentName && <span className="text-xs text-muted-foreground">via {conv.agentName}</span>}
                                                             </div>
-                                                            <p className="text-xs text-gray-500 mt-1">{conv.messageCount} mensagens</p>
+                                                            <p className="text-xs text-muted-foreground mt-1">{conv.messageCount} mensagens</p>
                                                         </div>
-                                                        <span className="text-xs text-gray-500">{conv.lastMessageAt ? format(new Date(conv.lastMessageAt), 'dd/MM/yy HH:mm', { locale: ptBR }) : '—'}</span>
+                                                        <span className="text-xs text-muted-foreground">{conv.lastMessageAt ? format(new Date(conv.lastMessageAt), 'dd/MM/yy HH:mm', { locale: ptBR }) : '—'}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                         {/* Deals */}
                                         <div>
-                                            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Negócios ({editingContact.deals?.length || 0})</h3>
+                                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Negócios ({editingContact.deals?.length || 0})</h3>
                                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                                {editingContact.deals?.length === 0 && <p className="text-sm text-gray-500">Nenhum negócio</p>}
+                                                {editingContact.deals?.length === 0 && <p className="text-sm text-muted-foreground">Nenhum negócio</p>}
                                                 {editingContact.deals?.map(deal => (
-                                                    <div key={deal.id} className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800">
+                                                    <div key={deal.id} className="p-3 rounded-lg bg-card border border-border">
                                                         <div className="flex items-center justify-between">
-                                                            <span className="text-sm font-medium text-white">{deal.title}</span>
-                                                            <Badge variant="outline" className={`text-[10px] ${deal.status === 'open' ? 'border-blue-500 text-blue-400' : deal.status === 'won' ? 'border-green-500 text-green-400' : 'border-red-500 text-red-400'}`}>{deal.status === 'open' ? 'Aberto' : deal.status === 'won' ? 'Ganho' : 'Perdido'}</Badge>
+                                                            <span className="text-sm font-medium text-foreground">{deal.title}</span>
+                                                            <Badge variant="outline" className={`text-[10px] ${deal.status === 'open' ? 'border-info text-info-subtle-foreground' : deal.status === 'won' ? 'border-success text-success-subtle-foreground' : 'border-destructive text-destructive'}`}>{deal.status === 'open' ? 'Aberto' : deal.status === 'won' ? 'Ganho' : 'Perdido'}</Badge>
                                                         </div>
                                                         <div className="flex items-center gap-3 mt-1">
-                                                            {deal.value && <span className="text-xs text-green-400">R$ {deal.value.toLocaleString('pt-BR')}</span>}
+                                                            {deal.value && <span className="text-xs text-success-subtle-foreground">R$ {deal.value.toLocaleString('pt-BR')}</span>}
                                                             {deal.stage && <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: deal.stage.color + '25', color: deal.stage.color }}>{deal.stage.name}</span>}
                                                         </div>
                                                     </div>
@@ -700,22 +707,22 @@ export default function ContatosPage() {
                             <TabsContent value="campos">
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Campos Personalizados do Workspace</h3>
+                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Campos Personalizados do Workspace</h3>
                                         {canEdit && (
-                                            <Button variant="outline" size="sm" className="border-gray-700" onClick={() => setShowFieldManager(!showFieldManager)}>
+                                            <Button variant="outline" size="sm" className="border-border" onClick={() => setShowFieldManager(!showFieldManager)}>
                                                 <Settings className="h-3.5 w-3.5 mr-1.5" /> {showFieldManager ? 'Fechar' : 'Gerenciar campos'}
                                             </Button>
                                         )}
                                     </div>
 
                                     {showFieldManager && canEdit && (
-                                        <div className="p-4 rounded-lg border border-gray-700 bg-[#0A0E27] space-y-3">
+                                        <div className="p-4 rounded-lg border border-border bg-card space-y-3">
                                             <div className="flex gap-3 items-end">
-                                                <div className="flex-1"><Label className="text-xs">Nome do campo</Label><Input value={newFieldName} onChange={e => setNewFieldName(e.target.value)} placeholder="Ex: Empresa" className="mt-1 bg-[#0F1629] border-gray-700" /></div>
+                                                <div className="flex-1"><Label className="text-xs">Nome do campo</Label><Input value={newFieldName} onChange={e => setNewFieldName(e.target.value)} placeholder="Ex: Empresa" className="mt-1 bg-card border-border" /></div>
                                                 <div className="w-32">
                                                     <Label className="text-xs">Tipo</Label>
                                                     <Select value={newFieldType} onValueChange={setNewFieldType}>
-                                                        <SelectTrigger className="mt-1 bg-[#0F1629] border-gray-700"><SelectValue /></SelectTrigger>
+                                                        <SelectTrigger className="mt-1 bg-card border-border"><SelectValue /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="text">Texto</SelectItem>
                                                             <SelectItem value="number">Número</SelectItem>
@@ -726,24 +733,24 @@ export default function ContatosPage() {
                                                     </Select>
                                                 </div>
                                                 {newFieldType === 'select' && (
-                                                    <div className="flex-1"><Label className="text-xs">Opções (separadas por vírgula)</Label><Input value={newFieldOptions} onChange={e => setNewFieldOptions(e.target.value)} placeholder="Opção 1, Opção 2, Opção 3" className="mt-1 bg-[#0F1629] border-gray-700" /></div>
+                                                    <div className="flex-1"><Label className="text-xs">Opções (separadas por vírgula)</Label><Input value={newFieldOptions} onChange={e => setNewFieldOptions(e.target.value)} placeholder="Opção 1, Opção 2, Opção 3" className="mt-1 bg-card border-border" /></div>
                                                 )}
-                                                <Button size="sm" onClick={handleCreateField} className="bg-purple-600 hover:bg-purple-700"><Plus className="h-4 w-4" /></Button>
+                                                <Button size="sm" onClick={handleCreateField} ><Plus className="h-4 w-4" /></Button>
                                             </div>
                                             {customFieldDefs.length > 0 && (
-                                                <div className="space-y-1 pt-2 border-t border-gray-700">
+                                                <div className="space-y-1 pt-2 border-t border-border">
                                                     {customFieldDefs.map(f => (
-                                                        <div key={f.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-[#0F1629]">
+                                                        <div key={f.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-card">
                                                             <div className="flex items-center gap-2">
-                                                                {f.type === 'text' && <FileText className="h-3.5 w-3.5 text-gray-500" />}
-                                                                {f.type === 'number' && <Hash className="h-3.5 w-3.5 text-gray-500" />}
-                                                                {f.type === 'date' && <Calendar className="h-3.5 w-3.5 text-gray-500" />}
-                                                                {f.type === 'select' && <ListIcon className="h-3.5 w-3.5 text-gray-500" />}
-                                                                {f.type === 'checkbox' && <ToggleLeft className="h-3.5 w-3.5 text-gray-500" />}
-                                                                <span className="text-sm text-white">{f.name}</span>
-                                                                <span className="text-[10px] text-gray-500">({f.type})</span>
+                                                                {f.type === 'text' && <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                                {f.type === 'number' && <Hash className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                                {f.type === 'date' && <Calendar className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                                {f.type === 'select' && <ListIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                                {f.type === 'checkbox' && <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
+                                                                <span className="text-sm text-foreground">{f.name}</span>
+                                                                <span className="text-[10px] text-muted-foreground">({f.type})</span>
                                                             </div>
-                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-500 hover:text-red-400" onClick={() => handleDeleteField(f.id)}><Trash2 className="h-3 w-3" /></Button>
+                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteField(f.id)}><Trash2 className="h-3 w-3" /></Button>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -752,7 +759,7 @@ export default function ContatosPage() {
                                     )}
 
                                     {!showFieldManager && customFieldDefs.length === 0 && (
-                                        <p className="text-sm text-gray-500">Nenhum campo personalizado configurado. Clique em "Gerenciar campos" para criar.</p>
+                                        <p className="text-sm text-muted-foreground">Nenhum campo personalizado configurado. Clique em "Gerenciar campos" para criar.</p>
                                     )}
                                 </div>
                             </TabsContent>
@@ -760,37 +767,37 @@ export default function ContatosPage() {
                     )}
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-gray-700">Cancelar</Button>
-                        <Button onClick={handleSave} className="bg-purple-600 hover:bg-purple-700">{editingContact ? 'Salvar' : 'Criar'}</Button>
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-border">Cancelar</Button>
+                        <Button onClick={handleSave} >{editingContact ? 'Salvar' : 'Criar'}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* ═══ Import Dialog ═══ */}
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-                <DialogContent className="!w-[80vw] !max-w-[900px] max-h-[85vh] overflow-y-auto bg-[#0F1629] border-gray-800 text-white">
+                <DialogContent className="!w-[80vw] !max-w-[900px] max-h-[85vh] overflow-y-auto bg-card border-border text-foreground">
                     <DialogHeader><DialogTitle>Importar Contatos</DialogTitle></DialogHeader>
 
                     {importStep === 'upload' && (
                         <div className="py-8 text-center">
-                            <Upload className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-                            <p className="text-gray-400 mb-4">Selecione um arquivo CSV com os contatos a importar</p>
+                            <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                            <p className="text-muted-foreground mb-4">Selecione um arquivo CSV com os contatos a importar</p>
                             <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
-                            <Button onClick={() => fileInputRef.current?.click()} className="bg-purple-600 hover:bg-purple-700">Selecionar arquivo CSV</Button>
-                            <p className="text-xs text-gray-500 mt-3">Colunas esperadas: Nome, E-mail, Telefone, Observações</p>
+                            <Button onClick={() => fileInputRef.current?.click()} >Selecionar arquivo CSV</Button>
+                            <p className="text-xs text-muted-foreground mt-3">Colunas esperadas: Nome, E-mail, Telefone, Observações</p>
                         </div>
                     )}
 
                     {importStep === 'mapping' && (
                         <div className="space-y-4">
-                            <p className="text-sm text-gray-400">Mapeie as colunas do CSV para os campos do contato:</p>
+                            <p className="text-sm text-muted-foreground">Mapeie as colunas do CSV para os campos do contato:</p>
                             <div className="grid grid-cols-2 gap-3">
                                 {csvHeaders.map((header, i) => (
                                     <div key={i} className="flex items-center gap-3">
-                                        <span className="text-sm text-white w-32 truncate" title={header}>{header}</span>
-                                        <span className="text-gray-500">→</span>
+                                        <span className="text-sm text-foreground w-32 truncate" title={header}>{header}</span>
+                                        <span className="text-muted-foreground">→</span>
                                         <Select value={columnMapping[String(i)] || 'ignore'} onValueChange={v => setColumnMapping(p => ({ ...p, [String(i)]: v === 'ignore' ? '' : v }))}>
-                                            <SelectTrigger className="bg-[#0A0E27] border-gray-700 w-40"><SelectValue /></SelectTrigger>
+                                            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="ignore">Ignorar</SelectItem>
                                                 <SelectItem value="name">Nome</SelectItem>
@@ -802,10 +809,10 @@ export default function ContatosPage() {
                                     </div>
                                 ))}
                             </div>
-                            <p className="text-xs text-gray-500">{csvRows.length} linhas encontradas</p>
+                            <p className="text-xs text-muted-foreground">{csvRows.length} linhas encontradas</p>
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" className="border-gray-700" onClick={() => setImportStep('upload')}>Voltar</Button>
-                                <Button onClick={handlePreviewImport} className="bg-purple-600 hover:bg-purple-700">Pré-visualizar</Button>
+                                <Button variant="outline" className="border-border" onClick={() => setImportStep('upload')}>Voltar</Button>
+                                <Button onClick={handlePreviewImport} >Pré-visualizar</Button>
                             </div>
                         </div>
                     )}
@@ -813,28 +820,28 @@ export default function ContatosPage() {
                     {importStep === 'preview' && importSummary && (
                         <div className="space-y-4">
                             <div className="flex gap-4">
-                                <div className="p-3 rounded-lg bg-[#0A0E27] border border-gray-800 flex-1 text-center">
-                                    <span className="text-2xl font-bold text-white">{importSummary.total}</span>
-                                    <p className="text-xs text-gray-400">Total</p>
+                                <div className="p-3 rounded-lg bg-card border border-border flex-1 text-center">
+                                    <span className="text-2xl font-bold text-foreground">{importSummary.total}</span>
+                                    <p className="text-xs text-muted-foreground">Total</p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-green-900/20 border border-green-800 flex-1 text-center">
-                                    <span className="text-2xl font-bold text-green-400">{importSummary.new}</span>
-                                    <p className="text-xs text-gray-400">Novos</p>
+                                <div className="p-3 rounded-lg bg-green-900/20 border border-success flex-1 text-center">
+                                    <span className="text-2xl font-bold text-success-subtle-foreground">{importSummary.new}</span>
+                                    <p className="text-xs text-muted-foreground">Novos</p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-yellow-900/20 border border-yellow-800 flex-1 text-center">
-                                    <span className="text-2xl font-bold text-yellow-400">{importSummary.duplicates}</span>
-                                    <p className="text-xs text-gray-400">Duplicados</p>
+                                <div className="p-3 rounded-lg bg-warning-subtle border border-warning flex-1 text-center">
+                                    <span className="text-2xl font-bold text-warning-subtle-foreground">{importSummary.duplicates}</span>
+                                    <p className="text-xs text-muted-foreground">Duplicados</p>
                                 </div>
                             </div>
                             {importSummary.duplicates > 0 && (
-                                <div className="flex items-center gap-3 p-3 rounded-lg border border-yellow-800 bg-yellow-900/10">
-                                    <AlertCircle className="h-5 w-5 text-yellow-400 flex-shrink-0" />
+                                <div className="flex items-center gap-3 p-3 rounded-lg border border-warning bg-warning-subtle">
+                                    <AlertCircle className="h-5 w-5 text-warning-subtle-foreground flex-shrink-0" />
                                     <div className="flex-1">
-                                        <p className="text-sm text-yellow-400">Contatos duplicados encontrados</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">Escolha o que fazer com eles:</p>
+                                        <p className="text-sm text-warning-subtle-foreground">Contatos duplicados encontrados</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Escolha o que fazer com eles:</p>
                                     </div>
                                     <Select value={duplicateAction} onValueChange={v => setDuplicateAction(v as 'skip' | 'update')}>
-                                        <SelectTrigger className="w-40 bg-[#0A0E27] border-gray-700"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="skip">Ignorar</SelectItem>
                                             <SelectItem value="update">Atualizar dados</SelectItem>
@@ -842,29 +849,29 @@ export default function ContatosPage() {
                                     </Select>
                                 </div>
                             )}
-                            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-gray-800">
+                            <div className="max-h-[300px] overflow-y-auto rounded-lg border border-border">
                                 <Table>
-                                    <TableHeader><TableRow className="border-gray-800 hover:bg-transparent">
-                                        <TableHead className="text-gray-400 w-16">Status</TableHead>
-                                        <TableHead className="text-gray-400">Nome</TableHead>
-                                        <TableHead className="text-gray-400">E-mail</TableHead>
-                                        <TableHead className="text-gray-400">Telefone</TableHead>
+                                    <TableHeader><TableRow className="border-border hover:bg-transparent">
+                                        <TableHead className="text-muted-foreground w-16">Status</TableHead>
+                                        <TableHead className="text-muted-foreground">Nome</TableHead>
+                                        <TableHead className="text-muted-foreground">E-mail</TableHead>
+                                        <TableHead className="text-muted-foreground">Telefone</TableHead>
                                     </TableRow></TableHeader>
                                     <TableBody>
                                         {importPreview.slice(0, 50).map(row => (
-                                            <TableRow key={row.index} className="border-gray-800">
-                                                <TableCell>{row.status === 'new' ? <Badge className="bg-green-900 text-green-400 text-[10px]">Novo</Badge> : <Badge className="bg-yellow-900 text-yellow-400 text-[10px]">Duplicado</Badge>}</TableCell>
-                                                <TableCell className="text-white text-sm">{row.name || '-'}</TableCell>
-                                                <TableCell className="text-gray-300 text-sm">{row.email || '-'}</TableCell>
-                                                <TableCell className="text-gray-300 text-sm">{row.phone || '-'}</TableCell>
+                                            <TableRow key={row.index} className="border-border">
+                                                <TableCell>{row.status === 'new' ? <Badge className="bg-green-900 text-success-subtle-foreground text-[10px]">Novo</Badge> : <Badge className="bg-yellow-900 text-warning-subtle-foreground text-[10px]">Duplicado</Badge>}</TableCell>
+                                                <TableCell className="text-foreground text-sm">{row.name || '-'}</TableCell>
+                                                <TableCell className="text-foreground text-sm">{row.email || '-'}</TableCell>
+                                                <TableCell className="text-foreground text-sm">{row.phone || '-'}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
                             </div>
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" className="border-gray-700" onClick={() => setImportStep('mapping')}>Voltar</Button>
-                                <Button onClick={handleCommitImport} disabled={importing} className="bg-purple-600 hover:bg-purple-700">
+                                <Button variant="outline" className="border-border" onClick={() => setImportStep('mapping')}>Voltar</Button>
+                                <Button onClick={handleCommitImport} disabled={importing} >
                                     {importing ? 'Importando...' : `Importar ${importSummary.total} contatos`}
                                 </Button>
                             </div>

@@ -24,7 +24,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                         {agent.avatar ? (
                             <img src={agent.avatar} alt={agent.name} className="h-full w-full rounded-lg object-cover" />
                         ) : (
-                            <Bot className="h-6 w-6 text-white" />
+                            <Bot className="h-6 w-6 text-foreground" />
                         )}
                     </div>
                     <div>

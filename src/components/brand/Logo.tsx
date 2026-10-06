@@ -2,42 +2,88 @@ import Image from 'next/image'
 
 import { cn } from '@/lib/utils'
 
+type Variant = 'wordmark' | 'full' | 'stacked'
+
 interface LogoProps {
-    /** `full` is the lockup with the wordmark; `mark` is the symbol alone. */
-    variant?: 'full' | 'mark'
+    /**
+     * `wordmark` is the horizontal type alone — the one that survives a 28px
+     * header. `full` adds the mark beside it. `stacked` puts the mark above the
+     * type, for a square or portrait slot.
+     */
+    variant?: Variant
     /** Rendered height in pixels. Width follows the asset's aspect ratio. */
     height?: number
+    /**
+     * Forces one of the two artworks instead of letting the theme choose. The
+     * login's navy panel is dark in both themes, so it asks for 'dark'
+     * explicitly.
+     */
+    tone?: 'light' | 'dark'
     className?: string
     priority?: boolean
 }
 
+const ART: Record<Variant, { light: string; dark: string; ratio: number }> = {
+    // 2172x724
+    wordmark: {
+        light: '/logos/logo-wordmark-light.png',
+        dark: '/logos/logo-wordmark-dark.png',
+        ratio: 3,
+    },
+    // 2172x724, mark included
+    full: {
+        light: '/logos/logo-full-light.png',
+        dark: '/logos/logo-wordmark-dark.png',
+        ratio: 3,
+    },
+    // 1254x1254 light, 1122x1402 dark — close enough to square to share a slot.
+    stacked: {
+        light: '/logos/logo-stacked-light.png',
+        dark: '/logos/logo-stacked-dark.png',
+        ratio: 0.9,
+    },
+}
+
 /**
- * The single call site for the brand assets.
+ * The single call site for the brand artwork.
  *
- * Three things went wrong while three screens each embedded their own <img>:
- * the sidebar asked for an 80px logo inside a 56px header, so it overflowed its
- * own chrome; none of them declared dimensions, so each one shifted the layout
- * as it loaded; and the login hardcoded the night lockup, which lands a dark
- * logo on a light page now that light is the default theme.
+ * Three screens used to embed their own <img>: the sidebar asked for an 80px
+ * logo inside a 56px header, so it overflowed its own chrome; none declared
+ * dimensions, so each shifted the layout as it loaded; and the login hardcoded
+ * the night lockup, which lands a dark logo on a light page.
  *
- * Swapping in new artwork is a change to the two files below and nothing else.
- * If the replacements arrive as SVG, the day/night pair can collapse into one
- * mark that inherits `currentColor`.
+ * Both artworks are always in the DOM and the theme picks one with CSS, because
+ * reading the theme in JS would need a mounted guard and would flash the wrong
+ * logo on first paint.
  */
 export function Logo({
-    variant = 'full',
+    variant = 'wordmark',
     height = 32,
+    tone,
     className,
     priority = false,
 }: LogoProps) {
-    // The source assets are 1200x600.
-    const ratio = variant === 'full' ? 2 : 1
-    const width = Math.round(height * ratio)
+    const art = ART[variant]
+    const width = Math.round(height * art.ratio)
+
+    if (tone) {
+        return (
+            <Image
+                src={tone === 'dark' ? art.dark : art.light}
+                alt="OdontoBox360"
+                width={width}
+                height={height}
+                priority={priority}
+                className={cn('w-auto', className)}
+                style={{ height }}
+            />
+        )
+    }
 
     return (
         <>
             <Image
-                src="/images/logo_day.png"
+                src={art.light}
                 alt="OdontoBox360"
                 width={width}
                 height={height}
@@ -46,7 +92,7 @@ export function Logo({
                 style={{ height }}
             />
             <Image
-                src="/images/logo_night.png"
+                src={art.dark}
                 alt="OdontoBox360"
                 width={width}
                 height={height}

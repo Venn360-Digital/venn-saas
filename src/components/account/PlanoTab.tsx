@@ -355,7 +355,7 @@ export function PlanoTab() {
                                         }`}
                                 >
                                     {isPopular && (
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 text-black text-xs font-bold rounded-full">
+                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-brand-accent text-brand-accent-foreground text-xs font-medium rounded-full">
                                             MAIS POPULAR
                                         </div>
                                     )}
@@ -389,7 +389,7 @@ export function PlanoTab() {
 
                                     <Button
                                         className={`w-full ${planKey === 'pro'
-                                                ? 'bg-cyan-500 hover:bg-cyan-600 text-black'
+                                                ? 'bg-brand-accent text-brand-accent-foreground hover:bg-brand-accent-hover'
                                                 : 'bg-transparent border border-border-strong hover:bg-accent'
                                             }`}
                                         onClick={(e) => {

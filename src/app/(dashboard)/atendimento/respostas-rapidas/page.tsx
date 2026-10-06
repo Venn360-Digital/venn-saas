@@ -168,7 +168,7 @@ export default function RespostasRapidasPage() {
                                                     className={`h-5 w-10 rounded-full transition-colors ${response.isActive ? 'bg-green-500' : 'bg-muted'
                                                         }`}
                                                 >
-                                                    <div className={`h-4 w-4 rounded-full bg-white transition-transform ${response.isActive ? 'translate-x-5' : 'translate-x-0.5'
+                                                    <div className={`h-4 w-4 rounded-full bg-card transition-transform ${response.isActive ? 'translate-x-5' : 'translate-x-0.5'
                                                         }`} />
                                                 </button>
                                                 <Button

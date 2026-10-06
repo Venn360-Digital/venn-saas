@@ -74,7 +74,7 @@ export function Step4Agent({ data, updateData, onBack }: Step4AgentProps) {
                         value={agentName}
                         onChange={(e) => setAgentName(e.target.value)}
                         placeholder="Assistente de Vendas"
-                        className="mt-2 border-border bg-card text-white placeholder:text-muted-foreground"
+                        className="mt-2 border-border bg-card text-foreground placeholder:text-muted-foreground"
                         disabled={loading}
                     />
                     <p className="mt-2 text-sm text-muted-foreground">
@@ -86,7 +86,7 @@ export function Step4Agent({ data, updateData, onBack }: Step4AgentProps) {
                     <Button
                         onClick={onBack}
                         variant="outline"
-                        className="border-border bg-transparent text-white hover:bg-accent"
+                        className="border-border bg-transparent text-foreground hover:bg-accent"
                         disabled={loading}
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />

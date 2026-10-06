@@ -128,7 +128,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
 
                     {status === 'qr_ready' && qrCode && (
                         <div className="flex flex-col items-center gap-4">
-                            <div className="p-4 bg-white rounded-xl">
+                            <div className="p-4 bg-card rounded-xl">
                                 <Image
                                     src={qrCode}
                                     alt="WhatsApp QR Code"
@@ -161,7 +161,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
                             </div>
                             <button
                                 onClick={onClose}
-                                className="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                className="mt-4 px-6 py-2 bg-green-600 text-foreground rounded-lg hover:bg-green-700 transition-colors"
                             >
                                 Fechar
                             </button>

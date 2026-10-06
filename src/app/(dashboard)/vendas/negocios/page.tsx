@@ -427,12 +427,12 @@ function StageColumn({
     return (
         <div className="flex-shrink-0 w-72" ref={setNodeRef}>
             <div className="rounded-t-lg px-4 py-2 flex items-center justify-between" style={{ backgroundColor: stage.color }}>
-                <h3 className="font-semibold text-white truncate">{stage.name}</h3>
+                <h3 className="font-semibold text-foreground truncate">{stage.name}</h3>
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-white/80 bg-white/20 px-2 py-0.5 rounded-full">{stage.deals.length}</span>
+                    <span className="text-xs text-muted-foreground bg-accent px-2 py-0.5 rounded-full">{stage.deals.length}</span>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <button className="text-white/70 hover:text-white transition-colors p-0.5 rounded hover:bg-white/10">
+                            <button className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent">
                                 <Settings className="h-3.5 w-3.5" />
                             </button>
                         </DropdownMenuTrigger>
@@ -1206,7 +1206,7 @@ export default function NegociosPage() {
                                             {deal.value != null && deal.value > 0 ? <span className="text-green-400">R$ {deal.value.toLocaleString('pt-BR')}</span> : <span className="text-muted-foreground">—</span>}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white" style={{ backgroundColor: (deal as any).stage?.color || '#6B7280' }}>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: (deal as any).stage?.color || '#6B7280' }}>
                                                 {(deal as any).stage?.name || '—'}
                                             </span>
                                         </TableCell>
@@ -1547,7 +1547,7 @@ export default function NegociosPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setLossDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleConfirmLoss} disabled={!lossReason} className="bg-red-600 hover:bg-red-700 text-white">
+                        <Button onClick={handleConfirmLoss} disabled={!lossReason} className="bg-red-600 hover:bg-red-700 text-foreground">
                             Confirmar Perda
                         </Button>
                     </DialogFooter>

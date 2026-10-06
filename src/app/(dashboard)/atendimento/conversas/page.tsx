@@ -271,7 +271,7 @@ function MediaContent({ msg }: { msg: Message }) {
                     href={msg.mediaUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-black/10 rounded-lg px-3 py-2 hover:bg-black/20 transition-colors"
+                    className="inline-flex items-center gap-2 bg-foreground/10 rounded-lg px-3 py-2 hover:bg-foreground/20 transition-colors"
                 >
                     <FileText className="h-4 w-4" />
                     <span className="text-sm underline">{msg.content}</span>
@@ -1170,7 +1170,7 @@ export default function ConversasPage() {
                                                         )}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
-                                                        <span className="flex-shrink-0 bg-green-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                                                        <span className="flex-shrink-0 bg-green-500 text-foreground text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
                                                             {conv.unreadCount}
                                                         </span>
                                                     )}
@@ -1500,7 +1500,7 @@ export default function ConversasPage() {
                                                                 ? 'bg-muted text-foreground rounded-bl-md'
                                                                 : isAgent
                                                                     ? 'bg-primary/80 text-primary-foreground rounded-br-md'
-                                                                    : 'bg-blue-600 text-white rounded-br-md'
+                                                                    : 'bg-blue-600 text-foreground rounded-br-md'
                                                         )}
                                                         onContextMenu={(e) => handleContextMenu(e, msg)}
                                                     >
@@ -1522,7 +1522,7 @@ export default function ConversasPage() {
                                                                 'rounded-lg px-3 py-1.5 mb-1.5 border-l-2 cursor-pointer text-[11px]',
                                                                 isInbound
                                                                     ? 'bg-background/50 border-muted-foreground/30'
-                                                                    : 'bg-white/10 border-white/30'
+                                                                    : 'bg-accent border-border-strong'
                                                             )}>
                                                                 <span className={cn(
                                                                     'font-semibold block text-[10px]',

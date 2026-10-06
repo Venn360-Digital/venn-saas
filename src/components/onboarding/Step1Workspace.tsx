@@ -73,7 +73,7 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                         value={name}
                         onChange={(e) => handleNameChange(e.target.value)}
                         placeholder="Sua Empresa"
-                        className="mt-2 border-border bg-card text-white placeholder:text-muted-foreground"
+                        className="mt-2 border-border bg-card text-foreground placeholder:text-muted-foreground"
                     />
                 </div>
 
@@ -88,7 +88,7 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                             value={slug}
                             onChange={(e) => setSlug(generateSlug(e.target.value))}
                             placeholder="suaempresa"
-                            className="flex-1 border-border bg-card text-white placeholder:text-muted-foreground"
+                            className="flex-1 border-border bg-card text-foreground placeholder:text-muted-foreground"
                         />
                     </div>
                 </div>

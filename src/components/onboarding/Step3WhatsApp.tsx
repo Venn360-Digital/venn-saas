@@ -43,7 +43,7 @@ export function Step3WhatsApp({ data, onNext, onBack }: Step3WhatsAppProps) {
                 <Button
                     onClick={handleSkip}
                     variant="outline"
-                    className="border-border bg-transparent text-white hover:bg-accent"
+                    className="border-border bg-transparent text-foreground hover:bg-accent"
                 >
                     Pular por agora
                 </Button>
@@ -53,7 +53,7 @@ export function Step3WhatsApp({ data, onNext, onBack }: Step3WhatsAppProps) {
                 <Button
                     onClick={onBack}
                     variant="outline"
-                    className="border-border bg-transparent text-white hover:bg-accent"
+                    className="border-border bg-transparent text-foreground hover:bg-accent"
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Voltar

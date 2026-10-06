@@ -35,8 +35,25 @@ const ALLOWED = [
     'src/lib/brand-colors.ts',
 ]
 
-const PALETTE =
-    /\b(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|accent|decoration|shadow|placeholder|caret)-(?:purple|violet|indigo|fuchsia|pink|rose|gray|slate|zinc|neutral|stone)-\d{2,3}\b/g
+const PREFIX =
+    '(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|accent|decoration|shadow|placeholder|caret)'
+
+const PALETTE = new RegExp(
+    `\\b${PREFIX}-(?:purple|violet|indigo|fuchsia|pink|rose|gray|slate|zinc|neutral|stone)-\\d{2,3}\\b`,
+    'g'
+)
+
+// Literal white and black take no numeric step, so the palette pattern missed
+// them — and they were the single largest remaining group: 48 uses of text-white
+// standing in for what is really `foreground`, invisible the moment the surface
+// under them turned white.
+// `bg-black/<n>` is excluded: a modal scrim darkens whatever sits behind it, so
+// it is correct in both themes and is what the Dialog primitive itself uses. Any
+// other literal white or black is a token that was not reached for.
+const MONOCHROME = new RegExp(
+    `\\b${PREFIX}-white(?:\\/\\d{1,3})?\\b|\\b(?:text|border|ring|fill|stroke|divide|placeholder|caret)-black(?:\\/\\d{1,3})?\\b|\\bbg-black\\b(?!\\/)`,
+    'g'
+)
 const ARBITRARY_HEX = /\[#[0-9a-fA-F]{3,8}\]/g
 
 function walk(dir, out = []) {
@@ -60,7 +77,7 @@ for (const file of walk(SRC)) {
 
     const lines = readFileSync(file, 'utf8').split('\n')
     lines.forEach((line, i) => {
-        for (const pattern of [PALETTE, ARBITRARY_HEX]) {
+        for (const pattern of [PALETTE, MONOCHROME, ARBITRARY_HEX]) {
             pattern.lastIndex = 0
             const matches = line.match(pattern)
             if (matches) {

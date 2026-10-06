@@ -163,7 +163,7 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
                                         'flex h-12 w-12 items-center justify-center rounded-lg',
                                         channel.color
                                     )}>
-                                        <Icon className="h-6 w-6 text-white" />
+                                        <Icon className="h-6 w-6 text-foreground" />
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">

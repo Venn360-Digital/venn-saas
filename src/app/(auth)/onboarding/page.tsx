@@ -72,13 +72,13 @@ export default function OnboardingPage() {
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-card">
-                <div className="text-white">Carregando...</div>
+                <div className="text-foreground">Carregando...</div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-card text-white">
+        <div className="min-h-screen bg-card text-foreground">
             <div className="mx-auto max-w-4xl px-4 py-12">
                 {/* Header */}
                 <div className="mb-12 text-center">

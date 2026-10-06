@@ -12,7 +12,8 @@
     "worker:dev": "tsx watch --tsconfig workers/tsconfig.json workers/src/index.ts",
     "worker:build": "tsup --config workers/tsup.config.ts",
     "worker:start": "node workers/dist/index.js",
-    "lint:colors": "node scripts/lint-colors.mjs"
+    "lint:colors": "node scripts/lint-colors.mjs",
+    "prebuild": "node scripts/lint-colors.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.1",
