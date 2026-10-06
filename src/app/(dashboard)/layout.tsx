@@ -5,15 +5,18 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 /**
  * The shell owns navigation and nothing else.
  *
- * It used to wrap every page in `container mx-auto p-6` plus a breadcrumb block,
- * which the inbox then had to fight: it set its own full-height calc against a
- * topbar it assumed was 64px tall (it is 56), inside padding it did not want.
- * Page padding and breadcrumbs now belong to PageHeader, so a screen that wants
- * the whole viewport simply does not render one.
+ * Height is pinned to the viewport on purpose. SidebarInset ships as
+ * `flex flex-1 flex-col` with no height of its own, so the shell grew with its
+ * content and the document scrolled as a whole — which took the topbar up and
+ * out of view with it. Capping the wrapper at the viewport and letting only the
+ * content region scroll keeps the topbar and the rail where they belong.
  *
- * The rail also has a mobile story for the first time — the old sidebar was an
- * unconditional w-64 div, so below about 900px the content was crushed and there
- * was no way to dismiss it.
+ * The scrolling region is a plain div rather than a <main>: SidebarInset already
+ * renders one, and nesting a second was invalid markup that gave assistive
+ * technology two competing main landmarks.
+ *
+ * Page padding and breadcrumbs belong to PageHeader, not here — a screen that
+ * wants the whole viewport, like the inbox, simply does not render one.
  */
 export default function DashboardLayout({
     children,
@@ -21,11 +24,11 @@ export default function DashboardLayout({
     children: React.ReactNode
 }) {
     return (
-        <SidebarProvider>
+        <SidebarProvider className="h-svh overflow-hidden">
             <AppSidebar />
-            <SidebarInset className="min-w-0">
+            <SidebarInset className="min-w-0 overflow-hidden">
                 <Topbar />
-                <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+                <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
             </SidebarInset>
         </SidebarProvider>
     )
