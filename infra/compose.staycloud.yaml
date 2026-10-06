@@ -130,8 +130,14 @@ services:
       WADEBUG: INFO
       LOGTYPE: json
       TZ: ${TZ:-America/Sao_Paulo}
-    expose:
-      - "8080"
+    # Bound to loopback, not 0.0.0.0: the licence has to be activated through the
+    # manager UI in a browser, and Evolution Go refuses every API call until that
+    # is done (LICENSE_REQUIRED). Publishing on 127.0.0.1 makes it reachable over
+    # an SSH tunnel without exposing it to the internet, and keeps the address
+    # stable across recreates — a container IP would not be.
+    #   ssh -N -L 8080:127.0.0.1:8080 root@<vps>   → http://localhost:8080/manager
+    ports:
+      - "127.0.0.1:8080:8080"
     logging: *logs
     deploy:
       resources:
