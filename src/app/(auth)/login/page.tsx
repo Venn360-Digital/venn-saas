@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,18 @@ function LoginForm() {
         return raw
     })()
 
+    /**
+     * Surface the reason an auth link failed.
+     *
+     * /auth/callback redirects here with ?error=… when a confirmation or recovery
+     * link is invalid or expired. Without this the visitor just sees a normal login
+     * form and has no idea the link did not work.
+     */
+    useEffect(() => {
+        const message = searchParams.get('error')
+        if (message) toast.error(message)
+    }, [searchParams])
+
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
@@ -44,6 +56,12 @@ function LoginForm() {
                 const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
+                    options: {
+                        // Without this GoTrue falls back to SITE_URL, which has no
+                        // handler for the `?code=` it appends — the account would be
+                        // confirmed while the visitor landed logged out.
+                        emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    },
                 })
 
                 if (error) throw error
