@@ -4,39 +4,121 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Typography. Open Sans carries headings and body; Inter is loaded only for
+     figures, where its tabular numerals keep columns aligned. Monospace is the
+     system stack on purpose — font-mono here only ever labels IDs, API keys and
+     webhook URLs, never body copy, so a third webfont would be build cost for
+     nothing. */
+  --font-sans: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-numeric: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Type scale. The reference documents H1 40 / H2 22 / H3 28 / H4 24 / H5 20 —
+     non-monotonic, because its "H2" is a marketing eyebrow rather than a second
+     heading level. The pixel values are kept; which role gets which is remapped
+     so the app's hierarchy actually descends. */
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.2;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 700;
+
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h1--font-weight: 700;
+
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h2--font-weight: 600;
+
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.3;
+  --text-h3--font-weight: 600;
+
+  --text-h4: 1rem;
+  --text-h4--line-height: 1.4;
+  --text-h4--font-weight: 600;
+
+  --text-eyebrow: 1.375rem;
+  --text-eyebrow--line-height: 1.2;
+  --text-eyebrow--font-weight: 400;
+
+  /* Surfaces */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* Action */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+
+  /* Neutral surfaces. `accent` is shadcn's hover surface (menus, ghost
+     buttons) — it is NOT the brand accent. Putting the mint here would turn
+     every dropdown hover green. */
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Brand accent and status roles */
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-brand-navy: var(--brand-navy);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-foreground: var(--info-subtle-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+
+  /* Lines and focus */
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -46,135 +128,225 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Light Mode (Day) */
-:root {
-  --radius: 0.5rem;
-
-  /* Backgrounds */
-  --background: #ffffff;
-  --foreground: #0f0f14;
-
-  /* Cards & Surfaces */
-  --card: #ffffff;
-  --card-foreground: #0f0f14;
-  --popover: #ffffff;
-  --popover-foreground: #0f0f14;
-
-  /* Primary - Purple */
-  --primary: #7c3aed;
-  --primary-foreground: #ffffff;
-
-  /* Secondary */
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-
-  /* Muted */
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-
-  /* Accent */
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-
-  /* Destructive */
-  --destructive: #ef4444;
-
-  /* Borders & Inputs */
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #7c3aed;
-
-  /* Charts */
-  --chart-1: #7c3aed;
-  --chart-2: #a855f7;
-  --chart-3: #c084fc;
-  --chart-4: #22c55e;
-  --chart-5: #f97316;
-
-  /* Sidebar - Light */
-  --sidebar: #fafafa;
-  --sidebar-foreground: #18181b;
-  --sidebar-primary: #7c3aed;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #7c3aed;
+/* Figures. Applied by DataTable's `numeric` column flag and by KpiCard's value,
+   so digits line up in columns without anyone having to remember to ask. */
+@utility num {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
 }
 
-/* Dark Mode (Night) */
-.dark {
-  --radius: 0.5rem;
+/* Light — the default. A dental product is read in a clinic, beside patient
+   records and printed forms, so white surfaces carry the app and the navy is
+   held back for type. */
+:root {
+  --radius: 0.625rem;
 
-  /* Backgrounds - Near black */
-  --background: #0f0f14;
-  --foreground: #fafafa;
+  /* The page is faintly tinted so white cards read as lifted off it. Both were
+     #ffffff before, which is why `bg-muted/20` had to be painted onto <main> to
+     fake the separation — that class comes off the layout now. */
+  --background: #f7f9fa;
+  --foreground: #0f3351;
+  --card: #ffffff;
+  --card-foreground: #0f3351;
+  --popover: #ffffff;
+  --popover-foreground: #0f3351;
 
-  /* Cards & Surfaces */
-  --card: #1a1a1f;
-  --card-foreground: #fafafa;
-  --popover: #1a1a1f;
-  --popover-foreground: #fafafa;
-
-  /* Primary - Purple (brighter for dark mode) */
-  --primary: #9333ea;
+  /* Action is the mid-blue, not the navy: a navy fill would be the loudest
+     thing on a white page, and these screens are dense. White on #3678ae is
+     4.71:1. */
+  --primary: #3678ae;
   --primary-foreground: #ffffff;
+  /* Hover is a darker step, never `bg-primary/90` — blending toward transparent
+     over a white page makes hover LIGHTER than rest, which reads as disabled.
+     6.11:1. */
+  --primary-hover: #2e6693;
+  --primary-active: #27567d;
+  --primary-subtle: #eaf2f9;
+  --primary-subtle-foreground: #184f7c;
 
-  /* Secondary */
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
+  /* Three distinct steps, not three names for the same grey: `muted` is the
+     quietest fill, `secondary` is a button surface, and `accent` is the hover
+     above it — so hovering a secondary button actually reads as a change. */
+  --muted: #f1f4f6;
+  --muted-foreground: #5b7183;
+  --secondary: #e8edf1;
+  --secondary-foreground: #0f3351;
+  --accent: #dfe7ed;
+  --accent-foreground: #0f3351;
 
-  /* Muted */
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
+  /* Mint, reserved for positive state — confirmed, paid, active. White on mint
+     is 2.51:1, so its foreground is deep teal and never white. */
+  --brand-accent: #21b896;
+  --brand-accent-foreground: #073d31;
+  --brand-accent-hover: #1ca183;
+  --brand-navy: #0f3351;
 
-  /* Accent */
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
+  --success: #21b896;
+  --success-foreground: #073d31;
+  --success-subtle: #e3f7f1;
+  --success-subtle-foreground: #0e6b56;
 
-  /* Destructive */
-  --destructive: #ef4444;
+  --warning: #c77700;
+  --warning-foreground: #ffffff;
+  --warning-subtle: #fdf3e3;
+  --warning-subtle-foreground: #8a5200;
 
-  /* Borders & Inputs */
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #9333ea;
+  --info: #184f7c;
+  --info-foreground: #ffffff;
+  --info-subtle: #e7eff7;
+  --info-subtle-foreground: #184f7c;
 
-  /* Charts */
-  --chart-1: #9333ea;
-  --chart-2: #a855f7;
-  --chart-3: #c084fc;
-  --chart-4: #22c55e;
-  --chart-5: #f97316;
+  /* #d32f2f, not the reference's #e53935: white on #e53935 is 4.23:1 and fails
+     AA for a button label. This is 4.98:1. #e53935 is kept for dark, where it
+     sits on a dark ground. */
+  --destructive: #d32f2f;
+  --destructive-foreground: #ffffff;
+  --destructive-hover: #b52626;
+  --destructive-subtle: #fdecec;
+  --destructive-subtle-foreground: #a31f1f;
 
-  /* Sidebar - Dark */
-  --sidebar: #0d0d0d;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #9333ea;
+  --border: #e9ebec;
+  --border-strong: #d5dbe0;
+  /* A field edge needs more weight than a card edge: --border is too faint to
+     read as an input boundary against the tinted page. */
+  --input: #d5dbe0;
+  --ring: #3678ae;
+
+  /* Adjacent entries cross hue families so neighbouring series stay apart. */
+  --chart-1: #3678ae;
+  --chart-2: #21b896;
+  --chart-3: #184f7c;
+  --chart-4: #749ec0;
+  --chart-5: #0e6b56;
+
+  /* A white rail. Inverting to a navy sidebar later is a change to these seven
+     values and nothing else — the primitive reads only from here. */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f3351;
+  --sidebar-primary: #3678ae;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1a1a1f;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #9333ea;
+  --sidebar-accent: #edf1f5;
+  --sidebar-accent-foreground: #0f3351;
+  --sidebar-border: #e9ebec;
+  --sidebar-ring: #3678ae;
+}
+
+/* Dark */
+.dark {
+  --background: #0f1c28;
+  --foreground: #e8eff5;
+  --card: #16293a;
+  --card-foreground: #e8eff5;
+  --popover: #16293a;
+  --popover-foreground: #e8eff5;
+
+  --primary: #5a9ed0;
+  /* Navy, not white: white on #5a9ed0 is 2.90:1 and would fail AA on every
+     button label in dark mode. */
+  --primary-foreground: #0b1620;
+  --primary-hover: #74afda;
+  --primary-active: #8cbfe2;
+  --primary-subtle: #1d3a52;
+  --primary-subtle-foreground: #9ac6e6;
+
+  --muted: #1c3042;
+  --muted-foreground: #93a7b8;
+  --secondary: #223a50;
+  --secondary-foreground: #e8eff5;
+  --accent: #2b4760;
+  --accent-foreground: #e8eff5;
+
+  --brand-accent: #2fcca8;
+  --brand-accent-foreground: #062b22;
+  --brand-accent-hover: #4cd9b9;
+  --brand-navy: #0f3351;
+
+  --success: #2fcca8;
+  --success-foreground: #062b22;
+  --success-subtle: #113a32;
+  --success-subtle-foreground: #5fd9be;
+
+  --warning: #e39a28;
+  --warning-foreground: #2a1b00;
+  --warning-subtle: #3a2a10;
+  --warning-subtle-foreground: #f0be6b;
+
+  --info: #749ec0;
+  --info-foreground: #0b1620;
+  --info-subtle: #1d3a52;
+  --info-subtle-foreground: #96b1c7;
+
+  --destructive: #e53935;
+  --destructive-foreground: #ffffff;
+  --destructive-hover: #ef5350;
+  --destructive-subtle: #3a1715;
+  --destructive-subtle-foreground: #f08c89;
+
+  /* A real colour rather than rgba(255,255,255,.1): an alpha border composites
+     differently over --card than over --popover, so one token drew two
+     different lines. */
+  --border: #243b50;
+  --border-strong: #30506b;
+  --input: #30506b;
+  --ring: #5a9ed0;
+
+  --chart-1: #5a9ed0;
+  --chart-2: #2fcca8;
+  --chart-3: #96b1c7;
+  --chart-4: #3678ae;
+  --chart-5: #0e9d80;
+
+  /* One step below the page, so the rail recedes instead of advancing. */
+  --sidebar: #0c1721;
+  --sidebar-foreground: #e8eff5;
+  --sidebar-primary: #5a9ed0;
+  --sidebar-primary-foreground: #0b1620;
+  --sidebar-accent: #1a2e40;
+  --sidebar-accent-foreground: #e8eff5;
+  --sidebar-border: #243b50;
+  --sidebar-ring: #5a9ed0;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Defaults so a bare heading is never unstyled. PageHeader and CardTitle
+     still set their size explicitly, so the hierarchy lives in the component
+     rather than in a cascade nobody reads. */
+  h1 {
+    @apply text-h1;
+  }
+  h2 {
+    @apply text-h2;
+  }
+  h3 {
+    @apply text-h3;
+  }
+  h4 {
+    @apply text-h4;
   }
 }
 
-/* Smooth theme transitions */
-* {
-  transition-property: background-color, border-color, color;
-  transition-timing-function: ease;
-  transition-duration: 200ms;
-}
+/* The global `* { transition: background-color, border-color, color 200ms }`
+   that used to live here is gone: ThemeProvider already sets
+   disableTransitionOnChange, so it bought nothing and charged a transition to
+   every element in the app. Components that should animate declare it. */
 
-/* Disable transitions on page load to prevent flash */
-.no-transitions * {
-  transition: none !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

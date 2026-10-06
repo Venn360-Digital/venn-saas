@@ -18,7 +18,10 @@ export default function DashboardLayout({
                 <Topbar />
 
                 {/* Content Area */}
-                <main className="flex-1 overflow-y-auto bg-muted/20">
+                {/* The page tint now comes from --background, which is no longer
+                    the same white as --card. Keeping bg-muted/20 here would
+                    double it. */}
+                <main className="flex-1 overflow-y-auto">
                     <div className="container mx-auto p-6">
                         {/* Breadcrumbs */}
                         <div className="mb-6">
