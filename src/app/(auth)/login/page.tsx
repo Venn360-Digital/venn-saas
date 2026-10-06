@@ -147,7 +147,9 @@ function LoginForm() {
                     }}
                 />
 
-                <Logo variant="wordmark" tone="dark" height={32} priority />
+                {/* Spacer, so justify-between lands the headline in the middle
+                    rather than at the top now that the panel carries no logo. */}
+                <div aria-hidden="true" />
 
                 <div className="relative z-10 max-w-sm">
                     <span className="mb-5 block h-0.5 w-12 rounded-full bg-brand-accent" />
@@ -161,15 +163,15 @@ function LoginForm() {
                 </div>
 
                 <p className="relative z-10 text-xs text-brand-navy-muted/70">
-                    OdontoBox360 · uma solução Venn360
+                    uma solução Venn360
                 </p>
             </aside>
 
             {/* Form */}
             <main className="flex w-full flex-col items-center justify-center bg-background px-4 py-10 lg:w-1/2">
                 <div className="w-full max-w-sm">
-                    <div className="mb-8 lg:hidden">
-                        <Logo variant="wordmark" height={32} priority />
+                    <div className="mb-8">
+                        <Logo variant="wordmark" height={30} priority />
                     </div>
 
                     <h1 className="text-h1">
@@ -240,7 +242,7 @@ function LoginForm() {
                                 <Input
                                     id="password"
                                     type={showPassword ? 'text' : 'password'}
-                                    placeholder="••••••••"
+                                    placeholder="Sua senha"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
