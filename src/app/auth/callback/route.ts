@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         if (error) {
             console.error('[AUTH_CALLBACK] Code exchange failed:', error.message)
             return NextResponse.redirect(
-                to('/login?error=' + encodeURIComponent('Link inválido ou expirado. Solicite outro.'))
+                to('/login?error=' + encodeURIComponent('Esse link não vale mais — ele só pode ser aberto uma vez. Peça outro.'))
             )
         }
         return NextResponse.redirect(to(next))
@@ -61,13 +61,16 @@ export async function GET(request: NextRequest) {
         if (error) {
             console.error('[AUTH_CALLBACK] OTP verification failed:', error.message)
             return NextResponse.redirect(
-                to('/login?error=' + encodeURIComponent('Link inválido ou expirado. Solicite outro.'))
+                to('/login?error=' + encodeURIComponent('Esse link não vale mais — ele só pode ser aberto uma vez. Peça outro.'))
             )
         }
-        // A recovery link lands the user in a session whose only purpose is to set a
-        // new password. There is no screen for that yet, so send them to login with
-        // the session already established rather than to a page that does not exist.
-        return NextResponse.redirect(to(type === 'recovery' ? '/login' : next))
+        // A recovery session exists only to set a new password, so it goes
+        // straight to the screen that asks for one. Sending it to /login instead
+        // meant the middleware saw an authenticated user and forwarded them to
+        // the dashboard — the password was never asked for, and returning to the
+        // e-mail to try again produced "link inválido", because the first click
+        // had already spent the single-use token.
+        return NextResponse.redirect(to(type === 'recovery' ? '/nova-senha' : next))
     }
 
     return NextResponse.redirect(
