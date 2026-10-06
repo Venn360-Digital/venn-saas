@@ -61,7 +61,10 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS app
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+# HOSTNAME matters: Next's standalone server binds to it, and Docker sets it to the
+# container id — leaving the server unreachable on 127.0.0.1 and the HEALTHCHECK
+# permanently failing even though Traefik can reach it by container name.
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates curl \

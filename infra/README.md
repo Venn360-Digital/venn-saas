@@ -244,18 +244,18 @@ containers take traffic.
 ### Scale the workers
 
 The worker is one process consuming all seven queues. To give the AI queue its
-own container, run a second service with `WORKER_QUEUES=ai:reply` and
+own container, run a second service with `WORKER_QUEUES=ai-reply` and
 `ENABLE_SCHEDULER=false` — only one process may own the repeatable cron jobs, or
 each replica re-upserts the same schedulers on every deploy.
 
-Queue names: `whatsapp:inbound`, `whatsapp:event`, `whatsapp:outbound`,
-`ai:reply`, `rag:index`, `agent:webhook`, `cron`.
+Queue names: `whatsapp-inbound`, `whatsapp-event`, `whatsapp-outbound`,
+`ai-reply`, `rag-index`, `agent-webhook`, `cron`.
 
 ### Inspect the queues
 
 ```bash
 docker compose exec redis redis-cli -a "$REDIS_PASSWORD" --scan --pattern 'bull:*:failed'
-docker compose exec redis redis-cli -a "$REDIS_PASSWORD" llen 'bull:whatsapp:inbound:wait'
+docker compose exec redis redis-cli -a "$REDIS_PASSWORD" llen 'bull:whatsapp-inbound:wait'
 ```
 
 Failed jobs are kept for 7 days (see `DEFAULT_JOB_OPTIONS` in
@@ -295,15 +295,15 @@ WhatsApp → Evolution Go → POST app/api/webhooks/evolution-go
                               Redis (BullMQ)
                                    │
         ┌──────────────────────────┼───────────────────────────┐
-  whatsapp:inbound            whatsapp:event              cron (scheduled)
+  whatsapp-inbound            whatsapp-event              cron (scheduled)
   contact/deal/conversation   status, presence,           reminders, recurrence,
   media → Storage             connection state            credit reset, health
-  rules → ai:reply (debounced)
+  rules → ai-reply (debounced)
                                    │
-                              ai:reply
+                              ai-reply
                               credits check → RAG → LLM
                                    │
-                            whatsapp:outbound
+                            whatsapp-outbound
                             Evolution → WhatsApp
 ```
 

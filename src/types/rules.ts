@@ -44,7 +44,7 @@ export const ruleConfigSchema = z.object({
 /**
  * Everything a rule may inspect or act upon for one inbound message.
  *
- * Built by the caller (today: the whatsapp:inbound worker) so the engine itself
+ * Built by the caller (today: the whatsapp-inbound worker) so the engine itself
  * stays free of channel-specific lookups.
  */
 export interface RuleContext {

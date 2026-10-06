@@ -21,20 +21,25 @@ import type { WhatsAppProviderName } from '@/lib/whatsapp/types'
  * Every background concern gets its own queue so concurrency, retry policy and
  * scaling can be tuned per workload: the AI reply queue is slow and rate-limited
  * by the LLM provider, while the Evolution event queue is fast and chatty.
+ *
+ * Names use a hyphen, never a colon. BullMQ v6 rejects a colon outright — it is
+ * the separator BullMQ itself uses to build Redis keys — and the check happens
+ * when the Worker is constructed, so a colon here fails at boot rather than in
+ * review.
  */
 export const QUEUE = {
     /** Persist an inbound WhatsApp message (contact, deal, conversation, media). */
-    WHATSAPP_INBOUND: 'whatsapp:inbound',
+    WHATSAPP_INBOUND: 'whatsapp-inbound',
     /** Fan-out of the cheap Evolution events: status, presence, connection. */
-    WHATSAPP_EVENT: 'whatsapp:event',
+    WHATSAPP_EVENT: 'whatsapp-event',
     /** Send a WhatsApp message through Evolution, with retry. */
-    WHATSAPP_OUTBOUND: 'whatsapp:outbound',
+    WHATSAPP_OUTBOUND: 'whatsapp-outbound',
     /** Generate the agent's answer for a conversation (debounced, one per conversation). */
-    AI_REPLY: 'ai:reply',
+    AI_REPLY: 'ai-reply',
     /** Chunk + embed a knowledge document into pgvector. */
-    RAG_INDEX: 'rag:index',
+    RAG_INDEX: 'rag-index',
     /** Deliver an outbound AgentWebhook call. */
-    AGENT_WEBHOOK: 'agent:webhook',
+    AGENT_WEBHOOK: 'agent-webhook',
     /** Scheduled maintenance: reminders, recurrences, credit reset, health checks. */
     CRON: 'cron',
 } as const
