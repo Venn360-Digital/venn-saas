@@ -22,7 +22,7 @@ que respiro generoso. Corpo de texto em 14px é deliberado.
 **Claro primeiro.** O modo escuro existe e é resolvido com o mesmo cuidado, mas o
 padrão é claro.
 
-**Cor carrega significado.** Azul age, menta confirma, âmbar alerta, vermelho
+**Cor carrega significado.** Teal age, menta confirma, âmbar alerta, vermelho
 destrói. Cor que não significa nada é ruído — e um elemento colorido só para
 "ficar bonito" rouba atenção de um que precisa dela.
 
@@ -32,6 +32,25 @@ destrói. Cor que não significa nada é ruído — e um elemento colorido só p
 
 ## 2. Paleta por papel
 
+Ancorada nos **tokens oficiais da marca** (`docs/brand/.../05_Design_Tokens`):
+
+| Oficial | Valor | Onde aparece |
+|---|---|---|
+| Deep navy | `#0B1F3B` | texto, painel de marca, `foreground` |
+| Teal | `#06B6D4` | **a cor de ação**, sem modificação |
+| Mint | `#A7F3D0` | tinta de estado positivo, filete de acento |
+| Ice | `#E6F7F5` | fundo tingido de ação, hover da sidebar |
+| Light surface | `#F8FBFD` | fundo de página |
+| Dark surface | `#07182F` | fundo de página no escuro |
+
+Esses sete valores são uma paleta de **marca**, não um sistema de interface — não
+têm erro, aviso, neutros nem estados de hover. Os papéis abaixo derivam deles.
+
+**O teal entra sem alteração.** Branco sobre `#06B6D4` dá 2,43:1 e reprova AA com
+folga. Mas o navy da própria marca sobre ele dá **6,79:1** — que é como a logo é
+construída: "Odonto" em navy, "Box" em teal. A correção foi o par, não escurecer
+a cor.
+
 A regra que importa não é "quais são as cores", é **qual token serve a quê**.
 Todos vivem em `src/app/globals.css`.
 
@@ -39,9 +58,9 @@ Todos vivem em `src/app/globals.css`.
 
 | Token | Claro | Escuro | Uso |
 |---|---|---|---|
-| `background` | `#F7F9FA` | `#0F1C28` | fundo de página |
-| `card` | `#FFFFFF` | `#16293A` | card, painel, linha de tabela |
-| `popover` | `#FFFFFF` | `#16293A` | menu, dropdown, tooltip |
+| `background` | `#F8FBFD` | `#07182F` | fundo de página — os dois são oficiais |
+| `card` | `#FFFFFF` | `#0E2440` | card, painel, linha de tabela |
+| `popover` | `#FFFFFF` | `#0E2440` | menu, dropdown, tooltip |
 
 O fundo de página é levemente tingido **para que o card branco leia como
 levantado**. Antes os dois eram `#ffffff`, e era por isso que o `<main>` precisava
@@ -51,47 +70,49 @@ de um `bg-muted/20` para fingir a separação.
 
 | Token | Claro | Escuro |
 |---|---|---|
-| `primary` | `#3678AE` | `#5A9ED0` |
-| `primary-foreground` | `#FFFFFF` | `#0B1620` ⚠ navy |
-| `primary-hover` | `#2E6693` | `#74AFDA` |
-| `primary-active` | `#27567D` | `#8CBFE2` |
-| `primary-subtle` / `-foreground` | `#EAF2F9` / `#184F7C` | `#1D3A52` / `#9AC6E6` |
+| `primary` | `#06B6D4` | `#06B6D4` |
+| `primary-foreground` | `#0B1F3B` ⚠ navy | `#04212B` ⚠ navy |
+| `primary-hover` | `#05A1BC` | `#38C9E0` |
+| `primary-active` | `#048DA5` | `#5FD5E8` |
+| `primary-subtle` / `-foreground` | `#E6F7F5` / `#0A5566` | `#0E3A4A` / `#7FDCEC` |
 
-**A ação é o azul médio, não o navy.** Um preenchimento navy seria o elemento
-mais alto da tela, e essas telas são densas.
+**O texto do botão primário é navy, nunca branco** — nos dois temas. Branco sobre
+o teal reprova (2,43:1 no claro, pior ainda nas variantes claras); navy passa
+(6,79:1 no claro, 6,88:1 no escuro).
+
+**A cor de ação é literalmente a mesma nos dois temas.** O teal oficial funciona
+contra fundo claro e contra fundo escuro, então não há variante de modo — uma
+coisa a menos para divergir.
 
 **Nunca use `bg-primary/90` para hover.** Misturar o preenchimento em direção ao
-transparente sobre página branca deixa o hover **mais claro** que o repouso — o
+transparente sobre página clara deixa o hover **mais claro** que o repouso — o
 botão lê como desabilitado exatamente enquanto está sendo apontado. Use
 `hover:bg-primary-hover`.
-
-**No escuro o texto do botão é navy, não branco.** Branco sobre `#5A9ED0` dá
-2,90:1 e reprova AA.
 
 ### Neutros
 
 | Token | Claro | Escuro | Uso |
 |---|---|---|---|
-| `muted` / `muted-foreground` | `#F1F4F6` / `#5B7183` | `#1C3042` / `#93A7B8` | preenchimento mais quieto; texto secundário, label, placeholder |
-| `secondary` | `#E8EDF1` | `#223A50` | superfície de botão secundário |
-| `accent` | `#DFE7ED` | `#2B4760` | **superfície de hover** (menu, ghost, linha) |
+| `muted` / `muted-foreground` | `#EEF4F7` / `#53707F` | `#102B49` / `#8FAFC4` | preenchimento mais quieto; texto secundário, label, placeholder |
+| `secondary` | `#E4EDF2` | `#16304F` | superfície de botão secundário |
+| `accent` | `#D5E5EC` | `#1E3E60` | **superfície de hover** (menu, ghost, linha) |
 
 Três degraus distintos, de propósito: antes eram três nomes para quase o mesmo
 cinza, e o hover de um botão secundário não lia como mudança.
 
 > **`accent` não é o acento da marca.** No shadcn é a superfície de hover
-> (`hover:bg-accent` em button, table, dropdown-menu). A menta vive em
-> `brand-accent` e `success`. Pôr a menta em `accent` deixa **todo** hover de
-> dropdown verde.
+> (`hover:bg-accent` em button, table, dropdown-menu). As cores da marca vivem em
+> `brand-teal`, `brand-mint`, `brand-navy` e `brand-ice`. Pôr o teal em `accent`
+> deixa **todo** hover de dropdown ciano.
 
 ### Estado
 
 | Papel | Claro | Escuro | Significa |
 |---|---|---|---|
-| `success` | `#21B896` | `#2FCCA8` | confirmado, pago, ativo, enviado |
-| `warning` | `#C77700` | `#E39A28` | atrasado, pendente, expira em breve |
-| `info` | `#184F7C` | `#749EC0` | informativo, neutro-positivo |
-| `destructive` | `#D32F2F` | `#E53935` | apagar, falhar, perder |
+| `success` | `#13B57E` | `#34D399` | confirmado, pago, ativo, enviado |
+| `warning` | `#B45309` | `#E0A33C` | atrasado, pendente, expira em breve |
+| `info` | `#0E7490` | `#22A5C4` | informativo — é o teal escurecido até carregar branco |
+| `destructive` | `#C62828` | `#C62828` | apagar, falhar, perder |
 
 Cada um tem `-foreground` (para preenchimento sólido) e um par
 `-subtle` / `-subtle-foreground` (tinta pálida + texto escuro).
@@ -106,20 +127,22 @@ Cada um tem `-foreground` (para preenchimento sólido) e um par
 O nome do token já diz o par. `bg-*` anda com `text-*-subtle-foreground`;
 `bg-{papel}` sólido anda com `{papel}-foreground`.
 
-**Branco não vai sobre a menta** — 2,51:1. O foreground dela é verde profundo.
+**A menta oficial `#A7F3D0` nunca é preenchimento com texto.** Branco sobre ela
+dá 1,28:1. Ela é a **tinta** do estado positivo no claro (com texto `#065F46`,
+5,99:1) e o **texto** no escuro (sobre tinta verde profunda, 9,74:1). Quem
+preenche é um verde mais fundo.
 
-**O vermelho claro é `#D32F2F`, não `#E53935`.** Branco sobre `#E53935` dá
-4,23:1 e reprova AA para rótulo de botão. `#E53935` fica só no escuro, onde
-assenta sobre fundo escuro.
+**O anel de foco é o único controle que veste o teal oficial a plena força** —
+`#06B6D4`. Anel não carrega texto, então aqui o brilho é vantagem.
 
 ### Linhas e foco
 
 | Token | Claro | Escuro | Uso |
 |---|---|---|---|
-| `border` | `#E9EBEC` | `#243B50` | divisor, borda de card |
-| `border-strong` | `#D5DBE0` | `#30506B` | divisor enfatizado |
-| `input` | `#D5DBE0` | `#30506B` | borda de campo |
-| `ring` | `#3678AE` | `#5A9ED0` | anel de foco |
+| `border` | `#DCE7EC` | `#1D3A5C` | divisor, borda de card |
+| `border-strong` | `#C0D4DE` | `#2A4E76` | divisor enfatizado |
+| `input` | `#C0D4DE` | `#2A4E76` | borda de campo |
+| `ring` | `#06B6D4` | `#06B6D4` | anel de foco — o teal oficial a plena força |
 
 Borda de campo é mais pesada que borda de card de propósito: `border` é fraca
 demais para ler como limite de input sobre a página tingida.
@@ -130,7 +153,7 @@ distintas.
 
 ### Gráficos
 
-`chart-1..5`: `#3678AE` `#21B896` `#184F7C` `#749EC0` `#0E6B56`.
+`chart-1..5` no claro: `#06B6D4` `#13B57E` `#0B1F3B` `#7DD3E8` `#065F46`.
 
 Entradas vizinhas trocam de família cromática, para que séries adjacentes não
 colem. Não é uma rampa decorativa — é para que duas linhas num gráfico se

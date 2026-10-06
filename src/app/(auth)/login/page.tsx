@@ -152,7 +152,7 @@ function LoginForm() {
                 <div aria-hidden="true" />
 
                 <div className="relative z-10 max-w-sm">
-                    <span className="mb-5 block h-0.5 w-12 rounded-full bg-brand-accent" />
+                    <span className="mb-5 block h-0.5 w-12 rounded-full bg-brand-mint" />
                     <h2 className="text-display text-brand-navy-foreground">
                         A clínica inteira numa conversa só
                     </h2>

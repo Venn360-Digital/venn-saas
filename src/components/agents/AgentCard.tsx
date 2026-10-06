@@ -38,7 +38,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                     variant={agent.isActive ? 'default' : 'secondary'}
                     className={cn(
                         "cursor-pointer hover:opacity-80",
-                        agent.isActive ? "bg-success hover:bg-brand-accent-hover" : "bg-muted-foreground"
+                        agent.isActive ? "bg-success hover:bg-success/90" : "bg-muted-foreground"
                     )}
                     onClick={() => onToggleStatus(agent.id, agent.isActive)}
                 >

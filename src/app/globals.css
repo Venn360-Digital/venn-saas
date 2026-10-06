@@ -78,6 +78,9 @@
   --color-brand-navy: var(--brand-navy);
   --color-brand-navy-foreground: var(--brand-navy-foreground);
   --color-brand-navy-muted: var(--brand-navy-muted);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-mint: var(--brand-mint);
+  --color-brand-ice: var(--brand-ice);
 
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
@@ -138,183 +141,187 @@
   letter-spacing: -0.01em;
 }
 
-/* Light — the default. A dental product is read in a clinic, beside patient
-   records and printed forms, so white surfaces carry the app and the navy is
-   held back for type. */
+/* Light — the default. Anchored on the official brand tokens
+   (05_Design_Tokens in the brand kit): deep navy #0B1F3B, teal #06B6D4, mint
+   #A7F3D0, ice #E6F7F5, light surface #F8FBFD. Those seven values are a brand
+   palette, not a UI system, so the interface roles are derived from them — but
+   every brand colour below is the official value, unmodified. */
 :root {
   --radius: 0.625rem;
 
-  /* The page is faintly tinted so white cards read as lifted off it. Both were
-     #ffffff before, which is why `bg-muted/20` had to be painted onto <main> to
-     fake the separation — that class comes off the layout now. */
-  --background: #f7f9fa;
-  --foreground: #0f3351;
+  --background: #f8fbfd;
+  --foreground: #0b1f3b;
   --card: #ffffff;
-  --card-foreground: #0f3351;
+  --card-foreground: #0b1f3b;
   --popover: #ffffff;
-  --popover-foreground: #0f3351;
+  --popover-foreground: #0b1f3b;
 
-  /* Action is the mid-blue, not the navy: a navy fill would be the loudest
-     thing on a white page, and these screens are dense. White on #3678ae is
-     4.71:1. */
-  --primary: #3678ae;
-  --primary-foreground: #ffffff;
-  /* Hover is a darker step, never `bg-primary/90` — blending toward transparent
-     over a white page makes hover LIGHTER than rest, which reads as disabled.
-     6.11:1. */
-  --primary-hover: #2e6693;
-  --primary-active: #27567d;
-  --primary-subtle: #eaf2f9;
-  --primary-subtle-foreground: #184f7c;
+  /* The official teal, exactly as published. White on it is 2.43:1 and fails
+     badly — but the brand's own navy on it is 6.79:1, which is how the logo is
+     built too: navy "Odonto", teal "Box". So the pairing is the fix, not a
+     darker teal. */
+  --primary: #06b6d4;
+  --primary-foreground: #0b1f3b;
+  /* Hover darkens rather than fading toward transparent, which over a light page
+     would make the hover lighter than rest. Navy on it: 5.36:1. */
+  --primary-hover: #05a1bc;
+  --primary-active: #048da5;
+  --primary-subtle: #e6f7f5;
+  --primary-subtle-foreground: #0a5566;
 
   /* Three distinct steps, not three names for the same grey: `muted` is the
      quietest fill, `secondary` is a button surface, and `accent` is the hover
-     above it — so hovering a secondary button actually reads as a change. */
-  --muted: #f1f4f6;
-  --muted-foreground: #5b7183;
-  --secondary: #e8edf1;
-  --secondary-foreground: #0f3351;
-  --accent: #dfe7ed;
-  --accent-foreground: #0f3351;
+     above it. */
+  --muted: #eef4f7;
+  --muted-foreground: #53707f;
+  --secondary: #e4edf2;
+  --secondary-foreground: #0b1f3b;
+  --accent: #d5e5ec;
+  --accent-foreground: #0b1f3b;
 
-  /* Mint, reserved for positive state — confirmed, paid, active. White on mint
-     is 2.51:1, so its foreground is deep teal and never white. */
-  --brand-accent: #21b896;
-  --brand-accent-foreground: #073d31;
-  --brand-accent-hover: #1ca183;
-  /* The brand panel on the sign-in screen is navy in BOTH themes, so type on it
-     can take neither `foreground` (which inverts) nor `primary-foreground`. It
-     gets its own pair. */
-  --brand-navy: #0f3351;
+  /* The official brand colours, kept addressable by name for the places that
+     should wear the brand rather than a UI role. */
+  --brand-navy: #0b1f3b;
   --brand-navy-foreground: #ffffff;
-  --brand-navy-muted: #a8c2d6;
+  --brand-navy-muted: #9fc2d4;
+  --brand-teal: #06b6d4;
+  --brand-mint: #a7f3d0;
+  --brand-ice: #e6f7f5;
+  --brand-accent: #06b6d4;
+  --brand-accent-foreground: #0b1f3b;
+  --brand-accent-hover: #05a1bc;
 
-  --success: #21b896;
-  --success-foreground: #073d31;
-  --success-subtle: #e3f7f1;
-  --success-subtle-foreground: #0e6b56;
+  /* The official mint is far too pale to carry text, so it serves as the tint
+     and a deeper green does the filling. */
+  --success: #13b57e;
+  --success-foreground: #022c20;
+  --success-subtle: #a7f3d0;
+  --success-subtle-foreground: #065f46;
 
-  --warning: #c77700;
+  --warning: #b45309;
   --warning-foreground: #ffffff;
-  --warning-subtle: #fdf3e3;
-  --warning-subtle-foreground: #8a5200;
+  --warning-subtle: #fef3c7;
+  --warning-subtle-foreground: #7c2d12;
 
-  --info: #184f7c;
+  /* The teal darkened until it carries white, for the places that need a
+     blue-family fill with light type. */
+  --info: #0e7490;
   --info-foreground: #ffffff;
-  --info-subtle: #e7eff7;
-  --info-subtle-foreground: #184f7c;
+  --info-subtle: #e0f4f9;
+  --info-subtle-foreground: #0a5566;
 
-  /* #d32f2f, not the reference's #e53935: white on #e53935 is 4.23:1 and fails
-     AA for a button label. This is 4.98:1. #e53935 is kept for dark, where it
-     sits on a dark ground. */
-  --destructive: #d32f2f;
+  --destructive: #c62828;
   --destructive-foreground: #ffffff;
-  --destructive-hover: #b52626;
+  --destructive-hover: #a81f1f;
   --destructive-subtle: #fdecec;
-  --destructive-subtle-foreground: #a31f1f;
+  --destructive-subtle-foreground: #9b1b1b;
 
-  --border: #e9ebec;
-  --border-strong: #d5dbe0;
-  /* A field edge needs more weight than a card edge: --border is too faint to
-     read as an input boundary against the tinted page. */
-  --input: #d5dbe0;
-  --ring: #3678ae;
+  --border: #dce7ec;
+  --border-strong: #c0d4de;
+  --input: #c0d4de;
+  /* A focus ring carries no text, so this is the one control that can wear the
+     bright official teal at full strength — and it is more visible for it. */
+  --ring: #06b6d4;
 
-  /* Adjacent entries cross hue families so neighbouring series stay apart. */
-  --chart-1: #3678ae;
-  --chart-2: #21b896;
-  --chart-3: #184f7c;
-  --chart-4: #749ec0;
-  --chart-5: #0e6b56;
+  --chart-1: #06b6d4;
+  --chart-2: #13b57e;
+  --chart-3: #0b1f3b;
+  --chart-4: #7dd3e8;
+  --chart-5: #065f46;
 
-  /* A white rail. Inverting to a navy sidebar later is a change to these seven
-     values and nothing else — the primitive reads only from here. */
   --sidebar: #ffffff;
-  --sidebar-foreground: #0f3351;
-  --sidebar-primary: #3678ae;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #edf1f5;
-  --sidebar-accent-foreground: #0f3351;
-  --sidebar-border: #e9ebec;
-  --sidebar-ring: #3678ae;
+  --sidebar-foreground: #0b1f3b;
+  --sidebar-primary: #06b6d4;
+  --sidebar-primary-foreground: #0b1f3b;
+  --sidebar-accent: #e6f7f5;
+  --sidebar-accent-foreground: #0b1f3b;
+  --sidebar-border: #dce7ec;
+  --sidebar-ring: #06b6d4;
 }
 
-/* Dark */
+/* Dark. The official dark surface is #07182f. The teal needs no variant here:
+   it is the same published value, with the same dark type on it (6.88:1), so the
+   action colour is literally identical in both themes. */
 .dark {
-  --background: #0f1c28;
-  --foreground: #e8eff5;
-  --card: #16293a;
-  --card-foreground: #e8eff5;
-  --popover: #16293a;
-  --popover-foreground: #e8eff5;
+  --background: #07182f;
+  --foreground: #e4f1f7;
+  --card: #0e2440;
+  --card-foreground: #e4f1f7;
+  --popover: #0e2440;
+  --popover-foreground: #e4f1f7;
 
-  --primary: #5a9ed0;
-  /* Navy, not white: white on #5a9ed0 is 2.90:1 and would fail AA on every
-     button label in dark mode. */
-  --primary-foreground: #0b1620;
-  --primary-hover: #74afda;
-  --primary-active: #8cbfe2;
-  --primary-subtle: #1d3a52;
-  --primary-subtle-foreground: #9ac6e6;
+  --primary: #06b6d4;
+  --primary-foreground: #04212b;
+  --primary-hover: #38c9e0;
+  --primary-active: #5fd5e8;
+  --primary-subtle: #0e3a4a;
+  --primary-subtle-foreground: #7fdcec;
 
-  --muted: #1c3042;
-  --muted-foreground: #93a7b8;
-  --secondary: #223a50;
-  --secondary-foreground: #e8eff5;
-  --accent: #2b4760;
-  --accent-foreground: #e8eff5;
+  --muted: #102b49;
+  --muted-foreground: #8fafc4;
+  --secondary: #16304f;
+  --secondary-foreground: #e4f1f7;
+  --accent: #1e3e60;
+  --accent-foreground: #e4f1f7;
 
-  --brand-accent: #2fcca8;
-  --brand-accent-foreground: #062b22;
-  --brand-accent-hover: #4cd9b9;
-  --brand-navy: #0f3351;
+  --brand-navy: #0b1f3b;
   --brand-navy-foreground: #ffffff;
-  --brand-navy-muted: #a8c2d6;
+  --brand-navy-muted: #9fc2d4;
+  --brand-teal: #06b6d4;
+  --brand-mint: #a7f3d0;
+  --brand-ice: #e6f7f5;
+  --brand-accent: #06b6d4;
+  --brand-accent-foreground: #04212b;
+  --brand-accent-hover: #38c9e0;
 
-  --success: #2fcca8;
-  --success-foreground: #062b22;
-  --success-subtle: #113a32;
-  --success-subtle-foreground: #5fd9be;
+  /* Here the official mint is the TEXT, against a deep green tint — the one
+     place it reaches full contrast (9.74:1). */
+  --success: #34d399;
+  --success-foreground: #022c20;
+  --success-subtle: #0c3b2e;
+  --success-subtle-foreground: #a7f3d0;
 
-  --warning: #e39a28;
-  --warning-foreground: #2a1b00;
+  --warning: #e0a33c;
+  --warning-foreground: #2a1a00;
   --warning-subtle: #3a2a10;
-  --warning-subtle-foreground: #f0be6b;
+  --warning-subtle-foreground: #f3c77a;
 
-  --info: #749ec0;
-  --info-foreground: #0b1620;
-  --info-subtle: #1d3a52;
-  --info-subtle-foreground: #96b1c7;
+  --info: #22a5c4;
+  --info-foreground: #04212b;
+  --info-subtle: #0e3a4a;
+  --info-subtle-foreground: #8fd6e8;
 
-  --destructive: #e53935;
+  /* The same red as light: lighter variants drop white below AA, and this one
+     still separates cleanly from the dark surface. */
+  --destructive: #c62828;
   --destructive-foreground: #ffffff;
-  --destructive-hover: #ef5350;
+  --destructive-hover: #d93b3b;
   --destructive-subtle: #3a1715;
   --destructive-subtle-foreground: #f08c89;
 
   /* A real colour rather than rgba(255,255,255,.1): an alpha border composites
      differently over --card than over --popover, so one token drew two
      different lines. */
-  --border: #243b50;
-  --border-strong: #30506b;
-  --input: #30506b;
-  --ring: #5a9ed0;
+  --border: #1d3a5c;
+  --border-strong: #2a4e76;
+  --input: #2a4e76;
+  --ring: #06b6d4;
 
-  --chart-1: #5a9ed0;
-  --chart-2: #2fcca8;
-  --chart-3: #96b1c7;
-  --chart-4: #3678ae;
-  --chart-5: #0e9d80;
+  --chart-1: #06b6d4;
+  --chart-2: #34d399;
+  --chart-3: #7dd3e8;
+  --chart-4: #22a5c4;
+  --chart-5: #a7f3d0;
 
   /* One step below the page, so the rail recedes instead of advancing. */
-  --sidebar: #0c1721;
-  --sidebar-foreground: #e8eff5;
-  --sidebar-primary: #5a9ed0;
-  --sidebar-primary-foreground: #0b1620;
-  --sidebar-accent: #1a2e40;
-  --sidebar-accent-foreground: #e8eff5;
-  --sidebar-border: #243b50;
-  --sidebar-ring: #5a9ed0;
+  --sidebar: #050f1f;
+  --sidebar-foreground: #e4f1f7;
+  --sidebar-primary: #06b6d4;
+  --sidebar-primary-foreground: #04212b;
+  --sidebar-accent: #122a47;
+  --sidebar-accent-foreground: #e4f1f7;
+  --sidebar-border: #1d3a5c;
+  --sidebar-ring: #06b6d4;
 }
 
 @layer base {
