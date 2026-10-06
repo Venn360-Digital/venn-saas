@@ -58,15 +58,15 @@ export function Step4Agent({ data, updateData, onBack }: Step4AgentProps) {
     }
 
     return (
-        <div className="rounded-2xl border border-gray-800 bg-[#0F1629] p-8">
+        <div className="rounded-2xl border border-border bg-card p-8">
             <div className="mb-8">
                 <h2 className="mb-2 text-2xl font-bold">Agente</h2>
-                <p className="text-gray-400">Crie seu primeiro agente de IA</p>
+                <p className="text-muted-foreground">Crie seu primeiro agente de IA</p>
             </div>
 
             <div className="space-y-6">
                 <div>
-                    <Label htmlFor="agent-name" className="text-sm text-gray-300">
+                    <Label htmlFor="agent-name" className="text-sm text-foreground">
                         Nome do agente (opcional)
                     </Label>
                     <Input
@@ -74,19 +74,19 @@ export function Step4Agent({ data, updateData, onBack }: Step4AgentProps) {
                         value={agentName}
                         onChange={(e) => setAgentName(e.target.value)}
                         placeholder="Assistente de Vendas"
-                        className="mt-2 border-gray-700 bg-[#0A0E27] text-white placeholder:text-gray-500"
+                        className="mt-2 border-border bg-card text-white placeholder:text-muted-foreground"
                         disabled={loading}
                     />
-                    <p className="mt-2 text-sm text-gray-500">
+                    <p className="mt-2 text-sm text-muted-foreground">
                         Você pode criar mais agentes depois no painel
                     </p>
                 </div>
 
-                <div className="mt-8 flex items-center justify-between border-t border-gray-800 pt-6">
+                <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
                     <Button
                         onClick={onBack}
                         variant="outline"
-                        className="border-gray-700 bg-transparent text-white hover:bg-gray-800"
+                        className="border-border bg-transparent text-white hover:bg-accent"
                         disabled={loading}
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />
@@ -94,7 +94,7 @@ export function Step4Agent({ data, updateData, onBack }: Step4AgentProps) {
                     </Button>
                     <Button
                         onClick={handleFinish}
-                        className="bg-purple-600 hover:bg-purple-700"
+
                         disabled={loading}
                     >
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

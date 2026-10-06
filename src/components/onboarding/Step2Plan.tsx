@@ -61,10 +61,10 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
     }
 
     return (
-        <div className="rounded-2xl border border-gray-800 bg-[#0F1629] p-8">
+        <div className="rounded-2xl border border-border bg-card p-8">
             <div className="mb-8">
                 <h2 className="mb-2 text-2xl font-bold">Plano</h2>
-                <p className="text-gray-400">Escolha o plano ideal para você</p>
+                <p className="text-muted-foreground">Escolha o plano ideal para você</p>
             </div>
 
             <div className="space-y-4">
@@ -73,8 +73,8 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                         key={plan.id}
                         onClick={() => setSelectedPlan(plan.id)}
                         className={`w-full rounded-xl border-2 p-6 text-left transition-all ${selectedPlan === plan.id
-                                ? 'border-purple-500 bg-purple-500/10'
-                                : 'border-gray-700 bg-[#0A0E27] hover:border-gray-600'
+                                ? 'border-primary bg-primary-subtle'
+                                : 'border-border bg-card hover:border-border-strong'
                             }`}
                     >
                         <div className="flex items-start justify-between">
@@ -82,16 +82,16 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                                 <div className="mb-2 flex items-center gap-2">
                                     <h3 className="text-xl font-bold">{plan.name}</h3>
                                     {plan.badge && (
-                                        <span className="rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold">
+                                        <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold">
                                             {plan.badge}
                                         </span>
                                     )}
                                 </div>
-                                <p className="mb-4 text-sm text-gray-400">{plan.description}</p>
+                                <p className="mb-4 text-sm text-muted-foreground">{plan.description}</p>
                                 <ul className="space-y-2">
                                     {plan.features.map((feature, index) => (
                                         <li key={index} className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-purple-500" />
+                                            <Check className="h-4 w-4 text-primary" />
                                             <span>{feature}</span>
                                         </li>
                                     ))}
@@ -99,7 +99,7 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                             </div>
                             <div className="text-right">
                                 <div className="text-3xl font-bold">R$ {plan.price}</div>
-                                <div className="text-sm text-gray-400">/mês</div>
+                                <div className="text-sm text-muted-foreground">/mês</div>
                             </div>
                         </div>
                     </button>
@@ -110,14 +110,14 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                 <Button
                     onClick={onBack}
                     variant="outline"
-                    className="border-gray-700 bg-transparent text-white hover:bg-gray-800"
+                    className="border-border bg-transparent text-white hover:bg-accent"
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Voltar
                 </Button>
                 <Button
                     onClick={handleContinue}
-                    className="bg-purple-600 hover:bg-purple-700"
+
                 >
                     Continuar
                     <ArrowRight className="ml-2 h-4 w-4" />

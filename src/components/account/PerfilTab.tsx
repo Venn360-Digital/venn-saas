@@ -141,7 +141,7 @@ export function PerfilTab() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <span className="text-gray-400">Carregando...</span>
+                <span className="text-muted-foreground">Carregando...</span>
             </div>
         )
     }
@@ -150,12 +150,12 @@ export function PerfilTab() {
         <div className="max-w-2xl space-y-8">
             {/* Avatar */}
             <div>
-                <Label className="text-sm text-gray-400 mb-3 block">
+                <Label className="text-sm text-muted-foreground mb-3 block">
                     (Avatar) Imagem do perfil do usuário
                 </Label>
                 <div
                     onClick={handleAvatarClick}
-                    className="relative h-24 w-24 cursor-pointer rounded-lg bg-purple-600 flex items-center justify-center overflow-hidden group hover:opacity-90 transition-opacity"
+                    className="relative h-24 w-24 cursor-pointer rounded-lg bg-primary flex items-center justify-center overflow-hidden group hover:opacity-90 transition-opacity"
                 >
                     {formData.avatar ? (
                         <img
@@ -166,7 +166,7 @@ export function PerfilTab() {
                     ) : (
                         <User className="h-10 w-10 text-white" />
                     )}
-                    <div className="absolute bottom-0 right-0 h-6 w-6 bg-purple-500 rounded-full flex items-center justify-center border-2 border-[#0A0E27]">
+                    <div className="absolute bottom-0 right-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center border-2 border-border">
                         <Camera className="h-3 w-3 text-white" />
                     </div>
                 </div>
@@ -182,7 +182,7 @@ export function PerfilTab() {
             {/* Name fields */}
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <Label htmlFor="name" className="text-sm text-gray-400">
+                    <Label htmlFor="name" className="text-sm text-muted-foreground">
                         Nome
                     </Label>
                     <Input
@@ -190,11 +190,11 @@ export function PerfilTab() {
                         value={formData.name}
                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                         placeholder="Seu nome"
-                        className="mt-2 bg-[#0A0E27] border-gray-700"
+                        className="mt-2"
                     />
                 </div>
                 <div>
-                    <Label htmlFor="lastName" className="text-sm text-gray-400">
+                    <Label htmlFor="lastName" className="text-sm text-muted-foreground">
                         Sobrenome
                     </Label>
                     <Input
@@ -202,57 +202,57 @@ export function PerfilTab() {
                         value={formData.lastName}
                         onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                         placeholder="Seu sobrenome"
-                        className="mt-2 bg-[#0A0E27] border-gray-700"
+                        className="mt-2"
                     />
                 </div>
             </div>
 
             {/* WhatsApp */}
             <div>
-                <Label htmlFor="phone" className="text-sm text-gray-400">
+                <Label htmlFor="phone" className="text-sm text-muted-foreground">
                     Número do WhatsApp
                 </Label>
                 <div className="mt-2 flex gap-2">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[#0A0E27] border border-gray-700 rounded-md text-sm">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted border border-border rounded-md text-sm">
                         <span>🇧🇷</span>
-                        <span className="text-gray-400">Brazil (+55)</span>
+                        <span className="text-muted-foreground">Brazil (+55)</span>
                     </div>
                     <Input
                         id="phone"
                         value={formData.phone}
                         onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                         placeholder="(00) 99999-9999"
-                        className="flex-1 bg-[#0A0E27] border-gray-700"
+                        className="flex-1"
                     />
                 </div>
             </div>
 
             {/* Email */}
             <div>
-                <Label className="text-sm text-gray-400">
+                <Label className="text-sm text-muted-foreground">
                     E-mail da conta
                 </Label>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                     Para alterar o e-mail da conta, digite o novo e clique em 'Alterar e-mail da conta'
                 </p>
                 <div className="mt-2 flex gap-2">
                     <Input
                         value={profile?.email || ''}
                         disabled
-                        className="flex-1 bg-[#0A0E27] border-gray-700 text-gray-400"
+                        className="flex-1 text-muted-foreground"
                     />
-                    <Button variant="outline" className="border-gray-700 text-gray-300">
+                    <Button variant="outline" className="border-border text-foreground">
                         Alterar e-mail da conta
                     </Button>
                 </div>
             </div>
 
             {/* Change Password Section */}
-            <div className="border-t border-gray-800 pt-6">
+            <div className="border-t border-border pt-6">
                 <h3 className="text-lg font-medium mb-4">Alterar senha</h3>
                 <div className="space-y-4">
                     <div>
-                        <Label htmlFor="currentPassword" className="text-sm text-gray-400">
+                        <Label htmlFor="currentPassword" className="text-sm text-muted-foreground">
                             Senha atual
                         </Label>
                         <Input
@@ -261,12 +261,12 @@ export function PerfilTab() {
                             value={passwordData.currentPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
                             placeholder="Digite sua senha atual"
-                            className="mt-2 bg-[#0A0E27] border-gray-700"
+                            className="mt-2"
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="newPassword" className="text-sm text-gray-400">
+                            <Label htmlFor="newPassword" className="text-sm text-muted-foreground">
                                 Nova senha
                             </Label>
                             <Input
@@ -275,11 +275,11 @@ export function PerfilTab() {
                                 value={passwordData.newPassword}
                                 onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                                 placeholder="Digite a nova senha"
-                                className="mt-2 bg-[#0A0E27] border-gray-700"
+                                className="mt-2"
                             />
                         </div>
                         <div>
-                            <Label htmlFor="confirmPassword" className="text-sm text-gray-400">
+                            <Label htmlFor="confirmPassword" className="text-sm text-muted-foreground">
                                 Confirmar nova senha
                             </Label>
                             <Input
@@ -288,7 +288,7 @@ export function PerfilTab() {
                                 value={passwordData.confirmPassword}
                                 onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                                 placeholder="Confirme a nova senha"
-                                className="mt-2 bg-[#0A0E27] border-gray-700"
+                                className="mt-2"
                             />
                         </div>
                     </div>
@@ -296,7 +296,7 @@ export function PerfilTab() {
                         onClick={handleChangePassword}
                         disabled={changingPassword || !passwordData.newPassword}
                         variant="outline"
-                        className="border-gray-700"
+                        className="border-border"
                     >
                         {changingPassword ? 'Alterando...' : 'Alterar senha'}
                     </Button>
@@ -308,7 +308,7 @@ export function PerfilTab() {
                 <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-purple-600 hover:bg-purple-700"
+
                 >
                     {saving ? 'Salvando...' : 'Atualizar Perfil'}
                 </Button>

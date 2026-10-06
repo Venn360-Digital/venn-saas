@@ -71,25 +71,25 @@ export default function OnboardingPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-[#0A0E27]">
+            <div className="flex min-h-screen items-center justify-center bg-card">
                 <div className="text-white">Carregando...</div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-[#0A0E27] text-white">
+        <div className="min-h-screen bg-card text-white">
             <div className="mx-auto max-w-4xl px-4 py-12">
                 {/* Header */}
                 <div className="mb-12 text-center">
                     <div className="mb-6 flex justify-center">
                         <div className="flex items-center gap-2">
-                            <div className="text-2xl font-bold text-purple-500">⚡</div>
+                            <div className="text-2xl font-bold text-primary">⚡</div>
                             <span className="text-2xl font-bold">OdontoBox360</span>
                         </div>
                     </div>
                     <h1 className="mb-2 text-3xl font-bold">Olá, Usuário!</h1>
-                    <p className="text-gray-400">Vamos configurar sua conta em poucos passos</p>
+                    <p className="text-muted-foreground">Vamos configurar sua conta em poucos passos</p>
                 </div>
 
                 {/* Progress Steps */}
@@ -99,10 +99,10 @@ export default function OnboardingPage() {
                             <div key={step} className="flex items-center">
                                 <div
                                     className={`flex h-12 w-12 items-center justify-center rounded-full ${step < currentStep
-                                        ? 'bg-purple-500'
+                                        ? 'bg-primary'
                                         : step === currentStep
-                                            ? 'bg-purple-500'
-                                            : 'bg-gray-700'
+                                            ? 'bg-primary'
+                                            : 'bg-muted'
                                         }`}
                                 >
                                     {step < currentStep ? (
@@ -115,7 +115,7 @@ export default function OnboardingPage() {
                                 </div>
                                 {step < 4 && (
                                     <div
-                                        className={`h-1 w-16 ${step < currentStep ? 'bg-purple-500' : 'bg-gray-700'
+                                        className={`h-1 w-16 ${step < currentStep ? 'bg-primary' : 'bg-muted'
                                             }`}
                                     />
                                 )}

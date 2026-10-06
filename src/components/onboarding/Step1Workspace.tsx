@@ -57,15 +57,15 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
     }
 
     return (
-        <div className="rounded-2xl border border-gray-800 bg-[#0F1629] p-8">
+        <div className="rounded-2xl border border-border bg-card p-8">
             <div className="mb-8">
                 <h2 className="mb-2 text-2xl font-bold">Workspace</h2>
-                <p className="text-gray-400">Crie um nome para seu workspace</p>
+                <p className="text-muted-foreground">Crie um nome para seu workspace</p>
             </div>
 
             <div className="space-y-6">
                 <div>
-                    <Label htmlFor="workspace-name" className="text-sm text-gray-300">
+                    <Label htmlFor="workspace-name" className="text-sm text-foreground">
                         Nome do workspace
                     </Label>
                     <Input
@@ -73,22 +73,22 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                         value={name}
                         onChange={(e) => handleNameChange(e.target.value)}
                         placeholder="Sua Empresa"
-                        className="mt-2 border-gray-700 bg-[#0A0E27] text-white placeholder:text-gray-500"
+                        className="mt-2 border-border bg-card text-white placeholder:text-muted-foreground"
                     />
                 </div>
 
                 <div>
-                    <Label htmlFor="workspace-url" className="text-sm text-gray-300">
+                    <Label htmlFor="workspace-url" className="text-sm text-foreground">
                         URL do workspace
                     </Label>
                     <div className="mt-2 flex items-center gap-2">
-                        <span className="text-gray-500">{workspaceUrlPrefix}/</span>
+                        <span className="text-muted-foreground">{workspaceUrlPrefix}/</span>
                         <Input
                             id="workspace-url"
                             value={slug}
                             onChange={(e) => setSlug(generateSlug(e.target.value))}
                             placeholder="suaempresa"
-                            className="flex-1 border-gray-700 bg-[#0A0E27] text-white placeholder:text-gray-500"
+                            className="flex-1 border-border bg-card text-white placeholder:text-muted-foreground"
                         />
                     </div>
                 </div>
@@ -97,7 +97,7 @@ export function Step1Workspace({ data, updateData, onNext }: Step1WorkspaceProps
                     <Button
                         onClick={handleContinue}
                         disabled={!name.trim()}
-                        className="bg-purple-600 hover:bg-purple-700"
+
                     >
                         Continuar
                         <ArrowRight className="ml-2 h-4 w-4" />
