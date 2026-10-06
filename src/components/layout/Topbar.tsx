@@ -1,5 +1,6 @@
 'use client'
 
+import { activityType } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bell, LogOut, User, Settings, Volume2, VolumeX, Calendar, Clock, Phone, Video, Mail, RotateCcw, ClipboardList, FileText } from 'lucide-react'
@@ -51,18 +52,6 @@ interface Reminder {
     deal: { id: string; title: string } | null
 }
 
-const TYPE_ICONS: Record<string, typeof Phone> = {
-    call: Phone, meeting: Calendar, videocall: Video, email: Mail,
-    followup: RotateCcw, task: ClipboardList, note: FileText,
-}
-// These were text-*-400 across the board, which is a dark-mode value: on the
-// white popover they were pale on pale. The chart ramp is defined for both modes
-// and already keeps adjacent entries apart.
-const TYPE_COLORS: Record<string, string> = {
-    call: 'text-chart-2', meeting: 'text-chart-1', videocall: 'text-chart-4',
-    email: 'text-chart-5', followup: 'text-chart-3', task: 'text-chart-2',
-    note: 'text-muted-foreground',
-}
 
 function formatReminderTime(r: Reminder): string {
     if (!r.dueDate) return ''
@@ -221,8 +210,7 @@ export function Topbar() {
                                 </div>
                             ) : (
                                 activeReminders.map((r) => {
-                                    const Icon = TYPE_ICONS[r.type] || Calendar
-                                    const color = TYPE_COLORS[r.type] || 'text-muted-foreground'
+                                    const { icon: Icon, color } = activityType(r.type)
                                     return (
                                         <div key={r.id}
                                             className="flex items-start gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-accent/30 transition-colors">

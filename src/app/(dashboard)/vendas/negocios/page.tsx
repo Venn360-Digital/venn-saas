@@ -1,5 +1,6 @@
 'use client'
 
+import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
     Plus, MoreHorizontal, User, DollarSign, GripVertical,
@@ -168,26 +169,18 @@ const LOSS_REASONS = [
     { id: 'other', label: 'Outro', icon: '📝' },
 ]
 
-const ACTIVITY_TYPES_CONFIG: Record<string, { label: string; icon: typeof Phone; color: string }> = {
-    call: { label: 'Ligação', icon: Phone, color: 'text-blue-400' },
-    meeting: { label: 'Reunião', icon: Calendar, color: 'text-amber-400' },
-    videocall: { label: 'Videochamada', icon: Video, color: 'text-purple-400' },
-    email: { label: 'E-mail', icon: Mail, color: 'text-green-400' },
-    followup: { label: 'Follow-up', icon: RotateCcw, color: 'text-orange-400' },
-    note: { label: 'Nota', icon: FileText, color: 'text-slate-400' },
-    task: { label: 'Tarefa', icon: CheckCircle2, color: 'text-teal-400' },
-}
+const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 
 // ─── Tracking Indicators ─────────────────────────────────────────────
 function TrackingIndicators({ tracking }: { tracking: TrackingData | null }) {
     if (!tracking) return null
 
     const indicators = [
-        { key: 'contact1', icon: Phone, label: '1º Contato', color: 'text-blue-400' },
-        { key: 'contact2', icon: Phone, label: '2º Contato', color: 'text-indigo-400' },
-        { key: 'contact3', icon: Phone, label: '3º Contato', color: 'text-violet-400' },
-        { key: 'scheduled', icon: Calendar, label: 'Agendou', color: 'text-amber-400' },
-        { key: 'attended', icon: UserCheck, label: 'Compareceu', color: 'text-green-400' },
+        { key: 'contact1', icon: Phone, label: '1º Contato', color: 'text-chart-1' },
+        { key: 'contact2', icon: Phone, label: '2º Contato', color: 'text-chart-3' },
+        { key: 'contact3', icon: Phone, label: '3º Contato', color: 'text-chart-4' },
+        { key: 'scheduled', icon: Calendar, label: 'Agendou', color: 'text-warning-subtle-foreground' },
+        { key: 'attended', icon: UserCheck, label: 'Compareceu', color: 'text-success-subtle-foreground' },
         { key: 'rework', icon: RefreshCw, label: 'Retrabalho', color: 'text-orange-400' },
     ] as const
 

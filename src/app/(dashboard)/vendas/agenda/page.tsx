@@ -1,5 +1,6 @@
 'use client'
 
+import { ACTIVITY_TYPES as SHARED_ACTIVITY_TYPES } from '@/lib/activity-types'
 import { useState, useEffect, useMemo } from 'react'
 import {
     Plus, List, Calendar, Clock, CheckCircle2, Circle, Trash2, Pencil,
@@ -56,16 +57,7 @@ const FILTERS = [
     { id: 'custom', label: 'Personalizado' },
 ]
 
-const ACTIVITY_TYPES = [
-    { id: 'meeting', label: 'Reunião', icon: Calendar, color: 'text-blue-400', bg: 'bg-blue-400/10', dot: 'bg-blue-400' },
-    { id: 'call', label: 'Ligação', icon: Phone, color: 'text-green-400', bg: 'bg-green-400/10', dot: 'bg-green-400' },
-    { id: 'videocall', label: 'Videochamada', icon: Video, color: 'text-cyan-400', bg: 'bg-cyan-400/10', dot: 'bg-cyan-400' },
-    { id: 'followup', label: 'Follow-up', icon: RotateCcw, color: 'text-orange-400', bg: 'bg-orange-400/10', dot: 'bg-orange-400' },
-    { id: 'email', label: 'E-mail', icon: Mail, color: 'text-amber-400', bg: 'bg-amber-400/10', dot: 'bg-amber-400' },
-    { id: 'task', label: 'Tarefa', icon: ClipboardList, color: 'text-teal-400', bg: 'bg-teal-400/10', dot: 'bg-teal-400' },
-    { id: 'note', label: 'Nota', icon: FileText, color: 'text-slate-400', bg: 'bg-slate-400/10', dot: 'bg-slate-400' },
-]
-
+const ACTIVITY_TYPES = SHARED_ACTIVITY_TYPES
 const REMINDER_OPTIONS = [
     { value: 0, label: 'Sem lembrete' },
     { value: 15, label: '15 minutos antes' },

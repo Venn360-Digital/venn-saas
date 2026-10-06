@@ -31,6 +31,8 @@ const ALLOWED = [
     'src/components/shared/TagChip.tsx',
     // Renders above ThemeProvider, where CSS variables are not guaranteed.
     'src/app/global-error.tsx',
+    // Other companies' brand colours, declared in one place on purpose.
+    'src/lib/brand-colors.ts',
 ]
 
 const PALETTE =

@@ -1,5 +1,6 @@
 'use client'
 
+import { BRAND_COLORS } from '@/lib/brand-colors'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Plus, ExternalLink, Unplug, Check, AlertCircle, Loader2, Calendar, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
@@ -66,7 +67,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: 'Slack',
         description: 'Receba notificações de atendimentos e interações em tempo real',
         icon: '💬',
-        iconBgColor: 'bg-purple-600',
+        iconBgColor: BRAND_COLORS.slack,
         comingSoon: true,
     },
 ]
