@@ -93,7 +93,7 @@ export function AgentCreationLayout({
 
 
     return (
-        <div className="flex h-screen bg-background">
+        <div className="flex h-full bg-background">
             {/* Sidebar */}
             <aside className="w-64 border-r bg-card">
                 <div className="flex h-16 items-center gap-3 border-b px-6">

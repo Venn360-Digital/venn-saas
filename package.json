@@ -11,7 +11,8 @@
     "typecheck:workers": "tsc --noEmit -p workers/tsconfig.json",
     "worker:dev": "tsx watch --tsconfig workers/tsconfig.json workers/src/index.ts",
     "worker:build": "tsup --config workers/tsup.config.ts",
-    "worker:start": "node workers/dist/index.js"
+    "worker:start": "node workers/dist/index.js",
+    "lint:colors": "node scripts/lint-colors.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.1",

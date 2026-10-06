@@ -1053,7 +1053,7 @@ export default function ConversasPage() {
 
     return (
         <>
-            <div className="flex h-[calc(100vh-64px)]">
+            <div className="flex h-full min-h-0">
                 {/* Left Sidebar — Conversation List */}
                 <div className="w-[320px] border-r bg-card flex flex-col">
                     {/* Header */}
