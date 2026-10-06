@@ -3,7 +3,7 @@
 import { activityType } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Bell, LogOut, User, Settings, Volume2, VolumeX, Calendar, Clock, Phone, Video, Mail, RotateCcw, ClipboardList, FileText } from 'lucide-react'
+import { Bell, LogOut, User, Settings, Volume2, VolumeX, Clock} from 'lucide-react'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'

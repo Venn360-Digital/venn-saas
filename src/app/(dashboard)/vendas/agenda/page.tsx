@@ -4,8 +4,8 @@ import { ACTIVITY_TYPES as SHARED_ACTIVITY_TYPES } from '@/lib/activity-types'
 import { useState, useEffect, useMemo } from 'react'
 import {
     Plus, List, Calendar, Clock, CheckCircle2, Circle, Trash2, Pencil,
-    Search, ChevronLeft, ChevronRight, Phone, Mail, Video, RotateCcw,
-    AlertTriangle, User, Briefcase, X, FileText, ClipboardList, TrendingUp,
+    Search, ChevronLeft, ChevronRight,
+    AlertTriangle, User, Briefcase, X, TrendingUp,
     Columns3, BellRing, Repeat,
 } from 'lucide-react'
 import Link from 'next/link'

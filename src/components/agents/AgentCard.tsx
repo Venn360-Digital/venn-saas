@@ -2,7 +2,7 @@ import { Agent } from '@prisma/client'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Edit2, Power, Trash2, Bot } from 'lucide-react'
+import { Edit2, Trash2, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AgentCardProps {

@@ -1,9 +1,15 @@
 'use client'
 
 import { TagChip } from '@/components/shared/TagChip'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { Toolbar, FilterPanel } from '@/components/shared/Toolbar'
+import { DataTable, type Column } from '@/components/shared/DataTable'
+import { Pagination } from '@/components/shared/Pagination'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { FormField } from '@/components/shared/FormField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Search, Upload, Download, User, Phone, Mail, MoreHorizontal, Trash2, Edit, Tag, Check, X, Filter, ChevronLeft, ChevronRight, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
+import { Plus, Upload, Download, User, Phone, MoreHorizontal, Trash2, Check, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -337,200 +343,207 @@ export default function ContatosPage() {
         } catch { toast.error('Erro ao excluir') }
     }
 
-    const hasActiveFilters = filterTagId || filterSource || filterDeal || filterDateFrom || filterDateTo
+    const activeFilterCount = [filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo]
+        .filter(Boolean).length
+
+    const contactColumns: Column<Contact>[] = [
+        {
+            id: 'name',
+            header: 'Nome',
+            cell: (c) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="size-8 shrink-0">
+                        <AvatarFallback className="bg-primary-subtle text-xs text-primary-subtle-foreground">
+                            {getInitials(c.name)}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                        <p className="truncate">{c.name || '—'}</p>
+                        {/* The e-mail column is dropped below lg, so it rides
+                            along here instead of simply disappearing. */}
+                        <p className="truncate text-xs text-muted-foreground lg:hidden">
+                            {c.email || c.phone || ''}
+                        </p>
+                    </div>
+                </div>
+            ),
+        },
+        { id: 'phone', header: 'Telefone', numeric: true, hideBelow: 'sm', cell: (c) => c.phone || '—' },
+        { id: 'email', header: 'E-mail', hideBelow: 'lg', cell: (c) => <span className="text-muted-foreground">{c.email || '—'}</span> },
+        {
+            id: 'tags',
+            header: 'Etiquetas',
+            hideBelow: 'md',
+            cell: (c) => (
+                <div className="flex flex-wrap gap-1">
+                    {c.tags?.length > 0
+                        ? c.tags.map(ct => <TagChip key={ct.tag.id} size="sm" name={ct.tag.name} color={ct.tag.color} />)
+                        : <span className="text-xs text-muted-foreground">—</span>}
+                </div>
+            ),
+        },
+        { id: 'source', header: 'Origem', hideBelow: 'sm', cell: (c) => <StatusBadge value={c.source || 'manual'} tone="neutral" /> },
+    ]
+
+    /* Below md the six-column table becomes one card per contact. The table at
+       375px was a horizontal scroll nobody finds. */
+    const ContactRowCard = (c: Contact) => (
+        <div className="flex items-start gap-3">
+            <Avatar className="size-9 shrink-0">
+                <AvatarFallback className="bg-primary-subtle text-xs text-primary-subtle-foreground">
+                    {getInitials(c.name)}
+                </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{c.name || '—'}</p>
+                <p className="num truncate text-sm text-muted-foreground">{c.phone || c.email || '—'}</p>
+                {c.tags?.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                        {c.tags.map(ct => <TagChip key={ct.tag.id} size="sm" name={ct.tag.name} color={ct.tag.color} />)}
+                    </div>
+                )}
+            </div>
+            <StatusBadge value={c.source || 'manual'} tone="neutral" />
+        </div>
+    )
 
     // ─── Render ─────────────────────────────────────────────────────
     return (
-        <div className="p-6">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Contatos</h1>
-                    <p className="text-muted-foreground">
-                        {pagination.total} contato{pagination.total !== 1 ? 's' : ''} encontrado{pagination.total !== 1 ? 's' : ''}
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" className="border-border" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
-                        <Upload className="h-4 w-4 mr-2" /> Importar
-                    </Button>
-                    <Button variant="outline" className="border-border" onClick={handleExport}>
-                        <Download className="h-4 w-4 mr-2" /> Exportar
-                    </Button>
-                    <Button onClick={() => handleOpenDialog()} >
-                        <Plus className="h-4 w-4 mr-2" /> Novo Contato
-                    </Button>
-                </div>
-            </div>
-
-            {/* Search + Filter bar */}
-            <div className="mb-4 flex items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar contatos..." className="pl-10" />
-                </div>
-                <Button variant={showFilters ? 'secondary' : 'outline'} className={showFilters ? '' : 'border-border'} onClick={() => setShowFilters(!showFilters)}>
-                    <Filter className="h-4 w-4 mr-2" /> Filtros {hasActiveFilters && <span className="ml-1 w-2 h-2 rounded-full bg-primary inline-block" />}
-                </Button>
-            </div>
-
-            {/* Filter panel */}
-            {showFilters && (
-                <div className="mb-4 p-4 rounded-lg border border-border bg-card flex flex-wrap gap-4 items-end">
-                    <div className="w-44">
-                        <Label className="text-xs text-muted-foreground">Etiqueta</Label>
-                        <Select value={filterTagId} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <SelectTrigger className="mt-1 h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas</SelectItem>
-                                {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="w-40">
-                        <Label className="text-xs text-muted-foreground">Origem</Label>
-                        <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {SOURCE_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="w-44">
-                        <Label className="text-xs text-muted-foreground">Deal</Label>
-                        <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="w-36">
-                        <Label className="text-xs text-muted-foreground">De</Label>
-                        <Input type="date" value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} className="mt-1 h-9" />
-                    </div>
-                    <div className="w-36">
-                        <Label className="text-xs text-muted-foreground">Até</Label>
-                        <Input type="date" value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} className="mt-1 h-9" />
-                    </div>
-                    {hasActiveFilters && (
-                        <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => { setFilterTagId(''); setFilterSource(''); setFilterDeal(''); setFilterDateFrom(''); setFilterDateTo(''); setPagination(p => ({ ...p, page: 1 })) }}>
-                            <X className="h-3 w-3 mr-1" /> Limpar
+        <>
+            <PageHeader
+                title="Contatos"
+                count={{ value: pagination.total, singular: 'contato', plural: 'contatos' }}
+                actions={
+                    <>
+                        <Button variant="outline" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
+                            <Upload /> Importar
                         </Button>
-                    )}
-                </div>
-            )}
+                        <Button variant="outline" onClick={handleExport}>
+                            <Download /> Exportar
+                        </Button>
+                        <Button onClick={() => handleOpenDialog()}>
+                            <Plus /> Novo contato
+                        </Button>
+                    </>
+                }
+            />
 
-            {/* Table */}
-            <div className="rounded-lg border border-border bg-card">
-                {loading ? (
-                    <div className="flex items-center justify-center h-64"><span className="text-muted-foreground">Carregando...</span></div>
-                ) : contacts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64">
-                        <User className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="font-medium text-foreground mb-1">Nenhum contato encontrado</h3>
-                        <p className="text-muted-foreground text-sm">Adicione seu primeiro contato.</p>
-                    </div>
-                ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="border-border hover:bg-transparent">
-                                <TableHead className="text-muted-foreground">Nome</TableHead>
-                                <TableHead className="text-muted-foreground">Telefone</TableHead>
-                                <TableHead className="text-muted-foreground">E-mail</TableHead>
-                                <TableHead className="text-muted-foreground">Etiquetas</TableHead>
-                                <TableHead className="text-muted-foreground">Origem</TableHead>
-                                <TableHead className="text-muted-foreground w-10"></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {contacts.map((contact) => (
-                                <TableRow key={contact.id} className="border-border cursor-pointer hover:bg-muted" onClick={() => handleOpenDialog(contact)}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarFallback className="bg-primary text-primary-foreground text-xs">{getInitials(contact.name)}</AvatarFallback>
-                                            </Avatar>
-                                            <span className="text-foreground">{contact.name || '-'}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-foreground">{contact.phone || '-'}</TableCell>
-                                    <TableCell className="text-foreground">{contact.email || '-'}</TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-wrap gap-1">
-                                            {contact.tags?.length > 0 ? contact.tags.map(ct => (
-                                                <TagChip key={ct.tag.id} size="sm" name={ct.tag.name} color={ct.tag.color} />
-                                            )) : <span className="text-muted-foreground text-xs">—</span>}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <StatusBadge value={contact.source || 'manual'} tone="neutral" />
-                                    </TableCell>
-                                    <TableCell>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="bg-card border-border">
-                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDialog(contact) }}><Edit className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
-                                                {canEdit && (
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDelete(contact.id) }} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
-                                                )}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                )}
+            <div className="space-y-3 px-4 pb-6 md:px-6">
+                <Toolbar
+                    search={search}
+                    onSearchChange={setSearch}
+                    placeholder="Buscar por nome, telefone ou e-mail…"
+                    filterCount={activeFilterCount}
+                    filtersOpen={showFilters}
+                    onToggleFilters={() => setShowFilters(v => !v)}
+                />
 
-                {/* Pagination bar (inside the card, like Etiquetas) */}
-                {contacts.length > 0 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>Exibindo</span>
-                            <Select
-                                value={pagination.limit.toString()}
-                                onValueChange={(value) => setPagination(prev => ({ ...prev, limit: parseInt(value), page: 1 }))}
-                            >
-                                <SelectTrigger className="w-20 h-8 bg-transparent border-border">
-                                    <SelectValue />
-                                </SelectTrigger>
+                <FilterPanel
+                    open={showFilters}
+                    activeCount={activeFilterCount}
+                    onClear={() => {
+                        setFilterTagId(''); setFilterSource(''); setFilterDeal('')
+                        setFilterDateFrom(''); setFilterDateTo('')
+                        setPagination(p => ({ ...p, page: 1 }))
+                    }}
+                >
+                    {/* Widths are min-, not fixed: Open Sans sets wider than the
+                        previous face, and a fixed w-44 now crowds its label. */}
+                    <div className="min-w-44 flex-1 sm:flex-none">
+                        <FormField label="Etiqueta" htmlFor="f-tag">
+                            <Select value={filterTagId || 'all'} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                <SelectTrigger id="f-tag"><SelectValue placeholder="Todas" /></SelectTrigger>
                                 <SelectContent>
-                                    {[20, 50, 100].map(size => (
-                                        <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
-                                    ))}
+                                    <SelectItem value="all">Todas</SelectItem>
+                                    {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
-                            <span>de {pagination.total} itens</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={pagination.page <= 1}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                                className="border-border"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <span className="text-sm text-muted-foreground">
-                                Página {pagination.page} de {pagination.totalPages || 1}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={pagination.page >= pagination.totalPages}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                                className="border-border"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
+                        </FormField>
                     </div>
-                )}
+                    <div className="min-w-40 flex-1 sm:flex-none">
+                        <FormField label="Origem" htmlFor="f-source">
+                            <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                <SelectTrigger id="f-source"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {SOURCE_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+                    </div>
+                    <div className="min-w-40 flex-1 sm:flex-none">
+                        <FormField label="Negócio" htmlFor="f-deal">
+                            <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                <SelectTrigger id="f-deal"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+                    </div>
+                    <div className="min-w-36 flex-1 sm:flex-none">
+                        <FormField label="De" htmlFor="f-from">
+                            <Input id="f-from" type="date" value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} />
+                        </FormField>
+                    </div>
+                    <div className="min-w-36 flex-1 sm:flex-none">
+                        <FormField label="Até" htmlFor="f-to">
+                            <Input id="f-to" type="date" value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} />
+                        </FormField>
+                    </div>
+                </FilterPanel>
+
+                <DataTable
+                    columns={contactColumns}
+                    rows={contacts}
+                    getRowId={c => c.id}
+                    loading={loading}
+                    onRowClick={c => handleOpenDialog(c)}
+                    mobile={ContactRowCard}
+                    rowActions={c => (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${c.name || 'contato'}`}>
+                                    <MoreHorizontal />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleOpenDialog(c)}>Editar</DropdownMenuItem>
+                                {canEdit && (
+                                    <DropdownMenuItem onClick={() => handleDelete(c.id)} className="text-destructive focus:text-destructive">
+                                        Excluir
+                                    </DropdownMenuItem>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+                    empty={
+                        <EmptyState
+                            variant="inline"
+                            icon={User}
+                            title={search || activeFilterCount ? 'Nenhum contato encontrado' : 'Nenhum contato ainda'}
+                            description={
+                                search || activeFilterCount
+                                    ? 'Tente outro termo ou limpe os filtros.'
+                                    : 'Adicione o primeiro ou importe uma planilha.'
+                            }
+                            action={
+                                !search && !activeFilterCount ? (
+                                    <Button onClick={() => handleOpenDialog()}><Plus /> Novo contato</Button>
+                                ) : null
+                            }
+                        />
+                    }
+                    footer={
+                        <Pagination
+                            page={pagination.page}
+                            totalPages={pagination.totalPages}
+                            total={pagination.total}
+                            limit={pagination.limit}
+                            onPageChange={page => setPagination(p => ({ ...p, page }))}
+                            onLimitChange={limit => setPagination(p => ({ ...p, limit, page: 1 }))}
+                        />
+                    }
+                />
             </div>
 
             {/* ═══ Create/Edit Contact Dialog (Full-screen) ═══ */}
@@ -879,6 +892,6 @@ export default function ContatosPage() {
                     )}
                 </DialogContent>
             </Dialog>
-        </div>
+        </>
     )
 }

@@ -3,13 +3,12 @@
 import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
-    Plus, MoreHorizontal, User, DollarSign, GripVertical,
+    Plus, MoreHorizontal, User, DollarSign,
     Search, List, LayoutGrid, Trash2, Pencil, X,
     Trophy, XCircle, ArrowRight, Calendar, Check,
     Phone, MessageCircle, UserCheck, RefreshCw, CalendarRange,
-    Settings, Palette, Clock, FileText, CheckCircle2, Circle,
-    AlertTriangle, Video, Mail, RotateCcw
-} from 'lucide-react'
+    Settings, Clock, CheckCircle2, Circle,
+    AlertTriangle} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
