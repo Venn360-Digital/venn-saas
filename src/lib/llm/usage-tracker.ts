@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { getBillingState } from '@/lib/billing'
 import { LLMProviderName } from '@/types/llm'
 import { Decimal } from '@prisma/client/runtime/library'
 import { Prisma } from '@prisma/client'
@@ -54,21 +55,22 @@ export async function checkCredits(workspaceId: string): Promise<{
     credits: number
     creditsUsed: number
 }> {
-    const subscription = await prisma.subscription.findUnique({
-        where: { workspaceId },
-        select: { credits: true, creditsUsed: true, status: true }
-    })
-
-    if (!subscription) {
-        return { hasCredits: false, credits: 0, creditsUsed: 0 }
-    }
-
-    const remainingCredits = subscription.credits - subscription.creditsUsed
+    // Delegado ao motor de cobrança, que é quem sabe o que é uma avaliação.
+    //
+    // A versão anterior exigia `status === 'active'`: um workspace em `trialing`
+    // — com 1.000 créditos intactos — era tratado como sem crédito, o agente
+    // ficava mudo durante os 7 dias de teste, e o paciente recebia "vamos
+    // continuar em instantes". O primeiro cadastro real caiu exatamente nisso.
+    // `getBillingState` já responde à pergunta certa: a fase permite responder
+    // (trial ou plano ativo, não somente-leitura) e sobra crédito em algum
+    // balde — do plano ou avulso.
+    const state = await getBillingState(workspaceId)
+    const available = state.credits.plan.remaining + state.credits.purchased.remaining
 
     return {
-        hasCredits: remainingCredits > 0 && subscription.status === 'active',
-        credits: subscription.credits,
-        creditsUsed: subscription.creditsUsed
+        hasCredits: !state.readOnly && available > 0,
+        credits: state.credits.plan.total,
+        creditsUsed: state.credits.plan.used,
     }
 }
 
