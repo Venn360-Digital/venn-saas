@@ -224,6 +224,26 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         return
     }
 
+    // A saudação configurada abre toda conversa nova, literal e sem LLM.
+    //
+    // `initialMessage` era um campo da tela que nunca saía: gravado, duplicado
+    // junto com o agente, e lido por nenhum caminho de envio. Sai aqui, só na
+    // mensagem que abriu a conversa (`previous` é nulo) e só na primeira
+    // passagem do job. O LLM responde ao conteúdo logo depois, no fluxo normal,
+    // e vê a saudação no histórico — então não se apresenta de novo.
+    const greeting = agent.initialMessage?.trim()
+    if (!isRetry && !previous && greeting) {
+        await enqueueOutboundText({
+            conversationId: conversation.id,
+            content: greeting,
+            integrationId: integration.id,
+            to: phone,
+            sentBy: 'agent',
+            agentId: agent.id,
+        })
+        log.info(`conversation ${conversation.id} opened; initial message sent`)
+    }
+
     // Regras podem enviar mensagem e transferir conversa: não se repetem.
     const rules = isRetry
         ? { handedToHuman: false, repliedWithRuleMessage: false }
