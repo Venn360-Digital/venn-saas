@@ -50,7 +50,13 @@ const formSchema = z.object({
     isActive: z.boolean().default(true),
 })
 
-type FormValues = z.infer<typeof formSchema>
+/**
+ * Entrada e saída do schema divergem por causa dos `.default()`: na entrada
+ * `temperature`, `language` e `isActive` são opcionais; na saída, obrigatórios.
+ * O useForm precisa dos dois para o resolver encaixar sem asserção.
+ */
+type FormInput = z.input<typeof formSchema>
+type FormValues = z.output<typeof formSchema>
 
 interface AgentEditorProps {
     open: boolean
@@ -95,8 +101,8 @@ export function AgentEditor({
             isActive: true,
         }
 
-    const form = useForm<FormValues>({
-        resolver: zodResolver(formSchema) as any,
+    const form = useForm<FormInput, unknown, FormValues>({
+        resolver: zodResolver(formSchema),
         defaultValues,
         values: defaultValues, // Reactive update when agent changes
     })

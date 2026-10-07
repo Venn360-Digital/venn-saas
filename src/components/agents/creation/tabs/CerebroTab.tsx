@@ -101,9 +101,16 @@ export function CerebroTab({ data, onChange }: CerebroTabProps) {
     }
 
     const handleRemoveItem = (type: keyof CerebroData, id: string) => {
-        onChange({
-            [type]: data[type].filter((item: any) => item.id !== id),
-        })
+        switch (type) {
+            case 'files':
+                return onChange({ files: data.files.filter((f) => f.id !== id) })
+            case 'websites':
+                return onChange({ websites: data.websites.filter((w) => w.id !== id) })
+            case 'videos':
+                return onChange({ videos: data.videos.filter((v) => v.id !== id) })
+            case 'faqs':
+                return onChange({ faqs: data.faqs.filter((f) => f.id !== id) })
+        }
     }
 
     return (

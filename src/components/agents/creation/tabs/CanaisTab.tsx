@@ -11,7 +11,8 @@ interface Integration {
     id?: string
     channel: string
     status: 'connected' | 'disconnected' | 'pending' | 'error'
-    config?: Record<string, any>
+    /** Blob por canal, vindo do banco. A forma varia; ninguém lê daqui. */
+    config?: Record<string, unknown>
 }
 
 interface CanaisTabProps {

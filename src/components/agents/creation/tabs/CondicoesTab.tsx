@@ -14,9 +14,22 @@ interface RuleCondition {
     value: string
 }
 
+/**
+ * Carga da ação.
+ *
+ * Só `message` é produzido hoje; `value` é lido como fallback. Quando
+ * `add_tag`, `move_pipeline` e `schedule_followup` forem implementados, isto
+ * deve virar uma união discriminada por `RuleAction['type']` — modelar agora os
+ * campos de ramos que não existem seria inventar contrato.
+ */
+interface RuleActionParams {
+    message?: string
+    value?: string
+}
+
 interface RuleAction {
     type: 'send_message' | 'notify_human' | 'add_tag' | 'move_pipeline' | 'schedule_followup'
-    params: Record<string, any>
+    params: RuleActionParams
 }
 
 interface Rule {

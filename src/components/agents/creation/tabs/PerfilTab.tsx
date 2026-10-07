@@ -12,6 +12,19 @@ import {
 } from '@/components/ui/select'
 import { PerfilData } from '@/types/agent-creation'
 
+type AgentFunction = NonNullable<PerfilData['agentFunction']>
+
+/** Fonte única: o seletor é renderizado daqui, então não há opção fora do tipo. */
+const AGENT_FUNCTIONS: { value: AgentFunction; label: string }[] = [
+    { value: 'sdr_atendimento', label: 'SDR Atendimento' },
+    { value: 'vendas', label: 'Vendas' },
+    { value: 'suporte', label: 'Suporte' },
+]
+
+function isAgentFunction(value: string): value is AgentFunction {
+    return AGENT_FUNCTIONS.some((option) => option.value === value)
+}
+
 interface PerfilTabProps {
     data: PerfilData
     onChange: (data: Partial<PerfilData>) => void
@@ -69,15 +82,19 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                     </p>
                     <Select
                         value={data.agentFunction}
-                        onValueChange={(value) => onChange({ agentFunction: value as any })}
+                        onValueChange={(value) => {
+                            if (isAgentFunction(value)) onChange({ agentFunction: value })
+                        }}
                     >
                         <SelectTrigger id="agentFunction">
                             <SelectValue placeholder="SDR Atendimento" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="sdr_atendimento">SDR Atendimento</SelectItem>
-                            <SelectItem value="vendas">Vendas</SelectItem>
-                            <SelectItem value="suporte">Suporte</SelectItem>
+                            {AGENT_FUNCTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>

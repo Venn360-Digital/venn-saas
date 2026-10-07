@@ -602,15 +602,19 @@ function SidebarMenuBadge({
 function SidebarMenuSkeleton({
   className,
   showIcon = false,
+  width = "70%",
   ...props
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
+  /**
+   * Largura da barra de texto. O shadcn sorteia isto com `Math.random()` dentro
+   * do render para variar as linhas; num componente de servidor isso rende uma
+   * largura no HTML e outra na hidratação — um mismatch garantido, e a razão do
+   * erro `react-hooks/purity`. Quem renderiza a lista tem o índice e portanto a
+   * variação: `width={i % 2 ? "60%" : "80%"}`.
+   */
+  width?: string
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  }, [])
-
   return (
     <div
       data-slot="sidebar-menu-skeleton"
