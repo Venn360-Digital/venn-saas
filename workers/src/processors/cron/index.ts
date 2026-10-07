@@ -5,6 +5,7 @@ import { runActivityReminders } from './activity-reminders'
 import { runActivityRecurrence } from './activity-recurrence'
 import { runConversationAutoclose } from './conversation-autoclose'
 import { runCreditsReset } from './credits-reset'
+import { runTrialLifecycle } from './trial-lifecycle'
 import { runIntegrationHealth } from './integration-health'
 
 const log = createLogger('CRON')
@@ -13,6 +14,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     'activity-reminders': runActivityReminders,
     'activity-recurrence': runActivityRecurrence,
     'credits-reset': runCreditsReset,
+    'trial-lifecycle': runTrialLifecycle,
     'integration-health': runIntegrationHealth,
     'conversation-autoclose': runConversationAutoclose,
 }

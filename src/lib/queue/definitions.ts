@@ -118,6 +118,7 @@ export type CronJobName =
     | 'activity-reminders'
     | 'activity-recurrence'
     | 'credits-reset'
+    | 'trial-lifecycle'
     | 'integration-health'
     | 'conversation-autoclose'
 

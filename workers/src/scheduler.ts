@@ -22,6 +22,11 @@ const SCHEDULES: Schedule[] = [
     { task: 'activity-recurrence', pattern: '7 * * * *' },
     // Billing boundaries only move once a day in practice.
     { task: 'credits-reset', pattern: '13 3 * * *' },
+    // Hourly, not daily: the trial closes at 23:59 São Paulo, and a workspace
+    // that lapses at midnight should not wait until the next morning to be
+    // marked — nor should the day-6 warning land hours after it stopped being
+    // true.
+    { task: 'trial-lifecycle', pattern: '17 * * * *' },
     // Catches sockets that dropped while the app was redeploying.
     { task: 'integration-health', pattern: '*/10 * * * *' },
     // No-op unless CONVERSATION_AUTOCLOSE_HOURS is set.

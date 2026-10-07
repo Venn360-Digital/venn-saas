@@ -38,6 +38,7 @@ model User {
 
 model Workspace {
   creditPurchases  CreditPurchase[]
+  notificationLogs NotificationLog[]
   termsAcceptances TermsAcceptance[]
   id            String   @id @default(cuid())
   name          String
@@ -647,6 +648,25 @@ model TermsAcceptance {
 
   @@unique([userId, workspaceId, version])
   @@map("terms_acceptances")
+}
+
+/// One row per notification actually sent, so a job that runs twice — or catches
+/// up after being down — does not send the same warning again. `scope` carries
+/// whatever makes the notice repeatable: a billing period for a recurring
+/// warning, empty for a once-ever one.
+model NotificationLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  kind        String
+  scope       String   @default("")
+  sentTo      String
+  sentAt      DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, kind, scope])
+  @@index([workspaceId, sentAt])
+  @@map("notification_logs")
 }
 
 model UsageLog {
