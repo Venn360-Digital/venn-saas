@@ -21,7 +21,7 @@ function ContaContent() {
     )
 
     return (
-        <div className="min-h-screen p-6 text-foreground">
+        <div className="min-h-full p-6 text-foreground">
             {/* Header */}
             <div className="mb-6 flex items-center gap-4">
                 <Link

@@ -92,7 +92,7 @@ function GerenciamentoContent() {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center">
+            <div className="flex h-full min-h-[60vh] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
         )
@@ -113,7 +113,7 @@ function GerenciamentoContent() {
 export default function GerenciamentoPage() {
     return (
         <Suspense fallback={
-            <div className="flex h-screen items-center justify-center">
+            <div className="flex h-full min-h-[60vh] items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
         }>
