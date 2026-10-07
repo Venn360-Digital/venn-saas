@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, TriangleAlert } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
 import { Badge } from '@/components/ui/badge'
@@ -191,28 +191,43 @@ export function AppSidebar() {
     )
 }
 
+interface FooterState {
+    planName: string | null
+    workspaceName: string | null
+    phase: 'trial' | 'active' | 'readonly' | 'none'
+    available: number
+    total: number
+    used: number
+    exhausted: boolean
+    remaining: { days: number; minutes: number } | null
+}
+
 function PlanSummary() {
-    const [plan, setPlan] = useState<{
-        name: string | null
-        workspaceName: string | null
-        credits: number
-        creditsUsed: number
-    } | null>(null)
+    const [state, setState] = useState<FooterState | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         let cancelled = false
 
-        fetch('/api/account/subscription')
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
+        // Both the plan name and the billing state come from one request; the
+        // footer is on every page and does not need two.
+        Promise.all([
+            fetch('/api/account/subscription').then((r) => (r.ok ? r.json() : null)),
+            fetch('/api/account/limits').then((r) => (r.ok ? r.json() : null)),
+        ])
+            .then(([subscription, limits]) => {
                 if (cancelled) return
-                if (data) {
-                    setPlan({
-                        name: data.planName ?? null,
-                        workspaceName: data.workspaceName ?? null,
-                        credits: Number(data.credits) || 0,
-                        creditsUsed: Number(data.creditsUsed) || 0,
+                const billing = limits?.billing
+                if (subscription || billing) {
+                    setState({
+                        planName: subscription?.planName ?? null,
+                        workspaceName: subscription?.workspaceName ?? null,
+                        phase: billing?.phase ?? 'none',
+                        available: billing?.credits?.available ?? 0,
+                        total: billing?.credits?.plan?.total ?? 0,
+                        used: billing?.credits?.plan?.used ?? 0,
+                        exhausted: billing?.credits?.exhausted ?? false,
+                        remaining: billing?.remaining ?? null,
                     })
                 }
                 setLoading(false)
@@ -237,33 +252,68 @@ function PlanSummary() {
         )
     }
 
-    if (!plan) return null
+    if (!state) return null
 
     const percent =
-        plan.credits > 0
-            ? Math.min(100, Math.round((plan.creditsUsed / plan.credits) * 100))
-            : 0
+        state.total > 0 ? Math.min(100, Math.round((state.used / state.total) * 100)) : 0
 
     return (
         <div className="space-y-1.5 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-xs text-sidebar-foreground/70">
-                {plan.name ? (
-                    <span className="text-sidebar-foreground">{plan.name}</span>
+                {state.planName ? (
+                    <span className="text-sidebar-foreground">{state.planName}</span>
                 ) : (
                     <span>Sem plano</span>
                 )}
-                {plan.workspaceName ? (
+                {state.workspaceName ? (
                     <>
                         <span className="px-1.5 text-sidebar-foreground/40">|</span>
-                        <span>{plan.workspaceName}</span>
+                        <span>{state.workspaceName}</span>
                     </>
                 ) : null}
             </p>
+
+            {/* The countdown is in days and minutes, in São Paulo time — computed
+                on the server, because the browser's clock is not the one the
+                deadline is set by. */}
+            {state.phase === 'trial' && state.remaining ? (
+                <p className="text-xs text-sidebar-foreground/70">
+                    Avaliação:{' '}
+                    <span className="num text-sidebar-foreground">
+                        {state.remaining.days}d {Math.floor(state.remaining.minutes / 60)}h{' '}
+                        {state.remaining.minutes % 60}min
+                    </span>
+                </p>
+            ) : null}
+
+            {state.phase === 'readonly' ? (
+                <Link
+                    href="/gerenciamento/conta?tab=plano"
+                    className="flex items-center gap-1.5 text-xs font-bold text-destructive hover:underline"
+                >
+                    <TriangleAlert className="size-3.5 shrink-0" />
+                    Avaliação encerrada — assine para voltar a atender
+                </Link>
+            ) : null}
+
             <Progress value={percent} className="h-1.5" />
-            <p className="num text-xs text-sidebar-foreground/70">
-                {plan.creditsUsed.toLocaleString('pt-BR')} de{' '}
-                {plan.credits.toLocaleString('pt-BR')} créditos
-            </p>
+
+            {/* Exhausted credits are the one thing in this footer that has to
+                interrupt someone mid-task, so they get weight and an icon rather
+                than another line of grey. */}
+            {state.exhausted ? (
+                <Link
+                    href="/gerenciamento/conta?tab=plano"
+                    className="flex items-center gap-1.5 text-xs font-bold text-destructive hover:underline"
+                >
+                    <TriangleAlert className="size-3.5 shrink-0" />
+                    Créditos esgotados
+                </Link>
+            ) : (
+                <p className="num text-xs text-sidebar-foreground/70">
+                    {state.available.toLocaleString('pt-BR')} créditos restantes
+                </p>
+            )}
         </div>
     )
 }
