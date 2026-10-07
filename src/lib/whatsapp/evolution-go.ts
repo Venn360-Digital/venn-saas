@@ -243,7 +243,7 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         // /instance/status reports no number, so fall back to the admin listing,
         // whose entries carry the owner JID.
         if (state.connected && !credentials.phoneNumber) {
-            const owner = await this.findOwnerJid(credentials)
+            const owner = await this.getOwnerJid(credentials)
             if (owner) state.phoneNumber = toMsisdn(owner)
         }
 
@@ -270,7 +270,7 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         }
     }
 
-    private async findOwnerJid(credentials: InstanceCredentials): Promise<string | undefined> {
+    async getOwnerJid(credentials: InstanceCredentials): Promise<string | undefined> {
         try {
             const instances = await this.request<InstanceListItem[]>('/instance/all', this.globalApiKey)
             const match = instances?.find(

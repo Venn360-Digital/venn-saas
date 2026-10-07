@@ -125,6 +125,15 @@ export interface WhatsAppProvider {
      */
     disconnect?(credentials: InstanceCredentials): Promise<void>
 
+    /**
+     * The paired device's JID, if the instance has ever paired. Optional.
+     *
+     * This — not `loggedIn` — is the signal that a reconnect is safe: right after
+     * PairSuccess the socket sits in a reconnect window where `LoggedIn` stays
+     * false for minutes, while the JID is already stored.
+     */
+    getOwnerJid?(credentials: InstanceCredentials): Promise<string | undefined>
+
     sendText(credentials: InstanceCredentials, to: string, text: string): Promise<SendResult>
 
     sendMedia(

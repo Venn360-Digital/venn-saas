@@ -58,10 +58,16 @@ async function handleRecycle(event: NormalizedRecycle): Promise<void> {
     const { provider, credentials } = providerFor(integration)
     if (!provider.disconnect) return
 
-    const state = await provider.getConnectionState(credentials).catch(() => null)
-    if (!state?.connected) {
-        // Not paired (any more): a reconnect here would start a QR cycle.
-        log.warn(`integration ${integration.id}: not logged in at recycle time; skipping`)
+    // Guard on the stored JID, never on `loggedIn`. Measured on the first run of
+    // this job: for the whole three minutes after PairSuccess the instance
+    // reported LoggedIn=false — that is the reconnect window the recycle exists
+    // to break out of. A `loggedIn` guard vetoed the one action that would have
+    // made it true, and the session was lost to the QR loop as before.
+    const jid = provider.getOwnerJid ? await provider.getOwnerJid(credentials).catch(() => undefined) : undefined
+    if (!jid) {
+        // Never paired, or unpaired within the delay: a reconnect would start a
+        // QR cycle instead of resuming a session.
+        log.warn(`integration ${integration.id}: no paired device at recycle time; skipping`)
         return
     }
 
