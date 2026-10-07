@@ -1,4 +1,5 @@
 import { canCreateAgent } from '@/lib/limits'
+import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -218,6 +219,11 @@ export async function POST(request: NextRequest) {
         }
 
         const validatedData = createAgentSchema.parse(body)
+
+        const writable = await requireWritable(workspaceId)
+        if (!writable.ok) {
+            return NextResponse.json({ error: writable.error }, { status: writable.status })
+        }
 
         // The plan is enforced here, not just displayed. Without this a clinic
         // on the entry plan could create any number of agents, and the limit it

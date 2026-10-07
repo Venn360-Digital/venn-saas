@@ -1,3 +1,4 @@
+import { claimAutoNotice } from '@/lib/auto-notice'
 import type { Job } from 'bullmq'
 import prisma from '@/lib/prisma'
 import { findIntegrationById, providerFor } from '../services/integration'
@@ -86,6 +87,20 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
                     status: 'sent',
                 },
             })
+
+            // And tell the patient something, once. Silence costs the clinic a
+            // patient, which costs us the clinic.
+            const notice = await claimAutoNotice(conversationId, 'out_of_credits')
+            if (notice) {
+                await enqueueOutboundText({
+                    conversationId,
+                    content: notice,
+                    integrationId,
+                    to,
+                    sentBy: 'agent',
+                    agentId,
+                })
+            }
             return
         }
         throw error

@@ -1,3 +1,4 @@
+import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -194,6 +195,13 @@ export async function POST(request: NextRequest) {
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        // A lapsed trial keeps everything readable and keeps messages arriving;
+        // what stops is operating. See PRODUCT.md §3.
+        const writable = await requireWritable(workspaceUser.workspaceId)
+        if (!writable.ok) {
+            return NextResponse.json({ error: writable.error }, { status: writable.status })
         }
 
         const body = await request.json()

@@ -249,3 +249,39 @@ export function purchaseExpiry(from: Date = new Date()): Date {
 export function renewalDate(from: Date = new Date()): Date {
     return new Date(from.getTime() + RENEWAL_DAYS * 86_400_000)
 }
+
+
+export interface WriteRefusal {
+    ok: false
+    status: number
+    error: string
+}
+
+export type WriteCheck = { ok: true } | WriteRefusal
+
+/**
+ * Whether the workspace may still write.
+ *
+ * A lapsed trial does not take the clinic's data away — everything stays
+ * readable and exportable, and WhatsApp keeps receiving. What stops is
+ * operating: sending messages and creating records. See PRODUCT.md §3.
+ */
+export async function requireWritable(workspaceId: string): Promise<WriteCheck> {
+    const state = await getBillingState(workspaceId)
+
+    if (state.phase === 'readonly') {
+        return {
+            ok: false,
+            status: 402,
+            error: 'O período de avaliação terminou. Seus dados continuam aqui e as mensagens seguem chegando, mas para voltar a atender é preciso assinar um plano em Gerenciamento → Conta.',
+        }
+    }
+    if (state.phase === 'none') {
+        return {
+            ok: false,
+            status: 402,
+            error: 'Este workspace ainda não tem um plano. Escolha um em Gerenciamento → Conta.',
+        }
+    }
+    return { ok: true }
+}

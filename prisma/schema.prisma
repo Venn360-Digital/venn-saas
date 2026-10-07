@@ -483,6 +483,11 @@ model Activity {
 // ============================================
 
 model Conversation {
+  /// The last automatic courtesy notice sent to the patient, and why. Keeps the
+  /// "one per conversation" rule honest: a handoff notice must not repeat on
+  /// every message, but a different situation later may warrant a new one.
+  autoNoticeAt   DateTime?
+  autoNoticeKind String?   // "out_of_credits" | "read_only"
   id            String   @id @default(cuid())
   workspaceId   String
   contactId     String
