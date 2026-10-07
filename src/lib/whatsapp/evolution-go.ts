@@ -339,7 +339,10 @@ export class EvolutionGoProvider implements WhatsAppProvider {
     ): Promise<void> {
         await this.request<unknown>('/message/presence', this.tokenOf(credentials, '/message/presence'), {
             method: 'POST',
-            body: JSON.stringify({ number: normalizeNumber(to), presence }),
+            // O campo é `state`, não `presence`. Medido contra a instância:
+            // com `presence` a resposta é 400 "state is required", e o
+            // indicador de digitando nunca chegava ao paciente.
+            body: JSON.stringify({ number: normalizeNumber(to), state: presence }),
         })
     }
 

@@ -194,7 +194,8 @@ export async function POST(
                         },
                         // One send per message row, so a retried request cannot
                         // double-post.
-                        { jobId: `send:${message.id}` }
+                        // "-" e não ":": o BullMQ recusa ids custom com dois-pontos.
+                        { jobId: `send-${message.id}` }
                     )
                 } catch (error) {
                     const reason =
