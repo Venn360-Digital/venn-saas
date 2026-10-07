@@ -23,6 +23,9 @@ const schema = z.object({
     // Evolution Go — serves the WhatsApp QR channel (whatsmeow)
     EVOLUTION_GO_URL: z.string().min(1, 'EVOLUTION_GO_URL is required'),
     EVOLUTION_GO_API_KEY: z.string().min(1, 'EVOLUTION_GO_API_KEY is required'),
+    // Recycle an instance's socket 20 s after it pairs, so Evolution Go's
+    // leftover QR loop cannot force-logout the new session. See envelopes.ts.
+    EVOLUTION_GO_RECYCLE_AFTER_PAIR: z.enum(['true', 'false']).default('true'),
 
     // Evolution API v2 — only the official Meta Cloud API channel. Optional,
     // because a deployment that uses no business channel never calls it.

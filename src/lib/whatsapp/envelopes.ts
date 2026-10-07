@@ -32,7 +32,7 @@ export type CanonicalEvent =
     | 'message.sent'
     | 'connection'
     | 'presence'
-    | 'unknown'
+    | 'unknown' | 'recycle'
 
 export interface NormalizedEvent {
     provider: WhatsAppProviderName
@@ -70,6 +70,21 @@ export interface NormalizedConnection extends NormalizedEvent {
     kind: 'connection'
     state: 'connected' | 'disconnected' | 'connecting'
     phoneNumber?: string
+    /** True only on PairSuccess — a brand-new pairing, not a reconnection. */
+    paired?: boolean
+}
+
+/**
+ * Not a provider event: a job the worker schedules for itself after a pairing.
+ *
+ * Evolution Go keeps generating QR codes after PairSuccess and, on the fifth,
+ * forces a logout of the session it has just created — measured three times on
+ * this deployment, always ~105 s after pairing. Restarting the whole container
+ * at +25 s was shown to preserve the session (CONNECT_ON_STARTUP reattaches by
+ * the stored JID, no QR). This job does the same for one instance only.
+ */
+export interface NormalizedRecycle extends NormalizedEvent {
+    kind: 'recycle'
 }
 
 export interface NormalizedPresence extends NormalizedEvent {
@@ -188,6 +203,7 @@ export function readEvolutionGoEvent(body: unknown): AnyNormalizedEvent {
                 kind: 'connection',
                 state: 'connected',
                 phoneNumber: jid ? toMsisdn(jid) : undefined,
+                paired: rawEvent === 'PairSuccess',
             }
         }
 

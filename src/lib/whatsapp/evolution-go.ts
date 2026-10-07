@@ -283,6 +283,17 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         }
     }
 
+    /**
+     * POST /instance/disconnect — closes the websocket, keeps the device store.
+     * Answered 200 on this deployment; the session survives a reconnect by JID.
+     */
+    async disconnect(credentials: InstanceCredentials): Promise<void> {
+        await this.request<unknown>('/instance/disconnect', this.tokenOf(credentials, '/instance/disconnect'), {
+            method: 'POST',
+            body: JSON.stringify({}),
+        })
+    }
+
     async deleteInstance(credentials: InstanceCredentials): Promise<void> {
         if (!credentials.instanceId) {
             // Deletion is addressed by id, so resolve it from the listing first.

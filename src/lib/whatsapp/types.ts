@@ -119,6 +119,12 @@ export interface WhatsAppProvider {
 
     deleteInstance(credentials: InstanceCredentials): Promise<void>
 
+    /**
+     * Close the provider's socket for this instance without unpairing it.
+     * Optional: only Evolution Go exposes it, and only Evolution Go needs it.
+     */
+    disconnect?(credentials: InstanceCredentials): Promise<void>
+
     sendText(credentials: InstanceCredentials, to: string, text: string): Promise<SendResult>
 
     sendMedia(

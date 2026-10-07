@@ -68,28 +68,32 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         return
     }
 
+    /**
+     * Uma mensagem já gravada não é o fim do trabalho — é uma retentativa.
+     *
+     * A gravação acontece cedo e o agendamento da resposta, tarde. Se qualquer
+     * passo entre os dois falhar, o BullMQ reexecuta o job, a mensagem já existe
+     * e a versão anterior deste código encerrava aqui: a conversa ficava sem
+     * resposta para sempre. Foi exatamente o que aconteceu com a primeira
+     * mensagem real recebida pelo sistema, quando o agendamento morreu num jobId
+     * inválido.
+     *
+     * Numa retentativa, o que não é idempotente é pulado — arquivar mídia,
+     * inserir, emitir webhooks de evento, aplicar regras (que podem enviar
+     * mensagem). O que é idempotente segue: as guardas de humano/inativo/
+     * somente-leitura continuam valendo, e `scheduleAiReply` reconhece um job já
+     * existente. Assim a retentativa não responde por cima de um atendente, e
+     * também não deixa o paciente no silêncio.
+     */
     const externalId = inbound.externalId
-    if (externalId) {
-        const duplicate = await prisma.message.findFirst({
-            where: { conversationId: conversation.id, externalId },
-            select: { id: true },
-        })
-        if (duplicate) {
-            // A mensagem já está gravada, mas isso não prova que a resposta foi
-            // agendada: se um passo posterior falhou na primeira tentativa, a
-            // retentativa cai aqui e a conversa fica sem resposta para sempre.
-            // Foi o que aconteceu com a primeira mensagem real recebida pelo
-            // sistema, quando o agendamento morreu num jobId inválido.
-            //
-            // Reagendar daqui é tentador e está errado: este ponto é anterior às
-            // verificações de conversa assumida por humano, agente inativo e
-            // workspace em somente-leitura. Um reagendamento aqui faria o agente
-            // responder por cima de um atendente. A correção certa é ordenar as
-            // guardas antes da gravação, e está registrada como pendência.
-            log.info(`duplicate message ${externalId} skipped`)
-            return
-        }
-    }
+    const existing = externalId
+        ? await prisma.message.findFirst({
+              where: { conversationId: conversation.id, externalId },
+              select: { id: true },
+          })
+        : null
+    const isRetry = existing !== null
+    if (isRetry) log.info(`message ${externalId} already stored; re-running the reply decision only`)
 
     // Measured before the insert, so a rule can ask "how long were they quiet?"
     const previous = await prisma.message.findFirst({
@@ -102,7 +106,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         : undefined
 
     let mediaUrl = decoded.mediaUrl ?? undefined
-    if (decoded.contentType !== 'text') {
+    if (!isRetry && decoded.contentType !== 'text') {
         try {
             const { provider, credentials } = providerFor(integration)
             const archived = await archiveInboundMedia({
@@ -122,21 +126,23 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         }
     }
 
-    const stored = await prisma.message.create({
-        data: {
-            conversationId: conversation.id,
-            direction: 'inbound',
-            content: decoded.content,
-            contentType: decoded.contentType,
-            mediaUrl,
-            sentBy: 'user',
-            externalId,
-        },
-    })
+    const stored = existing
+        ? existing
+        : await prisma.message.create({
+              data: {
+                  conversationId: conversation.id,
+                  direction: 'inbound',
+                  content: decoded.content,
+                  contentType: decoded.contentType,
+                  mediaUrl,
+                  sentBy: 'user',
+                  externalId,
+              },
+          })
 
     // `previous` was read before the insert, so its absence means this message
     // opened the thread.
-    if (!previous) {
+    if (!isRetry && !previous) {
         await emitAgentEvent(agent.id, 'conversation.started', {
             conversationId: conversation.id,
             contactId: contact.id,
@@ -145,7 +151,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         })
     }
 
-    await emitAgentEvent(agent.id, 'message.received', {
+    if (!isRetry) await emitAgentEvent(agent.id, 'message.received', {
         conversationId: conversation.id,
         messageId: stored.id,
         contactId: contact.id,
@@ -218,7 +224,10 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         return
     }
 
-    const rules = await applyAgentRules(agent, ruleContext)
+    // Regras podem enviar mensagem e transferir conversa: não se repetem.
+    const rules = isRetry
+        ? { handedToHuman: false, repliedWithRuleMessage: false }
+        : await applyAgentRules(agent, ruleContext)
 
     if (rules.handedToHuman) {
         log.info(`rules escalated conversation ${conversation.id} to a human`)

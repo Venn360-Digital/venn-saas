@@ -12,6 +12,7 @@ import type {
     NormalizedConnection,
     NormalizedInbound,
     NormalizedPresence,
+    NormalizedRecycle,
 } from '@/lib/whatsapp/envelopes'
 import type { WhatsAppProviderName } from '@/lib/whatsapp/types'
 
@@ -67,7 +68,7 @@ export interface WhatsAppInboundJob {
 /** The cheap events: delivery receipts, connection state, typing. */
 export interface WhatsAppEventJob {
     provider: WhatsAppProviderName
-    event: NormalizedAck | NormalizedConnection | NormalizedPresence
+    event: NormalizedAck | NormalizedConnection | NormalizedPresence | NormalizedRecycle
     receivedAt: string
 }
 
