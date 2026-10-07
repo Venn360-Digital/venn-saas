@@ -134,6 +134,20 @@ export async function GET(
         // Strip contact.tags from the response to keep it clean
         const { tags: _contactTags, ...contactData } = conversation.contact
 
+        // O negócio aberto mais recente deste paciente. Enquanto a conversa não
+        // tiver um vínculo próprio com negociação, é a mesma regra que o worker
+        // usa para o contexto das regras: o mais novo em aberto.
+        const openDeal = await prisma.deal.findFirst({
+            where: { workspaceId: workspaceUser.workspaceId, contactId: conversation.contact.id, status: 'open' },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                title: true,
+                trackingData: true,
+                stage: { select: { name: true, color: true } },
+            },
+        })
+
         return NextResponse.json({
             conversation: {
                 id: conversation.id,
@@ -145,6 +159,15 @@ export async function GET(
                 agent: conversation.agent,
                 tags: mergedTags,
                 createdAt: conversation.createdAt,
+                openDeal: openDeal
+                    ? {
+                          id: openDeal.id,
+                          title: openDeal.title,
+                          stageName: openDeal.stage?.name ?? null,
+                          stageColor: openDeal.stage?.color ?? null,
+                          trackingData: openDeal.trackingData ?? {},
+                      }
+                    : null,
             },
             messages: resultMessages.reverse().map(m => ({
                 ...m,

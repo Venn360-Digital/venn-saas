@@ -137,6 +137,124 @@ interface Message {
     reaction?: string | null
 }
 
+interface TrackingEntry {
+    done: boolean
+    date: string
+    note: string
+}
+
+type TrackingKey = 'contact1' | 'contact2' | 'contact3' | 'scheduled' | 'attended' | 'rework'
+type TrackingData = Partial<Record<TrackingKey, TrackingEntry>>
+
+interface OpenDeal {
+    id: string
+    title: string
+    stageName: string | null
+    stageColor: string | null
+    trackingData: TrackingData
+}
+
+/** Os seis marcos da jornada, na ordem em que acontecem. */
+const JOURNEY: { key: TrackingKey; label: string }[] = [
+    { key: 'contact1', label: '1º contato' },
+    { key: 'contact2', label: '2º contato' },
+    { key: 'contact3', label: '3º contato' },
+    { key: 'scheduled', label: 'Agendou' },
+    { key: 'attended', label: 'Compareceu' },
+    { key: 'rework', label: 'Retrabalho' },
+]
+
+/**
+ * A jornada do negócio, editável no painel da conversa.
+ *
+ * Cada marco é SIM/NÃO com data e nota. Marcar SIM carimba a data de hoje;
+ * a nota salva ao sair do campo. Tudo vai para o mesmo `trackingData` que a
+ * tela de Negócios edita, pela mesma rota — uma fonte, duas telas.
+ */
+function DealJourney({ deal, onChange }: { deal: OpenDeal; onChange: (next: TrackingData) => void }) {
+    const [data, setData] = useState<TrackingData>(deal.trackingData ?? {})
+    const [saving, setSaving] = useState(false)
+
+    useEffect(() => {
+        setData(deal.trackingData ?? {})
+    }, [deal.id, deal.trackingData])
+
+    const persist = async (next: TrackingData) => {
+        setData(next)
+        setSaving(true)
+        try {
+            const res = await fetch(`/api/deals/${deal.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trackingData: next }),
+            })
+            if (!res.ok) throw new Error()
+            onChange(next)
+        } catch {
+            toast.error('Não foi possível salvar a jornada')
+            setData(deal.trackingData ?? {})
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const toggle = (key: TrackingKey) => {
+        const current = data[key]
+        const done = !current?.done
+        void persist({
+            ...data,
+            [key]: { done, date: done ? (current?.date || format(new Date(), 'yyyy-MM-dd')) : '', note: current?.note ?? '' },
+        })
+    }
+
+    const setField = (key: TrackingKey, field: 'date' | 'note', value: string) => {
+        setData((prev) => ({ ...prev, [key]: { done: prev[key]?.done ?? false, date: prev[key]?.date ?? '', note: prev[key]?.note ?? '', [field]: value } }))
+    }
+
+    return (
+        <div className={cn('space-y-1', saving && 'opacity-70')}>
+            {JOURNEY.map(({ key, label }) => {
+                const entry = data[key]
+                const done = entry?.done ?? false
+                return (
+                    <div key={key} className="rounded-md border border-border px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => toggle(key)}
+                                className={cn(
+                                    'num shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide',
+                                    done ? 'bg-success-subtle text-success-subtle-foreground' : 'bg-muted text-muted-foreground'
+                                )}
+                                title={done ? 'Marcar como NÃO' : 'Marcar como SIM'}
+                            >
+                                {done ? 'SIM' : 'NÃO'}
+                            </button>
+                            <span className="flex-1 text-xs font-medium">{label}</span>
+                            <input
+                                type="date"
+                                value={entry?.date ?? ''}
+                                onChange={(e) => setField(key, 'date', e.target.value)}
+                                onBlur={() => void persist(data)}
+                                className="num w-[118px] bg-transparent text-[11px] text-muted-foreground focus:outline-none"
+                                aria-label={`Data — ${label}`}
+                            />
+                        </div>
+                        <input
+                            value={entry?.note ?? ''}
+                            onChange={(e) => setField(key, 'note', e.target.value)}
+                            onBlur={() => void persist(data)}
+                            placeholder="Nota"
+                            className="mt-1 w-full bg-transparent text-[11px] text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                            aria-label={`Nota — ${label}`}
+                        />
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
 interface ConversationDetail {
     conversation: {
         id: string
@@ -159,6 +277,7 @@ interface ConversationDetail {
             avatar: string | null
         } | null
         tags: TagItem[]
+        openDeal?: OpenDeal | null
     }
     messages: Message[]
     hasMore?: boolean
@@ -372,6 +491,8 @@ export default function ConversasPage() {
     // Context menu state
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg: Message } | null>(null)
     const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
+    const [notesOpen, setNotesOpen] = useState(false)
+    const [creatingDeal, setCreatingDeal] = useState(false)
     const [forwarding, setForwarding] = useState(false)
     const [showSearch, setShowSearch] = useState(false)
     const [conversationSearch, setConversationSearch] = useState('')
@@ -1121,6 +1242,47 @@ export default function ConversasPage() {
             .replace(/\{\{\s*telefone\s*\}\}/gi, contact?.phone || '')
             .replace(/\{\{\s*data\s*\}\}/gi, format(now, 'dd/MM/yyyy'))
             .replace(/\{\{\s*hora\s*\}\}/gi, format(now, 'HH:mm'))
+    }
+
+    const applyDealTracking = (next: TrackingData) => {
+        setConversationDetail((prev) =>
+            prev && prev.conversation.openDeal
+                ? { ...prev, conversation: { ...prev.conversation, openDeal: { ...prev.conversation.openDeal, trackingData: next } } }
+                : prev
+        )
+    }
+
+    /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
+    const createDealForContact = async () => {
+        const conv = conversationDetail?.conversation
+        if (!conv || !selectedConversation) return
+        setCreatingDeal(true)
+        try {
+            const stagesRes = await fetch('/api/pipelines')
+            const stagesData = await stagesRes.json()
+            const stages: { id: string; order?: number }[] = Array.isArray(stagesData) ? stagesData : stagesData.stages ?? []
+            const first = [...stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]
+            if (!first) {
+                toast.error('O funil ainda não tem etapas. Crie em Vendas → Negócios.')
+                return
+            }
+            const res = await fetch('/api/deals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: conv.contact.name || conv.contact.phone || 'Novo paciente',
+                    stageId: first.id,
+                    contactId: conv.contact.id,
+                }),
+            })
+            if (!res.ok) throw new Error()
+            toast.success('Negócio criado')
+            await fetchMessages(selectedConversation)
+        } catch {
+            toast.error('Não foi possível criar o negócio')
+        } finally {
+            setCreatingDeal(false)
+        }
     }
 
     const handleCopyMessage = (msg: Message) => {
@@ -2145,63 +2307,98 @@ export default function ConversasPage() {
 
                                 {/* Contact Side Panel */}
                                 {showContactPanel && conv && (
-                                    <div className="hidden w-[280px] shrink-0 overflow-y-auto border-l bg-card xl:block">
-                                        <div className="p-4 space-y-4">
-                                            {/* Contact header */}
-                                            <div className="text-center">
+                                    <div className="hidden w-[300px] shrink-0 overflow-y-auto border-l bg-card xl:block">
+                                        <div className="p-3 space-y-4">
+                                            {/* Paciente + quem atende — compacto: o espaço é da jornada */}
+                                            <div className="flex items-center gap-3">
                                                 <ContactAvatar
                                                     avatar={conv.contact.avatar}
                                                     name={conv.contact.name}
                                                     phone={conv.contact.phone}
                                                 />
-                                                <h3 className="font-semibold text-sm mt-2">
-                                                    {conv.contact.name || 'Desconhecido'}
-                                                </h3>
-                                                {conv.contact.source && (
-                                                    <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                                        {conv.contact.source}
-                                                    </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <h3 className="truncate text-sm font-semibold">{conv.contact.name || 'Desconhecido'}</h3>
+                                                    {conv.contact.phone && (
+                                                        <p className="num flex items-center gap-1 text-xs text-muted-foreground">
+                                                            <Phone className="h-3 w-3" />{conv.contact.phone}
+                                                        </p>
+                                                    )}
+                                                    {conv.contact.email && (
+                                                        <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                                                            <Mail className="h-3 w-3 shrink-0" />{conv.contact.email}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-md bg-muted/50 px-2.5 py-2">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Atendido por</p>
+                                                <p className="text-sm font-medium">
+                                                    {conv.assignedToName
+                                                        ? `👤 ${conv.assignedToName}`
+                                                        : conv.agent
+                                                            ? `🤖 ${conv.agent.name}`
+                                                            : 'Ninguém'}
+                                                </p>
+                                            </div>
+
+                                            {/* Negócio + jornada */}
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h4>
+                                                    {conv.openDeal?.stageName && (
+                                                        <span
+                                                            className="rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground"
+                                                            style={{ backgroundColor: (conv.openDeal.stageColor ?? '#6B7280') + '33' }}
+                                                        >
+                                                            {conv.openDeal.stageName}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {conv.openDeal ? (
+                                                    <>
+                                                        <p className="truncate text-xs text-muted-foreground" title={conv.openDeal.title}>{conv.openDeal.title}</p>
+                                                        <DealJourney deal={conv.openDeal} onChange={applyDealTracking} />
+                                                    </>
+                                                ) : (
+                                                    <div className="rounded-md border border-dashed border-border px-3 py-3 text-center">
+                                                        <p className="text-xs text-muted-foreground">Nenhum negócio aberto para este paciente.</p>
+                                                        <Button size="sm" variant="outline" className="mt-2 text-xs" onClick={createDealForContact} disabled={creatingDeal}>
+                                                            {creatingDeal ? 'Criando…' : 'Abrir negócio'}
+                                                        </Button>
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            {/* Contact info */}
+                                            {/* Notas — discretas, no fim */}
                                             <div className="space-y-2">
-                                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Informações</h4>
-                                                {conv.contact.phone && (
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                                        <span>{conv.contact.phone}</span>
-                                                    </div>
-                                                )}
-                                                {conv.contact.email && (
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                                                        <span className="truncate">{conv.contact.email}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Notes */}
-                                            <div className="space-y-2">
-                                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notas</h4>
-                                                <textarea
-                                                    value={contactNotes}
-                                                    onChange={(e) => {
-                                                        setContactNotes(e.target.value)
-                                                        notesDirtyRef.current = true
-                                                    }}
-                                                    placeholder="Adicionar observações sobre este contato..."
-                                                    className="w-full h-24 bg-muted/50 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                                />
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={saveContactNotes}
-                                                    disabled={savingNotes}
-                                                    className="w-full text-xs"
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNotesOpen((v) => !v)}
+                                                    className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
                                                 >
-                                                    {savingNotes ? 'Salvando...' : 'Salvar notas'}
-                                                </Button>
+                                                    <span>Notas{contactNotes.trim() && !notesOpen ? ' ·' : ''}</span>
+                                                    <span className="text-[10px] normal-case tracking-normal">{notesOpen ? 'ocultar' : 'mostrar'}</span>
+                                                </button>
+                                                {!notesOpen && contactNotes.trim() && (
+                                                    <p className="line-clamp-2 text-[11px] text-muted-foreground">{contactNotes}</p>
+                                                )}
+                                                {notesOpen && (
+                                                    <>
+                                                        <textarea
+                                                            value={contactNotes}
+                                                            onChange={(e) => {
+                                                                setContactNotes(e.target.value)
+                                                                notesDirtyRef.current = true
+                                                            }}
+                                                            placeholder="Observações sobre este paciente…"
+                                                            className="w-full h-20 bg-muted/50 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                                        />
+                                                        <Button size="sm" variant="outline" onClick={saveContactNotes} disabled={savingNotes} className="w-full text-xs">
+                                                            {savingNotes ? 'Salvando...' : 'Salvar notas'}
+                                                        </Button>
+                                                    </>
+                                                )}
                                             </div>
 
                                             {/* Tags */}
