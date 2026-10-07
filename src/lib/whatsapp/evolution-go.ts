@@ -343,6 +343,17 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         return { externalId: data?.messageId }
     }
 
+    /**
+     * POST /message/react — fields measured on this deployment: number, id, reaction.
+     * An empty reaction removes a previous one.
+     */
+    async react(credentials: InstanceCredentials, to: string, messageId: string, emoji: string): Promise<void> {
+        await this.request<unknown>('/message/react', this.tokenOf(credentials, '/message/react'), {
+            method: 'POST',
+            body: JSON.stringify({ number: normalizeNumber(to), id: messageId, reaction: emoji }),
+        })
+    }
+
     async sendPresence(
         credentials: InstanceCredentials,
         to: string,

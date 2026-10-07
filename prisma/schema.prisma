@@ -536,6 +536,10 @@ model Message {
   externalId     String?  // WhatsApp message ID
   status         String   @default("sent") // "sent", "delivered", "read", "failed"
   isInternal     Boolean  @default(false)  // Internal note (visible only to operators)
+  // Texto de uma nota de voz recebida (OpenAI transcribe); null quando indisponível.
+  transcript     String?  @db.Text
+  // Reação enviada pela clínica a esta mensagem (um emoji), se houver.
+  reaction       String?
   
   createdAt      DateTime @default(now())
   

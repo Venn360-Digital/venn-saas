@@ -114,7 +114,28 @@ export async function POST(
             replyToId = body.replyToId || undefined
             isInternal = body.isInternal === true
 
-            if (!textContent) {
+            // Encaminhar: copia conteúdo e mídia de uma mensagem do mesmo
+            // workspace. A mídia já está no Storage, então a URL é reutilizada —
+            // nenhum novo upload, e o provider a busca como faria num envio novo.
+            if (typeof body.forwardFrom === 'string' && body.forwardFrom) {
+                const source = await prisma.message.findFirst({
+                    where: {
+                        id: body.forwardFrom,
+                        isInternal: false,
+                        conversation: { workspaceId: workspaceUser.workspaceId },
+                    },
+                    select: { content: true, contentType: true, mediaUrl: true },
+                })
+                if (!source) {
+                    return NextResponse.json({ error: 'Mensagem de origem não encontrada' }, { status: 404 })
+                }
+                textContent = source.content
+                contentType = source.contentType
+                mediaUrl = source.mediaUrl
+                fileName = source.contentType === 'file' ? source.content.replace(/^📄 /, '') : fileName
+            }
+
+            if (!textContent && !mediaUrl) {
                 return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 })
             }
         }

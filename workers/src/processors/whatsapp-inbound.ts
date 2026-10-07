@@ -10,6 +10,7 @@ import { createLogger } from '../logger'
 import type { WhatsAppInboundJob } from '../queues'
 import { archiveInboundMedia } from '../services/media'
 import { delayForSpeed, scheduleAiReply } from '../services/ai-reply-schedule'
+import { transcribeAudio } from '../services/transcribe'
 import { isHumanHandled, resolveInboundContext } from '../services/conversation'
 import { findIntegrationByRef, providerFor, touchIntegration } from '../services/integration'
 import { readPreferences } from '../services/prompt'
@@ -106,6 +107,14 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         : undefined
 
     let mediaUrl = decoded.mediaUrl ?? undefined
+    let transcript: string | null = null
+    if (!isRetry && decoded.contentType === 'audio' && inbound.mediaBase64) {
+        // Antes de arquivar, enquanto os bytes ainda estão em memória.
+        transcript = await transcribeAudio(inbound.mediaBase64, inbound.mediaMimetype).catch((error) => {
+            log.warn('falha ao transcrever; seguindo sem texto', error)
+            return null
+        })
+    }
     if (!isRetry && decoded.contentType !== 'text') {
         try {
             const { provider, credentials } = providerFor(integration)
@@ -137,6 +146,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
                   mediaUrl,
                   sentBy: 'user',
                   externalId,
+                  transcript,
               },
           })
 

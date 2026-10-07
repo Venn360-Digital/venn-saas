@@ -47,7 +47,9 @@ function toLlmHistory(history: Message[]): LLMMessage[] {
         .filter((m) => !m.isInternal && m.content.trim().length > 0)
         .map((m) => ({
             role: m.direction === 'inbound' ? ('user' as const) : ('assistant' as const),
-            content: m.content,
+            // Uma nota de voz transcrita vira texto para o modelo. Sem isto ele
+            // via "🎵 Áudio" e respondia sem saber o que o paciente disse.
+            content: m.contentType === 'audio' && m.transcript ? `[Nota de voz] ${m.transcript}` : m.content,
         }))
 }
 

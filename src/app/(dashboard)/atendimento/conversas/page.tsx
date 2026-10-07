@@ -35,6 +35,7 @@ import {
     Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -132,6 +133,8 @@ interface Message {
     replyToId: string | null
     replyTo: ReplyToMessage | null
     isInternal: boolean
+    transcript?: string | null
+    reaction?: string | null
 }
 
 interface ConversationDetail {
@@ -270,6 +273,11 @@ function MediaContent({ msg }: { msg: Message }) {
                 <audio controls className="max-w-[240px]">
                     <source src={msg.mediaUrl} />
                 </audio>
+                {msg.transcript && (
+                    <p className="mt-1.5 max-w-[240px] whitespace-pre-wrap break-words text-xs italic opacity-80">
+                        {msg.transcript}
+                    </p>
+                )}
             </div>
         )
     }
@@ -363,6 +371,11 @@ export default function ConversasPage() {
 
     // Context menu state
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg: Message } | null>(null)
+    const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
+    const [forwarding, setForwarding] = useState(false)
+    const [showSearch, setShowSearch] = useState(false)
+    const [conversationSearch, setConversationSearch] = useState('')
+    const [dragOver, setDragOver] = useState(false)
 
     // Reply state
     const [replyingTo, setReplyingTo] = useState<Message | null>(null)
@@ -880,6 +893,13 @@ export default function ConversasPage() {
         }
     }, [selectedConversation, supabase])
 
+    const visibleMessages = conversationSearch.trim()
+        ? messages.filter((m) => {
+              const q = conversationSearch.trim().toLowerCase()
+              return m.content.toLowerCase().includes(q) || (m.transcript ?? '').toLowerCase().includes(q)
+          })
+        : messages
+
     // Scroll to bottom on new messages (only when near bottom)
     useEffect(() => {
         const container = messagesContainerRef.current
@@ -921,10 +941,11 @@ export default function ConversasPage() {
     const selectQuickReply = (qr: QuickResponse) => {
         // Replace the /* trigger with the quick response text
         const triggerIndex = messageInput.lastIndexOf('/*')
+        const text = fillTemplate(qr.text)
         if (triggerIndex !== -1) {
-            setMessageInput(messageInput.substring(0, triggerIndex) + qr.text)
+            setMessageInput(messageInput.substring(0, triggerIndex) + text)
         } else {
-            setMessageInput(qr.text)
+            setMessageInput(text)
         }
         setShowQuickReplies(false)
         textareaRef.current?.focus()
@@ -1019,6 +1040,89 @@ export default function ConversasPage() {
         textareaRef.current?.focus()
     }
 
+    const REACTIONS = ['👍', '❤️', '😂', '🙏', '✅', '😮']
+
+    /** Reage (ou remove a reação, repetindo o mesmo emoji) a uma mensagem recebida. */
+    const handleReact = async (msg: Message, emoji: string) => {
+        setContextMenu(null)
+        if (!selectedConversation) return
+        const next = msg.reaction === emoji ? '' : emoji
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/messages/${msg.id}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emoji: next }),
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                toast.error(data.error || 'Não foi possível reagir')
+                return
+            }
+            setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, reaction: next || null } : m)))
+        } catch {
+            toast.error('Não foi possível reagir')
+        }
+    }
+
+    const handleForward = (msg: Message) => {
+        setContextMenu(null)
+        setForwardMsg(msg)
+    }
+
+    const confirmForward = async (targetConversationId: string) => {
+        if (!forwardMsg) return
+        setForwarding(true)
+        try {
+            const res = await fetch(`/api/conversations/${targetConversationId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ forwardFrom: forwardMsg.id }),
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                toast.error(data.error || 'Não foi possível encaminhar')
+                return
+            }
+            toast.success('Mensagem encaminhada')
+            setForwardMsg(null)
+            fetchConversations()
+        } catch {
+            toast.error('Não foi possível encaminhar')
+        } finally {
+            setForwarding(false)
+        }
+    }
+
+    /** Anexa um arquivo vindo do clipe, do Ctrl+V ou de arrastar e soltar. */
+    const attachFile = (file: File) => {
+        setAttachment(file)
+        setAttachmentPreview(file.type.startsWith('image/') ? URL.createObjectURL(file) : null)
+    }
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault()
+        setDragOver(false)
+        const file = e.dataTransfer?.files?.[0]
+        if (file && !attachment) attachFile(file)
+    }
+
+    /**
+     * Variáveis das respostas rápidas, resolvidas na inserção. Só o que a tela
+     * já conhece: nome e telefone do paciente, data e hora. Um nome de clínica
+     * entra aqui quando o workspace passar a carregá-lo na resposta da API.
+     */
+    const fillTemplate = (text: string) => {
+        const contact = conversationDetail?.conversation.contact
+        const nome = contact?.name?.trim() || ''
+        const now = new Date()
+        return text
+            .replace(/\{\{\s*nome\s*\}\}/gi, nome)
+            .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, nome.split(' ')[0] || '')
+            .replace(/\{\{\s*telefone\s*\}\}/gi, contact?.phone || '')
+            .replace(/\{\{\s*data\s*\}\}/gi, format(now, 'dd/MM/yyyy'))
+            .replace(/\{\{\s*hora\s*\}\}/gi, format(now, 'HH:mm'))
+    }
+
     const handleCopyMessage = (msg: Message) => {
         navigator.clipboard.writeText(msg.content)
         setContextMenu(null)
@@ -1088,7 +1192,7 @@ export default function ConversasPage() {
         if (!file || attachment) return
         e.preventDefault()
         const named = new File([file], `colado-${Date.now()}.${file.type.split('/')[1] || 'png'}`, { type: file.type })
-        setAttachment(named)
+        attachFile(named)
     }
 
     const stopRecording = () => {
@@ -1588,6 +1692,16 @@ export default function ConversasPage() {
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
 
+                                    <Button
+                                        size="sm"
+                                        variant={showSearch ? 'secondary' : 'ghost'}
+                                        onClick={() => { setShowSearch(!showSearch); if (showSearch) setConversationSearch('') }}
+                                        className="text-xs gap-1 h-8 w-8 p-0"
+                                        title="Buscar na conversa"
+                                    >
+                                        <Search className="h-3.5 w-3.5" />
+                                    </Button>
+
                                     {/* Tag & Contact Panel buttons */}
                                     <div className="relative">
                                         <Button
@@ -1670,7 +1784,34 @@ export default function ConversasPage() {
                                 {/* Messages + Input column */}
                                 <div className="flex-1 flex flex-col overflow-hidden">
                                     {/* Messages */}
-                                    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+                                    {showSearch && (
+                                        <div className="border-b border-border bg-card px-4 py-2">
+                                            <div className="flex items-center gap-2">
+                                                <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                                                <input
+                                                    autoFocus
+                                                    value={conversationSearch}
+                                                    onChange={(e) => setConversationSearch(e.target.value)}
+                                                    placeholder="Buscar nesta conversa…"
+                                                    className="flex-1 bg-transparent text-sm focus:outline-none"
+                                                />
+                                                <span className="text-xs text-muted-foreground num">
+                                                    {conversationSearch ? `${visibleMessages.length} de ${messages.length}` : `${messages.length}`}
+                                                    {hasMoreMessages && ' · há mais acima'}
+                                                </span>
+                                                <button onClick={() => { setShowSearch(false); setConversationSearch('') }} className="text-muted-foreground hover:text-foreground" aria-label="Fechar busca">
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div
+                                        ref={messagesContainerRef}
+                                        className={cn('flex-1 overflow-y-auto p-4 space-y-3', dragOver && 'ring-2 ring-inset ring-primary/60')}
+                                        onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true) }}
+                                        onDragLeave={() => setDragOver(false)}
+                                        onDrop={handleDrop}
+                                    >
                                         {/* Load more messages button */}
                                         {hasMoreMessages && (
                                             <div className="flex justify-center">
@@ -1687,7 +1828,7 @@ export default function ConversasPage() {
                                                 </button>
                                             </div>
                                         )}
-                                        {messages.map((msg) => {
+                                        {visibleMessages.map((msg) => {
                                             const isInbound = msg.direction === 'inbound'
                                             const isAgent = msg.sentBy === 'agent'
                                             const isHuman = msg.sentBy && msg.sentBy !== 'agent' && msg.sentBy !== 'user'
@@ -1772,6 +1913,14 @@ export default function ConversasPage() {
                                                             {format(new Date(msg.createdAt), 'HH:mm')}
                                                             <MessageStatus status={msg.status} direction={msg.direction} />
                                                         </div>
+                                                        {msg.reaction && (
+                                                            <span
+                                                                className="absolute -bottom-2.5 right-2 rounded-full border border-border bg-card px-1.5 text-xs shadow-sm"
+                                                                title="Sua reação"
+                                                            >
+                                                                {msg.reaction}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )
@@ -1841,7 +1990,7 @@ export default function ConversasPage() {
                                             {attachment && (
                                                 <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-muted/60 rounded-lg">
                                                     {attachmentPreview ? (
-                                                        <img src={attachmentPreview} alt="Preview" className="h-12 w-12 rounded-md object-cover" />
+                                                        <img src={attachmentPreview} alt="Preview" className="h-24 w-24 rounded-md border border-border object-cover" />
                                                     ) : (
                                                         <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center">
                                                             {attachment.type.startsWith('audio/') ? <Music className="h-5 w-5 text-muted-foreground" /> :
@@ -2101,6 +2250,32 @@ export default function ConversasPage() {
                                             <Copy className="h-4 w-4 text-muted-foreground" />
                                             Copiar texto
                                         </button>
+                                        {!contextMenu.msg.isInternal && (
+                                            <button
+                                                onClick={() => handleForward(contextMenu.msg)}
+                                                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm hover:bg-muted/60 transition-colors"
+                                            >
+                                                <Reply className="h-4 w-4 text-muted-foreground -scale-x-100" />
+                                                Encaminhar
+                                            </button>
+                                        )}
+                                        {contextMenu.msg.direction === 'inbound' && (
+                                            <div className="mt-1 flex items-center gap-0.5 border-t border-border px-2 pt-1.5">
+                                                {REACTIONS.map((emoji) => (
+                                                    <button
+                                                        key={emoji}
+                                                        onClick={() => handleReact(contextMenu.msg, emoji)}
+                                                        className={cn(
+                                                            'flex h-8 w-8 items-center justify-center rounded-md text-lg hover:bg-muted/60',
+                                                            contextMenu.msg.reaction === emoji && 'bg-primary-subtle'
+                                                        )}
+                                                        title={contextMenu.msg.reaction === emoji ? 'Remover reação' : 'Reagir'}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </>
                             )}
@@ -2108,6 +2283,40 @@ export default function ConversasPage() {
                     )}
                 </div>
             </div >
+
+            {/* Encaminhar */}
+            {forwardMsg && (
+                <>
+                    <div className="fixed inset-0 z-50 bg-black/40" onClick={() => !forwarding && setForwardMsg(null)} />
+                    <div className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,420px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-popover shadow-xl">
+                        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                            <div>
+                                <p className="text-sm font-semibold">Encaminhar para</p>
+                                <p className="truncate text-xs text-muted-foreground">{forwardMsg.content}</p>
+                            </div>
+                            <button onClick={() => setForwardMsg(null)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="max-h-[50vh] overflow-y-auto py-1">
+                            {conversations.filter((c) => c.id !== selectedConversation).length === 0 && (
+                                <p className="px-4 py-3 text-sm text-muted-foreground">Nenhuma outra conversa nesta aba.</p>
+                            )}
+                            {conversations.filter((c) => c.id !== selectedConversation).map((c) => (
+                                <button
+                                    key={c.id}
+                                    disabled={forwarding}
+                                    onClick={() => confirmForward(c.id)}
+                                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-muted/60 disabled:opacity-50"
+                                >
+                                    <span className="flex-1 truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
+                                    <span className="text-xs text-muted-foreground num">{c.contact.phone}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* Transfer Modal */}
             {

@@ -134,6 +134,9 @@ export interface WhatsAppProvider {
      */
     getOwnerJid?(credentials: InstanceCredentials): Promise<string | undefined>
 
+    /** React to a message the contact sent (by its provider message id). Optional. */
+    react?(credentials: InstanceCredentials, to: string, messageId: string, emoji: string): Promise<void>
+
     sendText(credentials: InstanceCredentials, to: string, text: string): Promise<SendResult>
 
     sendMedia(

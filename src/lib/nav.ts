@@ -62,7 +62,6 @@ export const navSections: NavSection[] = [
             { label: 'Agentes de IA', href: '/atendimento/agentes' },
             { label: 'Conversas', href: '/atendimento/conversas' },
             { label: 'Etiquetas', href: '/atendimento/etiquetas' },
-            { label: 'Modelos', href: '/atendimento/modelos', badge: 'Em breve' },
             { label: 'Respostas rápidas', href: '/atendimento/respostas-rapidas' },
         ],
     },
