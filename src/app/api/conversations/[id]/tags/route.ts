@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
+import { isUniqueViolation } from '@/lib/prisma-errors'
 
 /**
  * Tags on a conversation.
@@ -75,7 +76,7 @@ export async function POST(
         try {
             await prisma.conversationTag.create({ data: { conversationId, tagId: tag.id } })
         } catch (error) {
-            if ((error as { code?: string })?.code === 'P2002') {
+            if (isUniqueViolation(error)) {
                 return NextResponse.json({ error: 'Tag já adicionada' }, { status: 409 })
             }
             throw error

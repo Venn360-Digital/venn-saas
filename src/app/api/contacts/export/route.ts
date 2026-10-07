@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 // GET - Export contacts as CSV
 export async function GET(request: NextRequest) {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
         const source = searchParams.get('source')
 
         // Build where clause (same filters as list)
-        const where: any = { workspaceId: wu.workspaceId }
+        const where: Prisma.ContactWhereInput = { workspaceId: wu.workspaceId }
 
         if (search) {
             where.OR = [

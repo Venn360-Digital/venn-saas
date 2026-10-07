@@ -110,7 +110,9 @@ export async function POST(
                 content: validatedData.content,
                 type: validatedData.type,
                 url: validatedData.url,
-                metadata: validatedData.metadata as any,
+                // A coluna é Json?; o zod valida Record<string, unknown> e o
+                // Prisma exige a sua própria marca de JSON de entrada.
+                metadata: validatedData.metadata as Prisma.InputJsonValue,
             },
         })
 

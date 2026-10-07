@@ -37,10 +37,10 @@ function IntegracoesContent() {
 
     // Carregar dados quando em modo edição
     useEffect(() => {
+        // Sem `else`: `loading` nasce como `!!urlAgentId`, então quando não
+        // há agente ele já é false e o ramo só repetia o valor inicial.
         if (urlAgentId) {
             loadIntegrations(urlAgentId).finally(() => setLoading(false))
-        } else {
-            setLoading(false)
         }
     }, [urlAgentId])
 

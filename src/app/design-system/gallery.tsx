@@ -40,6 +40,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table'
+import { useMounted } from '@/hooks/useMounted'
 
 /* Reads the token straight out of the cascade, so a swatch can never claim a
    colour the stylesheet stopped using. */
@@ -53,6 +54,11 @@ function useTokenValues(names: string[]) {
         for (const name of names) {
             next[name] = styles.getPropertyValue(`--${name}`).trim()
         }
+        // Irredutível: `getComputedStyle` só existe depois que o navegador
+        // aplicou o CSS, então o valor não pode ser derivado durante o render
+        // nem no servidor. É a exceção que a regra admite — ler o DOM depois
+        // da pintura — e não uma cascata de render evitável.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setValues(next)
         // resolvedTheme is the dependency that matters: the same token names
         // resolve to different values once .dark is on the html element.
@@ -173,10 +179,8 @@ function SwatchRow({
 
 export function DesignSystemGallery() {
     const { resolvedTheme, setTheme } = useTheme()
-    const [mounted, setMounted] = useState(false)
+    const mounted = useMounted()
     const values = useTokenValues(ALL_TOKENS)
-
-    useEffect(() => setMounted(true), [])
 
     const isDark = resolvedTheme === 'dark'
 

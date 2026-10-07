@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { Prisma } from '@prisma/client'
 
 // Schema for creating a new user
 const createUserSchema = z.object({
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
 
         const skip = (page - 1) * limit
 
-        const where: any = { workspaceId: workspaceUser.workspaceId }
+        const where: Prisma.WorkspaceUserWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         if (search) {
             where.OR = [

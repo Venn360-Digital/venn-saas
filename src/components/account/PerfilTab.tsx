@@ -233,7 +233,7 @@ export function PerfilTab() {
                     E-mail da conta
                 </Label>
                 <p className="text-xs text-muted-foreground mt-1">
-                    Para alterar o e-mail da conta, digite o novo e clique em 'Alterar e-mail da conta'
+                    Para alterar o e-mail da conta, digite o novo e clique em “Alterar e-mail da conta”
                 </p>
                 <div className="mt-2 flex gap-2">
                     <Input

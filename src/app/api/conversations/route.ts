@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
         // Ativas: status=active AND assignedTo IS NOT NULL
         // Finalizadas: status=closed
         // "Só minhas" filter applies to Ativas and Finalizadas only
-        const where: Record<string, any> = { workspaceId: workspaceUser.workspaceId }
+        const where: Prisma.ConversationWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         switch (tab) {
             case 'waiting':

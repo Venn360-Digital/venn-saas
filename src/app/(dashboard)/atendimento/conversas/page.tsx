@@ -39,6 +39,7 @@ import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
 import {
+
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -48,6 +49,27 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+
+
+/**
+ * O recorte de `messages` que os handlers de realtime leem.
+ *
+ * O Supabase entrega `payload.new` como um registro sem forma — ele não conhece
+ * o schema. Declarar os campos usados mantém o resto do handler verificado, e
+ * um `status` renomeado no banco vira erro de compilação aqui.
+ */
+interface RealtimeMessageRow {
+    id?: string
+    conversationId?: string
+    status?: string
+}
+
+/** Corpo do POST de mensagem; os dois últimos campos são condicionais. */
+interface SendMessageBody {
+    content: string
+    replyToId?: string
+    isInternal?: boolean
+}
 
 type Tab = 'waiting' | 'active' | 'closed'
 
@@ -640,7 +662,7 @@ export default function ConversasPage() {
                 // Refetch conversations when new messages arrive (updates lastMessage + unreadCount)
                 fetchConversations()
                 // Also refetch messages if the new message belongs to the currently open conversation
-                const newMsg = payload.new as any
+                const newMsg = payload.new as RealtimeMessageRow
                 if (newMsg?.conversationId && selectedConversationRef.current === newMsg.conversationId) {
                     fetchMessagesRef.current(newMsg.conversationId)
                     markAsReadRef.current(newMsg.conversationId)
@@ -652,10 +674,13 @@ export default function ConversasPage() {
                 table: 'messages',
             }, (payload) => {
                 // Update message status in real-time (e.g. sent → delivered → read)
-                const updated = payload.new as any
+                const updated = payload.new as RealtimeMessageRow
                 if (updated?.conversationId && selectedConversationRef.current === updated.conversationId) {
                     setMessages(prev => prev.map(m =>
-                        m.id === updated.id ? { ...m, status: updated.status } : m
+                        // `?? m.status`: um payload de UPDATE que não traga o
+                        // campo apagaria o selo de entrega da mensagem. Com
+                        // `any` isso gravava undefined sem reclamar.
+                        m.id === updated.id ? { ...m, status: updated.status ?? m.status } : m
                     ))
                 }
             })
@@ -792,7 +817,7 @@ export default function ConversasPage() {
                     body: formData,
                 })
             } else {
-                const body: Record<string, any> = { content: messageInput }
+                const body: SendMessageBody = { content: messageInput }
                 if (replyingTo) body.replyToId = replyingTo.id
                 if (isNoteMode) body.isInternal = true
                 res = await fetch(`/api/conversations/${selectedConversation}/messages`, {

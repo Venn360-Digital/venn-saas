@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
 
         // Workaround for default workspace
         if (!workspaceId || workspaceId === 'current' || workspaceId === 'undefined') {
-            let firstWorkspace = await prisma.workspaceUser.findFirst({
+            const firstWorkspace = await prisma.workspaceUser.findFirst({
                 where: { userId: user.id, isActive: true },
                 // Stable pick while there is no workspace selector: without an
                 // order, a multi-workspace user could read from one tenant and

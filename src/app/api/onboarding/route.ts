@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
+import { errorMessage } from '@/lib/prisma-errors'
 
 export async function POST(request: NextRequest) {
     try {
@@ -183,10 +184,10 @@ export async function POST(request: NextRequest) {
             success: true,
             workspace: result.workspace,
         })
-    } catch (error: any) {
+    } catch (error) {
         console.error('[ONBOARDING] Error:', error)
         return NextResponse.json(
-            { error: error.message || 'Erro ao criar workspace' },
+            { error: errorMessage(error, 'Erro ao criar workspace') },
             { status: 500 }
         )
     }

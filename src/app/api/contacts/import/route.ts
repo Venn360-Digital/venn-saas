@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { isUniqueViolation } from '@/lib/prisma-errors'
 
 // POST - Import contacts from CSV data
 // Step 1 (preview): { action: 'preview', csvData: [...] }
@@ -136,9 +137,9 @@ async function handleCommit(
                 },
             })
             created++
-        } catch (error: any) {
+        } catch (error) {
             // Skip unique constraint violations
-            if (error?.code === 'P2002') {
+            if (isUniqueViolation(error)) {
                 skipped++
             } else {
                 throw error

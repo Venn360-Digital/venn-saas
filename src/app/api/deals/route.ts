@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
         const dateFrom = searchParams.get('dateFrom') || ''
         const dateTo = searchParams.get('dateTo') || ''
 
-        const where: any = { workspaceId: workspaceUser.workspaceId }
+        const where: Prisma.DealWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         if (search) {
             where.OR = [

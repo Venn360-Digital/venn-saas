@@ -5,13 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowRight } from 'lucide-react'
+import type { OnboardingData, OnboardingUpdate } from './types'
 
 interface Step1WorkspaceProps {
-    data: {
-        workspaceName: string
-        workspaceSlug: string
-    }
-    updateData: (data: any) => void
+    data: Pick<OnboardingData, 'workspaceName' | 'workspaceSlug'>
+    updateData: OnboardingUpdate
     onNext: () => void
 }
 

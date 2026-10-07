@@ -2,6 +2,17 @@ import 'server-only'
 import { OpenAIEmbeddings } from '@langchain/openai'
 import prisma from '@/lib/prisma'
 
+/** Uma linha do resultado da busca por similaridade. */
+export interface KnowledgeMatch {
+    id: string
+    title: string
+    content: string
+    url: string | null
+    type: string
+    /** 1 − distância de cosseno; quanto maior, mais próximo da consulta. */
+    similarity: number
+}
+
 export class DocumentRetriever {
     private embedder: OpenAIEmbeddings
 
@@ -12,7 +23,7 @@ export class DocumentRetriever {
         })
     }
 
-    async search(agentId: string, query: string, limit = 5): Promise<any[]> {
+    async search(agentId: string, query: string, limit = 5): Promise<KnowledgeMatch[]> {
         // 1. Embed the query
         const queryEmbedding = await this.embedder.embedQuery(query)
         const vectorString = `[${queryEmbedding.join(',')}]`
@@ -25,7 +36,10 @@ export class DocumentRetriever {
 
         // Note: We select matching docs for the specific agent.
 
-        const results = await prisma.$queryRaw`
+        // `$queryRaw<T>` é o ponto onde a forma da linha precisa ser declarada:
+        // SQL cru não tem como ser inferido. O SELECT acima e KnowledgeMatch
+        // precisam ser mudados juntos.
+        const results = await prisma.$queryRaw<KnowledgeMatch[]>`
       SELECT id, title, content, url, type, 1 - (embedding <=> ${vectorString}::vector) as similarity
       FROM "knowledge_documents"
       WHERE "agentId" = ${agentId}
@@ -33,6 +47,6 @@ export class DocumentRetriever {
       LIMIT ${limit};
     `
 
-        return results as any[]
+        return results
     }
 }

@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
 
         // Build where clause
-        const where: any = {
+        const where: Prisma.ContactWhereInput = {
             workspaceId: workspaceUser.workspaceId,
         }
 
@@ -65,15 +65,16 @@ export async function GET(request: NextRequest) {
 
         // Tag filter
         if (tagId) {
-            where.OR = where.OR || undefined
+            // AND, e não OR, para que o filtro de etiqueta restrinja a busca
+            // textual em vez de alargá-la. Só é atribuído aqui, então não há
+            // lista anterior para preservar.
             where.AND = [
-                ...(where.AND || []),
                 {
                     OR: [
                         { tags: { some: { tagId } } },
                         { conversations: { some: { tags: { some: { tagId } } } } },
-                    ]
-                }
+                    ],
+                },
             ]
         }
 
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Determine sort field
-        const orderBy: any = {}
+        const orderBy: Prisma.ContactOrderByWithRelationInput = {}
         if (sortBy === 'name') orderBy.name = sortDir
         else if (sortBy === 'email') orderBy.email = sortDir
         else if (sortBy === 'phone') orderBy.phone = sortDir

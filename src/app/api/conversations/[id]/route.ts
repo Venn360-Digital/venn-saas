@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 // GET: Get conversation details with messages
 export async function GET(
@@ -200,7 +201,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }
 
-        let updateData: Record<string, any> = {}
+        let updateData: Prisma.ConversationUncheckedUpdateInput = {}
 
         switch (action) {
             case 'assign':

@@ -47,19 +47,19 @@ export class RuleExecutor {
     ): Promise<void> {
         switch (action.type) {
             case 'send_message':
-                await this.sendMessage(action.params as Record<string, unknown>, context, result)
+                await this.sendMessage(action.params, context, result)
                 break
             case 'notify_human':
-                await this.notifyHuman(action.params as Record<string, unknown>, context, result)
+                await this.notifyHuman(action.params, context, result)
                 break
             case 'add_tag':
-                await this.addTag(action.params as Record<string, unknown>, context)
+                await this.addTag(action.params, context)
                 break
             case 'move_pipeline':
-                await this.movePipeline(action.params as Record<string, unknown>, context)
+                await this.movePipeline(action.params, context)
                 break
             case 'schedule_followup':
-                await this.scheduleFollowup(action.params as Record<string, unknown>, context)
+                await this.scheduleFollowup(action.params, context)
                 break
             default:
                 console.warn(`[RULE_EXECUTOR] Unknown action type: ${action.type}`)

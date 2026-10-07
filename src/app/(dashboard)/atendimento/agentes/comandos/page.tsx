@@ -34,10 +34,10 @@ function ComandosContent() {
     } = useAgentCommands(urlAgentId)
 
     useEffect(() => {
+        // Sem `else`: `loading` nasce como `!!urlAgentId`, então quando não
+        // há agente ele já é false e o ramo só repetia o valor inicial.
         if (urlAgentId) {
             loadCommands(urlAgentId).finally(() => setLoading(false))
-        } else {
-            setLoading(false)
         }
     }, [urlAgentId])
 

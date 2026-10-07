@@ -132,7 +132,7 @@ export interface RuleCondition {
 
 export interface RuleAction {
     type: 'send_message' | 'notify_human' | 'add_tag' | 'move_pipeline' | 'schedule_followup'
-    params: Record<string, any>
+    params: Record<string, unknown>
 }
 
 export interface RuleData {

@@ -13,6 +13,6 @@ export class DocumentChunker {
 
     async split(text: string): Promise<string[]> {
         const docs = await this.splitter.createDocuments([text])
-        return docs.map((doc: any) => doc.pageContent)
+        return docs.map((doc) => doc.pageContent)
     }
 }

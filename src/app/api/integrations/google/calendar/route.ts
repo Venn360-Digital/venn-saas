@@ -5,14 +5,40 @@ import { createClient } from '@/lib/supabase/server'
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
 
+/**
+ * `Integration.credentials` e `Integration.metadata` são colunas `Json?`, então
+ * a forma precisa ser afirmada em algum ponto — o banco não a prova. A diferença
+ * em relação ao `as any` anterior é o alcance: o cast fica nestes dois helpers e
+ * o resto do arquivo continua verificado.
+ */
+interface GoogleCredentials {
+    access_token?: string
+    refresh_token?: string
+    expiry_date?: number
+}
+
+interface GoogleMetadata {
+    googleEmail?: string
+    /** ISO, gravado no callback do OAuth. */
+    connectedAt?: string
+}
+
+function asCredentials(value: unknown): GoogleCredentials {
+    return (value ?? {}) as GoogleCredentials
+}
+
+function asMetadata(value: unknown): GoogleMetadata {
+    return (value ?? {}) as GoogleMetadata
+}
+
 // Helper: Refresh access token if expired
-async function refreshAccessToken(integration: any): Promise<string | null> {
-    const creds = integration.credentials as any
+async function refreshAccessToken(integration: { id: string; credentials: unknown }): Promise<string | null> {
+    const creds = asCredentials(integration.credentials)
     if (!creds?.refresh_token) return null
 
     // If token is still valid (with 5min buffer), return it
     if (creds.expiry_date && Date.now() < creds.expiry_date - 300000) {
-        return creds.access_token
+        return creds.access_token ?? null
     }
 
     // Refresh the token
@@ -101,7 +127,7 @@ export async function GET() {
             })
         }
 
-        const meta = integration.metadata as any
+        const meta = asMetadata(integration.metadata)
 
         return NextResponse.json({
             connected: integration.status === 'connected',
@@ -149,7 +175,7 @@ export async function DELETE() {
 
         if (integration) {
             // Try to revoke the token
-            const creds = integration.credentials as any
+            const creds = asCredentials(integration.credentials)
             if (creds?.access_token) {
                 try {
                     await fetch(`https://oauth2.googleapis.com/revoke?token=${creds.access_token}`, {

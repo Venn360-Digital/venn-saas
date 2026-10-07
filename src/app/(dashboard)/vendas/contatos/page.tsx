@@ -40,7 +40,17 @@ interface ContactTag { tag: { id: string; name: string; color: string } }
 interface DealInfo { id: string; title: string; value: number | null; status: string; stage: { id: string; name: string; color: string } | null; createdAt: string; closedAt: string | null }
 interface ConversationInfo { id: string; channel: string; status: string; agentName: string | null; messageCount: number; lastMessageAt: string | null; createdAt: string }
 interface ContactStats { totalMessages: number; totalConversations: number; totalDeals: number; openDeals: number; wonDeals: number; lostDeals: number; firstContact: string | null; lastContact: string | null }
-interface Contact { id: string; name: string | null; email: string | null; phone: string | null; notes: string | null; source: string | null; customFields: Record<string, any> | null; tags: ContactTag[]; createdAt: string }
+/**
+ * Valor de um campo personalizado.
+ *
+ * O conjunto é fechado pelos tipos que o editor de campos oferece — texto,
+ * número, data, booleano e seleção — e é isso que a coluna Json guarda. O
+ * `any` anterior deixava `customFieldValues[k]` passar direto para `value=` de
+ * um Input sem ninguém notar que um booleano não é aceito ali.
+ */
+type CustomFieldValue = string | number | boolean | null
+
+interface Contact { id: string; name: string | null; email: string | null; phone: string | null; notes: string | null; source: string | null; customFields: Record<string, CustomFieldValue> | null; tags: ContactTag[]; createdAt: string }
 interface ContactDetail extends Contact { deals: DealInfo[]; conversations: ConversationInfo[]; stats: ContactStats }
 interface TagOption { id: string; name: string; color: string }
 interface CustomFieldDef { id: string; name: string; key: string; type: string; options: string[] | null; required: boolean; order: number }
@@ -96,7 +106,7 @@ export default function ContatosPage() {
     // Form state
     const [formData, setFormData] = useState({ name: '', email: '', phone: '', notes: '' })
     const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-    const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({})
+    const [customFieldValues, setCustomFieldValues] = useState<Record<string, CustomFieldValue>>({})
 
     // Lookup data
     const [allTags, setAllTags] = useState<TagOption[]>([])
@@ -271,7 +281,7 @@ export default function ContatosPage() {
 
     const handlePreviewImport = async () => {
         const mapped = csvRows.map(row => {
-            const contact: any = {}
+            const contact: Record<string, string> = {}
             Object.entries(columnMapping).forEach(([colIdx, field]) => {
                 if (field && row[parseInt(colIdx)]) contact[field] = row[parseInt(colIdx)]
             })
@@ -585,13 +595,13 @@ export default function ContatosPage() {
                                                         <div key={field.id}>
                                                             <Label className="text-xs">{field.name}</Label>
                                                             {field.type === 'text' && (
-                                                                <Input value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
+                                                                <Input value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
                                                             )}
                                                             {field.type === 'number' && (
-                                                                <Input type="number" value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
+                                                                <Input type="number" value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
                                                             )}
                                                             {field.type === 'date' && (
-                                                                <Input type="date" value={customFieldValues[field.key] || ''} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
+                                                                <Input type="date" value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
                                                             )}
                                                             {field.type === 'checkbox' && (
                                                                 <div className="flex items-center gap-2 mt-2">
@@ -600,7 +610,7 @@ export default function ContatosPage() {
                                                                 </div>
                                                             )}
                                                             {field.type === 'select' && Array.isArray(field.options) && (
-                                                                <Select value={customFieldValues[field.key] || ''} onValueChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))}>
+                                                                <Select value={String(customFieldValues[field.key] ?? '')} onValueChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))}>
                                                                     <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                                                     <SelectContent>
                                                                         {field.options.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
@@ -772,7 +782,7 @@ export default function ContatosPage() {
                                     )}
 
                                     {!showFieldManager && customFieldDefs.length === 0 && (
-                                        <p className="text-sm text-muted-foreground">Nenhum campo personalizado configurado. Clique em "Gerenciar campos" para criar.</p>
+                                        <p className="text-sm text-muted-foreground">Nenhum campo personalizado configurado. Clique em “Gerenciar campos” para criar.</p>
                                     )}
                                 </div>
                             </TabsContent>

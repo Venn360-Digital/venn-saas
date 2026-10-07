@@ -7,7 +7,8 @@ interface Integration {
     id?: string
     channel: string
     status: 'connected' | 'disconnected' | 'pending' | 'error'
-    config?: Record<string, any>
+    /** Blob por canal vindo do banco; a forma varia e ninguém lê daqui. */
+    config?: Record<string, unknown>
 }
 
 interface Webhook {
@@ -37,8 +38,8 @@ export function useAgentIntegrations(agentId?: string | null) {
             // Carregar webhooks
             const webhooksResponse = await fetch(`/api/agents/${id}/webhooks`)
             if (webhooksResponse.ok) {
-                const data = await webhooksResponse.json()
-                setWebhooks(data.map((w: any) => ({
+                const data: Webhook[] = await webhooksResponse.json()
+                setWebhooks(data.map((w) => ({
                     id: w.id,
                     name: w.name,
                     type: w.type,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 // PATCH - Update a pipeline stage
 export async function PATCH(
@@ -44,7 +45,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Nome deve ter no máximo 30 caracteres' }, { status: 400 })
         }
 
-        const updateData: any = {}
+        const updateData: Prisma.PipelineStageUncheckedUpdateInput = {}
         if (name !== undefined) updateData.name = name.trim()
         if (color !== undefined) updateData.color = color
         if (order !== undefined) updateData.order = order

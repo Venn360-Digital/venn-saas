@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
+import { isUniqueViolation } from '@/lib/prisma-errors'
 
 // GET - List agencies for the workspace
 export async function GET() {
@@ -67,8 +68,8 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json(agency, { status: 201 })
-    } catch (error: any) {
-        if (error.code === 'P2002') {
+    } catch (error) {
+        if (isUniqueViolation(error)) {
             return NextResponse.json({ error: 'Agência já existe' }, { status: 409 })
         }
         console.error('[AGENCIES_POST]', error)

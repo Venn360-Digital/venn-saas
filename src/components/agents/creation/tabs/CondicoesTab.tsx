@@ -15,21 +15,19 @@ interface RuleCondition {
 }
 
 /**
- * Carga da ação.
+ * Um saco aberto, de propósito.
  *
- * Só `message` é produzido hoje; `value` é lido como fallback. Quando
- * `add_tag`, `move_pipeline` e `schedule_followup` forem implementados, isto
- * deve virar uma união discriminada por `RuleAction['type']` — modelar agora os
- * campos de ramos que não existem seria inventar contrato.
+ * O executor lê catorze chaves distintas conforme o tipo da ação — `message`,
+ * `tagName`, `stageId`, `delayMinutes` e por aí —, então um tipo fechado aqui
+ * mentiria sobre metade delas. O modelo certo seria uma união discriminada por
+ * `type`, mas este editor só produz `send_message`: escrever os outros quatro
+ * ramos agora seria inventar contrato para telas que não existem.
+ *
+ * Quem lê converte na borda, como o executor faz com `String(params.x ?? '')`.
  */
-interface RuleActionParams {
-    message?: string
-    value?: string
-}
-
 interface RuleAction {
     type: 'send_message' | 'notify_human' | 'add_tag' | 'move_pipeline' | 'schedule_followup'
-    params: RuleActionParams
+    params: Record<string, unknown>
 }
 
 interface Rule {
@@ -244,7 +242,7 @@ export function CondicoesTab({ agentId, rules, onChange }: CondicoesTabProps) {
                                     </select>
                                     <Input
                                         placeholder="Configuração"
-                                        value={action.params.message || action.params.value || ''}
+                                        value={String(action.params.message ?? action.params.value ?? '')}
                                         onChange={(e) => updateAction(ruleIndex, actionIndex, { params: { message: e.target.value } })}
                                         className="flex-1 bg-muted/50"
                                     />

@@ -2,9 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import { ArrowRight, ArrowLeft, MessageCircle } from 'lucide-react'
+import type { OnboardingData } from './types'
 
 interface Step3WhatsAppProps {
-    data: any
+    data: OnboardingData
     onNext: () => void
     onBack: () => void
 }

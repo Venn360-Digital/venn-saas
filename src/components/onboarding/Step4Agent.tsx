@@ -7,15 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import type { OnboardingData, OnboardingUpdate } from './types'
 
 interface Step4AgentProps {
-    data: {
-        workspaceName: string
-        workspaceSlug: string
-        plan: string
-        agentName: string
-    }
-    updateData: (data: any) => void
+    data: OnboardingData
+    updateData: OnboardingUpdate
     onNext: () => void
     onBack: () => void
 }

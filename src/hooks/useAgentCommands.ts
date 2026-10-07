@@ -31,8 +31,8 @@ export function useAgentCommands(agentId?: string | null) {
             // Carregar regras
             const rulesResponse = await fetch(`/api/agents/${id}/rules`)
             if (rulesResponse.ok) {
-                const rulesData = await rulesResponse.json()
-                setRules(rulesData.map((r: any) => ({
+                const rulesData: RuleData[] = await rulesResponse.json()
+                setRules(rulesData.map((r) => ({
                     id: r.id,
                     name: r.name,
                     isActive: r.isActive,

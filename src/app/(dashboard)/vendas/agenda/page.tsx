@@ -276,7 +276,7 @@ export default function AgendaPage() {
         if (!formData.title.trim()) { toast.error('Título é obrigatório'); return }
         try {
             const url = editingActivity ? `/api/activities/${editingActivity.id}` : '/api/activities'
-            const payload: any = {
+            const payload = {
                 ...formData,
                 dueDate: formData.dueDate || undefined,
                 contactId: selectedContact?.id || undefined,

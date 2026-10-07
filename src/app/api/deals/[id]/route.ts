@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 const dealInclude = {
     contact: {
@@ -66,7 +67,7 @@ export async function PATCH(
             }
         }
 
-        const updateData: any = {}
+        const updateData: Prisma.DealUncheckedUpdateInput = {}
         if (title !== undefined) updateData.title = title
         if (value !== undefined) updateData.value = value
         if (stageId !== undefined) updateData.stageId = stageId

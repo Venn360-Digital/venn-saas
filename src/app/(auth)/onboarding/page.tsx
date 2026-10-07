@@ -10,11 +10,12 @@ import { Step1Workspace } from '@/components/onboarding/Step1Workspace'
 import { Step2Plan } from '@/components/onboarding/Step2Plan'
 import { Step3WhatsApp } from '@/components/onboarding/Step3WhatsApp'
 import { Step4Agent } from '@/components/onboarding/Step4Agent'
+import type { OnboardingData, OnboardingUpdate } from '@/components/onboarding/types'
 
 export default function OnboardingPage() {
     const [currentStep, setCurrentStep] = useState(1)
     const [loading, setLoading] = useState(true)
-    const [onboardingData, setOnboardingData] = useState({
+    const [onboardingData, setOnboardingData] = useState<OnboardingData>({
         workspaceName: '',
         workspaceSlug: '',
         plan: 'pro',
@@ -60,7 +61,7 @@ export default function OnboardingPage() {
         }
     }
 
-    const updateData = (data: Partial<typeof onboardingData>) => {
+    const updateData: OnboardingUpdate = (data) => {
         setOnboardingData(prev => ({ ...prev, ...data }))
     }
 

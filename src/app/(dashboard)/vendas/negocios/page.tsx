@@ -132,6 +132,8 @@ interface Deal {
     media: LookupItem | null
     notes: string | null
     trackingData: TrackingData | null
+    /** Vem incluída pela rota de listagem; é o que pinta o selo de etapa. */
+    stage?: { name: string; color: string } | null
     createdAt: string
     closedAt: string | null
 }
@@ -183,7 +185,7 @@ function TrackingIndicators({ tracking }: { tracking: TrackingData | null }) {
         { key: 'rework', icon: RefreshCw, label: 'Retrabalho', color: 'text-orange-400' },
     ] as const
 
-    const activeIndicators = indicators.filter(i => (tracking as any)[i.key]?.done)
+    const activeIndicators = indicators.filter((i) => tracking[i.key]?.done)
     if (activeIndicators.length === 0) return null
 
     return (
@@ -720,7 +722,7 @@ export default function NegociosPage() {
         if (!dealForm.title.trim()) { toast.error('Título é obrigatório'); return }
 
         try {
-            const payload: any = {
+            const payload = {
                 title: dealForm.title,
                 value: dealForm.value ? parseFloat(dealForm.value) : undefined,
                 notes: dealForm.notes || undefined,
@@ -1205,8 +1207,8 @@ export default function NegociosPage() {
                                             {deal.value != null && deal.value > 0 ? <span className="text-green-400">R$ {deal.value.toLocaleString('pt-BR')}</span> : <span className="text-muted-foreground">—</span>}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: (deal as any).stage?.color || '#6B7280' }}>
-                                                {(deal as any).stage?.name || '—'}
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: deal.stage?.color || '#6B7280' }}>
+                                                {deal.stage?.name || '—'}
                                             </span>
                                         </TableCell>
                                         <TableCell><StatusBadge status={deal.status} /></TableCell>

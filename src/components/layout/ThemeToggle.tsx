@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { Monitor, Moon, Sun } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useMounted } from '@/hooks/useMounted'
 
 const OPTIONS = [
     { value: 'light', label: 'Claro', icon: Sun },
@@ -17,9 +17,7 @@ const OPTIONS = [
 
 export function ThemeToggle() {
     const { theme, setTheme } = useTheme()
-    const [mounted, setMounted] = useState(false)
-
-    useEffect(() => setMounted(true), [])
+    const mounted = useMounted()
 
     return (
         <div

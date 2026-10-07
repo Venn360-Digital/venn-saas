@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 const productSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
         const skip = (page - 1) * limit
 
         // Build where clause
-        const where: any = { workspaceId: workspaceUser.workspaceId }
+        const where: Prisma.ProductServiceWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         // Search across multiple fields
         if (search) {

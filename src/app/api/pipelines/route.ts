@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
+import { Prisma } from '@prisma/client'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
         const status = searchParams.get('status') || 'open'
 
         // Build deal filter
-        const dealWhere: any = {}
+        const dealWhere: Prisma.DealWhereInput = {}
         if (status && status !== 'all') {
             dealWhere.status = status
         }
