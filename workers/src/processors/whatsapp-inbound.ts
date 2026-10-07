@@ -75,6 +75,17 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
             select: { id: true },
         })
         if (duplicate) {
+            // A mensagem já está gravada, mas isso não prova que a resposta foi
+            // agendada: se um passo posterior falhou na primeira tentativa, a
+            // retentativa cai aqui e a conversa fica sem resposta para sempre.
+            // Foi o que aconteceu com a primeira mensagem real recebida pelo
+            // sistema, quando o agendamento morreu num jobId inválido.
+            //
+            // Reagendar daqui é tentador e está errado: este ponto é anterior às
+            // verificações de conversa assumida por humano, agente inativo e
+            // workspace em somente-leitura. Um reagendamento aqui faria o agente
+            // responder por cima de um atendente. A correção certa é ordenar as
+            // guardas antes da gravação, e está registrada como pendência.
             log.info(`duplicate message ${externalId} skipped`)
             return
         }

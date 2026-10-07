@@ -82,10 +82,19 @@ export async function enqueueNormalizedEvents(
     return { queued, skipped }
 }
 
+/**
+ * Separador "-", nunca ":".
+ *
+ * O BullMQ usa ":" como separador das suas próprias chaves no Redis e recusa
+ * um id custom que o contenha — `Custom Id cannot contain :`. A primeira
+ * mensagem real recebida pelo sistema morreu exatamente assim: foi gravada,
+ * a resposta do agente nunca chegou a ser agendada, e a retentativa foi
+ * descartada como duplicada.
+ */
 function jobIdFor(provider: WhatsAppProviderName, externalId: string | undefined): string | undefined {
     // Without an id, BullMQ generates one and the worker's own externalId check
     // catches duplicates.
-    return externalId ? `wa:${provider}:${externalId}` : undefined
+    return externalId ? `wa-${provider}-${externalId}` : undefined
 }
 
 export { MissingRedisUrlError }

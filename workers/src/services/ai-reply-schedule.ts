@@ -28,7 +28,8 @@ export function delayForSpeed(speed: string | undefined, debounceSeconds: number
  */
 export async function scheduleAiReply(payload: AiReplyJob, delayMs: number): Promise<void> {
     const queue = getQueue(QUEUE.AI_REPLY)
-    const jobId = `reply:${payload.conversationId}`
+    // "-" e não ":": o BullMQ recusa ids custom com dois-pontos.
+    const jobId = `reply-${payload.conversationId}`
 
     const existing = await queue.getJob(jobId)
 

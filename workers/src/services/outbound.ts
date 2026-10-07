@@ -46,7 +46,7 @@ export async function enqueueOutboundText(
         'send-text',
         { messageId: message.id, integrationId, to, kind: 'text', content },
         // One send per message row, so a retried enqueue cannot double-send.
-        { jobId: `send:${message.id}` }
+        { jobId: `send-${message.id}` }
     )
 
     if (agentId) {
