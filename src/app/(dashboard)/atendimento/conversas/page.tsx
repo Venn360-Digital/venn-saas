@@ -62,6 +62,7 @@ interface RealtimeMessageRow {
     id?: string
     conversationId?: string
     status?: string
+    direction?: string
 }
 
 /** Corpo do POST de mensagem; os dois últimos campos são condicionais. */
@@ -417,6 +418,8 @@ export default function ConversasPage() {
             .catch(() => setQuickRepliesLoaded(true))
     }, [quickRepliesLoaded])
 
+    const audioContextRef = useRef<AudioContext | null>(null)
+
     // Sound preference listener
     useEffect(() => {
         const stored = localStorage.getItem('odontobox360-sound-enabled')
@@ -429,10 +432,28 @@ export default function ConversasPage() {
         return () => window.removeEventListener('odontobox360-sound-change', handler)
     }, [])
 
-    // Play WhatsApp-style notification sound
+    /**
+     * Aviso sonoro de mensagem nova.
+     *
+     * O contexto de áudio é reaproveitado. A versão anterior criava um
+     * `new AudioContext()` a cada toque e nunca o fechava — o Chrome limita a
+     * seis por página, então o som funcionava algumas vezes e depois passava a
+     * lançar silenciosamente dentro do `catch`. Um aviso que para de tocar sem
+     * avisar é pior que não ter aviso.
+     */
     const playNotificationSound = useCallback(() => {
         try {
-            const ctx = new AudioContext()
+            const AudioCtor =
+                window.AudioContext ??
+                (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+            if (!AudioCtor) return
+
+            const ctx = audioContextRef.current ?? new AudioCtor()
+            audioContextRef.current = ctx
+            // A aba em segundo plano suspende o contexto; sem retomar, o aviso
+            // some justamente quando a atendente não está olhando a tela.
+            if (ctx.state === 'suspended') void ctx.resume()
+
             const osc = ctx.createOscillator()
             const gain = ctx.createGain()
             osc.connect(gain)
@@ -630,8 +651,41 @@ export default function ConversasPage() {
     // Stable refs for callbacks used in realtime subscription (avoids re-subscribing)
     const fetchMessagesRef = useRef(fetchMessages)
     const markAsReadRef = useRef(markAsRead)
+    const playNotificationSoundRef = useRef(playNotificationSound)
     useEffect(() => { fetchMessagesRef.current = fetchMessages }, [fetchMessages])
     useEffect(() => { markAsReadRef.current = markAsRead }, [markAsRead])
+    useEffect(() => { playNotificationSoundRef.current = playNotificationSound }, [playNotificationSound])
+
+    /**
+     * O socket do Realtime autentica separado do resto do cliente.
+     *
+     * Sem isto ele conecta como `anon`, e a política RLS de `messages` concede
+     * SELECT apenas a `authenticated` — então o Postgres filtrava todos os
+     * eventos e nenhum chegava ao navegador. A lista de conversas parecia viva
+     * porque o polling de 15 s a atualizava; o chat aberto, que depende só do
+     * evento, nunca se mexia. Era preciso recarregar a página para ver uma
+     * mensagem que já estava no banco.
+     */
+    useEffect(() => {
+        let cancelled = false
+
+        void supabase.auth.getSession().then(({ data }) => {
+            if (!cancelled && data.session) {
+                supabase.realtime.setAuth(data.session.access_token)
+            }
+        })
+
+        // O token expira; sem re-autenticar, o Realtime volta a emudecer depois
+        // de uma hora de turno.
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) supabase.realtime.setAuth(session.access_token)
+        })
+
+        return () => {
+            cancelled = true
+            listener.subscription.unsubscribe()
+        }
+    }, [supabase])
 
     // Initial fetch + Supabase Realtime subscription for conversations
     useEffect(() => {
@@ -663,6 +717,18 @@ export default function ConversasPage() {
                 fetchConversations()
                 // Also refetch messages if the new message belongs to the currently open conversation
                 const newMsg = payload.new as RealtimeMessageRow
+
+                // Só mensagem recebida avisa: o eco da que a própria atendente
+                // acabou de enviar tocaria o aviso no ouvido de quem a digitou.
+                // O gatilho antigo era o contador de não lidas subir — e ele
+                // não sobe quando a conversa está aberta, porque `markAsRead`
+                // zera na hora. Ou seja: o aviso nunca tocava exatamente no
+                // caso mais comum, com a atendente olhando o chat. O evento de
+                // mensagem recebida é o gatilho correto.
+                if (newMsg?.direction === 'inbound' && soundEnabledRef.current) {
+                    playNotificationSoundRef.current()
+                }
+
                 if (newMsg?.conversationId && selectedConversationRef.current === newMsg.conversationId) {
                     fetchMessagesRef.current(newMsg.conversationId)
                     markAsReadRef.current(newMsg.conversationId)
@@ -684,7 +750,15 @@ export default function ConversasPage() {
                     ))
                 }
             })
-            .subscribe()
+            .subscribe((status, error) => {
+                // Sem este callback um CHANNEL_ERROR é silencioso, e foi assim
+                // que o Realtime ficou meses mudo sem ninguém notar: o polling
+                // disfarçava o sintoma na lista e o chat simplesmente não
+                // atualizava.
+                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    console.error('[REALTIME] canal de conversas:', status, error)
+                }
+            })
 
         // Fallback polling every 15s in case realtime misses something
         pollRef.current = setInterval(fetchConversations, 15000)
