@@ -59,7 +59,20 @@ interface InstanceListItem {
     connected?: boolean
 }
 
+/**
+ * A carga de `/instance/qr`.
+ *
+ * Minúsculas, ao contrário de `/instance/status`, que responde em PascalCase
+ * (`Connected`, `LoggedIn`). A inconsistência é do Evolution Go, e foi
+ * exatamente o que fez o QR nunca chegar à tela: `data.Qrcode` era sempre
+ * `undefined`, a rota devolvia `qrcode: null`, e o modal ficava girando sobre um
+ * QR que existia e estava pronto do outro lado.
+ *
+ * As duas grafias são aceitas aqui para o caso de uma versão futura padronizar.
+ */
 interface QrData {
+    qrcode?: string
+    code?: string
     Qrcode?: string
     Code?: string
 }
@@ -195,7 +208,10 @@ export class EvolutionGoProvider implements WhatsAppProvider {
 
     async getQrCode(credentials: InstanceCredentials): Promise<QrCode> {
         const data = await this.request<QrData>('/instance/qr', this.tokenOf(credentials, '/instance/qr'))
-        return { base64: asDataUrl(data?.Qrcode), code: data?.Code ?? null }
+        return {
+            base64: asDataUrl(data?.qrcode ?? data?.Qrcode),
+            code: data?.code ?? data?.Code ?? null,
+        }
     }
 
     async getConnectionState(credentials: InstanceCredentials): Promise<ConnectionState> {
