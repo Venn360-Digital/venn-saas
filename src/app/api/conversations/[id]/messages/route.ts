@@ -2,6 +2,7 @@ import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
 
 // POST: Human sends a message (text or media) in a conversation
@@ -72,7 +73,14 @@ export async function POST(
             const storagePath = `${workspaceUser.workspaceId}/${conversationId}/${Date.now()}.${fileExt}`
             const buffer = Buffer.from(await file.arrayBuffer())
 
-            const { data: uploadData, error: uploadError } = await supabase.storage
+            // `storage.objects` tem RLS ligado e nenhuma política: com a sessão
+            // do usuário todo upload falhava com "new row violates row-level
+            // security policy", e foi por isso que imagem e áudio nunca saíram.
+            // A autorização já aconteceu acima (membro ativo do workspace, via
+            // Prisma); o Storage recebe o cliente administrativo, como o worker
+            // faz ao arquivar mídia recebida.
+            const storage = createAdminClient().storage
+            const { data: uploadData, error: uploadError } = await storage
                 .from('attachments')
                 .upload(storagePath, buffer, {
                     contentType: mime,
@@ -85,7 +93,7 @@ export async function POST(
             }
 
             // Get public URL
-            const { data: urlData } = supabase.storage
+            const { data: urlData } = storage
                 .from('attachments')
                 .getPublicUrl(uploadData.path)
 

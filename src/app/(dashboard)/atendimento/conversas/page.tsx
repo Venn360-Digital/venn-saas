@@ -35,6 +35,7 @@ import {
     Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EmojiPicker } from '@/components/shared/EmojiPicker'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
@@ -1027,7 +1028,10 @@ export default function ConversasPage() {
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+            const mimeType = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm'].find(
+                (t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)
+            )
+            const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
             audioChunksRef.current = []
             mediaRecorderRef.current = mediaRecorder
 
@@ -1037,7 +1041,9 @@ export default function ConversasPage() {
 
             mediaRecorder.onstop = async () => {
                 stream.getTracks().forEach(t => t.stop())
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+                const blob = new Blob(audioChunksRef.current, {
+                    type: (mediaRecorder.mimeType || 'audio/webm').split(';')[0],
+                })
                 if (blob.size > 0) {
                     await sendRecording(blob)
                 }
@@ -1052,6 +1058,37 @@ export default function ConversasPage() {
         } catch (err) {
             console.error('Microphone access denied:', err)
         }
+    }
+
+    /** Insere no ponto do cursor e devolve o foco, sem perder a seleção. */
+    const insertAtCursor = (text: string) => {
+        const el = textareaRef.current
+        if (!el) {
+            setMessageInput((prev) => prev + text)
+            return
+        }
+        const start = el.selectionStart ?? messageInput.length
+        const end = el.selectionEnd ?? start
+        const next = messageInput.slice(0, start) + text + messageInput.slice(end)
+        setMessageInput(next)
+        requestAnimationFrame(() => {
+            el.focus()
+            const caret = start + text.length
+            el.setSelectionRange(caret, caret)
+        })
+    }
+
+    /**
+     * Ctrl+V com uma imagem na área de transferência vira anexo — print de tela
+     * de um orçamento, foto de um exame. É o gesto que todo mundo tenta antes
+     * de procurar o clipe.
+     */
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'))
+        if (!file || attachment) return
+        e.preventDefault()
+        const named = new File([file], `colado-${Date.now()}.${file.type.split('/')[1] || 'png'}`, { type: file.type })
+        setAttachment(named)
     }
 
     const stopRecording = () => {
@@ -1087,7 +1124,10 @@ export default function ConversasPage() {
         setSending(true)
         try {
             const formData = new FormData()
-            formData.append('file', blob, `audio_${Date.now()}.webm`)
+            // A extensão segue o formato gravado: a rota deriva o tipo dela e o
+            // Evolution usa o nome no envio. Um .webm com conteúdo OGG confunde os dois.
+            const ext = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'm4a' : 'webm'
+            formData.append('file', blob, `audio_${Date.now()}.${ext}`)
             const res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
                 method: 'POST',
                 body: formData,
@@ -1899,11 +1939,14 @@ export default function ConversasPage() {
                                                         <StickyNote className="h-4 w-4" />
                                                     </Button>
 
+                                                    <EmojiPicker onSelect={insertAtCursor} disabled={sending} />
+
                                                     <textarea
                                                         ref={textareaRef}
                                                         value={messageInput}
                                                         onChange={handleInputChange}
                                                         onKeyDown={handleKeyDown}
+                                                        onPaste={handlePaste}
                                                         placeholder={
                                                             isNoteMode
                                                                 ? '📝 Nota interna (não será enviada ao cliente)...'
