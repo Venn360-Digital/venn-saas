@@ -204,6 +204,17 @@ export async function POST(
                         : contentType === 'audio' ? 'audio' as const
                             : 'media' as const
 
+                // O mimetype vive só no bloco de upload e nunca chegava ao job, então o
+                // worker caía em `document` para tudo que não fosse áudio — a imagem
+                // chegava ao paciente como arquivo para baixar. O tipo já está
+                // resolvido em `contentType` (upload e encaminhar); vai explícito.
+                const mediaKind =
+                    contentType === 'image' ? 'image' as const
+                        : contentType === 'video' ? 'video' as const
+                            : contentType === 'audio' ? 'audio' as const
+                                : contentType === 'file' ? 'document' as const
+                                    : undefined
+
                 try {
                     await prisma.message.update({
                         where: { id: message.id },
@@ -217,6 +228,7 @@ export async function POST(
                             integrationId: whatsappIntegration.id,
                             to: conversation.contact.phone,
                             kind,
+                            mediaKind,
                             content: captionIsPlaceholder && kind !== 'text' ? '' : textContent,
                             mediaUrl: mediaUrl || undefined,
                             fileName: fileName || undefined,

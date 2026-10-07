@@ -84,6 +84,8 @@ export interface WhatsAppOutboundJob {
     /** Bare MSISDN, no JID suffix. */
     to: string
     kind: 'text' | 'media' | 'audio'
+    /** Resolvido por quem enfileirou; o worker o prefere a adivinhar pelo mimetype. */
+    mediaKind?: 'image' | 'video' | 'audio' | 'document'
     content: string
     mediaUrl?: string
     mimetype?: string

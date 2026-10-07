@@ -24,7 +24,7 @@ function mediaKindFor(mimetype: string | undefined, kind: string): MediaKind {
  * "pending", then "failed" once the attempts are exhausted.
  */
 export async function processWhatsAppOutbound(job: Job<WhatsAppOutboundJob>): Promise<void> {
-    const { messageId, integrationId, to, kind, content, mediaUrl, mimetype, fileName } = job.data
+    const { messageId, integrationId, to, kind, mediaKind, content, mediaUrl, mimetype, fileName } = job.data
 
     const message = await prisma.message.findUnique({
         where: { id: messageId },
@@ -58,7 +58,7 @@ export async function processWhatsAppOutbound(job: Job<WhatsAppOutboundJob>): Pr
                 ? await provider.sendText(credentials, to, content)
                 : await provider.sendMedia(credentials, to, {
                       url: mediaUrl,
-                      kind: mediaKindFor(mimetype, kind),
+                      kind: mediaKind ?? mediaKindFor(mimetype, kind),
                       caption: content || undefined,
                       fileName,
                       mimetype,
