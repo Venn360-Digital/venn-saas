@@ -23,9 +23,14 @@ const schema = z.object({
     // Evolution Go — serves the WhatsApp QR channel (whatsmeow)
     EVOLUTION_GO_URL: z.string().min(1, 'EVOLUTION_GO_URL is required'),
     EVOLUTION_GO_API_KEY: z.string().min(1, 'EVOLUTION_GO_API_KEY is required'),
-    // Recycle an instance's socket 20 s after it pairs, so Evolution Go's
-    // leftover QR loop cannot force-logout the new session. See envelopes.ts.
-    EVOLUTION_GO_RECYCLE_AFTER_PAIR: z.enum(['true', 'false']).default('true'),
+    // Recycle an instance's socket 20 s after it pairs. OFF by default: measured
+    // not to work on Evolution Go as deployed — /instance/disconnect answers 200
+    // and logs "Ignoring disconnect as it was not connected" during the
+    // post-pairing reconnect window, so the QR loop survives and still forces
+    // the logout. The working fix is a host-side container restart 25 s after
+    // PairSuccess (infra: odontobox-wa-guard.service). Kept for an Evolution Go
+    // release whose disconnect actually tears the client down.
+    EVOLUTION_GO_RECYCLE_AFTER_PAIR: z.enum(['true', 'false']).default('false'),
 
     // Evolution API v2 — only the official Meta Cloud API channel. Optional,
     // because a deployment that uses no business channel never calls it.
