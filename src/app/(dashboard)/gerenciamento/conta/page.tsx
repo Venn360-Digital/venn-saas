@@ -1,8 +1,6 @@
 'use client'
 
 import { Suspense, useState} from 'react'
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PerfilTab } from '@/components/account/PerfilTab'
@@ -23,17 +21,9 @@ function ContaContent() {
     return (
         <div className="min-h-full p-6 text-foreground">
             {/* Header */}
-            <div className="mb-6 flex items-center gap-4">
-                <Link
-                    href="/dashboard"
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors"
-                >
-                    <ArrowLeft className="h-5 w-5" />
-                </Link>
-                <div className="min-w-0">
-                    <h1 className="text-h1">Gerenciar conta</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Perfil, dados da clínica e assinatura.</p>
-                </div>
+            <div className="mb-6 min-w-0">
+                <h1 className="text-h1">Gerenciar conta</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Perfil, dados da clínica e assinatura.</p>
             </div>
 
             {/* Tabs */}

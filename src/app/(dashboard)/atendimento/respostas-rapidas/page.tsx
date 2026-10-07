@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Trash2, Info } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermissions } from '@/hooks/usePermissions'
 
@@ -119,8 +119,7 @@ export default function RespostasRapidasPage() {
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-h1">Respostas rápidas</h1>
-                    <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                        <Info className="h-4 w-4" />
+                    <p className="mt-1 text-sm text-muted-foreground">
                         Configurar mensagens rápidas para o chat
                     </p>
                 </div>
