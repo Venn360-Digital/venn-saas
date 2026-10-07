@@ -249,8 +249,6 @@ const DISABLED_FEATURES = {
 
 const PLACEHOLDERS = {
     OPENAI_API_KEY: '',
-    GOOGLE_AI_API_KEY: '',
-    ANTHROPIC_API_KEY: '',
     GOOGLE_CLIENT_ID: '',
     GOOGLE_CLIENT_SECRET: '',
     GOOGLE_REDIRECT_URI: `https://${appHost}/api/integrations/google/callback`,
@@ -297,7 +295,7 @@ console.log(`  user: ${env.get('DASHBOARD_USERNAME') ?? 'supabase'}`)
 console.log(`  pass: ${env.get('DASHBOARD_PASSWORD') ?? '(see .env)'}`)
 console.log('')
 console.log('Still to fill in by hand, in infra/.env:')
-console.log('  OPENAI_API_KEY, GOOGLE_AI_API_KEY, ANTHROPIC_API_KEY')
+console.log('  OPENAI_API_KEY — o projeto precisa permitir chat E text-embedding-3-small')
 console.log('  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET')
 console.log('  SMTP_* — auth e-mails (password reset, confirmations) need a real sender')
 console.log('')

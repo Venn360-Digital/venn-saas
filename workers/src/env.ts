@@ -41,8 +41,6 @@ const schema = z.object({
     // The retention job only deletes when this is the literal string "true".
     // See PRODUCT.md §7.
     RETENTION_DELETION_ENABLED: z.string().optional(),
-    GOOGLE_AI_API_KEY: z.string().optional(),
-    ANTHROPIC_API_KEY: z.string().optional(),
 
     // Which workers this process should run. "all" or a comma-separated list of
     // queue names, so the stack can scale a single hot queue independently.

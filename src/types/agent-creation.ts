@@ -41,7 +41,7 @@ export interface VisualData {
 
 export interface AgentCreationData {
     // AI Configuration
-    llmProvider: 'openai' | 'gemini' | 'claude'
+    llmProvider: 'openai'
     llmModel: string
     systemPrompt: string
     temperature: number

@@ -1,4 +1,14 @@
-export type LLMProviderName = 'openai' | 'gemini' | 'claude'
+/**
+ * O MVP é OpenAI-only.
+ *
+ * O tipo do provedor continua existindo, e `LLMProvider` continua sendo uma
+ * interface com uma implementação só, porque é a costura por onde um segundo
+ * provedor entra depois — e porque o campo `llmProvider` existe no banco. O que
+ * saiu foram as integrações Gemini e Anthropic, que ofereciam escolhas na tela
+ * sem nenhuma chave configurada por trás: escolher qualquer uma delas lançava
+ * `Missing API Key for provider` e deixava o agente mudo.
+ */
+export type LLMProviderName = 'openai'
 export type LLMRole = 'system' | 'user' | 'assistant'
 
 export interface LLMMessage {
@@ -36,10 +46,3 @@ export interface LLMProvider {
      */
     generateStream(messages: LLMMessage[]): AsyncGenerator<string, LLMUsage, unknown>
 }
-
-// Configuration defaults
-export const DEFAULT_MODELS = {
-    openai: 'gpt-4o',
-    gemini: 'gemini-1.5-pro-latest',
-    claude: 'claude-3-5-sonnet-20241022',
-} as const

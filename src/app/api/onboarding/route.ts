@@ -3,6 +3,7 @@ import { TRIAL_CREDITS, trialEndFrom } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
+import { DEFAULT_MODEL } from '@/lib/llm/models'
 
 export async function POST(request: NextRequest) {
     try {
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
                         name: agentName.trim(),
                         description: 'Meu primeiro agente',
                         llmProvider: 'openai',
-                        llmModel: 'gpt-4o',
+                        llmModel: DEFAULT_MODEL,
                         systemPrompt: 'Você é um assistente útil e amigável.',
                         temperature: 0.7,
                         primaryColor: '#3B82F6',

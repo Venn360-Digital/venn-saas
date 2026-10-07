@@ -1,7 +1,6 @@
 import { LLMConfig, LLMProvider, LLMProviderName } from '@/types/llm'
 import { OpenAIProvider } from './openai'
-import { GeminiProvider } from './gemini'
-import { ClaudeProvider } from './claude'
+import { DEFAULT_MODEL } from './models'
 
 export class LLMFactory {
     /**
@@ -10,7 +9,7 @@ export class LLMFactory {
      */
     static create(provider: LLMProviderName, config?: Partial<LLMConfig>): LLMProvider {
         const apiKey = LLMFactory.getApiKey(provider, config?.apiKey)
-        const model = config?.model || LLMFactory.getDefaultModel(provider)
+        const model = config?.model || DEFAULT_MODEL
 
         const fullConfig: LLMConfig = {
             apiKey,
@@ -22,10 +21,6 @@ export class LLMFactory {
         switch (provider) {
             case 'openai':
                 return new OpenAIProvider(fullConfig)
-            case 'gemini':
-                return new GeminiProvider(fullConfig)
-            case 'claude':
-                return new ClaudeProvider(fullConfig)
             default:
                 throw new Error(`Unsupported LLM provider: ${provider}`)
         }
@@ -34,36 +29,11 @@ export class LLMFactory {
     private static getApiKey(provider: LLMProviderName, overrideKey?: string): string {
         if (overrideKey) return overrideKey
 
-        let envKey: string | undefined
-
-        switch (provider) {
-            case 'openai':
-                envKey = process.env.OPENAI_API_KEY
-                break
-            case 'gemini':
-                envKey = process.env.GOOGLE_AI_API_KEY
-                break
-            case 'claude':
-                envKey = process.env.ANTHROPIC_API_KEY
-                break
-        }
+        const envKey = process.env.OPENAI_API_KEY
 
         if (!envKey) {
             throw new Error(`Missing API Key for provider: ${provider}`)
         }
         return envKey
-    }
-
-    private static getDefaultModel(provider: LLMProviderName): string {
-        switch (provider) {
-            case 'openai':
-                return 'gpt-4o'
-            case 'gemini':
-                return 'gemini-1.5-pro-latest'
-            case 'claude':
-                return 'claude-3-5-sonnet-20241022'
-            default:
-                return ''
-        }
     }
 }

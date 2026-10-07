@@ -134,8 +134,8 @@ model Agent {
   avatar        String?
   
   // AI Configuration
-  llmProvider   String   // "openai" | "gemini" | "claude"
-  llmModel      String   // "gpt-4o", "gemini-2.0-flash-exp", "claude-3-5-sonnet-20241022"
+  llmProvider   String   // "openai" — único provedor do MVP; ver src/types/llm.ts
+  llmModel      String   // ver OPENAI_MODELS em src/lib/llm/models.ts
   systemPrompt  String   @db.Text
   temperature   Float    @default(0.7)
   
@@ -674,8 +674,8 @@ model UsageLog {
   workspaceId  String
   agentId      String?
   
-  provider     String   // "openai", "gemini", "claude"
-  model        String   // "gpt-4o", "gemini-2.0-flash-exp", etc
+  provider     String   // "openai"
+  model        String   // ver OPENAI_MODELS em src/lib/llm/models.ts
   
   promptTokens     Int
   completionTokens Int

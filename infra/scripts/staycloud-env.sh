@@ -50,8 +50,6 @@ carry() {
     [ -f "$DEST" ] && grep -E "^$1=" "$DEST" | tail -1 | cut -d= -f2- || true
 }
 OPENAI_API_KEY=$(carry OPENAI_API_KEY)
-GOOGLE_AI_API_KEY=$(carry GOOGLE_AI_API_KEY)
-ANTHROPIC_API_KEY=$(carry ANTHROPIC_API_KEY)
 GOOGLE_CLIENT_ID=$(carry GOOGLE_CLIENT_ID)
 GOOGLE_CLIENT_SECRET=$(carry GOOGLE_CLIENT_SECRET)
 
@@ -105,10 +103,10 @@ EVO_DB_PASSWORD=$EVO_DB_PASSWORD
 # network instead of leaving the host and returning through Traefik.
 WEBHOOK_BASE_URL=http://app:3000
 
-# ── LLM providers — fill these in by hand ───────────────────
+# ── OpenAI — fill this in by hand ───────────────────────────
+# Chat do agente e embeddings do RAG. O projeto da chave precisa permitir os
+# dois usos; uma allowlist só de chat derruba a base de conhecimento com 403.
 OPENAI_API_KEY=$OPENAI_API_KEY
-GOOGLE_AI_API_KEY=$GOOGLE_AI_API_KEY
-ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
 
 # ── Google Calendar — fill these in by hand ─────────────────
 GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
@@ -123,7 +121,7 @@ echo "    app  →  https://$APP_HOST"
 echo "    api  →  https://$API_HOST"
 echo
 MISSING=""
-for v in OPENAI_API_KEY GOOGLE_AI_API_KEY ANTHROPIC_API_KEY; do
+for v in OPENAI_API_KEY; do
     [ -n "$(carry "$v")" ] || MISSING="$MISSING $v"
 done
-[ -n "$MISSING" ] && echo "    Still empty:$MISSING" || echo "    All provider keys present."
+[ -n "$MISSING" ] && echo "    Still empty:$MISSING" || echo "    OpenAI key present."

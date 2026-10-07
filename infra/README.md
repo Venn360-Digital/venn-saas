@@ -141,7 +141,9 @@ Compose reads that variable straight out of `.env` — left in place it would ma
 
 Then fill in by hand, in `infra/.env`:
 
-- `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY` — único provedor do MVP. O projeto da chave precisa
+  permitir um modelo de chat **e** `text-embedding-3-small`: uma allowlist só
+  de modelos de chat faz a base de conhecimento falhar com 403.
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `SMTP_*` — password resets and e-mail confirmation need a real sender. Without
   it a user who forgets their password cannot recover it.

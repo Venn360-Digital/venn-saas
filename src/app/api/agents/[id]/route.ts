@@ -6,7 +6,7 @@ import { z } from 'zod'
 const updateAgentSchema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    llmProvider: z.enum(['openai', 'gemini', 'claude']).optional(),
+    llmProvider: z.enum(['openai']).optional(),
     llmModel: z.string().optional(),
     systemPrompt: z.string().min(10).optional(),
     temperature: z.number().min(0).max(2).optional(),

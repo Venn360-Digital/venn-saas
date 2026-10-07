@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { Agent } from '@prisma/client'
+import { OPENAI_MODELS, DEFAULT_MODEL } from '@/lib/llm/models'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -40,7 +41,7 @@ import { Switch } from '@/components/ui/switch'
 const formSchema = z.object({
     name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
     description: z.string().optional(),
-    llmProvider: z.enum(['openai', 'gemini', 'claude']),
+    llmProvider: z.enum(['openai']),
     llmModel: z.string().min(1, 'Selecione um modelo'),
     systemPrompt: z.string().min(10, 'Prompt deve ter pelo menos 10 caracteres'),
     temperature: z.number().min(0).max(2).default(0.7),
@@ -79,7 +80,7 @@ export function AgentEditor({
         ? {
             name: agent.name,
             description: agent.description || '',
-            llmProvider: agent.llmProvider as 'openai' | 'gemini' | 'claude',
+            llmProvider: 'openai',
             llmModel: agent.llmModel,
             systemPrompt: agent.systemPrompt,
             temperature: agent.temperature,
@@ -92,7 +93,7 @@ export function AgentEditor({
             name: '',
             description: '',
             llmProvider: 'openai',
-            llmModel: 'gpt-4o',
+            llmModel: DEFAULT_MODEL,
             systemPrompt: 'Você é um assistente útil e amigável.',
             temperature: 0.7,
             primaryColor: '#3B82F6',
@@ -195,56 +196,37 @@ export function AgentEditor({
                             )}
                         />
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="llmProvider"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Provedor IA</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="openai">OpenAI (GPT)</SelectItem>
-                                                <SelectItem value="gemini">Google Gemini</SelectItem>
-                                                <SelectItem value="claude">Anthropic Claude</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            <FormField
-                                control={form.control}
-                                name="llmModel"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Modelo</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="gpt-4o">GPT-4o (Mais Inteligente)</SelectItem>
-                                                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo (Rápido)</SelectItem>
-                                                <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                                                <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
-                                                <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
-                                                <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                        {/* Sem seletor de provedor: o MVP é OpenAI-only, e um
+                            campo com uma opção só é ruído. `llmProvider` continua
+                            no formulário com valor fixo, porque a coluna existe no
+                            banco e um segundo provedor volta por aqui. */}
+                        <FormField
+                            control={form.control}
+                            name="llmModel"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Modelo</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {OPENAI_MODELS.map((model) => (
+                                                <SelectItem key={model.id} value={model.id}>
+                                                    {model.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                        Define o custo de cada resposta e, portanto, quanto os créditos rendem.
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
                         <FormField
                             control={form.control}

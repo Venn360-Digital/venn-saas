@@ -11,7 +11,7 @@ const createAgentSchema = z.object({
     description: z.string().optional(),
 
     // AI Configuration
-    llmProvider: z.enum(['openai', 'gemini', 'claude']),
+    llmProvider: z.enum(['openai']),
     llmModel: z.string(),
     systemPrompt: z.string().min(10, "System prompt deve ter pelo menos 10 caracteres"),
     temperature: z.number().min(0).max(2).optional(),

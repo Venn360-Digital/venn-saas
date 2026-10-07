@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AgentCreationData, PerfilData, TrabalhoData, CerebroData, VozData, VisualData } from '@/types/agent-creation'
+import { DEFAULT_MODEL } from '@/lib/llm/models'
 
 export function useAgentCreation(workspaceId: string) {
     const router = useRouter()
@@ -79,7 +80,7 @@ export function useAgentCreation(workspaceId: string) {
 
                 // AI Configuration (defaults)
                 llmProvider: 'openai',
-                llmModel: 'gpt-4o',
+                llmModel: DEFAULT_MODEL,
                 systemPrompt: buildSystemPrompt(),
                 temperature: 0.7,
                 isActive: true,

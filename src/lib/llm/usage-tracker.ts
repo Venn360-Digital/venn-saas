@@ -2,25 +2,8 @@ import prisma from '@/lib/prisma'
 import { LLMProviderName } from '@/types/llm'
 import { Decimal } from '@prisma/client/runtime/library'
 import { Prisma } from '@prisma/client'
+import { findModel } from './models'
 
-// Pricing per 1M tokens (as of 2024)
-const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-    // OpenAI
-    'gpt-4o': { input: 2.5, output: 10.0 },
-    'gpt-4o-mini': { input: 0.15, output: 0.6 },
-    'gpt-4-turbo': { input: 10.0, output: 30.0 },
-    'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-
-    // Claude
-    'claude-3-5-sonnet-20241022': { input: 3.0, output: 15.0 },
-    'claude-3-opus-20240229': { input: 15.0, output: 75.0 },
-    'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
-
-    // Gemini
-    'gemini-1.5-pro-latest': { input: 1.25, output: 5.0 },
-    'gemini-2.0-flash-exp': { input: 0.075, output: 0.3 },
-    'gemini-1.5-flash': { input: 0.075, output: 0.3 },
-}
 
 export interface UsageData {
     promptTokens: number
@@ -42,7 +25,19 @@ export function calculateCost(
     promptTokens: number,
     completionTokens: number
 ): number {
-    const pricing = MODEL_PRICING[model] || { input: 0.5, output: 1.5 } // default fallback
+    const info = findModel(model)
+
+    if (!info) {
+        // Barato demais de propósito seria pior que ruidoso: o crédito do
+        // cliente é debitado por este número, então um modelo sem preço
+        // precisa aparecer no log em vez de ser cobrado por um palpite.
+        console.error(
+            `[LLM_USAGE] modelo "${model}" não está em OPENAI_MODELS — ` +
+                'cobrando pelo fallback. Acrescente-o ao catálogo com o preço real.'
+        )
+    }
+
+    const pricing = info?.price ?? { input: 0.5, output: 1.5 }
 
     // Cost = (tokens / 1M) * price per 1M
     const inputCost = (promptTokens / 1_000_000) * pricing.input
