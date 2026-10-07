@@ -508,6 +508,11 @@ export default function ConversasPage() {
         try {
             const res = await fetch(`/api/conversations/${convId}?limit=30`)
             const data = await res.json()
+            console.info('[REALTIME] fetchMessages', convId, {
+                status: res.status,
+                total: data.messages?.length,
+                ultima: data.messages?.at(-1)?.content?.slice(0, 24),
+            })
             if (data.conversation) {
                 setConversationDetail(data)
                 setMessages(data.messages || [])
@@ -698,7 +703,11 @@ export default function ConversasPage() {
                 event: '*',
                 schema: 'public',
                 table: 'conversations',
-            }, () => {
+            }, (payload) => {
+                console.info('[REALTIME] conversations', payload.eventType, {
+                    id: (payload.new as { id?: string } | null)?.id,
+                    selected: selectedConversationRef.current,
+                })
                 // Refetch conversations list when any conversation changes
                 fetchConversations()
                 // Also refetch messages for the currently open conversation
@@ -717,6 +726,12 @@ export default function ConversasPage() {
                 fetchConversations()
                 // Also refetch messages if the new message belongs to the currently open conversation
                 const newMsg = payload.new as RealtimeMessageRow
+                console.info('[REALTIME] messages INSERT', {
+                    conversationId: newMsg?.conversationId,
+                    selected: selectedConversationRef.current,
+                    direction: newMsg?.direction,
+                    willRefetch: Boolean(newMsg?.conversationId) && selectedConversationRef.current === newMsg?.conversationId,
+                })
 
                 // Só mensagem recebida avisa: o eco da que a própria atendente
                 // acabou de enviar tocaria o aviso no ouvido de quem a digitou.
@@ -757,6 +772,8 @@ export default function ConversasPage() {
                 // atualizava.
                 if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
                     console.error('[REALTIME] canal de conversas:', status, error)
+                } else {
+                    console.info('[REALTIME] canal de conversas:', status)
                 }
             })
 
