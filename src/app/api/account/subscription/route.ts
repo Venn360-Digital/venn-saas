@@ -145,6 +145,7 @@ export async function POST(request: NextRequest) {
                         status: 'active',
                         maxAgents: planConfig.maxAgents,
                         maxMessages: planConfig.maxMessages,
+                        maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
                         credits: planConfig.credits,
                         currentPeriodStart: new Date(),
                         currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
                         status: 'active',
                         maxAgents: planConfig.maxAgents,
                         maxMessages: planConfig.maxMessages,
+                        maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
                         trialEndsAt: null,
                     }
                 })
