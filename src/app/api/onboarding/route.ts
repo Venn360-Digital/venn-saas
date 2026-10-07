@@ -1,4 +1,5 @@
-import { TRIAL, planFor } from '@/lib/plans'
+import { planFor } from '@/lib/plans'
+import { TRIAL_CREDITS, trialEndFrom } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
@@ -97,7 +98,12 @@ export async function POST(request: NextRequest) {
             // hardcoded "Pro". The limits written here are the ones enforced
             // when agents and WhatsApp numbers are created.
             const chosen = planFor(plan)
-            const trialEndsAt = new Date(Date.now() + TRIAL.days * 86_400_000)
+            // The window is counted from the owner's signup, not from finishing
+            // onboarding — someone who signs up and completes the wizard a day
+            // later should not get an extra day. It closes at 23:59 São Paulo on
+            // the seventh full day.
+            const signedUpAt = user.created_at ? new Date(user.created_at) : new Date()
+            const trialEndsAt = trialEndFrom(signedUpAt)
 
             await tx.subscription.create({
                 data: {
@@ -109,10 +115,11 @@ export async function POST(request: NextRequest) {
                     maxWhatsAppNumbers: chosen.limits.maxWhatsAppNumbers,
                     // The trial grants its own credit balance; the plan's monthly
                     // allowance takes over when the subscription is activated.
-                    credits: TRIAL.credits,
+                    credits: TRIAL_CREDITS,
                     creditsUsed: 0,
+                    trialStartsAt: signedUpAt,
                     trialEndsAt,
-                    currentPeriodStart: new Date(),
+                    currentPeriodStart: signedUpAt,
                     currentPeriodEnd: trialEndsAt,
                 },
             })

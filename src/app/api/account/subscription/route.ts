@@ -1,4 +1,5 @@
 import { PLAN_LIST, TRIAL, planFor } from '@/lib/plans'
+import { canBuyCredits, getBillingState, purchaseExpiry, renewalDate } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -148,7 +149,7 @@ export async function POST(request: NextRequest) {
                         maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
                         credits: planConfig.credits,
                         currentPeriodStart: new Date(),
-                        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                        currentPeriodEnd: renewalDate(),
                     },
                     update: {
                         plan,
@@ -168,23 +169,43 @@ export async function POST(request: NextRequest) {
             }
 
             case 'buy-credits': {
+                // Requires an active plan AND being outside the trial. Without
+                // both, a workspace could run indefinitely on bought credits and
+                // never hold a subscription — which is the whole point of the
+                // rule. See PRODUCT.md.
+                const state = await getBillingState(workspaceUser.workspaceId)
+                const permitted = canBuyCredits(state)
+                if (!permitted.ok) {
+                    return NextResponse.json({ error: permitted.reason }, { status: 402 })
+                }
+
                 const { quantity } = data
-                const lots = Math.ceil(quantity / 1000)
+                const lots = Math.max(1, Math.ceil(quantity / 1000))
                 const creditsToAdd = lots * 1000
                 const totalPrice = lots * CREDIT_PRICE
 
-                const subscription = await prisma.subscription.update({
-                    where: { workspaceId: workspaceUser.workspaceId },
+                // A purchase is its own lot with its own expiry, not an increment
+                // of the plan's allowance — the plan balance is discarded at
+                // renewal, and credits the clinic paid for separately must not go
+                // with it.
+                const expiresAt = purchaseExpiry()
+                await prisma.creditPurchase.create({
                     data: {
-                        credits: { increment: creditsToAdd }
-                    }
+                        workspaceId: workspaceUser.workspaceId,
+                        amount: creditsToAdd,
+                        priceCents: Math.round(totalPrice * 100),
+                        expiresAt,
+                    },
                 })
+
+                const after = await getBillingState(workspaceUser.workspaceId)
 
                 return NextResponse.json({
                     success: true,
-                    message: `${creditsToAdd} créditos adicionados por R$ ${totalPrice.toFixed(2)}`,
+                    message: `${creditsToAdd.toLocaleString('pt-BR')} créditos adicionados por R$ ${totalPrice.toFixed(2)}. Válidos até ${expiresAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`,
                     creditsAdded: creditsToAdd,
-                    newTotal: subscription.credits,
+                    expiresAt,
+                    newTotal: after.credits.available,
                 })
             }
 

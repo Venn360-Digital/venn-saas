@@ -17,6 +17,7 @@ datasource db {
 // ============================================
 
 model User {
+  termsAcceptances TermsAcceptance[]
   id             String   @id @default(cuid())
   email          String   @unique
   name           String?
@@ -36,6 +37,8 @@ model User {
 }
 
 model Workspace {
+  creditPurchases  CreditPurchase[]
+  termsAcceptances TermsAcceptance[]
   id            String   @id @default(cuid())
   name          String
   slug          String   @unique
@@ -120,6 +123,9 @@ model QuickResponse {
 // ============================================
 
 model Agent {
+  /// Set when a downgrade pushed this agent past the plan's allowance. The user
+  /// cannot switch it back on; only a plan that fits releases it.
+  pausedByLimit Boolean @default(false)
   id            String   @id @default(cuid())
   workspaceId   String
   name          String
@@ -204,6 +210,10 @@ model AgentRule {
 
 // Integrações de canais do agente
 model AgentIntegration {
+  /// The connected number, lifted out of `config` so it can be unique across
+  /// every workspace: a number belongs to one workspace at a time, which is what
+  /// stops trials being chained with the same line.
+  phoneNumber String?
   id          String   @id @default(cuid())
   agentId     String
   
@@ -584,7 +594,10 @@ model Subscription {
   // Billing
   stripeId       String?
   paymentMethod  Json?                     // { type, last4, brand }
-  trialEndsAt    DateTime?                 // Data fim do trial
+  trialStartsAt  DateTime?                 // O cadastro do proprietário, não o fim do onboarding
+  trialEndsAt    DateTime?                 // 23:59 do sétimo dia, fuso America/Sao_Paulo
+  /// Quando o workspace entrou em somente-leitura. Inicia a contagem de retenção.
+  readOnlySince  DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
   
@@ -594,6 +607,41 @@ model Subscription {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   
   @@map("subscriptions")
+}
+
+/// Avulso credits. Kept apart from the plan's allowance because the two expire
+/// differently: plan credits are discarded on renewal, these last 90 days from
+/// purchase or until spent. Consumption takes plan credits first, since those
+/// die at renewal anyway.
+model CreditPurchase {
+  id          String   @id @default(cuid())
+  workspaceId String
+  amount      Int
+  used        Int      @default(0)
+  priceCents  Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, expiresAt])
+  @@map("credit_purchases")
+}
+
+/// Who accepted which version of the terms, and when. Recorded on the last step
+/// of onboarding.
+model TermsAcceptance {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  version     String
+  acceptedAt  DateTime @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId, version])
+  @@map("terms_acceptances")
 }
 
 model UsageLog {
