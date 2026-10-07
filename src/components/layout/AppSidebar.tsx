@@ -80,10 +80,12 @@ export function AppSidebar() {
         <Sidebar collapsible="icon">
             {/* Taller than the topbar on purpose: the lockup is wide, and at the
                 size it needs to read it no longer fits a 56px bar. */}
-            <SidebarHeader className="h-20 shrink-0 items-center justify-center border-b border-sidebar-border px-4">
+            {/* Mesma altura do Topbar (h-16): as duas bordas inferiores se encontram
+                por construção, não por ajuste. A logo cabe com folga a 44 px. */}
+            <SidebarHeader className="h-16 shrink-0 items-center justify-center border-b border-sidebar-border px-4">
                 <Link href="/dashboard" aria-label="OdontoBox360">
                     <span className="block group-data-[collapsible=icon]:hidden">
-                        <Logo variant="wordmark" height={56} priority />
+                        <Logo variant="wordmark" height={44} priority />
                     </span>
                     {/* A 3:1 lockup cannot survive the collapsed rail, so the
                         symbol stands in for it there. */}
