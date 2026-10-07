@@ -204,9 +204,24 @@ export class EvolutionGoProvider implements WhatsAppProvider {
             this.tokenOf(credentials, '/instance/status')
         )
 
+        const socketOpen = Boolean(data?.Connected)
+        const loggedIn = Boolean(data?.LoggedIn)
+
+        // `Connected` é o websocket com o WhatsApp, e ele abre no instante do
+        // `/instance/connect` — ficando aberto durante os minutos em que o QR
+        // espera ser lido. Tratá-lo como "conectado" fazia a rota anunciar um
+        // número pareado antes de alguém ter escaneado qualquer coisa, e pular
+        // a exibição do QR por inteiro.
+        //
+        // Medido nesta instalação, numa instância descartável:
+        //   recém-criada          → {Connected: false, LoggedIn: false}
+        //   após connect, sem par → {Connected: true,  LoggedIn: false}
+        //
+        // `LoggedIn` é o único campo que distingue os dois casos.
         const state: ConnectionState = {
-            connected: Boolean(data?.Connected),
-            loggedIn: Boolean(data?.LoggedIn),
+            connected: loggedIn,
+            loggedIn,
+            socketOpen,
         }
 
         // /instance/status reports no number, so fall back to the admin listing,

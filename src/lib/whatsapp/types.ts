@@ -51,8 +51,18 @@ export interface CreatedInstance extends InstanceCredentials {
 }
 
 export interface ConnectionState {
+    /**
+     * Há uma sessão de WhatsApp pareada. É o que "conectado" significa para
+     * quem pergunta — a tela, o cron de saúde e o envio de mensagem.
+     */
     connected: boolean
     loggedIn?: boolean
+    /**
+     * O socket com o WhatsApp está aberto. Abre no `/instance/connect` e fica
+     * aberto durante todo o tempo em que o QR espera ser lido, então sozinho
+     * ele não diz nada sobre pareamento. Diagnóstico apenas.
+     */
+    socketOpen?: boolean
     /** Owner MSISDN when the provider exposes it. */
     phoneNumber?: string
 }

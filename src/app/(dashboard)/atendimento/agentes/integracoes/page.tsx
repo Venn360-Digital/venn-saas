@@ -44,6 +44,11 @@ function IntegracoesContent() {
         }
     }, [urlAgentId])
 
+    const refreshIntegrations = useCallback(() => {
+        const id = agentIdRef.current
+        if (id) void loadIntegrations(id)
+    }, [loadIntegrations])
+
     const handleSave = useCallback(async () => {
         const currentAgentId = agentIdRef.current
 
@@ -64,6 +69,11 @@ function IntegracoesContent() {
                         integrations={integrations}
                         onConnect={connectChannel}
                         onDisconnect={disconnectChannel}
+                        // Sem isto, conectar e desconectar funcionavam no servidor
+                        // e a tela continuava mostrando o estado anterior: o
+                        // CanaisTab chama `onIntegrationChange` depois de cada um,
+                        // e a prop nunca era passada.
+                        onIntegrationChange={refreshIntegrations}
                     />
                 )
             case 'api':

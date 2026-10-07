@@ -81,12 +81,17 @@ export function useAgentIntegrations(agentId?: string | null) {
     }
 
     // Desconectar canal
+    /**
+     * Desconexão dos canais que ainda não têm implementação de servidor.
+     *
+     * O WhatsApp por QR-Code não passa por aqui — o CanaisTab chama a rota dele
+     * diretamente. Este caminho cobre Instagram, Facebook e a API Oficial, que
+     * não têm rota de desconexão, e antes ele mudava o estado local e dava um
+     * toast de sucesso: a tela dizia "desconectado" enquanto no servidor nada
+     * havia acontecido. Avisar é pior que mentir só na primeira vez.
+     */
     const disconnectChannel = async (channel: string) => {
-        // TODO: Implementar desconexão via API
-        setIntegrations(prev => prev.map(i =>
-            i.channel === channel ? { ...i, status: 'disconnected' as const } : i
-        ))
-        toast.success('Canal desconectado')
+        toast.error(`Desconexão de ${channel} ainda não está disponível.`)
     }
 
     // Salvar webhooks
