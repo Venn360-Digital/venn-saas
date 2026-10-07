@@ -330,6 +330,12 @@ export default function ConversasPage() {
     const [onlyMine, setOnlyMine] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
+    // Incrementa para derrubar e recriar o canal do Realtime depois de um erro.
+    const [realtimeGeneration, setRealtimeGeneration] = useState(0)
+    // Última mensagem conhecida da conversa aberta, para o polling detectar
+    // atividade nova sem depender do evento.
+    const trackedConversationRef = useRef<string | null>(null)
+    const lastSeenMessageIdRef = useRef<string | null>(null)
     const pollRef = useRef<NodeJS.Timeout | null>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const prevTotalUnreadRef = useRef<number>(0)
@@ -508,7 +514,7 @@ export default function ConversasPage() {
         try {
             const res = await fetch(`/api/conversations/${convId}?limit=30`)
             const data = await res.json()
-            console.info('[REALTIME] fetchMessages', convId, {
+            console.warn('[REALTIME] fetchMessages', convId, {
                 status: res.status,
                 total: data.messages?.length,
                 ultima: data.messages?.at(-1)?.content?.slice(0, 24),
@@ -695,6 +701,8 @@ export default function ConversasPage() {
     // Initial fetch + Supabase Realtime subscription for conversations
     useEffect(() => {
         fetchConversations()
+        let disposed = false
+        let retryTimer: ReturnType<typeof setTimeout> | null = null
 
         // Subscribe to conversations table changes for realtime updates
         const channel = supabase
@@ -704,7 +712,7 @@ export default function ConversasPage() {
                 schema: 'public',
                 table: 'conversations',
             }, (payload) => {
-                console.info('[REALTIME] conversations', payload.eventType, {
+                console.warn('[REALTIME] conversations', payload.eventType, {
                     id: (payload.new as { id?: string } | null)?.id,
                     selected: selectedConversationRef.current,
                 })
@@ -726,7 +734,7 @@ export default function ConversasPage() {
                 fetchConversations()
                 // Also refetch messages if the new message belongs to the currently open conversation
                 const newMsg = payload.new as RealtimeMessageRow
-                console.info('[REALTIME] messages INSERT', {
+                console.warn('[REALTIME] messages INSERT', {
                     conversationId: newMsg?.conversationId,
                     selected: selectedConversationRef.current,
                     direction: newMsg?.direction,
@@ -770,10 +778,17 @@ export default function ConversasPage() {
                 // que o Realtime ficou meses mudo sem ninguém notar: o polling
                 // disfarçava o sintoma na lista e o chat simplesmente não
                 // atualizava.
-                if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                const failed = status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || (status === 'CLOSED' && !disposed)
+                if (failed) {
                     console.error('[REALTIME] canal de conversas:', status, error)
+                    // Um canal em erro não refaz o join sozinho. Recriar o canal
+                    // é o que devolve o chat ao vivo numa aba aberta há horas,
+                    // depois de o token do socket expirar ou a rede oscilar.
+                    if (!disposed && !retryTimer) {
+                        retryTimer = setTimeout(() => setRealtimeGeneration((g) => g + 1), 3000)
+                    }
                 } else {
-                    console.info('[REALTIME] canal de conversas:', status)
+                    console.warn('[REALTIME] canal de conversas:', status)
                 }
             })
 
@@ -781,10 +796,12 @@ export default function ConversasPage() {
         pollRef.current = setInterval(fetchConversations, 15000)
 
         return () => {
+            disposed = true
+            if (retryTimer) clearTimeout(retryTimer)
             supabase.removeChannel(channel)
             if (pollRef.current) clearInterval(pollRef.current)
         }
-    }, [fetchConversations, supabase])
+    }, [fetchConversations, supabase, realtimeGeneration])
 
     // Ref to track the current selected conversation for realtime callbacks
     const selectedConversationRef = useRef<string | null>(null)
@@ -799,6 +816,42 @@ export default function ConversasPage() {
         fetchMessages(selectedConversation)
         markAsRead(selectedConversation)
     }, [selectedConversation, fetchMessages, markAsRead])
+
+    /**
+     * O chat aberto se atualiza por qualquer caminho que atualize a lista.
+     *
+     * A lista de conversas chegava nova por dois caminhos — evento do Realtime
+     * e polling de 15 s — e o chat, por um só: o evento. Bastava o evento
+     * falhar (token do socket expirado numa aba aberta há horas, canal em
+     * erro) para o card mostrar a mensagem nova e o chat continuar parado, até
+     * alguém recarregar a página. Era exatamente o sintoma relatado.
+     *
+     * Agora, sempre que a lista muda e a conversa aberta tem uma última
+     * mensagem diferente da que o chat conhece, as mensagens são recarregadas.
+     * Custa um GET a cada mensagem nova, e só quando há mensagem nova.
+     */
+    useEffect(() => {
+        if (!selectedConversation) {
+            trackedConversationRef.current = null
+            lastSeenMessageIdRef.current = null
+            return
+        }
+        const current = conversations.find((c) => c.id === selectedConversation)
+        const latestId = current?.lastMessage?.id ?? null
+
+        if (trackedConversationRef.current !== selectedConversation) {
+            // Conversa recém-aberta: o efeito acima já carregou as mensagens.
+            trackedConversationRef.current = selectedConversation
+            lastSeenMessageIdRef.current = latestId
+            return
+        }
+        if (latestId && latestId !== lastSeenMessageIdRef.current) {
+            lastSeenMessageIdRef.current = latestId
+            console.warn('[REALTIME] fallback: lista mudou, recarregando o chat', latestId)
+            fetchMessages(selectedConversation)
+            markAsRead(selectedConversation)
+        }
+    }, [conversations, selectedConversation, fetchMessages, markAsRead])
 
     // Typing indicators subscription
     useEffect(() => {
