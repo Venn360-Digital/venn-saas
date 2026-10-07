@@ -1,5 +1,8 @@
 'use client'
 
+import { Step5Terms } from '@/components/onboarding/Step5Terms'
+import { TERMS_VERSION } from '@/lib/terms'
+import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -62,7 +65,43 @@ export default function OnboardingPage() {
     }
 
     const nextStep = () => {
-        setCurrentStep(prev => Math.min(prev + 1, 4))
+        setCurrentStep(prev => Math.min(prev + 1, 5))
+    }
+
+    const [submitting, setSubmitting] = useState(false)
+
+    /**
+     * Creates the workspace. It lives here rather than in a step because nothing
+     * should exist before the agreement is accepted — the acceptance travels with
+     * the same request that creates everything else.
+     */
+    const handleFinish = async () => {
+        setSubmitting(true)
+        try {
+            const response = await fetch('/api/onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    workspaceName: onboardingData.workspaceName,
+                    workspaceSlug: onboardingData.workspaceSlug,
+                    plan: onboardingData.plan,
+                    agentName: onboardingData.agentName?.trim(),
+                    acceptedTermsVersion: TERMS_VERSION,
+                }),
+            })
+
+            const result = await response.json()
+            if (!response.ok) throw new Error(result.error || 'Não foi possível criar o workspace')
+
+            toast.success('Tudo pronto')
+            router.push('/dashboard')
+            router.refresh()
+        } catch (error) {
+            console.error('[ONBOARDING]', error)
+            toast.error(error instanceof Error ? error.message : 'Não foi possível criar o workspace')
+        } finally {
+            setSubmitting(false)
+        }
     }
 
     const prevStep = () => {
@@ -95,7 +134,7 @@ export default function OnboardingPage() {
                 {/* Progress Steps */}
                 <div className="mb-12 flex justify-center">
                     <div className="flex items-center gap-4">
-                        {[1, 2, 3, 4].map((step) => (
+                        {[1, 2, 3, 4, 5].map((step) => (
                             <div key={step} className="flex items-center">
                                 <div
                                     className={`flex h-12 w-12 items-center justify-center rounded-full ${step < currentStep
@@ -152,7 +191,15 @@ export default function OnboardingPage() {
                         <Step4Agent
                             data={onboardingData}
                             updateData={updateData}
+                            onNext={nextStep}
                             onBack={prevStep}
+                        />
+                    )}
+                    {currentStep === 5 && (
+                        <Step5Terms
+                            onFinish={handleFinish}
+                            onBack={prevStep}
+                            loading={submitting}
                         />
                     )}
                 </div>

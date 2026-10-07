@@ -34,16 +34,25 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                         <p className="text-xs text-muted-foreground">{agent.llmModel}</p>
                     </div>
                 </div>
-                <Badge
-                    variant={agent.isActive ? 'default' : 'secondary'}
-                    className={cn(
-                        "cursor-pointer hover:opacity-80",
-                        agent.isActive ? "bg-success hover:bg-success/90" : "bg-muted-foreground"
-                    )}
-                    onClick={() => onToggleStatus(agent.id, agent.isActive)}
-                >
-                    {agent.isActive ? 'Ativo' : 'Pausado'}
-                </Badge>
+                {/* An agent paused because the plan shrank cannot be switched
+                    back on — the badge says why rather than being a control that
+                    silently refuses. */}
+                {agent.pausedByLimit ? (
+                    <Badge
+                        variant="warning"
+                        title="Pausado por exceder o limite do plano. Mude de plano para reativá-lo."
+                    >
+                        Acima do plano
+                    </Badge>
+                ) : (
+                    <Badge
+                        variant={agent.isActive ? 'success' : 'neutral'}
+                        className="cursor-pointer hover:opacity-80"
+                        onClick={() => onToggleStatus(agent.id, agent.isActive)}
+                    >
+                        {agent.isActive ? 'Ativo' : 'Pausado'}
+                    </Badge>
+                )}
             </CardHeader>
 
             <CardContent className="flex-1 pb-4">

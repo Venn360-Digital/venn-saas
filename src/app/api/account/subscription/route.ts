@@ -1,5 +1,6 @@
 import { PLAN_LIST, TRIAL, planFor } from '@/lib/plans'
 import { canBuyCredits, getBillingState, purchaseExpiry, renewalDate } from '@/lib/billing'
+import { applyPlanLimits } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -161,9 +162,38 @@ export async function POST(request: NextRequest) {
                     }
                 })
 
+                // Bring the workspace in line with what the new plan allows.
+                // Without this a downgrade would leave the limits displayed but
+                // not applied, and the clinic would keep running three agents on
+                // a one-agent plan.
+                const adjusted = await applyPlanLimits(workspaceUser.workspaceId, {
+                    maxAgents: planConfig.maxAgents,
+                    maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
+                })
+
+                const notes: string[] = []
+                if (adjusted.agentsPaused > 0) {
+                    notes.push(
+                        `${adjusted.agentsPaused} agente${adjusted.agentsPaused === 1 ? ' foi pausado' : 's foram pausados'} por exceder o plano`
+                    )
+                }
+                if (adjusted.numbersPaused > 0) {
+                    notes.push(
+                        `${adjusted.numbersPaused} número${adjusted.numbersPaused === 1 ? ' de WhatsApp foi desconectado' : 's de WhatsApp foram desconectados'}`
+                    )
+                }
+                if (adjusted.agentsReleased > 0) {
+                    notes.push(
+                        `${adjusted.agentsReleased} agente${adjusted.agentsReleased === 1 ? ' foi reativado' : 's foram reativados'}`
+                    )
+                }
+
                 return NextResponse.json({
                     success: true,
-                    message: `Plano alterado para ${planConfig.name}`,
+                    message:
+                        `Plano alterado para ${planConfig.name}` +
+                        (notes.length ? `. ${notes.join('; ')}.` : ''),
+                    adjusted,
                     subscription
                 })
             }

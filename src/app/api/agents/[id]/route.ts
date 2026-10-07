@@ -136,6 +136,19 @@ export async function PATCH(
 
         const validatedData = updateAgentSchema.parse(body)
 
+        // An agent paused because the plan shrank cannot be switched back on
+        // from the UI — only a plan that fits releases it. Without this the
+        // toggle on the agent card would silently put the workspace back over
+        // its allowance. See PRODUCT.md §4.
+        if (existingAgent.pausedByLimit && validatedData.isActive === true) {
+            return NextResponse.json(
+                {
+                    error: 'Este agente está pausado porque excede o limite do seu plano. Mude de plano em Gerenciamento → Conta para reativá-lo.',
+                },
+                { status: 402 }
+            )
+        }
+
         const updatedAgent = await prisma.agent.update({
             where: { id },
             data: validatedData,

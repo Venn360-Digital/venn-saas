@@ -149,3 +149,73 @@ export async function canConnectWhatsApp(
 }
 
 export { TRIAL }
+
+/**
+ * Brings the workspace in line with the plan's allowance after a plan change.
+ *
+ * Downgrading pauses the excess by reverse order of creation — the oldest agent
+ * survives, because it is the one most likely to be the clinic's real one.
+ * Nothing is deleted: a paused agent keeps its prompt, its history and its
+ * integrations, and comes back whole when the plan grows again.
+ *
+ * `pausedByLimit` is what makes the pause stick. A plain `isActive: false` could
+ * be switched back on from the agents screen, which would put the workspace over
+ * its plan with no further check. Only this function clears it.
+ */
+export async function applyPlanLimits(
+    workspaceId: string,
+    limits: { maxAgents: number; maxWhatsAppNumbers: number }
+): Promise<{ agentsPaused: number; agentsReleased: number; numbersPaused: number }> {
+    const agents = await prisma.agent.findMany({
+        where: { workspaceId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, pausedByLimit: true },
+    })
+
+    const keep = agents.slice(0, limits.maxAgents)
+    const excess = agents.slice(limits.maxAgents)
+
+    // Release first: an upgrade should restore what a previous downgrade took,
+    // and only the agents that this rule paused — one the user switched off by
+    // hand stays off.
+    const toRelease = keep.filter((a) => a.pausedByLimit).map((a) => a.id)
+    if (toRelease.length > 0) {
+        await prisma.agent.updateMany({
+            where: { id: { in: toRelease } },
+            data: { pausedByLimit: false, isActive: true },
+        })
+    }
+
+    const toPause = excess.filter((a) => !a.pausedByLimit).map((a) => a.id)
+    if (toPause.length > 0) {
+        await prisma.agent.updateMany({
+            where: { id: { in: toPause } },
+            data: { pausedByLimit: true, isActive: false },
+        })
+    }
+
+    // The same rule for connected numbers. Disconnecting is a status change, not
+    // a deletion — the instance and its history stay, so reconnecting does not
+    // start from zero.
+    const integrations = await prisma.agentIntegration.findMany({
+        where: {
+            agent: { workspaceId },
+            channel: { in: ['whatsapp_qr', 'whatsapp_business'] },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+    })
+    const excessNumbers = integrations.slice(limits.maxWhatsAppNumbers).map((i) => i.id)
+    if (excessNumbers.length > 0) {
+        await prisma.agentIntegration.updateMany({
+            where: { id: { in: excessNumbers } },
+            data: { status: 'disconnected', errorMessage: 'Acima do limite do plano' },
+        })
+    }
+
+    return {
+        agentsPaused: toPause.length,
+        agentsReleased: toRelease.length,
+        numbersPaused: excessNumbers.length,
+    }
+}

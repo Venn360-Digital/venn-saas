@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
         console.log('[ONBOARDING] User:', user.id, user.email)
 
         const body = await request.json()
-        const { workspaceName, workspaceSlug, plan, agentName } = body
+        const { workspaceName, workspaceSlug, plan, agentName, acceptedTermsVersion } = body
 
         console.log('[ONBOARDING] Data:', { workspaceName, workspaceSlug, plan, agentName })
 
@@ -90,7 +90,20 @@ export async function POST(request: NextRequest) {
             })
             console.log('[ONBOARDING] Workspace user created')
 
-            // 5. Start the subscription on the chosen plan.
+            // 5. Record the agreement. In the same transaction as the
+            //    workspace: an acceptance that can exist without the workspace,
+            //    or a workspace without one, proves nothing.
+            if (acceptedTermsVersion) {
+                await tx.termsAcceptance.create({
+                    data: {
+                        userId: user.id,
+                        workspaceId: workspace.id,
+                        version: String(acceptedTermsVersion),
+                    },
+                })
+            }
+
+            // 6. Start the subscription on the chosen plan.
             //
             // This step did not exist: the plan picked during onboarding was
             // read from the request and then discarded, so every workspace ran
@@ -125,7 +138,7 @@ export async function POST(request: NextRequest) {
             })
             console.log('[ONBOARDING] Subscription created:', chosen.id)
 
-            // 6. Create first agent (optional)
+            // 7. Create first agent (optional)
             if (agentName && agentName.trim()) {
                 console.log('[ONBOARDING] Creating agent...')
                 await tx.agent.create({

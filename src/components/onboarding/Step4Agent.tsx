@@ -16,45 +16,20 @@ interface Step4AgentProps {
         agentName: string
     }
     updateData: (data: any) => void
+    onNext: () => void
     onBack: () => void
 }
 
-export function Step4Agent({ data, updateData, onBack }: Step4AgentProps) {
+export function Step4Agent({ data, updateData, onNext, onBack }: Step4AgentProps) {
     const [agentName, setAgentName] = useState(data.agentName || '')
     const [loading, setLoading] = useState(false)
     const router = useRouter()
 
-    const handleFinish = async () => {
-        setLoading(true)
-        try {
-            const response = await fetch('/api/onboarding', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    workspaceName: data.workspaceName,
-                    workspaceSlug: data.workspaceSlug,
-                    plan: data.plan,
-                    agentName: agentName.trim(),
-                }),
-            })
-
-            const result = await response.json()
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Erro ao criar workspace')
-            }
-
-            toast.success('Workspace criado com sucesso!')
-            router.push('/dashboard')
-            router.refresh()
-        } catch (error: any) {
-            console.error('Error creating workspace:', error)
-            toast.error(error.message || 'Erro ao criar workspace')
-        } finally {
-            setLoading(false)
-        }
+    // The workspace is created on the terms step now, not here — nothing should
+    // exist before the agreement is accepted.
+    const handleFinish = () => {
+        updateData({ agentName: agentName.trim() })
+        onNext()
     }
 
     return (
