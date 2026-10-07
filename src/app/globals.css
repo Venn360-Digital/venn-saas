@@ -49,6 +49,15 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-in-foreground: var(--bubble-in-foreground);
+  --color-bubble-in-border: var(--bubble-in-border);
+  --color-bubble-out: var(--bubble-out);
+  --color-bubble-out-foreground: var(--bubble-out-foreground);
+  --color-bubble-human: var(--bubble-human);
+  --color-bubble-human-foreground: var(--bubble-human-foreground);
+  --color-bubble-quote: var(--bubble-quote);
+  --color-bubble-quote-border: var(--bubble-quote-border);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
@@ -186,6 +195,21 @@
   --brand-navy-muted: #9fc2d4;
   --brand-teal: #06b6d4;
   --brand-mint: #a7f3d0;
+
+  /* Balões da conversa. Três papéis — recebida, agente, atendente — com fundo e
+     texto próprios, porque o par card/primary que servia à página não serve ao
+     chat: no escuro, card sobre background é navy sobre navy. Os valores escuros
+     são claros de propósito, com texto navy, e seguem a paleta oficial (gelo,
+     teal clareado, céu). */
+  --bubble-in: #ffffff;
+  --bubble-in-foreground: #0b1f3b;
+  --bubble-in-border: #dce7ec;
+  --bubble-out: #06b6d4;
+  --bubble-out-foreground: #0b1f3b;
+  --bubble-human: #0e7490;
+  --bubble-human-foreground: #ffffff;
+  --bubble-quote: rgb(11 31 59 / 0.08);
+  --bubble-quote-border: rgb(11 31 59 / 0.25);
   --brand-ice: #e6f7f5;
   --brand-accent: #06b6d4;
   --brand-accent-foreground: #0b1f3b;
@@ -255,6 +279,13 @@
   --primary-hover: #38c9e0;
   --primary-active: #5fd5e8;
   --primary-subtle: #0e3a4a;
+  --bubble-in: #e6f7f5;
+  --bubble-in-foreground: #0b1f3b;
+  --bubble-in-border: #c6e4e6;
+  --bubble-out: #b9e8f1;
+  --bubble-out-foreground: #0b1f3b;
+  --bubble-human: #cfe3f5;
+  --bubble-human-foreground: #0b1f3b;
   --primary-subtle-foreground: #7fdcec;
 
   --muted: #102b49;

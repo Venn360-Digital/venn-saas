@@ -1867,11 +1867,14 @@ export default function ConversasPage() {
                                                             // light-mode defect in the app. Outgoing used
                                                             // bg-primary/80, which lightens over white, and the
                                                             // human variant paired a blue fill with navy type.
+                                                            // Tokens próprios do chat (globals.css): no escuro os
+                                                            // três são claros com texto navy — recebida em gelo,
+                                                            // agente em teal clareado, atendente em céu.
                                                             isInbound
-                                                                ? 'bg-card border border-border text-foreground rounded-bl-md'
+                                                                ? 'bg-bubble-in border border-bubble-in-border text-bubble-in-foreground rounded-bl-md'
                                                                 : isAgent
-                                                                    ? 'bg-primary text-primary-foreground rounded-br-md'
-                                                                    : 'bg-info text-info-foreground rounded-br-md'
+                                                                    ? 'bg-bubble-out text-bubble-out-foreground rounded-br-md'
+                                                                    : 'bg-bubble-human text-bubble-human-foreground rounded-br-md'
                                                         )}
                                                         onContextMenu={(e) => handleContextMenu(e, msg)}
                                                     >
@@ -1891,9 +1894,9 @@ export default function ConversasPage() {
                                                         {msg.replyTo && (
                                                             <div className={cn(
                                                                 'rounded-lg px-3 py-1.5 mb-1.5 border-l-2 cursor-pointer text-[11px]',
-                                                                isInbound
-                                                                    ? 'bg-background/50 border-muted-foreground/30'
-                                                                    : 'bg-accent border-border-strong'
+                                                                // Sobreposição navy translúcida: lê sobre qualquer um
+                                                                // dos três balões, nos dois temas.
+                                                                'bg-bubble-quote border-bubble-quote-border'
                                                             )}>
                                                                 <span className={cn(
                                                                     'font-semibold block text-[10px]',
@@ -1907,8 +1910,7 @@ export default function ConversasPage() {
 
                                                         <MediaContent msg={msg} />
                                                         <div className={cn(
-                                                            'text-[10px] mt-1 flex items-center gap-0.5',
-                                                            isInbound ? 'text-muted-foreground' : 'opacity-70'
+                                                            'text-[10px] mt-1 flex items-center gap-0.5 opacity-70'
                                                         )}>
                                                             {format(new Date(msg.createdAt), 'HH:mm')}
                                                             <MessageStatus status={msg.status} direction={msg.direction} />
