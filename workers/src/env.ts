@@ -31,6 +31,16 @@ const schema = z.object({
 
     // LLM providers — optional individually; the factory validates the one in use
     OPENAI_API_KEY: z.string().optional(),
+
+    // Billing notices. Optional on purpose: a worker must not refuse to start
+    // because it cannot send a warning e-mail — sendEmail logs and skips when
+    // the key is absent.
+    RESEND_API_KEY: z.string().optional(),
+    EMAIL_FROM: z.string().optional(),
+
+    // The retention job only deletes when this is the literal string "true".
+    // See PRODUCT.md §7.
+    RETENTION_DELETION_ENABLED: z.string().optional(),
     GOOGLE_AI_API_KEY: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
 
