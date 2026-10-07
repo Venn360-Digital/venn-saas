@@ -14,7 +14,7 @@ import {
  * Breadcrumbs used to derive their labels by title-casing URL segments, which
  * rendered "/vendas/produtos-servicos" as "Produtos Servicos" — hyphen eaten,
  * accent gone. The sidebar carried its own copy of the same names, so the two
- * could disagree. Both read from here now, and so does the page title in the
+ * could disagree. Both read from here now, and so does the trail in the
  * topbar.
  */
 
@@ -171,9 +171,3 @@ export function crumbsFor(pathname: string): Crumb[] {
     }))
 }
 
-/** The deepest segment's label — what the topbar shows as the page title. */
-export function pageTitleFor(pathname: string): string {
-    const segments = pathname.split('/').filter(Boolean)
-    if (segments.length === 0) return 'OdontoBox360'
-    return labelForSegment(segments[segments.length - 1])
-}

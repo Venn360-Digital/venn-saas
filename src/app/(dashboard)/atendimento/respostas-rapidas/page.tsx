@@ -118,8 +118,8 @@ export default function RespostasRapidasPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold">Respostas rápidas</h1>
-                    <p className="text-muted-foreground flex items-center gap-1 mt-1">
+                    <h1 className="text-h1">Respostas rápidas</h1>
+                    <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
                         <Info className="h-4 w-4" />
                         Configurar mensagens rápidas para o chat
                     </p>

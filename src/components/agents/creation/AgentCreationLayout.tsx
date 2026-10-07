@@ -176,7 +176,7 @@ export function AgentCreationLayout({
                             Voltar
                         </Button>
                         <div className="h-6 w-px bg-border" />
-                        <h1 className="text-xl font-semibold">Novo Agente</h1>
+                        <h1 className="text-h3">Novo Agente</h1>
                     </div>
 
                     <Button onClick={onSave} disabled={isSaving}>

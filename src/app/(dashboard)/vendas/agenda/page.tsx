@@ -386,8 +386,8 @@ export default function AgendaPage() {
             {/* Header */}
             <div className="mb-6 flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Agenda</h1>
-                    <p className="text-muted-foreground">Organize suas tarefas, reuniões e follow-ups.</p>
+                    <h1 className="text-h1">Agenda</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">Organize suas tarefas, reuniões e follow-ups.</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="flex items-center bg-card border border-border rounded-lg p-1">

@@ -123,8 +123,8 @@ export default function AgentsPage() {
             <PlanAllowance resource="agents" />
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Agentes de IA</h1>
-                    <p className="text-muted-foreground">
+                    <h1 className="text-h1">Agentes de IA</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
                         Gerencie seus assistentes virtuais inteligentes
                     </p>
                 </div>

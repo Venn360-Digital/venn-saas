@@ -272,6 +272,7 @@ export default function ProdutosServicosPage() {
         <>
             <PageHeader
                 title="Produtos e serviços"
+                description="Catálogo usado nos negócios e nas respostas do agente."
                 count={{ value: pagination.total, singular: 'item', plural: 'itens' }}
                 actions={
                     canEdit ? (

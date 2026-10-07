@@ -30,7 +30,10 @@ function ContaContent() {
                 >
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
-                <h1 className="text-2xl font-semibold">Gerenciar conta</h1>
+                <div className="min-w-0">
+                    <h1 className="text-h1">Gerenciar conta</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">Perfil, dados da clínica e assinatura.</p>
+                </div>
             </div>
 
             {/* Tabs */}

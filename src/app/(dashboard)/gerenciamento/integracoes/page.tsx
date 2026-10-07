@@ -272,8 +272,8 @@ export default function IntegracoesPage() {
         <div className="p-6">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-2xl font-bold">Integrações</h1>
-                <p className="text-muted-foreground">Conecte ferramentas externas para potencializar sua aplicação</p>
+                <h1 className="text-h1">Integrações</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Conecte ferramentas externas para potencializar sua aplicação</p>
             </div>
 
             {/* Grid */}

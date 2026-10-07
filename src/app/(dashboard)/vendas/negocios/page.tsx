@@ -1033,7 +1033,7 @@ export default function NegociosPage() {
     if (stages.length === 0 && viewMode === 'kanban') {
         return (
             <div className="p-6">
-                <div className="mb-6"><h1 className="text-2xl font-bold">Negócios | Pipeline</h1><p className="text-muted-foreground">Gerencie o fluxo de seus leads.</p></div>
+                <div className="mb-6"><h1 className="text-h1">Negócios | Pipeline</h1><p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de seus leads.</p></div>
                 <div className="flex flex-col items-center justify-center h-96">
                     <h3 className="text-lg font-medium mb-2">Nenhum funil encontrado</h3>
                     <p className="text-muted-foreground mb-6">Crie um funil para começar.</p>
@@ -1048,8 +1048,8 @@ export default function NegociosPage() {
             {/* Header */}
             <div className="mb-6 flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold">Negócios | Pipeline</h1>
-                    <p className="text-muted-foreground">Gerencie o fluxo de seus leads.</p>
+                    <h1 className="text-h1">Negócios | Pipeline</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de seus leads.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Date Range Filter */}

@@ -160,6 +160,7 @@ export default function UsuariosPage() {
         <>
             <PageHeader
                 title="Usuários"
+                description="Quem acessa a clínica e o que cada pessoa pode fazer."
                 count={{ value: users.length, singular: 'usuário', plural: 'usuários' }}
                 actions={
                     <Button

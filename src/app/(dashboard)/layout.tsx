@@ -15,8 +15,9 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
  * renders one, and nesting a second was invalid markup that gave assistive
  * technology two competing main landmarks.
  *
- * Page padding and breadcrumbs belong to PageHeader, not here — a screen that
- * wants the whole viewport, like the inbox, simply does not render one.
+ * Page padding belongs to PageHeader, not here — a screen that wants the whole
+ * viewport, like the inbox, simply does not render one. The breadcrumb trail
+ * belongs to the Topbar, so those screens are still oriented.
  */
 export default function DashboardLayout({
     children,

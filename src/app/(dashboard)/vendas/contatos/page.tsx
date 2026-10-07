@@ -422,6 +422,7 @@ export default function ContatosPage() {
         <>
             <PageHeader
                 title="Contatos"
+                description="Pacientes e leads da clínica, com histórico, etiquetas e negócios."
                 count={{ value: pagination.total, singular: 'contato', plural: 'contatos' }}
                 actions={
                     <>

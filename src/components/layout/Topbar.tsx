@@ -2,7 +2,7 @@
 
 import { activityType } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Bell, LogOut, User, Settings, Volume2, VolumeX, Clock} from 'lucide-react'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { pageTitleFor } from '@/lib/nav'
+import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 
 interface UserData {
     user: {
@@ -67,7 +67,6 @@ export function Topbar() {
     const [reminders, setReminders] = useState<Reminder[]>([])
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const router = useRouter()
-    const pathname = usePathname()
 
     useEffect(() => {
         const stored = localStorage.getItem('odontobox360-sound-enabled')
@@ -155,12 +154,12 @@ export function Topbar() {
     return (
         <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 md:px-6">
 
-            {/* The left side used to be empty, so on a narrow screen there was
-                nothing to open the navigation with and nothing saying where you
-                were. */}
+            {/* The trail is the one place that says where you are; the page's
+                own h1 names the screen. Keeping them apart is what stops the name
+                from appearing twice at the top of every page. */}
             <div className="flex min-w-0 items-center gap-2">
                 <SidebarTrigger />
-                <h1 className="truncate text-h4">{pageTitleFor(pathname)}</h1>
+                <BreadcrumbTrail />
             </div>
 
             {/* Actions */}
