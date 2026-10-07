@@ -75,6 +75,18 @@ async function handleConnection(event: NormalizedConnection): Promise<void> {
         }
     }
 
+    // `phoneNumber` na configuração significa "existe um pareamento vivo", e a
+    // rota de status usa exatamente isso para decidir que uma sessão fora do ar é
+    // reconexão e não deve pedir QR. Um LoggedOut desfaz o pareamento, então o
+    // número precisa sair junto — senão o workspace ficaria preso: sem sessão,
+    // e sem conseguir exibir um QR novo para parear de novo.
+    const nextConfig =
+        event.state === 'disconnected'
+            ? Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'phoneNumber'))
+            : phoneNumber
+              ? { ...config, phoneNumber }
+              : config
+
     await prisma.agentIntegration.update({
         where: { id: integration.id },
         data: {
@@ -82,7 +94,7 @@ async function handleConnection(event: NormalizedConnection): Promise<void> {
             connectedAt: event.state === 'connected' ? new Date() : undefined,
             lastActiveAt: new Date(),
             errorMessage: event.state === 'disconnected' ? 'Conexão encerrada' : null,
-            config: phoneNumber ? { ...config, phoneNumber } : (config as never),
+            config: nextConfig as never,
         },
     })
 

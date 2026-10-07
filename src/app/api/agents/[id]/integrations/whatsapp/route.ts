@@ -13,6 +13,7 @@ import {
     toJsonConfig,
     webhookUrlFor,
 } from '@/lib/whatsapp'
+import type { ConnectionState } from '@/lib/whatsapp/types'
 
 /**
  * WhatsApp QR channel, served by Evolution Go (whatsmeow).
@@ -51,6 +52,33 @@ async function persistConfig(
 }
 
 // POST: create (or recover) the instance, connect it, and return a QR code
+/**
+ * A instância já pareou alguma vez e está apenas restabelecendo a sessão.
+ *
+ * Isto existe porque pedir QR de uma instância pareada é DESTRUTIVO, e foi o que
+ * desconectou o primeiro número a entrar no sistema. A sequência, medida nos logs:
+ *
+ *   12:56:27  PairSuccess — número 553131918001 pareado
+ *   12:56:27  whatsmeow recebe código 515 e reconecta (normal, logo após parear)
+ *   12:56:30  o polling lê LoggedIn:false, conclui "ainda pareando" e chama
+ *             GET /instance/qr
+ *   12:57:10  o Evolution Go abre um ciclo de QR novo sobre a sessão recém-criada
+ *   12:58:10  QRTimeout
+ *   12:58:11  LoggedOut — o número é desconectado pelo próprio sistema que
+ *             acabara de conectá-lo
+ *
+ * Na janela de reconexão `LoggedIn` é false de forma transitória, então ele não
+ * basta para decidir se o QR deve ser pedido. O marcador durável de "esta
+ * instância já pareou" é o número gravado na configuração: com ele presente,
+ * uma sessão fora do ar é reconexão, nunca um novo pareamento.
+ *
+ * Um pareamento novo de verdade só acontece por ação explícita — o botão
+ * Desconectar limpa a configuração, e aí o QR volta a ser pedido.
+ */
+function isReconnecting(state: ConnectionState, credentials: IntegrationConfig): boolean {
+    return !state.connected && Boolean(credentials.phoneNumber)
+}
+
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -156,6 +184,18 @@ export async function POST(
             })
         }
 
+        if (state && isReconnecting(state, credentials) && state.socketOpen) {
+            // Socket aberto, sessão voltando: `connect` + QR aqui recomeçaria o
+            // pareamento e desconectaria o número. Ver isReconnecting.
+            return NextResponse.json({
+                success: true,
+                integration: { id: (await persistConfig(agentId, 'pending', credentials)).id, status: 'pending' },
+                qrcode: null,
+                reconnecting: true,
+                phoneNumber: credentials.phoneNumber ?? null,
+            })
+        }
+
         await evolutionGo.connect(credentials, webhookUrlFor(CHANNEL_PROVIDER[CHANNEL]))
 
         const qr = await evolutionGo.getQrCode(credentials).catch(() => null)
@@ -240,8 +280,20 @@ export async function GET(
                 })
             }
 
-            // Still pairing: hand back the current QR so the modal can refresh it
-            // as Evolution Go rotates it.
+            if (isReconnecting(state, credentials)) {
+                // Reconexão: a sessão existe e está voltando. Pedir QR aqui
+                // derrubaria o número — ver isReconnecting.
+                return NextResponse.json({
+                    status: integration.status,
+                    connected: false,
+                    reconnecting: true,
+                    lastActiveAt: integration.lastActiveAt,
+                    phoneNumber,
+                })
+            }
+
+            // Primeiro pareamento: aí sim o QR, que o modal renova conforme o
+            // Evolution Go o rotaciona.
             const qr = await provider.getQrCode(credentials).catch(() => null)
 
             return NextResponse.json({
