@@ -1,3 +1,6 @@
+import { getBillingState } from '@/lib/billing'
+import { claimAutoNotice } from '@/lib/auto-notice'
+import { enqueueOutboundText } from '../services/outbound'
 import type { Job } from 'bullmq'
 import prisma from '@/lib/prisma'
 import { decodeMessage, toMsisdn } from '@/lib/whatsapp'
@@ -181,6 +184,27 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         message: decoded.content,
         minutesSinceLastMessage,
         channel: { integrationId: integration.id, to: phone },
+    }
+
+    // A lapsed trial does not stop messages arriving — they are stored above and
+    // the clinic can read them. What it stops is replying. The patient gets one
+    // notice telling them to phone the clinic, so they are not left writing into
+    // silence. See PRODUCT.md §3.
+    const billing = await getBillingState(workspace.id)
+    if (billing.readOnly) {
+        const notice = await claimAutoNotice(conversation.id, 'read_only')
+        if (notice) {
+            await enqueueOutboundText({
+                conversationId: conversation.id,
+                content: notice,
+                integrationId: integration.id,
+                to: phone,
+                sentBy: 'system',
+                agentId: agent.id,
+            })
+        }
+        log.info(`workspace ${workspace.id} is read-only; agent not scheduled`)
+        return
     }
 
     const rules = await applyAgentRules(agent, ruleContext)

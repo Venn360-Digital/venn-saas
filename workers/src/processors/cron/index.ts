@@ -6,6 +6,7 @@ import { runActivityRecurrence } from './activity-recurrence'
 import { runConversationAutoclose } from './conversation-autoclose'
 import { runCreditsReset } from './credits-reset'
 import { runTrialLifecycle } from './trial-lifecycle'
+import { runRetention } from './retention'
 import { runIntegrationHealth } from './integration-health'
 
 const log = createLogger('CRON')
@@ -15,6 +16,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     'activity-recurrence': runActivityRecurrence,
     'credits-reset': runCreditsReset,
     'trial-lifecycle': runTrialLifecycle,
+    retention: runRetention,
     'integration-health': runIntegrationHealth,
     'conversation-autoclose': runConversationAutoclose,
 }

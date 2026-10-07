@@ -119,6 +119,7 @@ export type CronJobName =
     | 'activity-recurrence'
     | 'credits-reset'
     | 'trial-lifecycle'
+    | 'retention'
     | 'integration-health'
     | 'conversation-autoclose'
 

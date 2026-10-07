@@ -16,6 +16,8 @@ export type BillingEmailKind =
     | 'trial_day_6'
     | 'trial_ended'
     | 'credits_80'
+    | 'retention_60'
+    | 'retention_7'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://odontobox.venn360.com'
 const PLANS_URL = `${APP_URL}/gerenciamento/conta?tab=plano`
@@ -77,6 +79,29 @@ function copyFor(
                     'A exportação dos seus dados continua disponível a qualquer momento.',
                 ],
                 cta: 'Assinar um plano',
+                tone: 'urgent',
+            }
+        case 'retention_60':
+            return {
+                subject: 'Seus dados serão removidos em 60 dias · OdontoBox360',
+                headline: 'Seus dados ainda estão aqui',
+                body: [
+                    `Como a assinatura não foi contratada, os dados deste workspace serão removidos em ${formatDate(context.deleteAt as Date)}.`,
+                    'Até lá nada muda: tudo continua acessível para consulta e exportação, e contratar um plano a qualquer momento restabelece o atendimento sem perda nenhuma.',
+                    'Se preferir levar seus dados, a exportação está disponível nas telas de contatos e negócios.',
+                ],
+                cta: 'Manter minha conta ativa',
+                tone: 'neutral',
+            }
+        case 'retention_7':
+            return {
+                subject: 'Últimos 7 dias antes da remoção · OdontoBox360',
+                headline: 'Seus dados serão removidos em 7 dias',
+                body: [
+                    `A remoção está marcada para ${formatDate(context.deleteAt as Date)} e é definitiva.`,
+                    'Se quiser manter o histórico, contrate um plano antes dessa data — ou exporte seus contatos e negócios enquanto o acesso continua aberto.',
+                ],
+                cta: 'Contratar um plano',
                 tone: 'urgent',
             }
         case 'credits_80': {

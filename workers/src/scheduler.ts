@@ -27,6 +27,9 @@ const SCHEDULES: Schedule[] = [
     // marked — nor should the day-6 warning land hours after it stopped being
     // true.
     { task: 'trial-lifecycle', pattern: '17 * * * *' },
+    // Daily is enough: the retention windows are measured in weeks, and the one
+    // step that destroys data should run as rarely as the schedule allows.
+    { task: 'retention', pattern: '41 4 * * *' },
     // Catches sockets that dropped while the app was redeploying.
     { task: 'integration-health', pattern: '*/10 * * * *' },
     // No-op unless CONVERSATION_AUTOCLOSE_HOURS is set.

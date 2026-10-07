@@ -153,6 +153,13 @@ clínica tenha podido levá-lo embora é o pior cenário, legal e comercialmente
 **Aceite:** os termos são apresentados na **última tela do onboarding**, com
 aceite explícito registrado (quem, quando, qual versão).
 
+> **A exclusão está desligada.** O job de retenção roda e registra o que
+> *apagaria*, mas só apaga de fato com `RETENTION_DELETION_ENABLED=true` no
+> ambiente. Deve continuar assim até o produto rodar tempo suficiente para as
+> datas serem reais — um job que apaga prontuário, escrito hoje, está a um erro de
+> aritmética de destruir o histórico de uma clínica, e não existe backup fora da
+> máquina para recuperar.
+
 ---
 
 ## 8. O que ainda não existe
