@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "open sans",
+        "createdAt": "2026-10-07T04:09:41.433Z",
+        "reason": "user confirmed: chose 'Open Sans + Inter tabular' over two alternatives when the type system was decided; recorded in DESIGN.md §3 as the product typeface. E-mail templates use the same face as the app deliberately."
+      }
+    ]
+  }
+}
