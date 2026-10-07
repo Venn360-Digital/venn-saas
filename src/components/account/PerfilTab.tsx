@@ -16,7 +16,13 @@ interface UserProfile {
     avatar: string | null
 }
 
-export function PerfilTab() {
+interface PerfilTabProps {
+    /** The page renders the Salvar button in its header and submits this form by id. */
+    formId: string
+    onSavingChange?: (saving: boolean) => void
+}
+
+export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -61,6 +67,7 @@ export function PerfilTab() {
 
     const handleSave = async () => {
         setSaving(true)
+        onSavingChange?.(true)
         try {
             const res = await fetch('/api/account/profile', {
                 method: 'PATCH',
@@ -80,6 +87,7 @@ export function PerfilTab() {
             toast.error('Erro ao atualizar perfil')
         } finally {
             setSaving(false)
+            onSavingChange?.(false)
         }
     }
 
@@ -147,7 +155,14 @@ export function PerfilTab() {
     }
 
     return (
-        <div className="max-w-2xl space-y-8">
+        <form
+            id={formId}
+            className="max-w-2xl space-y-8"
+            onSubmit={(e) => {
+                e.preventDefault()
+                if (!saving) void handleSave()
+            }}
+        >
             {/* Avatar */}
             <div>
                 <Label className="text-sm text-muted-foreground mb-3 block">
@@ -241,7 +256,7 @@ export function PerfilTab() {
                         disabled
                         className="flex-1 text-muted-foreground"
                     />
-                    <Button variant="outline" className="border-border text-foreground">
+                    <Button type="button" variant="outline" className="border-border text-foreground">
                         Alterar e-mail da conta
                     </Button>
                 </div>
@@ -293,6 +308,7 @@ export function PerfilTab() {
                         </div>
                     </div>
                     <Button
+                        type="button"
                         onClick={handleChangePassword}
                         disabled={changingPassword || !passwordData.newPassword}
                         variant="outline"
@@ -303,16 +319,6 @@ export function PerfilTab() {
                 </div>
             </div>
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-                <Button
-                    onClick={handleSave}
-                    disabled={saving}
-
-                >
-                    {saving ? 'Salvando...' : 'Atualizar Perfil'}
-                </Button>
-            </div>
-        </div>
+        </form>
     )
 }

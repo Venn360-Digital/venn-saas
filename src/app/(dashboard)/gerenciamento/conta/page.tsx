@@ -2,7 +2,9 @@
 
 import { Suspense, useState} from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
 import { PlanoTab } from '@/components/account/PlanoTab'
@@ -18,14 +20,23 @@ function ContaContent() {
         requested && (TABS as readonly string[]).includes(requested) ? requested : 'perfil'
     )
 
-    return (
-        <div className="min-h-full p-6 text-foreground">
-            {/* Header */}
-            <div className="mb-6 min-w-0">
-                <h1 className="text-h1">Gerenciar conta</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Perfil, dados da clínica e assinatura.</p>
-            </div>
+    const [saving, setSaving] = useState(false)
+    const formId = activeTab === 'perfil' ? 'perfil-form' : activeTab === 'empresa' ? 'empresa-form' : null
 
+    return (
+        <>
+            <PageHeader
+                title="Gerenciar conta"
+                description="Perfil, dados da clínica e assinatura."
+                actions={
+                    formId ? (
+                        <Button type="submit" form={formId} disabled={saving}>
+                            {saving ? 'Salvando…' : 'Salvar'}
+                        </Button>
+                    ) : undefined
+                }
+            />
+            <div className="px-4 pb-6 md:px-6">
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="mb-6 border-b border-border bg-transparent">
@@ -50,18 +61,19 @@ function ContaContent() {
                 </TabsList>
 
                 <TabsContent value="perfil">
-                    <PerfilTab />
+                    <PerfilTab formId="perfil-form" onSavingChange={setSaving} />
                 </TabsContent>
 
                 <TabsContent value="empresa">
-                    <EmpresaTab />
+                    <EmpresaTab formId="empresa-form" onSavingChange={setSaving} />
                 </TabsContent>
 
                 <TabsContent value="plano">
                     <PlanoTab />
                 </TabsContent>
             </Tabs>
-        </div>
+            </div>
+        </>
     )
 }
 

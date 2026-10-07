@@ -17,7 +17,13 @@ interface WorkspaceData {
     logo: string | null
 }
 
-export function EmpresaTab() {
+interface EmpresaTabProps {
+    /** The page renders the Salvar button in its header and submits this form by id. */
+    formId: string
+    onSavingChange?: (saving: boolean) => void
+}
+
+export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [workspace, setWorkspace] = useState<WorkspaceData | null>(null)
@@ -56,6 +62,7 @@ export function EmpresaTab() {
 
     const handleSave = async () => {
         setSaving(true)
+        onSavingChange?.(true)
         try {
             const res = await fetch('/api/account/workspace', {
                 method: 'PATCH',
@@ -75,6 +82,7 @@ export function EmpresaTab() {
             toast.error('Erro ao atualizar dados da empresa')
         } finally {
             setSaving(false)
+            onSavingChange?.(false)
         }
     }
 
@@ -124,7 +132,14 @@ export function EmpresaTab() {
     }
 
     return (
-        <div className="max-w-2xl space-y-6">
+        <form
+            id={formId}
+            className="max-w-2xl space-y-6"
+            onSubmit={(e) => {
+                e.preventDefault()
+                if (!saving) void handleSave()
+            }}
+        >
             {/* Company Name (Read-only) */}
             <div>
                 <Label className="text-sm text-muted-foreground">
@@ -225,16 +240,6 @@ export function EmpresaTab() {
                 />
             </div>
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-                <Button
-                    onClick={handleSave}
-                    disabled={saving}
-
-                >
-                    {saving ? 'Salvando...' : 'Salvar'}
-                </Button>
-            </div>
-        </div>
+        </form>
     )
 }

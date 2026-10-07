@@ -4,6 +4,7 @@ import { PlanAllowance } from '@/components/shared/PlanAllowance'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { Plus, Loader2, Bot } from 'lucide-react'
 import { AgentCard } from '@/components/agents/AgentCard'
 import { AgentEditor } from '@/components/agents/AgentEditor'
@@ -119,20 +120,18 @@ export default function AgentsPage() {
     }
 
     return (
-        <div className="space-y-6 p-4 md:p-6">
-            <PlanAllowance resource="agents" />
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-h1">Agentes de IA</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Gerencie seus assistentes virtuais inteligentes
-                    </p>
-                </div>
-                <Button onClick={handleCreate}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Agente
-                </Button>
-            </div>
+        <>
+            <PageHeader
+                title="Agentes de IA"
+                description="Gerencie seus assistentes virtuais inteligentes"
+                actions={
+                    <Button onClick={handleCreate}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Novo Agente
+                    </Button>
+                }
+            />
+            <div className="space-y-6 px-4 pb-6 md:px-6">
 
             {loading ? (
                 <div className="flex h-32 items-center justify-center">
@@ -163,6 +162,10 @@ export default function AgentsPage() {
                 </div>
             )}
 
+            {/* At the foot, so every page opens the same way: trail, title, content. */}
+            <PlanAllowance resource="agents" />
+            </div>
+
             <AgentEditor
                 open={isEditorOpen}
                 onOpenChange={setIsEditorOpen}
@@ -170,6 +173,6 @@ export default function AgentsPage() {
                 workspaceId={workspaceId || ''} // Will need fixing in backend
                 onSuccess={fetchAgents}
             />
-        </div>
+        </>
     )
 }

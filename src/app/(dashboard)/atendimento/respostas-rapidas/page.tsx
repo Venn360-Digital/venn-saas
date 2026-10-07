@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -114,23 +115,20 @@ export default function RespostasRapidasPage() {
     }
 
     return (
-        <div className="p-8">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-h1">Respostas rápidas</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Configurar mensagens rápidas para o chat
-                    </p>
-                </div>
-                {canEdit && (
-                    <Button onClick={() => setIsAdding(true)} className="bg-primary hover:bg-primary/90">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Nova resposta
-                    </Button>
-                )}
-            </div>
-
+        <>
+            <PageHeader
+                title="Respostas rápidas"
+                description="Mensagens prontas para usar no chat."
+                actions={
+                    canEdit ? (
+                        <Button onClick={() => setIsAdding(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Nova resposta
+                        </Button>
+                    ) : undefined
+                }
+            />
+            <div className="px-4 pb-6 md:px-6">
             {/* Table */}
             <div className="rounded-lg border bg-card overflow-hidden">
                 {/* Table Header */}
@@ -215,6 +213,7 @@ export default function RespostasRapidasPage() {
                     )}
                 </div>
             </div>
-        </div>
+            </div>
+        </>
     )
 }
