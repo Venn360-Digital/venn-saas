@@ -1,5 +1,6 @@
 'use client'
 
+import { PLAN_CHANNELS } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,33 +46,14 @@ interface SubscriptionData {
 
 interface PlanConfig {
     name: string
+    description: string
     price: number
+    badge: string | null
+    features: string[]
     maxAgents: number
     maxMessages: number
+    maxWhatsAppNumbers: number
     credits: number
-}
-
-const planFeatures: Record<string, string[]> = {
-    flow: [
-        '5.000 créditos por mês',
-        '1 agente de I.A',
-        'Integrações ilimitadas',
-        'CRM e Pipeline de vendas',
-    ],
-    pro: [
-        '10.000 créditos por mês',
-        '2 agentes de I.A',
-        'Integrações ilimitadas',
-        'CRM e Pipeline de vendas',
-        'Otimização de marketing',
-    ],
-    advanced: [
-        '20.000 créditos por mês',
-        '5 agentes de I.A',
-        'Integrações ilimitadas',
-        'CRM e Pipeline de vendas',
-        'Otimização de marketing',
-    ],
 }
 
 const planIcons: Record<string, React.ElementType> = {
@@ -223,7 +205,7 @@ export function PlanoTab() {
                         <div>
                             <p className="font-medium">Sua assinatura está em período de avaliação.</p>
                             <p className="text-sm text-muted-foreground">
-                                Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString()} créditos de IA
+                                Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString('pt-BR')} créditos de IA para validar o seu agente de atendimento. Não é necessário inserir o cartão de crédito agora, e nada é cobrado até você efetivar a assinatura
                             </p>
                         </div>
                     </div>
@@ -326,7 +308,7 @@ export function PlanoTab() {
                                 <div>
                                     <p className="font-medium">Sua assinatura está em período de avaliação.</p>
                                     <p className="text-sm text-muted-foreground">
-                                        Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString()} créditos de IA
+                                        Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString('pt-BR')} créditos de IA para validar o seu agente de atendimento. Não é necessário inserir o cartão de crédito agora, e nada é cobrado até você efetivar a assinatura
                                     </p>
                                 </div>
                             </div>
@@ -361,11 +343,11 @@ export function PlanoTab() {
                                     )}
 
                                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${planKey === 'flow' ? 'bg-warning-subtle' :
-                                            planKey === 'pro' ? 'bg-cyan-500/20' :
+                                            planKey === 'pro' ? 'bg-primary-subtle' :
                                                 'bg-muted'
                                         }`}>
                                         <Icon className={`h-5 w-5 ${planKey === 'flow' ? 'text-warning-subtle-foreground' :
-                                                planKey === 'pro' ? 'text-cyan-500' :
+                                                planKey === 'pro' ? 'text-primary' :
                                                     'text-muted-foreground'
                                             }`} />
                                     </div>
@@ -377,10 +359,29 @@ export function PlanoTab() {
                                     </div>
                                     <p className="text-sm text-muted-foreground mb-4">Cobrança mensal</p>
 
+                                    <div className="mb-4 border-t border-border pt-4">
+                                        <p className="text-xs text-muted-foreground">Conexões</p>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {PLAN_CHANNELS.map((channel) => {
+                                                const ChannelIcon = channel.icon
+                                                return (
+                                                    <span
+                                                        key={channel.id}
+                                                        title={channel.label}
+                                                        className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                                    >
+                                                        <ChannelIcon className="size-3.5" aria-hidden="true" />
+                                                        {channel.label}
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+
                                     <ul className="space-y-2 mb-6">
-                                        {planFeatures[planKey].map((feature, idx) => (
+                                        {plan.features.map((feature: string, idx: number) => (
                                             <li key={idx} className="flex items-center gap-2 text-sm">
-                                                <Check className={`h-4 w-4 ${planKey === 'pro' ? 'text-cyan-500' : 'text-primary'
+                                                <Check className={`h-4 w-4 ${planKey === 'pro' ? 'text-primary' : 'text-primary'
                                                     }`} />
                                                 <span>{feature}</span>
                                             </li>

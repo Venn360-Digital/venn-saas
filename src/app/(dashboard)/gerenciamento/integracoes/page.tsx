@@ -43,7 +43,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: 'Google ADS',
         description: 'Integre suas campanhas Google ADS e acompanhe performance',
         icon: '📊',
-        iconBgColor: 'bg-emerald-600',
+        iconBgColor: BRAND_COLORS.googleAds,
         comingSoon: true,
     },
     {

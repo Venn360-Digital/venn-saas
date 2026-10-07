@@ -1,5 +1,6 @@
 'use client'
 
+import { PlanAllowance } from '@/components/shared/PlanAllowance'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -119,6 +120,7 @@ export default function AgentsPage() {
 
     return (
         <div className="space-y-6 p-4 md:p-6">
+            <PlanAllowance resource="agents" />
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Agentes de IA</h1>

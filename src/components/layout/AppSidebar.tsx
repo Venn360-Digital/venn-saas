@@ -78,9 +78,18 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon">
-            <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4">
+            {/* Taller than the topbar on purpose: the lockup is wide, and at the
+                size it needs to read it no longer fits a 56px bar. */}
+            <SidebarHeader className="h-20 shrink-0 items-center justify-center border-b border-sidebar-border px-4">
                 <Link href="/dashboard" aria-label="OdontoBox360">
-                    <Logo height={28} priority />
+                    <span className="block group-data-[collapsible=icon]:hidden">
+                        <Logo variant="wordmark" height={56} priority />
+                    </span>
+                    {/* A 3:1 lockup cannot survive the collapsed rail, so the
+                        symbol stands in for it there. */}
+                    <span className="hidden group-data-[collapsible=icon]:block">
+                        <Logo variant="mark" height={30} priority />
+                    </span>
                 </Link>
             </SidebarHeader>
 
@@ -184,7 +193,8 @@ export function AppSidebar() {
 
 function PlanSummary() {
     const [plan, setPlan] = useState<{
-        name: string
+        name: string | null
+        workspaceName: string | null
         credits: number
         creditsUsed: number
     } | null>(null)
@@ -199,7 +209,8 @@ function PlanSummary() {
                 if (cancelled) return
                 if (data) {
                     setPlan({
-                        name: data.planName ?? data.plan ?? '—',
+                        name: data.planName ?? null,
+                        workspaceName: data.workspaceName ?? null,
                         credits: Number(data.credits) || 0,
                         creditsUsed: Number(data.creditsUsed) || 0,
                     })
@@ -235,8 +246,18 @@ function PlanSummary() {
 
     return (
         <div className="space-y-1.5 group-data-[collapsible=icon]:hidden">
-            <p className="text-xs text-sidebar-foreground/70">
-                Plano <span className="text-sidebar-foreground">{plan.name}</span>
+            <p className="truncate text-xs text-sidebar-foreground/70">
+                {plan.name ? (
+                    <span className="text-sidebar-foreground">{plan.name}</span>
+                ) : (
+                    <span>Sem plano</span>
+                )}
+                {plan.workspaceName ? (
+                    <>
+                        <span className="px-1.5 text-sidebar-foreground/40">|</span>
+                        <span>{plan.workspaceName}</span>
+                    </>
+                ) : null}
             </p>
             <Progress value={percent} className="h-1.5" />
             <p className="num text-xs text-sidebar-foreground/70">

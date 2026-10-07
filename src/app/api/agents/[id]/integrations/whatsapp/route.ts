@@ -1,3 +1,4 @@
+import { canConnectWhatsApp } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
@@ -71,6 +72,13 @@ export async function POST(
             select: { id: true },
         })
         if (!agent) return NextResponse.json({ error: 'Agente não encontrado' }, { status: 404 })
+
+        // How many numbers the plan allows. Reconnecting an agent that already
+        // holds one is exempt — the check knows the difference.
+        const allowed = await canConnectWhatsApp(workspaceId, agentId)
+        if (!allowed.ok) {
+            return NextResponse.json({ error: allowed.error }, { status: allowed.status })
+        }
 
         const existing = await prisma.agentIntegration.findUnique({
             where: { agentId_channel: { agentId, channel: CHANNEL } },

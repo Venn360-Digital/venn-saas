@@ -1,5 +1,6 @@
 'use client'
 
+import { PlanAllowance } from '@/components/shared/PlanAllowance'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     Dialog,
@@ -146,13 +147,17 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Smartphone className="h-5 w-5 text-green-500" />
+                        <Smartphone className="size-5 text-success-subtle-foreground" />
                         Conectar WhatsApp
                     </DialogTitle>
                     <DialogDescription>
                         Escaneie o QR Code com seu WhatsApp para conectar
                     </DialogDescription>
                 </DialogHeader>
+
+                {/* How many numbers the plan allows, said before the QR code
+                    rather than as a refusal after scanning. */}
+                <PlanAllowance resource="whatsapp" />
 
                 <div className="flex flex-col items-center justify-center py-6">
                     {status === 'generating' && (

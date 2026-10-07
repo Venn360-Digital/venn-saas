@@ -1,126 +1,117 @@
 'use client'
 
-import { useState } from 'react'
+import { Check, Sparkles } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
-import { ArrowRight, ArrowLeft, Check } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { PLAN_CHANNELS, PLAN_LIST, TRIAL, formatPrice } from '@/lib/plans'
+import { cn } from '@/lib/utils'
 
 interface Step2PlanProps {
-    data: {
-        plan: string
-    }
-    updateData: (data: any) => void
+    data: { plan: string }
+    updateData: (data: { plan: string }) => void
     onNext: () => void
     onBack: () => void
 }
 
-const plans = [
-    {
-        id: 'flow',
-        name: 'Flow',
-        description: 'Ideal para começar',
-        price: 97,
-        features: [
-            '1 agente de IA',
-            '500 mensagens/mês',
-            'Integrações básicas',
-        ],
-    },
-    {
-        id: 'pro',
-        name: 'Pro',
-        badge: 'Popular',
-        description: 'Para equipes em crescimento',
-        price: 197,
-        features: [
-            '5 agentes de IA',
-            '5.000 mensagens/mês',
-            'Motor de regras',
-            'Suporte prioritário',
-        ],
-    },
-    {
-        id: 'advanced',
-        name: 'Advanced',
-        description: 'Para operações avançadas',
-        price: 497,
-        features: [
-            'Agentes ilimitados',
-            'Mensagens ilimitadas',
-            'API completa',
-            'Suporte dedicado',
-        ],
-    },
-]
-
 export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) {
-    const [selectedPlan, setSelectedPlan] = useState(data.plan || 'pro')
-
-    const handleContinue = () => {
-        updateData({ plan: selectedPlan })
-        onNext()
-    }
-
     return (
-        <div className="rounded-2xl border border-border bg-card p-8">
-            <div className="mb-8">
-                <h2 className="mb-2 text-2xl font-bold">Plano</h2>
-                <p className="text-muted-foreground">Escolha o plano ideal para você</p>
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-h2">Escolha seu plano</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                    Dá para trocar depois, a qualquer momento.
+                </p>
             </div>
 
-            <div className="space-y-4">
-                {plans.map((plan) => (
-                    <button
-                        key={plan.id}
-                        onClick={() => setSelectedPlan(plan.id)}
-                        className={`w-full rounded-xl border-2 p-6 text-left transition-all ${selectedPlan === plan.id
-                                ? 'border-primary bg-primary-subtle'
-                                : 'border-border bg-card hover:border-border-strong'
-                            }`}
-                    >
-                        <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                                <div className="mb-2 flex items-center gap-2">
-                                    <h3 className="text-xl font-bold">{plan.name}</h3>
-                                    {plan.badge && (
-                                        <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold">
-                                            {plan.badge}
-                                        </span>
-                                    )}
+            {/* Said before the prices, because it is what makes choosing one
+                low-stakes: nothing is charged yet. */}
+            <div className="flex gap-3 rounded-lg border border-success-subtle bg-success-subtle p-4">
+                <Sparkles
+                    className="mt-0.5 size-5 shrink-0 text-success-subtle-foreground"
+                    aria-hidden="true"
+                />
+                <div>
+                    <p className="text-sm font-medium text-success-subtle-foreground">
+                        {TRIAL.headline}
+                    </p>
+                    <p className="mt-1 text-sm text-success-subtle-foreground">{TRIAL.body}</p>
+                </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+                {PLAN_LIST.map((plan) => {
+                    const selected = data.plan === plan.id
+                    return (
+                        <button
+                            key={plan.id}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => updateData({ plan: plan.id })}
+                            className={cn(
+                                'flex flex-col rounded-lg border p-5 text-left transition-colors',
+                                selected
+                                    ? 'border-primary bg-primary-subtle'
+                                    : 'border-border bg-card hover:border-border-strong'
+                            )}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <h3 className="text-h4">{plan.name}</h3>
+                                {plan.badge ? (
+                                    <Badge variant="info">{plan.badge}</Badge>
+                                ) : null}
+                            </div>
+
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {plan.description}
+                            </p>
+
+                            <p className="mt-4">
+                                <span className="num text-h2">{formatPrice(plan.price)}</span>
+                                <span className="text-sm text-muted-foreground"> /mês</span>
+                            </p>
+
+                            <div className="mt-4 border-t border-border pt-4">
+                                <p className="text-xs text-muted-foreground">Conexões</p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {PLAN_CHANNELS.map((channel) => {
+                                        const Icon = channel.icon
+                                        return (
+                                            <span
+                                                key={channel.id}
+                                                title={channel.label}
+                                                className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                            >
+                                                <Icon className="size-3.5" aria-hidden="true" />
+                                                {channel.label}
+                                            </span>
+                                        )
+                                    })}
                                 </div>
-                                <p className="mb-4 text-sm text-muted-foreground">{plan.description}</p>
-                                <ul className="space-y-2">
-                                    {plan.features.map((feature, index) => (
-                                        <li key={index} className="flex items-center gap-2 text-sm">
-                                            <Check className="h-4 w-4 text-primary" />
-                                            <span>{feature}</span>
-                                        </li>
-                                    ))}
-                                </ul>
                             </div>
-                            <div className="text-right">
-                                <div className="text-3xl font-bold">R$ {plan.price}</div>
-                                <div className="text-sm text-muted-foreground">/mês</div>
-                            </div>
-                        </div>
-                    </button>
-                ))}
+
+                            <ul className="mt-4 space-y-2 border-t border-border pt-4">
+                                {plan.features.map((feature) => (
+                                    <li key={feature} className="flex items-start gap-2 text-sm">
+                                        <Check
+                                            className="mt-0.5 size-4 shrink-0 text-success-subtle-foreground"
+                                            aria-hidden="true"
+                                        />
+                                        {feature}
+                                    </li>
+                                ))}
+                            </ul>
+                        </button>
+                    )
+                })}
             </div>
 
-            <div className="mt-8 flex items-center justify-between">
-                <Button
-                    onClick={onBack}
-                    variant="outline"
-                    className="border-border bg-transparent text-foreground hover:bg-accent"
-                >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
+            <div className="flex justify-between gap-3">
+                <Button type="button" variant="outline" onClick={onBack}>
                     Voltar
                 </Button>
-                <Button
-                    onClick={handleContinue}
-
-                >
+                <Button type="button" onClick={onNext} disabled={!data.plan}>
                     Continuar
-                    <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
             </div>
         </div>

@@ -39,7 +39,7 @@ const PREFIX =
     '(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|accent|decoration|shadow|placeholder|caret)'
 
 const PALETTE = new RegExp(
-    `\\b${PREFIX}-(?:purple|violet|indigo|fuchsia|pink|rose|gray|slate|zinc|neutral|stone)-\\d{2,3}\\b`,
+    `\\b${PREFIX}-(?:purple|violet|indigo|fuchsia|pink|rose|gray|slate|zinc|neutral|stone|cyan|teal|emerald|sky|lime)-\\d{2,3}\\b`,
     'g'
 )
 

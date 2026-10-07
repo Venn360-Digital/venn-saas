@@ -1,3 +1,4 @@
+import { canCreateAgent } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -217,6 +218,14 @@ export async function POST(request: NextRequest) {
         }
 
         const validatedData = createAgentSchema.parse(body)
+
+        // The plan is enforced here, not just displayed. Without this a clinic
+        // on the entry plan could create any number of agents, and the limit it
+        // was shown at signup meant nothing.
+        const allowed = await canCreateAgent(workspaceId)
+        if (!allowed.ok) {
+            return NextResponse.json({ error: allowed.error }, { status: allowed.status })
+        }
 
         const agent = await prisma.agent.create({
             data: {

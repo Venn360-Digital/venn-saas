@@ -574,6 +574,8 @@ model Subscription {
   // Limits
   maxAgents   Int      @default(1)
   maxMessages Int      @default(100)
+  // How many WhatsApp numbers the plan allows to be connected at once.
+  maxWhatsAppNumbers Int @default(1)
   
   // Credits
   credits      Int      @default(0)        // Créditos de IA disponíveis

@@ -17,6 +17,8 @@ export const BRAND_COLORS = {
     slack: 'bg-[#4A154B]',
     mercadoLivre: 'bg-[#FFE600]',
     google: 'bg-[#4285F4]',
+    googleAds: 'bg-[#3C8BD9]',
+    metaAds: 'bg-[#0668E1]',
 } as const
 
 /** For channels that have no brand of their own — a generic web widget. */

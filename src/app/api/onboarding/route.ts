@@ -1,3 +1,4 @@
+import { TRIAL, planFor } from '@/lib/plans'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
@@ -88,7 +89,36 @@ export async function POST(request: NextRequest) {
             })
             console.log('[ONBOARDING] Workspace user created')
 
-            // 5. Create first agent (optional)
+            // 5. Start the subscription on the chosen plan.
+            //
+            // This step did not exist: the plan picked during onboarding was
+            // read from the request and then discarded, so every workspace ran
+            // without a subscription row and the account screen fell back to a
+            // hardcoded "Pro". The limits written here are the ones enforced
+            // when agents and WhatsApp numbers are created.
+            const chosen = planFor(plan)
+            const trialEndsAt = new Date(Date.now() + TRIAL.days * 86_400_000)
+
+            await tx.subscription.create({
+                data: {
+                    workspaceId: workspace.id,
+                    plan: chosen.id,
+                    status: 'trialing',
+                    maxAgents: chosen.limits.maxAgents,
+                    maxMessages: chosen.limits.maxMessages,
+                    maxWhatsAppNumbers: chosen.limits.maxWhatsAppNumbers,
+                    // The trial grants its own credit balance; the plan's monthly
+                    // allowance takes over when the subscription is activated.
+                    credits: TRIAL.credits,
+                    creditsUsed: 0,
+                    trialEndsAt,
+                    currentPeriodStart: new Date(),
+                    currentPeriodEnd: trialEndsAt,
+                },
+            })
+            console.log('[ONBOARDING] Subscription created:', chosen.id)
+
+            // 6. Create first agent (optional)
             if (agentName && agentName.trim()) {
                 console.log('[ONBOARDING] Creating agent...')
                 await tx.agent.create({

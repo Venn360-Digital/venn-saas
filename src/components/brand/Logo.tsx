@@ -2,7 +2,7 @@ import Image from 'next/image'
 
 import { cn } from '@/lib/utils'
 
-type Variant = 'wordmark' | 'full' | 'stacked'
+type Variant = 'wordmark' | 'full' | 'stacked' | 'mark'
 
 interface LogoProps {
     /**
@@ -41,6 +41,13 @@ const ART: Record<Variant, { light: string; dark: string; ratio: number }> = {
         light: '/logos/logo-stacked-light.png',
         dark: '/logos/logo-stacked-dark.png',
         ratio: 0.9,
+    },
+    // The symbol alone, for the collapsed rail where a 3:1 lockup cannot fit.
+    // 310x280
+    mark: {
+        light: '/logos/logo-icon-light.png',
+        dark: '/logos/logo-icon-dark.png',
+        ratio: 1.11,
     },
 }
 

@@ -1,33 +1,29 @@
+import { PLAN_LIST, TRIAL, planFor } from '@/lib/plans'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 
 // Plan configuration
-const PLANS = {
-    flow: {
-        name: 'Flow',
-        price: 690,
-        maxAgents: 1,
-        maxMessages: 5000,
-        credits: 5000,
-    },
-    pro: {
-        name: 'Pro',
-        price: 890,
-        maxAgents: 2,
-        maxMessages: 10000,
-        credits: 10000,
-    },
-    advanced: {
-        name: 'Advanced',
-        price: 1290,
-        maxAgents: 5,
-        maxMessages: 20000,
-        credits: 20000,
-    },
-}
-
 const CREDIT_PRICE = 49.90 // per 1000 credits
+
+/**
+ * The plans as JSON. The shared definition carries Lucide components for the
+ * channel row, which cannot be serialised, so the client imports those directly
+ * and only the data travels.
+ */
+const PLANS = Object.fromEntries(
+    PLAN_LIST.map((p) => [
+        p.id,
+        {
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            badge: p.badge ?? null,
+            features: p.features,
+            ...p.limits,
+        },
+    ])
+)
 
 // GET /api/account/subscription - Get subscription details
 export async function GET() {
@@ -45,7 +41,10 @@ export async function GET() {
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: {
+                workspaceId: true,
+                workspace: { select: { name: true } },
+            }
         })
 
         if (!workspaceUser) {
@@ -57,27 +56,35 @@ export async function GET() {
         })
 
         if (!subscription) {
-            // Return default free trial info
+            // No subscription row means onboarding predates the step that
+            // creates one. Say so rather than reporting a plan the workspace was
+            // never actually put on.
             return NextResponse.json({
-                plan: 'pro',
-                planName: 'Pro',
-                status: 'trialing',
-                maxAgents: 2,
-                maxMessages: 10000,
-                credits: 1000,
+                plan: null,
+                planName: null,
+                workspaceName: workspaceUser.workspace?.name ?? null,
+                status: 'none',
+                maxAgents: 0,
+                maxMessages: 0,
+                maxWhatsAppNumbers: 0,
+                credits: 0,
                 creditsUsed: 0,
                 paymentMethod: null,
-                trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+                trialEndsAt: null,
                 plans: PLANS,
+                trial: TRIAL,
                 creditPrice: CREDIT_PRICE,
             })
         }
 
-        const planConfig = PLANS[subscription.plan as keyof typeof PLANS] || PLANS.pro
+        const planConfig = planFor(subscription.plan)
 
         return NextResponse.json({
             plan: subscription.plan,
             planName: planConfig.name,
+            workspaceName: workspaceUser.workspace?.name ?? null,
+            maxWhatsAppNumbers: subscription.maxWhatsAppNumbers,
+            trial: TRIAL,
             status: subscription.status,
             maxAgents: subscription.maxAgents,
             maxMessages: subscription.maxMessages,

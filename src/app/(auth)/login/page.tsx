@@ -154,16 +154,24 @@ function LoginForm() {
                 <div className="relative z-10 max-w-sm">
                     <span className="mb-5 block h-0.5 w-12 rounded-full bg-brand-mint" />
                     <h2 className="text-display text-brand-navy-foreground">
-                        A clínica inteira numa conversa só
+                        OdontoBox360. A nova inteligência da gestão odontológica.
                     </h2>
                     <p className="mt-4 text-sm leading-relaxed text-brand-navy-muted">
-                        Atendimento, agenda e histórico do paciente no mesmo lugar — para
-                        a recepção não precisar abrir cinco telas por ligação.
+                        Atendimento com IA, qualificação, agendamento, vendas e histórico
+                        do paciente no mesmo lugar. Da recepção ao financeiro.
                     </p>
                 </div>
 
-                <p className="relative z-10 text-xs text-brand-navy-muted/70">
-                    uma solução Venn360
+                <p className="relative z-10 text-center text-xs text-brand-navy-muted/70">
+                    Uma solução{' '}
+                    <a
+                        href="https://venn360.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-navy-muted underline underline-offset-2 hover:text-brand-navy-foreground"
+                    >
+                        Venn360
+                    </a>
                 </p>
             </aside>
 
@@ -171,7 +179,7 @@ function LoginForm() {
             <main className="flex w-full flex-col items-center justify-center bg-background px-4 py-10 lg:w-1/2">
                 <div className="w-full max-w-sm">
                     <div className="mb-8">
-                        <Logo variant="wordmark" height={30} priority />
+                        <Logo variant="wordmark" height={90} priority />
                     </div>
 
                     <h1 className="text-h1">
