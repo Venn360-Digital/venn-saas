@@ -75,6 +75,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { usePermissions } from '@/hooks/usePermissions'
+import { JOURNEY, type TrackingData, type TrackingEntry, type TrackingKey } from '@/components/shared/DealJourney'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -101,21 +102,6 @@ interface WorkspaceMember {
     name: string
     avatar: string | null
     role: string
-}
-
-interface TrackingEntry {
-    done: boolean
-    date: string
-    note: string
-}
-
-interface TrackingData {
-    contact1?: TrackingEntry
-    contact2?: TrackingEntry
-    contact3?: TrackingEntry
-    scheduled?: TrackingEntry
-    attended?: TrackingEntry
-    rework?: TrackingEntry
 }
 
 interface Deal {
@@ -176,14 +162,17 @@ const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 function TrackingIndicators({ tracking }: { tracking: TrackingData | null }) {
     if (!tracking) return null
 
-    const indicators = [
-        { key: 'contact1', icon: Phone, label: '1º Contato', color: 'text-chart-1' },
-        { key: 'contact2', icon: Phone, label: '2º Contato', color: 'text-chart-3' },
-        { key: 'contact3', icon: Phone, label: '3º Contato', color: 'text-chart-4' },
-        { key: 'scheduled', icon: Calendar, label: 'Agendou', color: 'text-warning-subtle-foreground' },
-        { key: 'attended', icon: UserCheck, label: 'Compareceu', color: 'text-success-subtle-foreground' },
-        { key: 'rework', icon: RefreshCw, label: 'Retrabalho', color: 'text-orange-400' },
-    ] as const
+    /* Rótulos e ordem vêm do shared: eram duas listas e já tinham divergido
+       ("1º contato" no chat, "1º Contato" aqui). A cor é só desta tela. */
+    const TONE: Record<TrackingKey, string> = {
+        contact1: 'text-chart-1',
+        contact2: 'text-chart-3',
+        contact3: 'text-chart-4',
+        scheduled: 'text-warning-subtle-foreground',
+        attended: 'text-success-subtle-foreground',
+        rework: 'text-info-subtle-foreground',
+    }
+    const indicators = JOURNEY.map((m) => ({ ...m, color: TONE[m.key] }))
 
     const activeIndicators = indicators.filter((i) => tracking[i.key]?.done)
     if (activeIndicators.length === 0) return null

@@ -128,6 +128,23 @@ export async function GET(request: NextRequest) {
             orderBy: { lastMessageAt: 'desc' },
         })
 
+        // The queue, measured — the three slices the inbox shows above the list.
+        // Counted over the whole workspace on purpose: the tab you are looking
+        // at must not change how many people are waiting elsewhere.
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const ws = workspaceUser.workspaceId
+        const [waiting, active, closedToday, oldestWaiting] = await Promise.all([
+            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: null } }),
+            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: { not: null } } }),
+            prisma.conversation.count({ where: { workspaceId: ws, status: 'closed', updatedAt: { gte: startOfToday } } }),
+            prisma.conversation.findFirst({
+                where: { workspaceId: ws, status: 'active', assignedTo: null, lastMessageAt: { not: null } },
+                orderBy: { lastMessageAt: 'asc' },
+                select: { lastMessageAt: true },
+            }),
+        ])
+
         // Resolve assignee names
         const assigneeIds = [...new Set(conversations.map(c => c.assignedTo).filter(Boolean))] as string[]
         const assignees = assigneeIds.length > 0
@@ -180,6 +197,12 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             conversations: result,
+            counts: {
+                waiting,
+                active,
+                closedToday,
+                oldestWaitingAt: oldestWaiting?.lastMessageAt ?? null,
+            },
             currentUser: {
                 id: user.id,
                 role: workspaceUser.role,

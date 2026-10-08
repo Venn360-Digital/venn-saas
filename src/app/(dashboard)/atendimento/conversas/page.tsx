@@ -37,6 +37,15 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { AudioMessage } from '@/components/shared/AudioMessage'
+import { TagChip } from '@/components/shared/TagChip'
+import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
+import {
+    DealJourney,
+    currentMilestone,
+    type TrackingData,
+} from '@/components/shared/DealJourney'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
@@ -137,15 +146,6 @@ interface Message {
     reaction?: string | null
 }
 
-interface TrackingEntry {
-    done: boolean
-    date: string
-    note: string
-}
-
-type TrackingKey = 'contact1' | 'contact2' | 'contact3' | 'scheduled' | 'attended' | 'rework'
-type TrackingData = Partial<Record<TrackingKey, TrackingEntry>>
-
 interface OpenDeal {
     id: string
     title: string
@@ -154,106 +154,6 @@ interface OpenDeal {
     trackingData: TrackingData
 }
 
-/** Os seis marcos da jornada, na ordem em que acontecem. */
-const JOURNEY: { key: TrackingKey; label: string }[] = [
-    { key: 'contact1', label: '1º contato' },
-    { key: 'contact2', label: '2º contato' },
-    { key: 'contact3', label: '3º contato' },
-    { key: 'scheduled', label: 'Agendou' },
-    { key: 'attended', label: 'Compareceu' },
-    { key: 'rework', label: 'Retrabalho' },
-]
-
-/**
- * A jornada do negócio, editável no painel da conversa.
- *
- * Cada marco é SIM/NÃO com data e nota. Marcar SIM carimba a data de hoje;
- * a nota salva ao sair do campo. Tudo vai para o mesmo `trackingData` que a
- * tela de Negócios edita, pela mesma rota — uma fonte, duas telas.
- */
-function DealJourney({ deal, onChange }: { deal: OpenDeal; onChange: (next: TrackingData) => void }) {
-    const [data, setData] = useState<TrackingData>(deal.trackingData ?? {})
-    const [saving, setSaving] = useState(false)
-
-    useEffect(() => {
-        setData(deal.trackingData ?? {})
-    }, [deal.id, deal.trackingData])
-
-    const persist = async (next: TrackingData) => {
-        setData(next)
-        setSaving(true)
-        try {
-            const res = await fetch(`/api/deals/${deal.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ trackingData: next }),
-            })
-            if (!res.ok) throw new Error()
-            onChange(next)
-        } catch {
-            toast.error('Não foi possível salvar a jornada')
-            setData(deal.trackingData ?? {})
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    const toggle = (key: TrackingKey) => {
-        const current = data[key]
-        const done = !current?.done
-        void persist({
-            ...data,
-            [key]: { done, date: done ? (current?.date || format(new Date(), 'yyyy-MM-dd')) : '', note: current?.note ?? '' },
-        })
-    }
-
-    const setField = (key: TrackingKey, field: 'date' | 'note', value: string) => {
-        setData((prev) => ({ ...prev, [key]: { done: prev[key]?.done ?? false, date: prev[key]?.date ?? '', note: prev[key]?.note ?? '', [field]: value } }))
-    }
-
-    return (
-        <div className={cn('space-y-1', saving && 'opacity-70')}>
-            {JOURNEY.map(({ key, label }) => {
-                const entry = data[key]
-                const done = entry?.done ?? false
-                return (
-                    <div key={key} className="rounded-md border border-border px-2 py-1.5">
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => toggle(key)}
-                                className={cn(
-                                    'num shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide',
-                                    done ? 'bg-success-subtle text-success-subtle-foreground' : 'bg-muted text-muted-foreground'
-                                )}
-                                title={done ? 'Marcar como NÃO' : 'Marcar como SIM'}
-                            >
-                                {done ? 'SIM' : 'NÃO'}
-                            </button>
-                            <span className="flex-1 text-xs font-medium">{label}</span>
-                            <input
-                                type="date"
-                                value={entry?.date ?? ''}
-                                onChange={(e) => setField(key, 'date', e.target.value)}
-                                onBlur={() => void persist(data)}
-                                className="num w-[118px] bg-transparent text-[11px] text-muted-foreground focus:outline-none"
-                                aria-label={`Data — ${label}`}
-                            />
-                        </div>
-                        <input
-                            value={entry?.note ?? ''}
-                            onChange={(e) => setField(key, 'note', e.target.value)}
-                            onBlur={() => void persist(data)}
-                            placeholder="Nota"
-                            className="mt-1 w-full bg-transparent text-[11px] text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-                            aria-label={`Nota — ${label}`}
-                        />
-                    </div>
-                )
-            })}
-        </div>
-    )
-}
 
 interface ConversationDetail {
     conversation: {
@@ -387,18 +287,7 @@ function MediaContent({ msg }: { msg: Message }) {
     }
 
     if (msg.contentType === 'audio' && msg.mediaUrl) {
-        return (
-            <div className="mb-1">
-                <audio controls className="max-w-[240px]">
-                    <source src={msg.mediaUrl} />
-                </audio>
-                {msg.transcript && (
-                    <p className="mt-1.5 max-w-[240px] whitespace-pre-wrap break-words text-xs italic opacity-80">
-                        {msg.transcript}
-                    </p>
-                )}
-            </div>
-        )
+        return <AudioMessage src={msg.mediaUrl} transcript={msg.transcript} className="mb-1" />
     }
 
     if (msg.contentType === 'video' && msg.mediaUrl) {
@@ -448,6 +337,10 @@ export default function ConversasPage() {
     const [activeTab, setActiveTab] = useState<Tab>('waiting')
     const [searchQuery, setSearchQuery] = useState('')
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
+    const [queue, setQueue] = useState<QueueCounts | null>(null)
+    const [slashIndex, setSlashIndex] = useState(0)
+    /** `commands` lista os comandos; `replies` é a segunda página, só respostas. */
+    const [slashPage, setSlashPage] = useState<'commands' | 'replies'>('commands')
     const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
     const [conversationDetail, setConversationDetail] = useState<ConversationDetail | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
@@ -631,6 +524,7 @@ export default function ConversasPage() {
                 prevTotalUnreadRef.current = newTotalUnread
 
                 setConversations(data.conversations)
+                if (data.counts) setQueue(data.counts)
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
                 }
@@ -1045,37 +939,97 @@ export default function ConversasPage() {
             sendTypingIndicator(selectedConversation)
         }
 
-        // Check for /* trigger
-        const lastSlashStar = value.lastIndexOf('/*')
-        if (lastSlashStar !== -1) {
-            const afterTrigger = value.substring(lastSlashStar + 2)
-            // Only show if there's no space before the trigger or it's at the beginning
-            if (!afterTrigger.includes('\n')) {
-                setQuickSearch(afterTrigger.toLowerCase())
-                setShowQuickReplies(true)
-                return
-            }
+        // The slash menu opens on a `/` that starts the message or a line, and
+        // closes as soon as the token stops looking like a command. The old
+        // trigger was `/*`, which nobody discovers and which only reached quick
+        // replies.
+        const match = /(?:^|\n)\/([^\s\n]*)$/.exec(value)
+        if (match) {
+            setQuickSearch(match[1].toLowerCase())
+            setSlashIndex(0)
+            setShowQuickReplies(true)
+            return
         }
         setShowQuickReplies(false)
+        setSlashPage('commands')
+    }
+
+    /** Replaces the `/token` under the caret with `text` (or removes it). */
+    const replaceSlashToken = (text: string) => {
+        const next = messageInput.replace(/(?:^|\n)\/([^\s\n]*)$/, (whole) => {
+            const keepsNewline = whole.startsWith('\n')
+            return (keepsNewline ? '\n' : '') + text
+        })
+        setMessageInput(next)
+        setShowQuickReplies(false)
+        setSlashPage('commands')
+        textareaRef.current?.focus()
+    }
+
+    const runScheduling = async () => {
+        replaceSlashToken('')
+        try {
+            const res = await fetch('/api/scheduling/targets')
+            const data = await res.json()
+            const connected: { provider: string; label: string }[] = (data.targets ?? []).filter(
+                (t: { connected: boolean }) => t.connected
+            )
+            if (connected.length === 0) {
+                toast.error('Nenhuma agenda conectada', {
+                    description: 'Conecte o Google Calendar ou o Clinicorp em Gerenciamento → Integrações.',
+                    action: {
+                        label: 'Integrações',
+                        onClick: () => { window.location.href = '/gerenciamento/integracoes' },
+                    },
+                })
+                return
+            }
+            toast.info(`Agendamento vai para ${connected.map((t) => t.label).join(' e ')}`, {
+                description: 'O envio do horário entra na próxima etapa desta integração.',
+            })
+        } catch {
+            toast.error('Não foi possível verificar as agendas conectadas')
+        }
     }
 
     const selectQuickReply = (qr: QuickResponse) => {
-        // Replace the /* trigger with the quick response text
-        const triggerIndex = messageInput.lastIndexOf('/*')
-        const text = fillTemplate(qr.text)
-        if (triggerIndex !== -1) {
-            setMessageInput(messageInput.substring(0, triggerIndex) + text)
-        } else {
-            setMessageInput(text)
-        }
-        setShowQuickReplies(false)
-        textareaRef.current?.focus()
+        replaceSlashToken(fillTemplate(qr.text))
     }
+
+    /**
+     * The slash menu, as data.
+     *
+     * Commands first, quick replies under them, so `/` is one door to both. The
+     * second page (`replies`) exists because `/resposta` has to lead somewhere:
+     * it narrows the same popover to the clinic's saved answers.
+     */
+    const SLASH_COMMANDS: { id: string; command: string; label: string; run: () => void }[] = [
+        { id: 'resposta', command: '/resposta', label: 'Respostas rápidas da clínica', run: () => { setSlashPage('replies'); setQuickSearch(''); setSlashIndex(0) } },
+        { id: 'agendar', command: '/agendar', label: 'Agendar consulta na agenda conectada', run: () => { void runScheduling() } },
+        { id: 'assumir', command: '/assumir', label: 'Assumir esta conversa', run: () => { replaceSlashToken(''); void handleAction('assign') } },
+    ]
 
     const filteredQuickReplies = quickResponses.filter(qr =>
         qr.command.toLowerCase().includes(quickSearch) ||
         qr.text.toLowerCase().includes(quickSearch)
     )
+
+    const matchingCommands = slashPage === 'replies'
+        ? []
+        : SLASH_COMMANDS.filter(c => c.command.slice(1).startsWith(quickSearch) || c.label.toLowerCase().includes(quickSearch))
+
+    /** One flat list, because the keyboard moves through one list. */
+    const slashItems: { key: string; kind: 'command' | 'reply'; command: string; label: string; run: () => void }[] = [
+        ...matchingCommands.map(c => ({ key: `c-${c.id}`, kind: 'command' as const, command: c.command, label: c.label, run: c.run })),
+        ...filteredQuickReplies.map(qr => ({
+            key: `r-${qr.id}`,
+            kind: 'reply' as const,
+            command: qr.command,
+            label: qr.text.length > 80 ? `${qr.text.slice(0, 80)}…` : qr.text,
+            run: () => selectQuickReply(qr),
+        })),
+    ]
+    const slashOpen = showQuickReplies && slashItems.length > 0
 
     const handleSelectConversation = (convId: string) => {
         setSelectedConversation(convId)
@@ -1508,18 +1462,32 @@ export default function ConversasPage() {
     })
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (showQuickReplies && e.key === 'Escape') {
-            e.preventDefault()
-            setShowQuickReplies(false)
-            return
+        if (slashOpen) {
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                setShowQuickReplies(false)
+                setSlashPage('commands')
+                return
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSlashIndex(i => (i + 1) % slashItems.length)
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSlashIndex(i => (i - 1 + slashItems.length) % slashItems.length)
+                return
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault()
+                slashItems[Math.min(slashIndex, slashItems.length - 1)].run()
+                return
+            }
         }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
-            if (showQuickReplies && filteredQuickReplies.length > 0) {
-                selectQuickReply(filteredQuickReplies[0])
-            } else {
-                handleSendMessage()
-            }
+            handleSendMessage()
         }
     }
 
@@ -1536,6 +1504,7 @@ export default function ConversasPage() {
                     {/* Header */}
                     <div className="p-4 border-b">
                         <h1 className="mb-3 text-h3">Conversas</h1>
+                        {queue ? <QueueMeter counts={queue} className="mb-3" /> : null}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -1632,7 +1601,7 @@ export default function ConversasPage() {
                                                     <span className="font-medium text-sm truncate">
                                                         {conv.contact.name || conv.contact.phone || 'Desconhecido'}
                                                     </span>
-                                                    <span className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">
+                                                    <span className="num ml-2 flex-shrink-0 text-[10px] text-muted-foreground">
                                                         {conv.lastMessage && formatMessageTime(conv.lastMessage.createdAt)}
                                                     </span>
                                                 </div>
@@ -1647,7 +1616,7 @@ export default function ConversasPage() {
                                                         )}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
-                                                        <span className="flex-shrink-0 bg-green-500 text-foreground text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                                                        <span className="num flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                                                             {conv.unreadCount}
                                                         </span>
                                                     )}
@@ -1686,17 +1655,7 @@ export default function ConversasPage() {
                                                 {conv.tags && conv.tags.length > 0 && (
                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                         {conv.tags.slice(0, 3).map(tag => (
-                                                            <span
-                                                                key={tag.id}
-                                                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium"
-                                                                style={{
-                                                                    backgroundColor: tag.color + '20',
-                                                                    color: tag.color,
-                                                                }}
-                                                            >
-                                                                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                                                                {tag.name}
-                                                            </span>
+                                                            <TagChip key={tag.id} name={tag.name} color={tag.color} size="sm" />
                                                         ))}
                                                         {conv.tags.length > 3 && (
                                                             <span className="text-[9px] text-muted-foreground">+{conv.tags.length - 3}</span>
@@ -1864,47 +1823,45 @@ export default function ConversasPage() {
                                         <Search className="h-3.5 w-3.5" />
                                     </Button>
 
-                                    {/* Tag & Contact Panel buttons */}
-                                    <div className="relative">
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setShowTagPicker(!showTagPicker)}
-                                            className="text-xs gap-1 h-8 w-8 p-0"
-                                            title="Etiquetas"
-                                        >
-                                            <Tag className="h-3.5 w-3.5" />
-                                        </Button>
-
-                                        {/* Tag picker dropdown */}
-                                        {showTagPicker && (
-                                            <>
-                                                <div className="fixed inset-0 z-40" onClick={() => setShowTagPicker(false)} />
-                                                <div className="absolute right-0 top-full mt-1 z-50 bg-popover border border-border rounded-lg shadow-xl py-1 min-w-[180px] max-h-[240px] overflow-y-auto">
-                                                    {availableTags.length === 0 ? (
-                                                        <p className="text-xs text-muted-foreground px-3 py-2">
-                                                            Nenhuma etiqueta cadastrada. Crie em Atendimento &amp; IA → Etiquetas.
-                                                        </p>
-                                                    ) : (
-                                                        availableTags.map(tag => {
-                                                            const isAdded = conversationTags.some(t => t.id === tag.id)
-                                                            return (
-                                                                <button
-                                                                    key={tag.id}
-                                                                    onClick={() => isAdded ? removeTagFromConversation(tag.id) : addTagToConversation(tag)}
-                                                                    className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-muted/60 transition-colors"
-                                                                >
-                                                                    <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                                                                    <span className="flex-1 text-left truncate">{tag.name}</span>
-                                                                    {isAdded && <Check className="h-3.5 w-3.5 text-primary" />}
-                                                                </button>
-                                                            )
-                                                        })
-                                                    )}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
+                                    {/* Etiquetas — Popover, não div com z-50:
+                                        o primitivo trata Esc, clique fora, foco
+                                        e aria-expanded, que a versão artesanal
+                                        não tratava. */}
+                                    <Popover open={showTagPicker} onOpenChange={setShowTagPicker}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                size="sm"
+                                                variant={showTagPicker ? 'secondary' : 'ghost'}
+                                                className="h-8 w-8 gap-1 p-0 text-xs"
+                                                title="Etiquetas"
+                                                aria-label="Etiquetas da conversa"
+                                            >
+                                                <Tag className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent align="end" className="max-h-[240px] w-56 overflow-y-auto p-1">
+                                            {availableTags.length === 0 ? (
+                                                <p className="px-3 py-2 text-xs text-muted-foreground">
+                                                    Nenhuma etiqueta cadastrada. Crie em Atendimento &amp; IA → Etiquetas.
+                                                </p>
+                                            ) : (
+                                                availableTags.map(tag => {
+                                                    const isAdded = conversationTags.some(t => t.id === tag.id)
+                                                    return (
+                                                        <button
+                                                            key={tag.id}
+                                                            onClick={() => isAdded ? removeTagFromConversation(tag.id) : addTagToConversation(tag)}
+                                                            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60"
+                                                        >
+                                                            <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                            <span className="flex-1 truncate text-left">{tag.name}</span>
+                                                            {isAdded && <Check className="h-3.5 w-3.5 text-primary" />}
+                                                        </button>
+                                                    )
+                                                })
+                                            )}
+                                        </PopoverContent>
+                                    </Popover>
 
                                     <Button
                                         size="sm"
@@ -2109,28 +2066,48 @@ export default function ConversasPage() {
                                     {/* Message Input */}
                                     {conv.status !== 'closed' && (
                                         <div className="border-t bg-card p-3 relative">
-                                            {/* Quick Replies Popup */}
-                                            {showQuickReplies && filteredQuickReplies.length > 0 && (
-                                                <div className="absolute bottom-full left-3 right-3 mb-1 bg-popover border rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-50">
-                                                    <div className="p-1">
-                                                        <div className="px-2 py-1.5 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                                                            Respostas rápidas
-                                                        </div>
-                                                        {filteredQuickReplies.map((qr) => (
-                                                            <button
-                                                                key={qr.id}
-                                                                onClick={() => selectQuickReply(qr)}
-                                                                className="w-full text-left px-3 py-2 hover:bg-muted/50 rounded-md transition-colors"
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-xs font-mono text-primary font-medium">{qr.command}</span>
-                                                                </div>
-                                                                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                                                    {qr.text.substring(0, 80)}{qr.text.length > 80 ? '...' : ''}
-                                                                </p>
-                                                            </button>
-                                                        ))}
+                                            {/* Slash menu — commands and the
+                                                clinic's saved answers behind one
+                                                `/`. It is a roled listbox the
+                                                textarea drives: cmdk wants to own
+                                                its own input, and the typing
+                                                surface here is the composer. */}
+                                            {slashOpen && (
+                                                <div
+                                                    role="listbox"
+                                                    aria-label="Comandos do compositor"
+                                                    className="absolute bottom-full left-3 right-3 z-50 mb-1 max-h-[220px] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-md"
+                                                >
+                                                    <div className="flex items-center justify-between px-2 py-1.5">
+                                                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                                            {slashPage === 'replies' ? 'Respostas rápidas' : 'Comandos'}
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            ↑↓ navegar · Enter escolher · Esc fechar
+                                                        </span>
                                                     </div>
+                                                    {slashItems.map((item, i) => (
+                                                        <button
+                                                            key={item.key}
+                                                            type="button"
+                                                            role="option"
+                                                            aria-selected={i === slashIndex}
+                                                            onMouseEnter={() => setSlashIndex(i)}
+                                                            onClick={item.run}
+                                                            className={cn(
+                                                                'w-full rounded-md px-3 py-2 text-left transition-colors',
+                                                                i === slashIndex ? 'bg-accent' : 'hover:bg-muted/50'
+                                                            )}
+                                                        >
+                                                            <span className={cn(
+                                                                'text-xs font-medium',
+                                                                item.kind === 'command' ? 'text-primary-subtle-foreground' : 'font-mono text-primary-subtle-foreground'
+                                                            )}>
+                                                                {item.command}
+                                                            </span>
+                                                            <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.label}</p>
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             )}
 
@@ -2265,7 +2242,7 @@ export default function ConversasPage() {
                                                                 ? '📝 Nota interna (não será enviada ao cliente)...'
                                                                 : attachment
                                                                     ? 'Legenda (opcional)...'
-                                                                    : 'Digite sua mensagem... (/* para respostas rápidas)'
+                                                                    : 'Digite sua mensagem… ( / para comandos )'
                                                         }
                                                         rows={1}
                                                         className={cn(
@@ -2342,23 +2319,37 @@ export default function ConversasPage() {
                                                 </p>
                                             </div>
 
-                                            {/* Negócio + jornada */}
+                                            {/* Negócio: só o essencial e a fase
+                                                atual. Os seis marcos ficam na
+                                                jornada, logo abaixo. */}
                                             <div className="space-y-2">
-                                                <div className="flex items-center justify-between">
+                                                <div className="flex items-center justify-between gap-2">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h4>
-                                                    {conv.openDeal?.stageName && (
-                                                        <span
-                                                            className="rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground"
-                                                            style={{ backgroundColor: (conv.openDeal.stageColor ?? '#6B7280') + '33' }}
-                                                        >
-                                                            {conv.openDeal.stageName}
-                                                        </span>
-                                                    )}
+                                                    {conv.openDeal?.stageName ? (
+                                                        <TagChip name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? '#6B7280'} />
+                                                    ) : null}
                                                 </div>
                                                 {conv.openDeal ? (
                                                     <>
                                                         <p className="truncate text-xs text-muted-foreground" title={conv.openDeal.title}>{conv.openDeal.title}</p>
-                                                        <DealJourney deal={conv.openDeal} onChange={applyDealTracking} />
+                                                        {(() => {
+                                                            const reached = currentMilestone(conv.openDeal.trackingData)
+                                                            return (
+                                                                <p className="text-xs">
+                                                                    <span className="text-muted-foreground">Fase: </span>
+                                                                    <span className="font-semibold">{reached ? reached.label : 'nenhum marco ainda'}</span>
+                                                                </p>
+                                                            )
+                                                        })()}
+                                                        <div className="pt-1">
+                                                            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jornada</h4>
+                                                            <DealJourney
+                                                                dealId={conv.openDeal.id}
+                                                                trackingData={conv.openDeal.trackingData}
+                                                                onChange={applyDealTracking}
+                                                                variant="timeline"
+                                                            />
+                                                        </div>
                                                     </>
                                                 ) : (
                                                     <div className="rounded-md border border-dashed border-border px-3 py-3 text-center">

@@ -257,11 +257,65 @@ e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
 tabela vira cartão.
 
 **Ícone.** Lucide, 16px inline, 20px no máximo decorativo. Botão só de ícone
-precisa de `Tooltip` e `aria-label` — `title=` não basta.
+precisa de `Tooltip` e `aria-label` — `title=` não basta. **Ícone em botão tem
+regra:** ação primária de página sempre com ícone à esquerda do rótulo; ação de
+linha de tabela é só ícone com `Tooltip`; ação secundária em texto vai sem ícone.
+
+**Mídia nativa não entra.** `<audio controls>` e `<video controls>` são
+superfícies do navegador: mudam de forma em cada browser, ignoram o tema e têm
+altura que não respeita nenhuma grade. Áudio usa `AudioMessage` — controle
+desenhado, barra de posição clicável em `bg-current/20`, duração em `num`. A
+transcrição que o worker gera é **conteúdo**, não legenda: peso normal, sob um
+filete com o rótulo "Transcrição".
+
+**Menu de comando.** Lista disparada por `/` no compositor. Quando o campo de
+digitação é externo ao menu (o caso do chat), use `Popover` com
+`role="listbox"`/`role="option"`, `aria-selected` e navegação por ↑↓/Enter/Esc
+tratada no campo — `cmdk` espera ser dono do próprio input e brigaria com o
+compositor. Com campo próprio, use o primitivo `command`. **Nunca um `div`
+`z-50` solto:** foi o que havia em quatro lugares do chat, sem Esc, sem clique
+fora e sem foco.
+
+**Barra proporcional.** Para estado de fila ou de etapa, a largura de cada
+trecho é o valor — e então ela é dado, não enfeite. Três tons no máximo
+(`warning`, `primary`, `success`), altura 6px, `role="img"` com `aria-label`
+dizendo os números. Quem lê o número exato lê a linha de texto ao lado, não a
+barra.
+
+**Linha do tempo.** Marcos em ordem com o trilho desenhado **entre** as marcas,
+nunca atrás delas — 1px atravessando um ponto cheio aparece. Marco cumprido é
+`bg-success` com `Check`; pendente é `bg-card` com borda e o ícone do marco.
+Data em `num`. Só o marco em edição abre; os outros ficam em uma linha.
 
 ---
 
-## 6. Voz da interface (pt-BR)
+## 6. O shell
+
+**A trilha mora no Topbar.** Uma tela diz onde está (trilha, `text-sm
+text-muted-foreground`, no Topbar) e como se chama (`h1` em `text-h1`, no
+`PageHeader`). São papéis diferentes, então não é duplicação — o que era
+duplicação é o Topbar repetir o nome que o cabeçalho já mostra, e isso saiu.
+Vantagem de estar no shell: as telas de viewport inteiro (chat, kanban), que não
+renderizam `PageHeader`, continuam orientadas.
+
+**Um `h1` por tela.** Sempre no `PageHeader`, sempre `text-h1`. Título dentro de
+coluna — o "Conversas" da lista do chat, o "Novo agente" do assistente — é
+`text-h3`, porque não é o título da página.
+
+**Toda tela tem descrição.** Uma linha sob o título, `text-sm
+text-muted-foreground`, dizendo para que a tela serve. Exceção única: o chat, que
+é ferramenta de viewport inteiro e não tem onde pôr.
+
+**Ação primária no topo à direita**, no slot `actions` do `PageHeader` — nunca no
+rodapé do formulário. Formulário dentro de aba usa `<form id>` e o botão do
+cabeçalho envia por `form=`.
+
+**Padding é do `PageHeader`**, não do layout: `px-4 md:px-6`. Tela que quer o
+viewport inteiro simplesmente não renderiza um.
+
+---
+
+## 7. Voz da interface (pt-BR)
 
 **Sentence case em tudo.** "Novo contato", não "Novo Contato". Caixa alta só em
 nome próprio.
@@ -288,7 +342,7 @@ ainda"), uma linha explica, o botão é um verbo. Evite "Nada aqui".
 
 ---
 
-## 7. Os dois modos
+## 8. Os dois modos
 
 Claro é o padrão. Escuro é alternativa completa, não degradada.
 
@@ -301,7 +355,7 @@ gravado. Para conferir o claro, perfil novo ou limpar a chave `theme`.
 
 ---
 
-## 8. O que não fazer
+## 9. O que não fazer
 
 - **Nenhum roxo.** Era a identidade Kaly. `npm run lint:colors` falha o build se
   voltar.
@@ -321,13 +375,16 @@ gravado. Para conferir o claro, perfil novo ou limpar a chave `theme`.
 
 ---
 
-## 9. Onde as coisas moram
+## 10. Onde as coisas moram
 
 | Caminho | O quê |
 |---|---|
 | `src/app/globals.css` | **os tokens** — a fonte da verdade |
 | `src/components/ui/` | primitivos shadcn. Não edite para resolver um caso de tela |
-| `src/components/shared/` | abstrações do produto (`PageHeader`, `DataTable`, `EmptyState`, `KpiCard`, `StatusBadge`, `TagChip`…). Fora de `ui/` de propósito, para que um `shadcn add` futuro não as sobrescreva |
+| `src/components/shared/` | abstrações do produto (`PageHeader`, `DataTable`, `EmptyState`, `KpiCard`, `StatusBadge`, `TagChip`, `AudioMessage`, `QueueMeter`, `DealJourney`…). Fora de `ui/` de propósito, para que um `shadcn add` futuro não as sobrescreva |
+| `src/components/shared/DealJourney.tsx` | **a jornada do negócio** — marcos, rótulos, ordem e `currentMilestone()`. Chat e pipeline leem daqui; eram duas listas e os rótulos já tinham divergido |
+| `src/components/layout/BreadcrumbTrail.tsx` | a trilha do Topbar |
+| `src/app/api/scheduling/targets/` | onde um agendamento deve cair (Google Calendar, Clinicorp). O compositor pergunta em vez de supor |
 | `src/components/brand/` | `Logo` — ponto único dos assets de marca |
 | `src/lib/nav.ts` | árvore de rotas e mapa de rótulos pt-BR |
 | `src/app/design-system/` | a rota viva |
