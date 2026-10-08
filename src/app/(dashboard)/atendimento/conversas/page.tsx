@@ -38,6 +38,28 @@ import {
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
 import { ScheduleDialog } from '@/components/shared/ScheduleDialog'
@@ -385,7 +407,6 @@ export default function ConversasPage() {
     const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null)
 
     // Context menu state
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg: Message } | null>(null)
     const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
     const [notesOpen, setNotesOpen] = useState(false)
     const [creatingDeal, setCreatingDeal] = useState(false)
@@ -1090,14 +1111,8 @@ export default function ConversasPage() {
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
-    const handleContextMenu = (e: React.MouseEvent, msg: Message) => {
-        e.preventDefault()
-        setContextMenu({ x: e.clientX, y: e.clientY, msg })
-    }
-
     const handleReply = (msg: Message) => {
         setReplyingTo(msg)
-        setContextMenu(null)
         textareaRef.current?.focus()
     }
 
@@ -1105,7 +1120,6 @@ export default function ConversasPage() {
 
     /** Reage (ou remove a reação, repetindo o mesmo emoji) a uma mensagem recebida. */
     const handleReact = async (msg: Message, emoji: string) => {
-        setContextMenu(null)
         if (!selectedConversation) return
         const next = msg.reaction === emoji ? '' : emoji
         try {
@@ -1126,7 +1140,6 @@ export default function ConversasPage() {
     }
 
     const handleForward = (msg: Message) => {
-        setContextMenu(null)
         setForwardMsg(msg)
     }
 
@@ -1252,7 +1265,6 @@ export default function ConversasPage() {
 
     const handleCopyMessage = (msg: Message) => {
         navigator.clipboard.writeText(msg.content)
-        setContextMenu(null)
     }
 
     // Audio recording
@@ -1385,7 +1397,6 @@ export default function ConversasPage() {
     // Close context menu on Escape
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setContextMenu(null)
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
@@ -2003,6 +2014,12 @@ export default function ConversasPage() {
                                                         isInbound ? 'justify-start' : 'justify-end'
                                                     )}
                                                 >
+                                                  {/* O menu da mensagem é o primitivo: posição, Esc,
+                                                      clique fora e navegação por teclado faltavam na
+                                                      versão artesanal, e menu sem teclado é
+                                                      inacessível por definição. */}
+                                                  <ContextMenu>
+                                                    <ContextMenuTrigger asChild>
                                                     <div
                                                         className={cn(
                                                             'max-w-[70%] rounded-2xl px-4 py-2.5 text-sm relative',
@@ -2020,7 +2037,6 @@ export default function ConversasPage() {
                                                                     ? 'bg-bubble-out text-bubble-out-foreground rounded-br-md'
                                                                     : 'bg-bubble-human text-bubble-human-foreground rounded-br-md'
                                                         )}
-                                                        onContextMenu={(e) => handleContextMenu(e, msg)}
                                                     >
                                                         {/* Sender label */}
                                                         {!isInbound && (
@@ -2068,6 +2084,44 @@ export default function ConversasPage() {
                                                             </span>
                                                         )}
                                                     </div>
+                                                    </ContextMenuTrigger>
+                                                    <ContextMenuContent className="min-w-[180px]">
+                                                        <ContextMenuItem onSelect={() => handleReply(msg)}>
+                                                            <Reply className="text-muted-foreground" />
+                                                            Responder
+                                                        </ContextMenuItem>
+                                                        <ContextMenuItem onSelect={() => handleCopyMessage(msg)}>
+                                                            <Copy className="text-muted-foreground" />
+                                                            Copiar texto
+                                                        </ContextMenuItem>
+                                                        {!msg.isInternal && (
+                                                            <ContextMenuItem onSelect={() => handleForward(msg)}>
+                                                                <Reply className="-scale-x-100 text-muted-foreground" />
+                                                                Encaminhar
+                                                            </ContextMenuItem>
+                                                        )}
+                                                        {msg.direction === 'inbound' && (
+                                                            <>
+                                                                <ContextMenuSeparator />
+                                                                <div className="flex items-center gap-0.5 px-1 pb-0.5">
+                                                                    {REACTIONS.map((emoji) => (
+                                                                        <button
+                                                                            key={emoji}
+                                                                            onClick={() => handleReact(msg, emoji)}
+                                                                            className={cn(
+                                                                                'flex h-8 w-8 items-center justify-center rounded-md text-lg hover:bg-muted/60',
+                                                                                msg.reaction === emoji && 'bg-primary-subtle'
+                                                                            )}
+                                                                            aria-label={msg.reaction === emoji ? `Remover reação ${emoji}` : `Reagir com ${emoji}`}
+                                                                        >
+                                                                            {emoji}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </ContextMenuContent>
+                                                  </ContextMenu>
                                                 </div>
                                             )
                                         })}
@@ -2443,57 +2497,6 @@ export default function ConversasPage() {
                                 )}
                             </div> {/* end Chat + Contact Panel layout */}
 
-                            {/* Context Menu */}
-                            {contextMenu && (
-                                <>
-                                    <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)} />
-                                    <div
-                                        className="fixed z-50 bg-popover border border-border rounded-xl shadow-xl py-1.5 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
-                                        style={{ top: contextMenu.y, left: contextMenu.x }}
-                                    >
-                                        <button
-                                            onClick={() => handleReply(contextMenu.msg)}
-                                            className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm hover:bg-muted/60 transition-colors"
-                                        >
-                                            <Reply className="h-4 w-4 text-muted-foreground" />
-                                            Responder
-                                        </button>
-                                        <button
-                                            onClick={() => handleCopyMessage(contextMenu.msg)}
-                                            className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm hover:bg-muted/60 transition-colors"
-                                        >
-                                            <Copy className="h-4 w-4 text-muted-foreground" />
-                                            Copiar texto
-                                        </button>
-                                        {!contextMenu.msg.isInternal && (
-                                            <button
-                                                onClick={() => handleForward(contextMenu.msg)}
-                                                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm hover:bg-muted/60 transition-colors"
-                                            >
-                                                <Reply className="h-4 w-4 text-muted-foreground -scale-x-100" />
-                                                Encaminhar
-                                            </button>
-                                        )}
-                                        {contextMenu.msg.direction === 'inbound' && (
-                                            <div className="mt-1 flex items-center gap-0.5 border-t border-border px-2 pt-1.5">
-                                                {REACTIONS.map((emoji) => (
-                                                    <button
-                                                        key={emoji}
-                                                        onClick={() => handleReact(contextMenu.msg, emoji)}
-                                                        className={cn(
-                                                            'flex h-8 w-8 items-center justify-center rounded-md text-lg hover:bg-muted/60',
-                                                            contextMenu.msg.reaction === emoji && 'bg-primary-subtle'
-                                                        )}
-                                                        title={contextMenu.msg.reaction === emoji ? 'Remover reação' : 'Reagir'}
-                                                    >
-                                                        {emoji}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </>
-                            )}
                         </>
                     )}
                 </div>
@@ -2525,38 +2528,40 @@ export default function ConversasPage() {
                 />
             ) : null}
 
-            {forwardMsg && (
-                <>
-                    <div className="fixed inset-0 z-50 bg-black/40" onClick={() => !forwarding && setForwardMsg(null)} />
-                    <div className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,420px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-popover shadow-xl">
-                        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                            <div>
-                                <p className="text-sm font-semibold">Encaminhar para</p>
-                                <p className="truncate text-xs text-muted-foreground">{forwardMsg.content}</p>
-                            </div>
-                            <button onClick={() => setForwardMsg(null)} className="text-muted-foreground hover:text-foreground" aria-label="Fechar">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="max-h-[50vh] overflow-y-auto py-1">
-                            {conversations.filter((c) => c.id !== selectedConversation).length === 0 && (
-                                <p className="px-4 py-3 text-sm text-muted-foreground">Nenhuma outra conversa nesta aba.</p>
-                            )}
-                            {conversations.filter((c) => c.id !== selectedConversation).map((c) => (
-                                <button
-                                    key={c.id}
-                                    disabled={forwarding}
-                                    onClick={() => confirmForward(c.id)}
-                                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-muted/60 disabled:opacity-50"
-                                >
-                                    <span className="flex-1 truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
-                                    <span className="text-xs text-muted-foreground num">{c.contact.phone}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </>
-            )}
+            {/* Encaminhar — Dialog, não dois divs fixos: o primitivo trata foco
+                preso, Esc, rolagem da página e o rótulo do título para leitor de
+                tela. A lista é um Command, então dá para filtrar digitando. */}
+            <Dialog open={Boolean(forwardMsg)} onOpenChange={(open) => { if (!open && !forwarding) setForwardMsg(null) }}>
+                <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[440px]">
+                    <DialogHeader className="border-b border-border px-4 py-3 text-left">
+                        <DialogTitle className="text-sm">Encaminhar para</DialogTitle>
+                        <DialogDescription className="truncate text-xs">
+                            {forwardMsg?.content || 'Mensagem'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Command>
+                        <CommandInput placeholder="Buscar conversa…" />
+                        <CommandList className="max-h-[50vh]">
+                            <CommandEmpty>Nenhuma conversa encontrada.</CommandEmpty>
+                            <CommandGroup>
+                                {conversations
+                                    .filter((c) => c.id !== selectedConversation)
+                                    .map((c) => (
+                                        <CommandItem
+                                            key={c.id}
+                                            value={`${c.contact.name ?? ''} ${c.contact.phone ?? ''}`}
+                                            disabled={forwarding}
+                                            onSelect={() => confirmForward(c.id)}
+                                        >
+                                            <span className="flex-1 truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
+                                            <span className="num text-xs text-muted-foreground">{c.contact.phone}</span>
+                                        </CommandItem>
+                                    ))}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </DialogContent>
+            </Dialog>
 
             {/* Transfer Modal */}
             {
