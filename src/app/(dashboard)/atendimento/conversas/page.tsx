@@ -5,40 +5,42 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
     ArrowLeft,
-    Search,
-    Bot,
-    MessageSquare,
-    Send,
-    UserCheck,
-    UserX,
-    XCircle,
-    RotateCcw,
-    Phone,
     ArrowRightLeft,
-    Image as ImageIcon,
-    FileText,
-    Music,
-    Film,
-    X,
-    Users,
-    Paperclip,
-    Reply,
-    Mic,
-    Copy,
-    Tag,
-    StickyNote,
-    Mail,
-    PanelRight,
+    Bot,
+    CalendarPlus,
     Check,
     CheckCheck,
+    Copy,
+    FileText,
+    Film,
+    Image as ImageIcon,
     Loader2,
+    Mail,
+    MessageSquare,
+    Mic,
+    Music,
+    PanelRight,
+    Paperclip,
+    Phone,
+    Reply,
+    RotateCcw,
+    Search,
+    Send,
+    StickyNote,
+    Tag,
     Trash2,
+    UserCheck,
+    Users,
+    UserX,
+    X,
+    XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
+import { ScheduleDialog } from '@/components/shared/ScheduleDialog'
 import { TagChip } from '@/components/shared/TagChip'
 import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
@@ -338,6 +340,7 @@ export default function ConversasPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
     const [queue, setQueue] = useState<QueueCounts | null>(null)
+    const [scheduleOpen, setScheduleOpen] = useState(false)
     const [slashIndex, setSlashIndex] = useState(0)
     /** `commands` lista os comandos; `replies` é a segunda página, só respostas. */
     const [slashPage, setSlashPage] = useState<'commands' | 'replies'>('commands')
@@ -966,30 +969,13 @@ export default function ConversasPage() {
         textareaRef.current?.focus()
     }
 
-    const runScheduling = async () => {
+    const runScheduling = () => {
         replaceSlashToken('')
-        try {
-            const res = await fetch('/api/scheduling/targets')
-            const data = await res.json()
-            const connected: { provider: string; label: string }[] = (data.targets ?? []).filter(
-                (t: { connected: boolean }) => t.connected
-            )
-            if (connected.length === 0) {
-                toast.error('Nenhuma agenda conectada', {
-                    description: 'Conecte o Google Calendar ou o Clinicorp em Gerenciamento → Integrações.',
-                    action: {
-                        label: 'Integrações',
-                        onClick: () => { window.location.href = '/gerenciamento/integracoes' },
-                    },
-                })
-                return
-            }
-            toast.info(`Agendamento vai para ${connected.map((t) => t.label).join(' e ')}`, {
-                description: 'O envio do horário entra na próxima etapa desta integração.',
-            })
-        } catch {
-            toast.error('Não foi possível verificar as agendas conectadas')
+        if (!conversationDetail?.conversation?.contact?.id) {
+            toast.error('Abra uma conversa para agendar')
+            return
         }
+        setScheduleOpen(true)
     }
 
     const selectQuickReply = (qr: QuickResponse) => {
@@ -1005,7 +991,7 @@ export default function ConversasPage() {
      */
     const SLASH_COMMANDS: { id: string; command: string; label: string; run: () => void }[] = [
         { id: 'resposta', command: '/resposta', label: 'Respostas rápidas da clínica', run: () => { setSlashPage('replies'); setQuickSearch(''); setSlashIndex(0) } },
-        { id: 'agendar', command: '/agendar', label: 'Agendar consulta na agenda conectada', run: () => { void runScheduling() } },
+        { id: 'agendar', command: '/agendar', label: 'Agendar consulta deste paciente', run: runScheduling },
         { id: 'assumir', command: '/assumir', label: 'Assumir esta conversa', run: () => { replaceSlashToken(''); void handleAction('assign') } },
     ]
 
@@ -1204,6 +1190,31 @@ export default function ConversasPage() {
                 ? { ...prev, conversation: { ...prev.conversation, openDeal: { ...prev.conversation.openDeal, trackingData: next } } }
                 : prev
         )
+    }
+
+    /**
+     * Carimba "Agendou" na jornada depois de marcar a consulta.
+     *
+     * Vai pela mesma rota que a tela de Negócios usa, então o funil não tem duas
+     * verdades sobre a mesma data.
+     */
+    const stampScheduledMilestone = async (dealId: string, date: string) => {
+        const current = conversationDetail?.conversation?.openDeal?.trackingData ?? {}
+        const next: TrackingData = {
+            ...current,
+            scheduled: { done: true, date, note: current.scheduled?.note ?? '' },
+        }
+        try {
+            const res = await fetch(`/api/deals/${dealId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trackingData: next }),
+            })
+            if (!res.ok) throw new Error()
+            applyDealTracking(next)
+        } catch {
+            toast.error('Consulta agendada, mas não foi possível marcar "Agendou" na jornada')
+        }
     }
 
     /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
@@ -1821,6 +1832,20 @@ export default function ConversasPage() {
                                         title="Buscar na conversa"
                                     >
                                         <Search className="h-3.5 w-3.5" />
+                                    </Button>
+
+                                    {/* `/agendar` é atalho, não o único caminho:
+                                        quem não conhece a barra precisa ver a
+                                        ação. */}
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 gap-1 p-0 text-xs"
+                                        title="Agendar consulta"
+                                        aria-label="Agendar consulta deste paciente"
+                                        onClick={() => setScheduleOpen(true)}
+                                    >
+                                        <CalendarPlus className="h-3.5 w-3.5" />
                                     </Button>
 
                                     {/* Etiquetas — Popover, não div com z-50:
@@ -2475,6 +2500,31 @@ export default function ConversasPage() {
             </div >
 
             {/* Encaminhar */}
+            {/* Agendamento a partir da conversa. O compromisso é uma atividade,
+                que já sincroniza com a agenda conectada da clínica. */}
+            {conv?.contact?.id ? (
+                <ScheduleDialog
+                    open={scheduleOpen}
+                    onOpenChange={setScheduleOpen}
+                    contactId={conv.contact.id}
+                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
+                    dealId={conv.openDeal?.id ?? null}
+                    canMarkJourney={Boolean(conv.openDeal)}
+                    onScheduled={({ date, time, markJourney }) => {
+                        if (markJourney && conv.openDeal) {
+                            void stampScheduledMilestone(conv.openDeal.id, date)
+                        }
+                        // O texto entra no compositor em vez de ser enviado: quem
+                        // confirma o horário com o paciente é a pessoa, não a tela.
+                        const [y, m, d] = date.split('-')
+                        setMessageInput(
+                            `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
+                        )
+                        textareaRef.current?.focus()
+                    }}
+                />
+            ) : null}
+
             {forwardMsg && (
                 <>
                     <div className="fixed inset-0 z-50 bg-black/40" onClick={() => !forwarding && setForwardMsg(null)} />
