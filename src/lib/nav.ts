@@ -95,16 +95,6 @@ export const navSections: NavSection[] = [
             },
         ],
     },
-    {
-        label: 'Gerenciamento',
-        icon: Settings,
-        allowedRoles: ['OWNER', 'ADMIN'],
-        items: [
-            { label: 'Conta', href: '/gerenciamento/conta' },
-            { label: 'Usuários', href: '/gerenciamento/usuarios' },
-            { label: 'Integrações', href: '/gerenciamento/integracoes' },
-        ],
-    },
 ]
 
 /**
@@ -139,7 +129,6 @@ const SEGMENT_LABELS: Record<string, string> = {
     campanhas: 'Campanhas',
     templates: 'Templates',
 
-    'design-system': 'Design system',
     onboarding: 'Primeiros passos',
 }
 

@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ChevronsUpDown, CreditCard, LogOut, Monitor, Moon, Settings, Sun, User } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { ChevronsUpDown, CreditCard, LogOut, Plug, User } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -13,8 +12,6 @@ import {
     DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuRadioGroup,
-    DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -40,13 +37,13 @@ interface Me {
  * sidebar owns the session — workspace at the top, person at the bottom — and
  * the topbar is free to be about the page you are on.
  *
- * The theme switch moved in here with it, as a three-way choice rather than a
- * toggle: "Sistema" is what most people actually want and a toggle cannot say.
+ * The theme switch stays in the footer above, as three buttons: it is a setting
+ * someone flips while looking at the screen, and a button you can see beats a
+ * menu you have to open.
  */
 export function NavUser() {
     const { isMobile } = useSidebar()
     const router = useRouter()
-    const { theme, setTheme } = useTheme()
     const [me, setMe] = useState<Me | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -151,30 +148,12 @@ export function NavUser() {
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                                <Link href="/gerenciamento/conta">
-                                    <Settings />
-                                    Configurações
+                                <Link href="/gerenciamento/conta?tab=integracoes">
+                                    <Plug />
+                                    Integrações
                                 </Link>
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                            Tema
-                        </DropdownMenuLabel>
-                        <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={setTheme}>
-                            <DropdownMenuRadioItem value="light">
-                                <Sun className="mr-2 size-4" />
-                                Claro
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="dark">
-                                <Moon className="mr-2 size-4" />
-                                Escuro
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="system">
-                                <Monitor className="mr-2 size-4" />
-                                Sistema
-                            </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             variant="destructive"

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, CreditCard, Palette, Plug, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { ChevronRight, TriangleAlert } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
 import { Badge } from '@/components/ui/badge'
@@ -31,36 +31,15 @@ import {
 } from '@/components/ui/sidebar'
 import { navSections } from '@/lib/nav'
 import { usePermissions } from '@/hooks/usePermissions'
-import { NavSecondary } from './NavSecondary'
 import { NavUser } from './NavUser'
+import { ThemeToggle } from './ThemeToggle'
 
-/**
- * The secondary group: reachable, deliberately not in the way.
- *
- * `design-system` is only listed for OWNER and ADMIN — it is the live token
- * reference, useful to whoever changes the product and noise to everyone else.
- */
-const SECONDARY: { title: string; url: string; icon: LucideIcon; roles?: string[] }[] = [
-    { title: 'Plano e créditos', url: '/gerenciamento/conta?tab=plano', icon: CreditCard },
-    { title: 'Integrações', url: '/gerenciamento/integracoes', icon: Plug },
-    { title: 'Design system', url: '/design-system', icon: Palette, roles: ['OWNER', 'ADMIN'] },
-]
 
 export function AppSidebar() {
     const pathname = usePathname()
     // Starts null and loading, so role-gated sections never flash for an
     // ATENDENTE before the answer arrives.
     const { role, loading } = usePermissions()
-
-    const secondary = useMemo(
-        () =>
-            SECONDARY.filter((item) => {
-                if (!item.roles?.length) return true
-                if (loading || !role) return false
-                return item.roles.includes(role)
-            }),
-        [role, loading]
-    )
 
     const sections = useMemo(
         () =>
@@ -212,16 +191,11 @@ export function AppSidebar() {
                         })}
                     </SidebarMenu>
                 </SidebarGroup>
-
-                {/* Navegação secundária, empurrada para o rodapé pelo `mt-auto`
-                    do bloco 08: o que não é destino de trabalho diário — ajuda,
-                    plano, a rota viva do design system. Fica longe do que se
-                    usa toda hora, mas alcançável sem menu. */}
-                <NavSecondary items={secondary} className="mt-auto" />
             </SidebarContent>
 
             <SidebarFooter>
                 <PlanSummary />
+                <ThemeToggle />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

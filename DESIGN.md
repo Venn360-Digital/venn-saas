@@ -1,9 +1,11 @@
 # Design system — OdontoBox360
 
-Especificação da camada visual. A face visível dela é a rota **`/design-system`**
-dentro do app, que renderiza os componentes reais com os tokens reais — ela não
-pode divergir do código porque é o código. Este documento explica as decisões; a
-rota mostra o resultado.
+Especificação da camada visual. Este documento é a fonte: o que ele diz, o
+código cumpre, e `npm run lint:colors` defende a parte automatizável.
+
+Houve uma rota viva (`/design-system`) renderizando os componentes reais com os
+tokens reais. Ela foi removida por decisão do produto — era alcançável por quem
+tivesse a URL e não é para ser pública. Se voltar, volta protegida por papel.
 
 Material de referência (outra marca, consulta histórica): `docs/referencias/`.
 
@@ -436,4 +438,3 @@ tom claro reprovaria (3,49:1) — é a mesma armadilha do `--primary-foreground`
 | `src/app/api/scheduling/targets/` | onde um agendamento deve cair (Google Calendar, Clinicorp). O compositor pergunta em vez de supor |
 | `src/components/brand/` | `Logo` — ponto único dos assets de marca |
 | `src/lib/nav.ts` | árvore de rotas e mapa de rótulos pt-BR |
-| `src/app/design-system/` | a rota viva |
