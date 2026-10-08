@@ -3,6 +3,19 @@
 Everything runs on one host via Docker Compose: Traefik, self-hosted Supabase,
 Evolution Go, Redis, the Next.js app and the worker process.
 
+> **Two compose files. Pick the right one before running anything.**
+>
+> - `infra/compose.yaml` stands up that whole world from nothing — Traefik,
+>   Supabase and Redis included. Sections 1–5 below describe this path.
+> - `infra/compose.staycloud.yaml` layers only *our* services onto a host that
+>   already runs Traefik, Supabase and Redis. **This is what the live Stay Cloud
+>   host uses.** `compose.yaml` must never run there: it would fight the existing
+>   proxy for ports 80/443, and a second Supabase does not fit in 3.9 GB.
+>
+> On the live host, every `docker compose` in this document needs
+> `-f infra/compose.staycloud.yaml --env-file .env` and must run from the
+> repository root — see [Deploy a new version](#deploy-a-new-version).
+
 | Service | Reachable at | Notes |
 | --- | --- | --- |
 | App (Next.js) | `https://$APP_HOST` | Traefik label |
@@ -153,6 +166,10 @@ every session and every key already issued.
 
 ## 5. Boot
 
+This boots the from-scratch stack. On the live Stay Cloud host, use the
+`compose.staycloud.yaml` invocation from
+[Deploy a new version](#deploy-a-new-version) instead.
+
 ```bash
 cd infra
 docker compose config >/dev/null   # validate before pulling anything
@@ -234,14 +251,31 @@ Studio's own login lives in `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`.
 
 ### Deploy a new version
 
+On the live Stay Cloud host, from the **repository root** — not from `infra/`:
+
 ```bash
-cd infra
 git pull
-docker compose up -d --build app worker
+docker compose -f infra/compose.staycloud.yaml --env-file .env up -d --build app worker
 ```
 
-`migrate` re-runs on `up`, applying any new Prisma migration before the new
-containers take traffic.
+Three things that bite if you drop them:
+
+- **Run it from the repository root.** Each service declares `env_file: ../.env`,
+  resolved relative to the compose file, so the path only works from one level up.
+- **`--env-file .env` is not redundant with `env_file:`.** They feed different
+  things: `env_file:` puts variables *inside* the container, while `--env-file`
+  feeds the `${APP_HOST}` interpolation in the YAML itself. Without it the Traefik
+  label renders as ```Host(``)``` and the site answers 404 while every container
+  reports healthy — that cost five hours on 2026-10-07.
+- **`-f` is not optional.** Bare `docker compose` from `infra/` picks up
+  `compose.yaml`, the from-scratch stack, which must never run on this host.
+
+Rebuild only what changed. The app image carries `src/`, so a frontend-only
+change needs `app` alone; `worker` only when something under `workers/` or the
+shared libraries it bundles moved. `migrate` re-runs on `up`, applying any new
+Prisma migration before the new containers take traffic.
+
+A push to `origin/main` deploys nothing by itself. This command is the deploy.
 
 ### Scale the workers
 
