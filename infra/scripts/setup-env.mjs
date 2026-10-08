@@ -249,9 +249,6 @@ const DISABLED_FEATURES = {
 
 const PLACEHOLDERS = {
     OPENAI_API_KEY: '',
-    GOOGLE_CLIENT_ID: '',
-    GOOGLE_CLIENT_SECRET: '',
-    GOOGLE_REDIRECT_URI: `https://${appHost}/api/integrations/google/callback`,
 }
 
 let content = fs.readFileSync(envPath, 'utf8')
@@ -296,7 +293,6 @@ console.log(`  pass: ${env.get('DASHBOARD_PASSWORD') ?? '(see .env)'}`)
 console.log('')
 console.log('Still to fill in by hand, in infra/.env:')
 console.log('  OPENAI_API_KEY — o projeto precisa permitir chat E text-embedding-3-small')
-console.log('  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET')
 console.log('  SMTP_* — auth e-mails (password reset, confirmations) need a real sender')
 console.log('')
 console.log('Keep a copy somewhere safe: regenerating JWT_SECRET invalidates every')

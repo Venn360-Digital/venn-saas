@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 // ─── Types ──────────────────────────────────────────────────────
 interface IntegrationDef {
@@ -21,7 +23,10 @@ interface IntegrationDef {
 
 interface GoogleCalendarStatus {
     connected: boolean
+    /** True once this workspace has its own OAuth client saved. */
     configured: boolean
+    /** Identifies the Google project; never the secret. */
+    clientId?: string | null
     status?: string
     googleEmail?: string | null
     connectedAt?: string | null
@@ -78,6 +83,13 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     const [loading, setLoading] = useState(true)
     const [connecting, setConnecting] = useState(false)
     const [disconnecting, setDisconnecting] = useState(false)
+    const [editingClient, setEditingClient] = useState(false)
+    const [clientId, setClientId] = useState('')
+    const [clientSecret, setClientSecret] = useState('')
+    const [savingClient, setSavingClient] = useState(false)
+    const redirectUri = typeof window === 'undefined'
+        ? ''
+        : `${window.location.origin}/api/integrations/google/callback`
 
     useEffect(() => {
         loadStatus()
@@ -104,6 +116,34 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
             if (res.ok) setStatus(await res.json())
         } catch { /* ignore */ }
         finally { setLoading(false) }
+    }
+
+    const handleSaveClient = async () => {
+        if (!clientId.trim() || !clientSecret.trim()) {
+            toast.error('Informe o Client ID e o Client Secret')
+            return
+        }
+        setSavingClient(true)
+        try {
+            const res = await fetch('/api/integrations/google/calendar', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                toast.error(data.error || 'Não foi possível salvar as credenciais')
+                return
+            }
+            toast.success('Credenciais salvas. Agora conecte a conta Google.')
+            setClientSecret('')
+            setEditingClient(false)
+            await loadStatus()
+        } catch {
+            toast.error('Não foi possível salvar as credenciais')
+        } finally {
+            setSavingClient(false)
+        }
     }
 
     const handleConnect = async () => {
@@ -193,17 +233,86 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                 </div>
             )}
 
-            {/* Not configured warning */}
-            {!loading && !status?.configured && !isConnected && (
-                <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-                    <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="text-xs text-amber-400">
-                        <p className="font-medium">Configuração necessária</p>
-                        <p className="mt-0.5 text-amber-400/80">
-                            Adicione <code className="bg-amber-500/10 px-1 rounded">GOOGLE_CLIENT_ID</code> e{' '}
-                            <code className="bg-amber-500/10 px-1 rounded">GOOGLE_CLIENT_SECRET</code> ao seu arquivo <code className="bg-amber-500/10 px-1 rounded">.env.local</code>
+            {/* Credenciais do projeto Google — a conexão é feita só aqui, nunca
+                por variável de ambiente, então cada clínica usa o seu próprio
+                projeto e o dono do sistema não precisa de acesso ao servidor. */}
+            {!loading && (!status?.configured || editingClient) && !isConnected && (
+                <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-3">
+                    <div>
+                        <p className="text-xs font-semibold">Credenciais do seu projeto Google</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            Crie um projeto no Google Cloud, ative a Calendar API e gere um
+                            ID de cliente OAuth do tipo aplicativo web.
                         </p>
                     </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="g-client-id" className="text-xs">Client ID</Label>
+                        <Input
+                            id="g-client-id"
+                            value={clientId}
+                            onChange={(e) => setClientId(e.target.value)}
+                            placeholder="000000000000-xxxxxxxx.apps.googleusercontent.com"
+                            autoComplete="off"
+                            className="text-xs"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="g-client-secret" className="text-xs">Client Secret</Label>
+                        <Input
+                            id="g-client-secret"
+                            type="password"
+                            value={clientSecret}
+                            onChange={(e) => setClientSecret(e.target.value)}
+                            placeholder={status?.configured ? 'Informe para substituir' : 'GOCSPX-…'}
+                            autoComplete="off"
+                            className="text-xs"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">URI de redirecionamento autorizada</Label>
+                        <div className="flex items-center gap-2">
+                            <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1.5 text-[11px]">
+                                {redirectUri}
+                            </code>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                    void navigator.clipboard.writeText(redirectUri)
+                                    toast.success('URI copiada')
+                                }}
+                            >
+                                Copiar
+                            </Button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                            Cole esta URI em &quot;URIs de redirecionamento autorizados&quot; no Google Cloud.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button size="sm" onClick={handleSaveClient} disabled={savingClient} className="gap-2">
+                            {savingClient ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                            Salvar credenciais
+                        </Button>
+                        {status?.configured && (
+                            <Button size="sm" variant="ghost" onClick={() => setEditingClient(false)}>
+                                Cancelar
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {!loading && status?.configured && !editingClient && (
+                <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                    <div className="min-w-0">
+                        <p className="text-xs font-medium">Projeto Google configurado</p>
+                        <p className="truncate text-[11px] text-muted-foreground">{status.clientId}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => { setClientId(status.clientId ?? ''); setEditingClient(true) }}>
+                        Alterar
+                    </Button>
                 </div>
             )}
 
@@ -227,7 +336,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                         </Button>
                     </>
                 ) : (
-                    <Button onClick={handleConnect} disabled={connecting || (!status?.configured && !loading)}
+                    <Button onClick={handleConnect} disabled={connecting || loading || !status?.configured}
                         className="w-full gap-2 bg-primary hover:bg-primary/90">
                         {connecting ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

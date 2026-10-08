@@ -50,8 +50,6 @@ carry() {
     [ -f "$DEST" ] && grep -E "^$1=" "$DEST" | tail -1 | cut -d= -f2- || true
 }
 OPENAI_API_KEY=$(carry OPENAI_API_KEY)
-GOOGLE_CLIENT_ID=$(carry GOOGLE_CLIENT_ID)
-GOOGLE_CLIENT_SECRET=$(carry GOOGLE_CLIENT_SECRET)
 
 umask 077
 cat > "$DEST" <<ENVEOF
@@ -109,9 +107,6 @@ WEBHOOK_BASE_URL=http://app:3000
 OPENAI_API_KEY=$OPENAI_API_KEY
 
 # ── Google Calendar — fill these in by hand ─────────────────
-GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
-GOOGLE_REDIRECT_URI=https://$APP_HOST/api/integrations/google/callback
 ENVEOF
 
 chmod 600 "$DEST"

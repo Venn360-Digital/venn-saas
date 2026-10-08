@@ -1,7 +1,6 @@
 import prisma from '@/lib/prisma'
+import type { GoogleCalendarCredentials } from '@/lib/google-oauth-client'
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
 
 /**
  * As credenciais do Google guardadas em `Integration.credentials`.
@@ -12,11 +11,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
  * agora é um cast para esta interface, num helper só, e todo o resto continua
  * verificado.
  */
-interface GoogleCredentials {
-    access_token?: string
-    refresh_token?: string
-    expiry_date?: number
-}
+type GoogleCredentials = GoogleCalendarCredentials
 
 /** O que este módulo precisa de um registro de integração. */
 interface CalendarIntegration {
@@ -58,7 +53,7 @@ interface CalendarEventResult {
 // Refresh access token if expired
 async function getValidAccessToken(integration: CalendarIntegration): Promise<string | null> {
     const creds = credentialsOf(integration)
-    if (!creds?.refresh_token) return null
+    if (!creds?.refresh_token || !creds.clientId || !creds.clientSecret) return null
 
     // If token still valid (5min buffer)
     if (creds.expiry_date && Date.now() < creds.expiry_date - 300000) {
@@ -73,8 +68,8 @@ async function getValidAccessToken(integration: CalendarIntegration): Promise<st
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
-                client_id: GOOGLE_CLIENT_ID,
-                client_secret: GOOGLE_CLIENT_SECRET,
+                client_id: creds.clientId,
+                client_secret: creds.clientSecret,
                 refresh_token: creds.refresh_token,
                 grant_type: 'refresh_token',
             }),

@@ -1,30 +1,20 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
-
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/integrations/google/callback'
-
-const SCOPES = [
-    'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/calendar.events',
-].join(' ')
+import {
+    GOOGLE_CALENDAR_SCOPES,
+    getGoogleOAuthClient,
+    redirectUriFor,
+} from '@/lib/google-oauth-client'
 
 // GET - Generate Google OAuth authorize URL
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
-        if (!GOOGLE_CLIENT_ID) {
-            return NextResponse.json({
-                error: 'Google OAuth not configured. Add GOOGLE_CLIENT_ID to .env.local'
-            }, { status: 500 })
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
         // Get workspace ID to store in state (for callback)
@@ -38,7 +28,14 @@ export async function GET() {
         })
 
         if (!workspaceUser) {
-            return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        }
+
+        const client = await getGoogleOAuthClient(workspaceUser.workspaceId)
+        if (!client) {
+            return NextResponse.json({
+                error: 'Informe o Client ID e o Client Secret do Google antes de conectar.'
+            }, { status: 400 })
         }
 
         // State contains workspaceId encrypted-ish for security
@@ -48,10 +45,10 @@ export async function GET() {
         })).toString('base64url')
 
         const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
-        authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID)
-        authUrl.searchParams.set('redirect_uri', REDIRECT_URI)
+        authUrl.searchParams.set('client_id', client.clientId)
+        authUrl.searchParams.set('redirect_uri', redirectUriFor(new URL(request.url).origin))
         authUrl.searchParams.set('response_type', 'code')
-        authUrl.searchParams.set('scope', SCOPES)
+        authUrl.searchParams.set('scope', GOOGLE_CALENDAR_SCOPES)
         authUrl.searchParams.set('access_type', 'offline')  // Gets refresh_token
         authUrl.searchParams.set('prompt', 'consent')        // Force consent to get refresh_token
         authUrl.searchParams.set('state', state)
@@ -59,6 +56,6 @@ export async function GET() {
         return NextResponse.json({ authUrl: authUrl.toString() })
     } catch (error) {
         console.error('[GOOGLE_AUTHORIZE]', error)
-        return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+        return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
     }
 }

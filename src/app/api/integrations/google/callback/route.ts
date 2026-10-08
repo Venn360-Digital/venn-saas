@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/integrations/google/callback'
+import prisma from '@/lib/prisma'
+import {
+    GOOGLE_CALENDAR_PROVIDER,
+    clientOf,
+    redirectUriFor,
+    type GoogleCalendarCredentials,
+} from '@/lib/google-oauth-client'
 
 // GET - Google OAuth callback (handles the authorization code)
 export async function GET(request: NextRequest) {
@@ -35,15 +39,27 @@ export async function GET(request: NextRequest) {
             )
         }
 
+        // The client that started the flow belongs to this workspace, so the
+        // exchange has to use the same one — not an app-wide pair.
+        const integration = await prisma.integration.findFirst({
+            where: { workspaceId: stateData.workspaceId, provider: GOOGLE_CALENDAR_PROVIDER },
+        })
+        const client = clientOf(integration?.credentials)
+        if (!client) {
+            return NextResponse.redirect(
+                new URL('/gerenciamento/integracoes?error=client_not_configured', url.origin)
+            )
+        }
+
         // Exchange authorization code for tokens
         const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
                 code,
-                client_id: GOOGLE_CLIENT_ID,
-                client_secret: GOOGLE_CLIENT_SECRET,
-                redirect_uri: REDIRECT_URI,
+                client_id: client.clientId,
+                client_secret: client.clientSecret,
+                redirect_uri: redirectUriFor(url.origin),
                 grant_type: 'authorization_code',
             }),
         })
@@ -70,15 +86,12 @@ export async function GET(request: NextRequest) {
             }
         } catch { /* ignore */ }
 
-        // Upsert integration record
-        const existing = await prisma.integration.findFirst({
-            where: {
-                workspaceId: stateData.workspaceId,
-                provider: 'google_calendar',
-            },
-        })
-
-        const credentials = {
+        // Keep the OAuth client alongside the tokens: refreshing an access
+        // token needs it, and overwriting the whole JSON with only the tokens
+        // would silently break the integration on the first refresh.
+        const credentials: GoogleCalendarCredentials = {
+            clientId: client.clientId,
+            clientSecret: client.clientSecret,
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             token_type: tokens.token_type,
@@ -86,26 +99,14 @@ export async function GET(request: NextRequest) {
             scope: tokens.scope,
         }
 
-        if (existing) {
-            await prisma.integration.update({
-                where: { id: existing.id },
-                data: {
-                    status: 'connected',
-                    credentials,
-                    metadata: { googleEmail, connectedBy: stateData.userId, connectedAt: new Date().toISOString() },
-                },
-            })
-        } else {
-            await prisma.integration.create({
-                data: {
-                    workspaceId: stateData.workspaceId,
-                    provider: 'google_calendar',
-                    status: 'connected',
-                    credentials,
-                    metadata: { googleEmail, connectedBy: stateData.userId, connectedAt: new Date().toISOString() },
-                },
-            })
-        }
+        await prisma.integration.update({
+            where: { id: integration!.id },
+            data: {
+                status: 'connected',
+                credentials: credentials as unknown as Prisma.InputJsonObject,
+                metadata: { googleEmail, connectedBy: stateData.userId, connectedAt: new Date().toISOString() },
+            },
+        })
 
         return NextResponse.redirect(
             new URL('/gerenciamento/integracoes?success=google_calendar', url.origin)
