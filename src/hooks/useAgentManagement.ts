@@ -62,7 +62,7 @@ export function useAgentManagement(agentId?: string | null) {
                     })
                 }
             }
-            toast.success('Campos salvos com sucesso!')
+            toast.success('Campos salvos')
             return true
         } catch (error) {
             console.error('Error saving custom fields:', error)
@@ -84,7 +84,7 @@ export function useAgentManagement(agentId?: string | null) {
 
             if (response.ok) {
                 const duplicated = await response.json()
-                toast.success('Agente duplicado com sucesso!')
+                toast.success('Agente duplicado')
                 router.push(`/atendimento/agentes/novo?id=${duplicated.id}`)
             } else {
                 toast.error('Erro ao duplicar agente')
@@ -128,7 +128,7 @@ export function useAgentManagement(agentId?: string | null) {
             })
 
             if (response.ok) {
-                toast.success('Agente deletado com sucesso!')
+                toast.success('Agente deletado')
                 router.push('/atendimento/agentes')
             } else {
                 toast.error('Erro ao deletar agente')
@@ -141,7 +141,7 @@ export function useAgentManagement(agentId?: string | null) {
 
     // Exportar CSV
     const exportConversationsCSV = async () => {
-        toast.info('Exportação de CSV em breve!')
+        toast.info('Exportação de CSV em breve')
         // TODO: Implementar exportação
     }
 

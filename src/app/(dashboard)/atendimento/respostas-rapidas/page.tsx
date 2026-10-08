@@ -70,7 +70,7 @@ export default function RespostasRapidasPage() {
                 setResponses([created, ...responses])
                 setNewResponse({ command: '', text: '', isActive: true })
                 setIsAdding(false)
-                toast.success('Resposta criada com sucesso!')
+                toast.success('Resposta criada')
             } else {
                 toast.error('Erro ao criar resposta')
             }
@@ -266,8 +266,8 @@ export default function RespostasRapidasPage() {
                 onOpenChange={open => {
                     if (!open) setDeleting(null)
                 }}
-                title="Excluir resposta rápida?"
-                description={`O atalho ${deleting?.command ?? ''} deixa de funcionar no chat e o texto é perdido.`}
+                title="Excluir resposta rápida"
+                description={`O atalho "${deleting?.command ?? ''}" deixa de funcionar no chat e o texto é perdido.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {

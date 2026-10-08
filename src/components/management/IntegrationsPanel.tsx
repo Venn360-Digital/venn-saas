@@ -105,7 +105,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
         if (params.get('success') === 'google_calendar') {
-            toast.success('Google Calendar conectado com sucesso!')
+            toast.success('Google Calendar conectado')
             loadStatus()
             // Clean URL
             window.history.replaceState({}, '', window.location.pathname)
@@ -380,7 +380,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
             <ConfirmDialog
                 open={confirmingDisconnect}
                 onOpenChange={setConfirmingDisconnect}
-                title="Desconectar o Google Calendar?"
+                title="Desconectar o Google Calendar"
                 description="As atividades já exportadas continuam no calendário, mas as novas deixam de ser enviadas até alguém reconectar."
                 confirmLabel="Desconectar"
                 destructive

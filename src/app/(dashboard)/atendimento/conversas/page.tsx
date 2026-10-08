@@ -73,17 +73,7 @@ import {
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { createClient } from '@/lib/supabase/client'
-import {
-
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
 
@@ -441,7 +431,6 @@ export default function ConversasPage() {
 
     // Delete dialog state
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-    const [deleting, setDeleting] = useState(false)
 
     // Contact panel state
     const [showContactPanel, setShowContactPanel] = useState(false)
@@ -1420,22 +1409,24 @@ export default function ConversasPage() {
 
     const handleDeleteConversation = async () => {
         if (!selectedConversation) return
-        setDeleting(true)
         try {
             const res = await fetch(`/api/conversations/${selectedConversation}`, {
                 method: 'DELETE',
             })
-            if (res.ok) {
-                setSelectedConversation(null)
-                setConversationDetail(null)
-                setMessages([])
-                setShowDeleteDialog(false)
-                fetchConversations()
+            // This was the one delete in the app that said nothing either way:
+            // the row vanished on success and nothing at all happened on failure.
+            if (!res.ok) {
+                toast.error('Não foi possível excluir a conversa')
+                return
             }
+            setSelectedConversation(null)
+            setConversationDetail(null)
+            setMessages([])
+            fetchConversations()
+            toast.success('Conversa excluída')
         } catch (error) {
             console.error('Error deleting conversation:', error)
-        } finally {
-            setDeleting(false)
+            toast.error('Não foi possível excluir a conversa')
         }
     }
 
@@ -2639,30 +2630,15 @@ export default function ConversasPage() {
             }
 
             {/* Delete conversation confirmation dialog */}
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir conversa permanentemente?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Todas as mensagens, áudios, imagens e anexos desta conversa serão excluídos permanentemente do sistema.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDeleteConversation}
-                            disabled={deleting}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                            {deleting ? (
-                                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Excluindo...</>
-                            ) : (
-                                'Excluir permanentemente'
-                            )}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmDialog
+                open={showDeleteDialog}
+                onOpenChange={setShowDeleteDialog}
+                title="Excluir conversa"
+                description="Todas as mensagens, áudios, imagens e anexos desta conversa saem do sistema. O contato permanece."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={handleDeleteConversation}
+            />
         </>
     )
 }

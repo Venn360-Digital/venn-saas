@@ -106,7 +106,7 @@ export function useAgentCommands(agentId?: string | null) {
                 }
             }
 
-            toast.success('Configurações salvas com sucesso!')
+            toast.success('Configurações salvas')
             return true
         } catch (error) {
             console.error('Error saving commands:', error)

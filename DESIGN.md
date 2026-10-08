@@ -370,7 +370,14 @@ informe um nome".
 outro." Sem prefixo "Erro:", sem primeira pessoa, sem exceção crua na tela.
 
 **Sem "com sucesso".** O toast verde *é* o sucesso. "Contato salvo", não "Contato
-salvo com sucesso!".
+salvo com sucesso!". E sem "!" — a confirmação não comemora.
+
+**Título de confirmação é afirmação, não pergunta.** "Excluir contato", não
+"Excluir contato?" — é a mesma regra do ponto final em título. A pergunta já
+está no fato de existir um diálogo com Cancelar e Excluir. A descrição nomeia o
+objeto entre aspas e diz o que se perde: "«Overdenture» será removido do
+catálogo. Negócios que já o referenciam não mudam." Nunca "esta ação não pode
+ser desfeita" sozinha.
 
 **Estado vazio é convite, não desculpa.** Título nomeia o espaço ("Nenhum contato
 ainda"), uma linha explica, o botão é um verbo. Evite "Nada aqui".

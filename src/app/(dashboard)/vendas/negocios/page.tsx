@@ -29,16 +29,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -66,6 +56,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { usePermissions } from '@/hooks/usePermissions'
 import { JOURNEY, type TrackingData, type TrackingEntry, type TrackingKey } from '@/components/shared/DealJourney'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import {
@@ -549,7 +540,6 @@ export default function NegociosPage() {
     // Delete dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [dealToDelete, setDealToDelete] = useState<Deal | null>(null)
-    const [deleting, setDeleting] = useState(false)
 
     // Loss reason dialog
     const [lossDialogOpen, setLossDialogOpen] = useState(false)
@@ -682,7 +672,7 @@ export default function NegociosPage() {
     const createDefaultPipeline = async () => {
         try {
             const res = await fetch('/api/pipelines/seed', { method: 'POST' })
-            if (res.ok) { toast.success('Funil criado!'); loadPipeline() }
+            if (res.ok) { toast.success('Funil criado'); loadPipeline() }
             else toast.error('Erro ao criar funil')
         } catch { toast.error('Erro ao criar funil') }
     }
@@ -751,7 +741,7 @@ export default function NegociosPage() {
             })
 
             if (res.ok) {
-                toast.success(editingDeal ? 'Negócio atualizado!' : 'Negócio criado!')
+                toast.success(editingDeal ? 'Negócio atualizado' : 'Negócio criado')
                 setIsDialogOpen(false)
                 if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
                 loadKpiSummary()
@@ -764,17 +754,15 @@ export default function NegociosPage() {
 
     const handleDeleteDeal = async () => {
         if (!dealToDelete) return
-        setDeleting(true)
         try {
             const res = await fetch(`/api/deals/${dealToDelete.id}`, { method: 'DELETE' })
             if (res.ok) {
-                toast.success('Negócio excluído!')
-                setDeleteDialogOpen(false); setDealToDelete(null)
+                toast.success('Negócio excluído')
+                setDealToDelete(null)
                 if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
                 loadKpiSummary()
             } else toast.error('Erro ao excluir negócio')
         } catch { toast.error('Erro ao excluir negócio') }
-        finally { setDeleting(false) }
     }
 
     const handleStatusChange = async (deal: Deal, status: string) => {
@@ -793,7 +781,7 @@ export default function NegociosPage() {
                 body: JSON.stringify({ status }),
             })
             if (res.ok) {
-                toast.success(status === 'won' ? 'Negócio ganho! 🎉' : 'Negócio reaberto.')
+                toast.success(status === 'won' ? 'Negócio ganho' : 'Negócio reaberto')
                 if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
                 loadKpiSummary()
             }
@@ -810,7 +798,7 @@ export default function NegociosPage() {
                 body: JSON.stringify({ status: 'lost', lossReason, lossNotes: lossNotes || undefined }),
             })
             if (res.ok) {
-                toast.success('Negócio marcado como perdido.')
+                toast.success('Negócio marcado como perdido')
                 setLossDialogOpen(false)
                 setDealToLose(null)
                 if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
@@ -845,7 +833,7 @@ export default function NegociosPage() {
                 }),
             })
             if (res.ok) {
-                toast.success('Atividade criada!')
+                toast.success('Atividade criada')
                 setShowActivityForm(false)
                 setActivityForm({ title: '', type: 'call', description: '', dueDate: '', startTime: '' })
                 loadDealActivities(dealId)
@@ -994,7 +982,7 @@ export default function NegociosPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: trimmed, color: stageColor }),
                 })
-                if (res.ok) { toast.success('Etapa atualizada!'); setStageDialogOpen(false); loadPipeline() }
+                if (res.ok) { toast.success('Etapa atualizada'); setStageDialogOpen(false); loadPipeline() }
                 else { const err = await res.json(); toast.error(err.error || 'Erro ao atualizar') }
             } else {
                 const res = await fetch('/api/pipelines', {
@@ -1002,7 +990,7 @@ export default function NegociosPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: trimmed, color: stageColor }),
                 })
-                if (res.ok) { toast.success('Etapa criada!'); setStageDialogOpen(false); loadPipeline() }
+                if (res.ok) { toast.success('Etapa criada'); setStageDialogOpen(false); loadPipeline() }
                 else { const err = await res.json(); toast.error(err.error || 'Erro ao criar') }
             }
         } catch { toast.error('Erro ao salvar etapa') }
@@ -1013,7 +1001,7 @@ export default function NegociosPage() {
         try {
             const res = await fetch(`/api/pipelines/${stageToDelete.id}`, { method: 'DELETE' })
             if (res.ok) {
-                toast.success('Etapa excluída!')
+                toast.success('Etapa excluída')
                 setStageDeleteDialogOpen(false)
                 setStageToDelete(null)
                 loadPipeline()
@@ -1658,20 +1646,15 @@ export default function NegociosPage() {
             </Dialog>
 
             {/* Delete Confirmation */}
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir negócio?</AlertDialogTitle>
-                        <AlertDialogDescription>O negócio &quot;{dealToDelete?.title}&quot; será excluído permanentemente.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteDeal} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            {deleting ? 'Excluindo...' : 'Excluir'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmDialog
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+                title="Excluir negócio"
+                description={`"${dealToDelete?.title ?? ''}" sai do funil junto com suas atividades. O contato ligado a ele não é apagado.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={handleDeleteDeal}
+            />
 
             {/* Stage Create/Edit Dialog */}
             <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
@@ -1716,23 +1699,15 @@ export default function NegociosPage() {
             </Dialog>
 
             {/* Stage Delete Confirmation */}
-            <AlertDialog open={stageDeleteDialogOpen} onOpenChange={setStageDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir etapa?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            A etapa &quot;{stageToDelete?.name}&quot; será excluída permanentemente.
-                            Etapas com negócios não podem ser excluídas.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmDeleteStage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Excluir
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmDialog
+                open={stageDeleteDialogOpen}
+                onOpenChange={setStageDeleteDialogOpen}
+                title="Excluir etapa"
+                description={`"${stageToDelete?.name ?? ''}" sai do funil. Uma etapa que ainda tem negócios não pode ser excluída.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={handleConfirmDeleteStage}
+            />
         </div>
     )
 }

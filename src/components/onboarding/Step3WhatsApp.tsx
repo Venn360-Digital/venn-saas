@@ -2,6 +2,8 @@
 
 import { Button } from '@/components/ui/button'
 import { ArrowRight, ArrowLeft, MessageCircle } from 'lucide-react'
+import { toast } from 'sonner'
+
 import type { OnboardingData } from './types'
 
 interface Step3WhatsAppProps {
@@ -17,7 +19,7 @@ export function Step3WhatsApp({ data, onNext, onBack }: Step3WhatsAppProps) {
 
     const handleConnect = () => {
         // TODO: Implement WhatsApp connection logic
-        alert('Integração com WhatsApp Business estará disponível em breve!')
+        toast.info('A conexão com o WhatsApp ainda não está disponível aqui. Dá para configurar depois em Atendimento → Agentes.')
         onNext()
     }
 

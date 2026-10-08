@@ -78,7 +78,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
             if (res.ok) {
                 const data = await res.json()
                 setProfile(data)
-                toast.success('Perfil atualizado com sucesso!')
+                toast.success('Perfil atualizado')
             } else {
                 const error = await res.json()
                 toast.error(error.error || 'Erro ao atualizar perfil')
@@ -115,7 +115,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
             })
 
             if (res.ok) {
-                toast.success('Senha alterada com sucesso!')
+                toast.success('Senha alterada')
                 setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
             } else {
                 const error = await res.json()

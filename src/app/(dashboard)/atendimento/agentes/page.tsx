@@ -179,8 +179,8 @@ export default function AgentsPage() {
                 onOpenChange={open => {
                     if (!open) setDeletingAgent(null)
                 }}
-                title="Excluir agente?"
-                description={`${deletingAgent?.name ?? 'Este agente'} para de responder imediatamente, e sua configuração — tom de voz, comandos e base de conhecimento — é perdida.`}
+                title="Excluir agente"
+                description={`"${deletingAgent?.name ?? ''}" para de responder imediatamente, e sua configuração — tom de voz, comandos e base de conhecimento — é perdida.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {

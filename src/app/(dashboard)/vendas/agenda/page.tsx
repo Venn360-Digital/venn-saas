@@ -296,7 +296,7 @@ export default function AgendaPage() {
                 body: JSON.stringify(payload),
             })
             if (res.ok) {
-                toast.success(editingActivity ? 'Atividade atualizada!' : 'Atividade criada!')
+                toast.success(editingActivity ? 'Atividade atualizada' : 'Atividade criada')
                 setIsDialogOpen(false)
                 loadActivities()
                 loadStats()
@@ -318,7 +318,7 @@ export default function AgendaPage() {
     const handleDelete = async (id: string) => {
         try {
             const res = await fetch(`/api/activities/${id}`, { method: 'DELETE' })
-            if (res.ok) { toast.success('Atividade excluída!'); loadActivities(); loadStats() }
+            if (res.ok) { toast.success('Atividade excluída'); loadActivities(); loadStats() }
         } catch { toast.error('Erro ao excluir atividade') }
     }
 
@@ -1009,8 +1009,8 @@ export default function AgendaPage() {
                 onOpenChange={open => {
                     if (!open) setDeletingActivity(null)
                 }}
-                title="Excluir atividade?"
-                description={`"${deletingActivity?.title ?? ''}" sai da agenda e do funil do negócio ligado a ela. Não dá para desfazer.`}
+                title="Excluir atividade"
+                description={`"${deletingActivity?.title ?? ''}" sai da agenda e do funil do negócio ligado a ela.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {

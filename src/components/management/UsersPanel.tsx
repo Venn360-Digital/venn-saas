@@ -283,7 +283,7 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                 open={deleting !== null}
                 onOpenChange={(open) => !open && setDeleting(null)}
                 title="Excluir usuário"
-                description={`${deleting?.name ?? ''} perderá o acesso a este workspace. As conversas e negócios atribuídos a essa pessoa continuam, sem responsável.`}
+                description={`"${deleting?.name ?? ''}" perde o acesso a este workspace. As conversas e negócios atribuídos a essa pessoa continuam, sem responsável.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}

@@ -73,7 +73,7 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
             if (res.ok) {
                 const data = await res.json()
                 setWorkspace(data)
-                toast.success('Dados da empresa atualizados!')
+                toast.success('Dados da empresa atualizados')
             } else {
                 const error = await res.json()
                 toast.error(error.error || 'Erro ao atualizar dados')

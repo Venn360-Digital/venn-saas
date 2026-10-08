@@ -70,7 +70,7 @@ export function useAgentIntegrations(agentId?: string | null) {
             if (response.ok) {
                 const integration = await response.json()
                 setIntegrations(prev => [...prev.filter(i => i.channel !== channel), integration])
-                toast.success(`Canal ${channel} conectado com sucesso!`)
+                toast.success(`Canal ${channel} conectado`)
             } else {
                 toast.error('Erro ao conectar canal')
             }
@@ -112,7 +112,7 @@ export function useAgentIntegrations(agentId?: string | null) {
                     })
                 }
             }
-            toast.success('Webhooks salvos com sucesso!')
+            toast.success('Webhooks salvos')
             return true
         } catch (error) {
             console.error('Error saving webhooks:', error)

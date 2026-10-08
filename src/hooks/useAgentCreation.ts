@@ -129,7 +129,7 @@ export function useAgentCreation(workspaceId: string) {
                 await saveKnowledgeBase(agent.id)
             }
 
-            toast.success(`Agente ${agentId ? 'atualizado' : 'criado'} com sucesso!`)
+            toast.success(`Agente ${agentId ? 'atualizado' : 'criado'}`)
             router.push('/atendimento/agentes')
         } catch (error) {
             console.error('[SAVE] Error saving agent:', error)

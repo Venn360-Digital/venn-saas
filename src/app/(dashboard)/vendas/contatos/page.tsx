@@ -216,7 +216,7 @@ export default function ContatosPage() {
             }
             const res = await fetch(url, { method: editingContact ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             if (res.ok) {
-                toast.success(editingContact ? 'Contato atualizado!' : 'Contato criado!')
+                toast.success(editingContact ? 'Contato atualizado' : 'Contato criado')
                 setIsDialogOpen(false)
                 loadContacts()
             } else { toast.error('Erro ao salvar contato') }
@@ -226,7 +226,7 @@ export default function ContatosPage() {
     const handleDelete = async (id: string) => {
         try {
             const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
-            if (res.ok) { toast.success('Contato excluído!'); loadContacts() }
+            if (res.ok) { toast.success('Contato excluído'); loadContacts() }
             else toast.error('Erro ao excluir contato')
         } catch { toast.error('Erro ao excluir contato') }
     }
@@ -244,7 +244,7 @@ export default function ContatosPage() {
             const a = document.createElement('a')
             a.href = url; a.download = `contatos_${new Date().toISOString().split('T')[0]}.csv`
             a.click(); URL.revokeObjectURL(url)
-            toast.success('Exportação concluída!')
+            toast.success('Exportação concluída')
         } else toast.error('Erro ao exportar')
     }
 
@@ -336,7 +336,7 @@ export default function ContatosPage() {
                 const field = await res.json()
                 setCustomFieldDefs(prev => [...prev, field])
                 setNewFieldName(''); setNewFieldType('text'); setNewFieldOptions('')
-                toast.success('Campo criado!')
+                toast.success('Campo criado')
             } else {
                 const err = await res.json()
                 toast.error(err.error || 'Erro ao criar campo')
@@ -903,8 +903,8 @@ export default function ContatosPage() {
                 onOpenChange={open => {
                     if (!open) setDeletingContact(null)
                 }}
-                title="Excluir contato?"
-                description={`${deletingContact?.name || 'Este contato'} sai da lista junto com suas etiquetas. Negócios e conversas ligados a ele não são apagados.`}
+                title="Excluir contato"
+                description={`"${deletingContact?.name || 'Sem nome'}" sai da lista junto com suas etiquetas. Negócios e conversas ligados a ele não são apagados.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {
@@ -917,7 +917,7 @@ export default function ContatosPage() {
                 onOpenChange={open => {
                     if (!open) setDeletingField(null)
                 }}
-                title="Excluir campo personalizado?"
+                title="Excluir campo personalizado"
                 description={`O campo "${deletingField?.name ?? ''}" deixa de aparecer no cadastro, e o que já foi preenchido nele em cada contato é perdido.`}
                 confirmLabel="Excluir"
                 destructive

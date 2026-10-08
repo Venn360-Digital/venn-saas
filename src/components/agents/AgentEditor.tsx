@@ -125,7 +125,7 @@ export function AgentEditor({
                 throw new Error('Falha ao salvar agente')
             }
 
-            toast.success(agent ? 'Agente atualizado!' : 'Agente criado com sucesso!')
+            toast.success(agent ? 'Agente atualizado' : 'Agente criado')
             onSuccess()
             onOpenChange(false)
             form.reset()
