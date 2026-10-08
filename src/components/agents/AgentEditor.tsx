@@ -141,7 +141,7 @@ export function AgentEditor({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>{agent ? 'Editar Agente' : 'Novo Agente'}</DialogTitle>
+                    <DialogTitle>{agent ? 'Editar agente' : 'Novo agente'}</DialogTitle>
                     <DialogDescription>
                         Configure a personalidade e inteligência do seu agente.
                     </DialogDescription>

@@ -20,6 +20,7 @@ import {
     CreditCard,
     X
 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { toast } from 'sonner'
 
 interface SubscriptionData {
@@ -297,7 +298,7 @@ export function PlanoTab() {
             <Dialog open={showPlanModal} onOpenChange={setShowPlanModal}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle className="sr-only">Alterar Plano</DialogTitle>
+                        <DialogTitle className="sr-only">Alterar plano</DialogTitle>
                     </DialogHeader>
 
                     {/* Trial Banner in Modal */}
@@ -513,40 +514,19 @@ export function PlanoTab() {
                 </DialogContent>
             </Dialog>
 
-            {/* Cancel Plan Modal */}
-            <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Cancelar plano</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="py-4">
-                        <p className="text-foreground">
-                            Tem certeza que deseja cancelar sua assinatura?
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-2">
-                            Você continuará tendo acesso ao plano até o fim do período de cobrança atual.
-                        </p>
-                    </div>
-
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowCancelModal(false)}
-                            className="border-border"
-                        >
-                            Voltar
-                        </Button>
-                        <Button
-                            onClick={handleCancelPlan}
-                            disabled={processing}
-                            variant="destructive"
-                        >
-                            {processing ? 'Cancelando...' : 'Confirmar cancelamento'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* A plain Dialog was standing in for a confirmation here, which is
+                why it escaped the first sweep: same job as every Excluir, but
+                its own markup, its own button labels and its own pending flag. */}
+            <ConfirmDialog
+                open={showCancelModal}
+                onOpenChange={setShowCancelModal}
+                title="Cancelar plano"
+                description="O acesso continua até o fim do período já cobrado. Depois disso o workspace volta ao plano gratuito."
+                confirmLabel="Cancelar plano"
+                cancelLabel="Voltar"
+                destructive
+                onConfirm={handleCancelPlan}
+            />
         </div>
     )
 }

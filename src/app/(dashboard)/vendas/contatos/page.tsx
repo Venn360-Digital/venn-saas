@@ -555,7 +555,7 @@ export default function ContatosPage() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="!w-[90vw] !max-w-[1400px] max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
                     <DialogHeader>
-                        <DialogTitle>{editingContact ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
+                        <DialogTitle>{editingContact ? 'Editar contato' : 'Novo contato'}</DialogTitle>
                     </DialogHeader>
 
                     {loadingDetail ? (
@@ -794,7 +794,7 @@ export default function ContatosPage() {
             {/* ═══ Import Dialog ═══ */}
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
                 <DialogContent className="!w-[80vw] !max-w-[900px] max-h-[85vh] overflow-y-auto bg-card border-border text-foreground">
-                    <DialogHeader><DialogTitle>Importar Contatos</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Importar contatos</DialogTitle></DialogHeader>
 
                     {importStep === 'upload' && (
                         <div className="py-8 text-center">

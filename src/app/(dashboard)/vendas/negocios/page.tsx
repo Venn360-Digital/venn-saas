@@ -1336,7 +1336,7 @@ export default function NegociosPage() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="!w-[90vw] !max-w-[1600px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{editingDeal ? 'Editar Negócio' : 'Novo Negócio'}</DialogTitle>
+                        <DialogTitle>{editingDeal ? 'Editar negócio' : 'Novo negócio'}</DialogTitle>
                     </DialogHeader>
 
                     <Tabs defaultValue="dados" className="pt-2">
@@ -1387,7 +1387,7 @@ export default function NegociosPage() {
                                 {editingDeal?.status === 'lost' && editingDeal?.lossReason && (
                                     <div className="bg-destructive-subtle border border-destructive/30 rounded-lg p-3">
                                         <div className="flex items-center gap-2 text-destructive-subtle-foreground text-sm font-medium mb-1">
-                                            <AlertTriangle className="h-4 w-4" /> Motivo da Perda
+                                            <AlertTriangle className="h-4 w-4" /> Motivo da perda
                                         </div>
                                         <p className="text-sm">
                                             {LOSS_REASONS.find(r => r.id === editingDeal.lossReason)?.icon}{' '}
@@ -1605,7 +1605,7 @@ export default function NegociosPage() {
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <XCircle className="h-5 w-5 text-destructive-subtle-foreground" /> Motivo da Perda
+                            <XCircle className="h-5 w-5 text-destructive-subtle-foreground" /> Motivo da perda
                         </DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground">
@@ -1639,7 +1639,7 @@ export default function NegociosPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setLossDialogOpen(false)}>Cancelar</Button>
                         <Button onClick={handleConfirmLoss} disabled={!lossReason} variant="destructive">
-                            Confirmar Perda
+                            Confirmar perda
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1660,7 +1660,7 @@ export default function NegociosPage() {
             <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>{editingStage ? 'Editar Etapa' : 'Nova Etapa'}</DialogTitle>
+                        <DialogTitle>{editingStage ? 'Editar etapa' : 'Nova etapa'}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <div>

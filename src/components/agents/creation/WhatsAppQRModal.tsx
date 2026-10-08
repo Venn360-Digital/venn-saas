@@ -199,7 +199,7 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
                             <CheckCircle className="h-16 w-16 text-success-subtle-foreground" />
                             <div className="text-center">
                                 <p className="font-medium text-success-subtle-foreground">
-                                    WhatsApp conectado com sucesso!
+                                    WhatsApp conectado
                                 </p>
                                 <p className="text-sm text-muted-foreground mt-1">
                                     Seu agente está pronto para receber mensagens.

@@ -800,7 +800,7 @@ export default function AgendaPage() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="!max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{editingActivity ? 'Editar Atividade' : 'Nova Atividade'}</DialogTitle>
+                        <DialogTitle>{editingActivity ? 'Editar atividade' : 'Nova atividade'}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 pt-2">
                         {/* Title */}
