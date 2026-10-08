@@ -228,7 +228,7 @@ export default function DepartamentosPage() {
                                           </DropdownMenuItem>
                                           <DropdownMenuItem
                                               onClick={() => setDeleting(d)}
-                                              className="text-destructive focus:text-destructive"
+                                              className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
                                           >
                                               <Trash2 className="mr-2 size-4" />
                                               Excluir

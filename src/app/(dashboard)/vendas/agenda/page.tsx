@@ -75,9 +75,9 @@ const RECURRENCE_OPTIONS = [
 ]
 
 const KANBAN_COLUMNS = [
-    { id: 'todo', label: 'Para Fazer', color: 'border-blue-500/50', bg: 'bg-blue-500/10', textColor: 'text-blue-400' },
-    { id: 'today', label: 'Hoje', color: 'border-amber-500/50', bg: 'bg-amber-500/10', textColor: 'text-amber-400' },
-    { id: 'done', label: 'Concluída', color: 'border-green-500/50', bg: 'bg-green-500/10', textColor: 'text-green-400' },
+    { id: 'todo', label: 'Para Fazer', color: 'border-info/40', bg: 'bg-info-subtle', textColor: 'text-info-subtle-foreground' },
+    { id: 'today', label: 'Hoje', color: 'border-warning/40', bg: 'bg-warning-subtle', textColor: 'text-warning-subtle-foreground' },
+    { id: 'done', label: 'Concluída', color: 'border-success/40', bg: 'bg-success-subtle', textColor: 'text-success-subtle-foreground' },
 ]
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -419,11 +419,11 @@ export default function AgendaPage() {
                     onClick={() => { setFilter('today'); setViewMode('list') }}
                     className={cn(
                         "group relative flex items-center gap-3 p-4 rounded-xl border bg-card transition-all hover:shadow-md",
-                        filter === 'today' ? "border-blue-500/50 ring-1 ring-blue-500/20" : "border-border"
+                        filter === 'today' ? "border-info/50 ring-1 ring-info/20" : "border-border"
                     )}
                 >
-                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                        <Calendar className="h-5 w-5 text-blue-400" />
+                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-info-subtle flex items-center justify-center">
+                        <Calendar className="h-5 w-5 text-info-subtle-foreground" />
                     </div>
                     <div className="text-left">
                         <p className="text-2xl font-bold leading-none">{stats.today}</p>
@@ -435,18 +435,18 @@ export default function AgendaPage() {
                     onClick={() => { setFilter('overdue'); setViewMode('list') }}
                     className={cn(
                         "group relative flex items-center gap-3 p-4 rounded-xl border bg-card transition-all hover:shadow-md",
-                        filter === 'overdue' ? "border-red-500/50 ring-1 ring-red-500/20" : "border-border",
-                        stats.overdue > 0 && "border-red-500/30 bg-red-500/5"
+                        filter === 'overdue' ? "border-destructive/50 ring-1 ring-destructive/20" : "border-border",
+                        stats.overdue > 0 && "border-destructive/30 bg-destructive-subtle"
                     )}
                 >
                     <div className={cn(
                         "flex-shrink-0 h-10 w-10 rounded-lg flex items-center justify-center",
-                        stats.overdue > 0 ? "bg-red-500/15" : "bg-red-500/10"
+                        stats.overdue > 0 ? "bg-destructive-subtle" : "bg-destructive-subtle/60"
                     )}>
-                        <AlertTriangle className={cn("h-5 w-5", stats.overdue > 0 ? "text-red-400 animate-pulse" : "text-red-400/60")} />
+                        <AlertTriangle className={cn("h-5 w-5", stats.overdue > 0 ? "text-destructive-subtle-foreground animate-pulse" : "text-destructive-subtle-foreground/60")} />
                     </div>
                     <div className="text-left">
-                        <p className={cn("text-2xl font-bold leading-none", stats.overdue > 0 && "text-red-400")}>
+                        <p className={cn("text-2xl font-bold leading-none", stats.overdue > 0 && "text-destructive-subtle-foreground")}>
                             {stats.overdue}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">Atrasadas</p>
@@ -454,8 +454,8 @@ export default function AgendaPage() {
                 </button>
 
                 <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card">
-                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                        <CheckCircle2 className="h-5 w-5 text-green-400" />
+                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-success-subtle flex items-center justify-center">
+                        <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground" />
                     </div>
                     <div>
                         <p className="text-2xl font-bold leading-none">{stats.completedWeek}</p>
@@ -571,14 +571,14 @@ export default function AgendaPage() {
                                                     onClick={() => handleOpenDialog(activity)}
                                                     className={cn(
                                                         "p-3 rounded-lg border bg-background cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
-                                                        overdue && "border-red-500/40 bg-red-500/5",
+                                                        overdue && "border-destructive/40 bg-destructive-subtle",
                                                         activity.completedAt && "opacity-60",
                                                     )}>
                                                     <div className="flex items-center gap-2 mb-1.5">
                                                         <button onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity) }} className="flex-shrink-0">
                                                             {activity.completedAt
-                                                                ? <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                                                : <Circle className={cn("h-4 w-4", overdue ? "text-red-400" : "text-muted-foreground")} />
+                                                                ? <CheckCircle2 className="h-4 w-4 text-success-subtle-foreground" />
+                                                                : <Circle className={cn("h-4 w-4", overdue ? "text-destructive-subtle-foreground" : "text-muted-foreground")} />
                                                             }
                                                         </button>
                                                         <span className={cn("text-sm font-medium truncate", activity.completedAt && "line-through text-muted-foreground")}>
@@ -589,7 +589,7 @@ export default function AgendaPage() {
                                                         <span className={cn("inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full", typeInfo.bg, typeInfo.color)}>
                                                             <TypeIcon className="h-2.5 w-2.5" /> {typeInfo.label}
                                                         </span>
-                                                        {overdue && <span className="text-[10px] text-red-400">Atrasada</span>}
+                                                        {overdue && <span className="text-[10px] text-destructive-subtle-foreground">Atrasada</span>}
                                                         {activity.dueDate && (
                                                             <span className="text-[10px] text-muted-foreground">
                                                                 {formatDateLabel(activity.dueDate)}
@@ -635,15 +635,15 @@ export default function AgendaPage() {
                                 <div key={activity.id}
                                     className={cn(
                                         "flex items-start gap-4 p-4 rounded-lg border bg-card transition-colors",
-                                        overdue && "border-red-500/40 bg-red-500/5",
+                                        overdue && "border-destructive/40 bg-destructive-subtle",
                                         activity.completedAt && "opacity-50",
                                         !overdue && !activity.completedAt && "border-border"
                                     )}>
                                     {/* Toggle */}
                                     <button onClick={() => handleToggleComplete(activity)} className="flex-shrink-0 mt-0.5">
                                         {activity.completedAt
-                                            ? <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                            : <Circle className={cn("h-5 w-5", overdue ? "text-red-400 hover:text-red-300" : "text-muted-foreground hover:text-primary")} />
+                                            ? <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground" />
+                                            : <Circle className={cn("h-5 w-5", overdue ? "text-destructive-subtle-foreground hover:text-destructive-hover" : "text-muted-foreground hover:text-primary")} />
                                         }
                                     </button>
 
@@ -657,7 +657,7 @@ export default function AgendaPage() {
                                                 <TypeIcon className="h-3 w-3" /> {typeInfo.label}
                                             </span>
                                             {overdue && (
-                                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">
+                                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-destructive-subtle text-destructive-subtle-foreground">
                                                     <AlertTriangle className="h-3 w-3" /> Atrasada
                                                 </span>
                                             )}
@@ -707,7 +707,7 @@ export default function AgendaPage() {
                                         </Button>
                                         {canEdit && (
                                             <Button variant="ghost" size="icon"
-                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                className="h-8 w-8 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
                                                 onClick={() => handleDelete(activity.id)}>
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -767,9 +767,9 @@ export default function AgendaPage() {
                                                     className={cn(
                                                         "w-full text-left text-[11px] leading-tight truncate rounded px-1 py-0.5 transition-colors hover:bg-accent/50",
                                                         a.completedAt && "line-through text-muted-foreground/60",
-                                                        od && "text-red-400"
+                                                        od && "text-destructive-subtle-foreground"
                                                     )}>
-                                                    <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1 flex-shrink-0", od ? "bg-red-400" : ti.dot)} />
+                                                    <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1 flex-shrink-0", od ? "bg-destructive" : ti.dot)} />
                                                     {a.startTime && <span className="text-muted-foreground mr-1">{a.startTime}</span>}
                                                     {a.title}
                                                 </button>

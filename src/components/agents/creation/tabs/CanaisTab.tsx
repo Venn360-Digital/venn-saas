@@ -59,7 +59,7 @@ const CHANNELS = [
         name: 'Mercado Livre',
         description: 'Conecte sua conta do Mercado Livre',
         icon: ShoppingBag,
-        color: 'bg-yellow-500',
+        color: BRAND_COLORS.mercadoLivre,
         comingSoon: true,
     },
 ]
@@ -189,9 +189,9 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
                                             className={cn(
                                                 'px-4 py-2 rounded-md text-sm font-medium transition-colors',
                                                 isConnected
-                                                    ? 'bg-green-500/20 text-green-400 hover:bg-red-500/20 hover:text-red-400'
+                                                    ? 'bg-success-subtle text-success-subtle-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground'
                                                     : isPending
-                                                        ? 'bg-yellow-500/20 text-yellow-400'
+                                                        ? 'bg-warning-subtle text-warning-subtle-foreground'
                                                         : 'text-muted-foreground hover:bg-muted',
                                                 (disconnecting === channel.id || !agentId) && 'opacity-50 cursor-not-allowed'
                                             )}
@@ -224,10 +224,10 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
                                 <div className="border-t bg-muted/30 p-4">
                                     {channel.id === 'whatsapp_qr' && isConnected ? (
                                         <div className="text-sm">
-                                            <p className="text-green-400 font-medium">✓ WhatsApp conectado</p>
+                                            <p className="text-success-subtle-foreground font-medium">✓ WhatsApp conectado</p>
                                             {phoneNumber && (
                                                 <div className="flex items-center gap-2 mt-2 text-foreground">
-                                                    <Phone className="h-4 w-4 text-green-400" />
+                                                    <Phone className="h-4 w-4 text-success-subtle-foreground" />
                                                     <span className="font-mono">
                                                         +{phoneNumber.replace(/^(\d{2})(\d{2})(\d{5})(\d{4})$/, '$1 ($2) $3-$4')}
                                                     </span>

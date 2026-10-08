@@ -30,9 +30,9 @@ const TONE_VARIANT = {
 /**
  * Status as one component instead of ~90 hand-tinted chips.
  *
- * The old ones were written as `bg-green-900 text-green-400` style pairs, which
- * only ever worked against a dark surface — on a white page they were a dark
- * block with barely-visible text. Routing every status through the semantic
+ * The old ones paired a dark fill with a pale label from the raw Tailwind
+ * scale, which only ever worked against a dark surface — on a white page they
+ * were a dark block with barely-visible text. Routing every status through the semantic
  * tokens makes them legible in both modes and gives the tone one meaning across
  * screens, instead of green meaning "active" here and "paid" there.
  */

@@ -292,7 +292,7 @@ export function Topbar() {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
+                            className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
                             onClick={handleLogout}
                         >
                             <LogOut className="mr-2 h-4 w-4" />

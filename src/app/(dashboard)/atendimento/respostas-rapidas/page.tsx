@@ -162,7 +162,7 @@ export default function RespostasRapidasPage() {
                                             <>
                                                 <button
                                                     onClick={() => toggleActive(response)}
-                                                    className={`h-5 w-10 rounded-full transition-colors ${response.isActive ? 'bg-green-500' : 'bg-muted'
+                                                    className={`h-5 w-10 rounded-full transition-colors ${response.isActive ? 'bg-success' : 'bg-muted'
                                                         }`}
                                                 >
                                                     <div className={`h-4 w-4 rounded-full bg-card transition-transform ${response.isActive ? 'translate-x-5' : 'translate-x-0.5'

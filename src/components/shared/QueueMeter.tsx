@@ -36,7 +36,7 @@ export function QueueMeter({ counts, className }: { counts: QueueCounts; classNa
                 <span className="num">{waiting}</span> {waiting === 1 ? 'em espera' : 'em espera'}
                 {oldest ? (
                     <span className="font-normal text-muted-foreground">
-                        {' · '}mais antiga há <span className="num font-semibold text-warning">{oldest}</span>
+                        {' · '}mais antiga há <span className="num font-semibold text-warning-subtle-foreground">{oldest}</span>
                     </span>
                 ) : null}
             </p>

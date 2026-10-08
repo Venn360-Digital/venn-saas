@@ -117,8 +117,8 @@ export function AcoesTab({
                         className={cn(
                             "min-w-[100px]",
                             isActive
-                                ? "border-orange-500 text-orange-500 hover:bg-orange-500/10"
-                                : "border-green-500 text-green-500 hover:bg-green-500/10"
+                                ? "border-warning text-warning-subtle-foreground hover:bg-warning-subtle"
+                                : "border-success text-success-subtle-foreground hover:bg-success-subtle"
                         )}
                     >
                         {isToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : (isActive ? 'Desativar' : 'Ativar')}
@@ -126,13 +126,13 @@ export function AcoesTab({
                 </div>
 
                 {/* Delete */}
-                <div className="flex items-center justify-between rounded-lg border border-red-500/20 bg-card p-4">
+                <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-card p-4">
                     <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-500/10">
-                            <Trash2 className="h-6 w-6 text-red-500" />
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-destructive-subtle">
+                            <Trash2 className="h-6 w-6 text-destructive-subtle-foreground" />
                         </div>
                         <div>
-                            <h3 className="font-medium text-red-500">Deletar Agente</h3>
+                            <h3 className="font-medium text-destructive-subtle-foreground">Deletar Agente</h3>
                             <p className="text-sm text-muted-foreground">
                                 Ação irreversível. Todos os dados, histórico e configurações serão perdidos permanentemente.
                             </p>

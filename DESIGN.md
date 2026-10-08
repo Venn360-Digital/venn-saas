@@ -127,6 +127,20 @@ Cada um tem `-foreground` (para preenchimento sólido) e um par
 O nome do token já diz o par. `bg-*` anda com `text-*-subtle-foreground`;
 `bg-{papel}` sólido anda com `{papel}-foreground`.
 
+**Texto ou ícone colorido sem preenchimento também usa `-subtle-foreground`.**
+Esse token é a **tinta legível daquele matiz**, definida por modo — escura no
+claro, clara no escuro. `text-success` puro é o valor de *preenchimento*: sobre
+branco dá **2,65:1** e reprova AA; `text-destructive` puro sobre card escuro dá
+**3,04:1** e também reprova. Medido, não estimado. Com a tinta, os oito pares
+ficam entre 6,5:1 e 12,2:1 nos dois modos.
+
+| Quero | Classe |
+|---|---|
+| texto ou ícone colorido | `text-{papel}-subtle-foreground` |
+| chip, banner, linha destacada | `bg-{papel}-subtle text-{papel}-subtle-foreground` |
+| botão, ponto, barra, preenchimento sólido | `bg-{papel} text-{papel}-foreground` |
+| borda de realce | `border-{papel}/30` |
+
 **A menta oficial `#A7F3D0` nunca é preenchimento com texto.** Branco sobre ela
 dá 1,28:1. Ela é a **tinta** do estado positivo no claro (com texto `#065F46`,
 5,99:1) e o **texto** no escuro (sobre tinta verde profunda, 9,74:1). Quem
@@ -177,6 +191,19 @@ Regra: existe **um** lugar que renderiza hex do banco — o componente `TagChip`
 Nunca inline numa tela. O motivo é concreto: o alfa antigo (`color + '25'`, 14%)
 foi calibrado contra card navy; sobre branco o chip fica quase invisível. Isso se
 conserta uma vez, no componente, sem jamais alterar o valor gravado.
+
+**E existe um lugar que define os hex que o produto grava** — `src/lib/palette.ts`.
+São três situações, só três: valor que vai para o banco (cor de etapa, de
+etiqueta, do agente), opções de um seletor de cor, e e-mail, onde variável CSS
+não existe. Tudo o mais é token. O arquivo é allowlisted no `lint:colors`, junto
+de `brand-colors.ts` (cores de terceiros) e `lib/email/`.
+
+A rampa do seletor (`PICKER_RAMP`) é a mesma para etapa e etiqueta — oito matizes
+da marca, distantes o bastante para distinguir oito à primeira vista. Ela
+substituiu a rampa indigo → violeta → roxo → fúcsia, que era a identidade Kaly e
+seguia sendo semeada no funil de cada workspace novo muito depois de o produto
+deixar de ser Kaly. **Troca de rampa vale só para frente:** cor que a clínica já
+escolheu continua renderizando como escolhida.
 
 ---
 
@@ -357,10 +384,18 @@ gravado. Para conferir o claro, perfil novo ou limpar a chave `theme`.
 
 ## 9. O que não fazer
 
-- **Nenhum roxo.** Era a identidade Kaly. `npm run lint:colors` falha o build se
-  voltar.
-- **Nenhum hex direto em `.tsx`** fora de `TagChip` e dos pickers de cor. Nenhum
-  `bg-[#...]`, nenhum `text-gray-400`. Use token.
+- **Nenhum passo cru da escala do Tailwind.** Nem `text-gray-400`, nem
+  `bg-green-500`, nem `text-red-400` — inclusive os matizes que "significam
+  algo": vermelho é `destructive`, âmbar é `warning`, verde é `success`, azul é
+  `info`. Como passo cru eles eram 155 usos escolhendo o próprio `-400` (valor de
+  modo escuro) sobre superfície branca, e verde queria dizer "ativo" numa tela e
+  "pago" em outra. `npm run lint:colors` falha o build se voltar — e cobre
+  roxo, cinza, ciano e os quatro de estado.
+- **Nenhum hex em `.tsx` ou `.ts`**, entre colchetes ou entre aspas, fora de
+  `TagChip` (renderiza hex do banco), `lib/palette.ts` (define os hex que o
+  produto grava), `brand-colors.ts` (cores de terceiros), `lib/email/` e
+  `global-error.tsx`. O hex entre aspas era o ponto cego do linter: foi por ali
+  que a rampa roxa sobreviveu dentro de `STAGE_COLORS`.
 - **Nenhuma aurora em blur.** `blur-[128px]` atrás de um card é o clichê de "dark
   SaaS" e não tem nada a ver com odontologia.
 - **Nenhum card de vidro.** Translucidez sobre página branca lê como bug de

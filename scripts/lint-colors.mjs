@@ -33,13 +33,28 @@ const ALLOWED = [
     'src/app/global-error.tsx',
     // Other companies' brand colours, declared in one place on purpose.
     'src/lib/brand-colors.ts',
+    // Our own palette as literal hex, for the three places a token cannot
+    // reach: a value stored in the database, a colour picker's options, and
+    // e-mail. See the file's own header.
+    'src/lib/palette.ts',
+    // E-mail HTML. CSS variables do not exist in a mail client, so the brand
+    // has to be inlined; the values come from the same palette.
+    'src/lib/email/',
 ]
 
 const PREFIX =
     '(?:bg|text|border|ring|from|via|to|fill|stroke|divide|outline|accent|decoration|shadow|placeholder|caret)'
 
+// Every step of the raw Tailwind scale, state hues included.
+//
+// The first version listed only the hues the rebrand was removing — purple,
+// gray, cyan — and left red, amber, green and blue alone, because those "mean
+// something". They do, which is exactly why they belong to `destructive`,
+// `warning`, `success` and `info`: as raw steps they were 155 uses picking
+// their own -400 (a dark-mode value) on white surfaces, and green meant
+// "active" on one screen and "paid" on another.
 const PALETTE = new RegExp(
-    `\\b${PREFIX}-(?:purple|violet|indigo|fuchsia|pink|rose|gray|slate|zinc|neutral|stone|cyan|teal|emerald|sky|lime)-\\d{2,3}\\b`,
+    `\\b${PREFIX}-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|gray|slate|zinc|neutral|stone)-\\d{2,3}\\b`,
     'g'
 )
 
@@ -54,7 +69,13 @@ const MONOCHROME = new RegExp(
     `\\b${PREFIX}-white(?:\\/\\d{1,3})?\\b|\\b(?:text|border|ring|fill|stroke|divide|placeholder|caret)-black(?:\\/\\d{1,3})?\\b|\\bbg-black\\b(?!\\/)`,
     'g'
 )
+// `[#rrggbb]` in a class, and a quoted hex in code. The quoted form was the
+// blind spot that kept the Kaly indigo→fuchsia ramp alive inside STAGE_COLORS
+// and seeded it into every new workspace's funnel. A hex that must be literal —
+// stored in the database, offered in a picker, rendered in e-mail — lives in
+// `src/lib/palette.ts`, which is allowlisted.
 const ARBITRARY_HEX = /\[#[0-9a-fA-F]{3,8}\]/g
+const QUOTED_HEX = /['"`]#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?['"`]/g
 
 function walk(dir, out = []) {
     for (const entry of readdirSync(dir)) {
@@ -77,7 +98,7 @@ for (const file of walk(SRC)) {
 
     const lines = readFileSync(file, 'utf8').split('\n')
     lines.forEach((line, i) => {
-        for (const pattern of [PALETTE, MONOCHROME, ARBITRARY_HEX]) {
+        for (const pattern of [PALETTE, MONOCHROME, ARBITRARY_HEX, QUOTED_HEX]) {
             pattern.lastIndex = 0
             const matches = line.match(pattern)
             if (matches) {

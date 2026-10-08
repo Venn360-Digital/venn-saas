@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Edit2, Trash2, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 interface AgentCardProps {
     agent: Agent
@@ -19,7 +20,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                 <div className="flex items-center gap-3">
                     <div
                         className="flex h-10 w-10 items-center justify-center rounded-lg"
-                        style={{ backgroundColor: agent.primaryColor || '#3B82F6' }}
+                        style={{ backgroundColor: agent.primaryColor || AGENT_WIDGET_DEFAULTS.primaryColor }}
                     >
                         {agent.avatar ? (
                             <img src={agent.avatar} alt={agent.name} className="h-full w-full rounded-lg object-cover" />
@@ -65,7 +66,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                             Tom: {agent.voiceTone}
                         </Badge>
                     )}
-                    <Badge variant="outline" className="text-xs border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
+                    <Badge variant="outline" className="border-info/30 bg-info-subtle text-xs text-info-subtle-foreground">
                         {agent.llmProvider}
                     </Badge>
                 </div>
@@ -83,7 +84,7 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+                    className="h-8 w-8 p-0 text-destructive-subtle-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground"
                     onClick={() => onDelete(agent.id)}
                 >
                     <Trash2 className="h-4 w-4" />

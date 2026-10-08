@@ -128,7 +128,7 @@ export function NovaSenhaForm({ email }: { email: string }) {
                             />
                         </div>
                         {confirmation.length > 0 && !matches ? (
-                            <p className="text-xs text-destructive">As senhas não coincidem</p>
+                            <p className="text-xs text-destructive-subtle-foreground">As senhas não coincidem</p>
                         ) : null}
                     </div>
 

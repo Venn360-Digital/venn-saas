@@ -222,7 +222,7 @@ export default function UsuariosPage() {
                                         }
                                         setDeleting(u)
                                     }}
-                                    className="text-destructive focus:text-destructive"
+                                    className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
                                 >
                                     <Trash2 className="mr-2 size-4" />
                                     Excluir

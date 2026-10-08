@@ -5,6 +5,7 @@ import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
 // GET - List tags with pagination and search
 export async function GET(request: NextRequest) {
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
 // POST - Create tag
 const tagSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
-    color: z.string().default('#6B7280')
+    color: z.string().default(DEFAULT_ENTITY_COLOR)
 })
 
 export async function POST(request: NextRequest) {

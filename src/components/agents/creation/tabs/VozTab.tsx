@@ -140,8 +140,8 @@ export function VozTab({ data, onChange }: VozTabProps) {
                 </div>
 
                 {data.voiceEnabled && (
-                    <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900 dark:bg-yellow-950/30">
-                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4">
+                        <p className="text-sm text-warning-subtle-foreground">
                             💡 <strong>Nota:</strong> A funcionalidade de voz será implementada após o MVP. A interface está pronta para uso futuro.
                         </p>
                     </div>

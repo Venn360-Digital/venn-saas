@@ -43,7 +43,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: 'Google Calendar',
         description: 'Exporte atividades do OdontoBox360 para o Google Calendar do workspace',
         icon: '📅',
-        iconBgColor: 'bg-blue-600',
+        iconBgColor: BRAND_COLORS.google,
         provider: 'google_calendar',
     },
     {
@@ -59,7 +59,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: 'Meta ADS',
         description: 'Conecte Meta ADS para gerenciar anúncios no Facebook e Instagram',
         icon: '📱',
-        iconBgColor: 'bg-blue-500',
+        iconBgColor: BRAND_COLORS.metaAds,
         comingSoon: true,
     },
     {
@@ -67,7 +67,7 @@ const INTEGRATIONS: IntegrationDef[] = [
         name: 'Google Analytics',
         description: 'Rastreie o desempenho e comportamento dos usuários',
         icon: '📈',
-        iconBgColor: 'bg-yellow-500',
+        iconBgColor: BRAND_COLORS.googleAnalytics,
         comingSoon: true,
     },
     {
@@ -191,7 +191,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
         <div className={cn(
             "rounded-xl border p-5 transition-all",
             isConnected
-                ? "border-green-500/30 bg-card"
+                ? "border-success/40 bg-card"
                 : "border-border bg-card"
         )}>
             {/* Header */}
@@ -213,7 +213,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                     <span className={cn(
                         "rounded-full px-3 py-1 text-xs font-medium",
                         isConnected
-                            ? 'bg-green-500/20 text-green-400'
+                            ? 'bg-success-subtle text-success-subtle-foreground'
                             : 'bg-accent text-muted-foreground'
                     )}>
                         {isConnected ? '✓ Conectado' : 'Desconectado'}
@@ -328,7 +328,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                     </div>
                 ) : (
                     <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3">
-                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning" />
+                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning-subtle-foreground" />
                         <div className="min-w-0 text-xs">
                             <p className="font-medium">Integração ainda não liberada</p>
                             <p className="mt-0.5 text-muted-foreground">
@@ -347,17 +347,17 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
             <div className="space-y-3">
                 {isConnected ? (
                     <>
-                        <div className="flex items-start gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-3">
-                            <CheckCircle2 className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
-                            <div className="text-xs text-green-400">
+                        <div className="flex items-start gap-2 rounded-lg bg-success-subtle border border-success/20 p-3">
+                            <CheckCircle2 className="h-4 w-4 text-success-subtle-foreground flex-shrink-0 mt-0.5" />
+                            <div className="text-xs text-success-subtle-foreground">
                                 <p className="font-medium">Sincronização automática ativa</p>
-                                <p className="mt-0.5 text-green-400/80">
+                                <p className="mt-0.5 text-success-subtle-foreground/80">
                                     Atividades criadas ou editadas na Agenda são enviadas automaticamente para o Google Calendar.
                                 </p>
                             </div>
                         </div>
                         <Button variant="outline" onClick={handleDisconnect} disabled={disconnecting}
-                            className="w-full gap-2 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300">
+                            className="w-full gap-2 border-destructive/30 text-destructive-subtle-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground">
                             {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
                             Desconectar
                         </Button>

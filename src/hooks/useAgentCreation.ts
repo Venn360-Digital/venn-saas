@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AgentCreationData, PerfilData, TrabalhoData, CerebroData, VozData, VisualData } from '@/types/agent-creation'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
+import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 export function useAgentCreation(workspaceId: string) {
     const router = useRouter()
@@ -31,10 +32,10 @@ export function useAgentCreation(workspaceId: string) {
 
     const [visual, setVisual] = useState<VisualData>({
         visualConfig: {
-            userMessageColor: '#E5E7EB',
-            userFontColor: '#000000',
-            agentMessageColor: '#3B82F6',
-            agentFontColor: '#FFFFFF',
+            userMessageColor: AGENT_WIDGET_DEFAULTS.userMessageColor,
+            userFontColor: AGENT_WIDGET_DEFAULTS.userFontColor,
+            agentMessageColor: AGENT_WIDGET_DEFAULTS.agentMessageColor,
+            agentFontColor: AGENT_WIDGET_DEFAULTS.agentFontColor,
         },
     })
 

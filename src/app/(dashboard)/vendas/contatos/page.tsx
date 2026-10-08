@@ -520,7 +520,7 @@ export default function ContatosPage() {
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleOpenDialog(c)}>Editar</DropdownMenuItem>
                                 {canEdit && (
-                                    <DropdownMenuItem onClick={() => handleDelete(c.id)} className="text-destructive focus:text-destructive">
+                                    <DropdownMenuItem onClick={() => handleDelete(c.id)} className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground">
                                         Excluir
                                     </DropdownMenuItem>
                                 )}
@@ -713,7 +713,7 @@ export default function ContatosPage() {
                                                     <div key={deal.id} className="p-3 rounded-lg bg-card border border-border">
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-sm font-medium text-foreground">{deal.title}</span>
-                                                            <Badge variant="outline" className={`text-[10px] ${deal.status === 'open' ? 'border-info text-info-subtle-foreground' : deal.status === 'won' ? 'border-success text-success-subtle-foreground' : 'border-destructive text-destructive'}`}>{deal.status === 'open' ? 'Aberto' : deal.status === 'won' ? 'Ganho' : 'Perdido'}</Badge>
+                                                            <Badge variant="outline" className={`text-[10px] ${deal.status === 'open' ? 'border-info text-info-subtle-foreground' : deal.status === 'won' ? 'border-success text-success-subtle-foreground' : 'border-destructive text-destructive-subtle-foreground'}`}>{deal.status === 'open' ? 'Aberto' : deal.status === 'won' ? 'Ganho' : 'Perdido'}</Badge>
                                                         </div>
                                                         <div className="flex items-center gap-3 mt-1">
                                                             {deal.value && <span className="text-xs text-success-subtle-foreground">R$ {deal.value.toLocaleString('pt-BR')}</span>}
@@ -774,7 +774,7 @@ export default function ContatosPage() {
                                                                 <span className="text-sm text-foreground">{f.name}</span>
                                                                 <span className="text-[10px] text-muted-foreground">({f.type})</span>
                                                             </div>
-                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteField(f.id)}><Trash2 className="h-3 w-3" /></Button>
+                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive-subtle-foreground" onClick={() => handleDeleteField(f.id)}><Trash2 className="h-3 w-3" /></Button>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -848,7 +848,7 @@ export default function ContatosPage() {
                                     <span className="text-2xl font-bold text-foreground">{importSummary.total}</span>
                                     <p className="text-xs text-muted-foreground">Total</p>
                                 </div>
-                                <div className="p-3 rounded-lg bg-green-900/20 border border-success flex-1 text-center">
+                                <div className="p-3 rounded-lg bg-success-subtle border border-success flex-1 text-center">
                                     <span className="text-2xl font-bold text-success-subtle-foreground">{importSummary.new}</span>
                                     <p className="text-xs text-muted-foreground">Novos</p>
                                 </div>
@@ -884,7 +884,7 @@ export default function ContatosPage() {
                                     <TableBody>
                                         {importPreview.slice(0, 50).map(row => (
                                             <TableRow key={row.index} className="border-border">
-                                                <TableCell>{row.status === 'new' ? <Badge className="bg-green-900 text-success-subtle-foreground text-[10px]">Novo</Badge> : <Badge className="bg-yellow-900 text-warning-subtle-foreground text-[10px]">Duplicado</Badge>}</TableCell>
+                                                <TableCell>{row.status === 'new' ? <Badge className="bg-success-subtle text-success-subtle-foreground text-[10px]">Novo</Badge> : <Badge className="bg-warning-subtle text-warning-subtle-foreground text-[10px]">Duplicado</Badge>}</TableCell>
                                                 <TableCell className="text-foreground text-sm">{row.name || '-'}</TableCell>
                                                 <TableCell className="text-foreground text-sm">{row.email || '-'}</TableCell>
                                                 <TableCell className="text-foreground text-sm">{row.phone || '-'}</TableCell>

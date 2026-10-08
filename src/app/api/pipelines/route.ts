@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
+import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
             data: {
                 workspaceId: workspaceUser.workspaceId,
                 name: name.trim(),
-                color: color || '#6B7280',
+                color: color || DEFAULT_ENTITY_COLOR,
                 order: (maxOrder._max.order || 0) + 1
             }
         })

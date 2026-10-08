@@ -291,7 +291,7 @@ function PlanSummary() {
             {state.phase === 'readonly' ? (
                 <Link
                     href="/gerenciamento/conta?tab=plano"
-                    className="flex items-center gap-1.5 text-xs font-bold text-destructive hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-destructive-subtle-foreground hover:underline"
                 >
                     <TriangleAlert className="size-3.5 shrink-0" />
                     Avaliação encerrada — assine para voltar a atender
@@ -306,7 +306,7 @@ function PlanSummary() {
             {state.exhausted ? (
                 <Link
                     href="/gerenciamento/conta?tab=plano"
-                    className="flex items-center gap-1.5 text-xs font-bold text-destructive hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-destructive-subtle-foreground hover:underline"
                 >
                     <TriangleAlert className="size-3.5 shrink-0" />
                     Créditos esgotados

@@ -13,6 +13,7 @@ import { VisualTab } from '@/components/agents/creation/tabs/VisualTab'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 function NovoAgenteContent() {
     const searchParams = useSearchParams()
@@ -117,10 +118,7 @@ function NovoAgenteContent() {
             setVisual({
                 avatar: agent.avatar || '',
                 visualConfig: agent.visualConfig || {
-                    userMessageColor: '#E5E7EB',
-                    userFontColor: '#000000',
-                    agentMessageColor: '#3B82F6',
-                    agentFontColor: '#FFFFFF',
+                    ...AGENT_WIDGET_DEFAULTS,
                 },
             })
 

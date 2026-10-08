@@ -84,6 +84,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
 
 /**
@@ -217,9 +218,9 @@ function MessageStatus({ status, direction }: { status: string; direction: strin
         case 'delivered':
             return <CheckCheck className="h-3 w-3 inline-block ml-1 opacity-60" />
         case 'read':
-            return <CheckCheck className="h-3 w-3 inline-block ml-1 text-blue-400" />
+            return <CheckCheck className="h-3 w-3 inline-block ml-1 text-info-subtle-foreground" />
         case 'failed':
-            return <span className="text-red-400 ml-1 text-[10px]">⚠️</span>
+            return <span className="text-destructive-subtle-foreground ml-1 text-[10px]">⚠️</span>
         default:
             return <Check className="h-3 w-3 inline-block ml-1 opacity-40" />
     }
@@ -1808,7 +1809,7 @@ export default function ConversasPage() {
                                             size="sm"
                                             variant="outline"
                                             onClick={() => handleAction('close')}
-                                            className="text-xs gap-1 text-destructive hover:text-destructive"
+                                            className="text-xs gap-1 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
                                         >
                                             <XCircle className="h-3.5 w-3.5" />
                                             Finalizar
@@ -1829,7 +1830,7 @@ export default function ConversasPage() {
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setShowDeleteDialog(true)}
-                                        className="text-xs gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        className="text-xs gap-1 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground hover:bg-destructive/10"
                                         title="Excluir conversa permanentemente"
                                     >
                                         <Trash2 className="h-3.5 w-3.5" />
@@ -1992,13 +1993,13 @@ export default function ConversasPage() {
                                             if (isInternal) {
                                                 return (
                                                     <div key={msg.id} className="flex justify-center group">
-                                                        <div className="max-w-[70%] bg-amber-500/10 border border-dashed border-amber-500/30 rounded-xl px-4 py-2.5 text-sm">
-                                                            <div className="flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400 font-medium mb-1">
+                                                        <div className="max-w-[70%] bg-warning-subtle border border-dashed border-warning/40 rounded-xl px-4 py-2.5 text-sm text-warning-subtle-foreground">
+                                                            <div className="flex items-center gap-1.5 text-[10px] font-medium mb-1 opacity-80">
                                                                 <StickyNote className="h-3 w-3" />
                                                                 Nota interna · {msg.senderName || 'Atendente'}
                                                             </div>
                                                             <p className="text-foreground/80 whitespace-pre-wrap">{msg.content}</p>
-                                                            <div className="text-[10px] text-amber-600/60 mt-1 text-right">
+                                                            <div className="text-[10px] opacity-60 mt-1 text-right">
                                                                 {format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR })}
                                                             </div>
                                                         </div>
@@ -2232,12 +2233,12 @@ export default function ConversasPage() {
 
                                             {/* Note mode indicator */}
                                             {isNoteMode && (
-                                                <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-dashed border-amber-500/30">
-                                                    <StickyNote className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-                                                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                                <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-warning-subtle rounded-lg border border-dashed border-warning/40">
+                                                    <StickyNote className="h-3.5 w-3.5 text-warning-subtle-foreground flex-shrink-0" />
+                                                    <span className="text-xs text-warning-subtle-foreground font-medium">
                                                         Modo nota interna — não será enviada ao cliente
                                                     </span>
-                                                    <button onClick={() => setIsNoteMode(false)} className="ml-auto text-amber-600/60 hover:text-amber-600">
+                                                    <button onClick={() => setIsNoteMode(false)} className="ml-auto text-warning-subtle-foreground/60 hover:text-warning-subtle-foreground">
                                                         <X className="h-3.5 w-3.5" />
                                                     </button>
                                                 </div>
@@ -2248,19 +2249,19 @@ export default function ConversasPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="rounded-full h-10 w-10 text-destructive hover:text-destructive"
+                                                        className="rounded-full h-10 w-10 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
                                                         onClick={cancelRecording}
                                                         title="Cancelar"
                                                     >
                                                         <X className="h-5 w-5" />
                                                     </Button>
                                                     <div className="flex-1 flex items-center gap-3">
-                                                        <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                                                        <span className="text-sm font-mono text-destructive font-medium">
+                                                        <div className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
+                                                        <span className="text-sm font-mono text-destructive-subtle-foreground font-medium">
                                                             {formatRecordingTime(recordingTime)}
                                                         </span>
                                                         <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-                                                            <div className="h-full bg-red-500/60 rounded-full animate-pulse" style={{ width: '100%' }} />
+                                                            <div className="h-full bg-destructive/60 rounded-full animate-pulse" style={{ width: '100%' }} />
                                                         </div>
                                                     </div>
                                                     <Button
@@ -2299,7 +2300,7 @@ export default function ConversasPage() {
                                                         className={cn(
                                                             'rounded-lg h-10 w-10 flex-shrink-0',
                                                             isNoteMode
-                                                                ? 'text-amber-600 bg-amber-500/10 hover:bg-amber-500/20'
+                                                                ? 'text-warning-subtle-foreground bg-warning-subtle hover:bg-warning-subtle/70'
                                                                 : 'text-muted-foreground hover:text-foreground'
                                                         )}
                                                         onClick={() => setIsNoteMode(!isNoteMode)}
@@ -2327,7 +2328,7 @@ export default function ConversasPage() {
                                                         className={cn(
                                                             'flex-1 bg-muted/50 rounded-lg px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 min-h-[40px] max-h-[120px]',
                                                             isNoteMode
-                                                                ? 'focus:ring-amber-500/50 border border-amber-500/30'
+                                                                ? 'focus:ring-warning/50 border border-warning/40'
                                                                 : 'focus:ring-primary/50'
                                                         )}
                                                         style={{ height: 'auto' }}
@@ -2405,7 +2406,7 @@ export default function ConversasPage() {
                                                 <div className="flex items-center justify-between gap-2">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h4>
                                                     {conv.openDeal?.stageName ? (
-                                                        <TagChip name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? '#6B7280'} />
+                                                        <TagChip name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? DEFAULT_ENTITY_COLOR} />
                                                     ) : null}
                                                 </div>
                                                 {conv.openDeal ? (

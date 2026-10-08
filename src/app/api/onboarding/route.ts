@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
 import { errorMessage } from '@/lib/prisma-errors'
+import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 export async function POST(request: NextRequest) {
     try {
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
                         llmModel: DEFAULT_MODEL,
                         systemPrompt: 'Você é um assistente útil e amigável.',
                         temperature: 0.7,
-                        primaryColor: '#3B82F6',
+                        primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
                         language: 'pt-BR',
                         isActive: true,
                     }

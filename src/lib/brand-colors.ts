@@ -18,6 +18,7 @@ export const BRAND_COLORS = {
     mercadoLivre: 'bg-[#FFE600]',
     google: 'bg-[#4285F4]',
     googleAds: 'bg-[#3C8BD9]',
+    googleAnalytics: 'bg-[#E37400]',
     metaAds: 'bg-[#0668E1]',
 } as const
 

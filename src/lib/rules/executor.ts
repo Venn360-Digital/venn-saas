@@ -7,6 +7,7 @@ import {
     RuleExecutionResult,
     RuleMessageDispatcher,
 } from '@/types/rules'
+import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
 /**
  * Carries out a matched rule's actions against the database.
@@ -170,7 +171,7 @@ export class RuleExecutor {
                 data: {
                     workspaceId: context.workspaceId,
                     name,
-                    color: String(params.color ?? '#6B7280'),
+                    color: String(params.color ?? DEFAULT_ENTITY_COLOR),
                 },
                 select: { id: true },
             })

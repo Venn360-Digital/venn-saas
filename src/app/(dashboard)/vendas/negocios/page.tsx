@@ -76,6 +76,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { usePermissions } from '@/hooks/usePermissions'
 import { JOURNEY, type TrackingData, type TrackingEntry, type TrackingKey } from '@/components/shared/DealJourney'
+import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -280,7 +281,7 @@ function TrackingGroup({
                 <span className="text-sm font-medium whitespace-nowrap">{label}</span>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className={`text-xs font-medium ${entry.done ? 'text-green-400' : 'text-muted-foreground'}`}>{entry.done ? 'SIM' : 'NÃO'}</span>
+                <span className={`text-xs font-medium ${entry.done ? 'text-success-subtle-foreground' : 'text-muted-foreground'}`}>{entry.done ? 'SIM' : 'NÃO'}</span>
                 <Switch
                     checked={entry.done}
                     onCheckedChange={(checked) => onChange({ ...entry, done: checked })}
@@ -339,7 +340,7 @@ function DealCard({
                     )}
                     <div className="flex items-center gap-2 mt-1">
                         {deal.value != null && deal.value > 0 && (
-                            <span className="text-sm text-green-400 flex items-center gap-0.5">
+                            <span className="text-sm text-success-subtle-foreground flex items-center gap-0.5">
                                 <DollarSign className="h-3 w-3" />
                                 R$ {deal.value.toLocaleString('pt-BR')}
                             </span>
@@ -373,16 +374,16 @@ function DealCard({
                             </DropdownMenuItem>
                         ))}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onStatusChange(deal, 'won')} className="text-green-400">
+                        <DropdownMenuItem onClick={() => onStatusChange(deal, 'won')} className="text-success-subtle-foreground">
                             <Trophy className="h-4 w-4 mr-2" /> Marcar como Ganho
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(deal, 'lost')} className="text-red-400">
+                        <DropdownMenuItem onClick={() => onStatusChange(deal, 'lost')} className="text-destructive-subtle-foreground">
                             <XCircle className="h-4 w-4 mr-2" /> Marcar como Perdido
                         </DropdownMenuItem>
                         {canEdit && (
                             <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onDelete(deal)} className="text-destructive">
+                                <DropdownMenuItem onClick={() => onDelete(deal)} className="text-destructive-subtle-foreground">
                                     <Trash2 className="h-4 w-4 mr-2" /> Excluir
                                 </DropdownMenuItem>
                             </>
@@ -433,7 +434,7 @@ function StageColumn({
                             {canEdit && (
                                 <>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => onDeleteStage(stage)} className="text-destructive">
+                                    <DropdownMenuItem onClick={() => onDeleteStage(stage)} className="text-destructive-subtle-foreground">
                                         <Trash2 className="h-4 w-4 mr-2" /> Excluir
                                     </DropdownMenuItem>
                                 </>
@@ -444,7 +445,7 @@ function StageColumn({
             </div>
             {totalValue > 0 && (
                 <div className="bg-card/80 px-4 py-1.5 text-xs text-muted-foreground border-x border-border">
-                    Total: <span className="text-green-400 font-medium">R$ {totalValue.toLocaleString('pt-BR')}</span>
+                    Total: <span className="text-success-subtle-foreground font-medium">R$ {totalValue.toLocaleString('pt-BR')}</span>
                 </div>
             )}
             <div className={`bg-card/50 rounded-b-lg p-2 min-h-[400px] space-y-2 border-x border-b border-border transition-colors ${isOver ? 'bg-primary/10 border-primary/30' : ''}`}>
@@ -469,9 +470,9 @@ function StageColumn({
 // ─── Status Badge ───────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
     const config: Record<string, { label: string; className: string }> = {
-        open: { label: 'Aberto', className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-        won: { label: 'Ganho', className: 'bg-green-500/20 text-green-400 border-green-500/30' },
-        lost: { label: 'Perdido', className: 'bg-red-500/20 text-red-400 border-red-500/30' },
+        open: { label: 'Aberto', className: 'bg-info-subtle text-info-subtle-foreground border-info/30' },
+        won: { label: 'Ganho', className: 'bg-success-subtle text-success-subtle-foreground border-success/30' },
+        lost: { label: 'Perdido', className: 'bg-destructive-subtle text-destructive-subtle-foreground border-destructive/30' },
     }
     const c = config[status] || config.open
     return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${c.className}`}>{c.label}</span>
@@ -553,7 +554,7 @@ export default function NegociosPage() {
     const [stageDialogOpen, setStageDialogOpen] = useState(false)
     const [editingStage, setEditingStage] = useState<Stage | null>(null)
     const [stageName, setStageName] = useState('')
-    const [stageColor, setStageColor] = useState('#6B7280')
+    const [stageColor, setStageColor] = useState<string>(DEFAULT_ENTITY_COLOR)
     const [stageDeleteDialogOpen, setStageDeleteDialogOpen] = useState(false)
     const [stageToDelete, setStageToDelete] = useState<Stage | null>(null)
 
@@ -949,7 +950,7 @@ export default function NegociosPage() {
     const handleAddStage = () => {
         setEditingStage(null)
         setStageName('')
-        setStageColor('#6B7280')
+        setStageColor(DEFAULT_ENTITY_COLOR)
         setStageDialogOpen(true)
     }
 
@@ -1007,10 +1008,7 @@ export default function NegociosPage() {
         } catch { toast.error('Erro ao excluir etapa') }
     }
 
-    const STAGE_COLORS = [
-        '#6B7280', '#EF4444', '#F97316', '#F59E0B', '#22C55E',
-        '#14B8A6', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899',
-    ]
+    const STAGE_COLORS = PICKER_RAMP
 
     // ─── Computed ───────────────────────────────────────────────────
     const allDeals = viewMode === 'kanban' ? stages.flatMap(s => s.deals) : listDeals
@@ -1091,11 +1089,11 @@ export default function NegociosPage() {
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor em Aberto</p>
-                    <p className="text-2xl font-bold mt-1 text-blue-400">R$ {kpiOpenValue.toLocaleString('pt-BR')}</p>
+                    <p className="text-2xl font-bold mt-1 text-info-subtle-foreground">R$ {kpiOpenValue.toLocaleString('pt-BR')}</p>
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor Ganho</p>
-                    <p className="text-2xl font-bold mt-1 text-green-400">R$ {kpiWonValue.toLocaleString('pt-BR')}</p>
+                    <p className="text-2xl font-bold mt-1 text-success-subtle-foreground">R$ {kpiWonValue.toLocaleString('pt-BR')}</p>
                 </div>
             </div>
 
@@ -1193,10 +1191,10 @@ export default function NegociosPage() {
                                             {deal.owner ? <span className="text-sm">{deal.owner.name}</span> : <span className="text-muted-foreground">—</span>}
                                         </TableCell>
                                         <TableCell>
-                                            {deal.value != null && deal.value > 0 ? <span className="text-green-400">R$ {deal.value.toLocaleString('pt-BR')}</span> : <span className="text-muted-foreground">—</span>}
+                                            {deal.value != null && deal.value > 0 ? <span className="text-success-subtle-foreground">R$ {deal.value.toLocaleString('pt-BR')}</span> : <span className="text-muted-foreground">—</span>}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: deal.stage?.color || '#6B7280' }}>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: deal.stage?.color || DEFAULT_ENTITY_COLOR }}>
                                                 {deal.stage?.name || '—'}
                                             </span>
                                         </TableCell>
@@ -1211,15 +1209,15 @@ export default function NegociosPage() {
                                                     <DropdownMenuItem onClick={() => handleEditDealWithActivities(deal)}><Pencil className="h-4 w-4 mr-2" />Editar</DropdownMenuItem>
                                                     {deal.status === 'open' && (
                                                         <>
-                                                            <DropdownMenuItem onClick={() => handleStatusChange(deal, 'won')} className="text-green-400"><Trophy className="h-4 w-4 mr-2" />Ganho</DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => handleStatusChange(deal, 'lost')} className="text-red-400"><XCircle className="h-4 w-4 mr-2" />Perdido</DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleStatusChange(deal, 'won')} className="text-success-subtle-foreground"><Trophy className="h-4 w-4 mr-2" />Ganho</DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleStatusChange(deal, 'lost')} className="text-destructive-subtle-foreground"><XCircle className="h-4 w-4 mr-2" />Perdido</DropdownMenuItem>
                                                         </>
                                                     )}
                                                     {deal.status !== 'open' && (
-                                                        <DropdownMenuItem onClick={() => handleStatusChange(deal, 'open')} className="text-blue-400"><ArrowRight className="h-4 w-4 mr-2" />Reabrir</DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleStatusChange(deal, 'open')} className="text-info-subtle-foreground"><ArrowRight className="h-4 w-4 mr-2" />Reabrir</DropdownMenuItem>
                                                     )}
                                                     <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => { setDealToDelete(deal); setDeleteDialogOpen(true) }} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" />Excluir</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => { setDealToDelete(deal); setDeleteDialogOpen(true) }} className="text-destructive-subtle-foreground"><Trash2 className="h-4 w-4 mr-2" />Excluir</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
@@ -1284,8 +1282,8 @@ export default function NegociosPage() {
 
                                 {/* Loss info (read-only when editing a lost deal) */}
                                 {editingDeal?.status === 'lost' && editingDeal?.lossReason && (
-                                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                                        <div className="flex items-center gap-2 text-red-400 text-sm font-medium mb-1">
+                                    <div className="bg-destructive-subtle border border-destructive/30 rounded-lg p-3">
+                                        <div className="flex items-center gap-2 text-destructive-subtle-foreground text-sm font-medium mb-1">
                                             <AlertTriangle className="h-4 w-4" /> Motivo da Perda
                                         </div>
                                         <p className="text-sm">
@@ -1445,14 +1443,14 @@ export default function NegociosPage() {
                                                 return (
                                                     <div key={activity.id} className="relative group">
                                                         {/* Timeline dot */}
-                                                        <div className={`absolute -left-[calc(1.5rem+5px)] w-3 h-3 rounded-full border-2 ${activity.completedAt ? 'bg-green-500 border-green-500' : 'bg-card border-border'}`} />
+                                                        <div className={`absolute -left-[calc(1.5rem+5px)] w-3 h-3 rounded-full border-2 ${activity.completedAt ? 'bg-success border-success' : 'bg-card border-border'}`} />
 
                                                         <div className={`rounded-lg border border-border p-3 ${activity.completedAt ? 'opacity-60' : ''}`}>
                                                             <div className="flex items-start justify-between gap-2">
                                                                 <div className="flex items-center gap-2 min-w-0">
                                                                     <button onClick={() => handleToggleActivity(activity, editingDeal.id)} title={activity.completedAt ? 'Marcar como pendente' : 'Marcar como concluída'}>
                                                                         {activity.completedAt
-                                                                            ? <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                                                                            ? <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground flex-shrink-0" />
                                                                             : <Circle className="h-5 w-5 text-muted-foreground hover:text-primary flex-shrink-0" />
                                                                         }
                                                                     </button>
@@ -1464,7 +1462,7 @@ export default function NegociosPage() {
                                                                 </div>
                                                                 <button
                                                                     onClick={() => handleDeleteActivity(activity.id, editingDeal.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1"
+                                                                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive-subtle-foreground transition-opacity p-1"
                                                                 >
                                                                     <Trash2 className="h-3.5 w-3.5" />
                                                                 </button>
@@ -1504,7 +1502,7 @@ export default function NegociosPage() {
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <XCircle className="h-5 w-5 text-red-400" /> Motivo da Perda
+                            <XCircle className="h-5 w-5 text-destructive-subtle-foreground" /> Motivo da Perda
                         </DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground">
@@ -1516,7 +1514,7 @@ export default function NegociosPage() {
                                 key={reason.id}
                                 onClick={() => setLossReason(reason.id)}
                                 className={`flex items-center gap-2 p-3 rounded-lg border text-sm text-left transition-all ${lossReason === reason.id
-                                    ? 'border-red-400 bg-red-500/10 text-foreground'
+                                    ? 'border-destructive bg-destructive-subtle text-destructive-subtle-foreground'
                                     : 'border-border hover:border-muted-foreground text-muted-foreground hover:text-foreground'
                                     }`}
                             >
@@ -1537,7 +1535,7 @@ export default function NegociosPage() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setLossDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleConfirmLoss} disabled={!lossReason} className="bg-red-600 hover:bg-red-700 text-foreground">
+                        <Button onClick={handleConfirmLoss} disabled={!lossReason} variant="destructive">
                             Confirmar Perda
                         </Button>
                     </DialogFooter>

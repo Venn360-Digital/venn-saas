@@ -437,7 +437,7 @@ export function DesignSystemGallery() {
                         <div className="space-y-2">
                             <Label htmlFor="ds-err">Telefone</Label>
                             <Input id="ds-err" aria-invalid defaultValue="31 9999" />
-                            <p className="text-xs text-destructive">
+                            <p className="text-xs text-destructive-subtle-foreground">
                                 Informe o telefone com DDD e 9 dígitos
                             </p>
                         </div>

@@ -43,18 +43,18 @@ function WebhookSection({
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'active':
-                return <CheckCircle className="h-4 w-4 text-green-500" />
+                return <CheckCircle className="h-4 w-4 text-success-subtle-foreground" />
             case 'error':
-                return <AlertCircle className="h-4 w-4 text-red-500" />
+                return <AlertCircle className="h-4 w-4 text-destructive-subtle-foreground" />
             default:
                 return <Activity className="h-4 w-4 text-muted-foreground" />
         }
     }
 
     const getHealthColor = (score: number) => {
-        if (score >= 80) return 'text-green-500'
-        if (score >= 50) return 'text-yellow-500'
-        return 'text-red-500'
+        if (score >= 80) return 'text-success-subtle-foreground'
+        if (score >= 50) return 'text-warning-subtle-foreground'
+        return 'text-destructive-subtle-foreground'
     }
 
     return (

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Upload } from 'lucide-react'
 import { VisualData } from '@/types/agent-creation'
 import { cn } from '@/lib/utils'
+import { AGENT_WIDGET_DEFAULTS, BRAND_HEX } from '@/lib/palette'
 
 interface VisualTabProps {
     data: VisualData
@@ -32,13 +33,13 @@ function ColorPicker({ label, description, value, onChange }: ColorPickerProps) 
                 <div className="flex items-center gap-2">
                     <div
                         className="h-10 w-24 cursor-pointer rounded-md border"
-                        style={{ backgroundColor: value || '#FFFFFF' }}
+                        style={{ backgroundColor: value || BRAND_HEX.white }}
                         onClick={() => inputRef.current?.click()}
                     />
                     <input
                         ref={inputRef}
                         type="color"
-                        value={value || '#FFFFFF'}
+                        value={value || BRAND_HEX.white}
                         onChange={(e) => onChange(e.target.value)}
                         className="sr-only"
                     />
@@ -173,8 +174,8 @@ export function VisualTab({ data, onChange }: VisualTabProps) {
                             <div
                                 className="max-w-[70%] rounded-lg p-3"
                                 style={{
-                                    backgroundColor: data.visualConfig?.userMessageColor || '#E5E7EB',
-                                    color: data.visualConfig?.userFontColor || '#000000',
+                                    backgroundColor: data.visualConfig?.userMessageColor || AGENT_WIDGET_DEFAULTS.userMessageColor,
+                                    color: data.visualConfig?.userFontColor || AGENT_WIDGET_DEFAULTS.userFontColor,
                                 }}
                             >
                                 <p className="text-sm">Olá! Como posso ajudar?</p>
@@ -186,8 +187,8 @@ export function VisualTab({ data, onChange }: VisualTabProps) {
                             <div
                                 className="max-w-[70%] rounded-lg p-3"
                                 style={{
-                                    backgroundColor: data.visualConfig?.agentMessageColor || '#3B82F6',
-                                    color: data.visualConfig?.agentFontColor || '#FFFFFF',
+                                    backgroundColor: data.visualConfig?.agentMessageColor || AGENT_WIDGET_DEFAULTS.agentMessageColor,
+                                    color: data.visualConfig?.agentFontColor || AGENT_WIDGET_DEFAULTS.agentFontColor,
                                 }}
                             >
                                 <p className="text-sm">

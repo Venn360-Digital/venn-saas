@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { FormField } from '@/components/shared/FormField'
 import { TagChip } from '@/components/shared/TagChip'
 import { usePermissions } from '@/hooks/usePermissions'
+import { PICKER_RAMP } from '@/lib/palette'
 
 interface TagItem {
     id: string
@@ -47,19 +48,10 @@ interface PaginationState {
  * Values the user picks and the database stores, so this list is forward-only:
  * curating it changes what new tags can be, and never rewrites a tag that already
  * exists. The old set carried the Kaly identity (#A855F7, #EC4899); these are
- * drawn from the product palette while keeping the hues far enough apart to tell
- * eight tags apart at a glance.
+ * drawn from the brand palette in `lib/palette.ts`, the same ramp the funnel's
+ * stages offer — the previous one was the pre-rebrand palette and had drifted.
  */
-const COLOR_PALETTE = [
-    '#D32F2F',
-    '#F97316',
-    '#C77700',
-    '#21B896',
-    '#0E6B56',
-    '#3678AE',
-    '#184F7C',
-    '#5B7183',
-]
+const COLOR_PALETTE = PICKER_RAMP
 
 export default function EtiquetasPage() {
     // Presentation only — the API enforces the same rule. Without this an
@@ -241,7 +233,7 @@ export default function EtiquetasPage() {
                                           </DropdownMenuItem>
                                           <DropdownMenuItem
                                               onClick={() => setDeletingTag(tag)}
-                                              className="text-destructive focus:text-destructive"
+                                              className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
                                           >
                                               <Trash2 className="mr-2 size-4" />
                                               Excluir

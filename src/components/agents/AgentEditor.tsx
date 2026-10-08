@@ -37,6 +37,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 const formSchema = z.object({
     name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
@@ -96,7 +97,7 @@ export function AgentEditor({
             llmModel: DEFAULT_MODEL,
             systemPrompt: 'Você é um assistente útil e amigável.',
             temperature: 0.7,
-            primaryColor: '#3B82F6',
+            primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
             voiceTone: 'casual',
             language: 'pt-BR',
             isActive: true,

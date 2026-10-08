@@ -196,9 +196,9 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
 
                     {status === 'connected' && (
                         <div className="flex flex-col items-center gap-4">
-                            <CheckCircle className="h-16 w-16 text-green-500" />
+                            <CheckCircle className="h-16 w-16 text-success-subtle-foreground" />
                             <div className="text-center">
-                                <p className="font-medium text-green-600">
+                                <p className="font-medium text-success-subtle-foreground">
                                     WhatsApp conectado com sucesso!
                                 </p>
                                 <p className="text-sm text-muted-foreground mt-1">
@@ -213,9 +213,9 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
 
                     {status === 'error' && (
                         <div className="flex flex-col items-center gap-4">
-                            <XCircle className="h-16 w-16 text-red-500" />
+                            <XCircle className="h-16 w-16 text-destructive-subtle-foreground" />
                             <div className="text-center">
-                                <p className="font-medium text-red-600">
+                                <p className="font-medium text-destructive-subtle-foreground">
                                     Erro ao conectar
                                 </p>
                                 <p className="text-sm text-muted-foreground mt-1">

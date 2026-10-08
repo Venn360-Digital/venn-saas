@@ -52,7 +52,7 @@ export function FormField({
             <Label htmlFor={id}>
                 {label}
                 {required ? (
-                    <span className="text-destructive" aria-hidden="true">
+                    <span className="text-destructive-subtle-foreground" aria-hidden="true">
                         *
                     </span>
                 ) : null}
@@ -67,7 +67,7 @@ export function FormField({
                 : children}
 
             {error ? (
-                <p id={errorId} className="text-xs text-destructive">
+                <p id={errorId} className="text-xs text-destructive-subtle-foreground">
                     {error}
                 </p>
             ) : hint ? (
