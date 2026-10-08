@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PlatformCredentialsPanel } from '@/components/integrations/PlatformCredentialsPanel'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     const [loading, setLoading] = useState(true)
     const [connecting, setConnecting] = useState(false)
     const [disconnecting, setDisconnecting] = useState(false)
+    const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
     const [showOwnProject, setShowOwnProject] = useState(false)
     const [clientId, setClientId] = useState('')
     const [clientSecret, setClientSecret] = useState('')
@@ -169,7 +171,6 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     }
 
     const handleDisconnect = async () => {
-        if (!confirm('Deseja desconectar o Google Calendar? As atividades já exportadas não serão removidas.')) return
         setDisconnecting(true)
         try {
             const res = await fetch('/api/integrations/google/calendar', { method: 'DELETE' })
@@ -357,7 +358,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                                 </p>
                             </div>
                         </div>
-                        <Button variant="outline" onClick={handleDisconnect} disabled={disconnecting}
+                        <Button variant="outline" onClick={() => setConfirmingDisconnect(true)} disabled={disconnecting}
                             className="w-full gap-2 border-destructive/30 text-destructive-subtle-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground">
                             {disconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4" />}
                             Desconectar
@@ -375,6 +376,16 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                     </Button>
                 )}
             </div>
+
+            <ConfirmDialog
+                open={confirmingDisconnect}
+                onOpenChange={setConfirmingDisconnect}
+                title="Desconectar o Google Calendar?"
+                description="As atividades já exportadas continuam no calendário, mas as novas deixam de ser enviadas até alguém reconectar."
+                confirmLabel="Desconectar"
+                destructive
+                onConfirm={handleDisconnect}
+            />
         </div>
     )
 }

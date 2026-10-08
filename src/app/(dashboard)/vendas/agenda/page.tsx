@@ -21,6 +21,9 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -111,6 +114,7 @@ export default function AgendaPage() {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Delete controls that answer 403.
     const { canEdit } = usePermissions()
+    const [deletingActivity, setDeletingActivity] = useState<Activity | null>(null)
     const [activities, setActivities] = useState<Activity[]>([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState('today')
@@ -312,7 +316,6 @@ export default function AgendaPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir esta atividade?')) return
         try {
             const res = await fetch(`/api/activities/${id}`, { method: 'DELETE' })
             if (res.ok) { toast.success('Atividade excluída!'); loadActivities(); loadStats() }
@@ -617,11 +620,11 @@ export default function AgendaPage() {
                 /* ─── List View ───────────────────────────────────────────── */
                 <div className="space-y-2">
                     {activities.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                            <Calendar className="h-12 w-12 mb-4 opacity-40" />
-                            <p className="font-medium">Nenhuma atividade encontrada</p>
-                            <p className="text-sm">Ajuste os filtros ou crie uma nova atividade.</p>
-                        </div>
+                        <EmptyState
+                            icon={Calendar}
+                            title="Nenhuma atividade encontrada"
+                            description="Ajuste os filtros ou crie uma nova atividade."
+                        />
                     ) : (
                         activities.map((activity) => {
                             const typeInfo = getTypeInfo(activity.type)
@@ -699,19 +702,29 @@ export default function AgendaPage() {
                                         </div>
                                     </div>
 
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8"
-                                            onClick={() => handleOpenDialog(activity)}>
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        {canEdit && (
-                                            <Button variant="ghost" size="icon"
-                                                className="h-8 w-8 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
-                                                onClick={() => handleDelete(activity.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        )}
+                                    {/* Actions — the same menu the tables use, so a
+                                        row of activities and a row of contacts
+                                        answer to the same gesture. */}
+                                    <div className="flex-shrink-0">
+                                        <RowActions
+                                            label={`Ações da atividade ${activity.title}`}
+                                        >
+                                            <RowActionItem
+                                                icon={Pencil}
+                                                onClick={() => handleOpenDialog(activity)}
+                                            >
+                                                Editar
+                                            </RowActionItem>
+                                            {canEdit ? (
+                                                <RowActionItem
+                                                    icon={Trash2}
+                                                    destructive
+                                                    onClick={() => setDeletingActivity(activity)}
+                                                >
+                                                    Excluir
+                                                </RowActionItem>
+                                            ) : null}
+                                        </RowActions>
                                     </div>
                                 </div>
                             )
@@ -990,6 +1003,20 @@ export default function AgendaPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingActivity !== null}
+                onOpenChange={open => {
+                    if (!open) setDeletingActivity(null)
+                }}
+                title="Excluir atividade?"
+                description={`"${deletingActivity?.title ?? ''}" sai da agenda e do funil do negócio ligado a ela. Não dá para desfazer.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={async () => {
+                    if (deletingActivity) await handleDelete(deletingActivity.id)
+                }}
+            />
         </div>
     )
 }

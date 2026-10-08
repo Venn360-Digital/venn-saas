@@ -4,6 +4,7 @@ import { PlanAllowance } from '@/components/shared/PlanAllowance'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Plus, Loader2, Bot } from 'lucide-react'
 import { AgentCard } from '@/components/agents/AgentCard'
@@ -18,6 +19,7 @@ export default function AgentsPage() {
     const [loading, setLoading] = useState(true)
     const [isEditorOpen, setIsEditorOpen] = useState(false)
     const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
+    const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null)
 
     // Temporary: In a real app we'd get this from a context or user session hook
     const [workspaceId, setWorkspaceId] = useState<string | null>(null)
@@ -86,8 +88,6 @@ export default function AgentsPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir este agente?')) return
-
         try {
             const response = await fetch(`/api/agents/${id}`, {
                 method: 'DELETE',
@@ -155,7 +155,7 @@ export default function AgentsPage() {
                             key={agent.id}
                             agent={agent}
                             onEdit={handleEdit}
-                            onDelete={handleDelete}
+                            onDelete={id => setDeletingAgent(agents.find(a => a.id === id) ?? null)}
                             onToggleStatus={handleToggleStatus}
                         />
                     ))}
@@ -172,6 +172,20 @@ export default function AgentsPage() {
                 agent={editingAgent}
                 workspaceId={workspaceId || ''} // Will need fixing in backend
                 onSuccess={fetchAgents}
+            />
+
+            <ConfirmDialog
+                open={deletingAgent !== null}
+                onOpenChange={open => {
+                    if (!open) setDeletingAgent(null)
+                }}
+                title="Excluir agente?"
+                description={`${deletingAgent?.name ?? 'Este agente'} para de responder imediatamente, e sua configuração — tom de voz, comandos e base de conhecimento — é perdida.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={async () => {
+                    if (deletingAgent) await handleDelete(deletingAgent.id)
+                }}
             />
         </>
     )

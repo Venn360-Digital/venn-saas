@@ -3,6 +3,7 @@
 import { TagChip } from '@/components/shared/TagChip'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Toolbar, FilterPanel } from '@/components/shared/Toolbar'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
@@ -109,6 +110,8 @@ export default function ContatosPage() {
     // Lookup data
     const [allTags, setAllTags] = useState<TagOption[]>([])
     const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([])
+    const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
+    const [deletingField, setDeletingField] = useState<CustomFieldDef | null>(null)
 
     // Import state
     const [showImportDialog, setShowImportDialog] = useState(false)
@@ -221,7 +224,6 @@ export default function ContatosPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir este contato?')) return
         try {
             const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
             if (res.ok) { toast.success('Contato excluído!'); loadContacts() }
@@ -343,7 +345,6 @@ export default function ContatosPage() {
     }
 
     const handleDeleteField = async (fieldId: string) => {
-        if (!confirm('Excluir este campo personalizado?')) return
         try {
             await fetch(`/api/custom-fields/${fieldId}`, { method: 'DELETE' })
             setCustomFieldDefs(prev => prev.filter(f => f.id !== fieldId))
@@ -514,7 +515,7 @@ export default function ContatosPage() {
                                 Editar
                             </RowActionItem>
                             {canEdit && (
-                                <RowActionItem icon={Trash2} destructive onClick={() => handleDelete(c.id)}>
+                                <RowActionItem icon={Trash2} destructive onClick={() => setDeletingContact(c)}>
                                     Excluir
                                 </RowActionItem>
                             )}
@@ -767,7 +768,7 @@ export default function ContatosPage() {
                                                                 <span className="text-sm text-foreground">{f.name}</span>
                                                                 <span className="text-[10px] text-muted-foreground">({f.type})</span>
                                                             </div>
-                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive-subtle-foreground" onClick={() => handleDeleteField(f.id)}><Trash2 className="h-3 w-3" /></Button>
+                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive-subtle-foreground" onClick={() => setDeletingField(f)}><Trash2 className="h-3 w-3" /></Button>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -896,6 +897,34 @@ export default function ContatosPage() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingContact !== null}
+                onOpenChange={open => {
+                    if (!open) setDeletingContact(null)
+                }}
+                title="Excluir contato?"
+                description={`${deletingContact?.name || 'Este contato'} sai da lista junto com suas etiquetas. Negócios e conversas ligados a ele não são apagados.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={async () => {
+                    if (deletingContact) await handleDelete(deletingContact.id)
+                }}
+            />
+
+            <ConfirmDialog
+                open={deletingField !== null}
+                onOpenChange={open => {
+                    if (!open) setDeletingField(null)
+                }}
+                title="Excluir campo personalizado?"
+                description={`O campo "${deletingField?.name ?? ''}" deixa de aparecer no cadastro, e o que já foi preenchido nele em cada contato é perdido.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={async () => {
+                    if (deletingField) await handleDeleteField(deletingField.id)
+                }}
+            />
         </>
     )
 }

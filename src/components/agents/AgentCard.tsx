@@ -1,9 +1,8 @@
 import { Agent } from '@prisma/client'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Edit2, Trash2, Bot } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
+import { Pencil, Trash2, Bot } from 'lucide-react'
 import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 interface AgentCardProps {
@@ -72,23 +71,22 @@ export function AgentCard({ agent, onEdit, onDelete, onToggleStatus }: AgentCard
                 </div>
             </CardContent>
 
-            <CardFooter className="flex justify-end gap-2 border-t bg-muted/10 pt-4">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => onEdit(agent)}
-                >
-                    <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-destructive-subtle-foreground hover:bg-destructive-subtle hover:text-destructive-subtle-foreground"
-                    onClick={() => onDelete(agent.id)}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </Button>
+            {/* The same menu the tables use. Two unlabelled icon buttons were
+                the only per-item actions in the app that still read as icons
+                rather than as a named list. */}
+            <CardFooter className="flex justify-end border-t bg-muted/10 pt-4">
+                <RowActions label={`Ações do agente ${agent.name}`}>
+                    <RowActionItem icon={Pencil} onClick={() => onEdit(agent)}>
+                        Editar
+                    </RowActionItem>
+                    <RowActionItem
+                        icon={Trash2}
+                        destructive
+                        onClick={() => onDelete(agent.id)}
+                    >
+                        Excluir
+                    </RowActionItem>
+                </RowActions>
             </CardFooter>
         </Card>
     )

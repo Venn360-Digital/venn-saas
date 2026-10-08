@@ -3,11 +3,11 @@
 import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
-    Plus, MoreHorizontal, User, DollarSign,
+    Plus, MoreVertical, User, DollarSign,
     Search, List, LayoutGrid, Trash2, Pencil, X,
     Trophy, XCircle, ArrowRight, Calendar, Check,
     Phone, MessageCircle, UserCheck, RefreshCw, CalendarRange,
-    Settings, Clock, CheckCircle2, Circle,
+    Clock, CheckCircle2, Circle,
     AlertTriangle} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,8 +20,6 @@ import {
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -360,32 +358,40 @@ function DealCard({
                             onClick={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
-                            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => onEdit(deal)}>
-                            <Pencil className="h-4 w-4 mr-2" /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
+                        <RowActionItem icon={Pencil} onClick={() => onEdit(deal)}>
+                            Editar
+                        </RowActionItem>
+                        <RowActionsSeparator />
                         {stages.filter(s => s.id !== deal.stageId).map(s => (
-                            <DropdownMenuItem key={s.id} onClick={() => onMoveToStage(deal, s.id)}>
-                                <ArrowRight className="h-4 w-4 mr-2" /> Mover para {s.name}
-                            </DropdownMenuItem>
+                            <RowActionItem
+                                key={s.id}
+                                icon={ArrowRight}
+                                onClick={() => onMoveToStage(deal, s.id)}
+                            >
+                                Mover para {s.name}
+                            </RowActionItem>
                         ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onStatusChange(deal, 'won')} className="text-success-subtle-foreground">
-                            <Trophy className="h-4 w-4 mr-2" /> Marcar como Ganho
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onStatusChange(deal, 'lost')} className="text-destructive-subtle-foreground">
-                            <XCircle className="h-4 w-4 mr-2" /> Marcar como Perdido
-                        </DropdownMenuItem>
+                        <RowActionsSeparator />
+                        <RowActionItem icon={Trophy} onClick={() => onStatusChange(deal, 'won')}>
+                            Marcar como Ganho
+                        </RowActionItem>
+                        <RowActionItem icon={XCircle} onClick={() => onStatusChange(deal, 'lost')}>
+                            Marcar como Perdido
+                        </RowActionItem>
                         {canEdit && (
                             <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onDelete(deal)} className="text-destructive-subtle-foreground">
-                                    <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                                </DropdownMenuItem>
+                                <RowActionsSeparator />
+                                <RowActionItem
+                                    icon={Trash2}
+                                    destructive
+                                    onClick={() => onDelete(deal)}
+                                >
+                                    Excluir
+                                </RowActionItem>
                             </>
                         )}
                     </DropdownMenuContent>
@@ -424,22 +430,26 @@ function StageColumn({
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button
-                                aria-label={`Configurar etapa ${stage.name}`}
+                                aria-label={`Ações da etapa ${stage.name}`}
                                 className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
                             >
-                                <Settings className="h-3.5 w-3.5" />
+                                <MoreVertical className="h-3.5 w-3.5" />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem onClick={() => onEditStage(stage)}>
-                                <Pencil className="h-4 w-4 mr-2" /> Renomear
-                            </DropdownMenuItem>
+                            <RowActionItem icon={Pencil} onClick={() => onEditStage(stage)}>
+                                Renomear
+                            </RowActionItem>
                             {canEdit && (
                                 <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => onDeleteStage(stage)} className="text-destructive-subtle-foreground">
-                                        <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                                    </DropdownMenuItem>
+                                    <RowActionsSeparator />
+                                    <RowActionItem
+                                        icon={Trash2}
+                                        destructive
+                                        onClick={() => onDeleteStage(stage)}
+                                    >
+                                        Excluir
+                                    </RowActionItem>
                                 </>
                             )}
                         </DropdownMenuContent>
