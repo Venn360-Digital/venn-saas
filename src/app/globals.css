@@ -324,9 +324,16 @@
 
   /* The same red as light: lighter variants drop white below AA, and this one
      still separates cleanly from the dark surface. */
-  --destructive: #c62828;
-  --destructive-foreground: #ffffff;
-  --destructive-hover: #d93b3b;
+  /* Clareado em relação ao claro, e com rótulo escuro — a mesma inversão que
+     success, warning e info já fazem no escuro. O valor anterior (#C62828, o
+     mesmo do claro) dava 2,78:1 contra `--card`: o rótulo passava, mas a
+     silhueta do botão sumia no cartão. #EA5F57 dá 4,66:1 sobre card e 5,46:1
+     com o rótulo, e serve de texto também — `data-[variant=destructive]` nos
+     menus usa `text-destructive` cru. Branco aqui reprovaria (3,49:1), que é
+     por que o rótulo vira navy. */
+  --destructive: #ea5f57;
+  --destructive-foreground: #2b0a08;
+  --destructive-hover: #f0756e;
   --destructive-subtle: #3a1715;
   --destructive-subtle-foreground: #f08c89;
 

@@ -171,3 +171,14 @@ export function crumbsFor(pathname: string): Crumb[] {
     }))
 }
 
+/**
+ * The deepest segment's label — what the browser tab shows.
+ *
+ * The tab is the one place a page still has to name itself in plain text: it is
+ * how someone finds this window among fifteen, and it is what a bookmark keeps.
+ */
+export function pageTitleFor(pathname: string): string {
+    const segments = pathname.split('/').filter(Boolean)
+    if (segments.length === 0) return 'OdontoBox360'
+    return labelForSegment(segments[segments.length - 1])
+}

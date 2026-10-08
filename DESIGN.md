@@ -340,6 +340,14 @@ cabeçalho envia por `form=`.
 **Padding é do `PageHeader`**, não do layout: `px-4 md:px-6`. Tela que quer o
 viewport inteiro simplesmente não renderiza um.
 
+**A aba do navegador diz o nome da página.** `DocumentTitle`, no layout, aplica
+`pageTitleFor(pathname) · OdontoBox360`. Quinze janelas abertas eram quinze abas
+idênticas, e um favorito não dizia para onde apontava.
+
+**O primeiro Tab é "Pular para o conteúdo".** Mora no layout, porque só ele
+garante a posição na ordem de foco, e aponta para `#conteudo` — a região que
+rola. Fica `sr-only` até receber foco.
+
 ---
 
 ## 7. Voz da interface (pt-BR)
@@ -379,6 +387,12 @@ existe no claro — é o bug clássico de artefato ilegível.
 **Ao testar:** o `next-themes` grava a escolha em `localStorage`. Uma sessão que
 já escolheu escuro **continua** escura; mudar o padrão só afeta quem não tem nada
 gravado. Para conferir o claro, perfil novo ou limpar a chave `theme`.
+
+**O destrutivo é o único token de estado que inverte rótulo entre os modos.** No
+claro é `#C62828` com rótulo branco (5,62:1). No escuro clareia para `#EA5F57`
+com rótulo navy `#2B0A08` (5,46:1), porque o valor do claro dava **2,78:1**
+contra `--card`: o rótulo passava e a silhueta do botão sumia. Branco sobre o
+tom claro reprovaria (3,49:1) — é a mesma armadilha do `--primary-foreground`.
 
 ---
 

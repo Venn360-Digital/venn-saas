@@ -26,6 +26,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+    // `DocumentTitle` renomeia a aba por rota dentro do dashboard; isto é o
+    // padrão para login, onboarding e o que for servido do servidor.
     title: 'OdontoBox360',
     description: 'Atendimento, agenda e CRM para clínicas odontológicas',
 }
