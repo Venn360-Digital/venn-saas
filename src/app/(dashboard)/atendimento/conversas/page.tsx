@@ -79,8 +79,8 @@ import { TagChip } from '@/components/shared/TagChip'
 import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
     DealJourney,
-    currentMilestone,
-    type TrackingData,
+    type JourneyEntry,
+    type JourneyStage,
 } from '@/components/shared/DealJourney'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -176,9 +176,14 @@ interface Message {
 interface OpenDeal {
     id: string
     title: string
+    /** A etapa atual do funil — que agora é também a fase da jornada. */
+    stageId: string
     stageName: string | null
     stageColor: string | null
-    trackingData: TrackingData
+    /** As etapas que esta clínica criou, em ordem. São as fases. */
+    stages: JourneyStage[]
+    /** Uma entrada por passagem em etapa: a data e a nota de cada fase. */
+    entries: JourneyEntry[]
 }
 
 
@@ -1199,42 +1204,64 @@ export default function ConversasPage() {
             .replace(/\{\{\s*hora\s*\}\}/gi, format(now, 'HH:mm'))
     }
 
-    const applyDealTracking = (next: TrackingData) => {
-        setConversationDetail((prev) =>
-            prev && prev.conversation.openDeal
-                ? { ...prev, conversation: { ...prev.conversation, openDeal: { ...prev.conversation.openDeal, trackingData: next } } }
-                : prev
-        )
+    const applyDealJourney = (next: { currentStageId: string; entries: JourneyEntry[] }) => {
+        setConversationDetail((prev) => {
+            const deal = prev?.conversation.openDeal
+            if (!prev || !deal) return prev
+            const stage = deal.stages.find((s) => s.id === next.currentStageId)
+            return {
+                ...prev,
+                conversation: {
+                    ...prev.conversation,
+                    openDeal: {
+                        ...deal,
+                        stageId: next.currentStageId,
+                        stageName: stage?.name ?? deal.stageName,
+                        stageColor: stage?.color ?? deal.stageColor,
+                        entries: next.entries,
+                    },
+                },
+            }
+        })
+        // O cartão do Kanban e o selo da lista leem da mesma fonte; a lista é
+        // recarregada para o selo acompanhar sem esperar o próximo poll.
+        void fetchConversations()
     }
 
     /**
-     * Carimba "Agendou" na jornada depois de marcar a consulta.
+     * Depois de marcar a consulta, move o negócio para a etapa de agendamento.
      *
-     * Vai pela mesma rota que a tela de Negócios usa, então o funil não tem duas
-     * verdades sobre a mesma data.
+     * Qual etapa é essa não é adivinhável: a clínica nomeia as suas. A escolha é
+     * por nome — a primeira que contenha "agend" — e, quando nenhuma contém, o
+     * diálogo nem oferece a opção, em vez de mover para um lugar arbitrário.
      */
-    const stampScheduledMilestone = async (dealId: string, date: string) => {
-        const current = conversationDetail?.conversation?.openDeal?.trackingData ?? {}
-        const next: TrackingData = {
-            ...current,
-            scheduled: { done: true, date, note: current.scheduled?.note ?? '' },
-        }
+    const moveToScheduledStage = async (dealId: string, stageId: string, date: string) => {
         try {
             const res = await fetch(`/api/deals/${dealId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ trackingData: next }),
+                body: JSON.stringify({
+                    stageId,
+                    stageNote: `Consulta marcada para ${date.split('-').reverse().join('/')}.`,
+                }),
             })
             if (!res.ok) throw new Error()
-            applyDealTracking(next)
+            const deal = conversationDetail?.conversation?.openDeal
+            if (deal) {
+                applyDealJourney({
+                    currentStageId: stageId,
+                    entries: [...deal.entries, { stageId, enteredAt: new Date().toISOString(), note: null }],
+                })
+            }
         } catch {
-            toast.error('Consulta agendada, mas não foi possível marcar "Agendou" na jornada')
+            toast.error('Consulta agendada, mas não foi possível mover o negócio de etapa')
         }
     }
 
     /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
     const createDealForContact = async () => {
         const conv = conversationDetail?.conversation
+
         if (!conv || !selectedConversation) return
         setCreatingDeal(true)
         try {
@@ -1528,6 +1555,15 @@ export default function ConversasPage() {
           : conv.assignedToName
             ? `Com ${conv.assignedToName.split(' ')[0]}`
             : 'No bot'
+
+    /**
+     * A etapa que significa "agendou", se a clínica tiver uma.
+     *
+     * Por nome, porque é a clínica que nomeia as suas etapas. Sem palpite: não
+     * achando, o diálogo de agendamento não oferece mover de etapa.
+     */
+    const scheduledStage =
+        conv?.openDeal?.stages.find((stage) => /agend/i.test(stage.name)) ?? null
 
     return (
         <>
@@ -1994,12 +2030,12 @@ export default function ConversasPage() {
                                                     size="sm"
                                                     pressed={showContactPanel}
                                                     onPressedChange={setShowContactPanel}
-                                                    aria-label="Dados do contato"
+                                                    aria-label="Jornada do paciente"
                                                 >
                                                     <PanelRight className="size-3.5" />
                                                 </Toggle>
                                             </TooltipTrigger>
-                                            <TooltipContent>Dados do contato</TooltipContent>
+                                            <TooltipContent>Jornada do paciente</TooltipContent>
                                         </Tooltip>
                                     </div>
                                 </div>
@@ -2491,9 +2527,10 @@ export default function ConversasPage() {
                                                 </p>
                                             </div>
 
-                                            {/* Negócio: só o essencial e a fase
-                                                atual. Os seis marcos ficam na
-                                                jornada, logo abaixo. */}
+                                            {/* Negócio: título e etapa atual. A
+                                                jornada logo abaixo são as etapas
+                                                desta clínica — fase e etapa são a
+                                                mesma coisa desde a fusão. */}
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h4>
@@ -2504,22 +2541,17 @@ export default function ConversasPage() {
                                                 {conv.openDeal ? (
                                                     <>
                                                         <p className="truncate text-xs text-muted-foreground" title={conv.openDeal.title}>{conv.openDeal.title}</p>
-                                                        {(() => {
-                                                            const reached = currentMilestone(conv.openDeal.trackingData)
-                                                            return (
-                                                                <p className="text-xs">
-                                                                    <span className="text-muted-foreground">Fase: </span>
-                                                                    <span className="font-semibold">{reached ? reached.label : 'nenhum marco ainda'}</span>
-                                                                </p>
-                                                            )
-                                                        })()}
+                                                        {/* A "fase atual" saiu daqui: o selo ao lado de
+                                                            "Negócio" já é a etapa, e as duas linhas
+                                                            diziam a mesma coisa desde a fusão. */}
                                                         <div className="pt-1">
                                                             <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jornada</h4>
                                                             <DealJourney
                                                                 dealId={conv.openDeal.id}
-                                                                trackingData={conv.openDeal.trackingData}
-                                                                onChange={applyDealTracking}
-                                                                variant="timeline"
+                                                                stages={conv.openDeal.stages}
+                                                                currentStageId={conv.openDeal.stageId}
+                                                                entries={conv.openDeal.entries}
+                                                                onChange={applyDealJourney}
                                                             />
                                                         </div>
                                                     </>
@@ -2605,10 +2637,10 @@ export default function ConversasPage() {
                     contactId={conv.contact.id}
                     contactName={conv.contact.name || conv.contact.phone || 'paciente'}
                     dealId={conv.openDeal?.id ?? null}
-                    canMarkJourney={Boolean(conv.openDeal)}
+                    scheduledStage={scheduledStage}
                     onScheduled={({ date, time, markJourney }) => {
-                        if (markJourney && conv.openDeal) {
-                            void stampScheduledMilestone(conv.openDeal.id, date)
+                        if (markJourney && conv.openDeal && scheduledStage) {
+                            void moveToScheduledStage(conv.openDeal.id, scheduledStage.id, date)
                         }
                         // O texto entra no compositor em vez de ser enviado: quem
                         // confirma o horário com o paciente é a pessoa, não a tela.

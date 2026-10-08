@@ -43,8 +43,13 @@ interface ScheduleDialogProps {
     contactName: string
     /** When the patient has an open deal, the appointment is tied to it. */
     dealId?: string | null
-    /** Offered only when there is a deal with a journey to stamp. */
-    canMarkJourney?: boolean
+    /**
+     * A etapa do funil que significa "agendou", quando a clínica tem uma.
+     *
+     * Nula quando nenhuma etapa se parece com agendamento — e então o diálogo
+     * não oferece mover de etapa, em vez de mover para um lugar arbitrário.
+     */
+    scheduledStage?: { id: string; name: string } | null
     onScheduled?: (info: { date: string; time: string; markJourney: boolean }) => void
 }
 
@@ -62,7 +67,7 @@ export function ScheduleDialog({
     contactId,
     contactName,
     dealId,
-    canMarkJourney = false,
+    scheduledStage = null,
     onScheduled,
 }: ScheduleDialogProps) {
     const [kind, setKind] = useState<string>('meeting')
@@ -85,13 +90,13 @@ export function ScheduleDialog({
         setKind('meeting')
         setDuration(30)
         setNotes('')
-        setMarkJourney(canMarkJourney)
+        setMarkJourney(Boolean(scheduledStage))
 
         fetch('/api/scheduling/targets')
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => setTargets(data?.targets ?? []))
             .catch(() => setTargets([]))
-    }, [open, canMarkJourney])
+    }, [open, scheduledStage])
 
     const connected = useMemo(() => (targets ?? []).filter((t) => t.connected), [targets])
 
@@ -211,7 +216,7 @@ export function ScheduleDialog({
                         />
                     </div>
 
-                    {canMarkJourney ? (
+                    {scheduledStage ? (
                         <label className="flex items-start gap-2 text-sm">
                             <Checkbox
                                 checked={markJourney}
@@ -219,9 +224,9 @@ export function ScheduleDialog({
                                 className="mt-0.5"
                             />
                             <span>
-                                Marcar <strong>Agendou</strong> na jornada do negócio
+                                Mover o negócio para <strong>{scheduledStage.name}</strong>
                                 <span className="block text-xs text-muted-foreground">
-                                    Mantém o funil em dia sem abrir a tela de Negócios.
+                                    Registra a fase com a data da consulta, sem abrir o funil.
                                 </span>
                             </span>
                         </label>

@@ -384,6 +384,7 @@ model Deal {
   media           Media?         @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   stage           PipelineStage  @relation(fields: [stageId], references: [id])
   activities      Activity[]
+  stageEntries    DealStageEntry[]
   
   @@index([workspaceId])
   @@index([stageId])
@@ -403,11 +404,43 @@ model PipelineStage {
   color       String   @default("#6B7280")
   
   deals       Deal[]
+  entries     DealStageEntry[]
   
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   
   @@index([workspaceId])
   @@map("pipeline_stages")
+}
+
+/// Cada vez que um negócio entra numa etapa.
+///
+/// `Deal.stageId` é a posição atual; isto é o percurso. Antes desta tabela a
+/// pergunta "quando este negócio chegou em Proposta?" não tinha resposta no
+/// banco, e a jornada do paciente vivia num JSON de seis marcos fixos — um
+/// vocabulário diferente do funil que a clínica configurou. Agora há um só:
+/// as etapas da clínica, e a data e a nota de cada passagem por elas.
+///
+/// Voltar atrás acrescenta uma entrada em vez de apagar uma, então a segunda
+/// passagem por uma etapa é um registro próprio e a primeira continua existindo.
+model DealStageEntry {
+  id        String   @id @default(cuid())
+  dealId    String
+  stageId   String
+  /// Quando entrou. Separado de `createdAt` porque a clínica pode corrigir a
+  /// data de uma passagem que registrou depois do fato.
+  enteredAt DateTime @default(now())
+  /// O que aconteceu nesta fase. É a "nota" que a jornada antiga guardava.
+  note      String?  @db.Text
+  /// Quem moveu. Nulo quando foi uma regra ou o próprio agente.
+  userId    String?
+  createdAt DateTime @default(now())
+
+  deal      Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stage     PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, enteredAt])
+  @@index([stageId])
+  @@map("deal_stage_entries")
 }
 
 model Agency {

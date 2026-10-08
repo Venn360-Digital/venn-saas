@@ -2,134 +2,176 @@
 
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { Calendar, Check, Phone, RotateCcw, UserCheck } from 'lucide-react'
+import { Check, ChevronRight, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { useNow } from '@/hooks/useNow'
 import { cn } from '@/lib/utils'
 
 /**
- * The journey of a deal, in one place.
+ * A jornada do negócio — e a jornada são as etapas do funil.
  *
- * Both the inbox and the pipeline write the same `trackingData` through the same
- * route, but each had its own copy of the milestone list — and the labels had
- * already drifted ("1º contato" here, "1º Contato" there). The definition lives
- * here now; a screen chooses how to render it, never what it is called.
+ * Antes existiam duas verdades sobre o mesmo paciente: a etapa do Kanban (a
+ * posição, exclusiva) e uma jornada de seis marcos fixos no código (cumulativa,
+ * com data e nota). Vocabulários diferentes, telas diferentes, e a clínica
+ * renomeando as próprias etapas à mão para tentar aproximar as duas.
+ *
+ * Agora são uma só: as fases **são** as etapas que a clínica criou, e a jornada
+ * é o histórico de passagens por elas (`DealStageEntry`). Criou três etapas,
+ * aparecem três fases aqui. A data de cada fase é a data de entrada; a nota é a
+ * nota daquela passagem. Marcar e desmarcar deixou de existir — o que existe é
+ * avançar, e avançar move o cartão no Kanban pela mesma rota.
+ *
+ * O formato é o mesmo de antes de propósito: trilho vertical, pip por fase,
+ * data à direita, nota só na fase aberta.
  */
 
-export interface TrackingEntry {
-    done: boolean
-    date: string
-    note: string
+export interface JourneyStage {
+    id: string
+    name: string
+    color?: string | null
+    order: number
 }
 
-export type TrackingKey = 'contact1' | 'contact2' | 'contact3' | 'scheduled' | 'attended' | 'rework'
-export type TrackingData = Partial<Record<TrackingKey, TrackingEntry>>
-
-export const JOURNEY: { key: TrackingKey; label: string; icon: typeof Phone }[] = [
-    { key: 'contact1', label: '1º contato', icon: Phone },
-    { key: 'contact2', label: '2º contato', icon: Phone },
-    { key: 'contact3', label: '3º contato', icon: Phone },
-    { key: 'scheduled', label: 'Agendou', icon: Calendar },
-    { key: 'attended', label: 'Compareceu', icon: UserCheck },
-    { key: 'rework', label: 'Retrabalho', icon: RotateCcw },
-]
-
-export function emptyTrackingEntry(): TrackingEntry {
-    return { done: false, date: '', note: '' }
-}
-
-/**
- * The furthest milestone already reached — what the deal card shows instead of
- * repeating all six. Retrabalho is deliberately not a "phase": it can be true
- * at any point and says nothing about how far the patient got.
- */
-export function currentMilestone(data: TrackingData | null | undefined) {
-    if (!data) return null
-    const ordered = JOURNEY.filter((m) => m.key !== 'rework')
-    for (let i = ordered.length - 1; i >= 0; i--) {
-        if (data[ordered[i].key]?.done) return ordered[i]
-    }
-    return null
+export interface JourneyEntry {
+    stageId: string
+    enteredAt: string
+    note?: string | null
 }
 
 interface DealJourneyProps {
     dealId: string
-    trackingData: TrackingData | null | undefined
-    onChange: (next: TrackingData) => void
-    /**
-     * `timeline` reads at a glance and only opens the milestone being worked on.
-     * `rows` keeps every milestone editable at once, for the pipeline's dialog.
-     */
-    variant?: 'timeline' | 'rows'
+    stages: JourneyStage[]
+    currentStageId: string
+    entries: JourneyEntry[]
+    /** Recebe o novo estado para a tela aplicar sem recarregar. */
+    onChange: (next: { currentStageId: string; entries: JourneyEntry[] }) => void
     className?: string
 }
 
 export function DealJourney({
     dealId,
-    trackingData,
+    stages,
+    currentStageId,
+    entries,
     onChange,
-    variant = 'rows',
     className,
 }: DealJourneyProps) {
-    const [data, setData] = useState<TrackingData>(trackingData ?? {})
-    const [saving, setSaving] = useState(false)
-    const [open, setOpen] = useState<TrackingKey | null>(null)
+    const now = useNow()
+    const [open, setOpen] = useState<string | null>(null)
+    const [draft, setDraft] = useState('')
+    const [busy, setBusy] = useState(false)
+
+    const ordered = [...stages].sort((a, b) => a.order - b.order)
+    const currentIndex = ordered.findIndex((s) => s.id === currentStageId)
+    const next = currentIndex >= 0 ? ordered[currentIndex + 1] : undefined
+
+    /** A passagem mais recente por cada etapa — é a que tem a data que importa. */
+    const latest = new Map<string, JourneyEntry>()
+    for (const entry of entries) {
+        const seen = latest.get(entry.stageId)
+        if (!seen || new Date(entry.enteredAt) > new Date(seen.enteredAt)) {
+            latest.set(entry.stageId, entry)
+        }
+    }
 
     useEffect(() => {
-        setData(trackingData ?? {})
-    }, [dealId, trackingData])
+        setOpen(null)
+        setDraft('')
+    }, [dealId])
 
-    const persist = async (next: TrackingData) => {
-        setData(next)
-        setSaving(true)
+    const enteredCurrent = latest.get(currentStageId)?.enteredAt
+    const daysHere = enteredCurrent && now
+        ? Math.floor((now - new Date(enteredCurrent).getTime()) / 86_400_000)
+        : null
+
+    const patch = async (body: Record<string, unknown>, optimistic: () => void) => {
+        setBusy(true)
         try {
             const res = await fetch(`/api/deals/${dealId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ trackingData: next }),
+                body: JSON.stringify(body),
             })
             if (!res.ok) throw new Error()
-            onChange(next)
+            optimistic()
         } catch {
             toast.error('Não foi possível salvar a jornada')
-            setData(trackingData ?? {})
         } finally {
-            setSaving(false)
+            setBusy(false)
         }
     }
 
-    const toggle = (key: TrackingKey) => {
-        const current = data[key]
-        const done = !current?.done
-        void persist({
-            ...data,
-            [key]: {
-                done,
-                date: done ? current?.date || format(new Date(), 'yyyy-MM-dd') : '',
-                note: current?.note ?? '',
-            },
+    const advance = () => {
+        if (!next) return
+        void patch({ stageId: next.id, stageNote: draft.trim() || undefined }, () => {
+            const entered = new Date().toISOString()
+            onChange({
+                currentStageId: next.id,
+                entries: [
+                    ...entries.map((e) =>
+                        e.stageId === currentStageId && e.enteredAt === enteredCurrent && draft.trim()
+                            ? { ...e, note: draft.trim() }
+                            : e
+                    ),
+                    { stageId: next.id, enteredAt: entered, note: null },
+                ],
+            })
+            setDraft('')
+            setOpen(null)
+            toast.success(`Movido para ${next.name}`)
         })
     }
 
-    const setField = (key: TrackingKey, field: 'date' | 'note', value: string) => {
-        setData((prev) => ({
-            ...prev,
-            [key]: { ...emptyTrackingEntry(), ...prev[key], [field]: value },
-        }))
+    const saveNote = (stageId: string, note: string) => {
+        void patch({ stageNote: note }, () => {
+            onChange({
+                currentStageId,
+                entries: entries.map((e) =>
+                    e.stageId === stageId && e.enteredAt === latest.get(stageId)?.enteredAt
+                        ? { ...e, note: note.trim() || null }
+                        : e
+                ),
+            })
+        })
     }
 
-    if (variant === 'timeline') {
+    if (ordered.length === 0) {
         return (
-            <ol className={cn('relative', saving && 'opacity-70', className)}>
-                {JOURNEY.map(({ key, label, icon: Icon }, i) => {
-                    const entry = data[key]
-                    const done = entry?.done ?? false
-                    const isLast = i === JOURNEY.length - 1
-                    const isOpen = open === key
+            <p className={cn('text-xs text-muted-foreground', className)}>
+                Nenhuma etapa configurada no funil.
+            </p>
+        )
+    }
+
+    return (
+        <div className={cn(busy && 'opacity-70', className)}>
+            {daysHere !== null ? (
+                <p className="mb-2 text-xs">
+                    <span className="text-muted-foreground">Nesta fase há </span>
+                    <span
+                        className={cn(
+                            'num font-semibold',
+                            daysHere >= 7 && 'text-warning-subtle-foreground'
+                        )}
+                    >
+                        {daysHere === 0 ? 'menos de um dia' : `${daysHere} ${daysHere === 1 ? 'dia' : 'dias'}`}
+                    </span>
+                </p>
+            ) : null}
+
+            <ol className="relative">
+                {ordered.map((stage, i) => {
+                    const entry = latest.get(stage.id)
+                    const isCurrent = stage.id === currentStageId
+                    const done = i < currentIndex || (Boolean(entry) && !isCurrent)
+                    const isLast = i === ordered.length - 1
+                    const isOpen = open === stage.id
+
                     return (
-                        <li key={key} className="relative flex gap-2.5">
-                            {/* The rail is drawn between the pips, not behind them,
-                                so a 1px line never shows through a filled dot. */}
+                        <li key={stage.id} className="relative flex gap-2.5">
+                            {/* O trilho é desenhado entre os pips, não atrás: 1px
+                                atravessando um ponto cheio aparece. */}
                             {!isLast ? (
                                 <span
                                     aria-hidden
@@ -139,54 +181,74 @@ export function DealJourney({
                                     )}
                                 />
                             ) : null}
-                            <button
-                                type="button"
-                                onClick={() => toggle(key)}
-                                aria-pressed={done}
-                                title={done ? `Desmarcar ${label}` : `Marcar ${label}`}
+
+                            <span
                                 className={cn(
                                     'relative z-10 mt-0.5 grid h-[19px] w-[19px] shrink-0 place-items-center rounded-full border transition-colors',
-                                    done
-                                        ? 'border-success bg-success text-success-foreground'
-                                        : 'border-border bg-card text-muted-foreground hover:border-border-strong'
+                                    isCurrent
+                                        ? 'border-2 border-primary bg-card text-primary ring-[3px] ring-primary-subtle'
+                                        : done
+                                            ? 'border-success bg-success text-success-foreground'
+                                            : 'border-border bg-card text-muted-foreground'
                                 )}
                             >
-                                {done ? <Check className="h-3 w-3" /> : <Icon className="h-2.5 w-2.5" />}
-                            </button>
+                                {isCurrent ? (
+                                    <Clock className="h-3 w-3" />
+                                ) : done ? (
+                                    <Check className="h-3 w-3" />
+                                ) : null}
+                            </span>
+
                             <div className="min-w-0 flex-1 pb-3">
                                 <button
                                     type="button"
-                                    onClick={() => setOpen(isOpen ? null : key)}
+                                    onClick={() => {
+                                        setOpen(isOpen ? null : stage.id)
+                                        setDraft(entry?.note ?? '')
+                                    }}
                                     className="flex w-full items-baseline justify-between gap-2 text-left"
                                 >
-                                    <span className={cn('truncate text-xs', done ? 'font-semibold' : 'text-muted-foreground')}>
-                                        {label}
+                                    <span
+                                        className={cn(
+                                            'truncate text-xs',
+                                            isCurrent ? 'font-semibold' : done ? 'font-medium' : 'text-muted-foreground'
+                                        )}
+                                    >
+                                        {stage.name}
                                     </span>
                                     <span className="num shrink-0 text-[11px] text-muted-foreground">
-                                        {entry?.date ? format(new Date(`${entry.date}T00:00:00`), 'dd/MM') : '—'}
+                                        {entry ? format(new Date(entry.enteredAt), 'dd/MM') : '—'}
                                     </span>
                                 </button>
+
                                 {entry?.note && !isOpen ? (
                                     <p className="truncate text-[11px] text-muted-foreground">{entry.note}</p>
                                 ) : null}
+
                                 {isOpen ? (
-                                    <div className="mt-1.5 space-y-1.5 rounded-md border border-border bg-muted/40 p-2">
-                                        <input
-                                            type="date"
-                                            value={entry?.date ?? ''}
-                                            onChange={(e) => setField(key, 'date', e.target.value)}
-                                            onBlur={() => void persist(data)}
-                                            className="num w-full bg-transparent text-[11px] focus:outline-none"
-                                            aria-label={`Data — ${label}`}
+                                    <div className="mt-1.5 space-y-2 rounded-md border border-border bg-muted/40 p-2">
+                                        <textarea
+                                            value={draft}
+                                            onChange={(e) => setDraft(e.target.value)}
+                                            onBlur={() => {
+                                                if (entry && draft !== (entry.note ?? '')) saveNote(stage.id, draft)
+                                            }}
+                                            rows={2}
+                                            placeholder="O que aconteceu nesta fase…"
+                                            className="w-full resize-none bg-transparent text-[11px] placeholder:text-muted-foreground/60 focus:outline-none"
+                                            aria-label={`Nota — ${stage.name}`}
                                         />
-                                        <input
-                                            value={entry?.note ?? ''}
-                                            onChange={(e) => setField(key, 'note', e.target.value)}
-                                            onBlur={() => void persist(data)}
-                                            placeholder="Nota"
-                                            className="w-full bg-transparent text-[11px] placeholder:text-muted-foreground/60 focus:outline-none"
-                                            aria-label={`Nota — ${label}`}
-                                        />
+                                        {isCurrent && next ? (
+                                            <button
+                                                type="button"
+                                                onClick={advance}
+                                                disabled={busy}
+                                                className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground disabled:opacity-60"
+                                            >
+                                                <ChevronRight className="size-3" />
+                                                Avançar para {next.name}
+                                            </button>
+                                        ) : null}
                                     </div>
                                 ) : null}
                             </div>
@@ -194,51 +256,20 @@ export function DealJourney({
                     )
                 })}
             </ol>
-        )
-    }
 
-    return (
-        <div className={cn('space-y-1', saving && 'opacity-70', className)}>
-            {JOURNEY.map(({ key, label }) => {
-                const entry = data[key]
-                const done = entry?.done ?? false
-                return (
-                    <div key={key} className="rounded-md border border-border px-2 py-1.5">
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => toggle(key)}
-                                className={cn(
-                                    'num shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide',
-                                    done
-                                        ? 'bg-success-subtle text-success-subtle-foreground'
-                                        : 'bg-muted text-muted-foreground'
-                                )}
-                                title={done ? 'Marcar como NÃO' : 'Marcar como SIM'}
-                            >
-                                {done ? 'SIM' : 'NÃO'}
-                            </button>
-                            <span className="flex-1 text-xs font-medium">{label}</span>
-                            <input
-                                type="date"
-                                value={entry?.date ?? ''}
-                                onChange={(e) => setField(key, 'date', e.target.value)}
-                                onBlur={() => void persist(data)}
-                                className="num w-[118px] bg-transparent text-[11px] text-muted-foreground focus:outline-none"
-                                aria-label={`Data — ${label}`}
-                            />
-                        </div>
-                        <input
-                            value={entry?.note ?? ''}
-                            onChange={(e) => setField(key, 'note', e.target.value)}
-                            onBlur={() => void persist(data)}
-                            placeholder="Nota"
-                            className="mt-1 w-full bg-transparent text-[11px] text-muted-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-                            aria-label={`Nota — ${label}`}
-                        />
-                    </div>
-                )
-            })}
+            {/* Fora do trilho: avançar é a ação da tela, não um detalhe de uma
+                fase. Quem está no chat não deveria abrir o Kanban para mover. */}
+            {next && open === null ? (
+                <button
+                    type="button"
+                    onClick={advance}
+                    disabled={busy}
+                    className="mt-1 inline-flex w-full items-center justify-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+                >
+                    <ChevronRight className="size-3" />
+                    Avançar para {next.name}
+                </button>
+            ) : null}
         </div>
     )
 }

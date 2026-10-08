@@ -47,7 +47,7 @@ export async function PATCH(
         if (!existingDeal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
         const body = await request.json()
-        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, lossReason, lossNotes } = body
+        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, lossReason, lossNotes, stageNote } = body
 
         // If changing contact, enforce 1:1 rule
         if (contactId && contactId !== existingDeal.contactId) {
@@ -99,11 +99,50 @@ export async function PATCH(
             }
         }
 
+        const movedStage = stageId !== undefined && stageId !== existingDeal.stageId
+
         const deal = await prisma.deal.update({
             where: { id },
             data: updateData,
             include: dealInclude,
         })
+
+        /**
+         * A mudança de etapa deixa rastro.
+         *
+         * Gravado aqui, e não na tela, porque são dois caminhos que movem o
+         * cartão — o arrastar e o menu "mover para" — mais o botão de avançar
+         * no painel da conversa. Na rota, os três registram sem saber disso.
+         *
+         * Voltar atrás acrescenta uma entrada: a passagem anterior por aquela
+         * etapa continua existindo, com a data e a nota que tinha.
+         */
+        if (movedStage) {
+            await prisma.dealStageEntry.create({
+                data: {
+                    dealId: id,
+                    stageId: stageId as string,
+                    note: typeof stageNote === 'string' && stageNote.trim() ? stageNote.trim() : null,
+                    userId: user.id,
+                },
+            })
+        } else if (typeof stageNote === 'string') {
+            // Nota da fase em que já está: atualiza a entrada mais recente desta
+            // etapa em vez de criar outra, senão anotar viraria "mudar de fase".
+            const latest = await prisma.dealStageEntry.findFirst({
+                where: { dealId: id, stageId: existingDeal.stageId },
+                orderBy: { enteredAt: 'desc' },
+                select: { id: true },
+            })
+            const note = stageNote.trim() ? stageNote.trim() : null
+            if (latest) {
+                await prisma.dealStageEntry.update({ where: { id: latest.id }, data: { note } })
+            } else {
+                await prisma.dealStageEntry.create({
+                    data: { dealId: id, stageId: existingDeal.stageId, note, userId: user.id },
+                })
+            }
+        }
 
         return NextResponse.json(deal)
     } catch (error) {

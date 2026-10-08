@@ -55,7 +55,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { usePermissions } from '@/hooks/usePermissions'
-import { JOURNEY, type TrackingData, type TrackingEntry, type TrackingKey } from '@/components/shared/DealJourney'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -65,6 +64,7 @@ import {
     RowActionsSeparator,
 } from '@/components/shared/RowActions'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
+import { StageRail } from '@/components/shared/StageRail'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -106,9 +106,10 @@ interface Deal {
     agency: LookupItem | null
     media: LookupItem | null
     notes: string | null
-    trackingData: TrackingData | null
     /** Vem incluída pela rota de listagem; é o que pinta o selo de etapa. */
     stage?: { name: string; color: string } | null
+    /** O percurso: uma entrada por passagem em etapa, da mais antiga à mais nova. */
+    stageEntries?: { stageId: string; enteredAt: string }[]
     createdAt: string
     closedAt: string | null
 }
@@ -147,35 +148,6 @@ const LOSS_REASONS = [
 
 const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 
-// ─── Tracking Indicators ─────────────────────────────────────────────
-function TrackingIndicators({ tracking }: { tracking: TrackingData | null }) {
-    if (!tracking) return null
-
-    /* Rótulos e ordem vêm do shared: eram duas listas e já tinham divergido
-       ("1º contato" no chat, "1º Contato" aqui). A cor é só desta tela. */
-    const TONE: Record<TrackingKey, string> = {
-        contact1: 'text-chart-1',
-        contact2: 'text-chart-3',
-        contact3: 'text-chart-4',
-        scheduled: 'text-warning-subtle-foreground',
-        attended: 'text-success-subtle-foreground',
-        rework: 'text-info-subtle-foreground',
-    }
-    const indicators = JOURNEY.map((m) => ({ ...m, color: TONE[m.key] }))
-
-    const activeIndicators = indicators.filter((i) => tracking[i.key]?.done)
-    if (activeIndicators.length === 0) return null
-
-    return (
-        <div className="flex items-center gap-1 mt-1.5">
-            {activeIndicators.map(({ key, icon: Icon, label, color }) => (
-                <span key={key} title={label} className={`${color}`}>
-                    <Icon className="h-3 w-3" />
-                </span>
-            ))}
-        </div>
-    )
-}
 
 // ─── Creatable Select ────────────────────────────────────────────────
 function CreatableSelect({
@@ -250,46 +222,6 @@ function CreatableSelect({
     )
 }
 
-// ─── Tracking Group ──────────────────────────────────────────────────
-function TrackingGroup({
-    label,
-    icon: Icon,
-    entry,
-    onChange,
-}: {
-    label: string
-    icon: React.ElementType
-    entry: TrackingEntry
-    onChange: (e: TrackingEntry) => void
-}) {
-    return (
-        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-accent/30 border border-border">
-            <div className="flex items-center gap-2 min-w-[140px]">
-                <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-sm font-medium whitespace-nowrap">{label}</span>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span className={`text-xs font-medium ${entry.done ? 'text-success-subtle-foreground' : 'text-muted-foreground'}`}>{entry.done ? 'SIM' : 'NÃO'}</span>
-                <Switch
-                    checked={entry.done}
-                    onCheckedChange={(checked) => onChange({ ...entry, done: checked })}
-                />
-            </div>
-            <Input
-                type="date"
-                value={entry.date}
-                onChange={(e) => onChange({ ...entry, date: e.target.value })}
-                className="text-sm w-[150px] flex-shrink-0"
-            />
-            <Input
-                value={entry.note}
-                onChange={(e) => onChange({ ...entry, note: e.target.value })}
-                placeholder="Nota..."
-                className="text-sm flex-1"
-            />
-        </div>
-    )
-}
 
 // ─── Deal Card (Kanban) ──────────────────────────────────────────────
 function DealCard({
@@ -339,7 +271,16 @@ function DealCard({
                             </span>
                         )}
                     </div>
-                    <TrackingIndicators tracking={deal.trackingData} />
+                    {/* O trilho: a jornada do negócio pelas etapas desta
+                        clínica, no próprio cartão. Substitui os indicadores da
+                        jornada de seis marcos fixos, que falavam de fases que o
+                        funil da clínica nem tinha. */}
+                    <StageRail
+                        className="mt-2"
+                        stages={stages}
+                        currentStageId={deal.stageId}
+                        entries={deal.stageEntries}
+                    />
                 </div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -483,15 +424,6 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ─── Default tracking data ──────────────────────────────────────────
-const defaultTrackingEntry = (): TrackingEntry => ({ done: false, date: '', note: '' })
-const defaultTrackingData = (): TrackingData => ({
-    contact1: defaultTrackingEntry(),
-    contact2: defaultTrackingEntry(),
-    contact3: defaultTrackingEntry(),
-    scheduled: defaultTrackingEntry(),
-    attended: defaultTrackingEntry(),
-    rework: defaultTrackingEntry(),
-})
 
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function NegociosPage() {
@@ -525,7 +457,6 @@ export default function NegociosPage() {
         title: '', value: '', notes: '', contactId: '',
         userId: '', agencyId: '', mediaId: '', status: 'open',
     })
-    const [trackingForm, setTrackingForm] = useState<TrackingData>(defaultTrackingData())
 
     // Contact search
     const [contactSearch, setContactSearch] = useState('')
@@ -682,7 +613,6 @@ export default function NegociosPage() {
         setEditingDeal(null)
         setSelectedStageId(stageId)
         setDealForm({ title: '', value: '', notes: '', contactId: '', userId: '', agencyId: '', mediaId: '', status: 'open' })
-        setTrackingForm(defaultTrackingData())
         setSelectedContact(null)
         setContactSearch('')
         setIsDialogOpen(true)
@@ -701,14 +631,6 @@ export default function NegociosPage() {
             mediaId: deal.media?.id || '',
             status: deal.status || 'open',
         })
-        setTrackingForm(deal.trackingData ? {
-            contact1: { ...defaultTrackingEntry(), ...deal.trackingData.contact1 },
-            contact2: { ...defaultTrackingEntry(), ...deal.trackingData.contact2 },
-            contact3: { ...defaultTrackingEntry(), ...deal.trackingData.contact3 },
-            scheduled: { ...defaultTrackingEntry(), ...deal.trackingData.scheduled },
-            attended: { ...defaultTrackingEntry(), ...deal.trackingData.attended },
-            rework: { ...defaultTrackingEntry(), ...deal.trackingData.rework },
-        } : defaultTrackingData())
         setSelectedContact(deal.contact)
         setContactSearch('')
         setIsDialogOpen(true)
@@ -728,7 +650,6 @@ export default function NegociosPage() {
                 agencyId: dealForm.agencyId || null,
                 mediaId: dealForm.mediaId || null,
                 status: dealForm.status,
-                trackingData: trackingForm,
             }
 
             const url = editingDeal ? `/api/deals/${editingDeal.id}` : '/api/deals'
@@ -1452,28 +1373,6 @@ export default function NegociosPage() {
                                     <Textarea value={dealForm.notes} onChange={(e) => setDealForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="Notas sobre o negócio..." className="mt-1" rows={2} />
                                 </div>
 
-                                {/* Tracking Section */}
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider border-b border-border pb-2">Contatos</h3>
-                                    <TrackingGroup label="1º Contato" icon={Phone} entry={trackingForm.contact1!} onChange={(e) => setTrackingForm(prev => ({ ...prev, contact1: e }))} />
-                                    <TrackingGroup label="2º Contato" icon={Phone} entry={trackingForm.contact2!} onChange={(e) => setTrackingForm(prev => ({ ...prev, contact2: e }))} />
-                                    <TrackingGroup label="3º Contato" icon={MessageCircle} entry={trackingForm.contact3!} onChange={(e) => setTrackingForm(prev => ({ ...prev, contact3: e }))} />
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider border-b border-border pb-2">Agendamento</h3>
-                                    <TrackingGroup label="Agendou" icon={Calendar} entry={trackingForm.scheduled!} onChange={(e) => setTrackingForm(prev => ({ ...prev, scheduled: e }))} />
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider border-b border-border pb-2">Compareceu</h3>
-                                    <TrackingGroup label="Compareceu" icon={UserCheck} entry={trackingForm.attended!} onChange={(e) => setTrackingForm(prev => ({ ...prev, attended: e }))} />
-                                </div>
-
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider border-b border-border pb-2">Retrabalho</h3>
-                                    <TrackingGroup label="Novo contato" icon={RefreshCw} entry={trackingForm.rework!} onChange={(e) => setTrackingForm(prev => ({ ...prev, rework: e }))} />
-                                </div>
                             </div>
                         </TabsContent>
 

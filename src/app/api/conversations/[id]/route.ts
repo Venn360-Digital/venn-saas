@@ -143,10 +143,29 @@ export async function GET(
             select: {
                 id: true,
                 title: true,
-                trackingData: true,
+                stageId: true,
                 stage: { select: { name: true, color: true } },
+                stageEntries: {
+                    select: { stageId: true, enteredAt: true, note: true },
+                    orderBy: { enteredAt: 'asc' },
+                },
             },
         })
+
+        /**
+         * As etapas do funil desta clínica — as fases da jornada.
+         *
+         * O painel mostrava seis marcos fixos no código, que falavam de fases
+         * que o funil da clínica podia nem ter. Agora fase e etapa são a mesma
+         * coisa: criou três etapas, o painel mostra três.
+         */
+        const stages = openDeal
+            ? await prisma.pipelineStage.findMany({
+                  where: { workspaceId: workspaceUser.workspaceId },
+                  orderBy: { order: 'asc' },
+                  select: { id: true, name: true, color: true, order: true },
+              })
+            : []
 
         return NextResponse.json({
             conversation: {
@@ -163,9 +182,15 @@ export async function GET(
                     ? {
                           id: openDeal.id,
                           title: openDeal.title,
+                          stageId: openDeal.stageId,
                           stageName: openDeal.stage?.name ?? null,
                           stageColor: openDeal.stage?.color ?? null,
-                          trackingData: openDeal.trackingData ?? {},
+                          stages,
+                          entries: openDeal.stageEntries.map((e) => ({
+                              stageId: e.stageId,
+                              enteredAt: e.enteredAt.toISOString(),
+                              note: e.note,
+                          })),
                       }
                     : null,
             },

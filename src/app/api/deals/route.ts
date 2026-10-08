@@ -32,6 +32,12 @@ const dealInclude = {
         select: { id: true, name: true }
     },
     stage: true,
+    // O percurso, para o trilho do cartão. Só etapa e data: a nota é lida na
+    // tela de detalhe, e uma lista de 50 cartões não deve carregar texto.
+    stageEntries: {
+        select: { stageId: true, enteredAt: true },
+        orderBy: { enteredAt: 'asc' as const },
+    },
 }
 
 // GET - List deals with optional filters
@@ -173,6 +179,12 @@ export async function POST(request: NextRequest) {
                 trackingData: validatedData.trackingData,
             },
             include: dealInclude,
+        })
+
+        // O percurso começa aqui: sem esta entrada o trilho do cartão nasceria
+        // sem data na etapa em que o negócio já está.
+        await prisma.dealStageEntry.create({
+            data: { dealId: deal.id, stageId: validatedData.stageId, userId: user.id },
         })
 
         return NextResponse.json(deal, { status: 201 })
