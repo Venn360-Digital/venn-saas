@@ -52,6 +52,11 @@ model Workspace {
   phone         String?              // Telefone comercial
   logo          String?              // Logo para relatórios
   
+  // The workspace that operates the product itself. Its OWNER administers the
+  // platform-wide integration credentials every clinic connects through, so
+  // there is no second permission list to keep in sync with the roles.
+  isPlatform    Boolean  @default(false)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
@@ -553,6 +558,31 @@ model Message {
 // ============================================
 // 5. INTEGRATIONS (WhatsApp, Instagram, etc)
 // ============================================
+
+/// Credentials of the OAuth application itself — one registration per provider,
+/// shared by every clinic.
+///
+/// A clinic should click "Conectar", pick its account and be done; it should not
+/// have to create a Google Cloud project. These used to be environment
+/// variables, which made the connection a deploy task and put the product
+/// owner's shell access between a clinic and its own calendar. A workspace may
+/// still register its own application in `Integration.credentials` — a clinic on
+/// Google Workspace may prefer an Internal app — and that takes precedence.
+model PlatformCredential {
+  id          String   @id @default(cuid())
+  /// "google_calendar", "google_ads", "meta_ads", "clinicorp"…
+  provider    String   @unique
+  /// clientId / clientSecret, and whatever else a provider needs. Plaintext, as
+  /// Integration.credentials already is; encrypting it needs a key that would
+  /// live in the environment we just emptied.
+  credentials Json
+  metadata    Json?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("platform_credentials")
+}
 
 model Integration {
   id            String   @id @default(cuid())

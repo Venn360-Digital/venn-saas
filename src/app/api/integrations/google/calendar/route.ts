@@ -7,6 +7,7 @@ import {
     GOOGLE_CALENDAR_PROVIDER,
     clientOf,
     redirectUriFor,
+    resolveGoogleOAuthClient,
     type GoogleCalendarCredentials,
 } from '@/lib/google-oauth-client'
 
@@ -32,57 +33,6 @@ function asMetadata(value: unknown): GoogleMetadata {
     return (value ?? {}) as GoogleMetadata
 }
 
-// Helper: Refresh access token if expired
-async function refreshAccessToken(integration: { id: string; credentials: unknown }): Promise<string | null> {
-    const creds = asCredentials(integration.credentials)
-    if (!creds?.refresh_token || !creds.clientId || !creds.clientSecret) return null
-
-    // If token is still valid (with 5min buffer), return it
-    if (creds.expiry_date && Date.now() < creds.expiry_date - 300000) {
-        return creds.access_token ?? null
-    }
-
-    // Refresh the token
-    try {
-        const res = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                client_id: creds.clientId ?? '',
-                client_secret: creds.clientSecret ?? '',
-                refresh_token: creds.refresh_token,
-                grant_type: 'refresh_token',
-            }),
-        })
-
-        if (!res.ok) {
-            console.error('[GOOGLE_REFRESH] Failed to refresh token')
-            // Mark integration as errored
-            await prisma.integration.update({
-                where: { id: integration.id },
-                data: { status: 'error' },
-            })
-            return null
-        }
-
-        const tokens = await res.json()
-        const newCreds = {
-            ...creds,
-            access_token: tokens.access_token,
-            expiry_date: Date.now() + (tokens.expires_in * 1000),
-        }
-
-        await prisma.integration.update({
-            where: { id: integration.id },
-            data: { credentials: newCreds },
-        })
-
-        return tokens.access_token
-    } catch (error) {
-        console.error('[GOOGLE_REFRESH]', error)
-        return null
-    }
-}
 
 // GET - Get integration status
 export async function GET() {
@@ -122,23 +72,27 @@ export async function GET() {
             }
         })
 
+        // `configured` is about whether "Conectar" can work at all, which is
+        // true as soon as the platform has an application — the normal case.
+        const resolved = await resolveGoogleOAuthClient(workspaceUser.workspaceId)
+
         if (!integration) {
             return NextResponse.json({
                 connected: false,
-                configured: false,
-                clientId: null,
+                configured: Boolean(resolved),
+                clientSource: resolved?.source ?? null,
+                workspaceClientId: null,
             })
         }
 
         const meta = asMetadata(integration.metadata)
-        const client = clientOf(integration.credentials)
+        const ownClient = clientOf(integration.credentials)
 
         return NextResponse.json({
             connected: integration.status === 'connected',
-            configured: !!client,
-            // The id identifies the Google project and is not a secret; the
-            // secret is never sent back, only replaced.
-            clientId: client?.clientId ?? null,
+            configured: Boolean(resolved),
+            clientSource: resolved?.source ?? null,
+            workspaceClientId: ownClient?.clientId ?? null,
             status: integration.status,
             googleEmail: meta?.googleEmail || null,
             connectedAt: meta?.connectedAt || null,

@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import type { GoogleCalendarCredentials } from '@/lib/google-oauth-client'
+import { resolveGoogleOAuthClient, type GoogleCalendarCredentials } from '@/lib/google-oauth-client'
 
 
 /**
@@ -51,9 +51,17 @@ interface CalendarEventResult {
 }
 
 // Refresh access token if expired
-async function getValidAccessToken(integration: CalendarIntegration): Promise<string | null> {
+/**
+ * `workspaceId` and not just the row: when the clinic connects through the
+ * platform's application, its own row holds only the tokens, and refreshing
+ * still needs the application that issued them.
+ */
+async function getValidAccessToken(
+    integration: CalendarIntegration,
+    workspaceId: string
+): Promise<string | null> {
     const creds = credentialsOf(integration)
-    if (!creds?.refresh_token || !creds.clientId || !creds.clientSecret) return null
+    if (!creds?.refresh_token) return null
 
     // If token still valid (5min buffer)
     if (creds.expiry_date && Date.now() < creds.expiry_date - 300000) {
@@ -63,13 +71,16 @@ async function getValidAccessToken(integration: CalendarIntegration): Promise<st
         return creds.access_token ?? null
     }
 
+    const resolved = await resolveGoogleOAuthClient(workspaceId)
+    if (!resolved) return null
+
     try {
         const res = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
-                client_id: creds.clientId,
-                client_secret: creds.clientSecret,
+                client_id: resolved.client.clientId,
+                client_secret: resolved.client.clientSecret,
                 refresh_token: creds.refresh_token,
                 grant_type: 'refresh_token',
             }),
@@ -180,7 +191,7 @@ export async function syncActivityToGoogleCalendar(
             return { success: false, error: 'not_connected' }
         }
 
-        const accessToken = await getValidAccessToken(integration)
+        const accessToken = await getValidAccessToken(integration, workspaceId)
         if (!accessToken) {
             return { success: false, error: 'token_expired' }
         }
@@ -258,7 +269,7 @@ export async function deleteActivityFromGoogleCalendar(
 
         if (!integration) return
 
-        const accessToken = await getValidAccessToken(integration)
+        const accessToken = await getValidAccessToken(integration, workspaceId)
         if (!accessToken) return
 
         await fetch(

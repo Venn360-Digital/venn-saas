@@ -1,14 +1,22 @@
 import prisma from '@/lib/prisma'
+import { getPlatformCredentials } from '@/lib/platform-credentials'
 
 /**
  * The Google OAuth client, per workspace, stored in the database.
  *
- * It used to come from `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` /
- * `GOOGLE_REDIRECT_URI` in the environment, which made the connection a deploy
- * concern: one app-wide Google project for every clinic, changeable only by
- * someone with shell access to the VPS. A clinic now registers its own Google
- * project under Gerenciamento → Integrações, and nothing about Google lives in
- * the environment.
+ * Resolution order: the clinic's own application, then the platform's.
+ *
+ * Normally a clinic clicks "Conectar", picks `contato@clinicaabc.com.br` and is
+ * done — the application is the product's, registered once, and it comes from
+ * `platform_credentials`. A clinic that prefers its own Google project (a
+ * Workspace org registering an Internal app, which skips Google's verification
+ * review and the 7-day refresh token of an unpublished External one) saves the
+ * pair on its own integration row, and that wins.
+ *
+ * None of it comes from the environment any more. It used to —
+ * `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` — which
+ * made connecting a deploy task and put shell access to the VPS between a
+ * clinic and its own calendar.
  *
  * **Where the secret sits:** inside `Integration.credentials`, the same JSON
  * column that already holds the refresh token — in plaintext. That is not a
@@ -56,11 +64,25 @@ export function clientOf(credentials: unknown): GoogleOAuthClient | null {
     return { clientId: creds.clientId, clientSecret: creds.clientSecret }
 }
 
-/** The workspace's Google client, or null when the clinic has not registered one. */
-export async function getGoogleOAuthClient(workspaceId: string): Promise<GoogleOAuthClient | null> {
+/** Whose application a given workspace connects through. */
+export type ClientSource = 'workspace' | 'platform'
+
+export async function resolveGoogleOAuthClient(
+    workspaceId: string
+): Promise<{ client: GoogleOAuthClient; source: ClientSource } | null> {
     const integration = await prisma.integration.findFirst({
         where: { workspaceId, provider: GOOGLE_CALENDAR_PROVIDER },
         select: { credentials: true },
     })
-    return clientOf(integration?.credentials)
+    const own = clientOf(integration?.credentials)
+    if (own) return { client: own, source: 'workspace' }
+
+    const platform = await getPlatformCredentials(GOOGLE_CALENDAR_PROVIDER)
+    if (platform) return { client: platform, source: 'platform' }
+
+    return null
+}
+
+export async function getGoogleOAuthClient(workspaceId: string): Promise<GoogleOAuthClient | null> {
+    return (await resolveGoogleOAuthClient(workspaceId))?.client ?? null
 }

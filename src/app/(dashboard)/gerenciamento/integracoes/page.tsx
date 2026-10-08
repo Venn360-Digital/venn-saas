@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PlatformCredentialsPanel } from '@/components/integrations/PlatformCredentialsPanel'
 
 // ─── Types ──────────────────────────────────────────────────────
 interface IntegrationDef {
@@ -23,10 +24,12 @@ interface IntegrationDef {
 
 interface GoogleCalendarStatus {
     connected: boolean
-    /** True once this workspace has its own OAuth client saved. */
+    /** Whether "Conectar" can work — true as soon as an application exists. */
     configured: boolean
-    /** Identifies the Google project; never the secret. */
-    clientId?: string | null
+    /** Whose application: the clinic's own or the platform's. */
+    clientSource?: 'workspace' | 'platform' | null
+    /** Set only when the clinic registered its own project. */
+    workspaceClientId?: string | null
     status?: string
     googleEmail?: string | null
     connectedAt?: string | null
@@ -83,7 +86,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     const [loading, setLoading] = useState(true)
     const [connecting, setConnecting] = useState(false)
     const [disconnecting, setDisconnecting] = useState(false)
-    const [editingClient, setEditingClient] = useState(false)
+    const [showOwnProject, setShowOwnProject] = useState(false)
     const [clientId, setClientId] = useState('')
     const [clientSecret, setClientSecret] = useState('')
     const [savingClient, setSavingClient] = useState(false)
@@ -137,7 +140,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
             }
             toast.success('Credenciais salvas. Agora conecte a conta Google.')
             setClientSecret('')
-            setEditingClient(false)
+            setShowOwnProject(false)
             await loadStatus()
         } catch {
             toast.error('Não foi possível salvar as credenciais')
@@ -233,16 +236,18 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                 </div>
             )}
 
-            {/* Credenciais do projeto Google — a conexão é feita só aqui, nunca
-                por variável de ambiente, então cada clínica usa o seu próprio
-                projeto e o dono do sistema não precisa de acesso ao servidor. */}
-            {!loading && (!status?.configured || editingClient) && !isConnected && (
+            {/* Projeto próprio: exceção, não o caminho normal. A clínica clica
+                em Conectar e escolhe a conta; registrar um projeto no Google
+                Cloud só interessa a quem usa Google Workspace e prefere um app
+                Internal — que não passa pela verificação do Google nem pelo
+                refresh token de 7 dias de um app External não publicado. */}
+            {!loading && showOwnProject && !isConnected && (
                 <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-3">
                     <div>
-                        <p className="text-xs font-semibold">Credenciais do seu projeto Google</p>
+                        <p className="text-xs font-semibold">Usar o projeto Google da própria clínica</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                            Crie um projeto no Google Cloud, ative a Calendar API e gere um
-                            ID de cliente OAuth do tipo aplicativo web.
+                            Opcional. Crie um projeto no Google Cloud, ative a Calendar API e
+                            gere um ID de cliente OAuth do tipo aplicativo web.
                         </p>
                     </div>
                     <div className="space-y-1">
@@ -295,25 +300,47 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                             {savingClient ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                             Salvar credenciais
                         </Button>
-                        {status?.configured && (
-                            <Button size="sm" variant="ghost" onClick={() => setEditingClient(false)}>
-                                Cancelar
-                            </Button>
-                        )}
+                        <Button size="sm" variant="ghost" onClick={() => setShowOwnProject(false)}>
+                            Cancelar
+                        </Button>
                     </div>
                 </div>
             )}
 
-            {!loading && status?.configured && !editingClient && (
-                <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-                    <div className="min-w-0">
-                        <p className="text-xs font-medium">Projeto Google configurado</p>
-                        <p className="truncate text-[11px] text-muted-foreground">{status.clientId}</p>
+            {!loading && !showOwnProject && !isConnected && (
+                status?.configured ? (
+                    <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                        <div className="min-w-0">
+                            <p className="text-xs font-medium">
+                                {status.clientSource === 'workspace'
+                                    ? 'Projeto Google da clínica'
+                                    : 'Pronto para conectar'}
+                            </p>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                                {status.clientSource === 'workspace'
+                                    ? status.workspaceClientId
+                                    : 'Escolha a conta do Google da clínica na próxima tela.'}
+                            </p>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => { setClientId(status.workspaceClientId ?? ''); setShowOwnProject(true) }}>
+                            {status.clientSource === 'workspace' ? 'Alterar' : 'Usar projeto próprio'}
+                        </Button>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => { setClientId(status.clientId ?? ''); setEditingClient(true) }}>
-                        Alterar
-                    </Button>
-                </div>
+                ) : (
+                    <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning" />
+                        <div className="min-w-0 text-xs">
+                            <p className="font-medium">Integração ainda não liberada</p>
+                            <p className="mt-0.5 text-muted-foreground">
+                                O responsável pela plataforma precisa registrar o aplicativo do
+                                Google. Se a clínica tem o próprio projeto, você pode usá-lo.
+                            </p>
+                            <Button size="sm" variant="ghost" className="mt-1.5 h-7 px-2" onClick={() => setShowOwnProject(true)}>
+                                Usar projeto próprio
+                            </Button>
+                        </div>
+                    </div>
+                )
             )}
 
             {/* Actions */}
@@ -384,6 +411,10 @@ export default function IntegracoesPage() {
                 <h1 className="text-h1">Integrações</h1>
                 <p className="mt-1 text-sm text-muted-foreground">Conecte ferramentas externas para potencializar sua aplicação</p>
             </div>
+
+            {/* Só o responsável pela plataforma vê — é onde os aplicativos
+                ficam registrados para todas as clínicas. */}
+            <PlatformCredentialsPanel />
 
             {/* Grid */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
