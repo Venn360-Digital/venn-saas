@@ -1,15 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageSquareText, Plus, Trash2 } from 'lucide-react'
+import { MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { FormField } from '@/components/shared/FormField'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -21,19 +30,18 @@ interface QuickResponse {
     isActive: boolean
 }
 
+const EMPTY_FORM = { command: '', text: '' }
+
 export default function RespostasRapidasPage() {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
     const [responses, setResponses] = useState<QuickResponse[]>([])
     const [loading, setLoading] = useState(true)
-    const [isAdding, setIsAdding] = useState(false)
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [editing, setEditing] = useState<QuickResponse | null>(null)
     const [deleting, setDeleting] = useState<QuickResponse | null>(null)
-    const [newResponse, setNewResponse] = useState<QuickResponse>({
-        command: '',
-        text: '',
-        isActive: true,
-    })
+    const [formData, setFormData] = useState(EMPTY_FORM)
 
     useEffect(() => {
         loadResponses()
@@ -52,31 +60,51 @@ export default function RespostasRapidasPage() {
         }
     }
 
-    const addResponse = async () => {
-        if (!newResponse.command.trim() || !newResponse.text.trim()) {
-            toast.error('Preencha todos os campos')
+    function handleOpenDialog(response?: QuickResponse) {
+        if (response) {
+            setEditing(response)
+            setFormData({ command: response.command, text: response.text })
+        } else {
+            setEditing(null)
+            setFormData(EMPTY_FORM)
+        }
+        setIsDialogOpen(true)
+    }
+
+    async function handleSave() {
+        const command = formData.command.trim()
+        const text = formData.text.trim()
+
+        if (!command) {
+            toast.error('Informe o comando da resposta')
+            return
+        }
+        if (!text) {
+            toast.error('Informe o texto que será enviado')
             return
         }
 
         try {
-            const res = await fetch('/api/quick-responses', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newResponse),
-            })
+            const res = await fetch(
+                editing?.id ? `/api/quick-responses/${editing.id}` : '/api/quick-responses',
+                {
+                    method: editing?.id ? 'PATCH' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command, text }),
+                }
+            )
 
-            if (res.ok) {
-                const created = await res.json()
-                setResponses([created, ...responses])
-                setNewResponse({ command: '', text: '', isActive: true })
-                setIsAdding(false)
-                toast.success('Resposta criada')
-            } else {
-                toast.error('Erro ao criar resposta')
+            if (!res.ok) {
+                const error = await res.json().catch(() => null)
+                toast.error(error?.error ?? 'Não foi possível salvar a resposta')
+                return
             }
-        } catch (error) {
-            console.error('Error creating response:', error)
-            toast.error('Erro ao criar resposta')
+
+            toast.success(editing ? 'Resposta atualizada' : 'Resposta criada')
+            setIsDialogOpen(false)
+            loadResponses()
+        } catch {
+            toast.error('Não foi possível salvar a resposta')
         }
     }
 
@@ -161,7 +189,7 @@ export default function RespostasRapidasPage() {
                 description="Mensagens prontas para usar no chat."
                 actions={
                     canEdit ? (
-                        <Button onClick={() => setIsAdding(true)} disabled={isAdding}>
+                        <Button onClick={() => handleOpenDialog()}>
                             <Plus />
                             Nova resposta
                         </Button>
@@ -169,36 +197,6 @@ export default function RespostasRapidasPage() {
                 }
             />
             <div className="space-y-3 px-4 pb-6 md:px-6">
-                {isAdding ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center">
-                        <Input
-                            placeholder="/comando"
-                            value={newResponse.command}
-                            onChange={e =>
-                                setNewResponse({ ...newResponse, command: e.target.value })
-                            }
-                            aria-label="Comando da nova resposta"
-                            className="font-mono sm:w-52"
-                            autoFocus
-                        />
-                        <Input
-                            placeholder="Texto da resposta…"
-                            value={newResponse.text}
-                            onChange={e =>
-                                setNewResponse({ ...newResponse, text: e.target.value })
-                            }
-                            aria-label="Texto da nova resposta"
-                            className="sm:flex-1"
-                        />
-                        <div className="flex items-center gap-2">
-                            <Button onClick={addResponse}>Salvar</Button>
-                            <Button variant="ghost" onClick={() => setIsAdding(false)}>
-                                Cancelar
-                            </Button>
-                        </div>
-                    </div>
-                ) : null}
-
                 <DataTable
                     columns={columns}
                     rows={responses}
@@ -208,6 +206,12 @@ export default function RespostasRapidasPage() {
                         canEdit
                             ? response => (
                                   <RowActions label={`Ações da resposta ${response.command}`}>
+                                      <RowActionItem
+                                          icon={Pencil}
+                                          onClick={() => handleOpenDialog(response)}
+                                      >
+                                          Editar
+                                      </RowActionItem>
                                       <RowActionItem
                                           icon={Trash2}
                                           destructive
@@ -247,8 +251,8 @@ export default function RespostasRapidasPage() {
                             title="Nenhuma resposta rápida ainda"
                             description="Crie um atalho como /orcamento para enviar a mensagem pronta no chat."
                             action={
-                                canEdit && !isAdding ? (
-                                    <Button onClick={() => setIsAdding(true)}>
+                                canEdit ? (
+                                    <Button onClick={() => handleOpenDialog()}>
                                         <Plus />
                                         Nova resposta
                                     </Button>
@@ -259,8 +263,57 @@ export default function RespostasRapidasPage() {
                 />
             </div>
 
-            {/* This was the only destructive action in the app that fired with no
-                confirmation at all — one stray click removed the response. */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {editing ? 'Editar resposta rápida' : 'Nova resposta rápida'}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-5 py-2">
+                        <FormField
+                            label="Comando"
+                            htmlFor="qr-command"
+                            required
+                            hint="O atalho digitado no chat para inserir o texto."
+                        >
+                            <Input
+                                id="qr-command"
+                                value={formData.command}
+                                onChange={e =>
+                                    setFormData(prev => ({ ...prev, command: e.target.value }))
+                                }
+                                placeholder="/orcamento"
+                                className="font-mono"
+                                autoFocus
+                            />
+                        </FormField>
+
+                        <FormField label="Texto" htmlFor="qr-text" required>
+                            <Textarea
+                                id="qr-text"
+                                value={formData.text}
+                                onChange={e =>
+                                    setFormData(prev => ({ ...prev, text: e.target.value }))
+                                }
+                                placeholder="Olá! Segue o orçamento solicitado…"
+                                rows={4}
+                            />
+                        </FormField>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleSave}>
+                            {editing ? 'Salvar' : 'Criar resposta'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <ConfirmDialog
                 open={deleting !== null}
                 onOpenChange={open => {
