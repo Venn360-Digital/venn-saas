@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, TriangleAlert } from 'lucide-react'
+import { ChevronRight, CreditCard, TriangleAlert } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
 import { Badge } from '@/components/ui/badge'
@@ -31,8 +31,8 @@ import {
 } from '@/components/ui/sidebar'
 import { navSections } from '@/lib/nav'
 import { usePermissions } from '@/hooks/usePermissions'
+import { NavSecondary } from './NavSecondary'
 import { NavUser } from './NavUser'
-import { ThemeToggle } from './ThemeToggle'
 
 
 export function AppSidebar() {
@@ -191,11 +191,19 @@ export function AppSidebar() {
                         })}
                     </SidebarMenu>
                 </SidebarGroup>
+                {/* Grupo inferior do bloco 08: um destino que se visita algumas
+                    vezes por mês e não merece espaço entre os de todo dia, mas
+                    também não merece ficar escondido atrás de um menu. */}
+                <NavSecondary
+                    className="mt-auto"
+                    items={[
+                        { title: 'Plano e créditos', url: '/gerenciamento/conta?tab=plano', icon: CreditCard },
+                    ]}
+                />
             </SidebarContent>
 
             <SidebarFooter>
                 <PlanSummary />
-                <ThemeToggle />
                 <NavUser />
             </SidebarFooter>
         </Sidebar>

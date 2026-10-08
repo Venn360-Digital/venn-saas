@@ -15,6 +15,14 @@ const OPTIONS = [
     { value: 'system', label: 'Sistema', icon: Monitor },
 ] as const
 
+/**
+ * Three buttons, in the topbar beside the bell.
+ *
+ * It lived in the sidebar footer, where it was invisible on the collapsed rail
+ * and two clicks away on mobile. The topbar is where the other switches of this
+ * kind already are — sound, notifications — and it is visible in every state of
+ * the shell.
+ */
 export function ThemeToggle() {
     const { theme, setTheme } = useTheme()
     const mounted = useMounted()
@@ -23,7 +31,7 @@ export function ThemeToggle() {
         <div
             role="radiogroup"
             aria-label="Tema"
-            className="flex items-center gap-0.5 rounded-full bg-muted p-0.5 group-data-[collapsible=icon]:hidden"
+            className="flex items-center gap-0.5 rounded-full bg-muted p-0.5"
         >
             {OPTIONS.map(({ value, label, icon: Icon }) => {
                 // Before mount the stored theme is unknown, so nothing is marked
@@ -42,7 +50,7 @@ export function ThemeToggle() {
                                 aria-label={label}
                                 onClick={() => setTheme(value)}
                                 className={cn(
-                                    'flex flex-1 items-center justify-center rounded-full px-3 py-1.5 transition-colors',
+                                    'flex size-7 items-center justify-center rounded-full transition-colors',
                                     selected
                                         ? 'bg-card text-foreground shadow-sm'
                                         : 'text-muted-foreground hover:text-foreground'

@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { useSoundEnabled } from '@/hooks/useSoundEnabled'
 
 interface Reminder {
@@ -217,6 +218,11 @@ export function Topbar() {
                     </PopoverContent>
                 </Popover>
 
+                {/* Tema: três botões, ao lado do sino. É o lugar dos
+                    interruptores desta natureza — som, notificações — e fica
+                    visível em todo estado do shell, inclusive no rail
+                    recolhido, onde no pé da sidebar ele desaparecia. */}
+                <ThemeToggle />
             </div>
         </header>
     )

@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useState} from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -14,13 +14,24 @@ import { IntegrationsPanel } from '@/components/management/IntegrationsPanel'
 const TABS = ['perfil', 'empresa', 'usuarios', 'integracoes', 'plano'] as const
 
 function ContaContent() {
+    const router = useRouter()
+    const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    // Deep-linkable, so the sidebar's "Ver planos" can land on the right tab.
+    /**
+     * The URL is the active tab, not a copy of it.
+     *
+     * This used to seed `useState` from `?tab=` once. A deep link worked, but
+     * only the first time: clicking another `?tab=` link while already on this
+     * page is a client-side navigation that does not remount the component, so
+     * the state kept whatever tab it had — the three links in the account menu
+     * all landed on Perfil. Deriving from the search param also makes switching
+     * a tab shareable, because the address bar follows.
+     */
     const requested = searchParams.get('tab')
-    const [activeTab, setActiveTab] = useState(
-        requested && (TABS as readonly string[]).includes(requested) ? requested : 'perfil'
-    )
+    const activeTab = requested && (TABS as readonly string[]).includes(requested) ? requested : 'perfil'
+    const setActiveTab = (next: string) =>
+        router.replace(`${pathname}?tab=${next}`, { scroll: false })
 
     const [saving, setSaving] = useState(false)
     const formId = activeTab === 'perfil' ? 'perfil-form' : activeTab === 'empresa' ? 'empresa-form' : null
