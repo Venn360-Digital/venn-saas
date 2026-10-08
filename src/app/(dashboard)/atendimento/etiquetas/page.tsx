@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MoreVertical, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,15 +14,10 @@ import {
     DialogTitle,
     DialogFooter,
 } from '@/components/ui/dialog'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Toolbar } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -216,30 +211,21 @@ export default function EtiquetasPage() {
                     rowActions={
                         canEdit
                             ? (tag) => (
-                                  <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                          <Button
-                                              variant="ghost"
-                                              size="icon-sm"
-                                              aria-label={`Ações da etiqueta ${tag.name}`}
-                                          >
-                                              <MoreVertical />
-                                          </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                          <DropdownMenuItem onClick={() => handleOpenDialog(tag)}>
-                                              <Pencil className="mr-2 size-4" />
-                                              Editar
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                              onClick={() => setDeletingTag(tag)}
-                                              className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
-                                          >
-                                              <Trash2 className="mr-2 size-4" />
-                                              Excluir
-                                          </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <RowActions label={`Ações da etiqueta ${tag.name}`}>
+                                      <RowActionItem
+                                          icon={Pencil}
+                                          onClick={() => handleOpenDialog(tag)}
+                                      >
+                                          Editar
+                                      </RowActionItem>
+                                      <RowActionItem
+                                          icon={Trash2}
+                                          destructive
+                                          onClick={() => setDeletingTag(tag)}
+                                      >
+                                          Excluir
+                                      </RowActionItem>
+                                  </RowActions>
                               )
                             : undefined
                     }

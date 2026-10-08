@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MoreVertical, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,15 +14,10 @@ import {
     DialogTitle,
     DialogFooter,
 } from '@/components/ui/dialog'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Toolbar } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -211,30 +206,21 @@ export default function DepartamentosPage() {
                     rowActions={
                         canEdit
                             ? (d) => (
-                                  <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                          <Button
-                                              variant="ghost"
-                                              size="icon-sm"
-                                              aria-label={`Ações do departamento ${d.name}`}
-                                          >
-                                              <MoreVertical />
-                                          </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                          <DropdownMenuItem onClick={() => handleOpenDialog(d)}>
-                                              <Pencil className="mr-2 size-4" />
-                                              Editar
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem
-                                              onClick={() => setDeleting(d)}
-                                              className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
-                                          >
-                                              <Trash2 className="mr-2 size-4" />
-                                              Excluir
-                                          </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <RowActions label={`Ações do departamento ${d.name}`}>
+                                      <RowActionItem
+                                          icon={Pencil}
+                                          onClick={() => handleOpenDialog(d)}
+                                      >
+                                          Editar
+                                      </RowActionItem>
+                                      <RowActionItem
+                                          icon={Trash2}
+                                          destructive
+                                          onClick={() => setDeleting(d)}
+                                      >
+                                          Excluir
+                                      </RowActionItem>
+                                  </RowActions>
                               )
                             : undefined
                     }

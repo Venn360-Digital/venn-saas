@@ -34,7 +34,19 @@ interface DataTableProps<T> {
     skeletonRows?: number
     empty?: React.ReactNode
     onRowClick?: (row: T) => void
+    /**
+     * Renders the trailing "Ações" column. Use `RowActions` from
+     * `@/components/shared/RowActions` so every table's trigger is the
+     * same button with the same icon and the same accessible name.
+     */
     rowActions?: (row: T) => React.ReactNode
+    /**
+     * Hides the "Ações" header text, leaving it to screen readers only. For
+     * the rare table where the column header would crowd the data; the
+     * default is a visible label, because a bare column of kebab icons is
+     * the control users most often fail to find.
+     */
+    hideActionsHeader?: boolean
     selectable?: boolean
     selected?: string[]
     onSelectedChange?: (ids: string[]) => void
@@ -71,6 +83,7 @@ export function DataTable<T>({
     empty,
     onRowClick,
     rowActions,
+    hideActionsHeader = false,
     selectable = false,
     selected = [],
     onSelectedChange,
@@ -118,8 +131,10 @@ export function DataTable<T>({
                 body
             ) : (
                 <>
-                    {/* Table from md up */}
-                    <div className={cn('overflow-x-auto', mobile && 'hidden md:block')}>
+                    {/* Table from md up. No scroll container here: `Table`
+                        already wraps itself in `overflow-x-auto`, and nesting
+                        two gave the inner one a width it never overflowed. */}
+                    <div className={mobile ? 'hidden md:block' : undefined}>
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -152,8 +167,12 @@ export function DataTable<T>({
                                         </TableHead>
                                     ))}
                                     {rowActions ? (
-                                        <TableHead className="w-10">
-                                            <span className="sr-only">Ações</span>
+                                        <TableHead className="w-20 text-right">
+                                            {hideActionsHeader ? (
+                                                <span className="sr-only">Ações</span>
+                                            ) : (
+                                                'Ações'
+                                            )}
                                         </TableHead>
                                     ) : null}
                                 </TableRow>
@@ -202,7 +221,11 @@ export function DataTable<T>({
                                                 </TableCell>
                                             ))}
                                             {rowActions ? (
-                                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                                <TableCell
+                                                    className="text-right"
+                                                    // Opening the menu must not also open the row.
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
                                                     {rowActions(row)}
                                                 </TableCell>
                                             ) : null}

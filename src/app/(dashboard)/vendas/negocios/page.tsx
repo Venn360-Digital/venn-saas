@@ -32,14 +32,6 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
-import {
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -76,6 +68,13 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { usePermissions } from '@/hooks/usePermissions'
 import { JOURNEY, type TrackingData, type TrackingEntry, type TrackingKey } from '@/components/shared/DealJourney'
+import { DataTable, type Column } from '@/components/shared/DataTable'
+import { EmptyState } from '@/components/shared/EmptyState'
+import {
+    RowActionItem,
+    RowActions,
+    RowActionsSeparator,
+} from '@/components/shared/RowActions'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -356,7 +355,8 @@ function DealCard({
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent"
+                            aria-label={`Ações do negócio ${deal.title}`}
+                            className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent focus-visible:opacity-100"
                             onClick={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
@@ -423,7 +423,10 @@ function StageColumn({
                     <span className="text-xs text-muted-foreground bg-accent px-2 py-0.5 rounded-full">{stage.deals.length}</span>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <button className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent">
+                            <button
+                                aria-label={`Configurar etapa ${stage.name}`}
+                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
+                            >
                                 <Settings className="h-3.5 w-3.5" />
                             </button>
                         </DropdownMenuTrigger>
@@ -491,6 +494,9 @@ const defaultTrackingData = (): TrackingData => ({
 
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function NegociosPage() {
+    // The kanban card already gates Excluir on this; the list view did not, so
+    // an ATENDENTE was offered a delete the API answers with 403.
+    const { canEdit } = usePermissions()
     const [stages, setStages] = useState<Stage[]>([])
     const [loading, setLoading] = useState(true)
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
@@ -1011,7 +1017,79 @@ export default function NegociosPage() {
     const STAGE_COLORS = PICKER_RAMP
 
     // ─── Computed ───────────────────────────────────────────────────
-    const allDeals = viewMode === 'kanban' ? stages.flatMap(s => s.deals) : listDeals
+    /* The list view's shape. Lives here rather than inline in the JSX so the
+       hidden-below breakpoints are declared once, next to the data. */
+    const listColumns: Column<Deal>[] = [
+        {
+            id: 'title',
+            header: 'Título',
+            cell: deal => <span className="font-medium">{deal.title}</span>,
+        },
+        {
+            id: 'contact',
+            header: 'Contato',
+            cell: deal =>
+                deal.contact ? (
+                    <div className="flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{deal.contact.name || deal.contact.phone}</span>
+                    </div>
+                ) : (
+                    <span className="text-muted-foreground">—</span>
+                ),
+        },
+        {
+            id: 'owner',
+            header: 'Dono',
+            hideBelow: 'lg',
+            cell: deal =>
+                deal.owner ? (
+                    <span className="text-sm">{deal.owner.name}</span>
+                ) : (
+                    <span className="text-muted-foreground">—</span>
+                ),
+        },
+        {
+            id: 'value',
+            header: 'Valor',
+            numeric: true,
+            cell: deal =>
+                deal.value != null && deal.value > 0 ? (
+                    <span className="text-success-subtle-foreground">
+                        R$ {deal.value.toLocaleString('pt-BR')}
+                    </span>
+                ) : (
+                    <span className="text-muted-foreground">—</span>
+                ),
+        },
+        {
+            id: 'stage',
+            header: 'Etapa',
+            cell: deal => (
+                <span
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground"
+                    style={{ backgroundColor: deal.stage?.color || DEFAULT_ENTITY_COLOR }}
+                >
+                    {deal.stage?.name || '—'}
+                </span>
+            ),
+        },
+        {
+            id: 'status',
+            header: 'Status',
+            cell: deal => <StatusBadge status={deal.status} />,
+        },
+        {
+            id: 'createdAt',
+            header: 'Criado em',
+            hideBelow: 'xl',
+            cell: deal => (
+                <span className="text-muted-foreground text-sm">
+                    {new Date(deal.createdAt).toLocaleDateString('pt-BR')}
+                </span>
+            ),
+        },
+    ]
 
     if (loading) {
         return <div className="flex items-center justify-center h-96"><div className="text-muted-foreground">Carregando...</div></div>
@@ -1159,74 +1237,95 @@ export default function NegociosPage() {
 
             {/* List View */}
             {viewMode === 'list' && (
-                <div className="bg-card rounded-lg border border-border">
-                    {listDeals.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                            <DollarSign className="h-12 w-12 mb-4 opacity-40" /><p className="font-medium">Nenhum negócio encontrado</p><p className="text-sm">Ajuste os filtros ou crie um novo negócio.</p>
+                <DataTable
+                    columns={listColumns}
+                    rows={listDeals}
+                    getRowId={deal => deal.id}
+                    onRowClick={deal => handleEditDealWithActivities(deal)}
+                    mobile={deal => (
+                        <div className="space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="font-medium">{deal.title}</span>
+                                <StatusBadge status={deal.status} />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                <span
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full font-medium text-foreground"
+                                    style={{ backgroundColor: deal.stage?.color || DEFAULT_ENTITY_COLOR }}
+                                >
+                                    {deal.stage?.name || '—'}
+                                </span>
+                                {deal.contact ? (
+                                    <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {deal.contact.name || deal.contact.phone}
+                                    </span>
+                                ) : null}
+                                {deal.value != null && deal.value > 0 ? (
+                                    <span className="num text-success-subtle-foreground">
+                                        R$ {deal.value.toLocaleString('pt-BR')}
+                                    </span>
+                                ) : null}
+                            </div>
                         </div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Título</TableHead>
-                                    <TableHead>Contato</TableHead>
-                                    <TableHead>Dono</TableHead>
-                                    <TableHead>Valor</TableHead>
-                                    <TableHead>Etapa</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Criado em</TableHead>
-                                    <TableHead className="w-12"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {listDeals.map((deal) => (
-                                    <TableRow key={deal.id} className="hover:bg-accent/50">
-                                        <TableCell className="font-medium">{deal.title}</TableCell>
-                                        <TableCell>
-                                            {deal.contact ? (
-                                                <div className="flex items-center gap-1.5"><User className="h-3.5 w-3.5 text-muted-foreground" /><span>{deal.contact.name || deal.contact.phone}</span></div>
-                                            ) : <span className="text-muted-foreground">—</span>}
-                                        </TableCell>
-                                        <TableCell>
-                                            {deal.owner ? <span className="text-sm">{deal.owner.name}</span> : <span className="text-muted-foreground">—</span>}
-                                        </TableCell>
-                                        <TableCell>
-                                            {deal.value != null && deal.value > 0 ? <span className="text-success-subtle-foreground">R$ {deal.value.toLocaleString('pt-BR')}</span> : <span className="text-muted-foreground">—</span>}
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground" style={{ backgroundColor: deal.stage?.color || DEFAULT_ENTITY_COLOR }}>
-                                                {deal.stage?.name || '—'}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell><StatusBadge status={deal.status} /></TableCell>
-                                        <TableCell className="text-muted-foreground text-sm">{new Date(deal.createdAt).toLocaleDateString('pt-BR')}</TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => handleEditDealWithActivities(deal)}><Pencil className="h-4 w-4 mr-2" />Editar</DropdownMenuItem>
-                                                    {deal.status === 'open' && (
-                                                        <>
-                                                            <DropdownMenuItem onClick={() => handleStatusChange(deal, 'won')} className="text-success-subtle-foreground"><Trophy className="h-4 w-4 mr-2" />Ganho</DropdownMenuItem>
-                                                            <DropdownMenuItem onClick={() => handleStatusChange(deal, 'lost')} className="text-destructive-subtle-foreground"><XCircle className="h-4 w-4 mr-2" />Perdido</DropdownMenuItem>
-                                                        </>
-                                                    )}
-                                                    {deal.status !== 'open' && (
-                                                        <DropdownMenuItem onClick={() => handleStatusChange(deal, 'open')} className="text-info-subtle-foreground"><ArrowRight className="h-4 w-4 mr-2" />Reabrir</DropdownMenuItem>
-                                                    )}
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => { setDealToDelete(deal); setDeleteDialogOpen(true) }} className="text-destructive-subtle-foreground"><Trash2 className="h-4 w-4 mr-2" />Excluir</DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
                     )}
-                </div>
+                    rowActions={deal => (
+                        <RowActions label={`Ações do negócio ${deal.title}`}>
+                            <RowActionItem
+                                icon={Pencil}
+                                onClick={() => handleEditDealWithActivities(deal)}
+                            >
+                                Editar
+                            </RowActionItem>
+                            {deal.status === 'open' ? (
+                                <>
+                                    <RowActionItem
+                                        icon={Trophy}
+                                        onClick={() => handleStatusChange(deal, 'won')}
+                                    >
+                                        Ganho
+                                    </RowActionItem>
+                                    <RowActionItem
+                                        icon={XCircle}
+                                        onClick={() => handleStatusChange(deal, 'lost')}
+                                    >
+                                        Perdido
+                                    </RowActionItem>
+                                </>
+                            ) : (
+                                <RowActionItem
+                                    icon={ArrowRight}
+                                    onClick={() => handleStatusChange(deal, 'open')}
+                                >
+                                    Reabrir
+                                </RowActionItem>
+                            )}
+                            {canEdit ? (
+                                <>
+                                    <RowActionsSeparator />
+                                    <RowActionItem
+                                        icon={Trash2}
+                                        destructive
+                                        onClick={() => {
+                                            setDealToDelete(deal)
+                                            setDeleteDialogOpen(true)
+                                        }}
+                                    >
+                                        Excluir
+                                    </RowActionItem>
+                                </>
+                            ) : null}
+                        </RowActions>
+                    )}
+                    empty={
+                        <EmptyState
+                            variant="inline"
+                            icon={DollarSign}
+                            title="Nenhum negócio encontrado"
+                            description="Ajuste os filtros ou crie um novo negócio."
+                        />
+                    }
+                />
             )}
 
             {/* Create/Edit Deal Dialog */}

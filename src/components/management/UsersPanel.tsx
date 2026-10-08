@@ -1,20 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MoreVertical, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Toolbar } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
@@ -210,47 +205,36 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                     getRowId={(u) => u.id}
                     loading={loading}
                     rowActions={(u) => (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Ações de ${u.name}`}
-                                >
-                                    <MoreVertical />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                    onClick={() => {
-                                        setEditingUser(u)
-                                        setIsModalOpen(true)
-                                    }}
-                                >
-                                    <Pencil className="mr-2 size-4" />
-                                    Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    onClick={() => {
-                                        // The workspace must keep an owner, and the
-                                        // API refuses this anyway — saying so here
-                                        // avoids a round trip that only returns an
-                                        // error.
-                                        if (u.isFirstAdmin) {
-                                            toast.error(
-                                                'O administrador principal não pode ser excluído'
-                                            )
-                                            return
-                                        }
-                                        setDeleting(u)
-                                    }}
-                                    className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
-                                >
-                                    <Trash2 className="mr-2 size-4" />
-                                    Excluir
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <RowActions label={`Ações de ${u.name}`}>
+                            <RowActionItem
+                                icon={Pencil}
+                                onClick={() => {
+                                    setEditingUser(u)
+                                    setIsModalOpen(true)
+                                }}
+                            >
+                                Editar
+                            </RowActionItem>
+                            <RowActionItem
+                                icon={Trash2}
+                                destructive
+                                onClick={() => {
+                                    // The workspace must keep an owner, and the
+                                    // API refuses this anyway — saying so here
+                                    // avoids a round trip that only returns an
+                                    // error.
+                                    if (u.isFirstAdmin) {
+                                        toast.error(
+                                            'O administrador principal não pode ser excluído'
+                                        )
+                                        return
+                                    }
+                                    setDeleting(u)
+                                }}
+                            >
+                                Excluir
+                            </RowActionItem>
+                        </RowActions>
                     )}
                     empty={
                         <EmptyState

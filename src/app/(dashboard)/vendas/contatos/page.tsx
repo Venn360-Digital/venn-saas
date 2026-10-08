@@ -4,12 +4,13 @@ import { TagChip } from '@/components/shared/TagChip'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Toolbar, FilterPanel } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Upload, Download, User, Phone, MoreHorizontal, Trash2, Check, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
+import { Plus, Upload, Download, User, Phone, Pencil, Trash2, Check, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,9 +27,6 @@ import {
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -511,21 +509,16 @@ export default function ContatosPage() {
                     onRowClick={c => handleOpenDialog(c)}
                     mobile={ContactRowCard}
                     rowActions={c => (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${c.name || 'contato'}`}>
-                                    <MoreHorizontal />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleOpenDialog(c)}>Editar</DropdownMenuItem>
-                                {canEdit && (
-                                    <DropdownMenuItem onClick={() => handleDelete(c.id)} className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground">
-                                        Excluir
-                                    </DropdownMenuItem>
-                                )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <RowActions label={`Ações de ${c.name || 'contato'}`}>
+                            <RowActionItem icon={Pencil} onClick={() => handleOpenDialog(c)}>
+                                Editar
+                            </RowActionItem>
+                            {canEdit && (
+                                <RowActionItem icon={Trash2} destructive onClick={() => handleDelete(c.id)}>
+                                    Excluir
+                                </RowActionItem>
+                            )}
+                        </RowActions>
                     )}
                     empty={
                         <EmptyState

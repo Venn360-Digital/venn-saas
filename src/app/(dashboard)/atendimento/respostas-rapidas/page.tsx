@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { Input } from '@/components/ui/input'
-import { Plus, Trash2 } from 'lucide-react'
+import { MessageSquareText, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { DataTable, type Column } from '@/components/shared/DataTable'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
 
 interface QuickResponse {
@@ -22,6 +28,7 @@ export default function RespostasRapidasPage() {
     const [responses, setResponses] = useState<QuickResponse[]>([])
     const [loading, setLoading] = useState(true)
     const [isAdding, setIsAdding] = useState(false)
+    const [deleting, setDeleting] = useState<QuickResponse | null>(null)
     const [newResponse, setNewResponse] = useState<QuickResponse>({
         command: '',
         text: '',
@@ -94,10 +101,6 @@ export default function RespostasRapidasPage() {
     }
 
     const deleteResponse = async (id: string) => {
-        // This was the only destructive action in the app that fired with no
-        // confirmation at all — one stray click removed the response.
-        if (!confirm('Tem certeza que deseja excluir esta resposta rápida?')) return
-
         try {
             const res = await fetch(`/api/quick-responses/${id}`, { method: 'DELETE' })
 
@@ -114,6 +117,43 @@ export default function RespostasRapidasPage() {
         }
     }
 
+    const columns: Column<QuickResponse>[] = [
+        {
+            id: 'command',
+            header: 'Comando',
+            width: '13rem',
+            cell: response => (
+                <span className="font-mono text-sm text-primary">{response.command}</span>
+            ),
+        },
+        {
+            id: 'text',
+            header: 'Texto',
+            // The one column that may wrap: a canned message is a sentence, and
+            // truncating it hides the only thing that tells two apart.
+            className: 'max-w-xl whitespace-normal',
+            cell: response => <span className="text-sm">{response.text}</span>,
+        },
+        {
+            id: 'isActive',
+            header: 'Ativa',
+            width: '6rem',
+            cell: response =>
+                canEdit ? (
+                    <Switch
+                        checked={response.isActive}
+                        onCheckedChange={() => toggleActive(response)}
+                        aria-label={`Ativar resposta ${response.command}`}
+                    />
+                ) : (
+                    // Read-only: show the state without offering to change it.
+                    <span className="text-xs text-muted-foreground">
+                        {response.isActive ? 'Ativa' : 'Inativa'}
+                    </span>
+                ),
+        },
+    ]
+
     return (
         <>
             <PageHeader
@@ -121,99 +161,119 @@ export default function RespostasRapidasPage() {
                 description="Mensagens prontas para usar no chat."
                 actions={
                     canEdit ? (
-                        <Button onClick={() => setIsAdding(true)}>
-                            <Plus className="mr-2 h-4 w-4" />
+                        <Button onClick={() => setIsAdding(true)} disabled={isAdding}>
+                            <Plus />
                             Nova resposta
                         </Button>
                     ) : undefined
                 }
             />
-            <div className="px-4 pb-6 md:px-6">
-            {/* Table */}
-            <div className="rounded-lg border bg-card overflow-hidden">
-                {/* Table Header */}
-                <div className="bg-muted/50 px-4 py-3 font-medium">
-                    Mensagens pré-configuradas
-                </div>
-                <div className="grid grid-cols-[200px_1fr_100px] gap-4 bg-muted/30 px-4 py-2 text-sm font-medium border-t">
-                    <div>Comando</div>
-                    <div>Texto</div>
-                    <div className="text-right">Ativo?</div>
-                </div>
-
-                {/* Table Body */}
-                <div className="divide-y">
-                    {loading ? (
-                        <div className="p-8 text-center text-muted-foreground">Carregando...</div>
-                    ) : responses.length === 0 && !isAdding ? (
-                        <div className="p-8 text-center text-muted-foreground">
-                            Nenhuma resposta rápida cadastrada
+            <div className="space-y-3 px-4 pb-6 md:px-6">
+                {isAdding ? (
+                    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center">
+                        <Input
+                            placeholder="/comando"
+                            value={newResponse.command}
+                            onChange={e =>
+                                setNewResponse({ ...newResponse, command: e.target.value })
+                            }
+                            aria-label="Comando da nova resposta"
+                            className="font-mono sm:w-52"
+                            autoFocus
+                        />
+                        <Input
+                            placeholder="Texto da resposta…"
+                            value={newResponse.text}
+                            onChange={e =>
+                                setNewResponse({ ...newResponse, text: e.target.value })
+                            }
+                            aria-label="Texto da nova resposta"
+                            className="sm:flex-1"
+                        />
+                        <div className="flex items-center gap-2">
+                            <Button onClick={addResponse}>Salvar</Button>
+                            <Button variant="ghost" onClick={() => setIsAdding(false)}>
+                                Cancelar
+                            </Button>
                         </div>
-                    ) : (
-                        <>
-                            {responses.map((response) => (
-                                <div key={response.id} className="grid grid-cols-[200px_1fr_100px] gap-4 p-4 items-center">
-                                    <div className="font-mono text-sm text-primary">
-                                        {response.command}
-                                    </div>
-                                    <div className="text-sm truncate">{response.text}</div>
-                                    <div className="flex items-center justify-end gap-2">
-                                        {canEdit ? (
-                                            <>
-                                                <button
-                                                    onClick={() => toggleActive(response)}
-                                                    className={`h-5 w-10 rounded-full transition-colors ${response.isActive ? 'bg-success' : 'bg-muted'
-                                                        }`}
-                                                >
-                                                    <div className={`h-4 w-4 rounded-full bg-card transition-transform ${response.isActive ? 'translate-x-5' : 'translate-x-0.5'
-                                                        }`} />
-                                                </button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => deleteResponse(response.id!)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            // Read-only: show the state without offering to change it.
-                                            <span className="text-xs text-muted-foreground">
-                                                {response.isActive ? 'Ativa' : 'Inativa'}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </>
-                    )}
+                    </div>
+                ) : null}
 
-                    {/* Add Row */}
-                    {isAdding && (
-                        <div className="grid grid-cols-[200px_1fr_100px] gap-4 p-4 items-center bg-muted/30">
-                            <Input
-                                placeholder="/comando"
-                                value={newResponse.command}
-                                onChange={(e) => setNewResponse({ ...newResponse, command: e.target.value })}
-                                className="bg-background font-mono"
-                            />
-                            <Input
-                                placeholder="Texto da resposta..."
-                                value={newResponse.text}
-                                onChange={(e) => setNewResponse({ ...newResponse, text: e.target.value })}
-                                className="bg-background"
-                            />
-                            <div className="flex items-center gap-2">
-                                <Button onClick={addResponse} size="sm">Salvar</Button>
-                                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>
-                                    Cancelar
-                                </Button>
+                <DataTable
+                    columns={columns}
+                    rows={responses}
+                    getRowId={response => response.id ?? response.command}
+                    loading={loading}
+                    rowActions={
+                        canEdit
+                            ? response => (
+                                  <RowActions label={`Ações da resposta ${response.command}`}>
+                                      <RowActionItem
+                                          icon={Trash2}
+                                          destructive
+                                          onClick={() => setDeleting(response)}
+                                      >
+                                          Excluir
+                                      </RowActionItem>
+                                  </RowActions>
+                              )
+                            : undefined
+                    }
+                    mobile={response => (
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono text-sm text-primary">
+                                    {response.command}
+                                </span>
+                                {canEdit ? (
+                                    <Switch
+                                        checked={response.isActive}
+                                        onCheckedChange={() => toggleActive(response)}
+                                        aria-label={`Ativar resposta ${response.command}`}
+                                    />
+                                ) : (
+                                    <span className="text-xs text-muted-foreground">
+                                        {response.isActive ? 'Ativa' : 'Inativa'}
+                                    </span>
+                                )}
                             </div>
+                            <p className="text-sm text-muted-foreground">{response.text}</p>
                         </div>
                     )}
-                </div>
+                    empty={
+                        <EmptyState
+                            variant="inline"
+                            icon={MessageSquareText}
+                            title="Nenhuma resposta rápida ainda"
+                            description="Crie um atalho como /orcamento para enviar a mensagem pronta no chat."
+                            action={
+                                canEdit && !isAdding ? (
+                                    <Button onClick={() => setIsAdding(true)}>
+                                        <Plus />
+                                        Nova resposta
+                                    </Button>
+                                ) : null
+                            }
+                        />
+                    }
+                />
             </div>
-            </div>
+
+            {/* This was the only destructive action in the app that fired with no
+                confirmation at all — one stray click removed the response. */}
+            <ConfirmDialog
+                open={deleting !== null}
+                onOpenChange={open => {
+                    if (!open) setDeleting(null)
+                }}
+                title="Excluir resposta rápida?"
+                description={`O atalho ${deleting?.command ?? ''} deixa de funcionar no chat e o texto é perdido.`}
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={async () => {
+                    if (deleting?.id) await deleteResponse(deleting.id)
+                }}
+            />
         </>
     )
 }
