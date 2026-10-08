@@ -16,6 +16,12 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
  * renders one, and nesting a second was invalid markup that gave assistive
  * technology two competing main landmarks.
  *
+ * The sidebar is the `inset` variant (shadcn's sidebar-08): it floats in a
+ * gutter painted `bg-sidebar` and the content becomes a rounded card. One
+ * consequence worth knowing: the sidebar header and the topbar now sit on
+ * different surfaces, so the border alignment we tuned between them no longer
+ * applies — there is no shared edge to align.
+ *
  * The skip link is the shell's job too: it has to be the first thing in tab
  * order, which only the layout can guarantee.
  *
@@ -46,6 +52,8 @@ export default function DashboardLayout({
             </a>
             <DocumentTitle />
             <AppSidebar />
+            {/* `overflow-hidden` recorta o Topbar nos cantos do cartão — sem
+                ele, a barra pinta por cima do raio do `inset`. */}
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
                 <Topbar />
                 <div

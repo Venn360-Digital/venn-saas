@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, TriangleAlert } from 'lucide-react'
+import { ChevronRight, CreditCard, Palette, Plug, TriangleAlert, type LucideIcon } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,7 @@ import {
     SidebarContent,
     SidebarFooter,
     SidebarGroup,
+    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuBadge,
@@ -27,17 +28,39 @@ import {
     SidebarMenuSub,
     SidebarMenuSubButton,
     SidebarMenuSubItem,
-    SidebarRail,
 } from '@/components/ui/sidebar'
 import { navSections } from '@/lib/nav'
 import { usePermissions } from '@/hooks/usePermissions'
-import { ThemeToggle } from './ThemeToggle'
+import { NavSecondary } from './NavSecondary'
+import { NavUser } from './NavUser'
+
+/**
+ * The secondary group: reachable, deliberately not in the way.
+ *
+ * `design-system` is only listed for OWNER and ADMIN — it is the live token
+ * reference, useful to whoever changes the product and noise to everyone else.
+ */
+const SECONDARY: { title: string; url: string; icon: LucideIcon; roles?: string[] }[] = [
+    { title: 'Plano e créditos', url: '/gerenciamento/conta?tab=plano', icon: CreditCard },
+    { title: 'Integrações', url: '/gerenciamento/integracoes', icon: Plug },
+    { title: 'Design system', url: '/design-system', icon: Palette, roles: ['OWNER', 'ADMIN'] },
+]
 
 export function AppSidebar() {
     const pathname = usePathname()
     // Starts null and loading, so role-gated sections never flash for an
     // ATENDENTE before the answer arrives.
     const { role, loading } = usePermissions()
+
+    const secondary = useMemo(
+        () =>
+            SECONDARY.filter((item) => {
+                if (!item.roles?.length) return true
+                if (loading || !role) return false
+                return item.roles.includes(role)
+            }),
+        [role, loading]
+    )
 
     const sections = useMemo(
         () =>
@@ -77,26 +100,34 @@ export function AppSidebar() {
     }, [sectionForRoute])
 
     return (
-        <Sidebar collapsible="icon">
-            {/* Taller than the topbar on purpose: the lockup is wide, and at the
-                size it needs to read it no longer fits a 56px bar. */}
-            {/* Mesma altura do Topbar (h-16): as duas bordas inferiores se encontram
-                por construção, não por ajuste. A logo cabe com folga a 44 px. */}
-            <SidebarHeader className="h-16 shrink-0 items-center justify-center border-b border-sidebar-border px-4">
-                <Link href="/dashboard" aria-label="OdontoBox360">
-                    <span className="block group-data-[collapsible=icon]:hidden">
-                        <Logo variant="wordmark" height={44} priority />
-                    </span>
-                    {/* A 3:1 lockup cannot survive the collapsed rail, so the
-                        symbol stands in for it there. */}
-                    <span className="hidden group-data-[collapsible=icon]:block">
-                        <Logo variant="mark" height={30} priority />
-                    </span>
-                </Link>
+        // `inset`: a sidebar flutua numa calha e o conteúdo vira um cartão
+        // arredondado. Com isso a borda inferior do cabeçalho da sidebar deixa de
+        // existir — o alinhamento que fizemos com o Topbar some junto, porque as
+        // duas peças passam a viver em superfícies diferentes.
+        <Sidebar variant="inset" collapsible="icon">
+            <SidebarHeader>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton size="lg" asChild>
+                            <Link href="/dashboard" aria-label="OdontoBox360">
+                                <span className="flex aspect-square size-8 shrink-0 items-center justify-center">
+                                    <Logo variant="mark" height={30} priority />
+                                </span>
+                                <span className="grid flex-1 text-left leading-tight">
+                                    <span className="truncate text-sm font-semibold">OdontoBox360</span>
+                                    <span className="truncate text-xs text-sidebar-foreground/70">
+                                        Atendimento com IA
+                                    </span>
+                                </span>
+                            </Link>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
             </SidebarHeader>
 
             <SidebarContent>
                 <SidebarGroup>
+                    <SidebarGroupLabel>Navegação</SidebarGroupLabel>
                     <SidebarMenu>
                         {sections.map((section) => {
                             const Icon = section.icon
@@ -181,14 +212,18 @@ export function AppSidebar() {
                         })}
                     </SidebarMenu>
                 </SidebarGroup>
+
+                {/* Navegação secundária, empurrada para o rodapé pelo `mt-auto`
+                    do bloco 08: o que não é destino de trabalho diário — ajuda,
+                    plano, a rota viva do design system. Fica longe do que se
+                    usa toda hora, mas alcançável sem menu. */}
+                <NavSecondary items={secondary} className="mt-auto" />
             </SidebarContent>
 
-            <SidebarFooter className="gap-3 border-t border-sidebar-border">
+            <SidebarFooter>
                 <PlanSummary />
-                <ThemeToggle />
+                <NavUser />
             </SidebarFooter>
-
-            <SidebarRail />
         </Sidebar>
     )
 }

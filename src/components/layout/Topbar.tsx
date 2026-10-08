@@ -24,22 +24,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
-
-interface UserData {
-    user: {
-        id: string
-        email: string
-        name: string
-        avatar: string | null
-        initials: string
-    }
-    workspace: {
-        id: string
-        name: string
-        slug: string
-    } | null
-    role: string | null
-}
+import { useSoundEnabled } from '@/hooks/useSoundEnabled'
 
 interface Reminder {
     id: string
@@ -61,24 +46,12 @@ function formatReminderTime(r: Reminder): string {
 }
 
 export function Topbar() {
-    const [userData, setUserData] = useState<UserData | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [soundEnabled, setSoundEnabled] = useState(true)
+    const [soundEnabled, setSoundEnabled] = useSoundEnabled()
     const [reminders, setReminders] = useState<Reminder[]>([])
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const router = useRouter()
 
-    useEffect(() => {
-        const stored = localStorage.getItem('odontobox360-sound-enabled')
-        if (stored !== null) setSoundEnabled(stored === 'true')
-    }, [])
 
-    useEffect(() => {
-        localStorage.setItem('odontobox360-sound-enabled', String(soundEnabled))
-        window.dispatchEvent(new CustomEvent('odontobox360-sound-change', { detail: soundEnabled }))
-    }, [soundEnabled])
-
-    useEffect(() => { loadUserData() }, [])
 
     // Poll reminders every 60 seconds
     const loadReminders = useCallback(async () => {
@@ -101,21 +74,18 @@ export function Topbar() {
     }, [soundEnabled])
 
     useEffect(() => {
+        // `loadReminders` só chama setState depois do primeiro `await`; a regra
+        // é baseada no compilador, não acompanha função assíncrona e acusa a
+        // chamada em si. Buscar ao montar e repetir a cada 60 s é o que um
+        // efeito existe para fazer. O caso real que a regra pegou neste arquivo
+        // — ler `localStorage` e aplicar por setState — foi corrigido em
+        // `useSoundEnabled`, não silenciado.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadReminders()
         const interval = setInterval(loadReminders, 60000) // every 60s
         return () => clearInterval(interval)
     }, [loadReminders])
 
-    const loadUserData = async () => {
-        try {
-            const res = await fetch('/api/auth/me')
-            if (res.ok) setUserData(await res.json())
-        } catch (error) {
-            console.error('Error loading user data:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
 
     const handleDismissReminder = async (id: string) => {
         setDismissedIds(prev => new Set([...prev, id]))
@@ -142,12 +112,6 @@ export function Topbar() {
         } catch { /* ignore */ }
     }
 
-    const handleLogout = async () => {
-        const supabase = createClient()
-        await supabase.auth.signOut()
-        router.push('/login')
-        router.refresh()
-    }
 
     const activeReminders = reminders.filter(r => !dismissedIds.has(r.id))
 
@@ -169,7 +133,7 @@ export function Topbar() {
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-foreground"
-                    onClick={() => setSoundEnabled(prev => !prev)}
+                    onClick={() => setSoundEnabled(!soundEnabled)}
                     title={soundEnabled ? 'Desativar som de notificações' : 'Ativar som de notificações'}
                 >
                     {soundEnabled ? (
@@ -253,53 +217,6 @@ export function Topbar() {
                     </PopoverContent>
                 </Popover>
 
-                {/* User Menu */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="gap-2 px-2">
-                            <Avatar className="h-8 w-8 border border-border">
-                                <AvatarImage src={userData?.user.avatar || ''} />
-                                <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                                    {loading ? '...' : userData?.user.initials || 'U'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="hidden flex-col items-start md:flex">
-                                <span className="text-sm font-medium text-foreground">
-                                    {loading ? 'Carregando...' : userData?.user.name || 'Usuário'}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {loading ? '' : userData?.workspace?.name || 'Sem workspace'}
-                                </span>
-                            </div>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                            {userData?.user.email}
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                            <Link href="/gerenciamento/conta?tab=perfil">
-                                <User className="mr-2 h-4 w-4" />
-                                Perfil
-                            </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                            <Link href="/gerenciamento/conta">
-                                <Settings className="mr-2 h-4 w-4" />
-                                Configurações
-                            </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                            className="text-destructive-subtle-foreground focus:text-destructive-subtle-foreground"
-                            onClick={handleLogout}
-                        >
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Sair
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
             </div>
         </header>
     )
