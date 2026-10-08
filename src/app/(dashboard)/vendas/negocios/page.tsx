@@ -1203,7 +1203,7 @@ export default function NegociosPage() {
                         </button>
                     </div>
                     <Button onClick={() => handleAddDeal(stages[0]?.id)} className="bg-primary hover:bg-primary/90">
-                        <Plus className="h-4 w-4 mr-2" /> Novo Negócio
+                        <Plus className="h-4 w-4 mr-2" /> Novo negócio
                     </Button>
                 </div>
             </div>
@@ -1269,7 +1269,7 @@ export default function NegociosPage() {
                                 className="w-full h-[80px] rounded-lg border-2 border-dashed border-border hover:border-primary/50 text-muted-foreground hover:text-foreground flex items-center justify-center gap-2 transition-colors"
                             >
                                 <Plus className="h-5 w-5" />
-                                <span className="font-medium">Nova Etapa</span>
+                                <span className="font-medium">Nova etapa</span>
                             </button>
                         </div>
                     </div>

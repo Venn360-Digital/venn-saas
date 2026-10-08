@@ -85,7 +85,7 @@ export async function PATCH(request: NextRequest) {
                 console.error('[PASSWORD_PATCH] Could not clear legacy hash:', error)
             })
 
-        return NextResponse.json({ success: true, message: 'Senha alterada com sucesso' })
+        return NextResponse.json({ success: true, message: 'Senha alterada' })
     } catch (error) {
         console.error('[PASSWORD_PATCH] Error:', error)
         return NextResponse.json({ error: 'Erro ao alterar senha' }, { status: 500 })
