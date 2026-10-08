@@ -10,9 +10,12 @@ import {
     CalendarPlus,
     Check,
     CheckCheck,
+    CheckCircle2,
+    ChevronDown,
     Copy,
     FileText,
     Film,
+    Hand,
     Image as ImageIcon,
     Loader2,
     Mail,
@@ -36,6 +39,15 @@ import {
     XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
+import { Toggle } from '@/components/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { RowActionItem, RowActionsSeparator } from '@/components/shared/RowActions'
 import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
 import {
@@ -1507,6 +1519,16 @@ export default function ConversasPage() {
 
     const conv = conversationDetail?.conversation
 
+    /* Quem está com a conversa, em uma linha. Era metadado cinza de 11px ao
+       lado do telefone; vira o rótulo do controle que muda esse mesmo estado. */
+    const conversationStateLabel = !conv
+        ? ''
+        : conv.status === 'closed'
+          ? 'Finalizada'
+          : conv.assignedToName
+            ? `Com ${conv.assignedToName.split(' ')[0]}`
+            : 'No bot'
+
     return (
         <>
             <div className="flex h-full min-h-0">
@@ -1759,150 +1781,235 @@ export default function ConversasPage() {
                                     </div>
                                 </div>
 
-                                {/* Action buttons */}
-                                <div className="flex items-center gap-1">
+                                {/* ── Comandos ──────────────────────────────
+                                    Duas famílias, separadas: o que muda a
+                                    conversa (o chip de estado e a ação óbvia
+                                    do momento) e o que muda a sua visão
+                                    (busca, agenda, etiquetas, painel). Antes
+                                    eram oito controles em fila, com o excluir
+                                    permanente encostado no finalizar. */}
+                                <div className="flex shrink-0 items-center gap-2">
+                                    {/* O chip diz quem está com a conversa e
+                                        guarda todas as transições. O estado
+                                        era texto cinza de 11px; agora é o
+                                        comando. */}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="h-8 gap-2 rounded-full pr-2.5 pl-3 font-semibold"
+                                                aria-label={`Estado da conversa: ${conversationStateLabel}. Abrir ações`}
+                                            >
+                                                <span
+                                                    aria-hidden="true"
+                                                    className={cn(
+                                                        'size-2 rounded-full',
+                                                        conv.status === 'closed'
+                                                            ? 'bg-muted-foreground'
+                                                            : conv.assignedTo
+                                                              ? 'bg-primary'
+                                                              : 'bg-muted-foreground'
+                                                    )}
+                                                />
+                                                <span className="max-w-[12ch] truncate">
+                                                    {conversationStateLabel}
+                                                </span>
+                                                <ChevronDown className="size-3.5 opacity-70" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-52">
+                                            {conv.status === 'active' && !conv.assignedTo && (
+                                                <RowActionItem
+                                                    icon={Hand}
+                                                    onClick={() => handleAction('assign')}
+                                                >
+                                                    Assumir
+                                                </RowActionItem>
+                                            )}
+                                            {conv.assignedTo && (
+                                                <RowActionItem
+                                                    icon={UserX}
+                                                    onClick={() => handleAction('unassign')}
+                                                >
+                                                    Devolver ao bot
+                                                </RowActionItem>
+                                            )}
+                                            {conv.assignedTo && canTransfer && (
+                                                <RowActionItem
+                                                    icon={ArrowRightLeft}
+                                                    onClick={() => openTransferModal(conv.id)}
+                                                >
+                                                    Transferir
+                                                </RowActionItem>
+                                            )}
+                                            {conv.status === 'active' && (
+                                                <RowActionItem
+                                                    icon={XCircle}
+                                                    onClick={() => handleAction('close')}
+                                                >
+                                                    Finalizar
+                                                </RowActionItem>
+                                            )}
+                                            {conv.status === 'closed' && (
+                                                <RowActionItem
+                                                    icon={RotateCcw}
+                                                    onClick={() => handleAction('reopen')}
+                                                >
+                                                    Reabrir
+                                                </RowActionItem>
+                                            )}
+                                            {/* O separador é o ponto: apagar a
+                                                conversa leva junto mensagens,
+                                                áudios e anexos, e encostava no
+                                                finalizar, que tem Reabrir. */}
+                                            <RowActionsSeparator />
+                                            <RowActionItem
+                                                icon={Trash2}
+                                                destructive
+                                                onClick={() => setShowDeleteDialog(true)}
+                                            >
+                                                Excluir conversa
+                                            </RowActionItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+
+                                    {/* A única ação óbvia daquele estado, a um
+                                        clique. Tudo o mais mora no chip. */}
                                     {conv.status === 'active' && !conv.assignedTo && (
                                         <Button
                                             size="sm"
-                                            variant="outline"
                                             onClick={() => handleAction('assign')}
-                                            className="text-xs gap-1"
+                                            className="h-8 gap-1.5"
                                         >
-                                            <UserCheck className="h-3.5 w-3.5" />
+                                            <Hand className="size-3.5" />
                                             Assumir
                                         </Button>
                                     )}
-                                    {conv.assignedTo && (
+                                    {conv.status === 'active' && conv.assignedTo && (
                                         <Button
                                             size="sm"
-                                            variant="outline"
-                                            onClick={() => handleAction('unassign')}
-                                            className="text-xs gap-1"
-                                        >
-                                            <UserX className="h-3.5 w-3.5" />
-                                            Devolver ao bot
-                                        </Button>
-                                    )}
-                                    {/* Transfer button — only show if user has canTransfer permission */}
-                                    {conv.assignedTo && canTransfer && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => openTransferModal(conv.id)}
-                                            className="text-xs gap-1"
-                                        >
-                                            <ArrowRightLeft className="h-3.5 w-3.5" />
-                                            Transferir
-                                        </Button>
-                                    )}
-                                    {conv.status === 'active' && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
                                             onClick={() => handleAction('close')}
-                                            className="text-xs gap-1 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                                            className="h-8 gap-1.5"
                                         >
-                                            <XCircle className="h-3.5 w-3.5" />
+                                            <CheckCircle2 className="size-3.5" />
                                             Finalizar
                                         </Button>
                                     )}
                                     {conv.status === 'closed' && (
                                         <Button
                                             size="sm"
-                                            variant="outline"
                                             onClick={() => handleAction('reopen')}
-                                            className="text-xs gap-1"
+                                            className="h-8 gap-1.5"
                                         >
-                                            <RotateCcw className="h-3.5 w-3.5" />
+                                            <RotateCcw className="size-3.5" />
                                             Reabrir
                                         </Button>
                                     )}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setShowDeleteDialog(true)}
-                                        className="text-xs gap-1 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground hover:bg-destructive/10"
-                                        title="Excluir conversa permanentemente"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
 
-                                    <Button
-                                        size="sm"
-                                        variant={showSearch ? 'secondary' : 'ghost'}
-                                        onClick={() => { setShowSearch(!showSearch); if (showSearch) setConversationSearch('') }}
-                                        className="text-xs gap-1 h-8 w-8 p-0"
-                                        title="Buscar na conversa"
-                                    >
-                                        <Search className="h-3.5 w-3.5" />
-                                    </Button>
+                                    <Separator
+                                        orientation="vertical"
+                                        className="mx-0.5 !h-5"
+                                    />
 
-                                    {/* `/agendar` é atalho, não o único caminho:
-                                        quem não conhece a barra precisa ver a
-                                        ação. */}
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-8 w-8 gap-1 p-0 text-xs"
-                                        title="Agendar consulta"
-                                        aria-label="Agendar consulta deste paciente"
-                                        onClick={() => setScheduleOpen(true)}
-                                    >
-                                        <CalendarPlus className="h-3.5 w-3.5" />
-                                    </Button>
+                                    {/* Ferramentas de visão. Buscar e o painel
+                                        são estados ligado/desligado: viram
+                                        Toggle, que anuncia `aria-pressed` —
+                                        trocar `variant` não anunciava nada. */}
+                                    <div className="flex items-center gap-0.5">
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    pressed={showSearch}
+                                                    onPressedChange={next => {
+                                                        setShowSearch(next)
+                                                        if (!next) setConversationSearch('')
+                                                    }}
+                                                    aria-label="Buscar na conversa"
+                                                >
+                                                    <Search className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Buscar na conversa</TooltipContent>
+                                        </Tooltip>
 
-                                    {/* Etiquetas — Popover, não div com z-50:
-                                        o primitivo trata Esc, clique fora, foco
-                                        e aria-expanded, que a versão artesanal
-                                        não tratava. */}
-                                    <Popover open={showTagPicker} onOpenChange={setShowTagPicker}>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                size="sm"
-                                                variant={showTagPicker ? 'secondary' : 'ghost'}
-                                                className="h-8 w-8 gap-1 p-0 text-xs"
-                                                title="Etiquetas"
-                                                aria-label="Etiquetas da conversa"
-                                            >
-                                                <Tag className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent align="end" className="max-h-[240px] w-56 overflow-y-auto p-1">
-                                            {availableTags.length === 0 ? (
-                                                <p className="px-3 py-2 text-xs text-muted-foreground">
-                                                    Nenhuma etiqueta cadastrada. Crie em Atendimento &amp; IA → Etiquetas.
-                                                </p>
-                                            ) : (
-                                                availableTags.map(tag => {
-                                                    const isAdded = conversationTags.some(t => t.id === tag.id)
-                                                    return (
-                                                        <button
-                                                            key={tag.id}
-                                                            onClick={() => isAdded ? removeTagFromConversation(tag.id) : addTagToConversation(tag)}
-                                                            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60"
+                                        {/* `/agendar` é atalho, não o único
+                                            caminho: quem não conhece a barra
+                                            precisa ver a ação. */}
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon-sm"
+                                                    aria-label="Agendar consulta deste paciente"
+                                                    onClick={() => setScheduleOpen(true)}
+                                                >
+                                                    <CalendarPlus className="size-3.5" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Agendar consulta</TooltipContent>
+                                        </Tooltip>
+
+                                        {/* Etiquetas — Popover, não div com
+                                            z-50: o primitivo trata Esc, clique
+                                            fora, foco e aria-expanded, que a
+                                            versão artesanal não tratava. */}
+                                        <Popover open={showTagPicker} onOpenChange={setShowTagPicker}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant={showTagPicker ? 'secondary' : 'ghost'}
+                                                            size="icon-sm"
+                                                            aria-label="Etiquetas da conversa"
                                                         >
-                                                            <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                                                            <span className="flex-1 truncate text-left">{tag.name}</span>
-                                                            {isAdded && <Check className="h-3.5 w-3.5 text-primary" />}
-                                                        </button>
-                                                    )
-                                                })
-                                            )}
-                                        </PopoverContent>
-                                    </Popover>
+                                                            <Tag className="size-3.5" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Etiquetas</TooltipContent>
+                                            </Tooltip>
+                                            <PopoverContent align="end" className="max-h-[240px] w-56 overflow-y-auto p-1">
+                                                {availableTags.length === 0 ? (
+                                                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                                                        Nenhuma etiqueta cadastrada. Crie em Atendimento &amp; IA → Etiquetas.
+                                                    </p>
+                                                ) : (
+                                                    availableTags.map(tag => {
+                                                        const isAdded = conversationTags.some(t => t.id === tag.id)
+                                                        return (
+                                                            <button
+                                                                key={tag.id}
+                                                                onClick={() => isAdded ? removeTagFromConversation(tag.id) : addTagToConversation(tag)}
+                                                                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60"
+                                                            >
+                                                                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                                <span className="flex-1 truncate text-left">{tag.name}</span>
+                                                                {isAdded && <Check className="h-3.5 w-3.5 text-primary" />}
+                                                            </button>
+                                                        )
+                                                    })
+                                                )}
+                                            </PopoverContent>
+                                        </Popover>
 
-                                    <Button
-                                        size="sm"
-                                        variant={showContactPanel ? 'secondary' : 'ghost'}
-                                        onClick={() => setShowContactPanel(!showContactPanel)}
-                                        className="text-xs gap-1 h-8 w-8 p-0"
-                                        title="Dados do contato"
-                                    >
-                                        <PanelRight className="h-3.5 w-3.5" />
-                                    </Button>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    pressed={showContactPanel}
+                                                    onPressedChange={setShowContactPanel}
+                                                    aria-label="Dados do contato"
+                                                >
+                                                    <PanelRight className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Dados do contato</TooltipContent>
+                                        </Tooltip>
+                                    </div>
                                 </div>
                             </div>
-
                             {/* Tags ribbon */}
                             {conversationTags.length > 0 && (
                                 <div className="flex items-center gap-1.5 px-4 py-1.5 border-b bg-muted/30">
