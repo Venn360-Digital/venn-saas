@@ -1771,12 +1771,6 @@ export default function ConversasPage() {
                                                     {conv.agent.name}
                                                 </span>
                                             )}
-                                            {conv.assignedToName && (
-                                                <span className="flex items-center gap-1">
-                                                    <UserCheck className="h-3 w-3" />
-                                                    {conv.assignedToName}
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
