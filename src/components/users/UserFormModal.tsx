@@ -83,8 +83,8 @@ export function UserFormModal({
     })
 
     const isEditing = !!user
-    // The workspace owner cannot be demoted, here or in the API.
-    const roleLocked = !!user?.isFirstAdmin
+    // The founding member cannot be demoted or deactivated, here or in the API.
+    const isProtectedMember = !!user?.isFirstAdmin
 
     useEffect(() => {
         if (user) {
@@ -288,7 +288,7 @@ export function UserFormModal({
                         <RadioGroup
                             value={formData.role}
                             onValueChange={(v) => setFormData({ ...formData, role: v as Role })}
-                            disabled={roleLocked}
+                            disabled={isProtectedMember}
                             className="grid gap-2 sm:grid-cols-3"
                         >
                             {ROLES.map((role) => {
@@ -302,7 +302,7 @@ export function UserFormModal({
                                             selected
                                                 ? 'border-primary bg-primary-subtle'
                                                 : 'border-border hover:border-border-strong',
-                                            roleLocked && 'cursor-not-allowed opacity-60'
+                                            isProtectedMember && 'cursor-not-allowed opacity-60'
                                         )}
                                     >
                                         <RadioGroupItem
@@ -322,7 +322,7 @@ export function UserFormModal({
                                 )
                             })}
                         </RadioGroup>
-                        {roleLocked ? (
+                        {isProtectedMember ? (
                             <p className="text-xs text-muted-foreground">
                                 O administrador principal não pode mudar de função.
                             </p>
@@ -348,14 +348,18 @@ export function UserFormModal({
 
                         <div className="flex items-start justify-between gap-4 border-t border-border pt-3">
                             <div className="min-w-0">
-                                <Label htmlFor="user-active">Ativo</Label>
+                                <Label htmlFor="user-deactivate">Desativar usuário</Label>
                                 <p className="text-xs text-muted-foreground">
-                                    Desativar remove o acesso sem apagar o histórico.
+                                    {isProtectedMember
+                                        ? 'O administrador principal não pode ser desativado.'
+                                        : 'Desativar encerra o acesso da pessoa a esta clínica e a tira das filas e das transferências. As conversas e mensagens dela permanecem no sistema.'}
                                 </p>
                             </div>
+                            {/* On is active, off is deactivated. */}
                             <Switch
-                                id="user-active"
+                                id="user-deactivate"
                                 checked={formData.isActive}
+                                disabled={isProtectedMember}
                                 onCheckedChange={(v) => setFormData({ ...formData, isActive: v })}
                             />
                         </div>

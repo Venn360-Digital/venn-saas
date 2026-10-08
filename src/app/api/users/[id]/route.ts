@@ -158,6 +158,15 @@ export async function PATCH(
         const body = await request.json()
         const validatedData = updateUserSchema.parse(body)
 
+        // The form has no OWNER option: it shows an owner as "Administrador" and
+        // sends ADMIN back. Read literally that demotes the owner, and on the
+        // founding member it tripped the guard below, so every save was rejected
+        // — a single switch included. A role that already reads as ADMIN in the
+        // form is not a role change.
+        if (validatedData.role === (target.role === 'OWNER' ? 'ADMIN' : target.role)) {
+            delete validatedData.role
+        }
+
         if (isFoundingMember && validatedData.role && validatedData.role !== firstMember?.role) {
             return NextResponse.json(
                 { error: 'Não é possível alterar a função do administrador principal' },

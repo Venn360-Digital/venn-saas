@@ -64,6 +64,16 @@ export async function GET(request: NextRequest) {
             ]
         }
 
+        // The founding member, identified on the whole workspace. Deriving it
+        // from the page index instead flagged the wrong person: the first row of
+        // page 2, or of a filtered search, and never the founder when their role
+        // is OWNER rather than ADMIN.
+        const foundingMember = await prisma.workspaceUser.findFirst({
+            where: { workspaceId: workspaceUser.workspaceId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true }
+        })
+
         const [users, total] = await Promise.all([
             prisma.workspaceUser.findMany({
                 where,
@@ -95,7 +105,7 @@ export async function GET(request: NextRequest) {
         console.log('[USERS_GET] Found', users.length, 'users')
 
         return NextResponse.json({
-            data: users.map((wu, index) => ({
+            data: users.map((wu) => ({
                 id: wu.id,
                 userId: wu.userId,
                 name: wu.user.name,
@@ -108,7 +118,7 @@ export async function GET(request: NextRequest) {
                 departmentName: wu.department?.name,
                 canTransfer: wu.canTransfer,
                 isActive: wu.isActive,
-                isFirstAdmin: index === 0 && wu.role === 'ADMIN', // First user is protected
+                isFirstAdmin: wu.id === foundingMember?.id, // First member is protected
                 createdAt: wu.createdAt,
             })),
             pagination: {
