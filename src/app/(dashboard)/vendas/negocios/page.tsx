@@ -1017,6 +1017,57 @@ export default function NegociosPage() {
     const STAGE_COLORS = PICKER_RAMP
 
     // ─── Computed ───────────────────────────────────────────────────
+    /* The row menu. Shared by the table cell and the mobile card: with the
+       row no longer clickable, the card has no other way into a deal. */
+    const dealActions = (deal: Deal) => (
+        <RowActions label={`Ações do negócio ${deal.title}`}>
+            <RowActionItem
+                icon={Pencil}
+                onClick={() => handleEditDealWithActivities(deal)}
+            >
+                Editar
+            </RowActionItem>
+            {deal.status === 'open' ? (
+                <>
+                    <RowActionItem
+                        icon={Trophy}
+                        onClick={() => handleStatusChange(deal, 'won')}
+                    >
+                        Ganho
+                    </RowActionItem>
+                    <RowActionItem
+                        icon={XCircle}
+                        onClick={() => handleStatusChange(deal, 'lost')}
+                    >
+                        Perdido
+                    </RowActionItem>
+                </>
+            ) : (
+                <RowActionItem
+                    icon={ArrowRight}
+                    onClick={() => handleStatusChange(deal, 'open')}
+                >
+                    Reabrir
+                </RowActionItem>
+            )}
+            {canEdit ? (
+                <>
+                    <RowActionsSeparator />
+                    <RowActionItem
+                        icon={Trash2}
+                        destructive
+                        onClick={() => {
+                            setDealToDelete(deal)
+                            setDeleteDialogOpen(true)
+                        }}
+                    >
+                        Excluir
+                    </RowActionItem>
+                </>
+            ) : null}
+        </RowActions>
+    )
+
     /* The list view's shape. Lives here rather than inline in the JSX so the
        hidden-below breakpoints are declared once, next to the data. */
     const listColumns: Column<Deal>[] = [
@@ -1241,12 +1292,14 @@ export default function NegociosPage() {
                     columns={listColumns}
                     rows={listDeals}
                     getRowId={deal => deal.id}
-                    onRowClick={deal => handleEditDealWithActivities(deal)}
                     mobile={deal => (
                         <div className="space-y-1.5">
                             <div className="flex items-start justify-between gap-2">
                                 <span className="font-medium">{deal.title}</span>
-                                <StatusBadge status={deal.status} />
+                                <div className="flex shrink-0 items-center gap-1">
+                                    <StatusBadge status={deal.status} />
+                                    {dealActions(deal)}
+                                </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                 <span
@@ -1269,54 +1322,7 @@ export default function NegociosPage() {
                             </div>
                         </div>
                     )}
-                    rowActions={deal => (
-                        <RowActions label={`Ações do negócio ${deal.title}`}>
-                            <RowActionItem
-                                icon={Pencil}
-                                onClick={() => handleEditDealWithActivities(deal)}
-                            >
-                                Editar
-                            </RowActionItem>
-                            {deal.status === 'open' ? (
-                                <>
-                                    <RowActionItem
-                                        icon={Trophy}
-                                        onClick={() => handleStatusChange(deal, 'won')}
-                                    >
-                                        Ganho
-                                    </RowActionItem>
-                                    <RowActionItem
-                                        icon={XCircle}
-                                        onClick={() => handleStatusChange(deal, 'lost')}
-                                    >
-                                        Perdido
-                                    </RowActionItem>
-                                </>
-                            ) : (
-                                <RowActionItem
-                                    icon={ArrowRight}
-                                    onClick={() => handleStatusChange(deal, 'open')}
-                                >
-                                    Reabrir
-                                </RowActionItem>
-                            )}
-                            {canEdit ? (
-                                <>
-                                    <RowActionsSeparator />
-                                    <RowActionItem
-                                        icon={Trash2}
-                                        destructive
-                                        onClick={() => {
-                                            setDealToDelete(deal)
-                                            setDeleteDialogOpen(true)
-                                        }}
-                                    >
-                                        Excluir
-                                    </RowActionItem>
-                                </>
-                            ) : null}
-                        </RowActions>
-                    )}
+                    rowActions={dealActions}
                     empty={
                         <EmptyState
                             variant="inline"
