@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const kind = String(body.kind ?? '')
     const name = String(body.name ?? '').trim()
-    if (!KINDS.has(kind)) return NextResponse.json({ error: 'Desfecho inválido' }, { status: 400 })
+    if (!KINDS.has(kind)) return NextResponse.json({ error: 'Finalização inválida' }, { status: 400 })
     if (!name) return NextResponse.json({ error: 'Informe o motivo' }, { status: 400 })
 
     const last = await prisma.dealOutcomeReason.findFirst({

@@ -164,7 +164,7 @@ export function OutcomeDialog({
                             <p className="text-xs text-muted-foreground">Carregando motivos…</p>
                         ) : options.length === 0 ? (
                             <p className="text-xs text-muted-foreground">
-                                Nenhum motivo cadastrado para este desfecho. Cadastre em Negócios → Motivos.
+                                Nenhum motivo cadastrado para esta finalização. Cadastre em Negócios → Motivos.
                             </p>
                         ) : (
                             <Select value={reasonId} onValueChange={setReasonId}>

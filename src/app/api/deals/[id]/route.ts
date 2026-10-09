@@ -103,7 +103,7 @@ export async function PATCH(
                     select: { id: true },
                 })
                 if (!reason) {
-                    return NextResponse.json({ error: 'Motivo inválido para este desfecho' }, { status: 400 })
+                    return NextResponse.json({ error: 'Motivo inválido para esta finalização' }, { status: 400 })
                 }
 
                 updateData.outcomeReasonId = outcomeReasonId

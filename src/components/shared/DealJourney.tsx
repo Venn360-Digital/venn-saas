@@ -296,7 +296,7 @@ export function DealJourney({
                     )
                 })}
 
-                {/* Desfecho: item fixo, não etapa.
+                {/* Finalização: item fixo, não etapa.
                     Ganho e perdido não são posições — um negócio fechado saiu do
                     funil, e como coluna cresceria para sempre e apagaria a fase
                     em que fechou, que é o dado mais útil de uma perda. */}
@@ -349,7 +349,7 @@ export function DealJourney({
                         ) : (
                             <div className="rounded-md border border-dashed border-border-strong p-2">
                                 <div className="flex items-center gap-1.5">
-                                    <span className="text-[13px] text-muted-foreground">Desfecho</span>
+                                    <span className="text-[13px] text-muted-foreground">Finalização</span>
                                 </div>
                                 <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                                     <button
