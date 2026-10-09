@@ -1,0 +1,137 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+import prisma from '@/lib/prisma'
+import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
+import { LLMFactory } from '@/lib/llm/factory'
+import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
+
+/** Barato de propósito: resumir não precisa do modelo caro. */
+const SUMMARY_MODEL = 'gpt-4o-mini'
+
+/** Quantas mensagens o resumo lê. O começo da conversa é onde está o pedido. */
+const WINDOW = 120
+
+const SYSTEM = `Você resume conversas de atendimento de uma clínica odontológica para a própria equipe.
+Escreva em português do Brasil, direto, sem saudação e sem repetir o que o atendente já sabe.
+Responda exatamente nestas quatro seções, cada uma começando pelo rótulo seguido de ":".
+Resumo: dois a três períodos sobre o que o paciente quer e onde o atendimento parou.
+Pendências: tópicos com "- ", o que falta fazer. Escreva "- Nenhuma" se não houver.
+Combinados: tópicos com "- ", datas, valores e procedimentos acordados. Escreva "- Nenhum" se não houver.
+Tom: uma linha sobre o estado do paciente (apressado, inseguro, satisfeito, irritado).
+Não invente datas, valores ou procedimentos que não estejam na conversa.`
+
+/**
+ * O resumo da conversa, lido e gerado.
+ *
+ * GET devolve o que está guardado e nunca cobra — abrir o painel é de graça.
+ * POST gera, debita o crédito e guarda. Essa separação é o ponto: a versão em
+ * que abrir o painel chamava o modelo cobraria da clínica cada vez que alguém
+ * clicasse no ícone por curiosidade.
+ */
+export async function GET(
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params
+    const auth = await getWorkspaceMember()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    const conversation = await prisma.conversation.findFirst({
+        where: { id, workspaceId: auth.member.workspaceId },
+        select: { summaryText: true, summaryAt: true, summaryUntilId: true },
+    })
+    if (!conversation) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+
+    return NextResponse.json({
+        summary: conversation.summaryText,
+        generatedAt: conversation.summaryAt,
+        newMessages: await countSince(id, conversation.summaryUntilId),
+    })
+}
+
+export async function POST(
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params
+    const auth = await getWorkspaceMember()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    if (!(await assertConversationAccess(id, auth.member.workspaceId))) {
+        return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
+    }
+
+    // O crédito é verificado antes da chamada: estourar depois de gastar o
+    // token seria cobrar por um resumo que o cliente não pediu.
+    const credits = await checkCredits(auth.member.workspaceId)
+    if (!credits.hasCredits) {
+        return NextResponse.json(
+            { error: 'Sem créditos de IA. Compre créditos em Plano e créditos para gerar o resumo.' },
+            { status: 402 }
+        )
+    }
+
+    const recent = await prisma.message.findMany({
+        where: { conversationId: id, isInternal: false },
+        orderBy: { createdAt: 'desc' },
+        take: WINDOW,
+        select: { id: true, direction: true, content: true, transcript: true, contentType: true, createdAt: true },
+    })
+    if (recent.length === 0) {
+        return NextResponse.json({ error: 'A conversa ainda não tem mensagens para resumir' }, { status: 400 })
+    }
+
+    const chronological = [...recent].reverse()
+    const transcriptText = chronological
+        .map((m) => {
+            const who = m.direction === 'inbound' ? 'Paciente' : 'Clínica'
+            // Áudio entra pela transcrição: sem isso o resumo veria "[audio]".
+            const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
+            const when = m.createdAt.toISOString().slice(0, 10)
+            return `${when} ${who}: ${body}`
+        })
+        .join('\n')
+
+    try {
+        const llm = LLMFactory.create('openai', { model: SUMMARY_MODEL, temperature: 0.2, maxTokens: 600 })
+        const result = await llm.generate([
+            { role: 'system', content: SYSTEM },
+            { role: 'user', content: transcriptText },
+        ])
+
+        await trackUsage('openai', SUMMARY_MODEL, result.usage, {
+            workspaceId: auth.member.workspaceId,
+            metadata: { kind: 'conversation_summary', conversationId: id },
+        })
+
+        const lastId = chronological[chronological.length - 1].id
+        const generatedAt = new Date()
+        await prisma.conversation.update({
+            where: { id },
+            data: { summaryText: result.content, summaryAt: generatedAt, summaryUntilId: lastId },
+        })
+
+        return NextResponse.json({
+            summary: result.content,
+            generatedAt,
+            newMessages: 0,
+            messagesRead: chronological.length,
+        })
+    } catch (error) {
+        console.error('[CONVERSATION_SUMMARY] falhou:', error)
+        return NextResponse.json({ error: 'Não foi possível gerar o resumo agora' }, { status: 502 })
+    }
+}
+
+/** Quantas mensagens chegaram depois da última que o resumo leu. */
+async function countSince(conversationId: string, untilId: string | null): Promise<number> {
+    if (!untilId) return 0
+    const until = await prisma.message.findUnique({
+        where: { id: untilId },
+        select: { createdAt: true },
+    })
+    if (!until) return 0
+    return prisma.message.count({
+        where: { conversationId, isInternal: false, createdAt: { gt: until.createdAt } },
+    })
+}

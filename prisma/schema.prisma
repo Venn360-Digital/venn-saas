@@ -2,13 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
   extensions = [vector]
 }
 
@@ -18,21 +18,21 @@ datasource db {
 
 model User {
   termsAcceptances TermsAcceptance[]
-  id             String   @id @default(cuid())
-  email          String   @unique
-  name           String?
-  lastName       String?              // Sobrenome
-  phone          String?              // WhatsApp
-  hashedPassword String?              // Senha hash (para alteração de senha)
-  avatar         String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String?
+  lastName         String? // Sobrenome
+  phone            String? // WhatsApp
+  hashedPassword   String? // Senha hash (para alteração de senha)
+  avatar           String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
   // Multi-workspace support
-  workspaces    WorkspaceUser[]
-  activities    Activity[]
-  deals         Deal[]
-  
+  workspaces WorkspaceUser[]
+  activities Activity[]
+  deals      Deal[]
+
   @@map("users")
 }
 
@@ -40,64 +40,64 @@ model Workspace {
   creditPurchases  CreditPurchase[]
   notificationLogs NotificationLog[]
   termsAcceptances TermsAcceptance[]
-  id            String   @id @default(cuid())
-  name          String
-  slug          String   @unique
-  avatar        String?
-  settings      Json?    // Tema, idioma, fuso horário
-  
+  id               String            @id @default(cuid())
+  name             String
+  slug             String            @unique
+  avatar           String?
+  settings         Json? // Tema, idioma, fuso horário
+
   // Company Details
-  cnpj          String?              // CNPJ da empresa
-  address       String?              // Endereço completo
-  phone         String?              // Telefone comercial
-  logo          String?              // Logo para relatórios
-  
+  cnpj    String? // CNPJ da empresa
+  address String? // Endereço completo
+  phone   String? // Telefone comercial
+  logo    String? // Logo para relatórios
+
   // The workspace that operates the product itself. Its OWNER administers the
   // platform-wide integration credentials every clinic connects through, so
   // there is no second permission list to keep in sync with the roles.
-  isPlatform    Boolean  @default(false)
+  isPlatform Boolean @default(false)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  users         WorkspaceUser[]
-  agents        Agent[]
+  users          WorkspaceUser[]
+  agents         Agent[]
   outcomeReasons DealOutcomeReason[]
-  contacts      Contact[]
-  deals         Deal[]
-  conversations Conversation[]
-  integrations  Integration[]
-  subscription  Subscription?
-  departments   Department[]
-  tags          Tag[]
-  products      ProductService[]
-  activities    Activity[]
+  contacts       Contact[]
+  deals          Deal[]
+  conversations  Conversation[]
+  integrations   Integration[]
+  subscription   Subscription?
+  departments    Department[]
+  tags           Tag[]
+  products       ProductService[]
+  activities     Activity[]
   pipelineStages PipelineStage[]
   quickResponses QuickResponse[]
-  usageLogs     UsageLog[]
-  agencies      Agency[]
-  medias        Media[]
-  customFields  CustomFieldDefinition[]
+  usageLogs      UsageLog[]
+  agencies       Agency[]
+  medias         Media[]
+  customFields   CustomFieldDefinition[]
 
   @@map("workspaces")
 }
 
 model WorkspaceUser {
-  id           String      @id @default(cuid())
+  id           String   @id @default(cuid())
   workspaceId  String
   userId       String
-  role         String      // OWNER, ADMIN, GESTOR, ATENDENTE
+  role         String // OWNER, ADMIN, GESTOR, ATENDENTE
   departmentId String?
-  canTransfer  Boolean     @default(false)
-  isActive     Boolean     @default(true)
-  permissions  Json?       // Granular permissions
-  createdAt    DateTime    @default(now())
-  
-  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  department   Department? @relation(fields: [departmentId], references: [id])
-  
+  canTransfer  Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  permissions  Json? // Granular permissions
+  createdAt    DateTime @default(now())
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id])
+
   @@unique([workspaceId, userId])
   @@index([departmentId])
   @@map("workspace_users")
@@ -108,18 +108,18 @@ model WorkspaceUser {
 // ============================================
 
 model QuickResponse {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
-  
-  command     String   // Ex: /saudacao, /precos
-  text        String   @db.Text
-  isActive    Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
+  command  String // Ex: /saudacao, /precos
+  text     String  @db.Text
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   @@unique([workspaceId, command])
   @@index([workspaceId])
   @@map("quick_responses")
@@ -133,54 +133,53 @@ model Agent {
   /// Set when a downgrade pushed this agent past the plan's allowance. The user
   /// cannot switch it back on; only a plan that fits releases it.
   pausedByLimit Boolean @default(false)
-  id            String   @id @default(cuid())
+  id            String  @id @default(cuid())
   workspaceId   String
   name          String
   description   String?
   avatar        String?
-  
-  // AI Configuration
-  llmProvider   String   // "openai" — único provedor do MVP; ver src/types/llm.ts
-  llmModel      String   // ver OPENAI_MODELS em src/lib/llm/models.ts
-  systemPrompt  String   @db.Text
-  temperature   Float    @default(0.7)
-  
-  // PERFIL
-  initialMessage    String?  @db.Text  // Mensagem inicial do agente
-  agentFunction     String?             // "sdr_atendimento" | "vendas" | "suporte"
-  
-  // TRABALHO
-  jobDescription    String?  @db.Text  // Funções e atribuições
-  companyName       String?             // Nome da empresa
-  companySector     String?             // Setor da empresa
-  companyWebsite    String?             // Site da empresa
-  companyDescription String? @db.Text   // Descrição da empresa
-  
-  // Visual & Tone
-  primaryColor  String   @default("#3B82F6")
-  voiceTone     String?  // "formal", "casual", "friendly"
-  language      String   @default("pt-BR")
-  
-  // VOZ (para futuro)
-  voiceEnabled      Boolean  @default(false)
-  voiceModel        String?             // Modelo de voz
-  voiceTraining     String?  @db.Text  // Instruções de treinamento
-  
-  // VISUAL
-  visualConfig      Json?               // { userMessageColor, userFontColor, agentMessageColor, agentFontColor }
-  
-  // Knowledge Base
-  knowledgeBase Json?    // Funções, FAQs, dados da empresa
-  
-  // PREFERÊNCIAS DA CONVERSA (Menu Comandos de Intenção)
-  preferences   Json?    // { showTypingIndicator, responseSpeed, keepContext, useEmojis, allowManualTakeover, restrictTopics, interactionLimit }
 
-  
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // AI Configuration
+  llmProvider  String // "openai" — único provedor do MVP; ver src/types/llm.ts
+  llmModel     String // ver OPENAI_MODELS em src/lib/llm/models.ts
+  systemPrompt String @db.Text
+  temperature  Float  @default(0.7)
+
+  // PERFIL
+  initialMessage String? @db.Text // Mensagem inicial do agente
+  agentFunction  String? // "sdr_atendimento" | "vendas" | "suporte"
+
+  // TRABALHO
+  jobDescription     String? @db.Text // Funções e atribuições
+  companyName        String? // Nome da empresa
+  companySector      String? // Setor da empresa
+  companyWebsite     String? // Site da empresa
+  companyDescription String? @db.Text // Descrição da empresa
+
+  // Visual & Tone
+  primaryColor String  @default("#3B82F6")
+  voiceTone    String? // "formal", "casual", "friendly"
+  language     String  @default("pt-BR")
+
+  // VOZ (para futuro)
+  voiceEnabled  Boolean @default(false)
+  voiceModel    String? // Modelo de voz
+  voiceTraining String? @db.Text // Instruções de treinamento
+
+  // VISUAL
+  visualConfig Json? // { userMessageColor, userFontColor, agentMessageColor, agentFontColor }
+
+  // Knowledge Base
+  knowledgeBase Json? // Funções, FAQs, dados da empresa
+
+  // PREFERÊNCIAS DA CONVERSA (Menu Comandos de Intenção)
+  preferences Json? // { showTypingIndicator, responseSpeed, keepContext, useEmojis, allowManualTakeover, restrictTopics, interactionLimit }
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   rules         AgentRule[]
   conversations Conversation[]
   knowledgeDocs KnowledgeDocument[]
@@ -189,28 +188,27 @@ model Agent {
   customFields  AgentCustomField[]
   usageLogs     UsageLog[]
 
-  
   @@index([workspaceId])
   @@map("agents")
 }
 
 model AgentRule {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   agentId     String
   name        String
   description String?
-  
+
   // Condição → Ação (JSON/YAML)
-  conditions  Json     // Array de { type, operator, value }
-  actions     Json     // Array de { type, params }
-  
-  priority    Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
+  conditions Json // Array de { type, operator, value }
+  actions    Json // Array de { type, params }
+
+  priority  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
   @@index([agentId])
   @@map("agent_rules")
 }
@@ -221,28 +219,28 @@ model AgentIntegration {
   /// every workspace: a number belongs to one workspace at a time, which is what
   /// stops trials being chained with the same line.
   phoneNumber String?
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   agentId     String
-  
+
   // Tipo de canal
-  channel     String   // "site" | "whatsapp_qr" | "whatsapp_business" | "instagram" | "telegram" | "mercadolivre"
-  
+  channel String // "site" | "whatsapp_qr" | "whatsapp_business" | "instagram" | "telegram" | "mercadolivre"
+
   // Status da conexão
-  status      String   @default("disconnected") // "connected" | "disconnected" | "pending" | "error"
-  
+  status String @default("disconnected") // "connected" | "disconnected" | "pending" | "error"
+
   // Configurações específicas do canal (JSON)
-  config      Json?    // { qrCode, sessionId, accessToken, phoneNumber, etc }
-  
+  config Json? // { qrCode, sessionId, accessToken, phoneNumber, etc }
+
   // Metadados
-  connectedAt DateTime?
+  connectedAt  DateTime?
   lastActiveAt DateTime?
   errorMessage String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
   @@unique([agentId, channel])
   @@index([agentId])
   @@map("agent_integrations")
@@ -250,62 +248,62 @@ model AgentIntegration {
 
 // Webhooks do agente
 model AgentWebhook {
-  id          String   @id @default(cuid())
-  agentId     String
-  
+  id      String @id @default(cuid())
+  agentId String
+
   // Configuração
-  name        String
-  type        String   // "inbound" | "outbound"
-  url         String
-  
+  name String
+  type String // "inbound" | "outbound"
+  url  String
+
   // Autenticação
-  authType    String?  // "none" | "basic" | "bearer" | "api_key"
-  authConfig  Json?    // { username, password } | { token } | { key, header }
-  
+  authType   String? // "none" | "basic" | "bearer" | "api_key"
+  authConfig Json? // { username, password } | { token } | { key, header }
+
   // Status e saúde
-  status      String   @default("active") // "active" | "inactive" | "error"
-  healthScore Int      @default(100)      // 0-100
+  status          String    @default("active") // "active" | "inactive" | "error"
+  healthScore     Int       @default(100) // 0-100
   lastTriggeredAt DateTime?
-  lastErrorAt DateTime?
-  errorCount  Int      @default(0)
-  
+  lastErrorAt     DateTime?
+  errorCount      Int       @default(0)
+
   // Eventos que disparam (para outbound)
-  events      Json?    // ["message.received", "conversation.started", etc]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
+  events Json? // ["message.received", "conversation.started", etc]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
   @@index([agentId])
   @@map("agent_webhooks")
 }
 
 // Campos customizados do agente
 model AgentCustomField {
-  id          String   @id @default(cuid())
-  agentId     String
-  
+  id      String @id @default(cuid())
+  agentId String
+
   // Nome/Variável (ex: {{customer_name}})
-  variable    String
-  
+  variable String
+
   // Tipo do campo
-  fieldType   String   // "text" | "number" | "date" | "boolean" | "select"
-  
+  fieldType String // "text" | "number" | "date" | "boolean" | "select"
+
   // Configurações do campo (opções para select, etc)
-  config      Json?
-  
+  config Json?
+
   // Valor padrão
   defaultValue String?
-  
+
   // Ordem de exibição
-  order       Int      @default(0)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
+  order Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
   @@unique([agentId, variable])
   @@index([agentId])
   @@map("agent_custom_fields")
@@ -316,32 +314,32 @@ model AgentCustomField {
 // ============================================
 
 model Contact {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  
+  id          String @id @default(cuid())
+  workspaceId String
+
   // Basic Info
-  name          String?
-  email         String?
-  phone         String?
-  avatar        String?
-  
-  notes         String?  @db.Text  // Observações
-  
+  name   String?
+  email  String?
+  phone  String?
+  avatar String?
+
+  notes String? @db.Text // Observações
+
   // Custom Fields
-  customFields  Json?
-  
+  customFields Json?
+
   // Metadata
-  source        String?  // "whatsapp", "instagram", "manual"
+  source        String? // "whatsapp", "instagram", "manual"
   lastContactAt DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations Conversation[]
   deals         Deal[]
   activities    Activity[]
   tags          ContactTag[]
-  
+
   @@unique([workspaceId, phone])
   @@index([workspaceId])
   @@index([phone])
@@ -350,17 +348,17 @@ model Contact {
 }
 
 model Deal {
-  id              String   @id @default(cuid())
-  workspaceId     String
-  contactId       String?
-  userId          String?  // Deal owner
-  agencyId        String?
-  mediaId         String?
-  
-  title           String
-  value           Float?
-  currency        String   @default("BRL")
-  status          String   @default("open") // "open", "won", "lost"
+  id          String  @id @default(cuid())
+  workspaceId String
+  contactId   String?
+  userId      String? // Deal owner
+  agencyId    String?
+  mediaId     String?
+
+  title    String
+  value    Float?
+  currency String @default("BRL")
+  status   String @default("open") // "open", "won", "lost"
 
   /// O desfecho, quando houve: por que ganhou ou perdeu.
   ///
@@ -369,41 +367,41 @@ model Deal {
   /// campo serve os dois lados — quem fecha escolhe o lado primeiro, e a lista
   /// se filtra por ele.
   outcomeReasonId String?
-  outcomeNotes    String?  @db.Text
+  outcomeNotes    String? @db.Text
   /// A fase em que estava ao fechar. "Perdeu na Proposta" é o dado que diz onde
   /// o funil vaza, e sem isto ele se perde no instante do fechamento.
   closedStageId   String?
   /// O que de fato fechou. Proposta de 42 mil fechada em 38 é a diferença entre
   /// o que o funil mostra e o que entrou no caixa.
   closedValue     Float?
-  
+
   // Pipeline
-  stageId         String
-  probability     Int      @default(0) // 0-100
-  
+  stageId     String
+  probability Int    @default(0) // 0-100
+
   // Tracking (JSON: contact1/2/3, scheduled, attended, rework)
-  trackingData    Json?
-  
+  trackingData Json?
+
   // Metadata
-  source          String?
-  notes           String?  @db.Text
-  closedAt        DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact         Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  owner           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  agency          Agency?        @relation(fields: [agencyId], references: [id], onDelete: SetNull)
-  media           Media?         @relation(fields: [mediaId], references: [id], onDelete: SetNull)
-  stage           PipelineStage  @relation("DealCurrentStage", fields: [stageId], references: [id])
+  source    String?
+  notes     String?   @db.Text
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact       Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner         User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agency        Agency?            @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  media         Media?             @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  stage         PipelineStage      @relation("DealCurrentStage", fields: [stageId], references: [id])
   /// Relação nomeada: o negócio aponta para duas etapas — onde está e, se
   /// fechou, de onde saiu.
-  closedStage     PipelineStage? @relation("DealClosedStage", fields: [closedStageId], references: [id], onDelete: SetNull)
-  activities      Activity[]
-  stageEntries    DealStageEntry[]
-  outcomeReason   DealOutcomeReason? @relation(fields: [outcomeReasonId], references: [id], onDelete: SetNull)
-  
+  closedStage   PipelineStage?     @relation("DealClosedStage", fields: [closedStageId], references: [id], onDelete: SetNull)
+  activities    Activity[]
+  stageEntries  DealStageEntry[]
+  outcomeReason DealOutcomeReason? @relation(fields: [outcomeReasonId], references: [id], onDelete: SetNull)
+
   @@index([workspaceId])
   @@index([stageId])
   @@index([status])
@@ -415,18 +413,18 @@ model Deal {
 }
 
 model PipelineStage {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
   name        String
   order       Int
-  color       String   @default("#6B7280")
-  
+  color       String @default("#6B7280")
+
   deals       Deal[]           @relation("DealCurrentStage")
   closedDeals Deal[]           @relation("DealClosedStage")
   entries     DealStageEntry[]
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   @@index([workspaceId])
   @@map("pipeline_stages")
 }
@@ -460,8 +458,8 @@ model DealOutcomeReason {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  deals       Deal[]
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals     Deal[]
 
   @@index([workspaceId, kind, order])
   @@map("deal_outcome_reasons")
@@ -480,8 +478,8 @@ model DealStageEntry {
   userId    String?
   createdAt DateTime @default(now())
 
-  deal      Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  stage     PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  deal  Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  stage PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
   @@index([dealId, enteredAt])
   @@index([stageId])
@@ -493,10 +491,10 @@ model Agency {
   workspaceId String
   name        String
   createdAt   DateTime @default(now())
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  deals       Deal[]
-  
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals     Deal[]
+
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@map("agencies")
@@ -507,54 +505,54 @@ model Media {
   workspaceId String
   name        String
   createdAt   DateTime @default(now())
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  deals       Deal[]
-  
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals     Deal[]
+
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@map("medias")
 }
 
 model Activity {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   userId      String?
   contactId   String?
   dealId      String?
-  
-  type        String   // "call", "meeting", "email", "task", "note", "videocall", "followup"
+
+  type        String // "call", "meeting", "email", "task", "note", "videocall", "followup"
   title       String
-  description String?  @db.Text
-  
+  description String? @db.Text
+
   // Scheduling
   dueDate     DateTime?
-  startTime   String?    // "09:00"
-  endTime     String?    // "10:00"
+  startTime   String? // "09:00"
+  endTime     String? // "10:00"
   completedAt DateTime?
-  
+
   // Reminders
-  reminderMinutes Int?   // null = no reminder, 15, 30, 60, 1440 (1 day)
+  reminderMinutes Int? // null = no reminder, 15, 30, 60, 1440 (1 day)
   reminderSentAt  DateTime? // track if reminder was already sent
-  
+
   // Recurrence
-  recurrenceType     String?  // "daily", "weekly", "monthly", "yearly"
+  recurrenceType     String? // "daily", "weekly", "monthly", "yearly"
   recurrenceEnd      DateTime?
-  recurrenceParentId String?  // link to parent recurring activity
+  recurrenceParentId String? // link to parent recurring activity
   recurrenceParent   Activity?  @relation("ActivityRecurrence", fields: [recurrenceParentId], references: [id], onDelete: SetNull)
   recurrenceChildren Activity[] @relation("ActivityRecurrence")
-  
+
   // Google Calendar sync
-  googleCalendarEventId String?  // Google Calendar event ID for sync
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  
+  googleCalendarEventId String? // Google Calendar event ID for sync
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal      Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
   @@index([workspaceId])
   @@index([userId])
   @@index([dueDate])
@@ -571,29 +569,39 @@ model Conversation {
   /// "one per conversation" rule honest: a handoff notice must not repeat on
   /// every message, but a different situation later may warrant a new one.
   autoNoticeAt   DateTime?
-  autoNoticeKind String?   // "out_of_credits" | "read_only"
-  id            String   @id @default(cuid())
-  workspaceId   String
-  contactId     String
-  agentId       String?
-  
-  channel       String   // "whatsapp", "instagram", "web"
-  channelId     String?  // External ID (WhatsApp conversation ID)
-  
-  status        String   @default("active") // "active", "closed", "snoozed"
-  assignedTo    String?  // User ID
-  
+  autoNoticeKind String? // "out_of_credits" | "read_only"
+  id             String    @id @default(cuid())
+  workspaceId    String
+  contactId      String
+  agentId        String?
+
+  channel   String // "whatsapp", "instagram", "web"
+  channelId String? // External ID (WhatsApp conversation ID)
+
+  status     String  @default("active") // "active", "closed", "snoozed"
+  assignedTo String? // User ID
+
   lastMessageAt DateTime?
-  lastReadAt    DateTime?              // When conversation was last read by any operator
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  agent         Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  messages      Message[]
-  tags          ConversationTag[]
-  
+  lastReadAt    DateTime? // When conversation was last read by any operator
+
+  /// O resumo por IA desta conversa, e até onde ele leu.
+  ///
+  /// Guardado porque gerar custa crédito do cliente: abrir o painel não pode
+  /// cobrar de novo o que já foi pago. `summaryUntilId` é a última mensagem
+  /// incluída, e é o que permite dizer "N mensagens novas depois do resumo" em
+  /// vez de oferecer um botão que ninguém sabe se vale apertar.
+  summaryText    String?   @db.Text
+  summaryAt      DateTime?
+  summaryUntilId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent     Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  messages  Message[]
+  tags      ConversationTag[]
+
   @@index([workspaceId])
   @@index([contactId])
   @@index([status])
@@ -601,33 +609,33 @@ model Conversation {
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String @id @default(cuid())
   conversationId String
-  
-  direction      String   // "inbound", "outbound"
-  content        String   @db.Text
-  contentType    String   @default("text") // "text", "image", "audio", "video", "file"
-  mediaUrl       String?
-  
+
+  direction   String // "inbound", "outbound"
+  content     String  @db.Text
+  contentType String  @default("text") // "text", "image", "audio", "video", "file"
+  mediaUrl    String?
+
   // Reply (quoted message)
-  replyToId      String?
-  replyTo        Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies        Message[] @relation("MessageReplies")
-  
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
   // Metadata
-  sentBy         String?  // "agent" | "human" | user_id
-  externalId     String?  // WhatsApp message ID
-  status         String   @default("sent") // "sent", "delivered", "read", "failed"
-  isInternal     Boolean  @default(false)  // Internal note (visible only to operators)
+  sentBy     String? // "agent" | "human" | user_id
+  externalId String? // WhatsApp message ID
+  status     String  @default("sent") // "sent", "delivered", "read", "failed"
+  isInternal Boolean @default(false) // Internal note (visible only to operators)
   // Texto de uma nota de voz recebida (OpenAI transcribe); null quando indisponível.
-  transcript     String?  @db.Text
+  transcript String? @db.Text
   // Reação enviada pela clínica a esta mensagem (um emoji), se houver.
-  reaction       String?
-  
-  createdAt      DateTime @default(now())
-  
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
+  reaction   String?
+
+  createdAt DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
   @@index([conversationId])
   @@index([createdAt])
   @@map("messages")
@@ -663,26 +671,26 @@ model PlatformCredential {
 }
 
 model Integration {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  
-  provider      String   // "whatsapp", "instagram", "meta_ads", "google_ads"
-  status        String   @default("pending") // "pending", "connected", "error"
-  
+  id          String @id @default(cuid())
+  workspaceId String
+
+  provider String // "whatsapp", "instagram", "meta_ads", "google_ads"
+  status   String @default("pending") // "pending", "connected", "error"
+
   // Credentials (encrypted)
-  credentials   Json?    // API keys, tokens
-  
+  credentials Json? // API keys, tokens
+
   // WhatsApp specific
-  phoneNumber   String?
-  qrCode        String?  @db.Text
-  
-  metadata      Json?
-  lastSyncAt    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+  phoneNumber String?
+  qrCode      String? @db.Text
+
+  metadata   Json?
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   @@index([workspaceId])
   @@index([provider])
   @@map("integrations")
@@ -693,37 +701,37 @@ model Integration {
 // ============================================
 
 model Subscription {
-  id          String   @id @default(cuid())
-  workspaceId String   @unique
-  
-  plan        String   // "flow", "pro", "advanced"
-  status      String   @default("active") // "active", "past_due", "canceled", "trialing"
-  
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  plan   String // "flow", "pro", "advanced"
+  status String @default("active") // "active", "past_due", "canceled", "trialing"
+
   // Limits
-  maxAgents   Int      @default(1)
-  maxMessages Int      @default(100)
+  maxAgents          Int @default(1)
+  maxMessages        Int @default(100)
   // How many WhatsApp numbers the plan allows to be connected at once.
   maxWhatsAppNumbers Int @default(1)
-  
+
   // Credits
-  credits      Int      @default(0)        // Créditos de IA disponíveis
-  creditsUsed  Int      @default(0)        // Créditos utilizados no mês
-  
+  credits     Int @default(0) // Créditos de IA disponíveis
+  creditsUsed Int @default(0) // Créditos utilizados no mês
+
   // Billing
-  stripeId       String?
-  paymentMethod  Json?                     // { type, last4, brand }
-  trialStartsAt  DateTime?                 // O cadastro do proprietário, não o fim do onboarding
-  trialEndsAt    DateTime?                 // 23:59 do sétimo dia, fuso America/Sao_Paulo
+  stripeId           String?
+  paymentMethod      Json? // { type, last4, brand }
+  trialStartsAt      DateTime? // O cadastro do proprietário, não o fim do onboarding
+  trialEndsAt        DateTime? // 23:59 do sétimo dia, fuso America/Sao_Paulo
   /// Quando o workspace entrou em somente-leitura. Inicia a contagem de retenção.
-  readOnlySince  DateTime?
+  readOnlySince      DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   @@map("subscriptions")
 }
 
@@ -740,7 +748,7 @@ model CreditPurchase {
   expiresAt   DateTime
   createdAt   DateTime @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, expiresAt])
   @@map("credit_purchases")
@@ -755,8 +763,8 @@ model TermsAcceptance {
   version     String
   acceptedAt  DateTime @default(now())
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId, version])
   @@map("terms_acceptances")
@@ -774,7 +782,7 @@ model NotificationLog {
   sentTo      String
   sentAt      DateTime @default(now())
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, kind, scope])
   @@index([workspaceId, sentAt])
@@ -782,25 +790,25 @@ model NotificationLog {
 }
 
 model UsageLog {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  agentId      String?
-  
-  provider     String   // "openai"
-  model        String   // ver OPENAI_MODELS em src/lib/llm/models.ts
-  
+  id          String  @id @default(cuid())
+  workspaceId String
+  agentId     String?
+
+  provider String // "openai"
+  model    String // ver OPENAI_MODELS em src/lib/llm/models.ts
+
   promptTokens     Int
   completionTokens Int
   totalTokens      Int
-  
-  costUsd      Decimal  @db.Decimal(10, 6)
-  
-  metadata     Json?    // { conversationId, userId, contactId, etc }
-  createdAt    DateTime @default(now())
-  
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  agent        Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  
+
+  costUsd Decimal @db.Decimal(10, 6)
+
+  metadata  Json? // { conversationId, userId, contactId, etc }
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent     Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
   @@index([workspaceId, createdAt])
   @@index([agentId])
   @@map("usage_logs")
@@ -811,28 +819,28 @@ model UsageLog {
 // ============================================
 
 model Department {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   name        String
   description String?
-  
-  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  users       WorkspaceUser[]
-  
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  users     WorkspaceUser[]
+
   @@index([workspaceId])
   @@map("departments")
 }
 
 model Tag {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  name          String
-  color         String   @default("#6B7280")
-  
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String @default("#6B7280")
+
   workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contacts      ContactTag[]
   conversations ConversationTag[]
-  
+
   @@index([workspaceId])
   @@map("tags")
 }
@@ -840,41 +848,41 @@ model Tag {
 model ConversationTag {
   conversationId String
   tagId          String
-  
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag          Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
   @@id([conversationId, tagId])
   @@map("conversation_tags")
 }
 
 model ContactTag {
-  contactId   String
-  tagId       String
-  
-  contact     Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  tag         Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
   @@id([contactId, tagId])
   @@map("contact_tags")
 }
 
 model ProductService {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   name        String
-  description String?  @db.Text
-  sku         String?  // Código do produto
-  category    String   @default("product") // "product" or "service"
+  description String? @db.Text
+  sku         String? // Código do produto
+  category    String  @default("product") // "product" or "service"
   price       Float?
-  currency    String   @default("BRL")
-  group       String?  // Grupo/categoria do produto
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
+  currency    String  @default("BRL")
+  group       String? // Grupo/categoria do produto
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   @@index([workspaceId])
   @@index([name])
   @@index([sku])
@@ -886,23 +894,23 @@ model ProductService {
 // ============================================
 
 model KnowledgeDocument {
-  id          String   @id @default(cuid())
-  agentId     String
-  
-  title       String
-  content     String   @db.Text
-  type        String   // "faq", "doc", "website", "video"
-  url         String?
-  
+  id      String @id @default(cuid())
+  agentId String
+
+  title   String
+  content String  @db.Text
+  type    String // "faq", "doc", "website", "video"
+  url     String?
+
   // Vector embeddings (Supabase Vector - pgvector)
-  embedding   Unsupported("vector(1536)")?
-  
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
+  embedding Unsupported("vector(1536)")?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
   @@index([agentId])
   @@map("knowledge_documents")
 }
@@ -912,18 +920,18 @@ model KnowledgeDocument {
 // ============================================
 
 model CustomFieldDefinition {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  name          String              // Display name
-  key           String              // Programmatic key (snake_case)
-  type          String              // "text", "number", "date", "select", "checkbox"
-  options       Json?               // For select type: ["Option A", "Option B"]
-  required      Boolean  @default(false)
-  order         Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String // Display name
+  key         String // Programmatic key (snake_case)
+  type        String // "text", "number", "date", "select", "checkbox"
+  options     Json? // For select type: ["Option A", "Option B"]
+  required    Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, key])
   @@index([workspaceId])

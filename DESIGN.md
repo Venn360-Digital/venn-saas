@@ -316,6 +316,38 @@ nunca atrás delas — 1px atravessando um ponto cheio aparece. Marco cumprido �
 `bg-success` com `Check`; pendente é `bg-card` com borda e o ícone do marco.
 Data em `num`. Só o marco em edição abre; os outros ficam em uma linha.
 
+**Painel lateral com modos.** Quando uma tela de viewport inteiro oferece vários
+conteúdos auxiliares — resumo, arquivos, agendamento, jornada, notas —, eles
+dividem **um** painel e **um modo por vez**: clicar em outro ícone troca o
+conteúdo, clicar no mesmo fecha. Dois painéis de 300px não cabem num notebook de
+1280, e a alternativa (cada ícone fazendo uma coisa diferente — um abre barra,
+outro abre diálogo, outro abre painel) torna a faixa imprevisível. Regras:
+
+- O painel tem **cabeçalho com o título do modo e um botão de fechar**. Com
+  cinco conteúdos possíveis no mesmo retângulo, o painel precisa dizer qual
+  está aberto; sem o título, o conteúdo é a única pista.
+- Os gatilhos são `Toggle` com `pressed`, nunca `Button` com `variant` trocado:
+  é `aria-pressed` que anuncia "aberto" para o leitor de tela.
+- Cada modo é **um componente com `key` da entidade**, para que trocar de
+  paciente remonte o painel em vez de mostrar o rascunho do anterior.
+- Abaixo de `xl`, o painel **sobrepõe** (`absolute inset-y-0 right-0` +
+  `shadow-lg`, `xl:static`) em vez de encolher a coluna de mensagens. Ícone que
+  não faz nada numa janela de 1280 é defeito, não responsividade.
+- A ordem dos ícones é a ordem de uso, não a de implementação: achar, entender,
+  agir, classificar, acompanhar, registrar.
+
+**Formulário em painel.** Um formulário que depende do que está ao lado — marcar
+consulta exige reler o que o paciente escreveu — vive em painel, não em diálogo:
+o diálogo tampa justamente o contexto que a pessoa precisa consultar. Diálogo
+continua certo para o que é decisão fechada e curta (confirmar, escolher
+motivo). Por isso `ActivityForm` não traz chrome: o mesmo formulário serve
+painel e caixa.
+
+**O que a IA gera é conteúdo pago.** Abrir um painel nunca dispara geração:
+`GET` lê o que está guardado, `POST` gera e debita. O painel mostra **quando** o
+texto foi gerado e **quantas mensagens chegaram depois**, porque sem isso o
+botão "Atualizar" é um palpite sobre gastar crédito do cliente.
+
 ---
 
 ## 6. O shell

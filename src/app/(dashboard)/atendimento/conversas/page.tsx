@@ -27,8 +27,10 @@ import {
     Phone,
     Reply,
     RotateCcw,
+    Route,
     Search,
     Send,
+    Sparkles,
     StickyNote,
     Tag,
     Trash2,
@@ -74,7 +76,11 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
-import { ScheduleDialog } from '@/components/shared/ScheduleDialog'
+import { ActivityForm } from '@/components/shared/ActivityForm'
+import { AiSummaryPanel } from '@/components/shared/AiSummaryPanel'
+import { ConversationFilesPanel } from '@/components/shared/ConversationFilesPanel'
+import { InternalNotesPanel } from '@/components/shared/InternalNotesPanel'
+import { TagPicker } from '@/components/shared/TagPicker'
 import { TagChip } from '@/components/shared/TagChip'
 import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
@@ -380,7 +386,6 @@ export default function ConversasPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
     const [queue, setQueue] = useState<QueueCounts | null>(null)
-    const [scheduleOpen, setScheduleOpen] = useState(false)
     /**
      * Origem e canal só aceitam o que já está cadastrado.
      *
@@ -467,7 +472,27 @@ export default function ConversasPage() {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
     // Contact panel state
-    const [showContactPanel, setShowContactPanel] = useState(false)
+    /**
+     * O painel direito tem modos, e um só por vez.
+     *
+     * Antes cada ícone da faixa fazia uma coisa diferente — busca abria barra,
+     * agendar abria diálogo, jornada abria painel — e ninguém conseguia prever o
+     * que um ícone ia fazer. Agora os painéis se alternam: clicar em outro
+     * troca, clicar no mesmo fecha. Dois painéis de 300px não cabem numa janela
+     * de 1280, então alternar é mais honesto que empilhar.
+     */
+    type PanelMode = 'journey' | 'schedule' | 'files' | 'summary' | 'notes'
+    const [panel, setPanel] = useState<PanelMode | null>(null)
+    const togglePanel = (next: PanelMode) => setPanel((prev) => (prev === next ? null : next))
+
+    /** O título do painel aberto, que o cabeçalho e o leitor de tela usam. */
+    const PANEL_TITLES: Record<PanelMode, string> = {
+        summary: 'Resumo por IA',
+        schedule: 'Nova atividade',
+        files: 'Arquivos da conversa',
+        journey: 'Jornada do paciente',
+        notes: 'Notas internas',
+    }
 
     // Tags state
     const [availableTags, setAvailableTags] = useState<TagItem[]>([])
@@ -1013,7 +1038,7 @@ export default function ConversasPage() {
             toast.error('Abra uma conversa para agendar')
             return
         }
-        setScheduleOpen(true)
+        setPanel('schedule')
     }
 
     const selectQuickReply = (qr: QuickResponse) => {
@@ -1029,7 +1054,7 @@ export default function ConversasPage() {
      */
     const SLASH_COMMANDS: { id: string; command: string; label: string; run: () => void }[] = [
         { id: 'resposta', command: '/resposta', label: 'Respostas rápidas da clínica', run: () => { setSlashPage('replies'); setQuickSearch(''); setSlashIndex(0) } },
-        { id: 'agendar', command: '/agendar', label: 'Agendar consulta deste paciente', run: runScheduling },
+        { id: 'agendar', command: '/agendar', label: 'Agendar atividade para este paciente', run: runScheduling },
         { id: 'assumir', command: '/assumir', label: 'Assumir esta conversa', run: () => { replaceSlashToken(''); void handleAction('assign') } },
     ]
 
@@ -1986,6 +2011,11 @@ export default function ConversasPage() {
                                         Toggle, que anuncia `aria-pressed` —
                                         trocar `variant` não anunciava nada. */}
                                     <div className="flex items-center gap-0.5">
+                                        {/* A faixa, na ordem em que se usa: achar,
+                                            entender, agir, classificar, acompanhar,
+                                            registrar. Busca é barra e etiquetas é
+                                            popover; os outros quatro alternam o
+                                            painel direito. */}
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Toggle
@@ -2003,27 +2033,38 @@ export default function ConversasPage() {
                                             <TooltipContent>Buscar na conversa</TooltipContent>
                                         </Tooltip>
 
-                                        {/* `/agendar` é atalho, não o único
-                                            caminho: quem não conhece a barra
-                                            precisa ver a ação. */}
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon-sm"
-                                                    aria-label="Agendar consulta deste paciente"
-                                                    onClick={() => setScheduleOpen(true)}
+                                                <Toggle
+                                                    size="sm"
+                                                    pressed={panel === 'summary'}
+                                                    onPressedChange={() => togglePanel('summary')}
+                                                    aria-label="Resumo por IA"
                                                 >
-                                                    <CalendarPlus className="size-3.5" />
-                                                </Button>
+                                                    <Sparkles className="size-3.5" />
+                                                </Toggle>
                                             </TooltipTrigger>
-                                            <TooltipContent>Agendar consulta</TooltipContent>
+                                            <TooltipContent>Resumo por IA</TooltipContent>
                                         </Tooltip>
 
-                                        {/* Etiquetas — Popover, não div com
-                                            z-50: o primitivo trata Esc, clique
-                                            fora, foco e aria-expanded, que a
-                                            versão artesanal não tratava. */}
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    pressed={panel === 'schedule'}
+                                                    onPressedChange={() => togglePanel('schedule')}
+                                                    aria-label="Agendar atividade"
+                                                >
+                                                    <CalendarPlus className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Agendar atividade</TooltipContent>
+                                        </Tooltip>
+
+                                        {/* Etiquetas — Popover, não div com z-50:
+                                            o primitivo trata Esc, clique fora,
+                                            foco e aria-expanded. Popover e não
+                                            painel porque é escolha de um clique. */}
                                         <Popover open={showTagPicker} onOpenChange={setShowTagPicker}>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -2039,27 +2080,17 @@ export default function ConversasPage() {
                                                 </TooltipTrigger>
                                                 <TooltipContent>Etiquetas</TooltipContent>
                                             </Tooltip>
-                                            <PopoverContent align="end" className="max-h-[240px] w-56 overflow-y-auto p-1">
-                                                {availableTags.length === 0 ? (
-                                                    <p className="px-3 py-2 text-xs text-muted-foreground">
-                                                        Nenhuma etiqueta cadastrada. Crie em Atendimento &amp; IA → Etiquetas.
-                                                    </p>
-                                                ) : (
-                                                    availableTags.map(tag => {
-                                                        const isAdded = conversationTags.some(t => t.id === tag.id)
-                                                        return (
-                                                            <button
-                                                                key={tag.id}
-                                                                onClick={() => isAdded ? removeTagFromConversation(tag.id) : addTagToConversation(tag)}
-                                                                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-muted/60"
-                                                            >
-                                                                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                                                                <span className="flex-1 truncate text-left">{tag.name}</span>
-                                                                {isAdded && <Check className="h-3.5 w-3.5 text-primary" />}
-                                                            </button>
-                                                        )
-                                                    })
-                                                )}
+                                            <PopoverContent align="end" className="w-64 p-2">
+                                                <TagPicker
+                                                    available={availableTags}
+                                                    applied={conversationTags}
+                                                    onAdd={addTagToConversation}
+                                                    onRemove={removeTagFromConversation}
+                                                    onCreated={(tag) => {
+                                                        setAvailableTags((prev) => [...prev, tag])
+                                                        void addTagToConversation(tag)
+                                                    }}
+                                                />
                                             </PopoverContent>
                                         </Popover>
 
@@ -2067,14 +2098,45 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    pressed={showContactPanel}
-                                                    onPressedChange={setShowContactPanel}
+                                                    pressed={panel === 'files'}
+                                                    onPressedChange={() => togglePanel('files')}
+                                                    aria-label="Arquivos da conversa"
+                                                >
+                                                    <Paperclip className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Arquivos da conversa</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    pressed={panel === 'journey'}
+                                                    onPressedChange={() => togglePanel('journey')}
                                                     aria-label="Jornada do paciente"
                                                 >
-                                                    <PanelRight className="size-3.5" />
+                                                    {/* `Route` e não `PanelRight`: o ícone
+                                                        dizia "abre um painel", não o que o
+                                                        painel contém. */}
+                                                    <Route className="size-3.5" />
                                                 </Toggle>
                                             </TooltipTrigger>
                                             <TooltipContent>Jornada do paciente</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    pressed={panel === 'notes'}
+                                                    onPressedChange={() => togglePanel('notes')}
+                                                    aria-label="Notas internas"
+                                                >
+                                                    <StickyNote className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Notas internas</TooltipContent>
                                         </Tooltip>
                                     </div>
                                 </div>
@@ -2103,7 +2165,11 @@ export default function ConversasPage() {
                             )}
 
                             {/* Chat + Contact Panel layout */}
-                            <div className="flex-1 flex overflow-hidden">
+                            {/* `relative` por causa do painel: abaixo de 1280 ele
+                                sobrepõe o chat em vez de encolhê-lo, porque uma
+                                coluna de 300px ao lado de mensagens num notebook
+                                de 1280 deixa as duas ilegíveis. */}
+                            <div className="relative flex flex-1 overflow-hidden">
                                 {/* Messages + Input column */}
                                 <div className="flex-1 flex flex-col overflow-hidden">
                                     {/* Messages */}
@@ -2529,10 +2595,69 @@ export default function ConversasPage() {
 
                                 </div>  {/* end messages+input column */}
 
-                                {/* Contact Side Panel */}
-                                {showContactPanel && conv && (
-                                    <div className="hidden w-[300px] shrink-0 overflow-y-auto border-l bg-card xl:block">
-                                        <div className="p-3 space-y-4">
+                                {/* O painel direito, num modo por vez.
+                                    O cabeçalho com título e X existe porque, com
+                                    cinco conteúdos possíveis no mesmo lugar, o
+                                    painel tem de dizer qual deles está aberto. */}
+                                {panel && conv && (
+                                    <aside
+                                        className="absolute inset-y-0 right-0 z-20 flex w-[320px] flex-col overflow-hidden border-l bg-card shadow-lg xl:static xl:z-auto xl:w-[300px] xl:shrink-0 xl:shadow-none"
+                                        aria-label={PANEL_TITLES[panel]}
+                                    >
+                                        <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+                                            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                {PANEL_TITLES[panel]}
+                                            </h3>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                onClick={() => setPanel(null)}
+                                                aria-label="Fechar painel"
+                                            >
+                                                <X className="size-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-3">
+                                            {panel === 'summary' ? <AiSummaryPanel key={conv.id} conversationId={conv.id} /> : null}
+
+                                            {panel === 'files' ? <ConversationFilesPanel key={conv.id} conversationId={conv.id} /> : null}
+
+                                            {panel === 'notes' ? (
+                                                <InternalNotesPanel
+                                                    key={conv.id}
+                                                    conversationId={conv.id}
+                                                    refreshToken={messages.filter((m) => m.isInternal).length}
+                                                    onCreated={() => void fetchMessages(conv.id)}
+                                                />
+                                            ) : null}
+
+                                            {panel === 'schedule' && conv.contact?.id ? (
+                                                <ActivityForm
+                                                    key={conv.id}
+                                                    contactId={conv.contact.id}
+                                                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
+                                                    dealId={conv.openDeal?.id ?? null}
+                                                    dealTitle={conv.openDeal?.title ?? null}
+                                                    scheduledStage={scheduledStage}
+                                                    onScheduled={({ date, time, markJourney }) => {
+                                                        if (markJourney && conv.openDeal && scheduledStage) {
+                                                            void moveToScheduledStage(conv.openDeal.id, scheduledStage.id, date)
+                                                        }
+                                                        // O texto entra no compositor em vez de ser
+                                                        // enviado: quem confirma o horário com o
+                                                        // paciente é a pessoa, não a tela.
+                                                        const [y, m, d] = date.split('-')
+                                                        setMessageInput(
+                                                            `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
+                                                        )
+                                                        textareaRef.current?.focus()
+                                                    }}
+                                                />
+                                            ) : null}
+
+                                            {panel === 'journey' ? (
+                                        <div className="space-y-4">
                                             {/* Paciente + quem atende — compacto: o espaço é da jornada */}
                                             <div className="flex items-center gap-3">
                                                 <ContactAvatar
@@ -2646,7 +2771,9 @@ export default function ConversasPage() {
 
 
                                         </div>
-                                    </div>
+                                            ) : null}
+                                        </div>
+                                    </aside>
                                 )}
                             </div> {/* end Chat + Contact Panel layout */}
 
@@ -2654,32 +2781,6 @@ export default function ConversasPage() {
                     )}
                 </div>
             </div >
-
-            {/* Encaminhar */}
-            {/* Agendamento a partir da conversa. O compromisso é uma atividade,
-                que já sincroniza com a agenda conectada da clínica. */}
-            {conv?.contact?.id ? (
-                <ScheduleDialog
-                    open={scheduleOpen}
-                    onOpenChange={setScheduleOpen}
-                    contactId={conv.contact.id}
-                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
-                    dealId={conv.openDeal?.id ?? null}
-                    scheduledStage={scheduledStage}
-                    onScheduled={({ date, time, markJourney }) => {
-                        if (markJourney && conv.openDeal && scheduledStage) {
-                            void moveToScheduledStage(conv.openDeal.id, scheduledStage.id, date)
-                        }
-                        // O texto entra no compositor em vez de ser enviado: quem
-                        // confirma o horário com o paciente é a pessoa, não a tela.
-                        const [y, m, d] = date.split('-')
-                        setMessageInput(
-                            `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
-                        )
-                        textareaRef.current?.focus()
-                    }}
-                />
-            ) : null}
 
             {/* Encaminhar — Dialog, não dois divs fixos: o primitivo trata foco
                 preso, Esc, rolagem da página e o rótulo do título para leitor de
