@@ -17,6 +17,19 @@ const nextConfig: NextConfig = {
   ],
   // Empty turbopack config to silence warning
   turbopack: {},
+  async redirects() {
+    return [
+      {
+        // A tela de pacientes morava em /vendas/contatos até 2026-10-08, quando
+        // "contato" saiu do vocabulário do produto. Permanente porque o destino
+        // é definitivo, e aqui — e não numa página de redirecionamento — para
+        // resolver antes do roteamento, sem renderizar nada no caminho.
+        source: '/vendas/contatos',
+        destination: '/vendas/pacientes',
+        permanent: true,
+      },
+    ]
+  },
 };
 
 export default nextConfig;

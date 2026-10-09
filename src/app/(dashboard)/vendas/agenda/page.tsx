@@ -681,7 +681,7 @@ export default function AgendaPage() {
                                                 </span>
                                             )}
                                             {activity.contact && (
-                                                <Link href="/vendas/contatos"
+                                                <Link href="/vendas/pacientes"
                                                     className="flex items-center gap-1 hover:text-primary transition-colors"
                                                     onClick={(e) => e.stopPropagation()}>
                                                     <User className="h-3 w-3" /> {activity.contact.name || activity.contact.phone}

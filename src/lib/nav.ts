@@ -70,7 +70,7 @@ export const navSections: NavSection[] = [
         icon: TrendingUp,
         items: [
             { label: 'Negócios', href: '/vendas/negocios' },
-            { label: 'Pacientes', href: '/vendas/contatos' },
+            { label: 'Pacientes', href: '/vendas/pacientes' },
             { label: 'Agenda', href: '/vendas/agenda' },
             { label: 'Produtos e serviços', href: '/vendas/produtos-servicos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
@@ -117,6 +117,10 @@ const SEGMENT_LABELS: Record<string, string> = {
 
     vendas: 'Vendas',
     negocios: 'Negócios',
+    pacientes: 'Pacientes',
+    // A rota foi `contatos` até 2026-10-08. O rótulo fica porque um link antigo
+    // que alguém guardou ainda passa pelo redirecionamento, e a trilha não deve
+    // mostrar um slug cru no caminho.
     contatos: 'Pacientes',
     agenda: 'Agenda',
     'produtos-servicos': 'Produtos e serviços',
