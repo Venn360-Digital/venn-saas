@@ -343,12 +343,31 @@ export class EvolutionGoProvider implements WhatsAppProvider {
 
         let users: Record<string, unknown>[] = []
         try {
-            const data = await this.request<{ data?: { Users?: unknown } }>(
+            const payload = await this.request<Record<string, unknown> | undefined>(
                 '/user/check',
                 this.tokenOf(credentials, '/user/check'),
                 { method: 'POST', body: JSON.stringify({ number: wanted, formatJid: true }) }
             )
-            const raw = data?.data?.Users
+
+            // `request` devolve o envelope já desembrulhado (`parsed.data`), como
+            // todos os outros métodos deste arquivo consomem. A primeira versão
+            // desta função procurava `data.data.Users` — o corpo cru — e nunca
+            // achava nada. As duas formas são aceitas aqui para que a função não
+            // dependa de qual camada desembrulha.
+            const container =
+                (payload && typeof payload.data === 'object' && payload.data !== null
+                    ? (payload.data as Record<string, unknown>)
+                    : payload) ?? {}
+
+            const key = Object.keys(container).find((k) => k.toLowerCase() === 'users')
+            if (!key) {
+                // Forma desconhecida é "não sei", nunca "não tem". Confundir os
+                // dois foi o que fez a tela afirmar que um número com WhatsApp
+                // não tinha — uma falsidade confiante é pior que um aviso.
+                return wanted.map((number) => ({ number, exists: undefined }))
+            }
+
+            const raw = container[key]
             if (raw === null || raw === undefined) {
                 // Resposta válida dizendo "nenhum destes existe".
                 return wanted.map((number) => ({ number, exists: false }))
