@@ -16,12 +16,29 @@ import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone, phoneVaria
  * negócio e cartão no funil para um número que nunca vai receber mensagem.
  */
 export async function GET(request: NextRequest) {
+    try {
+        return await lookup(request)
+    } catch (error) {
+        // Sem isto o handler quebrado devolvia uma falha opaca, e a tela traduzia
+        // qualquer falha como "número incompleto" — a mensagem errada para a
+        // causa errada.
+        console.error('[CONTACT_LOOKUP] falhou:', error)
+        return NextResponse.json({ error: 'Não foi possível verificar o número' }, { status: 500 })
+    }
+}
+
+async function lookup(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const raw = new URL(request.url).searchParams.get('phone') ?? ''
     const { digits, valid } = normalizePhone(raw)
+
+    /** Só os quatro últimos no log: dá para correlacionar sem despejar o número. */
+    const tail = digits.slice(-4)
+
     if (!valid) {
+        console.log(`[CONTACT_LOOKUP] ****${tail} (${digits.length} dígitos) inválido`)
         return NextResponse.json({ valid: false, phone: digits, formatted: formatPhone(digits) })
     }
 
@@ -73,6 +90,12 @@ export async function GET(request: NextRequest) {
     const canonical = checked.canonical ?? contact?.phone ?? digits
 
     const channel = await connectedWhatsApp(auth.member.workspaceId)
+
+    console.log(
+        `[CONTACT_LOOKUP] ****${tail} variantes=${phoneVariants(digits).length} ` +
+        `ficha=${existing ? 'sim' : 'não'} whatsapp=${String(checked.exists)} ` +
+        `canônico=****${canonical.slice(-4)} canal=${channel ? 'conectado' : 'nenhum'}`
+    )
 
     return NextResponse.json({
         valid: true,

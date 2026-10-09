@@ -81,6 +81,7 @@ export function NewAttendanceDialog({
     const [channelId, setChannelId] = useState('')
     const [callNotes, setCallNotes] = useState('')
     const [lookup, setLookup] = useState<LookupResult | null>(null)
+    const [lookupFailed, setLookupFailed] = useState(false)
     const [checking, setChecking] = useState(false)
     const [saving, setSaving] = useState(false)
     const [origins, setOrigins] = useState<Option[]>([])
@@ -121,10 +122,13 @@ export function NewAttendanceDialog({
         setChecking(true)
         const timer = setTimeout(() => {
             fetch(`/api/contacts/lookup?phone=${encodeURIComponent(digits)}`)
-                .then((r) => (r.ok ? r.json() : null))
-                .then((data: LookupResult | null) => {
+                .then(async (r) => (r.ok ? ((await r.json()) as LookupResult) : null))
+                .then((data) => {
                     if (cancelled) return
                     setLookup(data)
+                    // Resposta não-ok é falha de consulta, não número inválido:
+                    // as duas pediam mensagens diferentes e recebiam a mesma.
+                    setLookupFailed(data === null)
                     setChecking(false)
                     // Nome que já está na ficha não precisa ser digitado de novo.
                     if (data?.existing?.name) setName((prev) => prev || data.existing!.name!)
@@ -132,6 +136,7 @@ export function NewAttendanceDialog({
                 .catch(() => {
                     if (!cancelled) {
                         setLookup(null)
+                        setLookupFailed(true)
                         setChecking(false)
                     }
                 })
@@ -154,7 +159,16 @@ export function NewAttendanceDialog({
         return { label: 'Abrir conversa', icon: MessageCircle }
     }, [mode, existing])
 
-    const blocked = !lookup?.valid || checking || (mode === 'active' && noWhatsApp)
+    /**
+     * Ligação segue mesmo sem consulta: o paciente está na linha agora, e a
+     * verificação é conveniência. Só o envio ativo depende dela, porque ele
+     * manda mensagem para um número que ninguém conferiu.
+     */
+    const blocked =
+        checking ||
+        (mode === 'active'
+            ? !lookup?.valid || noWhatsApp
+            : !lookup?.valid && phone.replace(/\D/g, '').length < 10)
 
     const submit = async () => {
         if (blocked) return
@@ -164,8 +178,10 @@ export function NewAttendanceDialog({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    // Sem consulta (falhou, e é ligação), vale o que foi digitado:
+                    // o servidor normaliza de novo e resolve a forma canônica.
                     mode,
-                    phone: lookup!.phone,
+                    phone: lookup?.phone ?? phone,
                     name: name.trim(),
                     originId: originId || null,
                     channelId: channelId || null,
@@ -288,7 +304,11 @@ export function NewAttendanceDialog({
                                     ) : null}
                                 </span>
                             </div>
-                        ) : phone.replace(/\D/g, '').length >= 10 ? (
+                        ) : lookupFailed ? (
+                            <p className="text-xs text-destructive-subtle-foreground">
+                                Não foi possível consultar agora. Recarregue a página e tente de novo.
+                            </p>
+                        ) : lookup && !lookup.valid ? (
                             <p className="text-xs text-destructive-subtle-foreground">
                                 Número incompleto. Inclua o DDD.
                             </p>
