@@ -7,7 +7,8 @@ import { toast } from 'sonner'
 
 import { useNow } from '@/hooks/useNow'
 import { cn } from '@/lib/utils'
-import { OutcomeDialog, type Outcome, type OutcomeResult } from '@/components/shared/OutcomeDialog'
+import { CreatableSelect } from '@/components/shared/CreatableSelect'
+import { useOutcomeReasons, type Outcome } from '@/hooks/useOutcomeReasons'
 
 /**
  * A jornada do negócio — e a jornada são as etapas do funil.
@@ -25,6 +26,10 @@ import { OutcomeDialog, type Outcome, type OutcomeResult } from '@/components/sh
  * mesma rota que o Kanban usa — e abre data e nota daquela passagem. Era como a
  * ficha antiga funcionava, e é um gesto em vez de dois: não existe botão de
  * avançar. Clicar na fase em que já está só abre os campos.
+ *
+ * A **Finalização** fecha a lista e segue a mesma regra: escolher o lado abre os
+ * campos dentro do card. Nenhum diálogo — ele cobriria justamente a conversa que
+ * a pessoa está lendo para decidir se ganhou ou perdeu.
  */
 
 export interface JourneyStage {
@@ -79,12 +84,26 @@ export function DealJourney({
     const now = useNow()
     const [open, setOpen] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
-    const [outcomeOpen, setOutcomeOpen] = useState(false)
-    const [outcomeSide, setOutcomeSide] = useState<Outcome>('won')
+    /**
+     * O fechamento acontece **dentro** do card, não num diálogo.
+     *
+     * `null` enquanto ninguém escolheu lado; escolhido, os campos daquele lado
+     * abrem ali mesmo. O diálogo existe para o funil, onde não há painel para
+     * expandir — aqui ele cobriria a conversa que a pessoa está lendo para
+     * decidir.
+     */
+    const [side, setSide] = useState<Outcome | null>(null)
+    const [reasonId, setReasonId] = useState('')
+    const [closedValueDraft, setClosedValueDraft] = useState('')
+    const [outcomeNote, setOutcomeNote] = useState('')
     const closed = status !== 'open'
+    const { reasons, optionsFor, createReason } = useOutcomeReasons(side !== null)
 
     useEffect(() => {
         setOpen(null)
+        setSide(null)
+        setReasonId('')
+        setOutcomeNote('')
     }, [dealId])
 
     const ordered = [...stages].sort((a, b) => a.order - b.order)
@@ -347,45 +366,123 @@ export function DealJourney({
                                 </button>
                             </>
                         ) : (
-                            <div className="rounded-md border border-dashed border-border-strong p-2">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[13px] text-muted-foreground">Finalização</span>
-                                </div>
+                            <div
+                                className={cn(
+                                    'rounded-md border p-2',
+                                    side ? 'border-border bg-muted/40' : 'border-dashed border-border-strong'
+                                )}
+                            >
+                                <span className="text-[13px] text-muted-foreground">Finalização</span>
+
                                 <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setOutcomeSide('won'); setOutcomeOpen(true) }}
-                                        className="flex items-center justify-center gap-1.5 rounded-md border border-success bg-success-subtle px-2 py-1 text-xs font-semibold text-success-subtle-foreground"
-                                    >
-                                        <Trophy className="size-3" />
-                                        Ganho
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setOutcomeSide('lost'); setOutcomeOpen(true) }}
-                                        className="flex items-center justify-center gap-1.5 rounded-md border border-border-strong px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
-                                    >
-                                        <X className="size-3" />
-                                        Perdido
-                                    </button>
+                                    {(['won', 'lost'] as const).map((option) => (
+                                        <button
+                                            key={option}
+                                            type="button"
+                                            onClick={() => {
+                                                setSide(side === option ? null : option)
+                                                setReasonId('')
+                                                setClosedValueDraft(dealValue != null ? String(dealValue) : '')
+                                            }}
+                                            aria-pressed={side === option}
+                                            className={cn(
+                                                'flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold transition-colors',
+                                                side === option
+                                                    ? option === 'won'
+                                                        ? 'border-success bg-success text-success-foreground'
+                                                        : 'border-destructive bg-destructive text-destructive-foreground'
+                                                    : option === 'won'
+                                                        ? 'border-success bg-success-subtle text-success-subtle-foreground'
+                                                        : 'border-border-strong text-muted-foreground hover:bg-muted'
+                                            )}
+                                        >
+                                            {option === 'won' ? <Trophy className="size-3" /> : <X className="size-3" />}
+                                            {option === 'won' ? 'Ganho' : 'Perdido'}
+                                        </button>
+                                    ))}
                                 </div>
+
+                                {/* Os campos abrem aqui, no card. */}
+                                {side ? (
+                                    <div className="mt-2 space-y-2">
+                                        {reasons === null ? (
+                                            <p className="text-xs text-muted-foreground">Carregando motivos…</p>
+                                        ) : (
+                                            <CreatableSelect
+                                                id="journey-reason"
+                                                label={side === 'won' ? 'Motivo do ganho' : 'Motivo da perda'}
+                                                value={reasonId}
+                                                options={optionsFor(side)}
+                                                onSelect={setReasonId}
+                                                placeholder={
+                                                    optionsFor(side).length === 0 ? 'Cadastre o primeiro motivo' : 'Escolha o motivo'
+                                                }
+                                                newPlaceholder={side === 'won' ? 'Novo motivo de ganho' : 'Novo motivo de perda'}
+                                                onCreate={(name) => createReason(side, name)}
+                                            />
+                                        )}
+
+                                        {side === 'won' ? (
+                                            <div className="space-y-1">
+                                                <label htmlFor="journey-closed-value" className="block text-xs text-muted-foreground">
+                                                    Valor fechado
+                                                </label>
+                                                <input
+                                                    id="journey-closed-value"
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    value={closedValueDraft}
+                                                    onChange={(e) => setClosedValueDraft(e.target.value)}
+                                                    className="num w-full rounded-md border border-border bg-card px-2 py-1 text-xs focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                                                />
+                                            </div>
+                                        ) : null}
+
+                                        <textarea
+                                            value={outcomeNote}
+                                            onChange={(e) => setOutcomeNote(e.target.value)}
+                                            rows={2}
+                                            placeholder="Nota"
+                                            aria-label="Nota da finalização"
+                                            className="w-full resize-none rounded-md border border-border bg-card px-2 py-1 text-xs placeholder:text-muted-foreground/60 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                                        />
+
+                                        <button
+                                            type="button"
+                                            disabled={busy || !reasonId}
+                                            onClick={() => {
+                                                void send(
+                                                    {
+                                                        status: side,
+                                                        outcomeReasonId: reasonId,
+                                                        outcomeNotes: outcomeNote.trim(),
+                                                        closedValue: closedValueDraft.trim() ? Number(closedValueDraft) : null,
+                                                    },
+                                                    () => {
+                                                        setSide(null)
+                                                        setReasonId('')
+                                                        setOutcomeNote('')
+                                                        onOutcome?.()
+                                                    }
+                                                )
+                                            }}
+                                            className={cn(
+                                                'w-full rounded-md px-2 py-1.5 text-xs font-bold disabled:opacity-60',
+                                                side === 'won'
+                                                    ? 'bg-success text-success-foreground'
+                                                    : 'bg-destructive text-destructive-foreground'
+                                            )}
+                                        >
+                                            {side === 'won' ? 'Fechar como ganho' : 'Fechar como perdido'}
+                                        </button>
+                                    </div>
+                                ) : null}
                             </div>
                         )}
                     </div>
                 </li>
             </ol>
 
-            <OutcomeDialog
-                open={outcomeOpen}
-                onOpenChange={setOutcomeOpen}
-                dealTitle={dealTitle}
-                dealValue={dealValue}
-                stageName={ordered[currentIndex]?.name ?? null}
-                initialOutcome={outcomeSide}
-                onConfirm={async (result: OutcomeResult) => {
-                    await send({ ...result }, () => onOutcome?.())
-                }}
-            />
         </div>
     )
 }

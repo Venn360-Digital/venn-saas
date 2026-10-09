@@ -17,15 +17,10 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
+import { useOutcomeReasons, type Outcome, type OutcomeReason } from '@/hooks/useOutcomeReasons'
 import { cn } from '@/lib/utils'
 
-export type Outcome = 'won' | 'lost'
-
-export interface OutcomeReason {
-    id: string
-    name: string
-    isActive?: boolean
-}
+export type { Outcome, OutcomeReason }
 
 export interface OutcomeResult {
     status: Outcome
@@ -66,7 +61,7 @@ export function OutcomeDialog({
     const [notes, setNotes] = useState('')
     const [closedValue, setClosedValue] = useState('')
     const [saving, setSaving] = useState(false)
-    const [reasons, setReasons] = useState<{ won: OutcomeReason[]; lost: OutcomeReason[] } | null>(null)
+    const { reasons, optionsFor, createReason } = useOutcomeReasons(open)
 
     useEffect(() => {
         if (!open) return
@@ -74,50 +69,10 @@ export function OutcomeDialog({
         setReasonId('')
         setNotes('')
         setClosedValue(dealValue != null ? String(dealValue) : '')
-
-        fetch('/api/deal-outcome-reasons')
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => setReasons(data ?? { won: [], lost: [] }))
-            .catch(() => setReasons({ won: [], lost: [] }))
     }, [open, initialOutcome, dealValue])
 
-    /** Só o lado escolhido, e só o que está ativo: lista misturada erra. */
-    const options = useMemo(() => {
-        const list = outcome === 'won' ? reasons?.won : reasons?.lost
-        return (list ?? []).filter((r) => r.isActive !== false)
-    }, [outcome, reasons])
+    const options = useMemo(() => optionsFor(outcome), [optionsFor, outcome])
 
-    /**
-     * Cadastra o motivo no lado que está escolhido.
-     *
-     * O `kind` não é perguntado: o diálogo já sabe se está fechando como ganho
-     * ou perdido, e um motivo criado no lado errado seria oferecido no outro.
-     */
-    const createReason = async (name: string) => {
-        try {
-            const res = await fetch('/api/deal-outcome-reasons', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ kind: outcome, name }),
-            })
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}))
-                toast.error(err.error || 'Não foi possível criar o motivo')
-                return null
-            }
-            const created: OutcomeReason & { kind: Outcome } = await res.json()
-            setReasons((prev) => {
-                const base = prev ?? { won: [], lost: [] }
-                return outcome === 'won'
-                    ? { ...base, won: [...base.won, created] }
-                    : { ...base, lost: [...base.lost, created] }
-            })
-            return created
-        } catch {
-            toast.error('Não foi possível criar o motivo')
-            return null
-        }
-    }
 
     const confirm = async () => {
         if (!reasonId) {
@@ -203,7 +158,7 @@ export function OutcomeDialog({
                             onSelect={setReasonId}
                             placeholder={options.length === 0 ? 'Cadastre o primeiro motivo' : 'Escolha o motivo'}
                             newPlaceholder={outcome === 'won' ? 'Novo motivo de ganho' : 'Novo motivo de perda'}
-                            onCreate={createReason}
+                            onCreate={(name) => createReason(outcome, name)}
                         />
                     )}
 
