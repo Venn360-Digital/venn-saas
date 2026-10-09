@@ -32,6 +32,7 @@ const dealInclude = {
         select: { id: true, name: true }
     },
     stage: true,
+    outcomeReason: { select: { id: true, name: true, kind: true } },
     // O percurso, para o trilho do cartão. Só etapa e data: a nota é lida na
     // tela de detalhe, e uma lista de 50 cartões não deve carregar texto.
     stageEntries: {

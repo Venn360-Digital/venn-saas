@@ -137,9 +137,16 @@ export async function GET(
         // O negócio aberto mais recente deste paciente. Enquanto a conversa não
         // tiver um vínculo próprio com negociação, é a mesma regra que o worker
         // usa para o contexto das regras: o mais novo em aberto.
+        /**
+         * O negócio do paciente, aberto ou o último fechado.
+         *
+         * Só "aberto" deixava o painel vazio no instante seguinte ao
+         * fechamento, justamente quando alguém quer ver o que acabou de
+         * registrar — e tira a chance de reabrir pelo mesmo lugar.
+         */
         const openDeal = await prisma.deal.findFirst({
-            where: { workspaceId: workspaceUser.workspaceId, contactId: conversation.contact.id, status: 'open' },
-            orderBy: { createdAt: 'desc' },
+            where: { workspaceId: workspaceUser.workspaceId, contactId: conversation.contact.id },
+            orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
             select: {
                 id: true,
                 title: true,
@@ -147,6 +154,12 @@ export async function GET(
                 stage: { select: { name: true, color: true } },
                 agencyId: true,
                 mediaId: true,
+                value: true,
+                status: true,
+                closedAt: true,
+                outcomeNotes: true,
+                outcomeReason: { select: { name: true } },
+                closedStage: { select: { name: true } },
                 stageEntries: {
                     select: { stageId: true, enteredAt: true, note: true },
                     orderBy: { enteredAt: 'asc' },
@@ -192,6 +205,12 @@ export async function GET(
                           // migração valer a pena.
                           originId: openDeal.agencyId,
                           channelId: openDeal.mediaId,
+                          value: openDeal.value,
+                          status: openDeal.status as 'open' | 'won' | 'lost',
+                          closedAt: openDeal.closedAt?.toISOString() ?? null,
+                          outcomeReasonName: openDeal.outcomeReason?.name ?? null,
+                          outcomeNotes: openDeal.outcomeNotes,
+                          closedStageName: openDeal.closedStage?.name ?? null,
                           stages,
                           entries: openDeal.stageEntries.map((e) => ({
                               stageId: e.stageId,

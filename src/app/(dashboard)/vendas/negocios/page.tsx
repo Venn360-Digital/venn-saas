@@ -3,12 +3,27 @@
 import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
-    Plus, MoreVertical, User, DollarSign,
-    Search, List, LayoutGrid, Trash2, Pencil, X,
-    Trophy, XCircle, ArrowRight, Calendar, Check,
-    Phone, MessageCircle, UserCheck, RefreshCw, CalendarRange,
-    Clock, CheckCircle2, Circle,
-    AlertTriangle} from 'lucide-react'
+    Plus,
+    MoreVertical,
+    User,
+    DollarSign,
+    Search,
+    List,
+    LayoutGrid,
+    Trash2,
+    Pencil,
+    X,
+    Trophy,
+    XCircle,
+    ArrowRight,
+    Calendar,
+    Check,
+    CalendarRange,
+    Clock,
+    CheckCircle2,
+    Circle,
+    AlertTriangle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -32,7 +47,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -65,6 +79,9 @@ import {
 } from '@/components/shared/RowActions'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
+import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
+import { cn } from '@/lib/utils'
+import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -99,8 +116,9 @@ interface Deal {
     value: number | null
     stageId: string
     status: string
-    lossReason: string | null
-    lossNotes: string | null
+    outcomeReason: { id: string; name: string; kind: string } | null
+    outcomeNotes: string | null
+    closedValue: number | null
     contact: Contact | null
     owner: DealOwner | null
     agency: LookupItem | null
@@ -136,15 +154,6 @@ interface DealActivity {
     contact: { id: string; name: string | null } | null
 }
 
-const LOSS_REASONS = [
-    { id: 'price', label: 'Preço alto', icon: '💰' },
-    { id: 'competitor', label: 'Concorrente', icon: '🏢' },
-    { id: 'timing', label: 'Timing / Momento inadequado', icon: '⏰' },
-    { id: 'no_budget', label: 'Sem orçamento', icon: '🚫' },
-    { id: 'no_need', label: 'Sem necessidade', icon: '❌' },
-    { id: 'no_response', label: 'Sem resposta', icon: '📵' },
-    { id: 'other', label: 'Outro', icon: '📝' },
-]
 
 const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 
@@ -222,6 +231,64 @@ function CreatableSelect({
     )
 }
 
+
+/**
+ * Zona de soltar para fechar o negócio.
+ *
+ * Fica no pé do quadro e não é coluna. Quando ninguém está arrastando ela conta
+ * o período filtrado — quantos e quanto — então não é espaço reservado para um
+ * gesto raro.
+ */
+function OutcomeZone({
+    side,
+    count,
+    total,
+    active,
+}: {
+    side: 'won' | 'lost'
+    count?: number
+    total?: number
+    active: boolean
+}) {
+    const { setNodeRef } = useDroppable({ id: `outcome-${side}` })
+    const won = side === 'won'
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={cn(
+                'flex items-center gap-3 rounded-xl border-[1.5px] border-dashed px-3 py-2 transition-colors',
+                active
+                    ? won
+                        ? 'border-solid border-success bg-success-subtle'
+                        : 'border-solid border-destructive bg-destructive-subtle'
+                    : 'border-border-strong'
+            )}
+        >
+            <span
+                className={cn(
+                    'grid size-7 shrink-0 place-items-center rounded-lg',
+                    won ? 'bg-success text-success-foreground' : 'bg-destructive-subtle text-destructive-subtle-foreground'
+                )}
+            >
+                {won ? <Trophy className="size-3.5" /> : <XCircle className="size-3.5" />}
+            </span>
+            <div className="min-w-0">
+                <p className="text-xs font-semibold">
+                    {active ? `Soltar para marcar ${won ? 'ganho' : 'perdido'}` : won ? 'Ganho' : 'Perdido'}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                    {active ? 'pede o motivo' : 'arraste um cartão até aqui'}
+                </p>
+            </div>
+            {count !== undefined && total !== undefined ? (
+                <span className="num ml-auto shrink-0 text-xs font-bold">
+                    {count} · R$ {total.toLocaleString('pt-BR')}
+                </span>
+            ) : null}
+        </div>
+    )
+}
 
 // ─── Deal Card (Kanban) ──────────────────────────────────────────────
 function DealCard({
@@ -448,6 +515,7 @@ export default function NegociosPage() {
     const [kpiActiveCount, setKpiActiveCount] = useState(0)
     const [kpiOpenValue, setKpiOpenValue] = useState(0)
     const [kpiWonValue, setKpiWonValue] = useState(0)
+    const [wonCount, setWonCount] = useState(0)
 
     // Deal dialog
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -473,10 +541,10 @@ export default function NegociosPage() {
     const [dealToDelete, setDealToDelete] = useState<Deal | null>(null)
 
     // Loss reason dialog
-    const [lossDialogOpen, setLossDialogOpen] = useState(false)
+    const [outcomeOpen, setOutcomeOpen] = useState(false)
+    const [reasonsOpen, setReasonsOpen] = useState(false)
+    const [outcomeSide, setOutcomeSide] = useState<'won' | 'lost'>('won')
     const [dealToLose, setDealToLose] = useState<Deal | null>(null)
-    const [lossReason, setLossReason] = useState('')
-    const [lossNotes, setLossNotes] = useState('')
 
     // Deal activities timeline
     const [dealActivities, setDealActivities] = useState<DealActivity[]>([])
@@ -560,7 +628,11 @@ export default function NegociosPage() {
 
             setKpiActiveCount(openDeals.length)
             setKpiOpenValue(openDeals.reduce((sum, d) => sum + (d.value || 0), 0))
-            setKpiWonValue(wonDeals.reduce((sum, d) => sum + (d.value || 0), 0))
+            // Ganho soma o valor fechado, não o da proposta: é o número que
+            // entrou. Cai no valor do negócio quando o fechamento é antigo e
+            // não tem `closedValue`.
+            setKpiWonValue(wonDeals.reduce((sum, d) => sum + (d.closedValue ?? d.value ?? 0), 0))
+            setWonCount(wonDeals.length)
         } catch (error) {
             console.error('Error loading KPI summary:', error)
         }
@@ -687,12 +759,16 @@ export default function NegociosPage() {
     }
 
     const handleStatusChange = async (deal: Deal, status: string) => {
-        // Intercept "lost" — open loss reason dialog
-        if (status === 'lost') {
+        /**
+         * Fechar sempre pede o motivo — ganho inclusive.
+         *
+         * Antes só a perda abria diálogo, e o ganho era um clique sem
+         * explicação: a tela sabia quanto fechou e nunca por quê.
+         */
+        if (status === 'won' || status === 'lost') {
             setDealToLose(deal)
-            setLossReason('')
-            setLossNotes('')
-            setLossDialogOpen(true)
+            setOutcomeSide(status)
+            setOutcomeOpen(true)
             return
         }
         try {
@@ -709,26 +785,31 @@ export default function NegociosPage() {
         } catch { toast.error('Erro ao atualizar status') }
     }
 
-    const handleConfirmLoss = async () => {
+    const handleConfirmOutcome = async (result: {
+        status: 'won' | 'lost'
+        outcomeReasonId: string
+        outcomeNotes: string
+        closedValue: number | null
+    }) => {
         if (!dealToLose) return
-        if (!lossReason) { toast.error('Selecione um motivo'); return }
         try {
             const res = await fetch(`/api/deals/${dealToLose.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'lost', lossReason, lossNotes: lossNotes || undefined }),
+                body: JSON.stringify(result),
             })
-            if (res.ok) {
-                toast.success('Negócio marcado como perdido')
-                setLossDialogOpen(false)
-                setDealToLose(null)
-                if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
-                loadKpiSummary()
-            } else {
-                const err = await res.json()
-                toast.error(err.error || 'Erro ao atualizar')
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                toast.error(err.error || 'Erro ao fechar o negócio')
+                return
             }
-        } catch { toast.error('Erro ao atualizar status') }
+            toast.success(result.status === 'won' ? 'Negócio ganho' : 'Negócio marcado como perdido')
+            setDealToLose(null)
+            if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
+            loadKpiSummary()
+        } catch {
+            toast.error('Erro ao fechar o negócio')
+        }
     }
 
     // ─── Deal Activities (Timeline) ─────────────────────────────────
@@ -838,8 +919,14 @@ export default function NegociosPage() {
     const handleDragOver = (event: DragOverEvent) => {
         const { over } = event
         if (!over) { setOverStageId(null); return }
-        const stageId = findStageByOverId(over.id as string)
-        setOverStageId(stageId)
+        const overId = over.id as string
+        // As zonas de desfecho entram no mesmo estado que destaca a coluna sob o
+        // cartão: um só lugar decide o que está aceso.
+        if (overId === 'outcome-won' || overId === 'outcome-lost') {
+            setOverStageId(overId)
+            return
+        }
+        setOverStageId(findStageByOverId(overId))
     }
 
     const handleDragEnd = async (event: DragEndEvent) => {
@@ -849,7 +936,20 @@ export default function NegociosPage() {
         if (!over) return
 
         const dealId = active.id as string
-        const targetStageId = findStageByOverId(over.id as string)
+        const overId = over.id as string
+
+        // Soltou numa zona de desfecho: não é mudança de etapa, é fechamento —
+        // e fechamento sempre passa pelo diálogo, porque pede motivo.
+        if (overId === 'outcome-won' || overId === 'outcome-lost') {
+            const deal = stages.flatMap((st) => st.deals).find((d) => d.id === dealId)
+            if (!deal) return
+            setDealToLose(deal)
+            setOutcomeSide(overId === 'outcome-won' ? 'won' : 'lost')
+            setOutcomeOpen(true)
+            return
+        }
+
+        const targetStageId = findStageByOverId(overId)
         if (!targetStageId) return
 
         let currentStageId: string | null = null
@@ -1183,8 +1283,16 @@ export default function NegociosPage() {
                                 isOver={overStageId === stage.id}
                             />
                         ))}
-                        {/* Add new stage button */}
-                        <div className="flex-shrink-0 w-72">
+                        {/* Configuração do funil: etapa e motivo de desfecho são
+                            a mesma categoria de ajuste, então ficam juntos. */}
+                        <div className="w-72 flex-shrink-0 space-y-2">
+                            <button
+                                onClick={() => setReasonsOpen(true)}
+                                className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                            >
+                                <Trophy className="size-3.5" />
+                                Motivos de ganho e perda
+                            </button>
                             <button
                                 onClick={handleAddStage}
                                 className="w-full h-[80px] rounded-lg border-2 border-dashed border-border hover:border-primary/50 text-muted-foreground hover:text-foreground flex items-center justify-center gap-2 transition-colors"
@@ -1194,6 +1302,22 @@ export default function NegociosPage() {
                             </button>
                         </div>
                     </div>
+                    {/* Fechar é um gesto do quadro, não uma coluna.
+                        Ganho e perdido não são posições: como coluna cresceriam
+                        para sempre e apagariam a fase em que o negócio fechou. */}
+                    <div className="grid grid-cols-2 gap-3 px-1 pb-1">
+                        <OutcomeZone
+                            side="won"
+                            count={wonCount}
+                            total={kpiWonValue}
+                            active={overStageId === 'outcome-won'}
+                        />
+                        <OutcomeZone
+                            side="lost"
+                            active={overStageId === 'outcome-lost'}
+                        />
+                    </div>
+
                     <DragOverlay>
                         {activeDeal && (
                             <div className="rounded-lg border border-primary bg-card p-3 shadow-xl w-72 opacity-90">
@@ -1305,17 +1429,16 @@ export default function NegociosPage() {
                                 </div>
 
                                 {/* Loss info (read-only when editing a lost deal) */}
-                                {editingDeal?.status === 'lost' && editingDeal?.lossReason && (
+                                {editingDeal?.status !== 'open' && editingDeal?.outcomeReason && (
                                     <div className="bg-destructive-subtle border border-destructive/30 rounded-lg p-3">
                                         <div className="flex items-center gap-2 text-destructive-subtle-foreground text-sm font-medium mb-1">
                                             <AlertTriangle className="h-4 w-4" /> Motivo da perda
                                         </div>
                                         <p className="text-sm">
-                                            {LOSS_REASONS.find(r => r.id === editingDeal.lossReason)?.icon}{' '}
-                                            {LOSS_REASONS.find(r => r.id === editingDeal.lossReason)?.label || editingDeal.lossReason}
+                                            {editingDeal.outcomeReason.name}
                                         </p>
-                                        {editingDeal.lossNotes && (
-                                            <p className="text-xs text-muted-foreground mt-1">{editingDeal.lossNotes}</p>
+                                        {editingDeal.outcomeNotes && (
+                                            <p className="text-xs text-muted-foreground mt-1">{editingDeal.outcomeNotes}</p>
                                         )}
                                     </div>
                                 )}
@@ -1499,50 +1622,19 @@ export default function NegociosPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Loss Reason Dialog */}
-            <Dialog open={lossDialogOpen} onOpenChange={setLossDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <XCircle className="h-5 w-5 text-destructive-subtle-foreground" /> Motivo da perda
-                        </DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-muted-foreground">
-                        Por que o negócio &quot;{dealToLose?.title}&quot; foi perdido?
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 py-2">
-                        {LOSS_REASONS.map(reason => (
-                            <button
-                                key={reason.id}
-                                onClick={() => setLossReason(reason.id)}
-                                className={`flex items-center gap-2 p-3 rounded-lg border text-sm text-left transition-all ${lossReason === reason.id
-                                    ? 'border-destructive bg-destructive-subtle text-destructive-subtle-foreground'
-                                    : 'border-border hover:border-muted-foreground text-muted-foreground hover:text-foreground'
-                                    }`}
-                            >
-                                <span className="text-lg">{reason.icon}</span>
-                                <span>{reason.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                    <div>
-                        <Label>Detalhes (opcional)</Label>
-                        <Textarea
-                            value={lossNotes}
-                            onChange={(e) => setLossNotes(e.target.value)}
-                            placeholder="Explique mais sobre o motivo..."
-                            className="mt-1"
-                            rows={2}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setLossDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleConfirmLoss} disabled={!lossReason} variant="destructive">
-                            Confirmar perda
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Um diálogo para os dois desfechos, o mesmo que a jornada do
+                paciente usa: existe um lugar só que grava fechamento. */}
+            <OutcomeReasonsDialog open={reasonsOpen} onOpenChange={setReasonsOpen} />
+
+            <OutcomeDialog
+                open={outcomeOpen}
+                onOpenChange={setOutcomeOpen}
+                dealTitle={dealToLose?.title ?? ''}
+                dealValue={dealToLose?.value ?? null}
+                stageName={dealToLose?.stage?.name ?? null}
+                initialOutcome={outcomeSide}
+                onConfirm={handleConfirmOutcome}
+            />
 
             {/* Delete Confirmation */}
             <ConfirmDialog

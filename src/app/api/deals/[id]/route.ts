@@ -47,7 +47,7 @@ export async function PATCH(
         if (!existingDeal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
         const body = await request.json()
-        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, lossReason, lossNotes, stageNote, stageEntry } = body
+        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, outcomeReasonId, outcomeNotes, closedValue, stageNote, stageEntry } = body
 
         // If changing contact, enforce 1:1 rule
         if (contactId && contactId !== existingDeal.contactId) {
@@ -79,23 +79,49 @@ export async function PATCH(
         if (mediaId !== undefined) updateData.mediaId = mediaId
         if (trackingData !== undefined) updateData.trackingData = trackingData
 
+        /**
+         * Fechar e reabrir.
+         *
+         * O motivo é obrigatório nos dois lados — ganho sem motivo é um número
+         * sem explicação, e era o que acontecia antes, quando só a perda pedia.
+         * A fase de saída é gravada aqui e não pelo cliente: é a etapa em que o
+         * negócio está neste instante, e quem fecha não deveria ter de informar
+         * algo que o servidor já sabe.
+         */
         if (status !== undefined) {
             updateData.status = status
-            if (status === 'lost') {
-                if (!lossReason) {
-                    return NextResponse.json({ error: 'Motivo da perda é obrigatório' }, { status: 400 })
+
+            if (status === 'won' || status === 'lost') {
+                if (!outcomeReasonId) {
+                    return NextResponse.json(
+                        { error: status === 'won' ? 'Motivo do ganho é obrigatório' : 'Motivo da perda é obrigatório' },
+                        { status: 400 }
+                    )
                 }
-                updateData.lossReason = lossReason
-                updateData.lossNotes = lossNotes || null
-                if (!existingDeal.closedAt) updateData.closedAt = new Date()
-            } else if (status === 'won') {
-                updateData.lossReason = null
-                updateData.lossNotes = null
+                const reason = await prisma.dealOutcomeReason.findFirst({
+                    where: { id: outcomeReasonId, workspaceId: workspaceUser.workspaceId, kind: status },
+                    select: { id: true },
+                })
+                if (!reason) {
+                    return NextResponse.json({ error: 'Motivo inválido para este desfecho' }, { status: 400 })
+                }
+
+                updateData.outcomeReasonId = outcomeReasonId
+                updateData.outcomeNotes = outcomeNotes || null
+                updateData.closedStageId = existingDeal.stageId
+                updateData.closedValue =
+                    closedValue === undefined || closedValue === null || closedValue === ''
+                        ? existingDeal.value
+                        : Number(closedValue)
                 if (!existingDeal.closedAt) updateData.closedAt = new Date()
             } else if (status === 'open') {
+                // Reabrir devolve o negócio à fase em que estava: `stageId` nunca
+                // foi alterado pelo fechamento, então basta limpar o desfecho.
                 updateData.closedAt = null
-                updateData.lossReason = null
-                updateData.lossNotes = null
+                updateData.outcomeReasonId = null
+                updateData.outcomeNotes = null
+                updateData.closedStageId = null
+                updateData.closedValue = null
             }
         }
 

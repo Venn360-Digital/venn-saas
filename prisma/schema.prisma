@@ -63,6 +63,7 @@ model Workspace {
   // Relations
   users         WorkspaceUser[]
   agents        Agent[]
+  outcomeReasons DealOutcomeReason[]
   contacts      Contact[]
   deals         Deal[]
   conversations Conversation[]
@@ -360,8 +361,21 @@ model Deal {
   value           Float?
   currency        String   @default("BRL")
   status          String   @default("open") // "open", "won", "lost"
-  lossReason      String?  // "price", "competitor", "timing", "no_budget", "no_need", "no_response", "other"
-  lossNotes       String?  @db.Text
+
+  /// O desfecho, quando houve: por que ganhou ou perdeu.
+  ///
+  /// Era `lossReason` com sete códigos fixos no app e nenhum equivalente para
+  /// ganho. Agora é referência para uma lista que a clínica alimenta, e o mesmo
+  /// campo serve os dois lados — quem fecha escolhe o lado primeiro, e a lista
+  /// se filtra por ele.
+  outcomeReasonId String?
+  outcomeNotes    String?  @db.Text
+  /// A fase em que estava ao fechar. "Perdeu na Proposta" é o dado que diz onde
+  /// o funil vaza, e sem isto ele se perde no instante do fechamento.
+  closedStageId   String?
+  /// O que de fato fechou. Proposta de 42 mil fechada em 38 é a diferença entre
+  /// o que o funil mostra e o que entrou no caixa.
+  closedValue     Float?
   
   // Pipeline
   stageId         String
@@ -382,9 +396,13 @@ model Deal {
   owner           User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   agency          Agency?        @relation(fields: [agencyId], references: [id], onDelete: SetNull)
   media           Media?         @relation(fields: [mediaId], references: [id], onDelete: SetNull)
-  stage           PipelineStage  @relation(fields: [stageId], references: [id])
+  stage           PipelineStage  @relation("DealCurrentStage", fields: [stageId], references: [id])
+  /// Relação nomeada: o negócio aponta para duas etapas — onde está e, se
+  /// fechou, de onde saiu.
+  closedStage     PipelineStage? @relation("DealClosedStage", fields: [closedStageId], references: [id], onDelete: SetNull)
   activities      Activity[]
   stageEntries    DealStageEntry[]
+  outcomeReason   DealOutcomeReason? @relation(fields: [outcomeReasonId], references: [id], onDelete: SetNull)
   
   @@index([workspaceId])
   @@index([stageId])
@@ -403,7 +421,8 @@ model PipelineStage {
   order       Int
   color       String   @default("#6B7280")
   
-  deals       Deal[]
+  deals       Deal[]           @relation("DealCurrentStage")
+  closedDeals Deal[]           @relation("DealClosedStage")
   entries     DealStageEntry[]
   
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -422,6 +441,32 @@ model PipelineStage {
 ///
 /// Voltar atrás acrescenta uma entrada em vez de apagar uma, então a segunda
 /// passagem por uma etapa é um registro próprio e a primeira continua existindo.
+/// Por que um negócio foi ganho ou perdido, na lista da própria clínica.
+///
+/// Os motivos de perda viviam fixos no código — sete, com emoji — e motivo de
+/// ganho não existia. Uma clínica que fecha por indicação e outra que fecha por
+/// preço competitivo precisam de listas diferentes, e nenhuma das duas cabe num
+/// enum do app. `kind` separa os dois lados porque "preço alto" não é motivo de
+/// ganho: uma lista única convidaria ao erro no momento mais importante do funil.
+model DealOutcomeReason {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// "won" | "lost"
+  kind        String
+  name        String
+  order       Int      @default(0)
+  /// Desativado em vez de apagado: negócio já fechado continua apontando para cá.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals       Deal[]
+
+  @@index([workspaceId, kind, order])
+  @@map("deal_outcome_reasons")
+}
+
 model DealStageEntry {
   id        String   @id @default(cuid())
   dealId    String

@@ -184,6 +184,12 @@ interface OpenDeal {
     originId: string | null
     /** Por onde veio — "Mídia" no banco. */
     channelId: string | null
+    value: number | null
+    status: 'open' | 'won' | 'lost'
+    closedAt: string | null
+    outcomeReasonName: string | null
+    outcomeNotes: string | null
+    closedStageName: string | null
     /** As etapas que esta clínica criou, em ordem. São as fases. */
     stages: JourneyStage[]
     /** Uma entrada por passagem em etapa: a data e a nota de cada fase. */
@@ -2590,7 +2596,11 @@ export default function ConversasPage() {
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h4>
-                                                    {conv.openDeal?.stageName ? (
+                                                    {conv.openDeal?.status === 'won' ? (
+                                                        <span className="rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">Ganho</span>
+                                                    ) : conv.openDeal?.status === 'lost' ? (
+                                                        <span className="rounded-full bg-destructive-subtle px-2 py-0.5 text-[10px] font-semibold text-destructive-subtle-foreground">Perdido</span>
+                                                    ) : conv.openDeal?.stageName ? (
                                                         <TagChip name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? DEFAULT_ENTITY_COLOR} />
                                                     ) : null}
                                                 </div>
@@ -2604,9 +2614,22 @@ export default function ConversasPage() {
                                                             <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jornada</h4>
                                                             <DealJourney
                                                                 dealId={conv.openDeal.id}
+                                                                dealTitle={conv.openDeal.title}
+                                                                dealValue={conv.openDeal.value}
                                                                 stages={conv.openDeal.stages}
                                                                 currentStageId={conv.openDeal.stageId}
                                                                 entries={conv.openDeal.entries}
+                                                                status={conv.openDeal.status}
+                                                                outcomeReasonName={conv.openDeal.outcomeReasonName}
+                                                                outcomeNotes={conv.openDeal.outcomeNotes}
+                                                                closedAt={conv.openDeal.closedAt}
+                                                                closedStageName={conv.openDeal.closedStageName}
+                                                                onOutcome={() => {
+                                                                    // Relê o negócio e a lista: o desfecho muda o
+                                                                    // selo aqui e o cartão no funil.
+                                                                    void fetchMessages(conv.id)
+                                                                    void fetchConversations()
+                                                                }}
                                                                 onChange={applyDealJourney}
                                                             />
                                                         </div>

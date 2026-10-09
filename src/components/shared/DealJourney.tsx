@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { Check, Clock } from 'lucide-react'
+import { Check, Clock, Flag, Trophy, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useNow } from '@/hooks/useNow'
 import { cn } from '@/lib/utils'
+import { OutcomeDialog, type Outcome, type OutcomeResult } from '@/components/shared/OutcomeDialog'
 
 /**
  * A jornada do negócio — e a jornada são as etapas do funil.
@@ -41,9 +42,19 @@ export interface JourneyEntry {
 
 interface DealJourneyProps {
     dealId: string
+    dealTitle?: string
+    dealValue?: number | null
     stages: JourneyStage[]
     currentStageId: string
     entries: JourneyEntry[]
+    /** `open` enquanto o negócio corre; o desfecho fecha a jornada. */
+    status?: 'open' | 'won' | 'lost'
+    outcomeReasonName?: string | null
+    outcomeNotes?: string | null
+    closedAt?: string | null
+    closedStageName?: string | null
+    /** Avisa a tela que o negócio fechou, para ela recarregar o que depende. */
+    onOutcome?: () => void
     /** Recebe o novo estado para a tela aplicar sem recarregar. */
     onChange: (next: { currentStageId: string; entries: JourneyEntry[] }) => void
     className?: string
@@ -51,15 +62,26 @@ interface DealJourneyProps {
 
 export function DealJourney({
     dealId,
+    dealTitle = '',
+    dealValue = null,
     stages,
     currentStageId,
     entries,
+    status = 'open',
+    outcomeReasonName,
+    outcomeNotes,
+    closedAt,
+    closedStageName,
+    onOutcome,
     onChange,
     className,
 }: DealJourneyProps) {
     const now = useNow()
     const [open, setOpen] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
+    const [outcomeOpen, setOutcomeOpen] = useState(false)
+    const [outcomeSide, setOutcomeSide] = useState<Outcome>('won')
+    const closed = status !== 'open'
 
     useEffect(() => {
         setOpen(null)
@@ -78,7 +100,7 @@ export function DealJourney({
     }
 
     const enteredCurrent = latest.get(currentStageId)?.enteredAt
-    const daysHere = enteredCurrent && now
+    const daysHere = enteredCurrent && now && !closed
         ? Math.floor((now - new Date(enteredCurrent).getTime()) / 86_400_000)
         : null
 
@@ -102,7 +124,8 @@ export function DealJourney({
     /** Selecionar uma fase é mover o negócio para ela. */
     const selectStage = (stage: JourneyStage) => {
         setOpen(stage.id)
-        if (stage.id === currentStageId) return
+        // Negócio fechado não muda de fase: reabrir primeiro é explícito.
+        if (closed || stage.id === currentStageId) return
 
         void send({ stageId: stage.id }, () => {
             onChange({
@@ -174,9 +197,12 @@ export function DealJourney({
             <ol className="relative">
                 {ordered.map((stage, i) => {
                     const entry = latest.get(stage.id)
-                    const isCurrent = stage.id === currentStageId
-                    const done = i < currentIndex || (Boolean(entry) && !isCurrent)
-                    const isLast = i === ordered.length - 1
+                    const isCurrent = stage.id === currentStageId && !closed
+                    const done = closed
+                        ? i <= currentIndex || Boolean(entry)
+                        : i < currentIndex || (Boolean(entry) && !isCurrent)
+                    // O item Desfecho fecha a lista, então nenhuma etapa é a última.
+                    const isLast = false
                     const isOpen = open === stage.id
 
                     return (
@@ -269,7 +295,97 @@ export function DealJourney({
                         </li>
                     )
                 })}
+
+                {/* Desfecho: item fixo, não etapa.
+                    Ganho e perdido não são posições — um negócio fechado saiu do
+                    funil, e como coluna cresceria para sempre e apagaria a fase
+                    em que fechou, que é o dado mais útil de uma perda. */}
+                <li className="relative flex gap-2.5">
+                    <span
+                        className={cn(
+                            'relative z-10 mt-0.5 grid h-[19px] w-[19px] shrink-0 place-items-center rounded-full border',
+                            status === 'won'
+                                ? 'border-success bg-success text-success-foreground'
+                                : status === 'lost'
+                                    ? 'border-destructive bg-destructive text-destructive-foreground'
+                                    : 'border-dashed border-border-strong bg-card text-muted-foreground'
+                        )}
+                    >
+                        {status === 'won' ? (
+                            <Trophy className="h-3 w-3" />
+                        ) : status === 'lost' ? (
+                            <X className="h-3 w-3" />
+                        ) : (
+                            <Flag className="h-2.5 w-2.5" />
+                        )}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                        {closed ? (
+                            <>
+                                <div className="flex items-baseline justify-between gap-2">
+                                    <span className="text-[13px] font-semibold">
+                                        {status === 'won' ? 'Ganho' : 'Perdido'}
+                                    </span>
+                                    <span className="num shrink-0 text-xs text-muted-foreground">
+                                        {closedAt ? format(new Date(closedAt), 'dd/MM') : '—'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {outcomeReasonName ?? 'sem motivo'}
+                                    {closedStageName ? ` · fechou na fase ${closedStageName}` : ''}
+                                </p>
+                                {outcomeNotes ? (
+                                    <p className="mt-0.5 text-xs text-muted-foreground">{outcomeNotes}</p>
+                                ) : null}
+                                <button
+                                    type="button"
+                                    onClick={() => void send({ status: 'open' }, () => onOutcome?.())}
+                                    className="mt-1.5 text-xs font-semibold text-primary-subtle-foreground hover:underline"
+                                >
+                                    Reabrir negócio
+                                </button>
+                            </>
+                        ) : (
+                            <div className="rounded-md border border-dashed border-border-strong p-2">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[13px] text-muted-foreground">Desfecho</span>
+                                </div>
+                                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setOutcomeSide('won'); setOutcomeOpen(true) }}
+                                        className="flex items-center justify-center gap-1.5 rounded-md border border-success bg-success-subtle px-2 py-1 text-xs font-semibold text-success-subtle-foreground"
+                                    >
+                                        <Trophy className="size-3" />
+                                        Ganho
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setOutcomeSide('lost'); setOutcomeOpen(true) }}
+                                        className="flex items-center justify-center gap-1.5 rounded-md border border-border-strong px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
+                                    >
+                                        <X className="size-3" />
+                                        Perdido
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </li>
             </ol>
+
+            <OutcomeDialog
+                open={outcomeOpen}
+                onOpenChange={setOutcomeOpen}
+                dealTitle={dealTitle}
+                dealValue={dealValue}
+                stageName={ordered[currentIndex]?.name ?? null}
+                initialOutcome={outcomeSide}
+                onConfirm={async (result: OutcomeResult) => {
+                    await send({ ...result }, () => onOutcome?.())
+                }}
+            />
         </div>
     )
 }
