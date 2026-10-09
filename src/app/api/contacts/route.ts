@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
+import { phoneVariants } from '@/lib/whatsapp/types'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -205,8 +206,10 @@ export async function POST(request: NextRequest) {
         const phone = validatedData.phone ? normalizePhone(validatedData.phone).digits : null
 
         if (phone) {
+            // Pelas duas formas: com e sem o nono dígito são a mesma pessoa, e
+            // uma delas pode já estar cadastrada pelo WhatsApp.
             const clash = await prisma.contact.findFirst({
-                where: { workspaceId: workspaceUser.workspaceId, phone },
+                where: { workspaceId: workspaceUser.workspaceId, phone: { in: phoneVariants(phone) } },
                 select: { id: true, name: true },
             })
             if (clash) {

@@ -10,6 +10,7 @@ import {
     type WhatsAppProvider,
     WhatsAppProviderError,
     normalizeNumber,
+    phoneVariants,
     toMsisdn,
 } from './types'
 
@@ -315,13 +316,23 @@ export class EvolutionGoProvider implements WhatsAppProvider {
      * `POST /user/check` — o IsOnWhatsApp do whatsmeow, por trás do Evolution Go.
      *
      * A resposta é `gin.H` sem contrato, então a leitura é defensiva de
-     * propósito. O que foi medido contra a instância em produção: um número
-     * inexistente devolve `{"data":{"Users":null}}`. Um número existente devolve
-     * entradas em `Users`; o campo booleano dessas entradas varia de nome entre
-     * versões, então a presença da entrada já conta como "tem WhatsApp" e só um
-     * `false` explícito conta como "não tem". Falha de rede ou instância
-     * desconectada devolve `undefined`, não `false`: bloquear o cadastro por uma
-     * verificação instável é pior que aceitar um número que talvez erre.
+     * propósito. Medido contra a instância em produção:
+     *
+     * - inexistente: `{"data":{"Users":null}}`;
+     * - existente: `{"data":{"Users":[{"Query":"+553188501161",
+     *   "IsInWhatsapp":true,"JID":"553188501161@s.whatsapp.net",...}]}}`.
+     *
+     * Duas armadilhas reais nesse retorno. O booleano se chama `IsInWhatsapp`,
+     * e nomes alternativos são aceitos porque a versão pode mudar — só um
+     * `false` explícito conta como "não tem". E **o número volta diferente do
+     * que foi perguntado**: `5531988501161` responde como `553188501161`, sem o
+     * nono dígito, porque é assim que a conta está registrada. Por isso o
+     * casamento é por variante, e o JID é devolvido ao chamador: é ele a forma
+     * pela qual a mensagem vai chegar, e portanto a forma que deve ser gravada.
+     *
+     * Falha de rede ou instância desconectada devolve `undefined`, não `false`:
+     * bloquear o cadastro por uma verificação instável é pior que aceitar um
+     * número que talvez erre.
      */
     async checkNumbers(
         credentials: InstanceCredentials,
@@ -348,14 +359,18 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         }
 
         return wanted.map((number) => {
+            const asked = new Set(phoneVariants(number))
             const hit = users.find((u) => {
-                const query = String(u.Query ?? u.query ?? '')
-                const jid = String(u.JID ?? u.jid ?? '')
-                return normalizeNumber(query) === number || toMsisdn(jid) === number
+                const query = normalizeNumber(String(u.Query ?? u.query ?? ''))
+                const jid = toMsisdn(String(u.JID ?? u.jid ?? ''))
+                return (
+                    phoneVariants(query).some((v) => asked.has(v)) ||
+                    phoneVariants(jid).some((v) => asked.has(v))
+                )
             })
             if (!hit) return { number, exists: false }
 
-            const flag = hit.IsIn ?? hit.isIn ?? hit.IsInWhatsapp ?? hit.exists
+            const flag = hit.IsInWhatsapp ?? hit.isInWhatsapp ?? hit.IsIn ?? hit.isIn ?? hit.exists
             const jid = hit.JID ?? hit.jid
             return {
                 number,

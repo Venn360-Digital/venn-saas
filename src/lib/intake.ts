@@ -1,6 +1,8 @@
 import prisma from '@/lib/prisma'
 import { resolveIntegration } from '@/lib/whatsapp'
-import { normalizeNumber } from '@/lib/whatsapp/types'
+import { normalizeNumber, phoneVariants, toMsisdn } from '@/lib/whatsapp/types'
+
+export { phoneVariants }
 
 /**
  * O telefone, do jeito que o Brasil digita e o WhatsApp endereça.
@@ -73,14 +75,21 @@ export async function connectedWhatsApp(workspaceId: string) {
  * impedimento: travar o cadastro de um paciente real por causa de uma
  * verificação instável é pior que aceitar um número que talvez esteja errado.
  */
-export async function hasWhatsApp(workspaceId: string, digits: string): Promise<boolean | undefined> {
+export async function hasWhatsApp(
+    workspaceId: string,
+    digits: string
+): Promise<{ exists: boolean | undefined; canonical: string | null }> {
     const resolved = await connectedWhatsApp(workspaceId)
-    if (!resolved?.provider.checkNumbers) return undefined
+    if (!resolved?.provider.checkNumbers) return { exists: undefined, canonical: null }
 
     try {
         const [result] = await resolved.provider.checkNumbers(resolved.credentials, [digits])
-        return result?.exists
+        return {
+            exists: result?.exists,
+            // O JID é a palavra final sobre como este número é endereçado.
+            canonical: result?.jid ? toMsisdn(result.jid) : null,
+        }
     } catch {
-        return undefined
+        return { exists: undefined, canonical: null }
     }
 }

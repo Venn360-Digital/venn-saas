@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone } from '@/lib/intake'
+import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
 
 /**
  * Quem é este número, antes de gravar qualquer coisa.
@@ -25,9 +25,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ valid: false, phone: digits, formatted: formatPhone(digits) })
     }
 
+    // As duas formas, porque o nono dígito separa a ficha criada à mão da que
+    // o WhatsApp cria — e as duas são a mesma pessoa.
+    const variants = phoneVariants(digits)
     const contact = await prisma.contact.findFirst({
-        where: { workspaceId: auth.member.workspaceId, phone: digits },
-        select: { id: true, name: true },
+        where: { workspaceId: auth.member.workspaceId, phone: { in: variants } },
+        select: { id: true, name: true, phone: true },
     })
 
     let existing = null
@@ -56,19 +59,29 @@ export async function GET(request: NextRequest) {
 
     // Paciente conhecido já provou que o número existe: a conversa só existe
     // porque alguém escreveu por ela.
-    const whatsapp = existing?.conversationId
-        ? true
+    const checked = existing?.conversationId
+        ? { exists: true as boolean | undefined, canonical: contact?.phone ?? null }
         : await hasWhatsApp(auth.member.workspaceId, digits)
+
+    /**
+     * A forma que será gravada.
+     *
+     * Ordem de autoridade: o JID que o WhatsApp devolveu, depois a ficha que já
+     * existe, depois o que foi digitado. É o que garante que a mensagem que
+     * chegar amanhã caia nesta ficha em vez de abrir uma segunda.
+     */
+    const canonical = checked.canonical ?? contact?.phone ?? digits
 
     const channel = await connectedWhatsApp(auth.member.workspaceId)
 
     return NextResponse.json({
         valid: true,
-        phone: digits,
-        formatted: formatPhone(digits),
+        phone: canonical,
+        typed: digits,
+        formatted: formatPhone(canonical),
         existing,
         /** `true` tem, `false` não tem, `null` não deu para verificar. */
-        whatsapp: whatsapp ?? null,
+        whatsapp: checked.exists ?? null,
         /** Sem canal conectado não há como abrir conversa — só registrar. */
         channelConnected: Boolean(channel),
     })

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireWritable } from '@/lib/billing'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { connectedWhatsApp, normalizePhone } from '@/lib/intake'
+import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
 
 type Mode = 'active' | 'call'
 
@@ -51,13 +51,24 @@ export async function POST(request: NextRequest) {
     }
 
     // ── paciente ──
+    // A ficha é procurada pelas duas formas do número e, se não existir, criada
+    // na forma que o WhatsApp endereça: é por ela que a mensagem vai chegar.
+    // Repetir a verificação aqui custa uma chamada e fecha a janela em que o
+    // cliente mandaria a forma digitada em vez da canônica.
+    const existingContact = await prisma.contact.findFirst({
+        where: { workspaceId, phone: { in: phoneVariants(digits) } },
+    })
+    const canonical = existingContact?.phone
+        ?? (await hasWhatsApp(workspaceId, digits)).canonical
+        ?? digits
+
     const contact =
-        (await prisma.contact.findFirst({ where: { workspaceId, phone: digits } })) ??
+        existingContact ??
         (await prisma.contact.create({
             data: {
                 workspaceId,
-                phone: digits,
-                name: name || `WhatsApp ${digits}`,
+                phone: canonical,
+                name: name || `WhatsApp ${canonical}`,
                 source: mode === 'call' ? 'ligacao' : 'manual',
                 lastContactAt: new Date(),
             },
@@ -92,7 +103,7 @@ export async function POST(request: NextRequest) {
                 workspaceId,
                 contactId: contact.id,
                 userId,
-                title: `Novo paciente - ${name || digits}`,
+                title: `Novo paciente - ${name || canonical}`,
                 stageId: firstStage.id,
                 source: mode === 'call' ? 'ligacao' : 'whatsapp',
                 status: 'open',
@@ -161,7 +172,7 @@ export async function POST(request: NextRequest) {
                 contactId: contact.id,
                 dealId: deal.id,
                 type: 'call',
-                title: `Ligação — ${name || digits}`,
+                title: `Ligação — ${name || canonical}`,
                 description: callNotes || undefined,
                 dueDate: now,
                 completedAt: now,

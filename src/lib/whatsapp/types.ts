@@ -208,3 +208,29 @@ export function toMsisdn(jid: string): string {
 export function normalizeNumber(to: string): string {
     return to.replace(/\D/g, '')
 }
+
+/**
+ * As duas formas que um celular brasileiro pode ter no WhatsApp.
+ *
+ * Medido contra a instância em produção: `5531988501161` responde com o JID
+ * `553188501161@s.whatsapp.net` — sem o nono dígito. Contas registradas antes
+ * da obrigatoriedade do 9 continuam endereçadas pela forma antiga, e é essa a
+ * forma que chega no inbound (`toMsisdn(jid)`).
+ *
+ * Nenhuma das duas é "a certa" por decreto: a busca tenta as duas, e quem
+ * decide a canônica é o próprio WhatsApp, pelo JID que devolve. Gravar a forma
+ * errada criaria um segundo paciente na primeira mensagem.
+ *
+ * Mora aqui, e não em `lib/intake`, porque este arquivo não importa nada — e
+ * `intake` importa o provedor, que precisa desta função.
+ */
+export function phoneVariants(digits: string): string[] {
+    if (!digits.startsWith('55') || digits.length < 12) return [digits]
+
+    const ddd = digits.slice(2, 4)
+    const rest = digits.slice(4)
+
+    if (rest.length === 9 && rest.startsWith('9')) return [digits, `55${ddd}${rest.slice(1)}`]
+    if (rest.length === 8) return [digits, `55${ddd}9${rest}`]
+    return [digits]
+}

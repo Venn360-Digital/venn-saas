@@ -21,7 +21,9 @@ import { cn } from '@/lib/utils'
 
 interface LookupResult {
     valid: boolean
+    /** A forma que será gravada — pode diferir da digitada. */
     phone: string
+    typed?: string
     formatted: string
     existing?: {
         contactId: string
@@ -273,7 +275,18 @@ export function NewAttendanceDialog({
                         ) : lookup?.valid ? (
                             <div className="flex items-start gap-2 rounded-md bg-primary-subtle px-2.5 py-2 text-xs text-primary-subtle-foreground">
                                 <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />
-                                <span>Tem WhatsApp. Novo na base — será cadastrado ao confirmar.</span>
+                                <span>
+                                    Tem WhatsApp. Novo na base — será cadastrado ao confirmar.
+                                    {/* Quando o WhatsApp endereça o número de outra
+                                        forma — sem o nono dígito, por exemplo — a tela
+                                        diz qual, em vez de gravar algo diferente do
+                                        que a pessoa digitou sem avisar. */}
+                                    {lookup.typed && lookup.typed !== lookup.phone ? (
+                                        <span className="num block opacity-80">
+                                            No WhatsApp ele é {lookup.formatted} — é assim que fica salvo.
+                                        </span>
+                                    ) : null}
+                                </span>
                             </div>
                         ) : phone.replace(/\D/g, '').length >= 10 ? (
                             <p className="text-xs text-destructive-subtle-foreground">

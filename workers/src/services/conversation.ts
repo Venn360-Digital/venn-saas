@@ -1,5 +1,6 @@
 import type { Contact, Conversation } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { phoneVariants } from '@/lib/whatsapp/types'
 import { withLock } from '../lock'
 import { createLogger } from '../logger'
 
@@ -21,7 +22,19 @@ export interface ResolveContactInput {
 async function resolveContact(input: ResolveContactInput): Promise<Contact> {
     const { workspaceId, phone, pushName, profilePicUrl } = input
 
-    const existing = await prisma.contact.findFirst({ where: { workspaceId, phone } })
+    /**
+     * As duas formas do celular brasileiro, porque uma ficha pode ter nascido
+     * com a outra.
+     *
+     * Quem cadastra à mão digita `(31) 98850-1161`; a conta no WhatsApp pode
+     * estar registrada como `553188501161`, sem o nono dígito, e é essa forma
+     * que chega aqui pelo JID. Procurando só pela forma exata, a primeira
+     * mensagem criava um segundo paciente ao lado do que a recepção acabara de
+     * cadastrar.
+     */
+    const existing = await prisma.contact.findFirst({
+        where: { workspaceId, phone: { in: phoneVariants(phone) } },
+    })
 
     if (!existing) {
         return prisma.contact.create({
@@ -35,12 +48,22 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
         })
     }
 
-    const patch: { name?: string; avatar?: string } = {}
+    const patch: { name?: string; avatar?: string; phone?: string } = {}
     if (pushName && existing.name !== pushName) patch.name = pushName
     if (profilePicUrl && existing.avatar !== profilePicUrl) patch.avatar = profilePicUrl
+    // O JID é a autoridade sobre a forma do número: convergir a ficha para ela
+    // evita que a próxima busca exata erre de novo. Se as duas formas existirem
+    // como fichas separadas (dado antigo), o índice único recusa — e aí a ficha
+    // fica como está, que é melhor que abortar a mensagem.
+    if (existing.phone !== phone) patch.phone = phone
 
     if (Object.keys(patch).length === 0) return existing
-    return prisma.contact.update({ where: { id: existing.id }, data: patch })
+    try {
+        return await prisma.contact.update({ where: { id: existing.id }, data: patch })
+    } catch {
+        log.warn(`could not converge contact ${existing.id} to ${phone}; keeping as is`)
+        return existing
+    }
 }
 
 /**
