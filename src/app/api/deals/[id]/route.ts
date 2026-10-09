@@ -61,7 +61,7 @@ export async function PATCH(
             })
             if (existingOpenDeal) {
                 return NextResponse.json(
-                    { error: 'Este contato já possui um negócio ativo.' },
+                    { error: 'Este paciente já possui um negócio ativo.' },
                     { status: 409 }
                 )
             }

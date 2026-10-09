@@ -88,7 +88,7 @@ function copyFor(
                 body: [
                     `Como a assinatura não foi contratada, os dados deste workspace serão removidos em ${formatDate(context.deleteAt as Date)}.`,
                     'Até lá nada muda: tudo continua acessível para consulta e exportação, e contratar um plano a qualquer momento restabelece o atendimento sem perda nenhuma.',
-                    'Se preferir levar seus dados, a exportação está disponível nas telas de contatos e negócios.',
+                    'Se preferir levar seus dados, a exportação está disponível nas telas de pacientes e negócios.',
                 ],
                 cta: 'Manter minha conta ativa',
                 tone: 'neutral',
@@ -99,7 +99,7 @@ function copyFor(
                 headline: 'Seus dados serão removidos em 7 dias',
                 body: [
                     `A remoção está marcada para ${formatDate(context.deleteAt as Date)} e é definitiva.`,
-                    'Se quiser manter o histórico, contrate um plano antes dessa data — ou exporte seus contatos e negócios enquanto o acesso continua aberto.',
+                    'Se quiser manter o histórico, contrate um plano antes dessa data — ou exporte seus pacientes e negócios enquanto o acesso continua aberto.',
                 ],
                 cta: 'Contratar um plano',
                 tone: 'urgent',

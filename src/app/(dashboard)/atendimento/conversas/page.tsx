@@ -180,6 +180,10 @@ interface OpenDeal {
     stageId: string
     stageName: string | null
     stageColor: string | null
+    /** De onde veio o paciente — "Agência" no banco. */
+    origin: string | null
+    /** Por onde veio — "Mídia" no banco. */
+    channel: string | null
     /** As etapas que esta clínica criou, em ordem. São as fases. */
     stages: JourneyStage[]
     /** Uma entrada por passagem em etapa: a data e a nota de cada fase. */
@@ -2163,7 +2167,7 @@ export default function ConversasPage() {
                                                                     'font-semibold block text-[10px]',
                                                                     isInbound ? 'text-primary' : 'opacity-80'
                                                                 )}>
-                                                                    {msg.replyTo.direction === 'inbound' ? '👤 Contato' : '🤖 Agente'}
+                                                                    {msg.replyTo.direction === 'inbound' ? '👤 Paciente' : '🤖 Agente'}
                                                                 </span>
                                                                 <p className="truncate opacity-80">{msg.replyTo.content}</p>
                                                             </div>
@@ -2488,16 +2492,23 @@ export default function ConversasPage() {
                                                 </div>
                                             </div>
 
-                                            <div className="rounded-md bg-muted/50 px-2.5 py-2">
-                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Atendido por</p>
-                                                <p className="text-sm font-medium">
-                                                    {conv.assignedToName
-                                                        ? `👤 ${conv.assignedToName}`
-                                                        : conv.agent
-                                                            ? `🤖 ${conv.agent.name}`
-                                                            : 'Ninguém'}
-                                                </p>
-                                            </div>
+                                            {/* Origem e canal: de onde o paciente
+                                                veio e por onde. Quem atende saiu
+                                                daqui — a barra do chat já diz com
+                                                quem a conversa está, e dizia duas
+                                                vezes. */}
+                                            {conv.openDeal ? (
+                                                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                                                    <dt className="text-muted-foreground">Origem</dt>
+                                                    <dd className="truncate font-medium" title={conv.openDeal.origin ?? undefined}>
+                                                        {conv.openDeal.origin ?? '—'}
+                                                    </dd>
+                                                    <dt className="text-muted-foreground">Canal</dt>
+                                                    <dd className="truncate font-medium" title={conv.openDeal.channel ?? undefined}>
+                                                        {conv.openDeal.channel ?? '—'}
+                                                    </dd>
+                                                </dl>
+                                            ) : null}
 
                                             {/* Negócio: título e etapa atual. A
                                                 jornada logo abaixo são as etapas
@@ -2688,7 +2699,7 @@ export default function ConversasPage() {
                 open={showDeleteDialog}
                 onOpenChange={setShowDeleteDialog}
                 title="Excluir conversa"
-                description="Todas as mensagens, áudios, imagens e anexos desta conversa saem do sistema. O contato permanece."
+                description="Todas as mensagens, áudios, imagens e anexos desta conversa saem do sistema. O paciente permanece."
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDeleteConversation}

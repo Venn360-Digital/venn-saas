@@ -45,7 +45,7 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
 
 /**
  * Drop every new WhatsApp contact into the first pipeline stage, so inbound
- * leads show up on the Negócios board without manual entry.
+ * new patients show up on the Negócios board without manual entry.
  *
  * Non-fatal: a workspace with no pipeline stages yet simply gets no deal.
  */
@@ -70,7 +70,7 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
         data: {
             workspaceId,
             contactId: contact.id,
-            title: `Novo Lead - ${contact.name || contact.phone}`,
+            title: `Novo paciente - ${contact.name || contact.phone}`,
             stageId: firstStage.id,
             source: 'whatsapp',
             status: 'open',

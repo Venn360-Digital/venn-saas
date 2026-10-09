@@ -805,7 +805,7 @@ export default function NegociosPage() {
             const res = await fetch('/api/agencies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
             if (res.ok) { const item = await res.json(); setAgencies(prev => [...prev, item].sort((a, b) => a.name.localeCompare(b.name))); return item }
             const err = await res.json(); toast.error(err.error); return null
-        } catch { toast.error('Erro ao criar agência'); return null }
+        } catch { toast.error('Erro ao criar origem'); return null }
     }
 
     const createMedia = async (name: string): Promise<LookupItem | null> => {
@@ -813,7 +813,7 @@ export default function NegociosPage() {
             const res = await fetch('/api/medias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
             if (res.ok) { const item = await res.json(); setMedias(prev => [...prev, item].sort((a, b) => a.name.localeCompare(b.name))); return item }
             const err = await res.json(); toast.error(err.error); return null
-        } catch { toast.error('Erro ao criar mídia'); return null }
+        } catch { toast.error('Erro ao criar canal'); return null }
     }
 
     // ─── Drag & Drop ────────────────────────────────────────────────
@@ -997,7 +997,7 @@ export default function NegociosPage() {
         },
         {
             id: 'contact',
-            header: 'Contato',
+            header: 'Paciente',
             cell: deal =>
                 deal.contact ? (
                     <div className="flex items-center gap-1.5">
@@ -1068,7 +1068,7 @@ export default function NegociosPage() {
     if (stages.length === 0 && viewMode === 'kanban') {
         return (
             <div className="p-6">
-                <div className="mb-6"><h1 className="text-h1">Negócios | Pipeline</h1><p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de seus leads.</p></div>
+                <div className="mb-6"><h1 className="text-h1">Negócios | Pipeline</h1><p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de tratamentos dos seus pacientes.</p></div>
                 <div className="flex flex-col items-center justify-center h-96">
                     <h3 className="text-lg font-medium mb-2">Nenhum funil encontrado</h3>
                     <p className="text-muted-foreground mb-6">Crie um funil para começar.</p>
@@ -1084,7 +1084,7 @@ export default function NegociosPage() {
             <div className="mb-6 flex items-center justify-between">
                 <div>
                     <h1 className="text-h1">Negócios | Pipeline</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de seus leads.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de tratamentos dos seus pacientes.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Date Range Filter */}
@@ -1149,7 +1149,7 @@ export default function NegociosPage() {
             <div className="flex flex-wrap gap-3 mb-6">
                 <div className="relative flex-1 min-w-[200px] max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Buscar por título ou contato..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+                    <Input placeholder="Buscar por título ou paciente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
                     <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -1276,7 +1276,7 @@ export default function NegociosPage() {
                                         <Input value={dealForm.title} onChange={(e) => setDealForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Ex: Proposta Website" className="mt-1" />
                                     </div>
                                     <div>
-                                        <Label>Contato</Label>
+                                        <Label>Paciente</Label>
                                         <div className="mt-1 relative">
                                             {selectedContact ? (
                                                 <div className="flex items-center gap-2 p-2 rounded-md border border-border bg-accent/30">
@@ -1286,7 +1286,7 @@ export default function NegociosPage() {
                                                 </div>
                                             ) : (
                                                 <>
-                                                    <Input value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Buscar contato por nome ou telefone..." />
+                                                    <Input value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Buscar paciente por nome ou telefone..." />
                                                     {contactResults.length > 0 && (
                                                         <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-popover border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
                                                             {contactResults.map(c => (
@@ -1350,20 +1350,20 @@ export default function NegociosPage() {
                                 {/* Row 4: Agency + Media */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <CreatableSelect
-                                        label="Agência Responsável"
+                                        label="Origem"
                                         value={dealForm.agencyId}
                                         options={agencies}
                                         onSelect={(id) => setDealForm(prev => ({ ...prev, agencyId: id }))}
                                         onCreate={createAgency}
-                                        placeholder="Selecione a agência"
+                                        placeholder="Selecione a origem"
                                     />
                                     <CreatableSelect
-                                        label="Mídia"
+                                        label="Canal"
                                         value={dealForm.mediaId}
                                         options={medias}
                                         onSelect={(id) => setDealForm(prev => ({ ...prev, mediaId: id }))}
                                         onCreate={createMedia}
-                                        placeholder="Selecione a mídia"
+                                        placeholder="Selecione o canal"
                                     />
                                 </div>
 
@@ -1549,7 +1549,7 @@ export default function NegociosPage() {
                 open={deleteDialogOpen}
                 onOpenChange={setDeleteDialogOpen}
                 title="Excluir negócio"
-                description={`"${dealToDelete?.title ?? ''}" sai do funil junto com suas atividades. O contato ligado a ele não é apagado.`}
+                description={`"${dealToDelete?.title ?? ''}" sai do funil junto com suas atividades. O paciente ligado a ele não é apagado.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDeleteDeal}

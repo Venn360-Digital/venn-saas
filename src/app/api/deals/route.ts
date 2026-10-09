@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
             })
             if (existingOpenDeal) {
                 return NextResponse.json(
-                    { error: 'Este contato já possui um negócio ativo. Finalize-o antes de criar outro.' },
+                    { error: 'Este paciente já possui um negócio ativo. Finalize-o antes de criar outro.' },
                     { status: 409 }
                 )
             }

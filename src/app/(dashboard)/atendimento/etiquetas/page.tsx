@@ -185,7 +185,7 @@ export default function EtiquetasPage() {
         <>
             <PageHeader
                 title="Etiquetas"
-                description="Segmente leads e contatos por assunto, origem ou estágio."
+                description="Segmente pacientes por assunto, origem ou estágio."
                 actions={
                     canEdit ? (
                         <Button onClick={() => handleOpenDialog()}>
@@ -237,7 +237,7 @@ export default function EtiquetasPage() {
                             description={
                                 query
                                     ? 'Tente outro termo de busca.'
-                                    : 'Crie a primeira para segmentar seus contatos.'
+                                    : 'Crie a primeira para segmentar seus pacientes.'
                             }
                             action={
                                 canEdit && !query ? (
@@ -343,7 +343,7 @@ export default function EtiquetasPage() {
                 open={deletingTag !== null}
                 onOpenChange={(open) => !open && setDeletingTag(null)}
                 title="Excluir etiqueta"
-                description={`"${deletingTag?.name}" será removida de todos os contatos e conversas que a usam.`}
+                description={`"${deletingTag?.name}" será removida de todos os pacientes e conversas que a usam.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}

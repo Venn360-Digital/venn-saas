@@ -6,7 +6,7 @@ interface PageHeaderProps {
     title: string
     description?: string
     /**
-     * Renders as "12 contatos" after the description. Screens were each
+     * Renders as "12 pacientes" after the description. Screens were each
      * formatting this differently, and several forgot the singular.
      */
     count?: { value: number; singular: string; plural?: string }

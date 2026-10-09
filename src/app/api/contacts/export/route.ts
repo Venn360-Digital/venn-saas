@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         return new NextResponse(csv, {
             headers: {
                 'Content-Type': 'text/csv; charset=utf-8',
-                'Content-Disposition': `attachment; filename="contatos_${new Date().toISOString().split('T')[0]}.csv"`,
+                'Content-Disposition': `attachment; filename="pacientes_${new Date().toISOString().split('T')[0]}.csv"`,
             },
         })
     } catch (error) {

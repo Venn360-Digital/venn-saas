@@ -70,7 +70,7 @@ export const navSections: NavSection[] = [
         icon: TrendingUp,
         items: [
             { label: 'Negócios', href: '/vendas/negocios' },
-            { label: 'Contatos', href: '/vendas/contatos' },
+            { label: 'Pacientes', href: '/vendas/contatos' },
             { label: 'Agenda', href: '/vendas/agenda' },
             { label: 'Produtos e serviços', href: '/vendas/produtos-servicos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
@@ -117,7 +117,7 @@ const SEGMENT_LABELS: Record<string, string> = {
 
     vendas: 'Vendas',
     negocios: 'Negócios',
-    contatos: 'Contatos',
+    contatos: 'Pacientes',
     agenda: 'Agenda',
     'produtos-servicos': 'Produtos e serviços',
     departamentos: 'Departamentos',

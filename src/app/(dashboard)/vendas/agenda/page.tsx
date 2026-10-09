@@ -909,7 +909,7 @@ export default function AgendaPage() {
                         <div className="grid grid-cols-2 gap-4">
                             {/* Contact Search */}
                             <div>
-                                <Label>Contato</Label>
+                                <Label>Paciente</Label>
                                 {selectedContact ? (
                                     <div className="mt-1 flex items-center gap-2 p-2 rounded-md border border-border bg-accent/30">
                                         <User className="h-4 w-4 text-muted-foreground" />
@@ -923,7 +923,7 @@ export default function AgendaPage() {
                                     </div>
                                 ) : (
                                     <div className="relative mt-1">
-                                        <Input placeholder="Buscar contato..."
+                                        <Input placeholder="Buscar paciente..."
                                             value={contactSearch}
                                             onChange={(e) => { setContactSearch(e.target.value); setShowContactDropdown(true) }}
                                             onFocus={() => setShowContactDropdown(true)} />

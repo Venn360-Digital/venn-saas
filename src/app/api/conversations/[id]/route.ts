@@ -145,6 +145,8 @@ export async function GET(
                 title: true,
                 stageId: true,
                 stage: { select: { name: true, color: true } },
+                agency: { select: { name: true } },
+                media: { select: { name: true } },
                 stageEntries: {
                     select: { stageId: true, enteredAt: true, note: true },
                     orderBy: { enteredAt: 'asc' },
@@ -185,6 +187,11 @@ export async function GET(
                           stageId: openDeal.stageId,
                           stageName: openDeal.stage?.name ?? null,
                           stageColor: openDeal.stage?.color ?? null,
+                          // "Agência" e "Mídia" no banco; "Origem" e "Canal" na
+                          // tela. O nome do campo segue o schema até uma
+                          // migração valer a pena.
+                          origin: openDeal.agency?.name ?? null,
+                          channel: openDeal.media?.name ?? null,
                           stages,
                           entries: openDeal.stageEntries.map((e) => ({
                               stageId: e.stageId,

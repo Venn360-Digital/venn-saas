@@ -77,7 +77,7 @@ export default async function DashboardPage({
             <div className="space-y-6 px-4 pb-8 md:px-6">
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
-                        label="Contatos novos"
+                        label="Pacientes novos"
                         value={kpis.contacts.value.toLocaleString('pt-BR')}
                         icon={Users}
                         delta={kpis.contacts.delta ?? undefined}

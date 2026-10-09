@@ -216,19 +216,19 @@ export default function ContatosPage() {
             }
             const res = await fetch(url, { method: editingContact ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             if (res.ok) {
-                toast.success(editingContact ? 'Contato atualizado' : 'Contato criado')
+                toast.success(editingContact ? 'Paciente atualizado' : 'Paciente criado')
                 setIsDialogOpen(false)
                 loadContacts()
-            } else { toast.error('Erro ao salvar contato') }
-        } catch { toast.error('Erro ao salvar contato') }
+            } else { toast.error('Erro ao salvar paciente') }
+        } catch { toast.error('Erro ao salvar paciente') }
     }
 
     const handleDelete = async (id: string) => {
         try {
             const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
-            if (res.ok) { toast.success('Contato excluído'); loadContacts() }
-            else toast.error('Erro ao excluir contato')
-        } catch { toast.error('Erro ao excluir contato') }
+            if (res.ok) { toast.success('Paciente excluído'); loadContacts() }
+            else toast.error('Erro ao excluir paciente')
+        } catch { toast.error('Erro ao excluir paciente') }
     }
 
     // ─── Export ──────────────────────────────────────────────────────
@@ -420,9 +420,9 @@ export default function ContatosPage() {
     return (
         <>
             <PageHeader
-                title="Contatos"
-                description="Pacientes e leads da clínica, com histórico, etiquetas e negócios."
-                count={{ value: pagination.total, singular: 'contato', plural: 'contatos' }}
+                title="Pacientes"
+                description="Quem é atendido pela clínica, com histórico, etiquetas e negócios."
+                count={{ value: pagination.total, singular: 'paciente', plural: 'pacientes' }}
                 actions={
                     <>
                         <Button variant="outline" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
@@ -432,7 +432,7 @@ export default function ContatosPage() {
                             <Download /> Exportar
                         </Button>
                         <Button onClick={() => handleOpenDialog()}>
-                            <Plus /> Novo contato
+                            <Plus /> Novo paciente
                         </Button>
                     </>
                 }
@@ -510,7 +510,7 @@ export default function ContatosPage() {
                     onRowClick={c => handleOpenDialog(c)}
                     mobile={ContactRowCard}
                     rowActions={c => (
-                        <RowActions label={`Ações de ${c.name || 'contato'}`}>
+                        <RowActions label={`Ações de ${c.name || 'paciente'}`}>
                             <RowActionItem icon={Pencil} onClick={() => handleOpenDialog(c)}>
                                 Editar
                             </RowActionItem>
@@ -525,7 +525,7 @@ export default function ContatosPage() {
                         <EmptyState
                             variant="inline"
                             icon={User}
-                            title={search || activeFilterCount ? 'Nenhum contato encontrado' : 'Nenhum contato ainda'}
+                            title={search || activeFilterCount ? 'Nenhum paciente encontrado' : 'Nenhum paciente ainda'}
                             description={
                                 search || activeFilterCount
                                     ? 'Tente outro termo ou limpe os filtros.'
@@ -533,7 +533,7 @@ export default function ContatosPage() {
                             }
                             action={
                                 !search && !activeFilterCount ? (
-                                    <Button onClick={() => handleOpenDialog()}><Plus /> Novo contato</Button>
+                                    <Button onClick={() => handleOpenDialog()}><Plus /> Novo paciente</Button>
                                 ) : null
                             }
                         />
@@ -555,7 +555,7 @@ export default function ContatosPage() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="!w-[90vw] !max-w-[1400px] max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
                     <DialogHeader>
-                        <DialogTitle>{editingContact ? 'Editar contato' : 'Novo contato'}</DialogTitle>
+                        <DialogTitle>{editingContact ? 'Editar paciente' : 'Novo paciente'}</DialogTitle>
                     </DialogHeader>
 
                     {loadingDetail ? (
@@ -575,11 +575,11 @@ export default function ContatosPage() {
                                     <div className="space-y-4">
                                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Informações Básicas</h3>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div><Label>Nome</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Nome do contato" className="mt-1" /></div>
+                                            <div><Label>Nome</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Nome do paciente" className="mt-1" /></div>
                                             <div><Label>Telefone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" className="mt-1" /></div>
                                         </div>
                                         <div><Label>E-mail</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" className="mt-1" /></div>
-                                        <div><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o contato..." className="mt-1" rows={3} /></div>
+                                        <div><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o paciente..." className="mt-1" rows={3} /></div>
 
                                         {/* Custom field values */}
                                         {customFieldDefs.length > 0 && (
@@ -794,12 +794,12 @@ export default function ContatosPage() {
             {/* ═══ Import Dialog ═══ */}
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
                 <DialogContent className="!w-[80vw] !max-w-[900px] max-h-[85vh] overflow-y-auto bg-card border-border text-foreground">
-                    <DialogHeader><DialogTitle>Importar contatos</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Importar pacientes</DialogTitle></DialogHeader>
 
                     {importStep === 'upload' && (
                         <div className="py-8 text-center">
                             <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-muted-foreground mb-4">Selecione um arquivo CSV com os contatos a importar</p>
+                            <p className="text-muted-foreground mb-4">Selecione um arquivo CSV com os pacientes a importar</p>
                             <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
                             <Button onClick={() => fileInputRef.current?.click()} >Selecionar arquivo CSV</Button>
                             <p className="text-xs text-muted-foreground mt-3">Colunas esperadas: Nome, E-mail, Telefone, Observações</p>
@@ -808,7 +808,7 @@ export default function ContatosPage() {
 
                     {importStep === 'mapping' && (
                         <div className="space-y-4">
-                            <p className="text-sm text-muted-foreground">Mapeie as colunas do CSV para os campos do contato:</p>
+                            <p className="text-sm text-muted-foreground">Mapeie as colunas do CSV para os campos do paciente:</p>
                             <div className="grid grid-cols-2 gap-3">
                                 {csvHeaders.map((header, i) => (
                                     <div key={i} className="flex items-center gap-3">
@@ -855,7 +855,7 @@ export default function ContatosPage() {
                                 <div className="flex items-center gap-3 p-3 rounded-lg border border-warning bg-warning-subtle">
                                     <AlertCircle className="h-5 w-5 text-warning-subtle-foreground flex-shrink-0" />
                                     <div className="flex-1">
-                                        <p className="text-sm text-warning-subtle-foreground">Contatos duplicados encontrados</p>
+                                        <p className="text-sm text-warning-subtle-foreground">Pacientes duplicados encontrados</p>
                                         <p className="text-xs text-muted-foreground mt-0.5">Escolha o que fazer com eles:</p>
                                     </div>
                                     <Select value={duplicateAction} onValueChange={v => setDuplicateAction(v as 'skip' | 'update')}>
@@ -890,7 +890,7 @@ export default function ContatosPage() {
                             <div className="flex justify-end gap-2">
                                 <Button variant="outline" className="border-border" onClick={() => setImportStep('mapping')}>Voltar</Button>
                                 <Button onClick={handleCommitImport} disabled={importing} >
-                                    {importing ? 'Importando...' : `Importar ${importSummary.total} contatos`}
+                                    {importing ? 'Importando...' : `Importar ${importSummary.total} pacientes`}
                                 </Button>
                             </div>
                         </div>
@@ -903,7 +903,7 @@ export default function ContatosPage() {
                 onOpenChange={open => {
                     if (!open) setDeletingContact(null)
                 }}
-                title="Excluir contato"
+                title="Excluir paciente"
                 description={`"${deletingContact?.name || 'Sem nome'}" sai da lista junto com suas etiquetas. Negócios e conversas ligados a ele não são apagados.`}
                 confirmLabel="Excluir"
                 destructive
@@ -918,7 +918,7 @@ export default function ContatosPage() {
                     if (!open) setDeletingField(null)
                 }}
                 title="Excluir campo personalizado"
-                description={`O campo "${deletingField?.name ?? ''}" deixa de aparecer no cadastro, e o que já foi preenchido nele em cada contato é perdido.`}
+                description={`O campo "${deletingField?.name ?? ''}" deixa de aparecer no cadastro, e o que já foi preenchido nele em cada paciente é perdido.`}
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {

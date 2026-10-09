@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 interface EmptyStateProps {
     icon: LucideIcon
     /**
-     * Names the space rather than apologising for it — "Nenhum contato ainda",
+     * Names the space rather than apologising for it — "Nenhum paciente ainda",
      * not "Nada aqui". See the voice section of DESIGN.md.
      */
     title: string
