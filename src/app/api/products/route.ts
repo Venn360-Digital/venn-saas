@@ -5,6 +5,7 @@ import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { normalizeSearch } from '@/lib/search'
 
 const productSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
@@ -51,12 +52,8 @@ export async function GET(request: NextRequest) {
 
         // Search across multiple fields
         if (search) {
-            where.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-                { sku: { contains: search, mode: 'insensitive' } },
-                { group: { contains: search, mode: 'insensitive' } },
-            ]
+            // Nome, descrição, SKU e grupo, todos na coluna normalizada.
+            where.searchText = { contains: normalizeSearch(search) }
         }
 
         // Filter by category

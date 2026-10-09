@@ -2,6 +2,8 @@
 
 import { useSearchParams } from 'next/navigation'
 
+import { formatPhone } from '@/lib/phone'
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -503,7 +505,7 @@ export default function ConversasPage() {
 
     /** O título do painel aberto, que o cabeçalho e o leitor de tela usam. */
     const PANEL_TITLES: Record<PanelMode, string> = {
-        summary: 'Resumo por IA',
+        summary: 'Resumo do paciente',
         schedule: 'Nova atividade',
         files: 'Arquivos da conversa',
         journey: 'Jornada do paciente',
@@ -1610,9 +1612,15 @@ export default function ConversasPage() {
         <>
             <div className="flex h-full min-h-0">
                 {/* Left Sidebar — Conversation List */}
+                {/* A lista cede o lugar ao painel entre 768 e 1280.
+                    Antes o painel sobrepunha o chat nessa faixa, tampando
+                    justamente as mensagens que se precisa reler enquanto se
+                    agenda ou se escreve a nota. Três colunas não cabem em 1280;
+                    duas cabem — e a lista é a que se recupera num clique. */}
                 <div className={cn(
-                    "w-full border-r bg-card flex-col md:flex md:w-[320px] md:shrink-0",
-                    selectedConversation ? "hidden" : "flex"
+                    "w-full border-r bg-card flex-col md:w-[320px] md:shrink-0",
+                    selectedConversation ? "hidden" : "flex",
+                    panel ? "md:hidden xl:flex" : "md:flex"
                 )}>
                     {/* Header */}
                     <div className="p-4 border-b">
@@ -1715,7 +1723,7 @@ export default function ConversasPage() {
                                             <ContactAvatar
                                                 avatar={conv.contact.avatar}
                                                 name={conv.contact.name}
-                                                phone={conv.contact.phone}
+                                                phone={formatPhone(conv.contact.phone)}
                                             />
 
                                             <div className="flex-1 min-w-0">
@@ -1838,7 +1846,7 @@ export default function ConversasPage() {
                                     <ContactAvatar
                                         avatar={conv.contact.avatar}
                                         name={conv.contact.name}
-                                        phone={conv.contact.phone}
+                                        phone={formatPhone(conv.contact.phone)}
                                     />
                                     <div>
                                         <h3 className="font-medium text-sm">
@@ -1848,7 +1856,7 @@ export default function ConversasPage() {
                                             {conv.contact.phone && (
                                                 <span className="flex items-center gap-1">
                                                     <Phone className="h-3 w-3" />
-                                                    {conv.contact.phone}
+                                                    {formatPhone(conv.contact.phone)}
                                                 </span>
                                             )}
                                             {conv.agent && (
@@ -2025,12 +2033,12 @@ export default function ConversasPage() {
                                                     size="sm"
                                                     pressed={panel === 'summary'}
                                                     onPressedChange={() => togglePanel('summary')}
-                                                    aria-label="Resumo por IA"
+                                                    aria-label="Resumo do paciente"
                                                 >
                                                     <Sparkles className="size-3.5" />
                                                 </Toggle>
                                             </TooltipTrigger>
-                                            <TooltipContent>Resumo por IA</TooltipContent>
+                                            <TooltipContent>Resumo do paciente</TooltipContent>
                                         </Tooltip>
 
                                         <Tooltip>
@@ -2587,7 +2595,13 @@ export default function ConversasPage() {
                                     painel tem de dizer qual deles está aberto. */}
                                 {panel && conv && (
                                     <aside
-                                        className="absolute inset-y-0 right-0 z-20 flex w-[320px] flex-col overflow-hidden border-l bg-card shadow-lg xl:static xl:z-auto xl:w-[300px] xl:shrink-0 xl:shadow-none"
+                                        className={cn(
+                                            // No celular o painel toma a tela, que é o padrão
+                                            // da própria conversa ali. De 768 para cima ele é
+                                            // coluna, porque a lista saiu de cena.
+                                            'absolute inset-0 z-20 flex flex-col overflow-hidden bg-card',
+                                            'md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l'
+                                        )}
                                         aria-label={PANEL_TITLES[panel]}
                                     >
                                         <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
@@ -2645,13 +2659,13 @@ export default function ConversasPage() {
                                                 <ContactAvatar
                                                     avatar={conv.contact.avatar}
                                                     name={conv.contact.name}
-                                                    phone={conv.contact.phone}
+                                                    phone={formatPhone(conv.contact.phone)}
                                                 />
                                                 <div className="min-w-0 flex-1">
                                                     <h3 className="truncate text-sm font-semibold">{conv.contact.name || 'Desconhecido'}</h3>
                                                     {conv.contact.phone && (
                                                         <p className="num flex items-center gap-1 text-xs text-muted-foreground">
-                                                            <Phone className="h-3 w-3" />{conv.contact.phone}
+                                                            <Phone className="h-3 w-3" />{formatPhone(conv.contact.phone)}
                                                         </p>
                                                     )}
                                                     {conv.contact.email && (
@@ -2809,7 +2823,7 @@ export default function ConversasPage() {
                                             onSelect={() => confirmForward(c.id)}
                                         >
                                             <span className="flex-1 truncate">{c.contact.name || c.contact.phone || 'Sem nome'}</span>
-                                            <span className="num text-xs text-muted-foreground">{c.contact.phone}</span>
+                                            <span className="num text-xs text-muted-foreground">{formatPhone(c.contact.phone)}</span>
                                         </CommandItem>
                                     ))}
                             </CommandGroup>

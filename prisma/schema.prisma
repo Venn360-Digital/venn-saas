@@ -25,6 +25,14 @@ model User {
   phone            String? // WhatsApp
   hashedPassword   String? // Senha hash (para alteração de senha)
   avatar           String?
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText       String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -331,6 +339,14 @@ model Contact {
   // Metadata
   source        String? // "whatsapp", "instagram", "manual"
   lastContactAt DateTime?
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText    String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -383,11 +399,19 @@ model Deal {
   trackingData Json?
 
   // Metadata
-  source    String?
-  notes     String?   @db.Text
-  closedAt  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  source     String?
+  notes      String?   @db.Text
+  closedAt   DateTime?
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact       Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
@@ -545,8 +569,16 @@ model Activity {
   // Google Calendar sync
   googleCalendarEventId String? // Google Calendar event ID for sync
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -824,8 +856,16 @@ model Department {
   name        String
   description String?
 
-  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  users     WorkspaceUser[]
+  workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  users      WorkspaceUser[]
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText String?
 
   @@index([workspaceId])
   @@map("departments")
@@ -840,6 +880,14 @@ model Tag {
   workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contacts      ContactTag[]
   conversations ConversationTag[]
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText    String?
 
   @@index([workspaceId])
   @@map("tags")
@@ -878,8 +926,16 @@ model ProductService {
   currency    String  @default("BRL")
   group       String? // Grupo/categoria do produto
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /// Texto já normalizado para busca — minúsculo e sem acento.
+  ///
+  /// Coluna GERADA pelo Postgres (ver a migração
+  /// `20261010100000_accent_insensitive_search`): existe aqui para que o Prisma
+  /// possa filtrar por ela, e **nunca deve ser escrita** — o banco recusa. É o
+  /// que faz "André" e "andre" localizarem a mesma pessoa sem SQL cru em cada
+  /// rota de busca.
+  searchText String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

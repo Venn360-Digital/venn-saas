@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Camera, User } from 'lucide-react'
 import { toast } from 'sonner'
+import { PhoneInput } from '@/components/shared/PhoneInput'
 
 interface UserProfile {
     id: string
@@ -232,11 +233,10 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                         <span>🇧🇷</span>
                         <span className="text-muted-foreground">Brazil (+55)</span>
                     </div>
-                    <Input
+                    <PhoneInput
                         id="phone"
                         value={formData.phone}
-                        onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                        placeholder="(00) 99999-9999"
+                        onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
                         className="flex-1"
                     />
                 </div>

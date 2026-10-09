@@ -4,6 +4,7 @@ import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
+import { searchTerms } from '@/lib/search'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
@@ -39,9 +40,12 @@ export async function GET(request: NextRequest) {
         }
         if (search) {
             dealWhere.OR = [
-                { title: { contains: search, mode: 'insensitive' } },
-                { contact: { name: { contains: search, mode: 'insensitive' } } },
-                { contact: { phone: { contains: search } } },
+                // Título do negócio ou ficha do paciente — as duas normalizadas
+                // pelo banco, então acento deixa de separar.
+                ...searchTerms(search).flatMap((term) => [
+                    { searchText: { contains: term } },
+                    { contact: { searchText: { contains: term } } },
+                ]),
             ]
         }
 

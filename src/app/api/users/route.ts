@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { Prisma } from '@prisma/client'
+import { normalizeSearch } from '@/lib/search'
 
 // Schema for creating a new user
 const createUserSchema = z.object({
@@ -57,11 +58,8 @@ export async function GET(request: NextRequest) {
         const where: Prisma.WorkspaceUserWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         if (search) {
-            where.OR = [
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { user: { lastName: { contains: search, mode: 'insensitive' } } },
-                { user: { email: { contains: search, mode: 'insensitive' } } },
-            ]
+            // Nome, sobrenome e e-mail vivem na mesma coluna normalizada.
+            where.user = { searchText: { contains: normalizeSearch(search) } }
         }
 
         // The founding member, identified on the whole workspace. Deriving it

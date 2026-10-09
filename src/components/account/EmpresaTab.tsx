@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Upload } from 'lucide-react'
 import { toast } from 'sonner'
+import { PhoneInput } from '@/components/shared/PhoneInput'
 
 interface WorkspaceData {
     id: string
@@ -114,14 +115,6 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
         return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12, 14)}`
     }
 
-    // Format phone as user types
-    const formatPhone = (value: string) => {
-        const digits = value.replace(/\D/g, '')
-        if (digits.length <= 2) return `(${digits}`
-        if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
-        if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
-        return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`
-    }
 
     if (loading) {
         return (
@@ -192,15 +185,10 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                 <Label htmlFor="phone" className="text-sm text-muted-foreground">
                     Telefone
                 </Label>
-                <Input
+                <PhoneInput
                     id="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        phone: formatPhone(e.target.value)
-                    }))}
-                    placeholder="(00) 00000-0000"
-                    maxLength={15}
+                    onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
                     className="mt-2"
                 />
             </div>

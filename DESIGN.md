@@ -297,6 +297,20 @@ desenhado, barra de posição clicável em `bg-current/20`, duração em `num`. 
 transcrição que o worker gera é **conteúdo**, não legenda: peso normal, sob um
 filete com o rótulo "Transcrição".
 
+**Telefone.** Um só componente, `PhoneInput`: dígitos, no máximo 11, sem
+parênteses e sem hífen, e o `55` colado na frente é descartado. A pontuação saiu
+porque não existe no banco (que guarda dígitos com o país), não sobrevive a
+copiar e colar, e sugere ser parte do dado. Na leitura, `formatPhone` mostra o
+número nacional, também sem pontuação — o que se lê é o que se digita. Cada
+formulário tinha a sua máscara, e uma delas deixava gravar o país duas vezes.
+
+**Busca não distingue acento.** "André", "Andre" e "andre" localizam a mesma
+pessoa. `mode: 'insensitive'` do Prisma resolve só a caixa, então cada tabela
+pesquisável tem uma coluna **gerada pelo banco** (`searchText`) com o conteúdo
+em minúsculas e sem acento, e a rota compara contra ela usando
+`normalizeSearch()` no termo. Nunca escreva nessa coluna — o Postgres recusa, e
+é essa recusa que garante que ela não saia de sincronia.
+
 **Busca que cadastra.** Campo que escolhe de uma lista grande — paciente,
 produto — usa `Popover` + `Command`, e oferece **cadastrar o que não existe no
 próprio menu**, com o que foi digitado já no formulário. O momento em que alguém

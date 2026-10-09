@@ -16,6 +16,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { formatPhone } from '@/lib/phone'
+import { PhoneInput } from '@/components/shared/PhoneInput'
 
 export interface PickedContact {
     id: string
@@ -129,7 +131,7 @@ export function ContactPicker({
         return (
             <div className="flex items-center gap-2 rounded-md border border-border bg-accent/30 p-2">
                 <User className="size-4 text-muted-foreground" />
-                <span className="flex-1 truncate text-sm">{value.name || value.phone}</span>
+                <span className="flex-1 truncate text-sm">{value.name || formatPhone(value.phone)}</span>
                 <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Remover paciente">
                     <X className="size-4" />
                 </Button>
@@ -180,19 +182,10 @@ export function ContactPicker({
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="newcontact-phone" className="text-xs">Telefone</Label>
-                            <Input
+                            <PhoneInput
                                 id="newcontact-phone"
                                 value={newPhone}
-                                onChange={(e) => setNewPhone(e.target.value)}
-                                placeholder="(11) 99999-9999"
-                                inputMode="tel"
-                                className="num"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        void create()
-                                    }
-                                }}
+                                onChange={setNewPhone}
                             />
                         </div>
                         <div className="flex gap-2">
@@ -240,7 +233,7 @@ export function ContactPicker({
                                             <User className="size-3.5 text-muted-foreground" />
                                             <span className="flex-1 truncate">{contact.name || 'Sem nome'}</span>
                                             {contact.phone ? (
-                                                <span className="num text-xs text-muted-foreground">{contact.phone}</span>
+                                                <span className="num text-xs text-muted-foreground">{formatPhone(contact.phone)}</span>
                                             ) : null}
                                         </CommandItem>
                                     ))}

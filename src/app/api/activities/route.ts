@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { syncActivityToGoogleCalendar } from '@/lib/google-calendar'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { normalizeSearch } from '@/lib/search'
 
 const activitySchema = z.object({
     title: z.string().min(1),
@@ -146,10 +147,7 @@ export async function GET(request: NextRequest) {
 
         // Search
         if (search) {
-            where.OR = [
-                { title: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-            ]
+            where.searchText = { contains: normalizeSearch(search) }
         }
 
         // Bounded: the agenda had no `take`, so every activity ever created in the

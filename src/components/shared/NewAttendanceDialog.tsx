@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { PhoneInput } from '@/components/shared/PhoneInput'
 
 interface LookupResult {
     valid: boolean
@@ -249,14 +250,11 @@ export function NewAttendanceDialog({
                     <div className="space-y-1.5">
                         <Label htmlFor="intake-phone">Telefone</Label>
                         <div className="relative">
-                            <Input
+                            <PhoneInput
                                 id="intake-phone"
                                 value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                placeholder="(11) 99999-9999"
-                                inputMode="tel"
-                                autoComplete="off"
-                                className="num pr-9"
+                                onChange={setPhone}
+                                className="pr-9"
                                 autoFocus
                             />
                             {checking ? (

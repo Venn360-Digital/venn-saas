@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { isUniqueViolation } from '@/lib/prisma-errors'
+import { normalizePhone } from '@/lib/phone'
 
 // POST - Import contacts from CSV data
 // Step 1 (preview): { action: 'preview', csvData: [...] }
@@ -48,8 +49,12 @@ async function handlePreview(
         return NextResponse.json({ error: 'No contacts provided' }, { status: 400 })
     }
 
-    // Find duplicates by phone or email
-    const phones = contacts.map(c => c.phone).filter(Boolean) as string[]
+    // Telefone normalizado antes de comparar: a planilha vem com máscara, o
+    // banco guarda dígitos com país, e sem isto toda linha importada parecia
+    // nova — inclusive a do paciente que já estava lá.
+    const phones = contacts
+        .map(c => (c.phone ? normalizePhone(c.phone).digits : null))
+        .filter(Boolean) as string[]
     const emails = contacts.map(c => c.email).filter(Boolean) as string[]
 
     const existingByPhone = phones.length > 0
@@ -70,12 +75,15 @@ async function handlePreview(
     const emailSet = new Set(existingByEmail.map(c => c.email))
 
     const preview = contacts.map((c, index) => {
-        const isDuplicate = (c.phone && phoneSet.has(c.phone)) || (c.email && emailSet.has(c.email))
-        const existingContact = existingByPhone.find(e => e.phone === c.phone)
+        const phone = c.phone ? normalizePhone(c.phone).digits : null
+        const isDuplicate = (phone && phoneSet.has(phone)) || (c.email && emailSet.has(c.email))
+        const existingContact = existingByPhone.find(e => e.phone === phone)
             || existingByEmail.find(e => e.email === c.email)
         return {
             index,
             ...c,
+            // A prévia já mostra o número como ele será gravado.
+            phone: phone ?? c.phone,
             status: isDuplicate ? 'duplicate' as const : 'new' as const,
             existingId: existingContact?.id || null,
             existingName: existingContact?.name || null,
@@ -104,6 +112,9 @@ async function handleCommit(
     let skipped = 0
 
     for (const c of contacts) {
+        // O que vai para o banco é a forma canônica, não a da planilha.
+        const phone = c.phone ? normalizePhone(c.phone).digits : null
+
         if (c.status === 'duplicate') {
             if (duplicateAction === 'skip') {
                 skipped++
@@ -115,7 +126,7 @@ async function handleCommit(
                     data: {
                         ...(c.name && { name: c.name }),
                         ...(c.email && { email: c.email }),
-                        ...(c.phone && { phone: c.phone }),
+                        ...(phone && { phone }),
                         ...(c.notes && { notes: c.notes }),
                     },
                 })
@@ -131,7 +142,7 @@ async function handleCommit(
                     workspaceId,
                     name: c.name || null,
                     email: c.email || null,
-                    phone: c.phone || null,
+                    phone,
                     notes: c.notes || null,
                     source: 'import',
                 },

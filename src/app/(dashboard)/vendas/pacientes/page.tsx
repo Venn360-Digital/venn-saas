@@ -13,7 +13,26 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Upload, Download, User, Phone, Pencil, Trash2, Check, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
+import {
+    AlertCircle,
+    Calendar,
+    Check,
+    Download,
+    FileText,
+    Hash,
+    List as ListIcon,
+    Loader2,
+    MessageSquare,
+    Pencil,
+    Phone,
+    Plus,
+    Settings,
+    ToggleLeft,
+    Trash2,
+    TrendingUp,
+    Upload,
+    User,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +40,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { formatPhone } from '@/lib/phone'
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -35,6 +55,9 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { usePermissions } from '@/hooks/usePermissions'
+import { PhoneInput } from '@/components/shared/PhoneInput'
+import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface ContactTag { tag: { id: string; name: string; color: string } }
@@ -113,6 +136,15 @@ export default function ContatosPage() {
     const [allTags, setAllTags] = useState<TagOption[]>([])
     const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([])
     const router = useRouter()
+    /**
+     * Quem tem WhatsApp, por telefone: `true`, `false` ou ausente (não sei).
+     *
+     * Consultado em lote depois que a lista pinta, nunca antes: a tabela não
+     * pode esperar o provedor para aparecer, e se a consulta falhar os ícones
+     * ficam apagados em vez de a página quebrar.
+     */
+    const [waStatus, setWaStatus] = useState<Record<string, boolean | null>>({})
+    const [openingChat, setOpeningChat] = useState<string | null>(null)
     const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
     /** O paciente para quem se vai abrir atendimento, ou nulo. */
     const [intakeFor, setIntakeFor] = useState<Contact | null>(null)
@@ -357,6 +389,61 @@ export default function ContatosPage() {
         } catch { toast.error('Erro ao excluir') }
     }
 
+    // Uma requisição por página de pacientes, com os telefones que ainda não
+    // têm resposta — paginar de novo não reconsulta quem já se sabe.
+    useEffect(() => {
+        const phones = contacts
+            .map(c => c.phone)
+            .filter((phone): phone is string => Boolean(phone) && !(phone! in waStatus))
+        if (phones.length === 0) return
+
+        let cancelled = false
+        fetch('/api/contacts/whatsapp-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phones }),
+        })
+            .then(res => (res.ok ? res.json() : null))
+            .then(data => {
+                if (cancelled || !data?.status) return
+                setWaStatus(prev => ({ ...prev, ...data.status }))
+            })
+            .catch(() => { })
+        return () => { cancelled = true }
+        // `waStatus` fora das dependências de propósito: ele é o acumulador, e
+        // entrar aqui faria o efeito se reexecutar com a própria resposta.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [contacts])
+
+    /**
+     * Abre o atendimento deste paciente no WhatsApp.
+     *
+     * Usa a mesma rota do Novo atendimento, então a regra é uma só: existe
+     * conversa, abre a dele; não existe, cria. Sem caminho paralelo que um dia
+     * divergiria da tela de atendimento ativo.
+     */
+    const openWhatsApp = async (contact: Contact) => {
+        if (!contact.phone) return
+        setOpeningChat(contact.id)
+        try {
+            const res = await fetch('/api/conversations/intake', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'active', phone: contact.phone, name: contact.name ?? '' }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                toast.error(data.error || 'Não foi possível abrir a conversa')
+                return
+            }
+            router.push(`/atendimento/conversas?conv=${data.conversationId}`)
+        } catch {
+            toast.error('Não foi possível abrir a conversa')
+        } finally {
+            setOpeningChat(null)
+        }
+    }
+
     const activeFilterCount = [filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo]
         .filter(Boolean).length
 
@@ -376,13 +463,15 @@ export default function ContatosPage() {
                         {/* The e-mail column is dropped below lg, so it rides
                             along here instead of simply disappearing. */}
                         <p className="truncate text-xs text-muted-foreground lg:hidden">
-                            {c.email || c.phone || ''}
+                            {c.email || formatPhone(c.phone) || ''}
                         </p>
                     </div>
                 </div>
             ),
         },
-        { id: 'phone', header: 'Telefone', numeric: true, hideBelow: 'sm', cell: (c) => c.phone || '—' },
+        // Sem o 55 e sem pontuação: é a mesma forma que o campo de digitação
+        // usa, então o que se lê é o que se digita.
+        { id: 'phone', header: 'Telefone', numeric: true, hideBelow: 'sm', cell: (c) => formatPhone(c.phone) || '—' },
         { id: 'email', header: 'E-mail', hideBelow: 'lg', cell: (c) => <span className="text-muted-foreground">{c.email || '—'}</span> },
         {
             id: 'tags',
@@ -397,7 +486,77 @@ export default function ContatosPage() {
             ),
         },
         { id: 'source', header: 'Origem', hideBelow: 'sm', cell: (c) => <StatusBadge value={c.source || 'manual'} tone="neutral" /> },
+        {
+            id: 'whatsapp',
+            header: 'WhatsApp',
+            width: '96px',
+            cell: (c) => <WhatsAppCell contact={c} />,
+        },
     ]
+
+    /**
+     * O atalho para a conversa, com o estado do número desenhado no ícone.
+     *
+     * Três estados, e nenhum deles mentindo: aceso e clicável quando o número
+     * tem WhatsApp; apagado e inerte quando não tem; apagado com o rótulo
+     * "verificando" enquanto a resposta não chegou. O que não existe é um botão
+     * que parece funcionar e leva a uma conversa que nunca será entregue.
+     */
+    function WhatsAppCell({ contact }: { contact: Contact }) {
+        if (!contact.phone) {
+            return <span className="text-xs text-muted-foreground">—</span>
+        }
+
+        const status = waStatus[contact.phone]
+        const busy = openingChat === contact.id
+
+        if (status === undefined) {
+            return (
+                <span className="flex items-center" title="Verificando no WhatsApp…">
+                    <WhatsAppMark className="size-4 text-muted-foreground/40" />
+                    <span className="sr-only">Verificando no WhatsApp</span>
+                </span>
+            )
+        }
+
+        if (status !== true) {
+            return (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="flex items-center">
+                            <WhatsAppMark className="size-4 text-muted-foreground/40" />
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        {status === false ? 'Este número não tem WhatsApp' : 'Não foi possível verificar'}
+                    </TooltipContent>
+                </Tooltip>
+            )
+        }
+
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={busy}
+                        aria-label={`Abrir conversa com ${contact.name || contact.phone}`}
+                        onClick={(e) => {
+                            // A linha abre a ficha; o ícone não pode disparar as duas.
+                            e.stopPropagation()
+                            void openWhatsApp(contact)
+                        }}
+                    >
+                        {busy
+                            ? <Loader2 className="size-4 animate-spin" />
+                            : <WhatsAppMark className="size-4 text-success-subtle-foreground" />}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>Abrir conversa no WhatsApp</TooltipContent>
+            </Tooltip>
+        )
+    }
 
     /* Below md the six-column table becomes one card per contact. The table at
        375px was a horizontal scroll nobody finds. */
@@ -410,7 +569,7 @@ export default function ContatosPage() {
             </Avatar>
             <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{c.name || '—'}</p>
-                <p className="num truncate text-sm text-muted-foreground">{c.phone || c.email || '—'}</p>
+                <p className="num truncate text-sm text-muted-foreground">{formatPhone(c.phone) || c.email || '—'}</p>
                 {c.tags?.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                         {c.tags.map(ct => <TagChip key={ct.tag.id} size="sm" name={ct.tag.name} color={ct.tag.color} />)}
@@ -589,7 +748,14 @@ export default function ContatosPage() {
                                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Informações Básicas</h3>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div><Label>Nome</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Nome do paciente" className="mt-1" /></div>
-                                            <div><Label>Telefone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" className="mt-1" /></div>
+                                            <div>
+                                                <Label>Telefone</Label>
+                                                <PhoneInput
+                                                    value={formData.phone}
+                                                    onChange={digits => setFormData(p => ({ ...p, phone: digits }))}
+                                                    className="mt-1"
+                                                />
+                                            </div>
                                         </div>
                                         <div><Label>E-mail</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" className="mt-1" /></div>
                                         <div><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o paciente..." className="mt-1" rows={3} /></div>
@@ -917,7 +1083,7 @@ export default function ContatosPage() {
             <NewAttendanceDialog
                 open={Boolean(intakeFor)}
                 onOpenChange={(open) => { if (!open) setIntakeFor(null) }}
-                initialPhone={intakeFor?.phone ?? ''}
+                initialPhone={formatPhone(intakeFor?.phone) || ''}
                 initialName={intakeFor?.name ?? ''}
                 onDone={(result) => {
                     setIntakeFor(null)

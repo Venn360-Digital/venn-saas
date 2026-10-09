@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
+import { normalizeSearch } from '@/lib/search'
 
 // GET - List tags with pagination and search
 export async function GET(request: NextRequest) {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
         const where: Prisma.TagWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         if (search) {
-            where.name = { contains: search, mode: 'insensitive' }
+            where.searchText = { contains: normalizeSearch(search) }
         }
 
         const [tags, total] = await Promise.all([

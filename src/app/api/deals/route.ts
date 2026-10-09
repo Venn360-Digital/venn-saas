@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { searchTerms } from '@/lib/search'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -69,9 +70,12 @@ export async function GET(request: NextRequest) {
 
         if (search) {
             where.OR = [
-                { title: { contains: search, mode: 'insensitive' } },
-                { contact: { name: { contains: search, mode: 'insensitive' } } },
-                { contact: { phone: { contains: search } } },
+                // Título do negócio ou ficha do paciente — as duas normalizadas
+                // pelo banco, então acento deixa de separar.
+                ...searchTerms(search).flatMap((term) => [
+                    { searchText: { contains: term } },
+                    { contact: { searchText: { contains: term } } },
+                ]),
             ]
         }
 

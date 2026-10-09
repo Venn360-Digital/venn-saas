@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
+import { searchTerms } from '@/lib/search'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -66,14 +67,13 @@ export async function GET(request: NextRequest) {
         // Search filter — search by contact OR message content
         if (search) {
             where.OR = [
-                {
-                    contact: {
-                        OR: [
-                            { name: { contains: search, mode: 'insensitive' } },
-                            { phone: { contains: search } },
-                        ]
-                    }
-                },
+                // A ficha do paciente pela coluna normalizada; o conteúdo das
+                // mensagens continua só por caixa, porque normalizar todo o
+                // texto trocado dobraria a maior tabela do banco — e esta
+                // máquina tem 3,8 GB. Nome e telefone cobrem a busca real.
+                ...searchTerms(search).map((term) => ({
+                    contact: { searchText: { contains: term } },
+                })),
                 {
                     messages: {
                         some: {

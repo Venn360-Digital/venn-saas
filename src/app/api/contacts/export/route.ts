@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
+import { searchTerms } from '@/lib/search'
 
 // GET - Export contacts as CSV
 export async function GET(request: NextRequest) {
@@ -29,11 +30,10 @@ export async function GET(request: NextRequest) {
         const where: Prisma.ContactWhereInput = { workspaceId: wu.workspaceId }
 
         if (search) {
-            where.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search } },
-            ]
+            // `searchText` é gerada pelo banco com nome, e-mail e telefone já
+            // sem acento e em minúsculas, então uma comparação resolve o que
+            // antes eram três — e passa a achar "André" por "andre".
+            where.OR = searchTerms(search).map((term) => ({ searchText: { contains: term } }))
         }
         if (tagId) {
             where.AND = [{

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
 import { phoneVariants } from '@/lib/whatsapp/types'
+import { searchTerms } from '@/lib/search'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -58,11 +59,10 @@ export async function GET(request: NextRequest) {
 
         // Text search
         if (search) {
-            where.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search } },
-            ]
+            // `searchText` é gerada pelo banco com nome, e-mail e telefone já
+            // sem acento e em minúsculas, então uma comparação resolve o que
+            // antes eram três — e passa a achar "André" por "andre".
+            where.OR = searchTerms(search).map((term) => ({ searchText: { contains: term } }))
         }
 
         // Tag filter

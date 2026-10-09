@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { FormField } from '@/components/shared/FormField'
 import { cn } from '@/lib/utils'
+import { PhoneInput } from '@/components/shared/PhoneInput'
 
 interface WorkspaceUser {
     id: string
@@ -244,14 +245,10 @@ export function UserFormModal({
 
                     <div className="grid gap-4 sm:grid-cols-2">
                         <FormField label="Telefone" htmlFor="user-phone">
-                            <Input
+                            <PhoneInput
                                 id="user-phone"
                                 value={formData.phone}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, phone: e.target.value })
-                                }
-                                placeholder="31 99999 9999"
-                                autoComplete="tel"
+                                onChange={(digits) => setFormData({ ...formData, phone: digits })}
                             />
                         </FormField>
 

@@ -4,6 +4,7 @@ import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { normalizeSearch } from '@/lib/search'
 
 // GET - List departments with pagination and search
 export async function GET(request: NextRequest) {
@@ -40,10 +41,7 @@ export async function GET(request: NextRequest) {
         const where: Prisma.DepartmentWhereInput = { workspaceId: workspaceUser.workspaceId }
 
         if (search) {
-            where.OR = [
-                { name: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } }
-            ]
+            where.searchText = { contains: normalizeSearch(search) }
         }
 
         const [departments, total] = await Promise.all([
