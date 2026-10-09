@@ -56,7 +56,8 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PhoneInput } from '@/components/shared/PhoneInput'
-import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
+import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
+import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -136,15 +137,7 @@ export default function ContatosPage() {
     const [allTags, setAllTags] = useState<TagOption[]>([])
     const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([])
     const router = useRouter()
-    /**
-     * Quem tem WhatsApp, por telefone: `true`, `false` ou ausente (não sei).
-     *
-     * Consultado em lote depois que a lista pinta, nunca antes: a tabela não
-     * pode esperar o provedor para aparecer, e se a consulta falhar os ícones
-     * ficam apagados em vez de a página quebrar.
-     */
-    const [waStatus, setWaStatus] = useState<Record<string, boolean | null>>({})
-    const [openingChat, setOpeningChat] = useState<string | null>(null)
+    const whatsapp = useWhatsAppStatus(contacts.map(c => c.phone))
     const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
     /** O paciente para quem se vai abrir atendimento, ou nulo. */
     const [intakeFor, setIntakeFor] = useState<Contact | null>(null)
@@ -389,61 +382,6 @@ export default function ContatosPage() {
         } catch { toast.error('Erro ao excluir') }
     }
 
-    // Uma requisição por página de pacientes, com os telefones que ainda não
-    // têm resposta — paginar de novo não reconsulta quem já se sabe.
-    useEffect(() => {
-        const phones = contacts
-            .map(c => c.phone)
-            .filter((phone): phone is string => Boolean(phone) && !(phone! in waStatus))
-        if (phones.length === 0) return
-
-        let cancelled = false
-        fetch('/api/contacts/whatsapp-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phones }),
-        })
-            .then(res => (res.ok ? res.json() : null))
-            .then(data => {
-                if (cancelled || !data?.status) return
-                setWaStatus(prev => ({ ...prev, ...data.status }))
-            })
-            .catch(() => { })
-        return () => { cancelled = true }
-        // `waStatus` fora das dependências de propósito: ele é o acumulador, e
-        // entrar aqui faria o efeito se reexecutar com a própria resposta.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [contacts])
-
-    /**
-     * Abre o atendimento deste paciente no WhatsApp.
-     *
-     * Usa a mesma rota do Novo atendimento, então a regra é uma só: existe
-     * conversa, abre a dele; não existe, cria. Sem caminho paralelo que um dia
-     * divergiria da tela de atendimento ativo.
-     */
-    const openWhatsApp = async (contact: Contact) => {
-        if (!contact.phone) return
-        setOpeningChat(contact.id)
-        try {
-            const res = await fetch('/api/conversations/intake', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: 'active', phone: contact.phone, name: contact.name ?? '' }),
-            })
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) {
-                toast.error(data.error || 'Não foi possível abrir a conversa')
-                return
-            }
-            router.push(`/atendimento/conversas?conv=${data.conversationId}`)
-        } catch {
-            toast.error('Não foi possível abrir a conversa')
-        } finally {
-            setOpeningChat(null)
-        }
-    }
-
     const activeFilterCount = [filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo]
         .filter(Boolean).length
 
@@ -490,73 +428,18 @@ export default function ContatosPage() {
             id: 'whatsapp',
             header: 'WhatsApp',
             width: '96px',
-            cell: (c) => <WhatsAppCell contact={c} />,
+            className: 'text-center',
+            cell: (c) => (
+                <WhatsAppCell
+                    target={c}
+                    status={whatsapp.status[c.phone ?? '']}
+                    busy={whatsapp.opening === c.id}
+                    onOpen={whatsapp.open}
+                    className="mx-auto"
+                />
+            ),
         },
     ]
-
-    /**
-     * O atalho para a conversa, com o estado do número desenhado no ícone.
-     *
-     * Três estados, e nenhum deles mentindo: aceso e clicável quando o número
-     * tem WhatsApp; apagado e inerte quando não tem; apagado com o rótulo
-     * "verificando" enquanto a resposta não chegou. O que não existe é um botão
-     * que parece funcionar e leva a uma conversa que nunca será entregue.
-     */
-    function WhatsAppCell({ contact }: { contact: Contact }) {
-        if (!contact.phone) {
-            return <span className="text-xs text-muted-foreground">—</span>
-        }
-
-        const status = waStatus[contact.phone]
-        const busy = openingChat === contact.id
-
-        if (status === undefined) {
-            return (
-                <span className="flex items-center" title="Verificando no WhatsApp…">
-                    <WhatsAppMark className="size-4 text-muted-foreground/40" />
-                    <span className="sr-only">Verificando no WhatsApp</span>
-                </span>
-            )
-        }
-
-        if (status !== true) {
-            return (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span className="flex items-center">
-                            <WhatsAppMark className="size-4 text-muted-foreground/40" />
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        {status === false ? 'Este número não tem WhatsApp' : 'Não foi possível verificar'}
-                    </TooltipContent>
-                </Tooltip>
-            )
-        }
-
-        return (
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={busy}
-                        aria-label={`Abrir conversa com ${contact.name || contact.phone}`}
-                        onClick={(e) => {
-                            // A linha abre a ficha; o ícone não pode disparar as duas.
-                            e.stopPropagation()
-                            void openWhatsApp(contact)
-                        }}
-                    >
-                        {busy
-                            ? <Loader2 className="size-4 animate-spin" />
-                            : <WhatsAppMark className="size-4 text-success-subtle-foreground" />}
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent>Abrir conversa no WhatsApp</TooltipContent>
-            </Tooltip>
-        )
-    }
 
     /* Below md the six-column table becomes one card per contact. The table at
        375px was a horizontal scroll nobody finds. */

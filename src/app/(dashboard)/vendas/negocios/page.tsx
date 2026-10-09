@@ -78,6 +78,8 @@ import {
     RowActionsSeparator,
 } from '@/components/shared/RowActions'
 import { ContactPicker } from '@/components/shared/ContactPicker'
+import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
+import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
 import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
@@ -223,7 +225,7 @@ function OutcomeZone({
 
 // ─── Deal Card (Kanban) ──────────────────────────────────────────────
 function DealCard({
-    deal, isDragging, onEdit, onDelete, onStatusChange, stages, onMoveToStage,
+    deal, isDragging, onEdit, onDelete, onStatusChange, stages, onMoveToStage, whatsapp,
 }: {
     deal: Deal
     isDragging?: boolean
@@ -232,6 +234,8 @@ function DealCard({
     onStatusChange: (deal: Deal, status: string) => void
     stages: Stage[]
     onMoveToStage: (deal: Deal, stageId: string) => void
+    /** Estado do número e o gatilho da conversa, vindos da página. */
+    whatsapp: ReturnType<typeof useWhatsAppStatus>
 }) {
     // Presentation only — the API enforces the same rule. Resolved here rather
     // than threaded as yet another prop through the kanban.
@@ -252,8 +256,23 @@ function DealCard({
                     <h4 className="font-medium text-foreground truncate">{deal.title}</h4>
                     {deal.contact?.name && (
                         <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
-                            <User className="h-3 w-3" />
+                            <User className="h-3 w-3 shrink-0" />
                             <span className="truncate">{deal.contact.name}</span>
+                            {/* O atalho para a conversa no próprio cartão: quem
+                                olha o funil quer falar com o paciente dali, não
+                                procurá-lo na caixa de entrada. `onPointerDown`
+                                parado porque o cartão é arrastável — sem isso o
+                                clique no ícone começa um arrasto. */}
+                            {deal.contact.phone ? (
+                                <span onPointerDown={(e) => e.stopPropagation()} className="ml-auto">
+                                    <WhatsAppCell
+                                        target={deal.contact}
+                                        status={whatsapp.status[deal.contact.phone]}
+                                        busy={whatsapp.opening === deal.contact.id}
+                                        onOpen={whatsapp.open}
+                                    />
+                                </span>
+                            ) : null}
                         </div>
                     )}
                     <div className="flex items-center gap-2 mt-1">
@@ -264,7 +283,7 @@ function DealCard({
                             </span>
                         )}
                         {deal.owner && (
-                            <span className="text-xs text-muted-foreground bg-accent px-1.5 py-0.5 rounded truncate max-w-[100px]" title={`Dono: ${deal.owner.name}`}>
+                            <span className="text-xs text-muted-foreground bg-accent px-1.5 py-0.5 rounded truncate max-w-[100px]" title={`Responsável: ${deal.owner.name}`}>
                                 {deal.owner.name?.split(' ')[0]}
                             </span>
                         )}
@@ -334,7 +353,7 @@ function DealCard({
 // ─── Stage Column ────────────────────────────────────────────────────
 function StageColumn({
     stage, onAddDeal, onEditDeal, onDeleteDeal, onStatusChange, stages, onMoveToStage,
-    onEditStage, onDeleteStage, isOver,
+    onEditStage, onDeleteStage, isOver, whatsapp,
 }: {
     stage: Stage
     onAddDeal: (stageId: string) => void
@@ -346,6 +365,7 @@ function StageColumn({
     onEditStage: (stage: Stage) => void
     onDeleteStage: (stage: Stage) => void
     isOver?: boolean
+    whatsapp: ReturnType<typeof useWhatsAppStatus>
 }) {
     const { canEdit } = usePermissions()
     const { setNodeRef } = useDroppable({ id: `stage-${stage.id}` })
@@ -395,6 +415,7 @@ function StageColumn({
                 <SortableContext items={stage.deals.map(d => d.id)} strategy={verticalListSortingStrategy}>
                     {stage.deals.map((deal) => (
                         <DealCard
+                            whatsapp={whatsapp}
                             key={deal.id} deal={deal} onEdit={onEditDeal}
                             onDelete={onDeleteDeal} onStatusChange={onStatusChange}
                             stages={stages} onMoveToStage={onMoveToStage}
@@ -429,6 +450,8 @@ export default function NegociosPage() {
     // an ATENDENTE was offered a delete the API answers with 403.
     const { canEdit } = usePermissions()
     const [stages, setStages] = useState<Stage[]>([])
+    // Os telefones de todos os cartões do quadro, numa consulta só.
+    const whatsapp = useWhatsAppStatus(stages.flatMap(st => st.deals.map(d => d.contact?.phone)))
     const [loading, setLoading] = useState(true)
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
     const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
@@ -1041,7 +1064,7 @@ export default function NegociosPage() {
         },
         {
             id: 'owner',
-            header: 'Dono',
+            header: 'Responsável',
             hideBelow: 'lg',
             cell: deal =>
                 deal.owner ? (
@@ -1049,6 +1072,21 @@ export default function NegociosPage() {
                 ) : (
                     <span className="text-muted-foreground">—</span>
                 ),
+        },
+        {
+            id: 'whatsapp',
+            header: 'WhatsApp',
+            width: '96px',
+            className: 'text-center',
+            cell: deal => (
+                <WhatsAppCell
+                    target={deal.contact ?? {}}
+                    status={whatsapp.status[deal.contact?.phone ?? '']}
+                    busy={whatsapp.opening === deal.contact?.id}
+                    onOpen={whatsapp.open}
+                    className="mx-auto"
+                />
+            ),
         },
         {
             id: 'value',
@@ -1211,7 +1249,7 @@ export default function NegociosPage() {
                                 onDeleteDeal={(deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) }}
                                 onStatusChange={handleStatusChange} stages={stages} onMoveToStage={handleMoveToStage}
                                 onEditStage={handleEditStage} onDeleteStage={handleDeleteStage}
-                                isOver={overStageId === stage.id}
+                                isOver={overStageId === stage.id} whatsapp={whatsapp}
                             />
                         ))}
                         {/* Configuração do funil: etapa e motivo de desfecho são
