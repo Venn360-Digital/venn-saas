@@ -47,7 +47,7 @@ export async function PATCH(
         if (!existingDeal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
         const body = await request.json()
-        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, lossReason, lossNotes, stageNote } = body
+        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, lossReason, lossNotes, stageNote, stageEntry } = body
 
         // If changing contact, enforce 1:1 rule
         if (contactId && contactId !== existingDeal.contactId) {
@@ -126,21 +126,40 @@ export async function PATCH(
                     userId: user.id,
                 },
             })
-        } else if (typeof stageNote === 'string') {
-            // Nota da fase em que já está: atualiza a entrada mais recente desta
-            // etapa em vez de criar outra, senão anotar viraria "mudar de fase".
-            const latest = await prisma.dealStageEntry.findFirst({
-                where: { dealId: id, stageId: existingDeal.stageId },
-                orderBy: { enteredAt: 'desc' },
-                select: { id: true },
-            })
-            const note = stageNote.trim() ? stageNote.trim() : null
-            if (latest) {
-                await prisma.dealStageEntry.update({ where: { id: latest.id }, data: { note } })
-            } else {
-                await prisma.dealStageEntry.create({
-                    data: { dealId: id, stageId: existingDeal.stageId, note, userId: user.id },
+        }
+
+        /**
+         * Edição de uma passagem que já existe — a data ou a nota de uma fase,
+         * inclusive de uma fase anterior.
+         *
+         * Alvo explícito (`stageEntry.stageId`) e não "a etapa atual", porque o
+         * painel deixa corrigir a data de qualquer fase: quem registra depois do
+         * fato precisa poder dizer quando foi. Atualiza a passagem mais recente
+         * daquela etapa em vez de criar outra — anotar não é mudar de fase.
+         */
+        if (stageEntry && typeof stageEntry.stageId === 'string') {
+            const data: { note?: string | null; enteredAt?: Date } = {}
+            if (typeof stageEntry.note === 'string') {
+                data.note = stageEntry.note.trim() ? stageEntry.note.trim() : null
+            }
+            if (typeof stageEntry.enteredAt === 'string' && stageEntry.enteredAt) {
+                const parsed = new Date(stageEntry.enteredAt)
+                if (!Number.isNaN(parsed.getTime())) data.enteredAt = parsed
+            }
+
+            if (Object.keys(data).length > 0) {
+                const latest = await prisma.dealStageEntry.findFirst({
+                    where: { dealId: id, stageId: stageEntry.stageId },
+                    orderBy: { enteredAt: 'desc' },
+                    select: { id: true },
                 })
+                if (latest) {
+                    await prisma.dealStageEntry.update({ where: { id: latest.id }, data })
+                } else {
+                    await prisma.dealStageEntry.create({
+                        data: { dealId: id, stageId: stageEntry.stageId, ...data, userId: user.id },
+                    })
+                }
             }
         }
 

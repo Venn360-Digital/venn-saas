@@ -52,12 +52,22 @@ export const PICKER_RAMP: readonly string[] = [
 /** When nothing was chosen: a neutral that reads on white and on navy. */
 export const DEFAULT_ENTITY_COLOR = BRAND_HEX.slate
 
-/** The stages a new workspace's funnel starts with. */
+/**
+ * As etapas com que o funil de um workspace novo nasce.
+ *
+ * Desde a fusão, etapa e fase da jornada são a mesma coisa: estes nomes são o
+ * que a clínica vê no painel do paciente, não só rótulos de coluna. Os
+ * anteriores — "Aguardando atendimento, Atendendo agora, Pensando na proposta,
+ * Vamos falar depois" — descreviam o estado do atendimento, não o percurso do
+ * paciente, e a primeira clínica os renomeou à mão para exatamente estes.
+ *
+ * Vale só para funis novos: etapa que uma clínica já criou é escolha dela.
+ */
 export const DEFAULT_PIPELINE_STAGES = [
-    { name: 'Aguardando atendimento', color: BRAND_HEX.sky, order: 1 },
-    { name: 'Atendendo agora', color: BRAND_HEX.teal, order: 2 },
-    { name: 'Pensando na proposta', color: BRAND_HEX.navySoft, order: 3 },
-    { name: 'Vamos falar depois', color: BRAND_HEX.slate, order: 4 },
+    { name: 'Em atendimento', color: BRAND_HEX.sky, order: 1 },
+    { name: 'Agendamento', color: BRAND_HEX.teal, order: 2 },
+    { name: 'Comparecimento', color: BRAND_HEX.mint, order: 3 },
+    { name: 'Retrabalho', color: BRAND_HEX.amber, order: 4 },
 ] as const
 
 /** Defaults for the agent's web chat widget, which the clinic can restyle. */

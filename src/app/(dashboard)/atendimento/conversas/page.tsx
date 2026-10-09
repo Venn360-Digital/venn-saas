@@ -416,7 +416,6 @@ export default function ConversasPage() {
 
     // Context menu state
     const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
-    const [notesOpen, setNotesOpen] = useState(false)
     const [creatingDeal, setCreatingDeal] = useState(false)
     const [forwarding, setForwarding] = useState(false)
     const [showSearch, setShowSearch] = useState(false)
@@ -451,9 +450,6 @@ export default function ConversasPage() {
 
     // Contact panel state
     const [showContactPanel, setShowContactPanel] = useState(false)
-    const [contactNotes, setContactNotes] = useState('')
-    const [savingNotes, setSavingNotes] = useState(false)
-    const notesDirtyRef = useRef(false)
 
     // Tags state
     const [availableTags, setAvailableTags] = useState<TagItem[]>([])
@@ -585,10 +581,6 @@ export default function ConversasPage() {
                 setHasMoreMessages(data.hasMore || false)
                 setNextCursor(data.nextCursor || null)
                 setConversationTags(data.conversation.tags || [])
-                // Only update notes if the user hasn't edited them (not dirty)
-                if (!notesDirtyRef.current) {
-                    setContactNotes(data.conversation.contact.notes || '')
-                }
             }
         } catch (error) {
             console.error('Error fetching messages:', error)
@@ -700,24 +692,6 @@ export default function ConversasPage() {
         } catch { }
     }
 
-    // Save contact notes
-    const saveContactNotes = async () => {
-        if (!conversationDetail) return
-        setSavingNotes(true)
-        try {
-            await fetch(`/api/contacts/${conversationDetail.conversation.contact.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notes: contactNotes }),
-            })
-            // Clear dirty flag after successful save
-            notesDirtyRef.current = false
-        } catch {
-            console.error('Error saving notes')
-        } finally {
-            setSavingNotes(false)
-        }
-    }
 
     // Stable refs for callbacks used in realtime subscription (avoids re-subscribing)
     const fetchMessagesRef = useRef(fetchMessages)
@@ -1050,8 +1024,6 @@ export default function ConversasPage() {
         setMessageInput('')
         setShowQuickReplies(false)
         setContactTyping(false)
-        // Reset notes dirty flag when switching conversations
-        notesDirtyRef.current = false
     }
 
     const handleSendMessage = async () => {
@@ -2565,58 +2537,7 @@ export default function ConversasPage() {
                                                 )}
                                             </div>
 
-                                            {/* Notas — discretas, no fim */}
-                                            <div className="space-y-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setNotesOpen((v) => !v)}
-                                                    className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                                                >
-                                                    <span>Notas{contactNotes.trim() && !notesOpen ? ' ·' : ''}</span>
-                                                    <span className="text-[10px] normal-case tracking-normal">{notesOpen ? 'ocultar' : 'mostrar'}</span>
-                                                </button>
-                                                {!notesOpen && contactNotes.trim() && (
-                                                    <p className="line-clamp-2 text-[11px] text-muted-foreground">{contactNotes}</p>
-                                                )}
-                                                {notesOpen && (
-                                                    <>
-                                                        <textarea
-                                                            value={contactNotes}
-                                                            onChange={(e) => {
-                                                                setContactNotes(e.target.value)
-                                                                notesDirtyRef.current = true
-                                                            }}
-                                                            placeholder="Observações sobre este paciente…"
-                                                            className="w-full h-20 bg-muted/50 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                                        />
-                                                        <Button size="sm" variant="outline" onClick={saveContactNotes} disabled={savingNotes} className="w-full text-xs">
-                                                            {savingNotes ? 'Salvando...' : 'Salvar notas'}
-                                                        </Button>
-                                                    </>
-                                                )}
-                                            </div>
 
-                                            {/* Tags */}
-                                            <div className="space-y-2">
-                                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Etiquetas</h4>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {conversationTags.map(tag => (
-                                                        <span
-                                                            key={tag.id}
-                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                                                            style={{ backgroundColor: tag.color + '20', color: tag.color }}
-                                                        >
-                                                            {tag.name}
-                                                            <button onClick={() => removeTagFromConversation(tag.id)}>
-                                                                <X className="h-2.5 w-2.5" />
-                                                            </button>
-                                                        </span>
-                                                    ))}
-                                                    {conversationTags.length === 0 && (
-                                                        <span className="text-xs text-muted-foreground">Nenhuma etiqueta</span>
-                                                    )}
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
                                 )}
