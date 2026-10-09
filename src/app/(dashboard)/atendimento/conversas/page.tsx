@@ -181,9 +181,9 @@ interface OpenDeal {
     stageName: string | null
     stageColor: string | null
     /** De onde veio o paciente — "Agência" no banco. */
-    origin: string | null
+    originId: string | null
     /** Por onde veio — "Mídia" no banco. */
-    channel: string | null
+    channelId: string | null
     /** As etapas que esta clínica criou, em ordem. São as fases. */
     stages: JourneyStage[]
     /** Uma entrada por passagem em etapa: a data e a nota de cada fase. */
@@ -375,6 +375,14 @@ export default function ConversasPage() {
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
     const [queue, setQueue] = useState<QueueCounts | null>(null)
     const [scheduleOpen, setScheduleOpen] = useState(false)
+    /**
+     * Origem e canal só aceitam o que já está cadastrado.
+     *
+     * Carregadas uma vez: são listas curtas de cadastro, não dado de conversa, e
+     * o painel é aberto muitas vezes por sessão.
+     */
+    const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
+    const [channels, setChannels] = useState<{ id: string; name: string }[]>([])
     const [slashIndex, setSlashIndex] = useState(0)
     /** `commands` lista os comandos; `replies` é a segunda página, só respostas. */
     const [slashPage, setSlashPage] = useState<'commands' | 'replies'>('commands')
@@ -539,6 +547,24 @@ export default function ConversasPage() {
     }, [])
 
     // Fetch conversations list
+    useEffect(() => {
+        let cancelled = false
+        Promise.all([
+            fetch('/api/agencies').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
+        ])
+            .then(([agencies, medias]) => {
+                if (cancelled) return
+                setOrigins(Array.isArray(agencies) ? agencies : [])
+                setChannels(Array.isArray(medias) ? medias : [])
+            })
+            .catch(() => {
+                // Sem as listas os campos aparecem vazios e não editáveis; a
+                // tela de Negócios continua sendo o lugar de cadastrar.
+            })
+        return () => { cancelled = true }
+    }, [])
+
     const fetchConversations = useCallback(async () => {
         try {
             const params = new URLSearchParams({ tab: activeTab })
@@ -1235,6 +1261,37 @@ export default function ConversasPage() {
     }
 
     /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
+    /** Origem e canal do negócio aberto, pela mesma rota que o funil usa. */
+    const setDealLookup = async (field: 'agencyId' | 'mediaId', value: string) => {
+        const deal = conversationDetail?.conversation?.openDeal
+        if (!deal) return
+        const id = value || null
+        try {
+            const res = await fetch(`/api/deals/${deal.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [field]: id }),
+            })
+            if (!res.ok) throw new Error()
+            setConversationDetail((prev) =>
+                prev && prev.conversation.openDeal
+                    ? {
+                          ...prev,
+                          conversation: {
+                              ...prev.conversation,
+                              openDeal: {
+                                  ...prev.conversation.openDeal,
+                                  ...(field === 'agencyId' ? { originId: id } : { channelId: id }),
+                              },
+                          },
+                      }
+                    : prev
+            )
+        } catch {
+            toast.error('Não foi possível salvar')
+        }
+    }
+
     const createDealForContact = async () => {
         const conv = conversationDetail?.conversation
 
@@ -2498,16 +2555,32 @@ export default function ConversasPage() {
                                                 quem a conversa está, e dizia duas
                                                 vezes. */}
                                             {conv.openDeal ? (
-                                                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                                                    <dt className="text-muted-foreground">Origem</dt>
-                                                    <dd className="truncate font-medium" title={conv.openDeal.origin ?? undefined}>
-                                                        {conv.openDeal.origin ?? '—'}
-                                                    </dd>
-                                                    <dt className="text-muted-foreground">Canal</dt>
-                                                    <dd className="truncate font-medium" title={conv.openDeal.channel ?? undefined}>
-                                                        {conv.openDeal.channel ?? '—'}
-                                                    </dd>
-                                                </dl>
+                                                <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 text-xs">
+                                                    <label htmlFor="deal-origin" className="text-muted-foreground">Origem</label>
+                                                    <select
+                                                        id="deal-origin"
+                                                        value={conv.openDeal.originId ?? ''}
+                                                        onChange={(e) => void setDealLookup('agencyId', e.target.value)}
+                                                        className="min-w-0 truncate rounded border border-border bg-card px-1.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                                                    >
+                                                        <option value="">—</option>
+                                                        {origins.map((o) => (
+                                                            <option key={o.id} value={o.id}>{o.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <label htmlFor="deal-channel" className="text-muted-foreground">Canal</label>
+                                                    <select
+                                                        id="deal-channel"
+                                                        value={conv.openDeal.channelId ?? ''}
+                                                        onChange={(e) => void setDealLookup('mediaId', e.target.value)}
+                                                        className="min-w-0 truncate rounded border border-border bg-card px-1.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                                                    >
+                                                        <option value="">—</option>
+                                                        {channels.map((c) => (
+                                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             ) : null}
 
                                             {/* Negócio: título e etapa atual. A

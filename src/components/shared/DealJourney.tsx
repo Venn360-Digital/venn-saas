@@ -220,19 +220,22 @@ export function DealJourney({
                                 >
                                     <span
                                         className={cn(
-                                            'truncate text-xs',
+                                            // +1pt em relação ao `text-xs` do
+                                            // resto do painel: é o texto que se
+                                            // lê de relance nesta ficha.
+                                            'truncate text-[13px]',
                                             isCurrent ? 'font-semibold' : done ? 'font-medium' : 'text-muted-foreground'
                                         )}
                                     >
                                         {stage.name}
                                     </span>
-                                    <span className="num shrink-0 text-[11px] text-muted-foreground">
+                                    <span className="num shrink-0 text-xs text-muted-foreground">
                                         {entry ? format(new Date(entry.enteredAt), 'dd/MM') : '—'}
                                     </span>
                                 </button>
 
                                 {entry?.note && !isOpen ? (
-                                    <p className="truncate px-1 text-[11px] text-muted-foreground">{entry.note}</p>
+                                    <p className="truncate px-1 text-xs text-muted-foreground">{entry.note}</p>
                                 ) : null}
 
                                 {isOpen ? (
@@ -245,7 +248,7 @@ export function DealJourney({
                                             onChange={(e) => {
                                                 if (e.target.value) editEntry(stage.id, { enteredAt: e.target.value })
                                             }}
-                                            className="num w-full bg-transparent text-[11px] focus:outline-none"
+                                            className="num w-full bg-transparent text-xs focus:outline-none"
                                             aria-label={`Data — ${stage.name}`}
                                         />
                                         <textarea
@@ -256,9 +259,9 @@ export function DealJourney({
                                                 }
                                             }}
                                             rows={2}
-                                            placeholder="Descrição desta fase…"
-                                            className="w-full resize-none bg-transparent text-[11px] placeholder:text-muted-foreground/60 focus:outline-none"
-                                            aria-label={`Descrição — ${stage.name}`}
+                                            placeholder="Nota"
+                                            className="w-full resize-none bg-transparent text-xs placeholder:text-muted-foreground/60 focus:outline-none"
+                                            aria-label={`Nota — ${stage.name}`}
                                         />
                                     </div>
                                 ) : null}
