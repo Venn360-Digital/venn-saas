@@ -82,6 +82,7 @@ import { StageRail } from '@/components/shared/StageRail'
 import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
+import { CreatableSelect } from '@/components/shared/CreatableSelect'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -159,77 +160,6 @@ const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 
 
 // ─── Creatable Select ────────────────────────────────────────────────
-function CreatableSelect({
-    label,
-    value,
-    options,
-    onSelect,
-    onCreate,
-    placeholder,
-}: {
-    label: string
-    value: string
-    options: LookupItem[]
-    onSelect: (id: string) => void
-    onCreate: (name: string) => Promise<LookupItem | null>
-    placeholder: string
-}) {
-    const [creating, setCreating] = useState(false)
-    const [newName, setNewName] = useState('')
-    const [saving, setSaving] = useState(false)
-
-    const handleCreate = async () => {
-        if (!newName.trim()) return
-        setSaving(true)
-        const item = await onCreate(newName.trim())
-        if (item) {
-            onSelect(item.id)
-            setNewName('')
-            setCreating(false)
-        }
-        setSaving(false)
-    }
-
-    return (
-        <div>
-            <Label>{label}</Label>
-            {creating ? (
-                <div className="flex gap-2 mt-1">
-                    <Input
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        placeholder={`Nome da ${label.toLowerCase()}`}
-                        onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                        autoFocus
-                    />
-                    <Button size="sm" onClick={handleCreate} disabled={saving}>
-                        <Check className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>
-                        <X className="h-4 w-4" />
-                    </Button>
-                </div>
-            ) : (
-                <div className="flex gap-2 mt-1">
-                    <Select value={value || 'none'} onValueChange={(v) => onSelect(v === 'none' ? '' : v)}>
-                        <SelectTrigger className="flex-1">
-                            <SelectValue placeholder={placeholder} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">Nenhuma</SelectItem>
-                            {options.map(o => (
-                                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Button size="sm" variant="outline" onClick={() => setCreating(true)} title={`Nova ${label.toLowerCase()}`}>
-                        <Plus className="h-4 w-4" />
-                    </Button>
-                </div>
-            )}
-        </div>
-    )
-}
 
 
 /**
@@ -1479,6 +1409,7 @@ export default function NegociosPage() {
                                         onSelect={(id) => setDealForm(prev => ({ ...prev, agencyId: id }))}
                                         onCreate={createAgency}
                                         placeholder="Selecione a origem"
+                                        emptyLabel="Nenhuma"
                                     />
                                     <CreatableSelect
                                         label="Canal"
@@ -1487,6 +1418,7 @@ export default function NegociosPage() {
                                         onSelect={(id) => setDealForm(prev => ({ ...prev, mediaId: id }))}
                                         onCreate={createMedia}
                                         placeholder="Selecione o canal"
+                                        emptyLabel="Nenhum"
                                     />
                                 </div>
 

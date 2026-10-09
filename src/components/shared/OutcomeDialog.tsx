@@ -16,7 +16,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CreatableSelect } from '@/components/shared/CreatableSelect'
 import { cn } from '@/lib/utils'
 
 export type Outcome = 'won' | 'lost'
@@ -87,6 +87,38 @@ export function OutcomeDialog({
         return (list ?? []).filter((r) => r.isActive !== false)
     }, [outcome, reasons])
 
+    /**
+     * Cadastra o motivo no lado que está escolhido.
+     *
+     * O `kind` não é perguntado: o diálogo já sabe se está fechando como ganho
+     * ou perdido, e um motivo criado no lado errado seria oferecido no outro.
+     */
+    const createReason = async (name: string) => {
+        try {
+            const res = await fetch('/api/deal-outcome-reasons', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kind: outcome, name }),
+            })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                toast.error(err.error || 'Não foi possível criar o motivo')
+                return null
+            }
+            const created: OutcomeReason & { kind: Outcome } = await res.json()
+            setReasons((prev) => {
+                const base = prev ?? { won: [], lost: [] }
+                return outcome === 'won'
+                    ? { ...base, won: [...base.won, created] }
+                    : { ...base, lost: [...base.lost, created] }
+            })
+            return created
+        } catch {
+            toast.error('Não foi possível criar o motivo')
+            return null
+        }
+    }
+
     const confirm = async () => {
         if (!reasonId) {
             toast.error(outcome === 'won' ? 'Escolha o motivo do ganho' : 'Escolha o motivo da perda')
@@ -156,29 +188,24 @@ export function OutcomeDialog({
                         ))}
                     </div>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="outcome-reason">
-                            {outcome === 'won' ? 'Motivo do ganho' : 'Motivo da perda'}
-                        </Label>
-                        {reasons === null ? (
-                            <p className="text-xs text-muted-foreground">Carregando motivos…</p>
-                        ) : options.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                                Nenhum motivo cadastrado para esta finalização. Cadastre em Negócios → Motivos.
-                            </p>
-                        ) : (
-                            <Select value={reasonId} onValueChange={setReasonId}>
-                                <SelectTrigger id="outcome-reason">
-                                    <SelectValue placeholder="Escolha o motivo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {options.map((r) => (
-                                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    </div>
+                    {/* Escolher ou cadastrar: o momento em que alguém descobre
+                        que o motivo certo não está na lista é sempre no meio do
+                        fechamento, e mandá-la para a tela de configuração custa o
+                        que já estava preenchido aqui. */}
+                    {reasons === null ? (
+                        <p className="text-xs text-muted-foreground">Carregando motivos…</p>
+                    ) : (
+                        <CreatableSelect
+                            id="outcome-reason"
+                            label={outcome === 'won' ? 'Motivo do ganho' : 'Motivo da perda'}
+                            value={reasonId}
+                            options={options}
+                            onSelect={setReasonId}
+                            placeholder={options.length === 0 ? 'Cadastre o primeiro motivo' : 'Escolha o motivo'}
+                            newPlaceholder={outcome === 'won' ? 'Novo motivo de ganho' : 'Novo motivo de perda'}
+                            onCreate={createReason}
+                        />
+                    )}
 
                     {outcome === 'won' ? (
                         <div className="space-y-1.5">
@@ -213,7 +240,7 @@ export function OutcomeDialog({
                     <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
                         Cancelar
                     </Button>
-                    <Button onClick={() => void confirm()} disabled={saving || options.length === 0} className="gap-2">
+                    <Button onClick={() => void confirm()} disabled={saving} className="gap-2">
                         {saving ? <Loader2 className="size-4 animate-spin" /> : null}
                         Confirmar
                     </Button>
