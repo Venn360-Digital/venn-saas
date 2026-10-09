@@ -1261,36 +1261,6 @@ export default function ConversasPage() {
         void fetchConversations()
     }
 
-    /**
-     * Depois de marcar a consulta, move o negócio para a etapa de agendamento.
-     *
-     * Qual etapa é essa não é adivinhável: a clínica nomeia as suas. A escolha é
-     * por nome — a primeira que contenha "agend" — e, quando nenhuma contém, o
-     * diálogo nem oferece a opção, em vez de mover para um lugar arbitrário.
-     */
-    const moveToScheduledStage = async (dealId: string, stageId: string, date: string) => {
-        try {
-            const res = await fetch(`/api/deals/${dealId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    stageId,
-                    stageNote: `Consulta marcada para ${date.split('-').reverse().join('/')}.`,
-                }),
-            })
-            if (!res.ok) throw new Error()
-            const deal = conversationDetail?.conversation?.openDeal
-            if (deal) {
-                applyDealJourney({
-                    currentStageId: stageId,
-                    entries: [...deal.entries, { stageId, enteredAt: new Date().toISOString(), note: null }],
-                })
-            }
-        } catch {
-            toast.error('Consulta agendada, mas não foi possível mover o negócio de etapa')
-        }
-    }
-
     /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
     /** Origem e canal do negócio aberto, pela mesma rota que o funil usa. */
     const setDealLookup = async (field: 'agencyId' | 'mediaId', value: string) => {
@@ -1619,15 +1589,6 @@ export default function ConversasPage() {
           : conv.assignedToName
             ? `Com ${conv.assignedToName.split(' ')[0]}`
             : 'No bot'
-
-    /**
-     * A etapa que significa "agendou", se a clínica tiver uma.
-     *
-     * Por nome, porque é a clínica que nomeia as suas etapas. Sem palpite: não
-     * achando, o diálogo de agendamento não oferece mover de etapa.
-     */
-    const scheduledStage =
-        conv?.openDeal?.stages.find((stage) => /agend/i.test(stage.name)) ?? null
 
     return (
         <>
@@ -2639,11 +2600,7 @@ export default function ConversasPage() {
                                                     contactName={conv.contact.name || conv.contact.phone || 'paciente'}
                                                     dealId={conv.openDeal?.id ?? null}
                                                     dealTitle={conv.openDeal?.title ?? null}
-                                                    scheduledStage={scheduledStage}
-                                                    onScheduled={({ date, time, markJourney }) => {
-                                                        if (markJourney && conv.openDeal && scheduledStage) {
-                                                            void moveToScheduledStage(conv.openDeal.id, scheduledStage.id, date)
-                                                        }
+                                                    onScheduled={({ date, time }) => {
                                                         // O texto entra no compositor em vez de ser
                                                         // enviado: quem confirma o horário com o
                                                         // paciente é a pessoa, não a tela.

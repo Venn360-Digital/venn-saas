@@ -1,15 +1,75 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import { CalendarCheck, CalendarOff, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { activityType } from '@/lib/activity-types'
+
+interface Appointment {
+    id: string
+    title: string
+    type: string
+    dueDate: string
+    startTime: string | null
+}
 
 interface SummaryState {
     summary: string | null
     generatedAt: string | null
     newMessages: number
+    appointments: Appointment[]
+}
+
+/**
+ * O agendamento, antes do resumo.
+ *
+ * É a pergunta que se faz primeiro ao abrir uma conversa — "esse paciente tem
+ * consulta marcada?" — e a resposta não vem do texto gerado: vem da Agenda, a
+ * cada abertura do painel. Texto de IA envelhece; uma data lida do banco não.
+ */
+function Appointments({ appointments }: { appointments: Appointment[] }) {
+    if (appointments.length === 0) {
+        return (
+            <div className="flex items-start gap-2 rounded-md border border-dashed border-border px-2.5 py-2">
+                <CalendarOff className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">
+                    Sem agendamento futuro. Use <span className="font-medium text-foreground">Agendar atividade</span> na faixa acima.
+                </p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-1.5">
+            {appointments.map((appointment) => {
+                const kind = activityType(appointment.type)
+                const when = new Date(appointment.dueDate)
+                return (
+                    <div
+                        key={appointment.id}
+                        className="flex items-start gap-2 rounded-md border border-success-subtle bg-success-subtle/40 px-2.5 py-2"
+                    >
+                        <CalendarCheck className="mt-0.5 size-3.5 shrink-0 text-success-subtle-foreground" />
+                        <div className="min-w-0">
+                            <p className="num text-xs font-semibold">
+                                {when.toLocaleDateString('pt-BR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: '2-digit',
+                                })}
+                                {appointment.startTime ? ` às ${appointment.startTime}` : ''}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                                {kind.label} · {appointment.title}
+                            </p>
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    )
 }
 
 /** As quatro seções que o prompt pede, na ordem em que o prompt as pede. */
@@ -49,10 +109,12 @@ export function AiSummaryPanel({ conversationId }: { conversationId: string }) {
         fetch(`/api/conversations/${conversationId}/summary`)
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
-                if (!cancelled) setState(data ?? { summary: null, generatedAt: null, newMessages: 0 })
+                if (!cancelled) {
+                    setState(data ?? { summary: null, generatedAt: null, newMessages: 0, appointments: [] })
+                }
             })
             .catch(() => {
-                if (!cancelled) setState({ summary: null, generatedAt: null, newMessages: 0 })
+                if (!cancelled) setState({ summary: null, generatedAt: null, newMessages: 0, appointments: [] })
             })
         return () => {
             cancelled = true
@@ -68,7 +130,12 @@ export function AiSummaryPanel({ conversationId }: { conversationId: string }) {
                 toast.error(data.error || 'Não foi possível gerar o resumo')
                 return
             }
-            setState({ summary: data.summary, generatedAt: data.generatedAt, newMessages: 0 })
+            setState({
+                summary: data.summary,
+                generatedAt: data.generatedAt,
+                newMessages: 0,
+                appointments: data.appointments ?? [],
+            })
         } catch {
             toast.error('Não foi possível gerar o resumo')
         } finally {
@@ -87,21 +154,32 @@ export function AiSummaryPanel({ conversationId }: { conversationId: string }) {
 
     if (!state.summary) {
         return (
-            <div className="rounded-md border border-dashed border-border px-3 py-6 text-center">
-                <Sparkles className="mx-auto mb-2 size-5 text-muted-foreground" />
-                <p className="mb-3 text-xs text-muted-foreground">
-                    Ainda sem resumo. Gerar lê a conversa e consome créditos de IA.
-                </p>
-                <Button size="sm" onClick={() => void generate()} disabled={generating} className="gap-1.5">
-                    {generating ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                    Gerar resumo
-                </Button>
+            <div className="space-y-3">
+                <div>
+                    <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Agendamento</h4>
+                    <Appointments appointments={state.appointments} />
+                </div>
+                <div className="rounded-md border border-dashed border-border px-3 py-6 text-center">
+                    <Sparkles className="mx-auto mb-2 size-5 text-muted-foreground" />
+                    <p className="mb-3 text-xs text-muted-foreground">
+                        Ainda sem resumo. Gerar lê a conversa e consome créditos de IA.
+                    </p>
+                    <Button size="sm" onClick={() => void generate()} disabled={generating} className="gap-1.5">
+                        {generating ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                        Gerar resumo
+                    </Button>
+                </div>
             </div>
         )
     }
 
     return (
         <div className="space-y-3">
+            <div>
+                <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Agendamento</h4>
+                <Appointments appointments={state.appointments} />
+            </div>
+
             {parseSections(state.summary).map(({ label, body }) => (
                 <div key={label}>
                     <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</h4>

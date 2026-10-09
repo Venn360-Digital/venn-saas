@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
+import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 
@@ -18,7 +18,8 @@ Resumo: dois a três períodos sobre o que o paciente quer e onde o atendimento 
 Pendências: tópicos com "- ", o que falta fazer. Escreva "- Nenhuma" se não houver.
 Combinados: tópicos com "- ", datas, valores e procedimentos acordados. Escreva "- Nenhum" se não houver.
 Tom: uma linha sobre o estado do paciente (apressado, inseguro, satisfeito, irritado).
-Não invente datas, valores ou procedimentos que não estejam na conversa.`
+Não invente datas, valores ou procedimentos que não estejam na conversa.
+Os agendamentos já marcados chegam prontos na primeira linha da entrada: use-os para não listar como pendência algo que já está marcado, e não os repita em "Combinados".`
 
 /**
  * O resumo da conversa, lido e gerado.
@@ -38,7 +39,7 @@ export async function GET(
 
     const conversation = await prisma.conversation.findFirst({
         where: { id, workspaceId: auth.member.workspaceId },
-        select: { summaryText: true, summaryAt: true, summaryUntilId: true },
+        select: { contactId: true, summaryText: true, summaryAt: true, summaryUntilId: true },
     })
     if (!conversation) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
 
@@ -46,6 +47,7 @@ export async function GET(
         summary: conversation.summaryText,
         generatedAt: conversation.summaryAt,
         newMessages: await countSince(id, conversation.summaryUntilId),
+        appointments: await upcomingFor(auth.member.workspaceId, conversation.contactId),
     })
 }
 
@@ -57,7 +59,11 @@ export async function POST(
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    if (!(await assertConversationAccess(id, auth.member.workspaceId))) {
+    const conversation = await prisma.conversation.findFirst({
+        where: { id, workspaceId: auth.member.workspaceId },
+        select: { contactId: true },
+    })
+    if (!conversation) {
         return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
     }
 
@@ -70,6 +76,8 @@ export async function POST(
             { status: 402 }
         )
     }
+
+    const appointments = await upcomingFor(auth.member.workspaceId, conversation.contactId)
 
     const recent = await prisma.message.findMany({
         where: { conversationId: id, isInternal: false },
@@ -93,10 +101,19 @@ export async function POST(
         .join('\n')
 
     try {
+        // Os agendamentos entram no prompt como fato, não para o modelo
+        // repeti-los: é o que impede "Pendências: marcar a consulta" quando a
+        // consulta já está marcada na Agenda.
+        const agenda = appointments.length
+            ? appointments
+                .map((a) => `${a.dueDate.slice(0, 10)}${a.startTime ? ` ${a.startTime}` : ''} — ${a.title}`)
+                .join('; ')
+            : 'nenhum'
+
         const llm = LLMFactory.create('openai', { model: SUMMARY_MODEL, temperature: 0.2, maxTokens: 600 })
         const result = await llm.generate([
             { role: 'system', content: SYSTEM },
-            { role: 'user', content: transcriptText },
+            { role: 'user', content: `Agendamentos já marcados na Agenda: ${agenda}.\n\n${transcriptText}` },
         ])
 
         await trackUsage('openai', SUMMARY_MODEL, result.usage, {
@@ -115,6 +132,7 @@ export async function POST(
             summary: result.content,
             generatedAt,
             newMessages: 0,
+            appointments,
             messagesRead: chronological.length,
         })
     } catch (error) {
@@ -134,4 +152,38 @@ async function countSince(conversationId: string, untilId: string | null): Promi
     return prisma.message.count({
         where: { conversationId, isInternal: false, createdAt: { gt: until.createdAt } },
     })
+}
+
+/**
+ * As atividades futuras deste paciente.
+ *
+ * Fora do texto gerado de propósito: o resumo é uma fotografia do dia em que
+ * foi gerado, e "tem consulta marcada" muda depois disso — uma frase
+ * congelada diria que há consulta uma semana depois de ela ter acontecido.
+ * Vindo do banco em toda leitura, o painel responde "tem agendamento?" com o
+ * que a Agenda tem agora, e sem gastar crédito.
+ */
+async function upcomingFor(workspaceId: string, contactId: string) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const activities = await prisma.activity.findMany({
+        where: {
+            workspaceId,
+            contactId,
+            completedAt: null,
+            dueDate: { gte: today },
+        },
+        orderBy: [{ dueDate: 'asc' }, { startTime: 'asc' }],
+        take: 5,
+        select: { id: true, title: true, type: true, dueDate: true, startTime: true },
+    })
+
+    return activities.map((a) => ({
+        id: a.id,
+        title: a.title,
+        type: a.type,
+        dueDate: (a.dueDate ?? today).toISOString(),
+        startTime: a.startTime,
+    }))
 }

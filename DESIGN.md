@@ -348,6 +348,13 @@ painel e caixa.
 texto foi gerado e **quantas mensagens chegaram depois**, porque sem isso o
 botão "Atualizar" é um palpite sobre gastar crédito do cliente.
 
+**Fato vem do banco, nunca do texto gerado.** Num painel de IA, o que é dado —
+uma data de consulta, um valor, um status — é lido do banco a cada abertura e
+renderizado como seção própria, acima da prosa. Texto de modelo é uma fotografia
+do dia em que foi gerado: "tem consulta marcada" continuaria afirmando isso uma
+semana depois da consulta. O dado entra no prompt como contexto, para o modelo
+não contradizê-lo, e não para ele repeti-lo.
+
 ---
 
 ## 6. O shell

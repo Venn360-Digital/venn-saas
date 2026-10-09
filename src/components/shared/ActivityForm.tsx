@@ -6,7 +6,6 @@ import { CalendarCheck, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -36,13 +35,16 @@ export interface ScheduleTarget {
  * lateral quanto numa caixa — e o painel é onde ele está hoje, porque marcar
  * uma consulta exige reler o que o paciente escreveu, e um diálogo tampa
  * justamente a conversa.
+ *
+ * Agendar **não** mexe na fase do negócio. As duas coisas andavam juntas e não
+ * são a mesma: marcar um retorno não significa que o atendimento avançou, e
+ * quem decide a fase é quem olha a jornada, num clique só dela.
  */
 export function ActivityForm({
     contactId,
     contactName,
     dealId = null,
     dealTitle = null,
-    scheduledStage = null,
     onScheduled,
     onCancel,
 }: {
@@ -50,15 +52,7 @@ export function ActivityForm({
     contactName: string
     dealId?: string | null
     dealTitle?: string | null
-    /**
-     * A etapa do funil que significa "agendou", quando a clínica tem uma.
-     *
-     * Nula quando nenhuma etapa se parece com agendamento — e então o
-     * formulário não oferece mover de etapa, em vez de mover para um lugar
-     * arbitrário.
-     */
-    scheduledStage?: { id: string; name: string } | null
-    onScheduled?: (info: { date: string; time: string; markJourney: boolean }) => void
+    onScheduled?: (info: { date: string; time: string }) => void
     onCancel?: () => void
 }) {
     const [kind, setKind] = useState('meeting')
@@ -68,7 +62,6 @@ export function ActivityForm({
     const [time, setTime] = useState('09:00')
     const [duration, setDuration] = useState(30)
     const [notes, setNotes] = useState('')
-    const [markJourney, setMarkJourney] = useState(Boolean(scheduledStage))
     const [saving, setSaving] = useState(false)
     const [targets, setTargets] = useState<ScheduleTarget[] | null>(null)
 
@@ -142,7 +135,7 @@ export function ActivityForm({
                     ? `Agendado e enviado para ${connected.map((t) => t.label).join(' e ')}`
                     : 'Agendado na Agenda do OdontoBox360'
             )
-            onScheduled?.({ date, time, markJourney })
+            onScheduled?.({ date, time })
             setNotes('')
             setTitleOverride(null)
         } catch {
@@ -156,8 +149,12 @@ export function ActivityForm({
         <div className="space-y-3">
             <div className="space-y-1.5">
                 <Label htmlFor="act-kind" className="text-xs">Tipo</Label>
+                {/* `w-full`: o trigger do shadcn nasce `w-fit`, e o campo
+                    encolhia até o texto do tipo enquanto Título e Data iam de
+                    ponta a ponta — três larguras diferentes numa coluna de
+                    320px leem como desalinho, não como hierarquia. */}
                 <Select value={kind} onValueChange={setKind}>
-                    <SelectTrigger id="act-kind" className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="act-kind" className="h-9 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                         {ACTIVITY_TYPES.map((t) => (
                             <SelectItem key={t.id} value={t.id}>
@@ -230,22 +227,6 @@ export function ActivityForm({
                     placeholder="Procedimento, preparo, o que levar…"
                 />
             </div>
-
-            {scheduledStage ? (
-                <label className="flex items-start gap-2 text-xs">
-                    <Checkbox
-                        checked={markJourney}
-                        onCheckedChange={(v) => setMarkJourney(v === true)}
-                        className="mt-0.5"
-                    />
-                    <span>
-                        Mover o negócio para <strong>{scheduledStage.name}</strong>
-                        <span className="block text-muted-foreground">
-                            Registra a fase com a data da atividade.
-                        </span>
-                    </span>
-                </label>
-            ) : null}
 
             <div className="flex gap-2 pt-1">
                 <Button onClick={() => void submit()} disabled={saving} size="sm" className="flex-1 gap-1.5">
