@@ -311,6 +311,60 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         })
     }
 
+    /**
+     * `POST /user/check` — o IsOnWhatsApp do whatsmeow, por trás do Evolution Go.
+     *
+     * A resposta é `gin.H` sem contrato, então a leitura é defensiva de
+     * propósito. O que foi medido contra a instância em produção: um número
+     * inexistente devolve `{"data":{"Users":null}}`. Um número existente devolve
+     * entradas em `Users`; o campo booleano dessas entradas varia de nome entre
+     * versões, então a presença da entrada já conta como "tem WhatsApp" e só um
+     * `false` explícito conta como "não tem". Falha de rede ou instância
+     * desconectada devolve `undefined`, não `false`: bloquear o cadastro por uma
+     * verificação instável é pior que aceitar um número que talvez erre.
+     */
+    async checkNumbers(
+        credentials: InstanceCredentials,
+        numbers: string[]
+    ): Promise<{ number: string; exists: boolean | undefined; jid?: string }[]> {
+        const wanted = numbers.map(normalizeNumber).filter(Boolean)
+        if (wanted.length === 0) return []
+
+        let users: Record<string, unknown>[] = []
+        try {
+            const data = await this.request<{ data?: { Users?: unknown } }>(
+                '/user/check',
+                this.tokenOf(credentials, '/user/check'),
+                { method: 'POST', body: JSON.stringify({ number: wanted, formatJid: true }) }
+            )
+            const raw = data?.data?.Users
+            if (raw === null || raw === undefined) {
+                // Resposta válida dizendo "nenhum destes existe".
+                return wanted.map((number) => ({ number, exists: false }))
+            }
+            users = (Array.isArray(raw) ? raw : [raw]) as Record<string, unknown>[]
+        } catch {
+            return wanted.map((number) => ({ number, exists: undefined }))
+        }
+
+        return wanted.map((number) => {
+            const hit = users.find((u) => {
+                const query = String(u.Query ?? u.query ?? '')
+                const jid = String(u.JID ?? u.jid ?? '')
+                return normalizeNumber(query) === number || toMsisdn(jid) === number
+            })
+            if (!hit) return { number, exists: false }
+
+            const flag = hit.IsIn ?? hit.isIn ?? hit.IsInWhatsapp ?? hit.exists
+            const jid = hit.JID ?? hit.jid
+            return {
+                number,
+                exists: flag === false ? false : true,
+                jid: typeof jid === 'string' ? jid : undefined,
+            }
+        })
+    }
+
     async sendText(
         credentials: InstanceCredentials,
         to: string,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
+import { normalizePhone } from '@/lib/intake'
 
 // GET - Get contact details with full history
 export async function GET(
@@ -163,7 +164,9 @@ export async function PATCH(
             data: {
                 ...(name !== undefined && { name }),
                 ...(email !== undefined && { email }),
-                ...(phone !== undefined && { phone }),
+                // Mesma normalização do POST: a ficha editada tem de continuar
+                // encontrável pelo número que o WhatsApp manda.
+                ...(phone !== undefined && { phone: phone ? normalizePhone(String(phone)).digits : null }),
                 ...(notes !== undefined && { notes }),
                 ...(customFields !== undefined && { customFields }),
             }

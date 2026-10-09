@@ -137,6 +137,19 @@ export interface WhatsAppProvider {
     /** React to a message the contact sent (by its provider message id). Optional. */
     react?(credentials: InstanceCredentials, to: string, messageId: string, emoji: string): Promise<void>
 
+    /**
+     * Whether each number has WhatsApp. Optional — only the QR provider has it.
+     *
+     * Serve ao cadastro ativo: sem isso, um dígito trocado cria paciente,
+     * negócio e cartão no funil para um número que nunca vai receber mensagem.
+     * `undefined` num item significa "não deu para verificar", que é diferente
+     * de "não tem" — a tela trata os dois casos de forma diferente.
+     */
+    checkNumbers?(
+        credentials: InstanceCredentials,
+        numbers: string[]
+    ): Promise<{ number: string; exists: boolean | undefined; jid?: string }[]>
+
     sendText(credentials: InstanceCredentials, to: string, text: string): Promise<SendResult>
 
     sendMedia(

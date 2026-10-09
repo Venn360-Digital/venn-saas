@@ -10,6 +10,8 @@ import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Upload, Download, User, Phone, Pencil, Trash2, Check, MessageSquare, TrendingUp, Calendar, Settings, FileText, Hash, ToggleLeft, List as ListIcon, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -110,7 +112,10 @@ export default function ContatosPage() {
     // Lookup data
     const [allTags, setAllTags] = useState<TagOption[]>([])
     const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([])
+    const router = useRouter()
     const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
+    /** O paciente para quem se vai abrir atendimento, ou nulo. */
+    const [intakeFor, setIntakeFor] = useState<Contact | null>(null)
     const [deletingField, setDeletingField] = useState<CustomFieldDef | null>(null)
 
     // Import state
@@ -514,6 +519,14 @@ export default function ContatosPage() {
                             <RowActionItem icon={Pencil} onClick={() => handleOpenDialog(c)}>
                                 Editar
                             </RowActionItem>
+                            {/* O atendimento ativo a partir de quem já está na
+                                base: o telefone não precisa ser digitado de
+                                novo, e é dele que vem a verificação. */}
+                            {c.phone ? (
+                                <RowActionItem icon={MessageSquare} onClick={() => setIntakeFor(c)}>
+                                    Novo atendimento
+                                </RowActionItem>
+                            ) : null}
                             {canEdit && (
                                 <RowActionItem icon={Trash2} destructive onClick={() => setDeletingContact(c)}>
                                     Excluir
@@ -897,6 +910,20 @@ export default function ContatosPage() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Atendimento ativo a partir da ficha. Ao confirmar, a pessoa é
+                levada para a conversa — é lá que o atendimento acontece, e
+                voltar para a lista depois é um clique. */}
+            <NewAttendanceDialog
+                open={Boolean(intakeFor)}
+                onOpenChange={(open) => { if (!open) setIntakeFor(null) }}
+                initialPhone={intakeFor?.phone ?? ''}
+                initialName={intakeFor?.name ?? ''}
+                onDone={(result) => {
+                    setIntakeFor(null)
+                    router.push(`/atendimento/conversas?conv=${result.conversationId}`)
+                }}
+            />
 
             <ConfirmDialog
                 open={deletingContact !== null}

@@ -162,7 +162,40 @@ aceite explícito registrado (quem, quando, qual versão).
 
 ---
 
-## 8. O que ainda não existe
+## 8. Atendimento que a clínica começa
+
+O atendimento normalmente começa pelo paciente: ele escreve, o webhook cria a
+ficha, o negócio e a conversa. Duas situações não cabem nisso, e são atendidas
+pelo **Novo atendimento** (cabeçalho da lista de Conversas, e ação na linha de
+Pacientes):
+
+**Ativo.** A clínica escreve primeiro, para um número que nunca escreveu. Cria
+paciente, negócio na primeira etapa e conversa, e abre o chat — a mensagem é
+escrita e enviada por uma pessoa, nunca pré-preenchida pelo sistema.
+
+**Ligação.** O paciente ligou. Cria os mesmos três registros, grava a ligação
+como atividade concluída com o relato e deixa a mesma nota como nota interna na
+conversa, **sem enviar nada**. A conversa nasce atribuída a quem registrou, para
+não cair na fila de espera. A fase se marca na Jornada do paciente, que abre em
+seguida: a jornada é a mesma para todo paciente, porque as fases são da clínica,
+não do canal.
+
+**O telefone é a chave.** `Contact` é único por `(workspaceId, phone)`, e todo
+telefone é gravado como o WhatsApp endereça — dígitos com o código do país. Uma
+ficha criada à mão com máscara e a mesma pessoa escrevendo pelo WhatsApp viravam
+dois pacientes; a normalização no POST e no PUT de `contacts` é o que faz a
+ligação de hoje e a mensagem de amanhã caírem na mesma ficha.
+
+**Limites.** O número é verificado no WhatsApp antes de gravar (`/user/check` do
+Evolution Go); verificação indisponível vira aviso, não impedimento. Texto livre
+para quem não escreveu só sai pelo canal QR — no canal oficial da Meta exigiria
+template aprovado, que não existe no projeto. Disparo em massa não existe e não
+deve existir sem opt-out e intervalo entre envios: é o caminho mais rápido para
+o número ser banido.
+
+---
+
+## 9. O que ainda não existe
 
 Registrado para não ser esquecido:
 

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { normalizePhone } from '@/lib/intake'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -193,12 +194,38 @@ export async function POST(request: NextRequest) {
         const body = await request.json()
         const validatedData = contactSchema.parse(body)
 
+        /**
+         * O telefone é gravado como o WhatsApp endereça: dígitos com o país.
+         *
+         * Sem isto, uma ficha criada à mão com "(11) 99640-2208" e a mesma
+         * pessoa escrevendo pelo WhatsApp (`5511996402208`) viravam dois
+         * pacientes — o índice único é `(workspaceId, phone)`, e máscara não
+         * casa com dígito. O formato bonito é assunto da tela, não do banco.
+         */
+        const phone = validatedData.phone ? normalizePhone(validatedData.phone).digits : null
+
+        if (phone) {
+            const clash = await prisma.contact.findFirst({
+                where: { workspaceId: workspaceUser.workspaceId, phone },
+                select: { id: true, name: true },
+            })
+            if (clash) {
+                return NextResponse.json(
+                    {
+                        error: `${clash.name || 'Um paciente'} já está cadastrado com este telefone`,
+                        contactId: clash.id,
+                    },
+                    { status: 409 }
+                )
+            }
+        }
+
         const contact = await prisma.contact.create({
             data: {
                 workspaceId: workspaceUser.workspaceId,
                 name: validatedData.name || null,
                 email: validatedData.email || null,
-                phone: validatedData.phone || null,
+                phone,
                 notes: validatedData.notes || null,
                 source: validatedData.source || 'manual',
                 customFields: (validatedData.customFields ?? undefined) as Prisma.InputJsonValue | undefined,

@@ -77,6 +77,7 @@ import {
     RowActions,
     RowActionsSeparator,
 } from '@/components/shared/RowActions'
+import { ContactPicker } from '@/components/shared/ContactPicker'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
 import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
@@ -1331,29 +1332,24 @@ export default function NegociosPage() {
                                     </div>
                                     <div>
                                         <Label>Paciente</Label>
-                                        <div className="mt-1 relative">
-                                            {selectedContact ? (
-                                                <div className="flex items-center gap-2 p-2 rounded-md border border-border bg-accent/30">
-                                                    <User className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="flex-1">{selectedContact.name || selectedContact.phone}</span>
-                                                    <button onClick={() => { setSelectedContact(null); setDealForm(prev => ({ ...prev, contactId: '' })) }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <Input value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Buscar paciente por nome ou telefone..." />
-                                                    {contactResults.length > 0 && (
-                                                        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-popover border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                                            {contactResults.map(c => (
-                                                                <button key={c.id} className="w-full text-left px-3 py-2 hover:bg-accent flex items-center gap-2 text-sm"
-                                                                    onClick={() => { setSelectedContact(c); setDealForm(prev => ({ ...prev, contactId: c.id })); setContactSearch(''); setContactResults([]) }}>
-                                                                    <User className="h-3.5 w-3.5 text-muted-foreground" /><span>{c.name || 'Sem nome'}</span>
-                                                                    {c.phone && <span className="text-muted-foreground ml-auto">{c.phone}</span>}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
+                                        <div className="mt-1">
+                                            {/* Busca e cadastro no mesmo campo. Era um
+                                                `div z-50` artesanal — sem Esc, sem clique
+                                                fora, sem teclado — e sem caminho para o
+                                                paciente que ainda não existe. */}
+                                            <ContactPicker
+                                                value={selectedContact}
+                                                onSelect={(contact) => {
+                                                    setSelectedContact(contact as Contact)
+                                                    setDealForm(prev => ({ ...prev, contactId: contact.id }))
+                                                    setContactSearch('')
+                                                    setContactResults([])
+                                                }}
+                                                onClear={() => {
+                                                    setSelectedContact(null)
+                                                    setDealForm(prev => ({ ...prev, contactId: '' }))
+                                                }}
+                                            />
                                         </div>
                                     </div>
                                 </div>

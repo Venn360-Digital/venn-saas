@@ -297,6 +297,14 @@ desenhado, barra de posição clicável em `bg-current/20`, duração em `num`. 
 transcrição que o worker gera é **conteúdo**, não legenda: peso normal, sob um
 filete com o rótulo "Transcrição".
 
+**Busca que cadastra.** Campo que escolhe de uma lista grande — paciente,
+produto — usa `Popover` + `Command`, e oferece **cadastrar o que não existe no
+próprio menu**, com o que foi digitado já no formulário. O momento em que alguém
+descobre que a ficha não existe é sempre no meio de outra tarefa; mandá-la para
+a tela de cadastro custa o que estava preenchido. Dois campos bastam no atalho
+(nome e telefone); o resto se completa na tela própria. Telefone já cadastrado
+responde 409 com o id, e a tela usa a ficha existente em vez de mostrar erro.
+
 **Menu de comando.** Lista disparada por `/` no compositor. Quando o campo de
 digitação é externo ao menu (o caso do chat), use `Popover` com
 `role="listbox"`/`role="option"`, `aria-selected` e navegação por ↑↓/Enter/Esc

@@ -1,5 +1,7 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -25,6 +27,7 @@ import {
     PanelRight,
     Paperclip,
     Phone,
+    Plus,
     Reply,
     RotateCcw,
     Route,
@@ -80,6 +83,7 @@ import { ActivityForm } from '@/components/shared/ActivityForm'
 import { AiSummaryPanel } from '@/components/shared/AiSummaryPanel'
 import { ConversationFilesPanel } from '@/components/shared/ConversationFilesPanel'
 import { InternalNotesPanel } from '@/components/shared/InternalNotesPanel'
+import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { TagPicker } from '@/components/shared/TagPicker'
 import { TagChip } from '@/components/shared/TagChip'
 import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
@@ -397,7 +401,17 @@ export default function ConversasPage() {
     const [slashIndex, setSlashIndex] = useState(0)
     /** `commands` lista os comandos; `replies` é a segunda página, só respostas. */
     const [slashPage, setSlashPage] = useState<'commands' | 'replies'>('commands')
-    const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
+    /**
+     * `?conv=<id>` abre direto numa conversa.
+     *
+     * Serve ao gatilho em Pacientes: lá o atendimento é criado e a pessoa é
+     * trazida para cá já na conversa certa. Lido uma vez, no inicializador — a
+     * navegação vem de outra rota, então a página monta; derivar do parâmetro a
+     * cada render impediria fechar a conversa no celular, que é o que
+     * `setSelectedConversation(null)` faz.
+     */
+    const convParam = useSearchParams().get('conv')
+    const [selectedConversation, setSelectedConversation] = useState<string | null>(convParam)
     const [conversationDetail, setConversationDetail] = useState<ConversationDetail | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [messageInput, setMessageInput] = useState('')
@@ -481,6 +495,8 @@ export default function ConversasPage() {
      * troca, clicar no mesmo fecha. Dois painéis de 300px não cabem numa janela
      * de 1280, então alternar é mais honesto que empilhar.
      */
+    const [intakeOpen, setIntakeOpen] = useState(false)
+
     type PanelMode = 'journey' | 'schedule' | 'files' | 'summary' | 'notes'
     const [panel, setPanel] = useState<PanelMode | null>(null)
     const togglePanel = (next: PanelMode) => setPanel((prev) => (prev === next ? null : next))
@@ -1600,7 +1616,16 @@ export default function ConversasPage() {
                 )}>
                     {/* Header */}
                     <div className="p-4 border-b">
-                        <h1 className="mb-3 text-h3">Conversas</h1>
+                        {/* O + é do cabeçalho da coluna, não da conversa aberta:
+                            é a lista que ganha um item. Rótulo com verbo porque um
+                            "+" solto aqui seria lido como "nova mensagem". */}
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                            <h1 className="text-h3">Conversas</h1>
+                            <Button size="sm" className="gap-1.5" onClick={() => setIntakeOpen(true)}>
+                                <Plus className="size-3.5" />
+                                Novo atendimento
+                            </Button>
+                        </div>
                         {queue ? <QueueMeter counts={queue} className="mb-3" /> : null}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -2738,6 +2763,25 @@ export default function ConversasPage() {
                     )}
                 </div>
             </div >
+
+            {/* O atendimento que a clínica começa — ativo ou por ligação. */}
+            <NewAttendanceDialog
+                open={intakeOpen}
+                onOpenChange={setIntakeOpen}
+                onDone={(result) => {
+                    // A lista primeiro: a conversa nova precisa existir nela
+                    // antes de ser selecionada, senão a seleção não encontra o
+                    // item e o painel abre vazio.
+                    void fetchConversations()
+                    handleSelectConversation(result.conversationId)
+                    // Ligação não tem mensagem para escrever: o que falta é
+                    // marcar a fase, então a Jornada abre junto.
+                    setPanel(result.mode === 'call' ? 'journey' : null)
+                    if (result.mode === 'active') {
+                        setTimeout(() => textareaRef.current?.focus(), 80)
+                    }
+                }}
+            />
 
             {/* Encaminhar — Dialog, não dois divs fixos: o primitivo trata foco
                 preso, Esc, rolagem da página e o rótulo do título para leitor de
