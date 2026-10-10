@@ -38,7 +38,7 @@ const dealInclude = {
     // O percurso, para o trilho do cartão. Só etapa e data: a nota é lida na
     // tela de detalhe, e uma lista de 50 cartões não deve carregar texto.
     stageEntries: {
-        select: { stageId: true, enteredAt: true },
+        select: { stageId: true, enteredAt: true, note: true },
         orderBy: { enteredAt: 'asc' as const },
     },
     // A próxima atividade pendente, uma por negócio: é ela que diz se alguém
@@ -97,8 +97,14 @@ export async function GET(request: NextRequest) {
             where.stageId = stageId
         }
 
-        if (status && status !== 'all') {
+        if (status === 'closed') {
+
+            where.status = { in: ['won', 'lost'] }
+
+        } else if (status && status !== 'all') {
+
             where.status = status
+
         }
 
         if (dateFrom || dateTo) {

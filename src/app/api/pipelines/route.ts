@@ -36,7 +36,11 @@ export async function GET(request: NextRequest) {
 
         // Build deal filter
         const dealWhere: Prisma.DealWhereInput = {}
-        if (status && status !== 'all') {
+        if (status === 'closed') {
+            // O trilho tem um item "Finalizados": ganhos e perdidos juntos, que
+            // nenhum dos filtros anteriores sabia pedir numa consulta só.
+            dealWhere.status = { in: ['won', 'lost'] }
+        } else if (status && status !== 'all') {
             dealWhere.status = status
         }
         if (search) {
@@ -81,7 +85,7 @@ export async function GET(request: NextRequest) {
                         // idade na fase atual. Faltava aqui — o trilho no quadro
                         // desenhava as fases sem data, enquanto na lista tinha.
                         stageEntries: {
-                            select: { stageId: true, enteredAt: true },
+                            select: { stageId: true, enteredAt: true, note: true },
                             orderBy: { enteredAt: 'asc' },
                         },
                         /**

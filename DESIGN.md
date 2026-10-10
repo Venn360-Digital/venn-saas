@@ -338,6 +338,20 @@ nunca atrás delas — 1px atravessando um ponto cheio aparece. Marco cumprido �
 `bg-success` com `Check`; pendente é `bg-card` com borda e o ícone do marco.
 Data em `num`. Só o marco em edição abre; os outros ficam em uma linha.
 
+**Funil no eixo vertical, não no horizontal.** Coluna de etapa com largura
+fixa multiplica a largura necessária por etapa, e aí qualquer painel à direita
+disputa espaço com o funil — o problema não é o painel, é o eixo. O trilho
+resolve pela raiz: as etapas crescem para baixo (nome, contagem, valor, medidor
+e "N parados" por item, mais do que um cabeçalho de 288px jamais mostrou), o
+centro exibe uma etapa por vez em linhas densas, e o painel fica. Cada item do
+trilho é zona de soltar, então o arrasto sobrevive com alvo maior. O quadro
+continua disponível para quem quer a comparação lado a lado.
+
+**Contagem tem de concordar com a imagem ao lado dela.** Um `_count` do banco
+ignora o filtro de um `include`: mostrar "9" ao lado de um medidor desenhado com
+dois é o número do funil inteiro ao lado da imagem do recorte. Com filtro ligado,
+conte o que está carregado.
+
 **Painel ao lado de um quadro: sobrepõe; ao lado de uma tabela: divide.** As
 duas superfícies reagem de forma oposta a perder largura. Um kanban de seis
 etapas perde duas colunas inteiras e não há como recuperá-las sem fechar o

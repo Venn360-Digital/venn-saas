@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarPlus, Pencil, Route, Trophy, X, XCircle } from 'lucide-react'
+import { CalendarPlus, Pencil, Route, X } from 'lucide-react'
 
 import { ActivityForm } from '@/components/shared/ActivityForm'
+import { DealJourney } from '@/components/shared/DealJourney'
 import { TagChip } from '@/components/shared/TagChip'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ageTone, daysInStage, nextStep, type DealLike } from '@/lib/deal-health'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { formatPhone } from '@/lib/phone'
@@ -25,6 +25,8 @@ export interface PanelDeal extends DealLike {
     agency: { id: string; name: string } | null
     media: { id: string; name: string } | null
     outcomeReason?: { id: string; name: string; kind: string } | null
+    outcomeNotes?: string | null
+    closedAt?: string | null
 }
 
 /**
@@ -49,9 +51,7 @@ export function DealPanel<T extends PanelDeal>({
     onOpenWhatsApp,
     onClose,
     onEdit,
-    onMoveStage,
-    onFinish,
-    onScheduled,
+    onChanged,
     className,
 }: {
     /**
@@ -66,9 +66,8 @@ export function DealPanel<T extends PanelDeal>({
     onOpenWhatsApp: (target: { id?: string; name?: string | null; phone?: string | null }) => void
     onClose: () => void
     onEdit: (deal: T) => void
-    onMoveStage: (deal: T, stageId: string) => void
-    onFinish: (deal: T, side: 'won' | 'lost') => void
-    onScheduled: () => void
+    /** Avisa a tela para reler: a jornada grava sozinha, a tela precisa saber. */
+    onChanged: () => void
     className?: string
 }) {
     const [scheduling, setScheduling] = useState(false)
@@ -156,7 +155,7 @@ export function DealPanel<T extends PanelDeal>({
                                 dealTitle={deal.title}
                                 onScheduled={() => {
                                     setScheduling(false)
-                                    onScheduled()
+                                    onChanged()
                                 }}
                                 onCancel={() => setScheduling(false)}
                             />
@@ -174,53 +173,33 @@ export function DealPanel<T extends PanelDeal>({
                     ) : null}
                 </div>
 
-                {/* Mover de fase sem arrastar: no celular e num quadro de seis
-                    etapas, o arrasto é o gesto mais difícil da tela. */}
-                {!closed ? (
-                    <div>
-                        <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Fase
-                        </h5>
-                        <Select
-                            value={deal.stageId}
-                            onValueChange={(stageId) => {
-                                if (stageId !== deal.stageId) onMoveStage(deal, stageId)
-                            }}
-                        >
-                            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {stages.map((stage) => (
-                                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                ) : (
-                    <div className={cn(
-                        'rounded-md px-2.5 py-2 text-xs',
-                        deal.status === 'won'
-                            ? 'bg-success-subtle text-success-subtle-foreground'
-                            : 'bg-destructive-subtle text-destructive-subtle-foreground'
-                    )}>
-                        <strong>{deal.status === 'won' ? 'Ganho' : 'Perdido'}</strong>
-                        {deal.outcomeReason ? ` · ${deal.outcomeReason.name}` : null}
-                    </div>
-                )}
+                {/* A jornada, a mesma da conversa.
+                    Substitui o seletor de fase e os dois botões de desfecho que
+                    moravam aqui: clicar na fase move e registra data e nota, e a
+                    Finalização abre dentro do próprio card. Três controles para a
+                    mesma coisa viravam três verdades. */}
+                <div>
+                    <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Jornada
+                    </h5>
+                    <DealJourney
+                        dealId={deal.id}
+                        dealTitle={deal.title}
+                        dealValue={deal.value}
+                        stages={stages.map((stage, i) => ({ ...stage, order: i }))}
+                        currentStageId={deal.stageId}
+                        entries={deal.stageEntries ?? []}
+                        status={(deal.status as 'open' | 'won' | 'lost') ?? 'open'}
+                        outcomeReasonName={deal.outcomeReason?.name ?? null}
+                        outcomeNotes={deal.outcomeNotes ?? null}
+                        closedAt={deal.closedAt ?? null}
+                        onOutcome={onChanged}
+                        onChange={() => onChanged()}
+                    />
+                </div>
             </div>
 
-            <div className="space-y-2 border-t border-border p-3">
-                {!closed ? (
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onFinish(deal, 'won')}>
-                            <Trophy className="size-3.5 text-success-subtle-foreground" />
-                            Ganho
-                        </Button>
-                        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onFinish(deal, 'lost')}>
-                            <XCircle className="size-3.5 text-destructive-subtle-foreground" />
-                            Perdido
-                        </Button>
-                    </div>
-                ) : null}
+            <div className="border-t border-border p-3">
                 <Button variant="ghost" size="sm" className="w-full gap-1.5" onClick={() => onEdit(deal)}>
                     <Pencil className="size-3.5" />
                     Editar negócio

@@ -12,6 +12,7 @@ import {
     CheckCircle2,
     Circle,
     Clock,
+    Columns3,
     DollarSign,
     LayoutGrid,
     List,
@@ -91,6 +92,8 @@ import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
 import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
 import { DealPanel } from '@/components/shared/DealPanel'
+import { CLOSED_RAIL_ID, PipelineRail } from '@/components/shared/PipelineRail'
+import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
@@ -152,6 +155,8 @@ interface Stage {
     color: string
     order: number
     deals: Deal[]
+    /** O total real da etapa: `deals` vem limitado a cem por coluna. */
+    _count?: { deals: number }
 }
 
 interface DealActivity {
@@ -546,9 +551,20 @@ export default function NegociosPage() {
     const { canEdit } = usePermissions()
     const [stages, setStages] = useState<Stage[]>([])
     // Os telefones de todos os cartões do quadro, numa consulta só.
-    const whatsapp = useWhatsAppStatus(stages.flatMap(st => st.deals.map(d => d.contact?.phone)))
     const [loading, setLoading] = useState(true)
-    const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+    /**
+     * Três geometrias para o mesmo funil.
+     *
+     * `rail` é o padrão porque é a única que convive com o painel aberto sem
+     * sacrificar etapas: o funil cresce na vertical, que é o eixo que o painel
+     * não disputa. O quadro e a lista continuam a um clique.
+     */
+    const [viewMode, setViewMode] = useState<'rail' | 'kanban' | 'list'>('rail')
+    /** A etapa em foco no trilho, ou `CLOSED_RAIL_ID` para os finalizados. */
+    const [focusStageId, setFocusStageId] = useState<string | null>(null)
+    const [focusOrder, setFocusOrder] = useState<FocusOrder>('age')
+    const [closedDeals, setClosedDeals] = useState<Deal[]>([])
+    const [closedCount, setClosedCount] = useState<number | null>(null)
     const [filtersOpen, setFiltersOpen] = useState(false)
     /**
      * O negócio aberto no painel, por id e não por objeto.
@@ -643,11 +659,27 @@ export default function NegociosPage() {
         setDateTo('')
     }
 
+    // Inclui os finalizados: sem eles, o ícone no item "Finalizados" do trilho
+    // ficaria para sempre em "verificando".
+    const whatsapp = useWhatsAppStatus([
+        ...stages.flatMap(st => st.deals.map(d => d.contact?.phone)),
+        ...closedDeals.map(d => d.contact?.phone),
+        ...listDeals.map(d => d.contact?.phone),
+    ])
+
+    /**
+     * A etapa em foco. Sem escolha explícita, a primeira do funil — e não a
+     * última lembrada: quem abre a tela começa onde o paciente entra.
+     */
+    const activeStageId = focusStageId ?? stages[0]?.id ?? null
+    const activeStage = stages.find((st) => st.id === activeStageId) ?? null
+    const focusDeals = activeStageId === CLOSED_RAIL_ID ? closedDeals : (activeStage?.deals ?? [])
+
     /** Lido das listas carregadas, para o painel nunca mostrar dado velho. */
     const selectedDeal =
-        (viewMode === 'kanban'
-            ? stages.flatMap((st) => st.deals).find((d) => d.id === selectedDealId)
-            : listDeals.find((d) => d.id === selectedDealId)) ?? null
+        (viewMode === 'list'
+            ? listDeals.find((d) => d.id === selectedDealId)
+            : [...stages.flatMap((st) => st.deals), ...closedDeals].find((d) => d.id === selectedDealId)) ?? null
 
     /** Props comuns do painel nas duas visões; só o layout difere. */
     const panelProps = selectedDeal
@@ -659,19 +691,37 @@ export default function NegociosPage() {
             onOpenWhatsApp: whatsapp.open,
             onClose: () => setSelectedDealId(null),
             onEdit: (deal: Deal) => handleEditDealWithActivities(deal),
-            onMoveStage: (deal: Deal, stageId: string) => void handleMoveToStage(deal, stageId),
-            onFinish: (deal: Deal, side: 'won' | 'lost') => {
-                setDealToLose(deal)
-                setOutcomeSide(side)
-                setOutcomeOpen(true)
-            },
-            onScheduled: () => {
-                if (viewMode === 'kanban') loadPipeline()
-                else loadListDeals()
+            /**
+             * A jornada e o agendamento gravam sozinhos; a tela relê.
+             *
+             * Recarregar em vez de aplicar o estado devolvido pelo componente
+             * porque aqui mudam coisas que ele não conhece: a contagem da etapa,
+             * o total da coluna e as faixas de prioridade.
+             */
+            onChanged: () => {
+                if (viewMode === 'list') loadListDeals()
+                else loadPipeline()
                 void loadLanes()
             },
         }
         : null
+
+    /**
+     * Soltar uma linha num item do trilho move o negócio.
+     *
+     * O id da zona é `rail-<stageId>`, para não colidir com os ids de negócio
+     * que o mesmo contexto de arrasto também carrega.
+     */
+    const handleRailDragEnd = (event: DragEndEvent) => {
+        setActiveDeal(null)
+        const overId = String(event.over?.id ?? '')
+        if (!overId.startsWith('rail-')) return
+
+        const stageId = overId.slice('rail-'.length)
+        const deal = stages.flatMap((st) => st.deals).find((d) => d.id === event.active.id)
+        if (!deal || deal.stageId === stageId) return
+        void handleMoveToStage(deal, stageId)
+    }
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -724,6 +774,7 @@ export default function NegociosPage() {
                 if (isDealLane(item.id)) next[item.id] = item.count
             }
             setLaneCounts(next)
+            setClosedCount(typeof data.closed === 'number' ? data.closed : null)
         } catch {
             // Sem as contagens a faixa mostra "—" e o quadro segue inteiro.
         }
@@ -782,15 +833,35 @@ export default function NegociosPage() {
         void loadLanes()
     }, [loadLanes])
 
+    /**
+     * Os finalizados, só quando alguém pede.
+     *
+     * Eles não cabem no payload do quadro — que é por etapa aberta — e carregar
+     * dois anos de negócios fechados para desenhar um item de trilho seria a
+     * consulta mais cara da tela pelo motivo mais fraco.
+     */
     useEffect(() => {
-        if (viewMode === 'kanban') loadPipeline()
-        else loadListDeals()
+        if (focusStageId !== CLOSED_RAIL_ID) return
+        let cancelled = false
+        fetch('/api/deals?status=closed')
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!cancelled && Array.isArray(data)) setClosedDeals(data)
+            })
+            .catch(() => { })
+        return () => { cancelled = true }
+    }, [focusStageId])
+
+    useEffect(() => {
+        // O trilho lê do mesmo payload do quadro: etapas com os seus negócios.
+        if (viewMode === 'list') loadListDeals()
+        else loadPipeline()
     }, [viewMode, loadPipeline, loadListDeals])
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (viewMode === 'kanban') loadPipeline()
-            else loadListDeals()
+            if (viewMode === 'list') loadListDeals()
+            else loadPipeline()
         }, 300)
         return () => clearTimeout(timer)
     }, [search])
@@ -1393,6 +1464,15 @@ export default function NegociosPage() {
                     <div className="flex items-center gap-2">
                         <div className="flex items-center rounded-lg border border-border bg-card p-1">
                             <Button
+                                variant={viewMode === 'rail' ? 'default' : 'ghost'}
+                                size="icon-sm"
+                                onClick={() => setViewMode('rail')}
+                                aria-label="Ver como trilho de etapas"
+                                aria-pressed={viewMode === 'rail'}
+                            >
+                                <Columns3 className="size-4" />
+                            </Button>
+                            <Button
                                 variant={viewMode === 'kanban' ? 'default' : 'ghost'}
                                 size="icon-sm"
                                 onClick={() => setViewMode('kanban')}
@@ -1494,6 +1574,91 @@ export default function NegociosPage() {
                 className="mt-4 mb-5"
             />
 
+
+            {/* Trilho + foco + jornada.
+                A geometria que resolve a sobreposição pela raiz: o funil vive no
+                eixo vertical (o trilho cresce para baixo, não para o lado), então
+                o painel deixa de disputar largura com as etapas. Em 1280 as três
+                faixas cabem; abaixo de 1024 o trilho vira um seletor e o painel
+                volta a sobrepor. */}
+            {viewMode === 'rail' && (
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCorners}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleRailDragEnd}
+                >
+                    <div className="relative grid gap-3 lg:grid-cols-[150px_1fr] xl:grid-cols-[170px_1fr]">
+                        <PipelineRail
+                            stages={stages}
+                            filtered={Boolean(lane || search || filterStatus !== 'open')}
+                            selectedId={activeStageId}
+                            onSelect={(stageId) => {
+                                setFocusStageId(stageId)
+                                setSelectedDealId(null)
+                            }}
+                            closedCount={closedCount}
+                            className="hidden self-start lg:block"
+                        />
+
+                        <div className={cn('min-w-0', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
+                            <div className="min-w-0 space-y-3">
+                                {/* Abaixo de 1024 o trilho não cabe, e um seletor
+                                    diz a mesma coisa sem roubar a largura. */}
+                                <div className="lg:hidden">
+                                    <Select
+                                        value={activeStageId ?? ''}
+                                        onValueChange={(stageId) => { setFocusStageId(stageId); setSelectedDealId(null) }}
+                                    >
+                                        <SelectTrigger className="w-full"><SelectValue placeholder="Etapa" /></SelectTrigger>
+                                        <SelectContent>
+                                            {stages.map((st) => (
+                                                <SelectItem key={st.id} value={st.id}>
+                                                    {st.name} ({st._count?.deals ?? st.deals.length})
+                                                </SelectItem>
+                                            ))}
+                                            <SelectItem value={CLOSED_RAIL_ID}>Finalizados</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <StageFocus
+                                    stageName={activeStageId === CLOSED_RAIL_ID ? 'Finalizados' : (activeStage?.name ?? 'Etapa')}
+                                    deals={focusDeals}
+                                    order={focusOrder}
+                                    onOrderChange={setFocusOrder}
+                                    selectedId={selectedDealId}
+                                    onSelect={setSelectedDealId}
+                                    whatsapp={whatsapp}
+                                    emptyHint={
+                                        activeStageId === CLOSED_RAIL_ID
+                                            ? 'Nenhum negócio finalizado ainda.'
+                                            : 'Arraste um negócio de outra etapa para cá, ou crie um novo.'
+                                    }
+                                />
+                            </div>
+
+                            {panelProps ? (
+                                <DealPanel
+                                    {...panelProps}
+                                    className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:w-auto xl:self-start xl:shadow-none"
+                                />
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <DragOverlay>
+                        {activeDeal ? (
+                            <div className="w-[280px] rounded-lg border border-primary bg-card p-2.5 opacity-90 shadow-xl">
+                                <p className="truncate text-[13px] font-semibold">{activeDeal.title}</p>
+                                <p className="truncate text-[11px] text-muted-foreground">
+                                    {activeDeal.contact?.name ?? 'Sem paciente'} · soltar numa etapa do trilho
+                                </p>
+                            </div>
+                        ) : null}
+                    </DragOverlay>
+                </DndContext>
+            )}
 
             {/* Kanban View */}
             {viewMode === 'kanban' && (

@@ -30,5 +30,9 @@ export async function GET() {
     return NextResponse.json({
         lanes: DEAL_LANES.map((lane, i) => ({ id: lane.id, count: counts[i] })),
         open: await prisma.deal.count({ where: base }),
+        // O item "Finalizados" do trilho precisa do seu número como os outros.
+        closed: await prisma.deal.count({
+            where: { workspaceId: auth.member.workspaceId, status: { in: ['won', 'lost'] } },
+        }),
     })
 }
