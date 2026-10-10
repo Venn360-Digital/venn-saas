@@ -238,7 +238,6 @@ export function StageManagerDialog({
                         <div className="hidden items-center gap-2 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:flex">
                             <span className="w-5" />
                             <span className="flex-1">Fase</span>
-                            <span className="w-10 text-center">Negócios</span>
                             <span className="w-[72px] text-center">Cobrar em</span>
                             <span className="w-[116px]">Envio</span>
                             <span className="w-[60px]" />
@@ -260,9 +259,6 @@ export function StageManagerDialog({
                                     bare
                                     className="min-w-[140px] flex-1"
                                 />
-                                <span className="num w-10 shrink-0 rounded-full bg-muted py-0.5 text-center text-xs text-muted-foreground">
-                                    {dealCount(stage)}
-                                </span>
 
                                 {/* O prazo da fase: é ele que faz a tarefa de
                                     retomada nascer sozinha. Vazio significa "esta

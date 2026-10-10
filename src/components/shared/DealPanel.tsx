@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-    AlertTriangle,
     CalendarPlus,
-    Copy,
     Check,
     ListTodo,
     Loader2,
     MoreVertical,
     Route,
     RotateCcw,
-    Sparkles,
     StickyNote,
     Trash2,
     Trophy,
@@ -66,7 +63,7 @@ interface PanelActivity {
     completedAt: string | null
 }
 
-type Mode = 'ficha' | 'suggest' | 'schedule' | 'activities' | 'notes'
+type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'
 
 /**
  * A ficha do negócio: um painel que lê, edita e age.
@@ -122,8 +119,6 @@ export function DealPanel<T extends PanelDeal>({
     const [searchingContacts, setSearchingContacts] = useState(false)
 
     const [activities, setActivities] = useState<PanelActivity[] | null>(null)
-    const [suggestion, setSuggestion] = useState<{ message: string; when: string | null; why: string; withoutHistory?: boolean } | null>(null)
-    const [suggesting, setSuggesting] = useState(false)
 
     /*
      * Trocar de negócio volta para a ficha, e isso acontece pela `key` que a
@@ -141,23 +136,6 @@ export function DealPanel<T extends PanelDeal>({
         },
         [onPatch]
     )
-
-    const suggest = async () => {
-        setSuggesting(true)
-        try {
-            const res = await fetch(`/api/deals/${deal.id}/follow-up`, { method: 'POST' })
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) {
-                toast.error(data.error || 'Não foi possível gerar a sugestão')
-                return
-            }
-            setSuggestion(data)
-        } catch {
-            toast.error('Não foi possível gerar a sugestão')
-        } finally {
-            setSuggesting(false)
-        }
-    }
 
     /** Atividades só quando o modo abre: o painel abre muitas vezes por sessão. */
     useEffect(() => {
@@ -234,13 +212,10 @@ export function DealPanel<T extends PanelDeal>({
                     active={mode === 'ficha'}
                     onClick={() => setMode('ficha')}
                 />
-                <StripIcon
-                    icon={Sparkles}
-                    label={closed ? 'Negócio finalizado' : 'Follow-up sugerido pela IA'}
-                    active={mode === 'suggest'}
-                    disabled={closed}
-                    onClick={() => setMode(mode === 'suggest' ? 'ficha' : 'suggest')}
-                />
+                {/* "Follow-up sugerido" saiu daqui para a tela de conversas.
+                    O texto nasce da conversa e vai para o compositor logo
+                    abaixo, onde alguém lê, ajusta e envia; no funil ele era um
+                    texto sem destino — copiar e ir procurar a conversa. */}
                 <StripIcon
                     icon={CalendarPlus}
                     label={closed ? 'Negócio finalizado — nada a agendar' : 'Agendar atividade'}
@@ -457,88 +432,6 @@ export function DealPanel<T extends PanelDeal>({
                                 onChange={() => onChanged()}
                             />
                         </div>
-                    </div>
-                ) : null}
-
-                {mode === 'suggest' ? (
-                    <div className="space-y-3">
-                        {suggestion === null ? (
-                            <div className="rounded-md border border-dashed border-border px-3 py-6 text-center">
-                                <Sparkles className="mx-auto mb-2 size-5 text-muted-foreground" />
-                                <p className="mb-3 text-xs text-muted-foreground">
-                                    A IA lê a conversa deste paciente e escreve a próxima mensagem,
-                                    com a data do retorno. Gerar consome créditos de IA.
-                                </p>
-                                <Button size="sm" onClick={() => void suggest()} disabled={suggesting} className="gap-1.5">
-                                    {suggesting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                                    Sugerir follow-up
-                                </Button>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="rounded-md bg-primary-subtle px-3 py-2.5 text-[13px] leading-relaxed text-primary-subtle-foreground">
-                                    {suggestion.message}
-                                </div>
-
-                                {suggestion.why ? (
-                                    <p className="text-[11px] text-muted-foreground">{suggestion.why}</p>
-                                ) : null}
-
-                                {suggestion.withoutHistory ? (
-                                    <p className="flex items-start gap-1.5 text-[11px] text-warning-subtle-foreground">
-                                        <AlertTriangle className="mt-0.5 size-3 shrink-0" />
-                                        Sem conversa registrada com este paciente — o texto é uma
-                                        primeira retomada, sem citar histórico.
-                                    </p>
-                                ) : null}
-
-                                {suggestion.when ? (
-                                    <p className="num flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                        <CalendarPlus className="size-3" />
-                                        Retorno sugerido: {new Date(`${suggestion.when}T12:00:00`).toLocaleDateString('pt-BR')}
-                                    </p>
-                                ) : null}
-
-                                {/* Três saídas, nenhuma delas envia: copiar, marcar
-                                    o retorno, ou abrir a conversa para escrever com
-                                    o texto à vista. */}
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Button
-                                        size="sm"
-                                        className="gap-1.5"
-                                        onClick={() => {
-                                            void navigator.clipboard?.writeText(suggestion.message)
-                                            toast.success('Texto copiado')
-                                        }}
-                                    >
-                                        <Copy className="size-3.5" />
-                                        Copiar texto
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="gap-1.5"
-                                        onClick={() => {
-                                            setMode('schedule')
-                                        }}
-                                    >
-                                        <CalendarPlus className="size-3.5" />
-                                        Agendar retorno
-                                    </Button>
-                                </div>
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="w-full gap-1.5"
-                                    onClick={() => void suggest()}
-                                    disabled={suggesting}
-                                >
-                                    {suggesting ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
-                                    Gerar outra versão
-                                </Button>
-                            </>
-                        )}
                     </div>
                 ) : null}
 

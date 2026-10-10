@@ -115,6 +115,8 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
         {
             id: 'user',
             header: 'Usuário',
+            sortable: true,
+            sortValue: (u) => `${u.name} ${u.lastName ?? ''}`.trim(),
             cell: (u) => (
                 <div className="flex min-w-0 items-center gap-3">
                     <Avatar className="size-8 shrink-0">
@@ -137,23 +139,31 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
         {
             id: 'email',
             header: 'E-mail',
+            sortable: true,
+            sortValue: (u) => u.email,
             hideBelow: 'lg',
             cell: (u) => <span className="text-muted-foreground">{u.email}</span>,
         },
         {
             id: 'department',
             header: 'Departamento',
+            sortable: true,
+            sortValue: (u) => u.departmentName ?? '',
             hideBelow: 'md',
             cell: (u) => u.departmentName ?? <span className="text-muted-foreground">—</span>,
         },
         {
             id: 'role',
             header: 'Função',
+            sortable: true,
+            sortValue: (u) => u.role,
             cell: (u) => <StatusBadge value={u.role} map={WORKSPACE_ROLE} />,
         },
         {
             id: 'status',
             header: 'Status',
+            sortable: true,
+            sortValue: (u) => (u.isActive ? 1 : 0),
             hideBelow: 'sm',
             cell: (u) => <StatusBadge value={String(u.isActive)} map={ACTIVE_STATE} />,
         },

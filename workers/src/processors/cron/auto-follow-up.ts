@@ -141,7 +141,7 @@ export async function runAutoFollowUp(): Promise<void> {
             if (check.exists !== true) continue
 
             // Portão 6: a IA tem o que dizer.
-            const result = await buildFollowUpSuggestion(deal.id, stage.workspaceId)
+            const result = await buildFollowUpSuggestion({ dealId: deal.id, workspaceId: stage.workspaceId })
             if (!result.ok) {
                 log.warn(`suggestion failed for deal ${deal.id}: ${result.reason}`)
                 continue

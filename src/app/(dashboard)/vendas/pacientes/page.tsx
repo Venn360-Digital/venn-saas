@@ -389,6 +389,8 @@ export default function ContatosPage() {
         {
             id: 'name',
             header: 'Nome',
+            sortable: true,
+            sortValue: (c) => c.name ?? '',
             cell: (c) => (
                 <div className="flex min-w-0 items-center gap-3">
                     <Avatar className="size-8 shrink-0">
@@ -409,8 +411,8 @@ export default function ContatosPage() {
         },
         // Sem o 55 e sem pontuação: é a mesma forma que o campo de digitação
         // usa, então o que se lê é o que se digita.
-        { id: 'phone', header: 'Telefone', numeric: true, hideBelow: 'sm', cell: (c) => formatPhone(c.phone) || '—' },
-        { id: 'email', header: 'E-mail', hideBelow: 'lg', cell: (c) => <span className="text-muted-foreground">{c.email || '—'}</span> },
+        { id: 'phone', header: 'Telefone', numeric: true, hideBelow: 'sm', sortable: true, sortValue: (c) => c.phone ?? '', cell: (c) => formatPhone(c.phone) || '—' },
+        { id: 'email', header: 'E-mail', hideBelow: 'lg', sortable: true, sortValue: (c) => c.email ?? '', cell: (c) => <span className="text-muted-foreground">{c.email || '—'}</span> },
         {
             id: 'tags',
             header: 'Etiquetas',
@@ -423,7 +425,7 @@ export default function ContatosPage() {
                 </div>
             ),
         },
-        { id: 'source', header: 'Origem', hideBelow: 'sm', cell: (c) => <StatusBadge value={c.source || 'manual'} tone="neutral" /> },
+        { id: 'source', header: 'Origem', hideBelow: 'sm', sortable: true, sortValue: (c) => c.source ?? '', cell: (c) => <StatusBadge value={c.source || 'manual'} tone="neutral" /> },
         {
             id: 'whatsapp',
             header: 'WhatsApp',

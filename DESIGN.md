@@ -285,6 +285,23 @@ frase e ação), erro (`ErrorState`) e sucesso. Faltar um é bug, não polimento
 e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
 tabela vira cartão.
 
+**Ordenação é padrão de tabela, não recurso de uma tela.** Toda coluna que
+carrega **um valor comparável** — texto, número, data, estado de duas vias —
+nasce com `sortable: true`. Não recebem ordenação apenas as colunas que não têm
+um valor a comparar: coluna de ação (ícone de abrir, de excluir, de WhatsApp),
+coluna de múltiplos valores (etiquetas de um paciente) e amostra de cor. Quando a
+célula renderiza componente em vez de texto — `StatusBadge`, avatar com duas
+linhas, preço formatado — a coluna declara também `sortValue`, que devolve o
+valor cru: é por ele que a tabela ordena, nunca pelo que o `cell` desenhou.
+
+O comportamento vem inteiro do `DataTable` e é o mesmo em todas as telas: o
+cabeçalho é um `<button>` com `aria-sort`, e o clique cicla em três passos —
+crescente, decrescente, **ordem original do servidor**. O terceiro clique
+importa: sem ele a pessoa não tem como voltar à ordem que a consulta entregou
+(mais recente primeiro, na maioria das telas), e a ordenação passa a ser uma
+porta de mão única. A ordenação é local à página carregada — ela reorganiza o que
+está na tela, não repagina no banco.
+
 **Ícone.** Lucide, 16px inline, 20px no máximo decorativo. Botão só de ícone
 precisa de `Tooltip` e `aria-label` — `title=` não basta. **Ícone em botão tem
 regra:** ação primária de página sempre com ícone à esquerda do rótulo; ação de

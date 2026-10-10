@@ -43,9 +43,43 @@ export type SuggestionResult =
  * mesmo que sai depois — duas cópias divergiriam no primeiro ajuste de prompt.
  */
 export async function buildFollowUpSuggestion(
-    dealId: string,
-    workspaceId: string
+    target: { workspaceId: string; dealId?: string; conversationId?: string }
 ): Promise<SuggestionResult> {
+    const { workspaceId } = target
+
+    /**
+     * O alvo pode ser um negócio ou uma conversa.
+     *
+     * Na tela de conversas a pergunta nasce do fio aberto, e pode não haver
+     * negócio nenhum ainda; no funil ela nasce do negócio. Resolver os dois
+     * aqui evita duas funções que escreveriam textos diferentes com o mesmo
+     * prompt.
+     */
+    const dealId = target.dealId ?? (target.conversationId
+        ? (await prisma.conversation.findFirst({
+            where: { id: target.conversationId, workspaceId },
+            select: {
+                contactId: true,
+                contact: {
+                    select: {
+                        deals: {
+                            where: { status: 'open' },
+                            orderBy: { createdAt: 'desc' },
+                            take: 1,
+                            select: { id: true },
+                        },
+                    },
+                },
+            },
+        }))?.contact?.deals[0]?.id ?? null
+        : null)
+
+    // Conversa sem negócio aberto ainda tem conversa: o texto sai do fio.
+    if (!dealId && target.conversationId) {
+        return buildFromConversation(target.conversationId, workspaceId)
+    }
+    if (!dealId) return { ok: false, reason: 'not_found' }
+
     const deal = await prisma.deal.findFirst({
         where: { id: dealId, workspaceId },
         select: {
@@ -103,6 +137,76 @@ export async function buildFollowUpSuggestion(
         .filter(Boolean)
         .join('\n')
 
+    return generate(context, workspaceId, { dealId: deal.id }, transcript.length === 0)
+}
+
+
+/**
+ * A sugestão quando só existe a conversa.
+ *
+ * Sem negócio não há fase nem nota de fase — sobra o que foi dito, que é o
+ * essencial. Escrever "não há contexto" e desistir seria pior: é justamente a
+ * conversa sem negócio aberto que costuma estar esquecida.
+ */
+async function buildFromConversation(
+    conversationId: string,
+    workspaceId: string
+): Promise<SuggestionResult> {
+    const conversation = await prisma.conversation.findFirst({
+        where: { id: conversationId, workspaceId },
+        select: {
+            id: true,
+            contact: { select: { name: true } },
+            workspace: { select: { name: true } },
+        },
+    })
+    if (!conversation) return { ok: false, reason: 'not_found' }
+
+    const credits = await checkCredits(workspaceId)
+    if (!credits.hasCredits) return { ok: false, reason: 'no_credits' }
+
+    const messages = await prisma.message.findMany({
+        where: { conversationId, isInternal: false },
+        orderBy: { createdAt: 'desc' },
+        take: WINDOW,
+        select: { direction: true, content: true, transcript: true, contentType: true, createdAt: true },
+    })
+
+    const transcript = [...messages].reverse().map(line).join('\n')
+
+    const context = [
+        `Clínica: ${conversation.workspace.name}`,
+        `Paciente: ${conversation.contact?.name || 'sem nome cadastrado'}`,
+        `Hoje: ${new Date().toISOString().slice(0, 10)}`,
+        '',
+        transcript
+            ? `Conversa (mais antiga primeiro):\n${transcript}`
+            : 'A conversa está vazia. Escreva uma primeira retomada curta, sem inventar histórico.',
+    ].join('\n')
+
+    return generate(context, workspaceId, { conversationId }, transcript.length === 0)
+}
+
+/** Uma linha da transcrição — áudio entra pela transcrição, não como "[audio]". */
+function line(m: {
+    direction: string
+    content: string | null
+    transcript: string | null
+    contentType: string
+    createdAt: Date
+}): string {
+    const who = m.direction === 'inbound' ? 'Paciente' : 'Clínica'
+    const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
+    return `${m.createdAt.toISOString().slice(0, 10)} ${who}: ${body}`
+}
+
+/** A chamada ao modelo, o débito e a leitura — compartilhados pelos dois alvos. */
+async function generate(
+    context: string,
+    workspaceId: string,
+    metadata: Record<string, unknown>,
+    withoutHistory: boolean
+): Promise<SuggestionResult> {
     try {
         const llm = LLMFactory.create('openai', { model: MODEL, temperature: 0.6, maxTokens: 400 })
         const result = await llm.generate([
@@ -112,13 +216,13 @@ export async function buildFollowUpSuggestion(
 
         await trackUsage('openai', MODEL, result.usage, {
             workspaceId,
-            metadata: { kind: 'follow_up_suggestion', dealId: deal.id },
+            metadata: { kind: 'follow_up_suggestion', ...metadata },
         })
 
         const parsed = parseSuggestion(result.content)
         if (!parsed) return { ok: false, reason: 'bad_format' }
 
-        return { ok: true, suggestion: { ...parsed, withoutHistory: transcript.length === 0 } }
+        return { ok: true, suggestion: { ...parsed, withoutHistory } }
     } catch (error) {
         console.error('[FOLLOW_UP_SUGGESTION] falhou:', error)
         return { ok: false, reason: 'failed' }

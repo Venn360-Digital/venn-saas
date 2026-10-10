@@ -140,9 +140,18 @@ export function DealJourney({
         }
     }
 
-    /** Selecionar uma fase é mover o negócio para ela. */
+    /**
+     * Clicar na fase abre; clicar de novo recolhe.
+     *
+     * A nota ficava aberta depois de preenchida, e não havia gesto para
+     * fechá-la — a jornada crescia a cada fase visitada e empurrava o resto do
+     * painel para fora da vista. O mesmo clique que abre agora fecha, e a nota
+     * já grava sozinha ao sair do campo, então recolher não perde nada.
+     */
     const selectStage = (stage: JourneyStage) => {
-        setOpen(stage.id)
+        const alreadyOpen = open === stage.id
+        setOpen(alreadyOpen ? null : stage.id)
+
         // Negócio fechado não muda de fase: reabrir primeiro é explícito.
         if (closed || stage.id === currentStageId) return
 

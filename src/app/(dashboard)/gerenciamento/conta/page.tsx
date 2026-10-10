@@ -12,7 +12,10 @@ import { PlanoTab } from '@/components/account/PlanoTab'
 import { UsersPanel } from '@/components/management/UsersPanel'
 import { IntegrationsPanel } from '@/components/management/IntegrationsPanel'
 
-const TABS = ['perfil', 'empresa', 'usuarios', 'integracoes', 'plano'] as const
+// A lista branca é o que decide a aba: um valor fora dela cai em "perfil".
+// "automacoes" tinha gatilho e conteúdo, mas faltava aqui — clicar levava de
+// volta ao perfil, e a aba parecia não abrir.
+const TABS = ['perfil', 'empresa', 'usuarios', 'integracoes', 'automacoes', 'plano'] as const
 
 function ContaContent() {
     const router = useRouter()

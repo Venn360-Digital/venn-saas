@@ -1240,13 +1240,15 @@ export default function NegociosPage() {
     /*
      * Altura de janela, como a tela de conversas.
      *
-     * O painel esticava a página porque a página crescia com ele; aqui ela não
-     * cresce — cada faixa rola por dentro. `svh` em vez de `vh` para o chrome
-     * do navegador no celular não cortar o rodapé, e `3.5rem` é a altura do
-     * Topbar.
+     * `h-full`, e não `calc(100svh - topbar)`.
+     *
+     * A região de rolagem do dashboard já é a janela menos o Topbar; descontar
+     * 3,5rem outra vez deixava a tela 56px mais alta que o espaço disponível, o
+     * contêiner de fora rolava e levava junto a barra que deveria ficar parada.
+     * É assim que a tela de conversas faz.
      */
     return (
-        <div className="flex h-[calc(100svh-3.5rem)] min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-col">
             {/* A barra, em duas linhas.
                 Esta tela não usa o `PageHeader` da casa — como a de conversas
                 também não. O topo comia 262px antes de o funil começar: título

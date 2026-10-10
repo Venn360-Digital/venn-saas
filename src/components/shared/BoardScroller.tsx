@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -25,11 +25,33 @@ export function BoardScroller({ children, className }: { children: React.ReactNo
     const ref = useRef<HTMLDivElement>(null)
     const [edges, setEdges] = useState({ start: false, end: false })
 
-    const measure = useCallback((el: HTMLDivElement | null) => {
+    /**
+     * Mede as bordas, e só escreve no estado quando elas mudam.
+     *
+     * A primeira versão media dentro de uma `ref` em linha: a função nascia de
+     * novo a cada render, o React a chamava de novo, ela chamava `setState`, e o
+     * render seguinte repetia tudo — laço infinito, que derrubava a tela do
+     * quadro com "tente de novo". Comparar antes de escrever quebra o ciclo, e
+     * medir num efeito tira a medição do caminho do render.
+     */
+    const measure = useCallback(() => {
+        const el = ref.current
         if (!el) return
         const max = el.scrollWidth - el.clientWidth
-        setEdges({ start: el.scrollLeft > 8, end: el.scrollLeft < max - 8 })
+        const next = { start: el.scrollLeft > 8, end: el.scrollLeft < max - 8 }
+        setEdges((prev) => (prev.start === next.start && prev.end === next.end ? prev : next))
     }, [])
+
+    useEffect(() => {
+        measure()
+        const el = ref.current
+        if (!el || typeof ResizeObserver === 'undefined') return
+        // Abrir o painel muda a largura sem rolar nada: sem observar o tamanho,
+        // as setas só apareceriam no primeiro arrasto.
+        const observer = new ResizeObserver(() => measure())
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [measure, children])
 
     const slide = (direction: -1 | 1) => {
         const el = ref.current
@@ -40,8 +62,8 @@ export function BoardScroller({ children, className }: { children: React.ReactNo
     return (
         <div className={cn('relative', className)}>
             <div
-                ref={(el) => { ref.current = el; measure(el) }}
-                onScroll={(e) => measure(e.currentTarget)}
+                ref={ref}
+                onScroll={measure}
                 className="flex gap-4 overflow-x-auto pb-4"
             >
                 {children}

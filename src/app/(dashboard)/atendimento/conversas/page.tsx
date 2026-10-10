@@ -499,6 +499,7 @@ export default function ConversasPage() {
      * de 1280, então alternar é mais honesto que empilhar.
      */
     const [intakeOpen, setIntakeOpen] = useState(false)
+    const [suggesting, setSuggesting] = useState(false)
 
     type PanelMode = 'journey' | 'schedule' | 'files' | 'summary' | 'notes'
     const [panel, setPanel] = useState<PanelMode | null>(null)
@@ -1098,6 +1099,36 @@ export default function ConversasPage() {
         })),
     ]
     const slashOpen = showQuickReplies && slashItems.length > 0
+
+    /**
+     * A IA escreve a próxima mensagem e ela cai no compositor.
+     *
+     * O texto vai para onde ele é enviado, não para um cartão ao lado: quem
+     * pediu a sugestão quer ajustar uma palavra e mandar. Substituir o que já
+     * está escrito seria apagar trabalho, então o rascunho existente é
+     * preservado e a sugestão entra abaixo dele.
+     */
+    const suggestFollowUp = async () => {
+        if (!selectedConversation || suggesting) return
+        setSuggesting(true)
+        try {
+            const res = await fetch(`/api/conversations/${selectedConversation}/follow-up`, { method: 'POST' })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                toast.error(data.error || 'Não foi possível gerar a sugestão')
+                return
+            }
+            setMessageInput((prev) => (prev.trim() ? `${prev.trim()}\n\n${data.message}` : data.message))
+            textareaRef.current?.focus()
+            if (data.withoutHistory) {
+                toast.info('Sem histórico nesta conversa — o texto é uma primeira retomada.')
+            }
+        } catch {
+            toast.error('Não foi possível gerar a sugestão')
+        } finally {
+            setSuggesting(false)
+        }
+    }
 
     const handleSelectConversation = (convId: string) => {
         setSelectedConversation(convId)
@@ -2545,6 +2576,29 @@ export default function ConversasPage() {
                                                     >
                                                         <StickyNote className="h-4 w-4" />
                                                     </Button>
+
+                                                    {/* Sugerir a próxima mensagem. Fica no
+                                                        compositor porque é dali que ela sai —
+                                                        no funil o mesmo texto não tinha destino. */}
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-10 w-10 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+                                                                onClick={() => void suggestFollowUp()}
+                                                                disabled={suggesting || sending}
+                                                                aria-label="Sugerir mensagem com IA"
+                                                            >
+                                                                {suggesting
+                                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    : <Sparkles className="h-4 w-4" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            Sugerir mensagem — lê a conversa e consome créditos
+                                                        </TooltipContent>
+                                                    </Tooltip>
 
                                                     <EmojiPicker onSelect={insertAtCursor} disabled={sending} />
 

@@ -161,11 +161,15 @@ export default function DepartamentosPage() {
         {
             id: 'name',
             header: 'Nome',
+            sortable: true,
+            sortValue: (d) => d.name ?? '',
             cell: (d) => <span className="font-medium">{d.name}</span>,
         },
         {
             id: 'description',
             header: 'Descrição',
+            sortable: true,
+            sortValue: (d) => d.description ?? '',
             hideBelow: 'sm',
             cell: (d) =>
                 d.description ? (

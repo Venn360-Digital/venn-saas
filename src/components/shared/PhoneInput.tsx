@@ -49,7 +49,18 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
             inputMode="numeric"
             autoComplete="tel"
             value={value}
-            onChange={(e) => onChange(clean(e.target.value))}
+            onChange={(e) => {
+                const next = clean(e.target.value)
+                // O DOM precisa voltar ao valor limpo na mão.
+                //
+                // Num campo controlado, digitar "(" produz o mesmo valor de
+                // estado de antes — e, como nada muda, o React não reconcilia o
+                // nó e o caractere fica na tela. O dado salvo continuava certo;
+                // o campo é que mentia, aceitando qualquer formato aos olhos de
+                // quem digita.
+                e.target.value = next
+                onChange(next)
+            }}
             onPaste={(e) => {
                 // Interceptado para que o texto colado passe pela mesma limpeza
                 // antes de aparecer no campo, em vez de piscar com pontuação. A

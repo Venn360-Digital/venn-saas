@@ -149,6 +149,8 @@ export default function RespostasRapidasPage() {
         {
             id: 'command',
             header: 'Comando',
+            sortable: true,
+            sortValue: (q) => q.command ?? '',
             width: '13rem',
             cell: response => (
                 <span className="font-mono text-sm text-primary">{response.command}</span>
@@ -157,6 +159,8 @@ export default function RespostasRapidasPage() {
         {
             id: 'text',
             header: 'Texto',
+            sortable: true,
+            sortValue: (q) => q.text,
             // The one column that may wrap: a canned message is a sentence, and
             // truncating it hides the only thing that tells two apart.
             className: 'max-w-xl whitespace-normal',
@@ -165,6 +169,8 @@ export default function RespostasRapidasPage() {
         {
             id: 'isActive',
             header: 'Ativa',
+            sortable: true,
+            sortValue: (q) => (q.isActive ? 1 : 0),
             width: '6rem',
             cell: response =>
                 canEdit ? (

@@ -169,6 +169,8 @@ export default function EtiquetasPage() {
         {
             id: 'tag',
             header: 'Etiqueta',
+            sortable: true,
+            sortValue: (t) => t.name ?? '',
             cell: (tag) => <TagChip name={tag.name} color={tag.color} />,
         },
         {

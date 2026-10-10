@@ -215,6 +215,8 @@ export default function ProdutosServicosPage() {
         {
             id: 'name',
             header: 'Nome',
+            sortable: true,
+            sortValue: (p) => p.name ?? '',
             cell: (p) => (
                 <div className="min-w-0">
                     <p className="truncate font-medium">{p.name}</p>
@@ -229,6 +231,8 @@ export default function ProdutosServicosPage() {
         {
             id: 'sku',
             header: 'SKU',
+            sortable: true,
+            sortValue: (p) => p.sku ?? '',
             hideBelow: 'sm',
             cell: (p) =>
                 p.sku ? (
@@ -240,17 +244,23 @@ export default function ProdutosServicosPage() {
         {
             id: 'category',
             header: 'Categoria',
+            sortable: true,
+            sortValue: (p) => p.category ?? '',
             cell: (p) => <StatusBadge value={p.category} map={CATEGORY_TONES} />,
         },
         {
             id: 'group',
             header: 'Grupo',
+            sortable: true,
+            sortValue: (p) => p.group ?? '',
             hideBelow: 'lg',
             cell: (p) => p.group ?? <span className="text-muted-foreground">—</span>,
         },
         {
             id: 'price',
             header: 'Preço',
+            sortable: true,
+            sortValue: (p) => p.price ?? 0,
             numeric: true,
             cell: (p) =>
                 p.price != null ? (

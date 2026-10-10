@@ -29,7 +29,7 @@ export async function POST(
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const result = await buildFollowUpSuggestion(id, auth.member.workspaceId)
+    const result = await buildFollowUpSuggestion({ dealId: id, workspaceId: auth.member.workspaceId })
     if (!result.ok) {
         const fallback = MESSAGES[result.reason] ?? MESSAGES.failed
         return NextResponse.json({ error: fallback.error }, { status: fallback.status })
