@@ -1,7 +1,7 @@
 export interface DealLike {
     createdAt: string
     stageId: string
-    stageEntries?: { stageId: string; enteredAt: string }[]
+    stageEntries?: { stageId: string; enteredAt: string | null }[]
     activities?: { id: string; title: string; type: string; dueDate: string | null; startTime: string | null }[]
 }
 
@@ -19,9 +19,11 @@ export interface DealLike {
 export function daysInStage(deal: DealLike, now: number): number | null {
     if (!now) return null
     const entries = deal.stageEntries ?? []
+    // Passagem sem data registrada não entra na conta: ela diz que a fase
+    // aconteceu, não quando. Com só essa, a contagem cai em `createdAt`.
     const current = entries
-        .filter((e) => e.stageId === deal.stageId)
-        .map((e) => new Date(e.enteredAt).getTime())
+        .filter((e) => e.stageId === deal.stageId && e.enteredAt)
+        .map((e) => new Date(e.enteredAt as string).getTime())
         .sort((a, b) => b - a)[0]
     const since = current ?? new Date(deal.createdAt).getTime()
     return Math.max(0, Math.floor((now - since) / 86_400_000))

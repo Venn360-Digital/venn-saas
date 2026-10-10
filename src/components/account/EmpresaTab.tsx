@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
+import { formatPhone, phoneIssue } from '@/lib/phone'
 
 interface WorkspaceData {
     id: string
@@ -49,7 +50,7 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                 setFormData({
                     cnpj: data.cnpj || '',
                     address: data.address || '',
-                    phone: data.phone || '',
+                    phone: formatPhone(data.phone),
                     logo: data.logo || '',
                 })
             }
@@ -62,6 +63,11 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
     }
 
     const handleSave = async () => {
+        const phoneProblem = phoneIssue(formData.phone)
+        if (phoneProblem) {
+            toast.error(phoneProblem)
+            return
+        }
         setSaving(true)
         onSavingChange?.(true)
         try {

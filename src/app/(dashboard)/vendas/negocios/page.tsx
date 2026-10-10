@@ -141,7 +141,7 @@ interface Deal {
     /** Vem incluída pela rota de listagem; é o que pinta o selo de etapa. */
     stage?: { name: string; color: string } | null
     /** O percurso: uma entrada por passagem em etapa, da mais antiga à mais nova. */
-    stageEntries?: { stageId: string; enteredAt: string }[]
+    stageEntries?: { stageId: string; enteredAt: string | null }[]
     /** A próxima atividade pendente — zero ou uma, nunca mais. */
     activities?: { id: string; title: string; type: string; dueDate: string | null; startTime: string | null }[]
     createdAt: string
@@ -1238,17 +1238,19 @@ export default function NegociosPage() {
     }
 
     /*
-     * Altura de janela, como a tela de conversas.
+     * Altura de janela, e o `overflow-hidden` que faz a barra ficar parada.
      *
-     * `h-full`, e não `calc(100svh - topbar)`.
-     *
-     * A região de rolagem do dashboard já é a janela menos o Topbar; descontar
-     * 3,5rem outra vez deixava a tela 56px mais alta que o espaço disponível, o
-     * contêiner de fora rolava e levava junto a barra que deveria ficar parada.
-     * É assim que a tela de conversas faz.
+     * `h-full` (a região de rolagem do dashboard já é a janela menos o Topbar;
+     * descontar `3.5rem` outra vez deixava a tela mais alta que o espaço) era
+     * necessário mas não suficiente: bastava qualquer coisa aqui dentro passar
+     * da altura disponível — a barra embrulhando numa janela curta, um filho
+     * sem `min-h-0` — e o contêiner de fora voltava a rolar levando a barra
+     * junto. Medido: com `overflow-hidden`, a região externa não rola nem com a
+     * barra mais alta que a caixa inteira; o único scroll da tela passa a ser o
+     * de dentro, que é o que deve rolar.
      */
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
             {/* A barra, em duas linhas.
                 Esta tela não usa o `PageHeader` da casa — como a de conversas
                 também não. O topo comia 262px antes de o funil começar: título

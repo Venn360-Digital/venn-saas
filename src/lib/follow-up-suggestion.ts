@@ -88,7 +88,7 @@ export async function buildFollowUpSuggestion(
             createdAt: true,
             contact: { select: { id: true, name: true } },
             stage: { select: { name: true } },
-            stageEntries: { orderBy: { enteredAt: 'desc' }, take: 1, select: { enteredAt: true, note: true } },
+            stageEntries: { orderBy: { enteredAt: { sort: 'desc', nulls: 'last' } }, take: 1, select: { enteredAt: true, note: true } },
             workspace: { select: { name: true } },
         },
     })

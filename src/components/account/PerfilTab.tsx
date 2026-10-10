@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Camera, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
+import { formatPhone, phoneIssue } from '@/lib/phone'
 
 interface UserProfile {
     id: string
@@ -54,7 +55,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                 setFormData({
                     name: data.name || '',
                     lastName: data.lastName || '',
-                    phone: data.phone || '',
+                    phone: formatPhone(data.phone),
                     avatar: data.avatar || '',
                 })
             }
@@ -67,6 +68,11 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
     }
 
     const handleSave = async () => {
+        const phoneProblem = phoneIssue(formData.phone)
+        if (phoneProblem) {
+            toast.error(phoneProblem)
+            return
+        }
         setSaving(true)
         onSavingChange?.(true)
         try {

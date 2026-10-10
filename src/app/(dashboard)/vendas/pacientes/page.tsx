@@ -40,7 +40,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatPhone } from '@/lib/phone'
+import { formatPhone, phoneIssue } from '@/lib/phone'
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -209,7 +209,7 @@ export default function ContatosPage() {
             if (res.ok) {
                 const data: ContactDetail = await res.json()
                 setEditingContact(data)
-                setFormData({ name: data.name || '', email: data.email || '', phone: data.phone || '', notes: data.notes || '' })
+                setFormData({ name: data.name || '', email: data.email || '', phone: formatPhone(data.phone), notes: data.notes || '' })
                 setSelectedTagIds(data.tags?.map(ct => ct.tag.id) || [])
                 setCustomFieldValues(data.customFields || {})
             }
@@ -235,6 +235,13 @@ export default function ContatosPage() {
     const handleSave = async () => {
         if (!formData.name.trim() && !formData.phone.trim() && !formData.email.trim()) {
             toast.error('Preencha pelo menos um campo')
+            return
+        }
+        // Telefone errado não grava: é por ele que o paciente é reencontrado
+        // quando a mensagem chega.
+        const issue = phoneIssue(formData.phone)
+        if (issue) {
+            toast.error(issue)
             return
         }
         try {

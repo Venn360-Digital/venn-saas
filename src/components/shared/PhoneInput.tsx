@@ -1,15 +1,16 @@
 'use client'
 
-import { forwardRef } from 'react'
+import { forwardRef, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
+import { nationalDigits, phoneIssue } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 
 /** DDD + 8 ou 9 dígitos. O país é do sistema, não do campo. */
 const MAX_DIGITS = 11
 
 /**
- * Só dígitos, e sem o código do país.
+ * Só dígitos, sem o código do país, e o erro aparece ao sair do campo.
  *
  * Cada formulário tinha a sua ideia de telefone: um com `(00) 00000-0000`, um
  * com `31 99999 9999`, um sem placeholder, e todos aceitando o que fosse
@@ -18,10 +19,19 @@ const MAX_DIGITS = 11
  *
  * Aqui o campo aceita dígito e nada mais. Máscara com parênteses e hífen saiu
  * de propósito: ela some no banco (que guarda dígitos), atrapalha colar de
- * outro sistema e dá a impressão de que a pontuação é parte do dado. O `55`
- * colado na frente é descartado, porque ninguém está digitando um número
- * internacional num formulário de clínica — e, se estiver, o campo de 11
- * dígitos não serviria mesmo.
+ * outro sistema e dá a impressão de que a pontuação é parte do dado.
+ *
+ * Duas coisas que faltavam e faziam a máscara parecer quebrada **na edição**:
+ *
+ * 1. O valor vinha do banco com o país. Abrir um paciente para editar mostrava
+ *    `5531988501161` — 13 dígitos e um `55` que este mesmo campo recusa ao ser
+ *    digitado. Agora o que entra passa por `nationalDigits` antes de aparecer,
+ *    então o campo exibe o que ele aceita.
+ * 2. Nada avisava que o número estava errado. Um telefone incompleto é um
+ *    cadastro que nunca será reencontrado — nem pela busca, nem pela mensagem
+ *    que chega depois. O campo fica vermelho ao sair (não enquanto se digita,
+ *    senão ele passa a vida inteira em erro), e quem grava chama `phoneIssue`
+ *    para barrar com o motivo.
  */
 export const PhoneInput = forwardRef<HTMLInputElement, {
     value: string
@@ -32,6 +42,10 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
     autoFocus?: boolean
     'aria-label'?: string
 }>(function PhoneInput({ value, onChange, id, className, placeholder, autoFocus, ...rest }, ref) {
+    // Erro só depois de sair do campo: 3 dígitos digitados ainda não são um
+    // telefone errado, são um telefone pela metade.
+    const [touched, setTouched] = useState(false)
+
     const clean = (raw: string) => {
         let digits = raw.replace(/\D/g, '')
         // Cola com país ("5531988501161" ou "+55 31 98850-1161"): o 55 sai, e só
@@ -41,6 +55,11 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
         return digits.slice(0, MAX_DIGITS)
     }
 
+    // O que se vê é sempre a forma nacional, mesmo que o estado de fora ainda
+    // guarde o número com o país (é o caso ao abrir um cadastro para editar).
+    const shown = nationalDigits(value)
+    const invalid = touched && phoneIssue(shown) !== null
+
     return (
         <Input
             ref={ref}
@@ -48,7 +67,10 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
             type="tel"
             inputMode="numeric"
             autoComplete="tel"
-            value={value}
+            value={shown}
+            aria-invalid={invalid || undefined}
+            onFocus={() => setTouched(false)}
+            onBlur={() => setTouched(true)}
             onChange={(e) => {
                 const next = clean(e.target.value)
                 // O DOM precisa voltar ao valor limpo na mão.
@@ -68,9 +90,9 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
                 // em vez de concatenar.
                 e.preventDefault()
                 const input = e.currentTarget
-                const start = input.selectionStart ?? value.length
-                const end = input.selectionEnd ?? value.length
-                onChange(clean(value.slice(0, start) + e.clipboardData.getData('text') + value.slice(end)))
+                const start = input.selectionStart ?? shown.length
+                const end = input.selectionEnd ?? shown.length
+                onChange(clean(shown.slice(0, start) + e.clipboardData.getData('text') + shown.slice(end)))
             }}
             placeholder={placeholder ?? '31988501161'}
             maxLength={MAX_DIGITS}

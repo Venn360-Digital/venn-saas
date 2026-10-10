@@ -27,6 +27,7 @@ import {
 import { FormField } from '@/components/shared/FormField'
 import { cn } from '@/lib/utils'
 import { PhoneInput } from '@/components/shared/PhoneInput'
+import { formatPhone, phoneIssue } from '@/lib/phone'
 
 interface WorkspaceUser {
     id: string
@@ -94,7 +95,7 @@ export function UserFormModal({
                 lastName: user.lastName || '',
                 email: user.email || '',
                 password: '',
-                phone: user.phone || '',
+                phone: formatPhone(user.phone),
                 departmentId: user.departmentId || '',
                 role: (user.role === 'ADMIN' || user.role === 'OWNER'
                     ? 'ADMIN'
@@ -121,6 +122,11 @@ export function UserFormModal({
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+        const phoneProblem = phoneIssue(formData.phone)
+        if (phoneProblem) {
+            toast.error(phoneProblem)
+            return
+        }
         setLoading(true)
 
         try {

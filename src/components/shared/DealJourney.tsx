@@ -41,7 +41,8 @@ export interface JourneyStage {
 
 export interface JourneyEntry {
     stageId: string
-    enteredAt: string
+    /** `null` quando a clínica registrou a passagem sem saber a data. */
+    enteredAt: string | null
     note?: string | null
 }
 
@@ -109,11 +110,21 @@ export function DealJourney({
     const ordered = [...stages].sort((a, b) => a.order - b.order)
     const currentIndex = ordered.findIndex((s) => s.id === currentStageId)
 
-    /** A passagem mais recente por cada etapa — é a que tem a data que importa. */
+    /**
+     * A passagem mais recente por cada etapa — é a que tem a data que importa.
+     *
+     * Passagem sem data perde da datada: ela diz que a fase aconteceu, não
+     * quando. Só vale quando é a única que existe para aquela etapa.
+     */
     const latest = new Map<string, JourneyEntry>()
     for (const entry of entries) {
         const seen = latest.get(entry.stageId)
-        if (!seen || new Date(entry.enteredAt) > new Date(seen.enteredAt)) {
+        if (!seen) {
+            latest.set(entry.stageId, entry)
+            continue
+        }
+        if (!entry.enteredAt) continue
+        if (!seen.enteredAt || new Date(entry.enteredAt) > new Date(seen.enteredAt)) {
             latest.set(entry.stageId, entry)
         }
     }
@@ -167,7 +178,16 @@ export function DealJourney({
         })
     }
 
-    const editEntry = (stageId: string, patch: { note?: string; enteredAt?: string }) => {
+    /**
+     * `enteredAt: null` limpa a data; `undefined` não mexe nela.
+     *
+     * Meio-dia local, não meia-noite: a data escolhida tem de ler como o mesmo
+     * dia depois de ida e volta pelo fuso.
+     */
+    const dateToIso = (value: string | null) =>
+        value ? new Date(`${value}T12:00:00`).toISOString() : null
+
+    const editEntry = (stageId: string, patch: { note?: string; enteredAt?: string | null }) => {
         const entry = latest.get(stageId)
         void send({ stageEntry: { stageId, ...patch } }, () => {
             onChange({
@@ -178,8 +198,8 @@ export function DealJourney({
                               ? {
                                     ...e,
                                     note: patch.note !== undefined ? patch.note.trim() || null : e.note,
-                                    enteredAt: patch.enteredAt
-                                        ? new Date(`${patch.enteredAt}T12:00:00`).toISOString()
+                                    enteredAt: patch.enteredAt !== undefined
+                                        ? dateToIso(patch.enteredAt)
                                         : e.enteredAt,
                                 }
                               : e
@@ -188,8 +208,8 @@ export function DealJourney({
                           ...entries,
                           {
                               stageId,
-                              enteredAt: patch.enteredAt
-                                  ? new Date(`${patch.enteredAt}T12:00:00`).toISOString()
+                              enteredAt: patch.enteredAt !== undefined
+                                  ? dateToIso(patch.enteredAt)
                                   : new Date().toISOString(),
                               note: patch.note?.trim() || null,
                           },
@@ -284,7 +304,7 @@ export function DealJourney({
                                         {stage.name}
                                     </span>
                                     <span className="num shrink-0 text-xs text-muted-foreground">
-                                        {entry ? format(new Date(entry.enteredAt), 'dd/MM') : '—'}
+                                        {entry?.enteredAt ? format(new Date(entry.enteredAt), 'dd/MM') : '—'}
                                     </span>
                                 </button>
 
@@ -297,10 +317,24 @@ export function DealJourney({
                                         <input
                                             type="date"
                                             defaultValue={
-                                                entry ? format(new Date(entry.enteredAt), 'yyyy-MM-dd') : ''
+                                                entry?.enteredAt
+                                                    ? format(new Date(entry.enteredAt), 'yyyy-MM-dd')
+                                                    : ''
                                             }
+                                            // Data escolhida grava na hora;
+                                            // data **apagada** grava ao sair do
+                                            // campo. A diferença existe porque
+                                            // digitar dia/mês/ano passa por
+                                            // estados vazios, e gravar nulo a
+                                            // cada um deles apagaria a data que
+                                            // a pessoa está no meio de escrever.
                                             onChange={(e) => {
                                                 if (e.target.value) editEntry(stage.id, { enteredAt: e.target.value })
+                                            }}
+                                            onBlur={(e) => {
+                                                if (!e.target.value && entry?.enteredAt) {
+                                                    editEntry(stage.id, { enteredAt: null })
+                                                }
                                             }}
                                             className="num w-full bg-transparent text-xs focus:outline-none"
                                             aria-label={`Data — ${stage.name}`}

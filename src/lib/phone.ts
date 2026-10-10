@@ -38,6 +38,47 @@ export function normalizePhone(input: string): { digits: string; valid: boolean 
     return { digits, valid: false }
 }
 
+/** O que o campo aceita e a tela mostra: DDD + 8 ou 9 dígitos, sem o país. */
+const MAX_NATIONAL = 11
+
+/**
+ * O número nacional, só dígitos — a forma que o campo e a tela usam.
+ *
+ * O banco guarda com o país (`5531988501161`), então todo formulário que abre
+ * para edição precisa tirar o `55` antes de mostrar: sem isso o campo exibia 13
+ * dígitos e um `55` que ele mesmo recusa ao ser digitado — o cadastro parecia
+ * estar com o telefone errado.
+ */
+export function nationalDigits(input: string | null | undefined): string {
+    const digits = (input ?? '').replace(/\D/g, '')
+    if (digits.length > MAX_NATIONAL && digits.startsWith('55')) return digits.slice(2)
+    return digits
+}
+
+/**
+ * Por que este telefone não serve — `null` quando serve.
+ *
+ * Vazio serve: o telefone é opcional em quase todo cadastro (o paciente que
+ * chegou pelo e-mail não tem). O que não pode é **gravar errado**: é por este
+ * número que o paciente é encontrado quando a mensagem chega, e um número
+ * incompleto cria um cadastro que nunca será reencontrado — nem pela busca, nem
+ * pelo webhook do WhatsApp.
+ *
+ * As três regras são do plano de numeração brasileiro, não invenção da tela:
+ * DDD de 11 a 99; 10 dígitos é fixo; 11 dígitos é móvel e começa com 9.
+ */
+export function phoneIssue(input: string | null | undefined): string | null {
+    const digits = nationalDigits(input)
+    if (!digits) return null
+    if (digits.length < 10) return 'Telefone incompleto: DDD + 8 ou 9 dígitos.'
+    if (digits.length > MAX_NATIONAL) return 'Telefone com dígitos demais.'
+    if (Number(digits.slice(0, 2)) < 11) return 'DDD inválido — os dois primeiros dígitos.'
+    if (digits.length === MAX_NATIONAL && digits[2] !== '9') {
+        return 'Celular com 11 dígitos começa com 9 depois do DDD.'
+    }
+    return null
+}
+
 /**
  * Como a recepção lê de volta: o número nacional, só dígitos.
  *
@@ -47,6 +88,5 @@ export function normalizePhone(input: string): { digits: string; valid: boolean 
  * ocupa espaço na leitura.
  */
 export function formatPhone(digits: string | null | undefined): string {
-    if (!digits) return ''
-    return digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits
+    return nationalDigits(digits)
 }

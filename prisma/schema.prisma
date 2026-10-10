@@ -523,8 +523,10 @@ model DealStageEntry {
   dealId    String
   stageId   String
   /// Quando entrou. Separado de `createdAt` porque a clínica pode corrigir a
-  /// data de uma passagem que registrou depois do fato.
-  enteredAt DateTime @default(now())
+  /// data de uma passagem que registrou depois do fato — e **nulo** quando ela
+  /// registra a passagem sem saber a data. A passagem existe de qualquer jeito;
+  /// é a data que falta.
+  enteredAt DateTime? @default(now())
   /// O que aconteceu nesta fase. É a "nota" que a jornada antiga guardava.
   note      String?  @db.Text
   /// Quem moveu. Nulo quando foi uma regra ou o próprio agente.

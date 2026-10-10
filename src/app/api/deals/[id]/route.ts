@@ -164,19 +164,31 @@ export async function PATCH(
          * daquela etapa em vez de criar outra — anotar não é mudar de fase.
          */
         if (stageEntry && typeof stageEntry.stageId === 'string') {
-            const data: { note?: string | null; enteredAt?: Date } = {}
+            const data: { note?: string | null; enteredAt?: Date | null } = {}
             if (typeof stageEntry.note === 'string') {
                 data.note = stageEntry.note.trim() ? stageEntry.note.trim() : null
             }
-            if (typeof stageEntry.enteredAt === 'string' && stageEntry.enteredAt) {
-                const parsed = new Date(stageEntry.enteredAt)
+            // `null` é a resposta "a fase aconteceu, a data eu não sei" — o
+            // painel manda isso quando a pessoa limpa o campo e sai.
+            if (stageEntry.enteredAt === null) {
+                data.enteredAt = null
+            } else if (typeof stageEntry.enteredAt === 'string' && stageEntry.enteredAt) {
+                // Data sem hora vira **meio-dia** UTC, não meia-noite: à
+                // meia-noite UTC o Brasil ainda está no dia anterior, e a data
+                // gravada voltava um dia ao ser lida de novo — parecia que a
+                // edição não tinha pegado.
+                const raw = /^\d{4}-\d{2}-\d{2}$/.test(stageEntry.enteredAt)
+                    ? `${stageEntry.enteredAt}T12:00:00Z`
+                    : stageEntry.enteredAt
+                const parsed = new Date(raw)
                 if (!Number.isNaN(parsed.getTime())) data.enteredAt = parsed
             }
 
             if (Object.keys(data).length > 0) {
                 const latest = await prisma.dealStageEntry.findFirst({
                     where: { dealId: id, stageId: stageEntry.stageId },
-                    orderBy: { enteredAt: 'desc' },
+                    // Nulo não é 'a mais recente': a passagem datada ganha.
+                    orderBy: { enteredAt: { sort: 'desc', nulls: 'last' } },
                     select: { id: true },
                 })
                 if (latest) {

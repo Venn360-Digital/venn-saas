@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { formatPhone } from '@/lib/phone'
+import { formatPhone, phoneIssue } from '@/lib/phone'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 
 export interface PickedContact {
@@ -87,6 +87,11 @@ export function ContactPicker({
         const name = newName.trim()
         const phone = newPhone.trim()
         if (!name && !phone) return
+        const issue = phoneIssue(phone)
+        if (issue) {
+            toast.error(issue)
+            return
+        }
         setSaving(true)
         try {
             const res = await fetch('/api/contacts', {

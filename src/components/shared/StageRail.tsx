@@ -13,7 +13,7 @@ export interface RailStage {
 
 export interface RailEntry {
     stageId: string
-    enteredAt: string
+    enteredAt: string | null
 }
 
 /**
@@ -53,8 +53,8 @@ export function StageRail({
 
     const current = ordered[currentIndex]
     const enteredCurrent = (entries ?? [])
-        .filter((e) => e.stageId === currentStageId)
-        .map((e) => new Date(e.enteredAt).getTime())
+        .filter((e) => e.stageId === currentStageId && e.enteredAt)
+        .map((e) => new Date(e.enteredAt as string).getTime())
         .sort((a, b) => b - a)[0]
     // `now` é 0 antes de hidratar: nesse quadro não se mostra contagem nenhuma,
     // em vez de mostrar um número que muda sozinho um instante depois.

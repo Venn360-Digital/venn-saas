@@ -214,7 +214,7 @@ export async function GET(
                           stages,
                           entries: openDeal.stageEntries.map((e) => ({
                               stageId: e.stageId,
-                              enteredAt: e.enteredAt.toISOString(),
+                              enteredAt: e.enteredAt?.toISOString() ?? null,
                               note: e.note,
                           })),
                       }

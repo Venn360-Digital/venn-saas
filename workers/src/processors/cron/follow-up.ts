@@ -86,7 +86,7 @@ export async function runFollowUp(): Promise<void> {
                 contact: { select: { name: true, phone: true } },
                 stageEntries: {
                     where: { stageId: stage.id },
-                    orderBy: { enteredAt: 'desc' },
+                    orderBy: { enteredAt: { sort: 'desc', nulls: 'last' } },
                     take: 1,
                     select: { enteredAt: true },
                 },
