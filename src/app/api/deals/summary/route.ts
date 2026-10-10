@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { periodWhere } from '@/lib/deal-filters'
 
 /**
  * Em aberto, ganho e perdido — contagem e valor, no período filtrado.
@@ -31,15 +32,15 @@ export async function GET(request: NextRequest) {
      * ainda que tenha nascido em agosto — perguntar "quanto ganhei no mês" e
      * receber o que foi *criado* no mês seria responder outra coisa.
      */
-    const createdRange = dateRange(dateFrom, dateTo)
-    const closedRange = dateRange(dateFrom, dateTo)
+    const openPeriod = periodWhere('open', dateFrom, dateTo)
+    const closedPeriod = periodWhere('closed', dateFrom, dateTo)
 
     const [open, won, lost] = await Promise.all([
         prisma.deal.aggregate({
             where: {
                 workspaceId: auth.member.workspaceId,
                 status: 'open',
-                ...(createdRange ? { createdAt: createdRange } : {}),
+                ...openPeriod,
             },
             _count: true,
             _sum: { value: true },
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
             where: {
                 workspaceId: auth.member.workspaceId,
                 status: 'won',
-                ...(closedRange ? { closedAt: closedRange } : {}),
+                ...closedPeriod,
             },
             _count: true,
             _sum: { closedValue: true, value: true },
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
             where: {
                 workspaceId: auth.member.workspaceId,
                 status: 'lost',
-                ...(closedRange ? { closedAt: closedRange } : {}),
+                ...closedPeriod,
             },
             _count: true,
             _sum: { value: true },
@@ -70,12 +71,4 @@ export async function GET(request: NextRequest) {
         won: { count: won._count, value: won._sum.closedValue ?? won._sum.value ?? 0 },
         lost: { count: lost._count, value: lost._sum.value ?? 0 },
     })
-}
-
-function dateRange(from: string | null, to: string | null) {
-    if (!from && !to) return null
-    const range: { gte?: Date; lte?: Date } = {}
-    if (from) range.gte = new Date(from)
-    if (to) range.lte = new Date(`${to}T23:59:59.999Z`)
-    return range
 }

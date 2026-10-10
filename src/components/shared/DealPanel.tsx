@@ -10,7 +10,6 @@ import {
     Route,
     RotateCcw,
     StickyNote,
-    Tag,
     Trash2,
     Trophy,
     User,
@@ -23,7 +22,6 @@ import { ActivityForm } from '@/components/shared/ActivityForm'
 import { DealJourney } from '@/components/shared/DealJourney'
 import { InlineField } from '@/components/shared/InlineField'
 import { PickField, type PickOption } from '@/components/shared/PickField'
-import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
 import { Button } from '@/components/ui/button'
 import {
     DropdownMenu,
@@ -32,7 +30,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { activityType } from '@/lib/activity-types'
@@ -122,9 +119,6 @@ export function DealPanel<T extends PanelDeal>({
     const [searchingContacts, setSearchingContacts] = useState(false)
 
     const [activities, setActivities] = useState<PanelActivity[] | null>(null)
-    const [tagsOpen, setTagsOpen] = useState(false)
-    const [availableTags, setAvailableTags] = useState<PickableTag[]>([])
-    const [appliedTags, setAppliedTags] = useState<PickableTag[]>([])
 
     /*
      * Trocar de negócio volta para a ficha, e isso acontece pela `key` que a
@@ -158,35 +152,6 @@ export function DealPanel<T extends PanelDeal>({
             })
         return () => { cancelled = true }
     }, [mode, activities, deal.id])
-
-    /** Etiquetas são do paciente, as mesmas da conversa — não uma segunda lista. */
-    useEffect(() => {
-        if (!tagsOpen || !deal.contact?.id) return
-        let cancelled = false
-        Promise.all([
-            fetch('/api/tags?limit=100').then((r) => (r.ok ? r.json() : null)),
-            fetch(`/api/contacts/${deal.contact.id}`).then((r) => (r.ok ? r.json() : null)),
-        ])
-            .then(([tags, contact]) => {
-                if (cancelled) return
-                setAvailableTags(tags?.data ?? [])
-                type ContactTagRow = { tag: PickableTag }
-                setAppliedTags(((contact?.tags ?? []) as ContactTagRow[]).map((ct) => ct.tag))
-            })
-            .catch(() => { })
-        return () => { cancelled = true }
-    }, [tagsOpen, deal.contact?.id])
-
-    const syncTags = async (next: PickableTag[]) => {
-        if (!deal.contact?.id) return
-        setAppliedTags(next)
-        const res = await fetch(`/api/contacts/${deal.contact.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tagIds: next.map((t) => t.id) }),
-        })
-        if (!res.ok) toast.error('Não foi possível salvar as etiquetas')
-    }
 
     const searchContacts = useCallback((term: string) => {
         if (term.trim().length < 2) {
@@ -261,37 +226,11 @@ export function DealPanel<T extends PanelDeal>({
                     onClick={() => setMode(mode === 'activities' ? 'ficha' : 'activities')}
                 />
 
-                {/* Etiquetas é popover, não modo: é escolha de um clique. */}
-                <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant={tagsOpen ? 'secondary' : 'ghost'}
-                                    size="icon-sm"
-                                    disabled={!deal.contact?.id}
-                                    aria-label="Etiquetas do paciente"
-                                >
-                                    <Tag className="size-3.5" />
-                                </Button>
-                            </PopoverTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>Etiquetas do paciente</TooltipContent>
-                    </Tooltip>
-                    <PopoverContent align="start" className="w-64 p-2">
-                        <TagPicker
-                            available={availableTags}
-                            applied={appliedTags}
-                            onAdd={(tag) => void syncTags([...appliedTags, tag])}
-                            onRemove={(tagId) => void syncTags(appliedTags.filter((t) => t.id !== tagId))}
-                            onCreated={(tag) => {
-                                setAvailableTags((prev) => [...prev, tag])
-                                void syncTags([...appliedTags, tag])
-                            }}
-                        />
-                    </PopoverContent>
-                </Popover>
-
+                {/* Etiquetas saíram daqui: elas são do paciente, não do negócio.
+                    Editá-las a partir de um negócio sugeria que cada negócio
+                    tivesse as suas, e a mesma pessoa com dois negócios teria duas
+                    listas que, no banco, são uma só. Continuam na conversa e na
+                    ficha do paciente. */}
                 <StripIcon
                     icon={StickyNote}
                     label="Notas do negócio"

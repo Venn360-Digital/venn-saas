@@ -51,7 +51,9 @@ export function NewDealDialog({
     const [stageId, setStageId] = useState(defaultStageId ?? stages[0]?.id ?? '')
     const [saving, setSaving] = useState(false)
 
-    const title = titleOverride ?? (contact ? `Atendimento — ${contact.name}` : '')
+    // O mesmo texto que o webhook usa quando o paciente escreve primeiro: dois
+    // caminhos criando negócios com títulos diferentes dariam duas convenções.
+    const title = titleOverride ?? (contact ? `Novo paciente - ${contact.name}` : '')
 
     const search = (term: string) => {
         if (term.trim().length < 2) {

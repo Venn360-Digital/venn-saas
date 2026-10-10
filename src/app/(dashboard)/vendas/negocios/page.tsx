@@ -20,6 +20,7 @@ import {
     Pencil,
     Plus,
     Search,
+    Settings,
     Settings2,
     Trash2,
     Trophy,
@@ -75,11 +76,6 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
-import {
-    RowActionItem,
-    RowActions,
-    RowActionsSeparator,
-} from '@/components/shared/RowActions'
 import { ContactPicker } from '@/components/shared/ContactPicker'
 import { DealLanes } from '@/components/shared/DealLanes'
 import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
@@ -94,6 +90,7 @@ import { DealPanel } from '@/components/shared/DealPanel'
 import { CLOSED_RAIL_ID, PipelineRail } from '@/components/shared/PipelineRail'
 import { StageManagerDialog } from '@/components/shared/StageManagerDialog'
 import { NewDealDialog } from '@/components/shared/NewDealDialog'
+import { PeriodPicker } from '@/components/shared/PeriodPicker'
 import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
@@ -380,52 +377,11 @@ function DealCard({
                         </div>
                     ) : null}
                 </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            aria-label={`Ações do negócio ${deal.title}`}
-                            className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent focus-visible:opacity-100"
-                            onClick={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                        >
-                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                        <RowActionItem icon={Pencil} onClick={() => onEdit(deal)}>
-                            Editar
-                        </RowActionItem>
-                        <RowActionsSeparator />
-                        {stages.filter(s => s.id !== deal.stageId).map(s => (
-                            <RowActionItem
-                                key={s.id}
-                                icon={ArrowRight}
-                                onClick={() => onMoveToStage(deal, s.id)}
-                            >
-                                Mover para {s.name}
-                            </RowActionItem>
-                        ))}
-                        <RowActionsSeparator />
-                        <RowActionItem icon={Trophy} onClick={() => onStatusChange(deal, 'won')}>
-                            Marcar como Ganho
-                        </RowActionItem>
-                        <RowActionItem icon={XCircle} onClick={() => onStatusChange(deal, 'lost')}>
-                            Marcar como Perdido
-                        </RowActionItem>
-                        {canEdit && (
-                            <>
-                                <RowActionsSeparator />
-                                <RowActionItem
-                                    icon={Trash2}
-                                    destructive
-                                    onClick={() => onDelete(deal)}
-                                >
-                                    Excluir
-                                </RowActionItem>
-                            </>
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                {/* O menu de ações do cartão saiu. Tudo o que ele fazia —
+                    editar, mover de fase, ganhar, perder, excluir — está no
+                    painel, que abre com um clique no próprio cartão. Dois
+                    caminhos para as mesmas cinco ações eram dois lugares para
+                    manter e duas regras para divergirem. */}
             </div>
         </div>
     )
@@ -472,14 +428,18 @@ function StageColumn({
     )
 
     return (
-        <div className="flex-shrink-0 w-72" ref={setNodeRef}>
-            <div className="rounded-t-lg px-4 py-2 flex items-center justify-between" style={{ backgroundColor: stage.color }}>
-                <h3 className="font-semibold text-foreground truncate">{stage.name}</h3>
-                <div className="flex items-center gap-1.5">
-                    {/* O menu da fase saiu: renomear, recolorir, reordenar e
-                        excluir vivem no gerenciador "Fases", que existe nas três
-                        visões — este menu só existia no quadro. */}
-                    <span className="num rounded-full bg-accent px-2 py-0.5 text-xs text-muted-foreground">{stage.deals.length}</span>
+        <div className="w-64 flex-shrink-0" ref={setNodeRef}>
+            {/* A cor da fase vira um filete e um ponto, não um bloco.
+                O cabeçalho pintava 36px de cor saturada com o nome em peso
+                semibold — pesado demais ao lado de cartões de 12px, e o texto
+                sobre cor arbitrária é aposta de contraste. O menu da fase saiu:
+                renomear, recolorir, reordenar e excluir vivem no gerenciador
+                "Fases", que existe nas três visões. */}
+            <div className="rounded-t-lg border border-b-0 border-border bg-card px-3 py-1.5">
+                <div className="flex items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: stage.color }} />
+                    <h3 className="min-w-0 flex-1 truncate text-xs font-semibold">{stage.name}</h3>
+                    <span className="num text-xs text-muted-foreground">{stage.deals.length}</span>
                 </div>
             </div>
             {/* O medidor da etapa: a largura de cada trecho é a contagem, então
@@ -1098,54 +1058,15 @@ export default function NegociosPage() {
     // ─── Computed ───────────────────────────────────────────────────
     /* The row menu. Shared by the table cell and the mobile card: with the
        row no longer clickable, the card has no other way into a deal. */
-    const dealActions = (deal: Deal) => (
-        <RowActions label={`Ações do negócio ${deal.title}`}>
-            <RowActionItem
-                icon={Pencil}
-                onClick={() => handleEditDeal(deal)}
-            >
-                Editar
-            </RowActionItem>
-            {deal.status === 'open' ? (
-                <>
-                    <RowActionItem
-                        icon={Trophy}
-                        onClick={() => handleStatusChange(deal, 'won')}
-                    >
-                        Ganho
-                    </RowActionItem>
-                    <RowActionItem
-                        icon={XCircle}
-                        onClick={() => handleStatusChange(deal, 'lost')}
-                    >
-                        Perdido
-                    </RowActionItem>
-                </>
-            ) : (
-                <RowActionItem
-                    icon={ArrowRight}
-                    onClick={() => handleStatusChange(deal, 'open')}
-                >
-                    Reabrir
-                </RowActionItem>
-            )}
-            {canEdit ? (
-                <>
-                    <RowActionsSeparator />
-                    <RowActionItem
-                        icon={Trash2}
-                        destructive
-                        onClick={() => {
-                            setDealToDelete(deal)
-                            setDeleteDialogOpen(true)
-                        }}
-                    >
-                        Excluir
-                    </RowActionItem>
-                </>
-            ) : null}
-        </RowActions>
-    )
+    /*
+     * O menu de ações da linha saiu, como o do cartão.
+     *
+     * Editar, mover de fase, finalizar e excluir vivem no painel, que abre com
+     * um clique na linha. Um menu que repete as mesmas ações é um segundo lugar
+     * para manter — e foi assim que a tela acabou com um diálogo de edição que
+     * só existia no quadro.
+     */
+
 
     /* The list view's shape. Lives here rather than inline in the JSX so the
        hidden-below breakpoints are declared once, next to the data. */
@@ -1378,10 +1299,15 @@ export default function NegociosPage() {
                     </Button>
                 </div>
 
-                {/* Filtros abertos: dois cliques para filtrar por período viravam
-                    um, e o recorte em vigor passa a ser legível sem abrir nada. */}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <div className="relative w-[200px]">
+                {/* Filtros abertos, numa linha só.
+                    A versão anterior quebrava em três linhas numa janela de
+                    1280: cada pastilha trazia a frase inteira e as duas datas
+                    ocupavam 270px. Agora a pastilha mostra número e ícone — a
+                    frase vive no tooltip e volta a partir de 1536px — e o
+                    período é um controle só, que diz o recorte em vigor sem
+                    gastar dois campos. */}
+                <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+                    <div className="relative w-[180px] shrink-0">
                         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={search}
@@ -1397,7 +1323,7 @@ export default function NegociosPage() {
                     <span className="flex-1" />
 
                     <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger size="sm" className="w-[112px]" aria-label="Status">
+                        <SelectTrigger size="sm" className="w-[104px] shrink-0" aria-label="Status">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1410,7 +1336,7 @@ export default function NegociosPage() {
 
                     {viewMode === 'list' && (
                         <Select value={filterStageId || 'all'} onValueChange={(v) => setFilterStageId(v === 'all' ? '' : v)}>
-                            <SelectTrigger size="sm" className="w-[150px]" aria-label="Fase">
+                            <SelectTrigger size="sm" className="w-[136px] shrink-0" aria-label="Fase">
                                 <SelectValue placeholder="Todas as fases" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1420,22 +1346,14 @@ export default function NegociosPage() {
                         </Select>
                     )}
 
-                    <Input
-                        type="date"
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                        aria-label="Período de"
-                        className="num h-8 w-[132px] text-sm"
+                    <PeriodPicker
+                        from={dateFrom}
+                        to={dateTo}
+                        onChange={(nextFrom, nextTo) => { setDateFrom(nextFrom); setDateTo(nextTo) }}
                     />
-                    <Input
-                        type="date"
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                        aria-label="Período até"
-                        className="num h-8 w-[132px] text-sm"
-                    />
+
                     {activeFilters > 0 ? (
-                        <Button variant="ghost" size="icon-sm" onClick={clearFilters} aria-label="Limpar filtros">
+                        <Button variant="ghost" size="icon-sm" onClick={clearFilters} aria-label="Limpar filtros" className="shrink-0">
                             <X className="size-3.5" />
                         </Button>
                     ) : null}
@@ -1612,17 +1530,13 @@ export default function NegociosPage() {
                     rows={listDeals}
                     getRowId={deal => deal.id}
                     // Clicar na linha abre o painel, não o formulário: ler é o
-                    // gesto comum, editar é a exceção e continua no menu da
-                    // linha.
+                    // gesto comum, e editar acontece lá dentro.
                     onRowClick={deal => setSelectedDealId(deal.id)}
                     mobile={deal => (
                         <div className="space-y-1.5">
                             <div className="flex items-start justify-between gap-2">
                                 <span className="font-medium">{deal.title}</span>
-                                <div className="flex shrink-0 items-center gap-1">
-                                    <StatusBadge status={deal.status} />
-                                    {dealActions(deal)}
-                                </div>
+                                <StatusBadge status={deal.status} />
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                 <span
@@ -1645,7 +1559,6 @@ export default function NegociosPage() {
                             </div>
                         </div>
                     )}
-                    rowActions={dealActions}
                     empty={
                         <EmptyState
                             variant="inline"

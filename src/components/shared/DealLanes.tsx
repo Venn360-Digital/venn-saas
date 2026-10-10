@@ -78,7 +78,7 @@ export function DealLanes({
                             title={lane.hint}
                             onClick={() => onSelect(active ? null : lane.id)}
                             className={cn(
-                                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                                'flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs transition-colors',
                                 active
                                     ? cn(look.fill, look.ink, 'border-transparent font-semibold')
                                     : 'border-border bg-card',
@@ -87,7 +87,10 @@ export function DealLanes({
                         >
                             <look.icon className={cn('size-3.5 shrink-0', active ? '' : look.ink)} />
                             <span className="num font-semibold">{count ?? '—'}</span>
-                            <span className="hidden sm:inline">{lane.label}</span>
+                            {/* A frase só a partir de 1536px: abaixo disso ela
+                                empurrava os filtros para uma terceira linha, e o
+                                `title` já a entrega a quem passar o mouse. */}
+                            <span className="hidden 2xl:inline">{lane.label}</span>
                         </button>
                     )
                 })}

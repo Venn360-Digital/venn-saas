@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
+import { periodWhere } from '@/lib/deal-filters'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -107,15 +108,9 @@ export async function GET(request: NextRequest) {
 
         }
 
-        if (dateFrom || dateTo) {
-            where.createdAt = {}
-            if (dateFrom) where.createdAt.gte = new Date(dateFrom)
-            if (dateTo) {
-                const end = new Date(dateTo)
-                end.setHours(23, 59, 59, 999)
-                where.createdAt.lte = end
-            }
-        }
+        // Aberto corta por criação; finalizado, por fechamento — a mesma regra
+        // do resumo e do quadro, num módulo só.
+        Object.assign(where, periodWhere(status, dateFrom, dateTo))
 
         // Bounded. This query had no `take`, so a workspace with thousands of
         // deals loaded all of them — with `dealInclude` relations — on every

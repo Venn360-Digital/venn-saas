@@ -175,7 +175,21 @@ function FocusRow({
             ) : null}
 
             <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold">{deal.title}</p>
+                <p className="flex items-center gap-1.5 truncate text-[13px] font-semibold">
+                    {/* Em "Finalizados" a lista mistura ganhos e perdidos, e sem
+                        o selo as duas coisas se pareciam. */}
+                    {closed ? (
+                        <span className={cn(
+                            'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase',
+                            deal.status === 'won'
+                                ? 'bg-success-subtle text-success-subtle-foreground'
+                                : 'bg-destructive-subtle text-destructive-subtle-foreground'
+                        )}>
+                            {deal.status === 'won' ? 'Ganho' : 'Perdido'}
+                        </span>
+                    ) : null}
+                    <span className="truncate">{deal.title}</span>
+                </p>
                 <p className="truncate text-[11px] text-muted-foreground">
                     {[deal.contact?.name || formatPhone(deal.contact?.phone), deal.owner?.name]
                         .filter(Boolean)

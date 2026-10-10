@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
+import { periodWhere } from '@/lib/deal-filters'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
@@ -62,6 +63,13 @@ export async function GET(request: NextRequest) {
         // contou — ver `lib/deal-lanes`.
         const lane = searchParams.get('lane')
         if (isDealLane(lane)) Object.assign(dealWhere, laneWhere(lane))
+
+        // O período valia só para o resumo: a tela mostrava três números de um
+        // recorte e um quadro de outro.
+        Object.assign(
+            dealWhere,
+            periodWhere(status, searchParams.get('dateFrom'), searchParams.get('dateTo'))
+        )
 
         const stages = await prisma.pipelineStage.findMany({
             where: { workspaceId: workspaceUser.workspaceId },
