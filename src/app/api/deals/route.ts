@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
+import { isDealLane, laneWhere } from '@/lib/deal-lanes'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -40,6 +41,14 @@ const dealInclude = {
         select: { stageId: true, enteredAt: true },
         orderBy: { enteredAt: 'asc' as const },
     },
+    // A próxima atividade pendente, uma por negócio: é ela que diz se alguém
+    // vai voltar a este paciente, e em que dia.
+    activities: {
+        where: { completedAt: null },
+        orderBy: [{ dueDate: 'asc' as const }, { startTime: 'asc' as const }],
+        take: 1,
+        select: { id: true, title: true, type: true, dueDate: true, startTime: true },
+    },
 }
 
 // GET - List deals with optional filters
@@ -67,6 +76,11 @@ export async function GET(request: NextRequest) {
         const dateTo = searchParams.get('dateTo') || ''
 
         const where: Prisma.DealWhereInput = { workspaceId: workspaceUser.workspaceId }
+
+        // A mesma faixa de prioridades do quadro, para que trocar de visão não
+        // troque o conjunto de negócios.
+        const lane = searchParams.get('lane')
+        if (isDealLane(lane)) Object.assign(where, laneWhere(lane))
 
         if (search) {
             where.OR = [

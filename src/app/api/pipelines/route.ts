@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { searchTerms } from '@/lib/search'
+import { isDealLane, laneWhere } from '@/lib/deal-lanes'
 
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
@@ -53,6 +54,11 @@ export async function GET(request: NextRequest) {
         // total per stage travels in `_count` so the UI can show "+N mais".
         const dealsPerStage = Math.min(Number(searchParams.get('perStage')) || 100, 500)
 
+        // A faixa de prioridades filtra o quadro pelo mesmo predicado que a
+        // contou — ver `lib/deal-lanes`.
+        const lane = searchParams.get('lane')
+        if (isDealLane(lane)) Object.assign(dealWhere, laneWhere(lane))
+
         const stages = await prisma.pipelineStage.findMany({
             where: { workspaceId: workspaceUser.workspaceId },
             include: {
@@ -70,6 +76,26 @@ export async function GET(request: NextRequest) {
                         },
                         media: {
                             select: { id: true, name: true }
+                        },
+                        // O percurso pelas etapas: alimenta o trilho do cartão e a
+                        // idade na fase atual. Faltava aqui — o trilho no quadro
+                        // desenhava as fases sem data, enquanto na lista tinha.
+                        stageEntries: {
+                            select: { stageId: true, enteredAt: true },
+                            orderBy: { enteredAt: 'asc' },
+                        },
+                        /**
+                         * A próxima atividade pendente, uma por negócio.
+                         *
+                         * Sem filtro de data de propósito: a mais antiga pendente
+                         * é a que importa, e se ela já passou o cartão precisa
+                         * dizer isso em vermelho em vez de omitir.
+                         */
+                        activities: {
+                            where: { completedAt: null },
+                            orderBy: [{ dueDate: 'asc' }, { startTime: 'asc' }],
+                            take: 1,
+                            select: { id: true, title: true, type: true, dueDate: true, startTime: true },
                         },
                     },
                     orderBy: { createdAt: 'desc' },

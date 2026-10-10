@@ -1,0 +1,34 @@
+import { NextResponse } from 'next/server'
+
+import prisma from '@/lib/prisma'
+import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { DEAL_LANES, laneWhere } from '@/lib/deal-lanes'
+
+/**
+ * Os três números da faixa de prioridades.
+ *
+ * Contados sobre todos os negócios abertos, não sobre o que a tela carregou: o
+ * quadro traz no máximo cem cartões por etapa, e um contador que só vê a
+ * primeira página mente justamente quando o funil cresce.
+ *
+ * Os filtros vêm de `laneWhere`, o mesmo que o quadro usa ao clicar na faixa —
+ * é isso que impede o número e a lista de discordarem.
+ */
+export async function GET() {
+    const auth = await getWorkspaceMember()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    const base = { workspaceId: auth.member.workspaceId, status: 'open' }
+    const now = new Date()
+
+    const counts = await Promise.all(
+        DEAL_LANES.map((lane) =>
+            prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now) } })
+        )
+    )
+
+    return NextResponse.json({
+        lanes: DEAL_LANES.map((lane, i) => ({ id: lane.id, count: counts[i] })),
+        open: await prisma.deal.count({ where: base }),
+    })
+}

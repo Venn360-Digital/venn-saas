@@ -3,26 +3,27 @@
 import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
-    Plus,
-    MoreVertical,
-    User,
-    DollarSign,
-    Search,
-    List,
-    LayoutGrid,
-    Trash2,
-    Pencil,
-    X,
-    Trophy,
-    XCircle,
+    AlertTriangle,
     ArrowRight,
     Calendar,
-    Check,
+    CalendarCheck,
     CalendarRange,
-    Clock,
+    Check,
     CheckCircle2,
     Circle,
-    AlertTriangle,
+    Clock,
+    DollarSign,
+    LayoutGrid,
+    List,
+    MoreVertical,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
+    Trophy,
+    User,
+    X,
+    XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -78,6 +79,12 @@ import {
     RowActionsSeparator,
 } from '@/components/shared/RowActions'
 import { ContactPicker } from '@/components/shared/ContactPicker'
+import { DealLanes } from '@/components/shared/DealLanes'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { FilterPanel, Toolbar } from '@/components/shared/Toolbar'
+import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
+import { isDealLane, type DealLane } from '@/lib/deal-lanes'
+import { useNow } from '@/hooks/useNow'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
@@ -132,6 +139,8 @@ interface Deal {
     stage?: { name: string; color: string } | null
     /** O percurso: uma entrada por passagem em etapa, da mais antiga à mais nova. */
     stageEntries?: { stageId: string; enteredAt: string }[]
+    /** A próxima atividade pendente — zero ou uma, nunca mais. */
+    activities?: { id: string; title: string; type: string; dueDate: string | null; startTime: string | null }[]
     createdAt: string
     closedAt: string | null
 }
@@ -242,6 +251,11 @@ function DealCard({
     const { canEdit } = usePermissions()
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: deal.id })
     const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+    // O relógio vem do store: lê-lo no render seria impuro, e de graça o número
+    // se atualiza sozinho num quadro que fica aberto das 8 às 19.
+    const now = useNow()
+    const age = ageTone(daysInStage(deal, now))
+    const step = nextStep(deal, now)
 
     return (
         <div
@@ -288,6 +302,23 @@ function DealCard({
                             </span>
                         )}
                     </div>
+                    {/* O próximo passo, em uma linha.
+                        É o dado mais acionável da clínica e estava gravado sem
+                        aparecer onde a decisão acontece. Vermelho quando venceu,
+                        e vermelho também quando não existe — "ninguém vai voltar
+                        a este paciente" merece o mesmo peso de um atraso. */}
+                    <div className={cn(
+                        'mt-2 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-semibold',
+                        step.missing || step.overdue
+                            ? 'bg-destructive-subtle text-destructive-subtle-foreground'
+                            : 'bg-primary-subtle text-primary-subtle-foreground'
+                    )}>
+                        {step.missing
+                            ? <AlertTriangle className="size-3 shrink-0" />
+                            : <CalendarCheck className="size-3 shrink-0" />}
+                        <span className="truncate">{step.label}</span>
+                    </div>
+
                     {/* O trilho: a jornada do negócio pelas etapas desta
                         clínica, no próprio cartão. Substitui os indicadores da
                         jornada de seis marcos fixos, que falavam de fases que o
@@ -298,6 +329,15 @@ function DealCard({
                         currentStageId={deal.stageId}
                         entries={deal.stageEntries}
                     />
+
+                    {/* A idade na fase: um negócio parado há 24 dias era
+                        visualmente idêntico ao que entrou hoje. */}
+                    {age.label ? (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+                            <span className={cn('size-1.5 rounded-full', age.fill)} />
+                            <span className="num">{age.label}</span>
+                        </div>
+                    ) : null}
                 </div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -370,6 +410,25 @@ function StageColumn({
     const { canEdit } = usePermissions()
     const { setNodeRef } = useDroppable({ id: `stage-${stage.id}` })
     const totalValue = stage.deals.reduce((sum, d) => sum + (d.value || 0), 0)
+    const now = useNow()
+
+    /**
+     * A saúde da etapa, em três contagens que somam o total de cartões.
+     *
+     * "Marcado" ganha de "parado" quando os dois valem: um negócio com consulta
+     * amanhã não está parado, mesmo que a fase não mude há duas semanas — é o
+     * paciente que está esperando a data, não a clínica que esqueceu dele.
+     */
+    const health = stage.deals.reduce(
+        (acc, deal) => {
+            const days = daysInStage(deal, now)
+            if (deal.activities?.length) acc.booked += 1
+            else if (days !== null && days > 7) acc.stale += 1
+            else acc.fresh += 1
+            return acc
+        },
+        { booked: 0, fresh: 0, stale: 0 }
+    )
 
     return (
         <div className="flex-shrink-0 w-72" ref={setNodeRef}>
@@ -406,11 +465,26 @@ function StageColumn({
                     </DropdownMenu>
                 </div>
             </div>
-            {totalValue > 0 && (
-                <div className="bg-card/80 px-4 py-1.5 text-xs text-muted-foreground border-x border-border">
-                    Total: <span className="text-success-subtle-foreground font-medium">R$ {totalValue.toLocaleString('pt-BR')}</span>
+            {/* O medidor da etapa: a largura de cada trecho é a contagem, então
+                ele é dado e não enfeite — com consulta marcada, em dia, parado.
+                Mesma gramática da medida de fila nas conversas. */}
+            <div className="border-x border-border bg-card/80 px-4 py-2">
+                <div
+                    className="flex h-1.5 gap-0.5"
+                    role="img"
+                    aria-label={`${health.booked} com atividade marcada, ${health.fresh} em dia, ${health.stale} parados`}
+                >
+                    {health.booked > 0 && <span className="rounded-sm bg-primary" style={{ width: `${(health.booked / Math.max(1, stage.deals.length)) * 100}%` }} />}
+                    {health.fresh > 0 && <span className="rounded-sm bg-success" style={{ width: `${(health.fresh / Math.max(1, stage.deals.length)) * 100}%` }} />}
+                    {health.stale > 0 && <span className="rounded-sm bg-warning" style={{ width: `${(health.stale / Math.max(1, stage.deals.length)) * 100}%` }} />}
+                    {stage.deals.length === 0 && <span className="w-full rounded-sm bg-border" />}
                 </div>
-            )}
+                <p className="num mt-1.5 text-xs text-muted-foreground">
+                    {totalValue > 0 ? <span className="font-medium text-success-subtle-foreground">R$ {totalValue.toLocaleString('pt-BR')}</span> : 'Sem valor'}
+                    {health.stale > 0 ? ` · ${health.stale} ${health.stale === 1 ? 'parado' : 'parados'}` : null}
+                </p>
+            </div>
+
             <div className={`bg-card/50 rounded-b-lg p-2 min-h-[400px] space-y-2 border-x border-b border-border transition-colors ${isOver ? 'bg-primary/10 border-primary/30' : ''}`}>
                 <SortableContext items={stage.deals.map(d => d.id)} strategy={verticalListSortingStrategy}>
                     {stage.deals.map((deal) => (
@@ -454,6 +528,12 @@ export default function NegociosPage() {
     const whatsapp = useWhatsAppStatus(stages.flatMap(st => st.deals.map(d => d.contact?.phone)))
     const [loading, setLoading] = useState(true)
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
+    const [filtersOpen, setFiltersOpen] = useState(false)
+    // O mesmo relógio dos cartões, para as colunas de próximo passo e idade.
+    const now = useNow()
+    /** A faixa de prioridades escolhida, ou nenhuma. */
+    const [lane, setLane] = useState<DealLane | null>(null)
+    const [laneCounts, setLaneCounts] = useState<Record<DealLane, number> | null>(null)
     const [activeDeal, setActiveDeal] = useState<Deal | null>(null)
 
     // Search & filters
@@ -519,6 +599,21 @@ export default function NegociosPage() {
 
     // DnD state
     const [overStageId, setOverStageId] = useState<string | null>(null)
+    /** Quantos filtros estão ligados — o número no botão da barra. */
+    const activeFilters = [
+        filterStatus !== 'open' ? filterStatus : '',
+        viewMode === 'list' && filterStageId && filterStageId !== 'all' ? filterStageId : '',
+        dateFrom,
+        dateTo,
+    ].filter(Boolean).length
+
+    const clearFilters = () => {
+        setFilterStatus('open')
+        setFilterStageId('')
+        setDateFrom('')
+        setDateTo('')
+    }
+
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
     // ─── Data Loading ───────────────────────────────────────────────
@@ -527,6 +622,7 @@ export default function NegociosPage() {
             const params = new URLSearchParams()
             if (search) params.set('search', search)
             if (filterStatus) params.set('status', filterStatus)
+            if (lane) params.set('lane', lane)
             const res = await fetch(`/api/pipelines?${params}`)
             if (res.ok) setStages(await res.json())
         } catch (error) {
@@ -534,7 +630,7 @@ export default function NegociosPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, filterStatus])
+    }, [search, filterStatus, lane])
 
     const loadListDeals = useCallback(async () => {
         try {
@@ -542,6 +638,7 @@ export default function NegociosPage() {
             if (search) params.set('search', search)
             if (filterStageId) params.set('stageId', filterStageId)
             if (filterStatus) params.set('status', filterStatus)
+            if (lane) params.set('lane', lane)
             const res = await fetch(`/api/deals?${params}`)
             if (res.ok) setListDeals(await res.json())
         } catch (error) {
@@ -549,7 +646,29 @@ export default function NegociosPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, filterStageId, filterStatus])
+    }, [search, filterStageId, filterStatus, lane])
+
+    /**
+     * As contagens da faixa, do servidor.
+     *
+     * Contadas sobre todos os negócios abertos, não sobre o que o quadro
+     * carregou — e recarregadas quando um negócio muda de fase ou de desfecho,
+     * porque é isso que move um cartão entre as faixas.
+     */
+    const loadLanes = useCallback(async () => {
+        try {
+            const res = await fetch('/api/deals/priorities')
+            if (!res.ok) return
+            const data = await res.json()
+            const next = { due_soon: 0, stalled: 0, no_activity: 0 } as Record<DealLane, number>
+            for (const item of (data.lanes ?? []) as { id: string; count: number }[]) {
+                if (isDealLane(item.id)) next[item.id] = item.count
+            }
+            setLaneCounts(next)
+        } catch {
+            // Sem as contagens a faixa mostra "—" e o quadro segue inteiro.
+        }
+    }, [])
 
     const loadLookups = useCallback(async () => {
         const [membersRes, agenciesRes, mediasRes] = await Promise.all([
@@ -599,6 +718,10 @@ export default function NegociosPage() {
     useEffect(() => {
         loadKpiSummary()
     }, [loadKpiSummary])
+
+    useEffect(() => {
+        void loadLanes()
+    }, [loadLanes])
 
     useEffect(() => {
         if (viewMode === 'kanban') loadPipeline()
@@ -831,6 +954,7 @@ export default function NegociosPage() {
         })
         try {
             await fetch(`/api/deals/${deal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stageId }) })
+            void loadLanes()
         } catch { toast.error('Erro ao mover negócio'); loadPipeline() }
     }
 
@@ -922,6 +1046,7 @@ export default function NegociosPage() {
         try {
             await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stageId: targetStageId }) })
             loadKpiSummary()
+            void loadLanes()
         } catch { toast.error('Erro ao mover negócio'); loadPipeline() }
     }
 
@@ -1074,6 +1199,44 @@ export default function NegociosPage() {
                 ),
         },
         {
+            // As mesmas duas informações do cartão: trocar de visão não pode
+            // trocar o que se sabe sobre o negócio.
+            id: 'next',
+            header: 'Próximo passo',
+            hideBelow: 'md',
+            cell: deal => {
+                const step = nextStep(deal, now)
+                return (
+                    <span className={cn(
+                        'inline-flex items-center gap-1.5 text-xs font-medium',
+                        step.missing || step.overdue ? 'text-destructive-subtle-foreground' : 'text-foreground'
+                    )}>
+                        {step.missing
+                            ? <AlertTriangle className="size-3.5 shrink-0" />
+                            : <CalendarCheck className="size-3.5 shrink-0" />}
+                        {step.label}
+                    </span>
+                )
+            },
+        },
+        {
+            id: 'age',
+            header: 'Idade',
+            numeric: true,
+            hideBelow: 'lg',
+            cell: deal => {
+                const days = daysInStage(deal, now)
+                const tone = ageTone(days)
+                if (days === null) return <span className="text-muted-foreground">—</span>
+                return (
+                    <span className="inline-flex items-center gap-1.5">
+                        <span className={cn('size-1.5 rounded-full', tone.fill)} />
+                        <span className="num">{days} d</span>
+                    </span>
+                )
+            },
+        },
+        {
             id: 'whatsapp',
             header: 'WhatsApp',
             width: '96px',
@@ -1137,7 +1300,12 @@ export default function NegociosPage() {
     if (stages.length === 0 && viewMode === 'kanban') {
         return (
             <div className="p-6">
-                <div className="mb-6"><h1 className="text-h1">Negócios | Pipeline</h1><p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de tratamentos dos seus pacientes.</p></div>
+                <PageHeader
+                    bleed
+                    title="Negócios"
+                    description="O fluxo de tratamentos dos seus pacientes."
+                    className="mb-6"
+                />
                 <div className="flex flex-col items-center justify-center h-96">
                     <h3 className="text-lg font-medium mb-2">Nenhum funil encontrado</h3>
                     <p className="text-muted-foreground mb-6">Crie um funil para começar.</p>
@@ -1149,96 +1317,124 @@ export default function NegociosPage() {
 
     return (
         <div className="p-6">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h1 className="text-h1">Negócios | Pipeline</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Gerencie o fluxo de tratamentos dos seus pacientes.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    {/* Date Range Filter */}
-                    <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-                        <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-muted-foreground font-medium">De</label>
-                            <input
-                                type="date"
-                                value={dateFrom}
-                                onChange={(e) => setDateFrom(e.target.value)}
-                                className="bg-transparent text-sm border-none outline-none w-[130px] text-foreground"
-                            />
+            {/* O cabeçalho da casa, finalmente.
+                Era um `h1` artesanal com "Negócios | Pipeline", uma caixa de
+                datas desenhada à mão com dois `<input type="date">` crus e três
+                cartões de número grande. O título, a descrição e a contagem
+                agora vêm do `PageHeader` como em todas as outras telas, e os
+                valores viraram uma linha de texto: número que só se olha não
+                merece três cartões. */}
+            <PageHeader
+                bleed
+                title="Negócios"
+                description="O fluxo de tratamentos dos seus pacientes."
+                count={{ value: kpiActiveCount, singular: 'em jogo', plural: 'em jogo' }}
+                className="mb-4"
+                actions={
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center rounded-lg border border-border bg-card p-1">
+                            <Button
+                                variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+                                size="icon-sm"
+                                onClick={() => setViewMode('kanban')}
+                                aria-label="Ver como quadro"
+                                aria-pressed={viewMode === 'kanban'}
+                            >
+                                <LayoutGrid className="size-4" />
+                            </Button>
+                            <Button
+                                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                                size="icon-sm"
+                                onClick={() => setViewMode('list')}
+                                aria-label="Ver como lista"
+                                aria-pressed={viewMode === 'list'}
+                            >
+                                <List className="size-4" />
+                            </Button>
                         </div>
-                        <span className="text-muted-foreground">|</span>
-                        <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-muted-foreground font-medium">Até</label>
-                            <input
-                                type="date"
-                                value={dateTo}
-                                onChange={(e) => setDateTo(e.target.value)}
-                                className="bg-transparent text-sm border-none outline-none w-[130px] text-foreground"
-                            />
-                        </div>
-                        {(dateFrom || dateTo) && (
-                            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-muted-foreground hover:text-foreground transition-colors" title="Limpar datas">
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        )}
+                        <Button onClick={() => handleAddDeal(stages[0]?.id)} className="gap-2">
+                            <Plus className="size-4" /> Novo negócio
+                        </Button>
                     </div>
-                    <div className="flex items-center bg-card border border-border rounded-lg p-1">
-                        <button onClick={() => setViewMode('kanban')} className={`p-2 rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Kanban">
-                            <LayoutGrid className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`} title="Lista">
-                            <List className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <Button onClick={() => handleAddDeal(stages[0]?.id)} className="bg-primary hover:bg-primary/90">
-                        <Plus className="h-4 w-4 mr-2" /> Novo negócio
-                    </Button>
-                </div>
-            </div>
+                }
+            />
 
-            {/* KPI Summary */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-card border border-border rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Negócios Ativos</p>
-                    <p className="text-2xl font-bold mt-1">{kpiActiveCount}</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor em Aberto</p>
-                    <p className="text-2xl font-bold mt-1 text-info-subtle-foreground">R$ {kpiOpenValue.toLocaleString('pt-BR')}</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Valor Ganho</p>
-                    <p className="text-2xl font-bold mt-1 text-success-subtle-foreground">R$ {kpiWonValue.toLocaleString('pt-BR')}</p>
-                </div>
-            </div>
+            <Toolbar
+                search={search}
+                onSearchChange={setSearch}
+                placeholder="Buscar por título ou paciente…"
+                filterCount={activeFilters}
+                filtersOpen={filtersOpen}
+                onToggleFilters={() => setFiltersOpen(o => !o)}
+            >
+                {/* O dinheiro como texto, ao lado dos filtros: duas somas que se
+                    leem de passagem não precisam de cartão. */}
+                <p className="num ml-auto text-xs text-muted-foreground">
+                    <span className="text-info-subtle-foreground font-medium">R$ {kpiOpenValue.toLocaleString('pt-BR')}</span> em aberto
+                    {' · '}
+                    <span className="text-success-subtle-foreground font-medium">R$ {kpiWonValue.toLocaleString('pt-BR')}</span> ganho
+                </p>
+            </Toolbar>
 
-            {/* Search & Filters */}
-            <div className="flex flex-wrap gap-3 mb-6">
-                <div className="relative flex-1 min-w-[200px] max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Buscar por título ou paciente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
-                </div>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="open">Abertos</SelectItem>
-                        <SelectItem value="won">Ganhos</SelectItem>
-                        <SelectItem value="lost">Perdidos</SelectItem>
-                        <SelectItem value="all">Todos</SelectItem>
-                    </SelectContent>
-                </Select>
-                {viewMode === 'list' && (
-                    <Select value={filterStageId} onValueChange={setFilterStageId}>
-                        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Todas etapas" /></SelectTrigger>
+            <FilterPanel open={filtersOpen} activeCount={activeFilters} onClear={clearFilters}>
+                <div className="min-w-[150px]">
+                    <Label htmlFor="f-status" className="text-xs">Status</Label>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger id="f-status" className="mt-1 w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Todas etapas</SelectItem>
-                            {stages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                            <SelectItem value="open">Abertos</SelectItem>
+                            <SelectItem value="won">Ganhos</SelectItem>
+                            <SelectItem value="lost">Perdidos</SelectItem>
+                            <SelectItem value="all">Todos</SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+
+                {viewMode === 'list' && (
+                    <div className="min-w-[170px]">
+                        <Label htmlFor="f-stage" className="text-xs">Etapa</Label>
+                        <Select value={filterStageId} onValueChange={setFilterStageId}>
+                            <SelectTrigger id="f-stage" className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas etapas</SelectItem>
+                                {stages.map(st => <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 )}
-            </div>
+
+                {/* Datas pelo primitivo, não por `<input>` cru numa caixa
+                    desenhada: foco, borda e tema vêm de graça. */}
+                <div>
+                    <Label htmlFor="f-from" className="text-xs">De</Label>
+                    <Input
+                        id="f-from"
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="num mt-1 w-[150px]"
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="f-to" className="text-xs">Até</Label>
+                    <Input
+                        id="f-to"
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="num mt-1 w-[150px]"
+                    />
+                </div>
+            </FilterPanel>
+
+            {/* A faixa de prioridades: três perguntas que são consultas. */}
+            <DealLanes
+                counts={laneCounts}
+                selected={lane}
+                onSelect={setLane}
+                className="mt-4 mb-5"
+            />
+
 
             {/* Kanban View */}
             {viewMode === 'kanban' && (
