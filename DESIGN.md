@@ -338,6 +338,27 @@ nunca atrás delas — 1px atravessando um ponto cheio aparece. Marco cumprido �
 `bg-success` com `Check`; pendente é `bg-card` com borda e o ícone do marco.
 Data em `num`. Só o marco em edição abre; os outros ficam em uma linha.
 
+**Painel ao lado de um quadro: sobrepõe; ao lado de uma tabela: divide.** As
+duas superfícies reagem de forma oposta a perder largura. Um kanban de seis
+etapas perde duas colunas inteiras e não há como recuperá-las sem fechar o
+painel, então ali ele é `absolute inset-y-0 right-0` com sombra — o quadro nem
+reflui. Uma tabela encolhe sozinha (as colunas somem por `hideBelow`), então ali
+ele é coluna de verdade em `xl:grid-cols-[1fr_320px]`, e volta a sobrepor abaixo
+de 1280, onde a tabela já está apertada.
+
+**Painel lê e age; diálogo edita.** Clicar numa linha ou num cartão abre o
+painel, que responde às perguntas de quem está olhando a lista e oferece os
+gestos que seguem delas. A edição completa — todos os campos, abas — continua no
+diálogo, chamada explicitamente. Sem essa divisão o painel vira o formulário de
+novo, só mais estreito; e um clique distraído deixa de abrir uma tela cheia.
+
+**Faixa de números clicáveis, não painel de indicadores.** Número que só se olha
+pertence a um relatório. Se ele vai ficar no topo de uma tela de trabalho, cada
+faixa é um `button` com `aria-pressed` que filtra a lista — e **o filtro do
+clique é o mesmo predicado que produziu o número** (um módulo só, consumido pela
+contagem e pela consulta), senão os dois divergem no primeiro caso de borda.
+Faixa com zero fica desabilitada: filtrar para nada é um beco.
+
 **Painel lateral com modos.** Quando uma tela de viewport inteiro oferece vários
 conteúdos auxiliares — resumo, arquivos, agendamento, jornada, notas —, eles
 dividem **um** painel e **um modo por vez**: clicar em outro ícone troca o

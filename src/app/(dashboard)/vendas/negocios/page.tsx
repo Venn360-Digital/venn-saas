@@ -90,6 +90,7 @@ import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
 import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
+import { DealPanel } from '@/components/shared/DealPanel'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
@@ -235,6 +236,7 @@ function OutcomeZone({
 // ─── Deal Card (Kanban) ──────────────────────────────────────────────
 function DealCard({
     deal, isDragging, onEdit, onDelete, onStatusChange, stages, onMoveToStage, whatsapp,
+    onSelect, selected,
 }: {
     deal: Deal
     isDragging?: boolean
@@ -245,6 +247,8 @@ function DealCard({
     onMoveToStage: (deal: Deal, stageId: string) => void
     /** Estado do número e o gatilho da conversa, vindos da página. */
     whatsapp: ReturnType<typeof useWhatsAppStatus>
+    onSelect: (deal: Deal) => void
+    selected: boolean
 }) {
     // Presentation only — the API enforces the same rule. Resolved here rather
     // than threaded as yet another prop through the kanban.
@@ -261,7 +265,20 @@ function DealCard({
         <div
             ref={setNodeRef}
             style={style}
-            className="group rounded-lg border border-border bg-card p-3 cursor-grab active:cursor-grabbing hover:border-primary/30 transition-colors"
+            className={cn(
+                'group rounded-lg border bg-card p-3 cursor-grab active:cursor-grabbing transition-colors',
+                selected ? 'border-primary ring-2 ring-primary/30' : 'border-border hover:border-primary/30'
+            )}
+            // `role="button"` e `tabIndex` já vêm de `attributes` do dnd-kit,
+            // que é por onde o cartão recebe foco. Falta só o Enter/Espaço
+            // selecionarem, porque o teclado não "clica".
+            onClick={() => onSelect(deal)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(deal)
+                }
+            }}
             {...attributes}
             {...listeners}
         >
@@ -393,7 +410,7 @@ function DealCard({
 // ─── Stage Column ────────────────────────────────────────────────────
 function StageColumn({
     stage, onAddDeal, onEditDeal, onDeleteDeal, onStatusChange, stages, onMoveToStage,
-    onEditStage, onDeleteStage, isOver, whatsapp,
+    onEditStage, onDeleteStage, isOver, whatsapp, onSelectDeal, selectedDealId,
 }: {
     stage: Stage
     onAddDeal: (stageId: string) => void
@@ -406,6 +423,8 @@ function StageColumn({
     onDeleteStage: (stage: Stage) => void
     isOver?: boolean
     whatsapp: ReturnType<typeof useWhatsAppStatus>
+    onSelectDeal: (deal: Deal) => void
+    selectedDealId: string | null
 }) {
     const { canEdit } = usePermissions()
     const { setNodeRef } = useDroppable({ id: `stage-${stage.id}` })
@@ -490,6 +509,8 @@ function StageColumn({
                     {stage.deals.map((deal) => (
                         <DealCard
                             whatsapp={whatsapp}
+                            onSelect={onSelectDeal}
+                            selected={selectedDealId === deal.id}
                             key={deal.id} deal={deal} onEdit={onEditDeal}
                             onDelete={onDeleteDeal} onStatusChange={onStatusChange}
                             stages={stages} onMoveToStage={onMoveToStage}
@@ -529,6 +550,14 @@ export default function NegociosPage() {
     const [loading, setLoading] = useState(true)
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban')
     const [filtersOpen, setFiltersOpen] = useState(false)
+    /**
+     * O negócio aberto no painel, por id e não por objeto.
+     *
+     * Guardar o objeto deixaria o painel exibindo o estado de antes da última
+     * recarga — mover de fase pelo próprio painel é o caso óbvio. Pelo id, ele
+     * sempre lê a versão que a tela acabou de buscar.
+     */
+    const [selectedDealId, setSelectedDealId] = useState<string | null>(null)
     // O mesmo relógio dos cartões, para as colunas de próximo passo e idade.
     const now = useNow()
     /** A faixa de prioridades escolhida, ou nenhuma. */
@@ -613,6 +642,36 @@ export default function NegociosPage() {
         setDateFrom('')
         setDateTo('')
     }
+
+    /** Lido das listas carregadas, para o painel nunca mostrar dado velho. */
+    const selectedDeal =
+        (viewMode === 'kanban'
+            ? stages.flatMap((st) => st.deals).find((d) => d.id === selectedDealId)
+            : listDeals.find((d) => d.id === selectedDealId)) ?? null
+
+    /** Props comuns do painel nas duas visões; só o layout difere. */
+    const panelProps = selectedDeal
+        ? {
+            deal: selectedDeal,
+            stages: stages.map((st) => ({ id: st.id, name: st.name, color: st.color })),
+            whatsappStatus: whatsapp.status[selectedDeal.contact?.phone ?? ''],
+            whatsappBusy: whatsapp.opening === selectedDeal.contact?.id,
+            onOpenWhatsApp: whatsapp.open,
+            onClose: () => setSelectedDealId(null),
+            onEdit: (deal: Deal) => handleEditDealWithActivities(deal),
+            onMoveStage: (deal: Deal, stageId: string) => void handleMoveToStage(deal, stageId),
+            onFinish: (deal: Deal, side: 'won' | 'lost') => {
+                setDealToLose(deal)
+                setOutcomeSide(side)
+                setOutcomeOpen(true)
+            },
+            onScheduled: () => {
+                if (viewMode === 'kanban') loadPipeline()
+                else loadListDeals()
+                void loadLanes()
+            },
+        }
+        : null
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -1439,6 +1498,11 @@ export default function NegociosPage() {
             {/* Kanban View */}
             {viewMode === 'kanban' && (
                 <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+                  {/* `relative` por causa do painel: no quadro ele **sobrepõe**
+                      em vez de empurrar. Com seis etapas, uma coluna fixa de
+                      320px comeria duas delas enquanto estivesse aberto — e o
+                      painel se fecha, as etapas não. */}
+                  <div className="relative">
                     <div className="flex gap-4 overflow-x-auto pb-4">
                         {stages.map((stage) => (
                             <StageColumn key={stage.id} stage={stage} onAddDeal={handleAddDeal} onEditDeal={handleEditDealWithActivities}
@@ -1446,6 +1510,8 @@ export default function NegociosPage() {
                                 onStatusChange={handleStatusChange} stages={stages} onMoveToStage={handleMoveToStage}
                                 onEditStage={handleEditStage} onDeleteStage={handleDeleteStage}
                                 isOver={overStageId === stage.id} whatsapp={whatsapp}
+                                onSelectDeal={(deal) => setSelectedDealId(deal.id)}
+                                selectedDealId={selectedDealId}
                             />
                         ))}
                         {/* Configuração do funil: etapa e motivo de desfecho são
@@ -1491,15 +1557,32 @@ export default function NegociosPage() {
                             </div>
                         )}
                     </DragOverlay>
+
+                    {panelProps ? (
+                        <DealPanel
+                            {...panelProps}
+                            className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg"
+                        />
+                    ) : null}
+                  </div>
                 </DndContext>
             )}
 
             {/* List View */}
+            {/* Aqui o painel é coluna de verdade: a tabela encolhe sozinha pelos
+                `hideBelow`, então dividir a largura não esconde nada. Abaixo de
+                1280 ele volta a sobrepor, porque aí a tabela já está apertada. */}
             {viewMode === 'list' && (
+              <div className={cn('relative', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-4')}>
+                <div className="min-w-0">
                 <DataTable
                     columns={listColumns}
                     rows={listDeals}
                     getRowId={deal => deal.id}
+                    // Clicar na linha abre o painel, não o formulário: ler é o
+                    // gesto comum, editar é a exceção e continua no menu da
+                    // linha.
+                    onRowClick={deal => setSelectedDealId(deal.id)}
                     mobile={deal => (
                         <div className="space-y-1.5">
                             <div className="flex items-start justify-between gap-2">
@@ -1540,6 +1623,15 @@ export default function NegociosPage() {
                         />
                     }
                 />
+                </div>
+
+                {panelProps ? (
+                    <DealPanel
+                        {...panelProps}
+                        className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:w-auto xl:shadow-none"
+                    />
+                ) : null}
+              </div>
             )}
 
             {/* Create/Edit Deal Dialog */}
