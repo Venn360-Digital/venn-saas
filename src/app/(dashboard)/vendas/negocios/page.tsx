@@ -871,8 +871,10 @@ export default function NegociosPage() {
             if (res.ok) {
                 toast.success('Negócio excluído')
                 setDealToDelete(null)
-                if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
-                loadKpiSummary()
+                // `reloadAll`, e não só o quadro: o trilho é a visão padrão
+                // e lia a mesma consulta sem estar neste `if`, então fechar ou
+                // excluir um negócio ali não mexia em nada na tela.
+                reloadAll()
             } else toast.error('Erro ao excluir negócio')
         } catch { toast.error('Erro ao excluir negócio') }
     }
@@ -898,8 +900,10 @@ export default function NegociosPage() {
             })
             if (res.ok) {
                 toast.success(status === 'won' ? 'Negócio ganho' : 'Negócio reaberto')
-                if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
-                loadKpiSummary()
+                // `reloadAll`, e não só o quadro: o trilho é a visão padrão
+                // e lia a mesma consulta sem estar neste `if`, então fechar ou
+                // excluir um negócio ali não mexia em nada na tela.
+                reloadAll()
             }
         } catch { toast.error('Erro ao atualizar status') }
     }
@@ -924,20 +928,43 @@ export default function NegociosPage() {
             }
             toast.success(result.status === 'won' ? 'Negócio ganho' : 'Negócio marcado como perdido')
             setDealToLose(null)
-            if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
-            loadKpiSummary()
+            reloadAll()
         } catch {
             toast.error('Erro ao fechar o negócio')
         }
     }
 
-    const handleMoveToStage = async (deal: Deal, stageId: string) => {
-        setStages(prev => {
-            const n = prev.map(s => ({ ...s, deals: s.deals.filter(d => d.id !== deal.id) }))
-            const idx = n.findIndex(s => s.id === stageId)
-            if (idx >= 0) n[idx].deals.push({ ...deal, stageId })
-            return n
+    /**
+     * Mover o cartão na tela — e mexer no contador junto.
+     *
+     * O número ao lado da fase vem do banco (`_count`), porque `deals` para em
+     * cem por coluna e a lista carregada não serve de contagem. O preço é este:
+     * o movimento otimista precisa mexer no número também, senão arrastar um
+     * cartão troca a coluna e deixa os dois contadores parados até o próximo
+     * carregamento — que no trilho pode demorar, porque mover não recarrega o
+     * funil de propósito (é a consulta mais pesada da tela).
+     */
+    const moveDealLocally = (prev: Stage[], dealId: string, targetStageId: string, moved?: Deal): Stage[] => {
+        const source = prev.find((st) => st.deals.some((d) => d.id === dealId))
+        const deal = moved ?? source?.deals.find((d) => d.id === dealId)
+        if (!deal || source?.id === targetStageId) return prev
+        return prev.map((st) => {
+            const isSource = st.id === source?.id
+            const isTarget = st.id === targetStageId
+            if (!isSource && !isTarget) return st
+            const without = st.deals.filter((d) => d.id !== dealId)
+            return {
+                ...st,
+                deals: isTarget ? [...without, { ...deal, stageId: targetStageId }] : without,
+                _count: st._count
+                    ? { ...st._count, deals: Math.max(0, st._count.deals + (isTarget ? 1 : -1)) }
+                    : st._count,
+            }
         })
+    }
+
+    const handleMoveToStage = async (deal: Deal, stageId: string) => {
+        setStages(prev => moveDealLocally(prev, deal.id, stageId, deal))
         try {
             await fetch(`/api/deals/${deal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stageId }) })
             void loadLanes()
@@ -1022,12 +1049,7 @@ export default function NegociosPage() {
         }
         if (currentStageId === targetStageId) return
 
-        setStages(prev => {
-            const n = prev.map(s => ({ ...s, deals: s.deals.filter(d => d.id !== dealId) }))
-            const dealToMove = prev.find(s => s.id === currentStageId)?.deals.find(d => d.id === dealId)
-            if (dealToMove) { const idx = n.findIndex(s => s.id === targetStageId); if (idx >= 0) n[idx].deals.push({ ...dealToMove, stageId: targetStageId! }) }
-            return n
-        })
+        setStages(prev => moveDealLocally(prev, dealId, targetStageId))
 
         try {
             await fetch(`/api/deals/${dealId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stageId: targetStageId }) })
