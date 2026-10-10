@@ -182,13 +182,19 @@ não do canal.
 
 **A jornada anda nos dois sentidos.** O check de uma fase vem de uma passagem
 registrada por ela (`DealStageEntry`), e o paciente volta atrás: agendou, não
-compareceu, vai ser reagendado. Clicar numa fase anterior move o negócio de
-volta; **Desfazer esta passagem**, no card da fase, tira o registro — e com ele
-o check. Sai só a passagem mais recente: se o paciente já tinha passado por ali
-antes, aquela passagem fica e a fase continua marcada, porque aconteceu mesmo,
-naquela data. A fase atual não se desfaz (o negócio está parado nela), e
-**limpar só a data não desfaz nada** — data vazia quer dizer "a fase aconteceu,
-a data eu não sei", que é o caso de quem registra a jornada depois do fato.
+compareceu, vai ser reagendado. **Desfazer esta passagem**, no card da fase,
+tira o registro — e com ele o check. Desfazer a fase **atual** move o negócio
+para o ponto anterior da jornada (a passagem mais recente por outra fase, não a
+casa de trás no funil), porque é esse o caso comum: a pessoa está parada no
+agendamento que não aconteceu. A volta é registrada como qualquer mudança de
+fase, de propósito — o follow-up automático conta os dias da última passagem, e
+restaurar uma data antiga faria a régua disparar no mesmo minuto.
+
+Sai só a passagem mais recente: se o paciente já tinha passado por ali antes,
+aquela passagem fica e a fase continua marcada, porque aconteceu mesmo, naquela
+data. E **limpar só a data não desfaz nada** — data vazia quer dizer "a fase
+aconteceu, a data eu não sei", que é o caso de quem registra a jornada depois do
+fato.
 
 **O telefone é a chave.** `Contact` é único por `(workspaceId, phone)`, e todo
 telefone é gravado como o WhatsApp endereça — dígitos com o código do país. Uma

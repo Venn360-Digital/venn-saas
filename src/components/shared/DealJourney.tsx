@@ -198,12 +198,37 @@ export function DealJourney({
         value ? new Date(`${value}T12:00:00`).toISOString() : null
 
     /**
+     * O ponto anterior da jornada: para onde o negócio volta ao desfazer.
+     *
+     * A passagem datada mais recente por **outra** fase — o histórico real, não
+     * a ordem do funil: quem pulou uma fase volta para onde esteve, não para a
+     * casa de trás. Sem histórico, a fase imediatamente anterior na ordem.
+     * `null` quando não há para onde voltar, e aí não há o que desfazer.
+     */
+    const previousPoint = (stageId: string): string | null => {
+        const elsewhere = entries
+            .filter((e) => e.stageId !== stageId && e.enteredAt)
+            .sort((a, b) => new Date(b.enteredAt as string).getTime() - new Date(a.enteredAt as string).getTime())
+        if (elsewhere[0]) return elsewhere[0].stageId
+        const index = ordered.findIndex((s) => s.id === stageId)
+        return index > 0 ? ordered[index - 1].id : null
+    }
+
+    /**
      * Desfazer a passagem: a fase sai da jornada, e com ela o check.
      *
      * É o gesto que faltava quando o paciente volta atrás — agendou, não
-     * compareceu, vai ser reagendado. Mover o negócio para a fase anterior já
-     * funcionava, mas a fase adiante continuava marcada, e a jornada passava a
-     * mostrar um agendamento que não existe mais.
+     * compareceu, vai ser reagendado.
+     *
+     * **Desfazer a fase atual move o negócio de volta**, e é esse o caso comum:
+     * a pessoa está parada no agendamento que não aconteceu. A primeira versão
+     * disto exigia mover antes e só então desfazer, o que era inalcançável:
+     * clicar numa fase que não é a atual *move o negócio para ela*, então abrir
+     * o card de uma fase adiante a tornava a fase atual. Um gesto só, aqui.
+     *
+     * A volta é registrada como qualquer outra mudança de fase, de propósito: o
+     * follow-up automático conta os dias da última passagem, e restaurar uma
+     * data antiga faria a régua disparar no mesmo minuto.
      *
      * Só a passagem mais recente sai. Se o paciente já tinha passado por esta
      * fase antes, aquela passagem fica e a fase continua marcada — porque ela
@@ -212,11 +237,31 @@ export function DealJourney({
     const undoEntry = (stageId: string) => {
         const entry = latest.get(stageId)
         if (!entry) return
-        void send({ stageEntry: { stageId, remove: true } }, () => {
+        const isCurrent = stageId === currentStageId
+        const back = isCurrent ? previousPoint(stageId) : null
+        if (isCurrent && !back) {
+            toast.error('Não há fase anterior na jornada para onde voltar.')
+            return
+        }
+
+        const body: Record<string, unknown> = { stageEntry: { stageId, remove: true } }
+        if (back) body.stageId = back
+
+        void send(body, () => {
             setUndoing(null)
             setOpen(null)
-            onChange({ currentStageId, entries: entries.filter((e) => e !== entry) })
-            toast.success('Passagem desfeita')
+            const kept = entries.filter((e) => e !== entry)
+            onChange({
+                currentStageId: back ?? currentStageId,
+                entries: back
+                    ? [...kept, { stageId: back, enteredAt: new Date().toISOString(), note: null }]
+                    : kept,
+            })
+            toast.success(
+                back
+                    ? `Passagem desfeita — de volta para ${ordered.find((st) => st.id === back)?.name ?? 'a fase anterior'}`
+                    : 'Passagem desfeita'
+            )
         })
     }
 
@@ -390,12 +435,20 @@ export function DealJourney({
                                             pede confirmação — mas num diálogo ela
                                             cobriria a própria jornada que a pessoa
                                             está lendo para decidir. */}
-                                        {entry && !isCurrent && !closed ? (
+                                        {/* Desfazer a fase atual precisa de um
+                                            ponto anterior para onde voltar; na
+                                            primeira fase de um negócio sem
+                                            histórico não existe desfazer. */}
+                                        {entry && !closed && (!isCurrent || previousPoint(stage.id)) ? (
                                             <div className="flex items-center justify-end gap-2 border-t border-border pt-1.5">
                                                 {undoing === stage.id ? (
                                                     <>
                                                         <span className="mr-auto text-[11px] text-muted-foreground">
-                                                            Tira esta passagem da jornada.
+                                                            {isCurrent
+                                                                ? `Tira esta passagem e volta o negócio para ${
+                                                                      ordered.find((st) => st.id === previousPoint(stage.id))?.name ?? 'a fase anterior'
+                                                                  }.`
+                                                                : 'Tira esta passagem da jornada.'}
                                                         </span>
                                                         <button
                                                             type="button"
