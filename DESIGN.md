@@ -285,6 +285,13 @@ frase e ação), erro (`ErrorState`) e sucesso. Faltar um é bug, não polimento
 e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
 tabela vira cartão.
 
+**Quadro: cabeçalho e rodapé param, o quadro corre.** No kanban a região da
+página não rola — ela se divide em quadro e rodapé. O quadro rola por dentro,
+nos dois eixos, e a faixa de Ganho e Perdido fica no rodapé **mesmo sem cartão
+nenhum**: ela é alvo de arrasto, e um alvo que só existe depois de rolar até o
+fim não é alvo. Medido: com seis colunas de doze cartões, a região externa rola
+zero, o quadro rola 193px na vertical e o rodapé não sai do lugar.
+
 **Ordenação é padrão de tabela, não recurso de uma tela.** Toda coluna que
 carrega **um valor comparável** — texto, número, data, estado de duas vias —
 nasce com `sortable: true`. Não recebem ordenação apenas as colunas que não têm

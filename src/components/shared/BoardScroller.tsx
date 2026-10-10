@@ -60,11 +60,18 @@ export function BoardScroller({ children, className }: { children: React.ReactNo
     }
 
     return (
-        <div className={cn('relative', className)}>
+        // `flex flex-col` para o quadro poder ocupar a altura que sobrar
+        // quando a tela o pede (o kanban, que fixa a faixa de desfecho no
+        // rodapé). Sem altura imposta de fora, nada muda: `flex-1` cai na
+        // altura do conteúdo.
+        <div className={cn('relative flex flex-col', className)}>
             <div
                 ref={ref}
                 onScroll={measure}
-                className="flex gap-4 overflow-x-auto pb-4"
+                // A rolagem vertical é deste elemento, não da região da página:
+                // é assim que a faixa de Ganho e Perdido fica parada no rodapé
+                // enquanto as colunas correm por baixo.
+                className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-auto pb-4"
             >
                 {children}
             </div>

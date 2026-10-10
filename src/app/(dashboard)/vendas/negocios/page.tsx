@@ -1412,7 +1412,15 @@ export default function NegociosPage() {
 
 
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {/* No kanban a região não rola: ela se divide em quadro (que rola
+                por dentro) e rodapé fixo. Nas outras duas visões continua sendo
+                a própria região que rola. */}
+            <div
+                className={cn(
+                    'min-h-0 flex-1 p-3',
+                    viewMode === 'kanban' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
+                )}
+            >
             {/* Trilho + foco + jornada.
                 A geometria que resolve a sobreposição pela raiz: o funil vive no
                 eixo vertical (o trilho cresce para baixo, não para o lado), então
@@ -1507,9 +1515,9 @@ export default function NegociosPage() {
                       chegar nelas — rolar o quadro trazia os cartões para baixo
                       do painel. Agora o quadro perde largura e ganha setas: dá
                       para andar por todas as fases com o painel aberto. */}
-                  <div className={cn('relative', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
-                    <div className="min-w-0">
-                    <BoardScroller>
+                  <div className={cn('relative flex min-h-0 flex-1 flex-col', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    <BoardScroller className="min-h-0 flex-1">
                         {stages.map((stage) => (
                             <StageColumn key={stage.id} stage={stage} onAddDeal={handleAddDeal} onEditDeal={handleEditDeal}
                                 onDeleteDeal={(deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) }}
@@ -1536,7 +1544,7 @@ export default function NegociosPage() {
                     {/* Fechar é um gesto do quadro, não uma coluna.
                         Ganho e perdido não são posições: como coluna cresceriam
                         para sempre e apagariam a fase em que o negócio fechou. */}
-                    <div className="grid grid-cols-2 gap-3 px-1 pb-1">
+                    <div className="grid shrink-0 grid-cols-2 gap-3 border-t border-border bg-background px-1 pt-3">
                         <OutcomeZone
                             side="won"
                             count={wonCount}
