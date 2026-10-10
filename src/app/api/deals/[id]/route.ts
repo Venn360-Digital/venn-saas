@@ -164,6 +164,36 @@ export async function PATCH(
          * daquela etapa em vez de criar outra — anotar não é mudar de fase.
          */
         if (stageEntry && typeof stageEntry.stageId === 'string') {
+            /**
+             * Desfazer a passagem: a fase deixa de constar na jornada.
+             *
+             * Some **a passagem mais recente**, não todas. O paciente que foi
+             * agendado, não compareceu e vai ser reagendado tem duas passagens
+             * pela mesma fase; desfazer a de agora não apaga a de antes, que
+             * aconteceu de verdade — e a fase continua marcada por causa dela.
+             *
+             * A fase atual não se desfaz: o negócio está parado nela. Mover
+             * para outra fase primeiro é o mesmo gesto que a tela já pede.
+             */
+            if (stageEntry.remove === true) {
+                const currentStageId = typeof stageId === 'string' ? stageId : existingDeal.stageId
+                if (stageEntry.stageId === currentStageId) {
+                    return NextResponse.json(
+                        { error: 'A fase atual não pode ser desfeita. Mova o negócio para outra fase primeiro.' },
+                        { status: 409 }
+                    )
+                }
+                // A mesma ordem que escolhe a passagem exibida no painel: é a
+                // passagem que a pessoa está vendo que tem de sair.
+                const newest = await prisma.dealStageEntry.findFirst({
+                    where: { dealId: id, stageId: stageEntry.stageId },
+                    orderBy: { enteredAt: { sort: 'desc', nulls: 'last' } },
+                    select: { id: true },
+                })
+                if (newest) await prisma.dealStageEntry.delete({ where: { id: newest.id } })
+                return NextResponse.json(deal)
+            }
+
             const data: { note?: string | null; enteredAt?: Date | null } = {}
             if (typeof stageEntry.note === 'string') {
                 data.note = stageEntry.note.trim() ? stageEntry.note.trim() : null

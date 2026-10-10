@@ -180,6 +180,16 @@ não cair na fila de espera. A fase se marca na Jornada do paciente, que abre em
 seguida: a jornada é a mesma para todo paciente, porque as fases são da clínica,
 não do canal.
 
+**A jornada anda nos dois sentidos.** O check de uma fase vem de uma passagem
+registrada por ela (`DealStageEntry`), e o paciente volta atrás: agendou, não
+compareceu, vai ser reagendado. Clicar numa fase anterior move o negócio de
+volta; **Desfazer esta passagem**, no card da fase, tira o registro — e com ele
+o check. Sai só a passagem mais recente: se o paciente já tinha passado por ali
+antes, aquela passagem fica e a fase continua marcada, porque aconteceu mesmo,
+naquela data. A fase atual não se desfaz (o negócio está parado nela), e
+**limpar só a data não desfaz nada** — data vazia quer dizer "a fase aconteceu,
+a data eu não sei", que é o caso de quem registra a jornada depois do fato.
+
 **O telefone é a chave.** `Contact` é único por `(workspaceId, phone)`, e todo
 telefone é gravado como o WhatsApp endereça — dígitos com o código do país. Uma
 ficha criada à mão com máscara e a mesma pessoa escrevendo pelo WhatsApp viravam

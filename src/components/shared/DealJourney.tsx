@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { Check, Clock, Flag, Trophy, X } from 'lucide-react'
+import { Check, Clock, Flag, Trophy, Undo2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useNow } from '@/hooks/useNow'
@@ -93,6 +93,8 @@ export function DealJourney({
      * expandir — aqui ele cobriria a conversa que a pessoa está lendo para
      * decidir.
      */
+    /** Fase cuja passagem está a um toque de ser desfeita. */
+    const [undoing, setUndoing] = useState<string | null>(null)
     const [side, setSide] = useState<Outcome | null>(null)
     const [reasonId, setReasonId] = useState('')
     const [closedValueDraft, setClosedValueDraft] = useState('')
@@ -102,6 +104,7 @@ export function DealJourney({
 
     useEffect(() => {
         setOpen(null)
+        setUndoing(null)
         setSide(null)
         setReasonId('')
         setOutcomeNote('')
@@ -142,10 +145,16 @@ export function DealJourney({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             })
-            if (!res.ok) throw new Error()
+            if (!res.ok) {
+                // O servidor recusa com motivo (desfazer a fase atual, por
+                // exemplo). Repetir o motivo é melhor que a frase genérica.
+                const data = await res.json().catch(() => null)
+                throw new Error(typeof data?.error === 'string' ? data.error : '')
+            }
             apply()
-        } catch {
-            toast.error('Não foi possível salvar a jornada')
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : ''
+            toast.error(reason || 'Não foi possível salvar a jornada')
         } finally {
             setBusy(false)
         }
@@ -162,6 +171,7 @@ export function DealJourney({
     const selectStage = (stage: JourneyStage) => {
         const alreadyOpen = open === stage.id
         setOpen(alreadyOpen ? null : stage.id)
+        setUndoing(null)
 
         // Negócio fechado não muda de fase: reabrir primeiro é explícito.
         if (closed || stage.id === currentStageId) return
@@ -186,6 +196,29 @@ export function DealJourney({
      */
     const dateToIso = (value: string | null) =>
         value ? new Date(`${value}T12:00:00`).toISOString() : null
+
+    /**
+     * Desfazer a passagem: a fase sai da jornada, e com ela o check.
+     *
+     * É o gesto que faltava quando o paciente volta atrás — agendou, não
+     * compareceu, vai ser reagendado. Mover o negócio para a fase anterior já
+     * funcionava, mas a fase adiante continuava marcada, e a jornada passava a
+     * mostrar um agendamento que não existe mais.
+     *
+     * Só a passagem mais recente sai. Se o paciente já tinha passado por esta
+     * fase antes, aquela passagem fica e a fase continua marcada — porque ela
+     * aconteceu mesmo, naquela data.
+     */
+    const undoEntry = (stageId: string) => {
+        const entry = latest.get(stageId)
+        if (!entry) return
+        void send({ stageEntry: { stageId, remove: true } }, () => {
+            setUndoing(null)
+            setOpen(null)
+            onChange({ currentStageId, entries: entries.filter((e) => e !== entry) })
+            toast.success('Passagem desfeita')
+        })
+    }
 
     const editEntry = (stageId: string, patch: { note?: string; enteredAt?: string | null }) => {
         const entry = latest.get(stageId)
@@ -351,6 +384,47 @@ export function DealJourney({
                                             className="w-full resize-none bg-transparent text-xs placeholder:text-muted-foreground/60 focus:outline-none"
                                             aria-label={`Nota — ${stage.name}`}
                                         />
+
+                                        {/* Desfazer em dois toques, aqui dentro.
+                                            Apaga data e nota desta passagem, então
+                                            pede confirmação — mas num diálogo ela
+                                            cobriria a própria jornada que a pessoa
+                                            está lendo para decidir. */}
+                                        {entry && !isCurrent && !closed ? (
+                                            <div className="flex items-center justify-end gap-2 border-t border-border pt-1.5">
+                                                {undoing === stage.id ? (
+                                                    <>
+                                                        <span className="mr-auto text-[11px] text-muted-foreground">
+                                                            Tira esta passagem da jornada.
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setUndoing(null)}
+                                                            className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground hover:bg-muted"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={busy}
+                                                            onClick={() => undoEntry(stage.id)}
+                                                            className="rounded bg-destructive px-1.5 py-0.5 text-[11px] font-bold text-destructive-foreground disabled:opacity-60"
+                                                        >
+                                                            Desfazer
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setUndoing(stage.id)}
+                                                        className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                    >
+                                                        <Undo2 className="size-3" />
+                                                        Desfazer esta passagem
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : null}
                                     </div>
                                 ) : null}
                             </div>
