@@ -8,6 +8,7 @@ import { runCreditsReset } from './credits-reset'
 import { runTrialLifecycle } from './trial-lifecycle'
 import { runRetention } from './retention'
 import { runIntegrationHealth } from './integration-health'
+import { runFollowUp } from './follow-up'
 
 const log = createLogger('CRON')
 
@@ -19,6 +20,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     retention: runRetention,
     'integration-health': runIntegrationHealth,
     'conversation-autoclose': runConversationAutoclose,
+    'follow-up': runFollowUp,
 }
 
 export async function processCron(job: Job<CronJob>): Promise<void> {

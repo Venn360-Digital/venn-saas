@@ -437,6 +437,14 @@ model Deal {
 }
 
 model PipelineStage {
+  /// Dias sem retorno marcado até o sistema cobrar uma retomada.
+  ///
+  /// `null` significa "esta fase não cobra" — útil onde a espera não é da
+  /// clínica, como um retrabalho parado no laboratório. O limite é por fase
+  /// porque cobrar em dois dias no primeiro contato e em dez no comparecimento
+  /// não é a mesma coisa.
+  followUpDays Int?
+
   id          String @id @default(cuid())
   workspaceId String
   name        String
@@ -539,6 +547,12 @@ model Media {
 }
 
 model Activity {
+  /// Criada por automação, não por uma pessoa.
+  ///
+  /// Serve à etiqueta na tela e ao filtro: tarefa que aparece sem explicação
+  /// vira ruído que a equipe aprende a ignorar.
+  auto Boolean @default(false)
+
   id          String  @id @default(cuid())
   workspaceId String
   userId      String?

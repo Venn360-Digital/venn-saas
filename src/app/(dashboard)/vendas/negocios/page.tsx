@@ -155,6 +155,8 @@ interface Stage {
     deals: Deal[]
     /** O total real da etapa: `deals` vem limitado a cem por coluna. */
     _count?: { deals: number }
+    /** Dias sem retorno marcado até o follow-up cobrar. `null` = não cobra. */
+    followUpDays?: number | null
 }
 
 interface DealActivity {

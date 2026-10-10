@@ -27,6 +27,8 @@ export interface ManagedStage {
     order: number
     deals: unknown[]
     _count?: { deals: number }
+    /** Dias sem retorno marcado até o sistema cobrar. `null` = não cobra. */
+    followUpDays?: number | null
 }
 
 /**
@@ -224,6 +226,27 @@ export function StageManagerDialog({
                                 <span className="num rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                                     {dealCount(stage)}
                                 </span>
+
+                                {/* O prazo da fase: é ele que faz a tarefa de
+                                    retomada nascer sozinha. Vazio significa "esta
+                                    fase não cobra" — e é o padrão, para ligar a
+                                    automação ser decisão da clínica. */}
+                                <div className="flex items-center gap-1">
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={365}
+                                        value={stage.followUpDays ?? ''}
+                                        placeholder="—"
+                                        aria-label={`Cobrar retomada em quantos dias na fase ${stage.name}`}
+                                        onChange={(e) => {
+                                            const raw = e.target.value
+                                            void patch(stage, { followUpDays: raw === '' ? null : Number(raw) })
+                                        }}
+                                        className="num h-8 w-[56px] px-2 text-center text-xs"
+                                    />
+                                    <span className="text-[11px] text-muted-foreground">d</span>
+                                </div>
                                 <div className="flex flex-col">
                                     <button
                                         type="button"
@@ -283,6 +306,11 @@ export function StageManagerDialog({
                         </div>
 
                         <p className="pt-1 text-xs text-muted-foreground">
+                            A coluna <strong>d</strong> é o prazo: passados tantos dias sem nenhum
+                            retorno marcado, o sistema cria sozinho a tarefa “Retomar contato” para
+                            o responsável. Vazio, a fase não cobra nada.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
                             A <strong>Finalização</strong> fecha toda jornada e não é uma fase daqui —
                             ganho e perdido se registram no painel, e os motivos têm a sua própria lista.
                         </p>

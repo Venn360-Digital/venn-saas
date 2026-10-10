@@ -125,6 +125,7 @@ export type CronJobName =
     | 'retention'
     | 'integration-health'
     | 'conversation-autoclose'
+    | 'follow-up'
 
 export interface CronJob {
     task: CronJobName

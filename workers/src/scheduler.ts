@@ -34,6 +34,9 @@ const SCHEDULES: Schedule[] = [
     { task: 'integration-health', pattern: '*/10 * * * *' },
     // No-op unless CONVERSATION_AUTOCLOSE_HOURS is set.
     { task: 'conversation-autoclose', pattern: '21 * * * *' },
+    // 7h: a tarefa precisa estar na agenda antes de a recepção abrir, e nenhuma
+    // fase cobra nada enquanto a clínica não definir o prazo dela.
+    { task: 'follow-up', pattern: '0 7 * * *' },
 ]
 
 /**

@@ -36,7 +36,7 @@ export async function PATCH(
         if (!stage) return NextResponse.json({ error: 'Etapa não encontrada' }, { status: 404 })
 
         const body = await request.json()
-        const { name, color, order } = body
+        const { name, color, order, followUpDays } = body
 
         if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
             return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
@@ -49,6 +49,11 @@ export async function PATCH(
         if (name !== undefined) updateData.name = name.trim()
         if (color !== undefined) updateData.color = color
         if (order !== undefined) updateData.order = order
+        // `null` desliga a cobrança desta fase; número é o prazo em dias.
+        if (followUpDays !== undefined) {
+            updateData.followUpDays =
+                followUpDays === null || followUpDays === '' ? null : Math.max(0, Number(followUpDays)) || null
+        }
 
         const updated = await prisma.pipelineStage.update({
             where: { id },
