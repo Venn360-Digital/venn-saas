@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { laneWhere } from '@/lib/deal-lanes'
+import { readAutomations } from '@/lib/automations'
 import { createLogger } from '../../logger'
 
 const log = createLogger('CRON:FOLLOWUP')
@@ -32,7 +33,13 @@ const MAX_PER_STAGE = 25
 export async function runFollowUp(): Promise<void> {
     const stages = await prisma.pipelineStage.findMany({
         where: { followUpDays: { not: null } },
-        select: { id: true, name: true, workspaceId: true, followUpDays: true },
+        select: {
+            id: true,
+            name: true,
+            workspaceId: true,
+            followUpDays: true,
+            workspace: { select: { automations: true } },
+        },
     })
 
     if (stages.length === 0) {
@@ -43,9 +50,14 @@ export async function runFollowUp(): Promise<void> {
     const now = new Date()
     let created = 0
 
+    /** Quem ganhou tarefa hoje, para receber um aviso só no fim. */
+    const touched = new Map<string, { workspaceId: string; count: number }>()
+
     for (const stage of stages) {
         const days = stage.followUpDays ?? 0
         if (days <= 0) continue
+        // A clínica pode desligar a camada inteira sem apagar os prazos das fases.
+        if (!readAutomations(stage.workspace.automations).followUpTasks) continue
 
         const cutoff = new Date(now)
         cutoff.setDate(cutoff.getDate() - days)
@@ -106,11 +118,32 @@ export async function runFollowUp(): Promise<void> {
                 },
             })
             created += 1
+
+            if (deal.userId) {
+                const entry = touched.get(deal.userId) ?? { workspaceId: stage.workspaceId, count: 0 }
+                entry.count += 1
+                touched.set(deal.userId, entry)
+            }
         }
 
         if (candidates.length === MAX_PER_STAGE) {
             log.warn(`stage ${stage.name} hit the ${MAX_PER_STAGE} cap; the rest comes tomorrow`)
         }
+    }
+
+    // Um aviso por pessoa, não um por tarefa: cinco retomadas são uma notícia,
+    // não cinco.
+    for (const [userId, { workspaceId, count }] of touched) {
+        await prisma.notification.create({
+            data: {
+                workspaceId,
+                userId,
+                kind: 'follow_up',
+                title: count === 1 ? '1 retomada para hoje' : `${count} retomadas para hoje`,
+                body: 'Pacientes parados sem nenhum retorno marcado.',
+                link: '/vendas/agenda',
+            },
+        })
     }
 
     log.info(`created ${created} follow-up task(s) across ${stages.length} stage(s)`)

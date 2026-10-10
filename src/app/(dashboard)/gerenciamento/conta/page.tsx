@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { AutomacoesTab } from '@/components/account/AutomacoesTab'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
 import { PlanoTab } from '@/components/account/PlanoTab'
@@ -78,6 +79,12 @@ function ContaContent() {
                         Integrações
                     </TabsTrigger>
                     <TabsTrigger
+                        value="automacoes"
+                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
+                    >
+                        Automações
+                    </TabsTrigger>
+                    <TabsTrigger
                         value="plano"
                         className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
                     >
@@ -103,6 +110,11 @@ function ContaContent() {
                 <TabsContent value="integracoes">
                     <IntegrationsPanel embedded />
                 </TabsContent>
+
+                <TabsContent value="automacoes">
+                    <AutomacoesTab />
+                </TabsContent>
+
 
                 <TabsContent value="plano">
                     <PlanoTab />

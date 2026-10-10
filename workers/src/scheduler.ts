@@ -37,6 +37,9 @@ const SCHEDULES: Schedule[] = [
     // 7h: a tarefa precisa estar na agenda antes de a recepção abrir, e nenhuma
     // fase cobra nada enquanto a clínica não definir o prazo dela.
     { task: 'follow-up', pattern: '0 7 * * *' },
+    // De hora em hora, e cada clínica recebe na hora que escolheu: um cron só
+    // atende rotinas diferentes sem uma fila por workspace.
+    { task: 'daily-briefing', pattern: '2 * * * *' },
 ]
 
 /**

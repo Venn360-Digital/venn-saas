@@ -47,6 +47,7 @@ model User {
 model Workspace {
   creditPurchases  CreditPurchase[]
   notificationLogs NotificationLog[]
+  notifications    Notification[]
   termsAcceptances TermsAcceptance[]
   id               String            @id @default(cuid())
   name             String
@@ -87,6 +88,11 @@ model Workspace {
   agencies       Agency[]
   medias         Media[]
   customFields   CustomFieldDefinition[]
+
+  /// O que a clínica deixou ligado: boletim diário, hora dele, tarefa de
+  /// retomada. JSON porque a lista cresce a cada camada de automação, e uma
+  /// coluna por chave viraria uma migração por melhoria.
+  automations Json?
 
   @@map("workspaces")
 }
@@ -820,6 +826,37 @@ model TermsAcceptance {
 /// up after being down — does not send the same warning again. `scope` carries
 /// whatever makes the notice repeatable: a billing period for a recurring
 /// warning, empty for a once-ever one.
+/// Um aviso que espera ser visto.
+///
+/// O lembrete de atividade só chegava a quem estivesse com a aba aberta no
+/// minuto exato — o próprio processador admitia isso num comentário. Aqui o
+/// aviso fica guardado até alguém ler, o que é a diferença entre "notifiquei" e
+/// "a pessoa soube".
+///
+/// `userId` nulo é aviso do workspace inteiro — o boletim da manhã, por
+/// exemplo, quando ninguém em particular é o dono dele.
+model Notification {
+  id          String  @id @default(cuid())
+  workspaceId String
+  userId      String?
+
+  /// "follow_up", "reminder", "briefing" — agrupa e escolhe o ícone.
+  kind  String
+  title String
+  body  String? @db.Text
+  /// Para onde o clique leva, relativo à aplicação.
+  link  String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
 model NotificationLog {
   id          String   @id @default(cuid())
   workspaceId String

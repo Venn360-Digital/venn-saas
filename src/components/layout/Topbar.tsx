@@ -27,6 +27,16 @@ import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { useSoundEnabled } from '@/hooks/useSoundEnabled'
 
+interface AppNotification {
+    id: string
+    kind: string
+    title: string
+    body: string | null
+    link: string | null
+    readAt: string | null
+    createdAt: string
+}
+
 interface Reminder {
     id: string
     title: string
@@ -49,12 +59,41 @@ function formatReminderTime(r: Reminder): string {
 export function Topbar() {
     const [soundEnabled, setSoundEnabled] = useSoundEnabled()
     const [reminders, setReminders] = useState<Reminder[]>([])
+    const [notifications, setNotifications] = useState<AppNotification[]>([])
+    const [unread, setUnread] = useState(0)
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
     const router = useRouter()
 
 
 
     // Poll reminders every 60 seconds
+    /**
+     * Os avisos guardados, que sobrevivem ao navegador fechado.
+     *
+     * Vivem ao lado dos lembretes de atividade, que continuam sendo uma consulta
+     * ao vivo: lembrete é "daqui a uma hora", aviso é "aconteceu e você precisa
+     * saber". Juntá-los numa lista só seria misturar relógio com recado.
+     */
+    const loadNotifications = useCallback(async () => {
+        try {
+            const res = await fetch('/api/notifications')
+            if (!res.ok) return
+            const data = await res.json()
+            setNotifications(data.items ?? [])
+            setUnread(data.unread ?? 0)
+        } catch { /* a campainha segue com o que tem */ }
+    }, [])
+
+    const markAllRead = async () => {
+        setUnread(0)
+        setNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })))
+        await fetch('/api/notifications', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        }).catch(() => { })
+    }
+
     const loadReminders = useCallback(async () => {
         try {
             const res = await fetch('/api/activities/reminders')
@@ -83,9 +122,13 @@ export function Topbar() {
         // `useSoundEnabled`, não silenciado.
         // eslint-disable-next-line react-hooks/set-state-in-effect
         loadReminders()
-        const interval = setInterval(loadReminders, 60000) // every 60s
+        void loadNotifications()
+        const interval = setInterval(() => {
+            loadReminders()
+            void loadNotifications()
+        }, 60000) // every 60s
         return () => clearInterval(interval)
-    }, [loadReminders])
+    }, [loadReminders, loadNotifications])
 
 
     const handleDismissReminder = async (id: string) => {
@@ -149,14 +192,59 @@ export function Topbar() {
                     <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
                             <Bell className="h-5 w-5" />
-                            {activeReminders.length > 0 && (
+                            {activeReminders.length + unread > 0 && (
                                 <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center num rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
-                                    {activeReminders.length > 9 ? '9+' : activeReminders.length}
+                                    {activeReminders.length + unread > 9 ? '9+' : activeReminders.length + unread}
                                 </span>
                             )}
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent align="end" className="w-80 p-0">
+                        {/* Avisos guardados primeiro: eles já aconteceram, e o
+                            lembrete ainda vai acontecer. */}
+                        {notifications.length > 0 && (
+                            <div className="border-b border-border">
+                                <div className="flex items-center justify-between px-4 py-2.5">
+                                    <h3 className="text-sm font-semibold">Avisos</h3>
+                                    {unread > 0 && (
+                                        <button
+                                            onClick={() => void markAllRead()}
+                                            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                                        >
+                                            Marcar como lidos
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="max-h-56 overflow-y-auto">
+                                    {notifications.map((n) => (
+                                        <Link
+                                            key={n.id}
+                                            href={n.link ?? '/dashboard'}
+                                            className={cn(
+                                                'flex items-start gap-3 border-b border-border px-4 py-2.5 transition-colors last:border-0 hover:bg-accent/30',
+                                                !n.readAt && 'bg-primary-subtle/40'
+                                            )}
+                                        >
+                                            <div className={cn('mt-0.5 rounded-md bg-accent p-1.5', !n.readAt && 'text-primary-subtle-foreground')}>
+                                                <Bell className="h-3.5 w-3.5" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm font-medium">{n.title}</p>
+                                                {n.body && (
+                                                    <p className="whitespace-pre-line text-xs text-muted-foreground">{n.body}</p>
+                                                )}
+                                                <p className="num mt-0.5 text-[11px] text-muted-foreground/70">
+                                                    {new Date(n.createdAt).toLocaleString('pt-BR', {
+                                                        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                                                    })}
+                                                </p>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between border-b border-border px-4 py-3">
                             <h3 className="text-sm font-semibold">Lembretes</h3>
                             {activeReminders.length > 0 && (
