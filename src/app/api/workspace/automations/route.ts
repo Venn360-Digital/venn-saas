@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { DEFAULT_AUTOMATIONS, readAutomations, type Automations } from '@/lib/automations'
+import { connectedWhatsApp } from '@/lib/intake'
 
 /** O que a clínica deixou ligado. */
 export async function GET() {
@@ -14,7 +15,14 @@ export async function GET() {
         select: { automations: true },
     })
 
-    return NextResponse.json(readAutomations(workspace?.automations))
+    // O envio automático por fase depende do canal: no oficial da Meta, texto
+    // livre fora da janela de 24h exige template aprovado, que não existe aqui.
+    const channel = await connectedWhatsApp(auth.member.workspaceId)
+
+    return NextResponse.json({
+        ...readAutomations(workspace?.automations),
+        canAutoSend: Boolean(channel),
+    })
 }
 
 export async function PATCH(request: NextRequest) {

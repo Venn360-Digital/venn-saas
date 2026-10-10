@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -29,6 +29,8 @@ export interface ManagedStage {
     _count?: { deals: number }
     /** Dias sem retorno marcado até o sistema cobrar. `null` = não cobra. */
     followUpDays?: number | null
+    /** Quem aperta enviar nesta fase: `off`, `draft` ou `send`. */
+    autoSend?: string | null
 }
 
 /**
@@ -58,6 +60,22 @@ export function StageManagerDialog({
     const [newColor, setNewColor] = useState(PICKER_RAMP[0] ?? DEFAULT_ENTITY_COLOR)
     const [deleting, setDeleting] = useState<ManagedStage | null>(null)
     const [moveTo, setMoveTo] = useState('')
+    /** Há WhatsApp conectado? Sem canal, a fase não tem como mandar nada. */
+    const [canAutoSend, setCanAutoSend] = useState<boolean | null>(null)
+
+    useEffect(() => {
+        if (!open) return
+        let cancelled = false
+        fetch('/api/workspace/automations')
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!cancelled) setCanAutoSend(Boolean(data?.canAutoSend))
+            })
+            .catch(() => {
+                if (!cancelled) setCanAutoSend(false)
+            })
+        return () => { cancelled = true }
+    }, [open])
 
     const sorted = [...stages].sort((a, b) => a.order - b.order)
 
@@ -267,6 +285,29 @@ export function StageManagerDialog({
                                         <ChevronDown className="size-3.5" />
                                     </button>
                                 </div>
+                                {/* Quem aperta enviar nesta fase. Três estados, e
+                                    o do meio é o que evita soltar o sistema sem a
+                                    clínica ter lido uma semana do que ele diria. */}
+                                <Select
+                                    value={stage.autoSend ?? 'off'}
+                                    disabled={!canAutoSend}
+                                    onValueChange={(v) => void patch(stage, { autoSend: v })}
+                                >
+                                    <SelectTrigger
+                                        size="sm"
+                                        className="w-[112px]"
+                                        aria-label={`Envio automático na fase ${stage.name}`}
+                                        title={canAutoSend === false ? 'Sem WhatsApp conectado' : undefined}
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="off">Só tarefa</SelectItem>
+                                        <SelectItem value="draft">Ensaio</SelectItem>
+                                        <SelectItem value="send">Enviar sozinho</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
@@ -306,6 +347,14 @@ export function StageManagerDialog({
                         </div>
 
                         <p className="pt-1 text-xs text-muted-foreground">
+                            <strong>Só tarefa</strong> cobra pelo painel, sem falar com o paciente.
+                            <strong> Ensaio</strong> escreve a mensagem e deixa para alguém aprovar —
+                            passe por ele antes de soltar. <strong>Enviar sozinho</strong> manda a
+                            quem tem WhatsApp, em horário comercial, no máximo duas vezes por
+                            paciente e nunca em conversa que alguém está atendendo.
+                            {canAutoSend === false ? ' Sem WhatsApp conectado, só a tarefa funciona.' : ''}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
                             A coluna <strong>d</strong> é o prazo: passados tantos dias sem nenhum
                             retorno marcado, o sistema cria sozinho a tarefa “Retomar contato” para
                             o responsável. Vazio, a fase não cobra nada.

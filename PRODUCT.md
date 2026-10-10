@@ -195,7 +195,50 @@ o número ser banido.
 
 ---
 
-## 9. O que ainda não existe
+## 9. Follow-up automático
+
+O funil sempre soube dizer quem estava esquecido; lembrar era trabalho de
+memória. Cinco camadas resolvem isso, e só a última fala com o paciente.
+
+**A tarefa que nasce sozinha.** Todo dia às 7h, negócio aberto, sem nenhuma
+atividade pendente, parado na fase além do prazo dela, vira "Retomar contato" no
+nome do responsável. O prazo é por fase (`followUpDays`), vazio significa que a
+fase não cobra. Não duplica por construção: o filtro é o mesmo que a faixa "sem
+próxima atividade" usa, então a tarefa criada tira o negócio da consulta.
+
+**A IA escreve.** Lê as últimas trinta mensagens, a fase com a sua data e nota,
+e devolve o texto e a data do retorno. Custa US$ 0,0003 por uso em gpt-4o-mini,
+com `checkCredits` antes e `trackUsage` depois. Nunca envia.
+
+**Avisos que esperam ser vistos.** `Notification` guarda o aviso até alguém ler;
+a campainha mostra avisos e lembretes separados, porque um já aconteceu e o
+outro ainda vai acontecer.
+
+**O boletim da manhã.** Na hora que a clínica escolher: três números e os nomes
+de quem ligar primeiro. Um por dia, mesmo que o worker reinicie.
+
+**O envio que a fase autoriza.** `autoSend` tem três estados: `off` (só tarefa),
+`draft` (escreve e deixa para aprovar — o ensaio) e `send`. Seis portões antes
+de qualquer mensagem, e a primeira recusa vira tarefa em vez de silêncio: a fase
+autoriza; o número tem WhatsApp; ninguém está cuidando da conversa (sem
+atendente atribuído e sem resposta do paciente nas últimas 24h); não falamos
+demais (no máximo **duas** automáticas por paciente, a **sete dias** de
+distância); é horário comercial em dia útil; e a IA tem contexto.
+
+**O descadastro.** "PARAR", "pare", "sair", "descadastrar", "não quero" ou
+"stop" no início da mensagem marcam `Contact.autoMessagesPausedAt` — por
+palavra, sem IA, porque a saída não pode depender de crédito nem de um modelo
+acertar a intenção. A marca é do paciente, não da conversa: fio novo continua
+respeitando. A equipe segue podendo escrever.
+
+**O limite de canal.** Isto vale para o canal QR. No canal oficial da Meta,
+texto livre para quem não escreveu nas últimas 24h exige template aprovado, que
+o projeto não tem — o controle da fase fica desabilitado quando não há canal
+capaz.
+
+---
+
+## 10. O que ainda não existe
 
 Registrado para não ser esquecido:
 

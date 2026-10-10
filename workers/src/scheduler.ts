@@ -40,6 +40,9 @@ const SCHEDULES: Schedule[] = [
     // De hora em hora, e cada clínica recebe na hora que escolheu: um cron só
     // atende rotinas diferentes sem uma fila por workspace.
     { task: 'daily-briefing', pattern: '2 * * * *' },
+    // De hora em hora porque precisa respeitar horário comercial, e às :35
+    // para não disputar o banco com o boletim.
+    { task: 'auto-follow-up', pattern: '35 * * * *' },
 ]
 
 /**

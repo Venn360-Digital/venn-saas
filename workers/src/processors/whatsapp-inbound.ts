@@ -12,6 +12,7 @@ import { archiveInboundMedia } from '../services/media'
 import { delayForSpeed, scheduleAiReply } from '../services/ai-reply-schedule'
 import { transcribeAudio } from '../services/transcribe'
 import { isHumanHandled, resolveInboundContext } from '../services/conversation'
+import { isOptOut } from './cron/auto-follow-up'
 import { findIntegrationByRef, providerFor, touchIntegration } from '../services/integration'
 import { readPreferences } from '../services/prompt'
 import { applyAgentRules } from '../services/rules'
@@ -62,6 +63,32 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         pushName: inbound.pushName,
         profilePicUrl: inbound.profilePicUrl,
     })
+
+    /**
+     * "PARAR" desliga o envio automático, antes de qualquer outra coisa.
+     *
+     * Reconhecido por palavra e não por IA: a saída não pode depender de
+     * crédito, de rede nem de um modelo acertar a intenção — e precisa valer
+     * mesmo que tudo o mais falhe nesta mensagem. A marca fica no paciente, e a
+     * equipe continua podendo escrever normalmente.
+     */
+    if (isOptOut(decoded.content) && !contact.autoMessagesPausedAt) {
+        await prisma.contact.update({
+            where: { id: contact.id },
+            data: { autoMessagesPausedAt: new Date() },
+        })
+        await prisma.message.create({
+            data: {
+                conversationId: conversation.id,
+                direction: 'internal',
+                content: `${contact.name || phone} pediu para parar de receber mensagens automáticas.`,
+                contentType: 'text',
+                isInternal: true,
+                status: 'sent',
+            },
+        })
+        log.info(`contact ${contact.id} opted out of automatic messages`)
+    }
 
     // Reactions and empty bodies create the contact/conversation but add no turn.
     if (decoded.contentType === 'reaction' || !decoded.content) {

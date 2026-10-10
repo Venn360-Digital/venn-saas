@@ -284,6 +284,7 @@ function getContactInitials(name: string | null, phone: string | null) {
 function getSentByLabel(sentBy: string | null) {
     if (!sentBy) return ''
     if (sentBy === 'agent') return '🤖'
+    if (sentBy === 'auto') return ''
     if (sentBy === 'user') return ''
     return '👤'
 }
@@ -2214,7 +2215,11 @@ export default function ConversasPage() {
                                         {visibleMessages.map((msg) => {
                                             const isInbound = msg.direction === 'inbound'
                                             const isAgent = msg.sentBy === 'agent'
-                                            const isHuman = msg.sentBy && msg.sentBy !== 'agent' && msg.sentBy !== 'user'
+                                            // Follow-up que o sistema mandou sozinho. Não se
+                                            // esconde: quem abrir a conversa amanhã precisa saber
+                                            // que aquela mensagem não saiu de uma pessoa.
+                                            const isAuto = msg.sentBy === 'auto'
+                                            const isHuman = msg.sentBy && msg.sentBy !== 'agent' && msg.sentBy !== 'user' && msg.sentBy !== 'auto'
                                             const isInternal = msg.isInternal || msg.direction === 'internal'
 
                                             if (isInternal) {
@@ -2266,14 +2271,19 @@ export default function ConversasPage() {
                                                                     : 'bg-bubble-human text-bubble-human-foreground rounded-br-md'
                                                         )}
                                                     >
-                                                        {/* Sender label */}
+                                                        {/* Quem falou. O follow-up automático se
+                                                            identifica porque esconder isso é o tipo
+                                                            de economia que custa caro quando o
+                                                            paciente percebe. */}
                                                         {!isInbound && (
-                                                            <div className="text-[10px] opacity-70 mb-1 font-medium">
-                                                                {isAgent
-                                                                    ? `🤖 ${msg.senderName || 'Agente'}`
-                                                                    : isHuman
-                                                                        ? `👤 ${msg.senderName || 'Atendente'}`
-                                                                        : ''
+                                                            <div className="text-[10px] opacity-70 mb-1 font-medium uppercase tracking-wide">
+                                                                {isAuto
+                                                                    ? 'Enviada automaticamente'
+                                                                    : isAgent
+                                                                        ? `🤖 ${msg.senderName || 'Agente'}`
+                                                                        : isHuman
+                                                                            ? `👤 ${msg.senderName || 'Atendente'}`
+                                                                            : ''
                                                                 }
                                                             </div>
                                                         )}

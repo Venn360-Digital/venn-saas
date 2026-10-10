@@ -127,6 +127,7 @@ export type CronJobName =
     | 'conversation-autoclose'
     | 'follow-up'
     | 'daily-briefing'
+    | 'auto-follow-up'
 
 export interface CronJob {
     task: CronJobName

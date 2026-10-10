@@ -10,6 +10,7 @@ import { runRetention } from './retention'
 import { runIntegrationHealth } from './integration-health'
 import { runFollowUp } from './follow-up'
 import { runDailyBriefing } from './daily-briefing'
+import { runAutoFollowUp } from './auto-follow-up'
 
 const log = createLogger('CRON')
 
@@ -23,6 +24,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     'conversation-autoclose': runConversationAutoclose,
     'follow-up': runFollowUp,
     'daily-briefing': runDailyBriefing,
+    'auto-follow-up': runAutoFollowUp,
 }
 
 export async function processCron(job: Job<CronJob>): Promise<void> {

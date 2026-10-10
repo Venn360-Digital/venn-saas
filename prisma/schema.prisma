@@ -328,6 +328,13 @@ model AgentCustomField {
 // ============================================
 
 model Contact {
+  /// Quando o paciente pediu para parar de receber mensagens automáticas.
+  ///
+  /// Fica no paciente, não na conversa: um fio novo amanhã continua
+  /// respeitando. A equipe pode escrever normalmente — o que para é o envio
+  /// automático.
+  autoMessagesPausedAt DateTime?
+
   id          String @id @default(cuid())
   workspaceId String
 
@@ -443,6 +450,14 @@ model Deal {
 }
 
 model PipelineStage {
+  /// Quem aperta enviar nesta fase: `off`, `draft` ou `send`.
+  ///
+  /// `off` cobra só com tarefa. `draft` escreve a mensagem e deixa para alguém
+  /// aprovar — é o modo ensaio, e é por onde toda clínica deveria passar antes
+  /// de soltar. `send` manda sozinho a quem tem WhatsApp, respeitando os freios
+  /// de `auto-follow-up`.
+  autoSend String @default("off")
+
   /// Dias sem retorno marcado até o sistema cobrar uma retomada.
   ///
   /// `null` significa "esta fase não cobra" — útil onde a espera não é da
