@@ -116,12 +116,43 @@ export async function GET(request: NextRequest) {
                     // relations each — the heaviest query in the app.
                     take: dealsPerStage,
                 },
-                _count: { select: { deals: true } },
+                /**
+                 * A contagem conta **o mesmo recorte** que a coluna mostra.
+                 *
+                 * Sem o `where`, `_count` contava o funil inteiro: ganhos e
+                 * perdidos apareciam somados na fase onde fecharam e outra vez
+                 * em "Finalizados", e o período e a faixa de prioridade não
+                 * entravam na conta. O trilho dizia 2 ao lado de um medidor
+                 * desenhado com 1.
+                 */
+                _count: {
+                    select: {
+                        deals: Object.keys(dealWhere).length > 0 ? { where: dealWhere } : true,
+                    },
+                },
             },
             orderBy: { order: 'asc' }
         })
 
-        return NextResponse.json(stages)
+        /**
+         * O total sem recorte nenhum, à parte.
+         *
+         * `_count` agora respeita o filtro da tela, que é o certo para o
+         * trilho — mas quem vai **excluir uma fase** precisa saber de todos os
+         * negócios que estão nela, inclusive os fechados e os fora do período:
+         * é o número que decide se a exclusão exige uma fase de destino. Um
+         * `groupBy` resolve as duas perguntas sem duplicar a consulta pesada.
+         */
+        const totals = await prisma.deal.groupBy({
+            by: ['stageId'],
+            where: { workspaceId: workspaceUser.workspaceId },
+            _count: { _all: true },
+        })
+        const totalByStage = new Map(totals.map((t) => [t.stageId, t._count._all]))
+
+        return NextResponse.json(
+            stages.map((stage) => ({ ...stage, totalDeals: totalByStage.get(stage.id) ?? 0 }))
+        )
     } catch (error) {
         console.error('[PIPELINES_GET]', error)
         return NextResponse.json({ error: 'Internal error' }, { status: 500 })

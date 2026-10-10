@@ -165,15 +165,16 @@ export async function PATCH(
          */
         if (stageEntry && typeof stageEntry.stageId === 'string') {
             /**
-             * Desfazer a passagem: a fase deixa de constar na jornada.
+             * Desfazer: a fase deixa de constar na jornada.
              *
-             * Some **a passagem mais recente**, não todas. O paciente que foi
-             * agendado, não compareceu e vai ser reagendado tem duas passagens
-             * pela mesma fase; desfazer a de agora não apaga a de antes, que
-             * aconteceu de verdade — e a fase continua marcada por causa dela.
+             * **Todas** as passagens por ela saem, não só a mais recente. A
+             * primeira versão apagava só a última, e o efeito na tela era o
+             * contrário do pedido: o negócio voltava, os campos esvaziavam e o
+             * check continuava aceso — porque uma passagem antiga pela mesma
+             * fase sobrevivia e remarcava a etapa. Desfazer quer dizer "esta
+             * fase não aconteceu", e isso não admite meia-medida.
              *
-             * A fase atual não se desfaz: o negócio está parado nela. Mover
-             * para outra fase primeiro é o mesmo gesto que a tela já pede.
+             * A fase de destino não se desfaz: é onde o negócio fica parado.
              */
             if (stageEntry.remove === true) {
                 const currentStageId = typeof stageId === 'string' ? stageId : existingDeal.stageId
@@ -183,14 +184,9 @@ export async function PATCH(
                         { status: 409 }
                     )
                 }
-                // A mesma ordem que escolhe a passagem exibida no painel: é a
-                // passagem que a pessoa está vendo que tem de sair.
-                const newest = await prisma.dealStageEntry.findFirst({
+                await prisma.dealStageEntry.deleteMany({
                     where: { dealId: id, stageId: stageEntry.stageId },
-                    orderBy: { enteredAt: { sort: 'desc', nulls: 'last' } },
-                    select: { id: true },
                 })
-                if (newest) await prisma.dealStageEntry.delete({ where: { id: newest.id } })
                 return NextResponse.json(deal)
             }
 

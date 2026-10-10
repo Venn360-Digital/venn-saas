@@ -180,21 +180,26 @@ não cair na fila de espera. A fase se marca na Jornada do paciente, que abre em
 seguida: a jornada é a mesma para todo paciente, porque as fases são da clínica,
 não do canal.
 
-**A jornada anda nos dois sentidos.** O check de uma fase vem de uma passagem
-registrada por ela (`DealStageEntry`), e o paciente volta atrás: agendou, não
-compareceu, vai ser reagendado. **Desfazer esta passagem**, no card da fase,
-tira o registro — e com ele o check. Desfazer a fase **atual** move o negócio
-para o ponto anterior da jornada (a passagem mais recente por outra fase, não a
-casa de trás no funil), porque é esse o caso comum: a pessoa está parada no
-agendamento que não aconteceu. A volta é registrada como qualquer mudança de
-fase, de propósito — o follow-up automático conta os dias da última passagem, e
-restaurar uma data antiga faria a régua disparar no mesmo minuto.
+**A jornada anda nos dois sentidos.** O check de uma fase vem da passagem
+registrada por ela (`DealStageEntry`) — nunca da posição no funil, que fazia o
+check voltar sozinho e marcava como cumprida a fase que o negócio pulou. O
+paciente volta atrás: agendou, não compareceu, vai ser reagendado. **Desfazer
+esta fase**, no card da fase, tira a fase da jornada: saem **todas** as
+passagens por ela, e o check some. Desfazer a fase atual move o negócio para a
+fase anterior do funil por onde ele passou — ordem do funil, não a passagem mais
+recente no relógio, senão desfazer manda para frente quem já tinha voltado uma
+vez. A volta é registrada como qualquer mudança de fase, de propósito: o
+follow-up automático conta os dias da última passagem, e restaurar uma data
+antiga faria a régua disparar no mesmo minuto.
 
-Sai só a passagem mais recente: se o paciente já tinha passado por ali antes,
-aquela passagem fica e a fase continua marcada, porque aconteceu mesmo, naquela
-data. E **limpar só a data não desfaz nada** — data vazia quer dizer "a fase
-aconteceu, a data eu não sei", que é o caso de quem registra a jornada depois do
-fato.
+**Limpar só a data não desfaz nada** — data vazia quer dizer "a fase aconteceu,
+a data eu não sei", que é o caso de quem registra a jornada depois do fato.
+
+**Toda contagem conta o mesmo recorte que a tela mostra.** O número ao lado da
+fase no trilho sai da mesma consulta que desenha a coluna: ganho e perdido não
+aparecem somados na fase onde fecharam *e* outra vez em Finalizados. A exceção é
+a exclusão de uma fase, que pergunta pelo total sem recorte nenhum — o negócio
+ganho em março também precisa de um lugar para onde ir.
 
 **O telefone é a chave.** `Contact` é único por `(workspaceId, phone)`, e todo
 telefone é gravado como o WhatsApp endereça — dígitos com o código do país. Uma

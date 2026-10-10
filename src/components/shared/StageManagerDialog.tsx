@@ -27,6 +27,7 @@ export interface ManagedStage {
     order: number
     deals: unknown[]
     _count?: { deals: number }
+    totalDeals?: number
     /** Dias sem retorno marcado até o sistema cobrar. `null` = não cobra. */
     followUpDays?: number | null
     /** Quem aperta enviar nesta fase: `off`, `draft` ou `send`. */
@@ -385,8 +386,14 @@ export function StageManagerDialog({
     )
 }
 
+/**
+ * Quantos negócios a fase tem **de verdade** — fechados e fora do período
+ * inclusive. É o número que decide se excluir a fase exige um destino, e aqui
+ * o recorte da tela não vale: o negócio ganho em março também precisa de um
+ * lugar para onde ir.
+ */
 function dealCount(stage: ManagedStage): number {
-    return stage._count?.deals ?? stage.deals.length
+    return stage.totalDeals ?? stage._count?.deals ?? stage.deals.length
 }
 
 /** A cor da fase, escolhida da rampa da marca — nunca um campo hex livre. */

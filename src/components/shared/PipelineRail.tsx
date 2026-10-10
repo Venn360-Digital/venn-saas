@@ -35,21 +35,12 @@ export function PipelineRail({
     selectedId,
     onSelect,
     closedCount,
-    /**
-     * Há filtro ligado? Então a contagem é a dos negócios carregados.
-     *
-     * `_count` do banco ignora o filtro do `include`, então sem este aviso o
-     * trilho mostraria "9" ao lado de um medidor desenhado com dois — o número
-     * do funil inteiro ao lado da imagem do recorte.
-     */
-    filtered = false,
     className,
 }: {
     stages: RailStage[]
     selectedId: string | null
     onSelect: (stageId: string) => void
     closedCount: number | null
-    filtered?: boolean
     className?: string
 }) {
     return (
@@ -60,7 +51,6 @@ export function PipelineRail({
                     stage={stage}
                     selected={selectedId === stage.id}
                     onSelect={onSelect}
-                    filtered={filtered}
                 />
             ))}
 
@@ -85,17 +75,18 @@ function RailItem({
     stage,
     selected,
     onSelect,
-    filtered,
 }: {
     stage: RailStage
     selected: boolean
     onSelect: (stageId: string) => void
-    filtered: boolean
 }) {
     const now = useNow()
     const { setNodeRef, isOver } = useDroppable({ id: `rail-${stage.id}` })
 
-    const total = filtered ? stage.deals.length : (stage._count?.deals ?? stage.deals.length)
+    // `_count` já vem contado com o mesmo filtro da coluna, então ele vale
+    // mesmo com filtro ligado — e vale mais que `deals.length`, que para em 100
+    // por fase.
+    const total = stage._count?.deals ?? stage.deals.length
     const value = stage.deals.reduce((sum, deal) => sum + (deal.value ?? 0), 0)
 
     /** Mesma regra do quadro: marcado vence parado. */

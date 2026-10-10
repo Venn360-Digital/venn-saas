@@ -1404,7 +1404,6 @@ export default function NegociosPage() {
                     <div className="relative grid h-full min-h-0 gap-3 lg:grid-cols-[150px_1fr] xl:grid-cols-[170px_1fr]">
                         <PipelineRail
                             stages={stages}
-                            filtered={Boolean(lane || search || filterStatus !== 'open')}
                             selectedId={activeStageId}
                             onSelect={(stageId) => {
                                 setFocusStageId(stageId)

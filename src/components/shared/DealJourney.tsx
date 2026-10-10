@@ -112,6 +112,8 @@ export function DealJourney({
 
     const ordered = [...stages].sort((a, b) => a.order - b.order)
     const currentIndex = ordered.findIndex((s) => s.id === currentStageId)
+    /** Negócio com jornada registrada: o check pode confiar nela. */
+    const hasHistory = entries.length > 0
 
     /**
      * A passagem mais recente por cada etapa — é a que tem a data que importa.
@@ -198,20 +200,21 @@ export function DealJourney({
         value ? new Date(`${value}T12:00:00`).toISOString() : null
 
     /**
-     * O ponto anterior da jornada: para onde o negócio volta ao desfazer.
+     * Para onde o negócio volta ao desfazer: a fase **anterior no funil** por
+     * onde ele passou; nenhuma, a imediatamente anterior na ordem.
      *
-     * A passagem datada mais recente por **outra** fase — o histórico real, não
-     * a ordem do funil: quem pulou uma fase volta para onde esteve, não para a
-     * casa de trás. Sem histórico, a fase imediatamente anterior na ordem.
-     * `null` quando não há para onde voltar, e aí não há o que desfazer.
+     * Ordem do funil, e não a passagem mais recente no relógio. Pela segunda
+     * regra, desfazer a fase atual de um negócio que já tinha voltado uma vez
+     * mandava o negócio **para frente** — para a fase de onde ele tinha
+     * acabado de vir, que era cronologicamente a última. Voltar é para trás.
      */
     const previousPoint = (stageId: string): string | null => {
-        const elsewhere = entries
-            .filter((e) => e.stageId !== stageId && e.enteredAt)
-            .sort((a, b) => new Date(b.enteredAt as string).getTime() - new Date(a.enteredAt as string).getTime())
-        if (elsewhere[0]) return elsewhere[0].stageId
         const index = ordered.findIndex((s) => s.id === stageId)
-        return index > 0 ? ordered[index - 1].id : null
+        if (index <= 0) return null
+        for (let i = index - 1; i >= 0; i--) {
+            if (latest.has(ordered[i].id)) return ordered[i].id
+        }
+        return ordered[index - 1].id
     }
 
     /**
@@ -230,9 +233,10 @@ export function DealJourney({
      * follow-up automático conta os dias da última passagem, e restaurar uma
      * data antiga faria a régua disparar no mesmo minuto.
      *
-     * Só a passagem mais recente sai. Se o paciente já tinha passado por esta
-     * fase antes, aquela passagem fica e a fase continua marcada — porque ela
-     * aconteceu mesmo, naquela data.
+     * Saem **todas** as passagens por aquela fase. Guardar a passagem antiga
+     * parecia respeito ao histórico e na tela era o contrário do pedido: o
+     * check voltava a acender sozinho, remarcado por uma visita de semanas
+     * atrás.
      */
     const undoEntry = (stageId: string) => {
         const entry = latest.get(stageId)
@@ -250,7 +254,7 @@ export function DealJourney({
         void send(body, () => {
             setUndoing(null)
             setOpen(null)
-            const kept = entries.filter((e) => e !== entry)
+            const kept = entries.filter((e) => e.stageId !== stageId)
             onChange({
                 currentStageId: back ?? currentStageId,
                 entries: back
@@ -259,8 +263,8 @@ export function DealJourney({
             })
             toast.success(
                 back
-                    ? `Passagem desfeita — de volta para ${ordered.find((st) => st.id === back)?.name ?? 'a fase anterior'}`
-                    : 'Passagem desfeita'
+                    ? `${ordered.find((st) => st.id === stageId)?.name ?? 'Fase'} desfeita — de volta para ${ordered.find((st) => st.id === back)?.name ?? 'a fase anterior'}`
+                    : 'Fase desfeita'
             )
         })
     }
@@ -324,9 +328,21 @@ export function DealJourney({
                 {ordered.map((stage, i) => {
                     const entry = latest.get(stage.id)
                     const isCurrent = stage.id === currentStageId && !closed
-                    const done = closed
-                        ? i <= currentIndex || Boolean(entry)
-                        : i < currentIndex || (Boolean(entry) && !isCurrent)
+                    /**
+                     * O check vem da passagem registrada, não da posição.
+                     *
+                     * A régua posicional — "está adiante, logo passou por aqui"
+                     * — fazia o check voltar sozinho depois de desfazer uma
+                     * fase anterior, e marcava como cumprida a fase que o
+                     * negócio pulou. Ela fica só para os negócios sem histórico
+                     * nenhum (os criados pelo webhook antes desta série), onde
+                     * é a única aproximação disponível.
+                     */
+                    const done = hasHistory
+                        ? Boolean(entry) && (closed || !isCurrent)
+                        : closed
+                            ? i <= currentIndex
+                            : i < currentIndex
                     // O item Desfecho fecha a lista, então nenhuma etapa é a última.
                     const isLast = false
                     const isOpen = open === stage.id
@@ -445,10 +461,10 @@ export function DealJourney({
                                                     <>
                                                         <span className="mr-auto text-[11px] text-muted-foreground">
                                                             {isCurrent
-                                                                ? `Tira esta passagem e volta o negócio para ${
+                                                                ? `Tira esta fase da jornada e volta o negócio para ${
                                                                       ordered.find((st) => st.id === previousPoint(stage.id))?.name ?? 'a fase anterior'
                                                                   }.`
-                                                                : 'Tira esta passagem da jornada.'}
+                                                                : 'Tira esta fase da jornada.'}
                                                         </span>
                                                         <button
                                                             type="button"
@@ -473,7 +489,7 @@ export function DealJourney({
                                                         className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
                                                     >
                                                         <Undo2 className="size-3" />
-                                                        Desfazer esta passagem
+                                                        Desfazer esta fase
                                                     </button>
                                                 )}
                                             </div>
