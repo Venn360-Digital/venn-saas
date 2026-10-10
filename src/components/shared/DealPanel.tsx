@@ -90,6 +90,7 @@ export function DealPanel<T extends PanelDeal>({
     channels,
     onPatch,
     onChanged,
+    onStageChange,
     onClose,
     onDelete,
     className,
@@ -102,6 +103,13 @@ export function DealPanel<T extends PanelDeal>({
     /** Grava um pedaço do negócio. Devolve `true` quando deu certo. */
     onPatch: (data: Record<string, unknown>) => Promise<boolean>
     onChanged: () => void
+    /**
+     * A fase mudou por dentro do painel (clicar numa fase da jornada, desfazer
+     * uma fase). A tela precisa saber **qual** fase para levar o cartão junto:
+     * no trilho, a coluna em foco continuava na fase antiga e o negócio sumia
+     * da vista depois de mudar de fase pela jornada.
+     */
+    onStageChange?: (stageId: string) => void
     onClose: () => void
     onDelete: (deal: T) => void
     className?: string
@@ -429,7 +437,10 @@ export function DealPanel<T extends PanelDeal>({
                                 outcomeNotes={deal.outcomeNotes ?? null}
                                 closedAt={deal.closedAt ?? null}
                                 onOutcome={onChanged}
-                                onChange={() => onChanged()}
+                                onChange={(next) => {
+                                    onStageChange?.(next.currentStageId)
+                                    onChanged()
+                                }}
                             />
                         </div>
                     </div>

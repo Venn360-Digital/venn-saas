@@ -787,6 +787,9 @@ export default function NegociosPage() {
             channels: medias,
             onPatch: (data: Record<string, unknown>) => patchDeal(selectedDeal.id, data),
             onChanged: reloadAll,
+            // O trilho segue o negócio: mudou de fase pela jornada, a coluna
+            // em foco passa a ser a fase nova e o cartão aparece onde caiu.
+            onStageChange: (stageId: string) => setFocusStageId(stageId),
             onClose: () => setSelectedDealId(null),
             onDelete: (deal: Deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) },
         }
