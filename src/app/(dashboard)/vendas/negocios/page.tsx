@@ -91,6 +91,7 @@ import { CLOSED_RAIL_ID, PipelineRail } from '@/components/shared/PipelineRail'
 import { StageManagerDialog } from '@/components/shared/StageManagerDialog'
 import { NewDealDialog } from '@/components/shared/NewDealDialog'
 import { PeriodPicker } from '@/components/shared/PeriodPicker'
+import { BoardScroller } from '@/components/shared/BoardScroller'
 import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
@@ -1075,12 +1076,16 @@ export default function NegociosPage() {
     const listColumns: Column<Deal>[] = [
         {
             id: 'title',
+            sortable: true,
+            sortValue: deal => deal.title,
             header: 'Título',
             cell: deal => <span className="font-medium">{deal.title}</span>,
         },
         {
             id: 'contact',
             header: 'Paciente',
+            sortable: true,
+            sortValue: deal => deal.contact?.name ?? '',
             cell: deal =>
                 deal.contact ? (
                     <div className="flex items-center gap-1.5">
@@ -1094,6 +1099,8 @@ export default function NegociosPage() {
         {
             id: 'owner',
             header: 'Responsável',
+            sortable: true,
+            sortValue: deal => deal.owner?.name ?? '',
             hideBelow: 'lg',
             cell: deal =>
                 deal.owner ? (
@@ -1107,6 +1114,10 @@ export default function NegociosPage() {
             // trocar o que se sabe sobre o negócio.
             id: 'next',
             header: 'Próximo passo',
+            sortable: true,
+            // Pela data da atividade; sem atividade vai para o fim crescente,
+            // que é onde a atenção deve cair primeiro ao inverter.
+            sortValue: deal => deal.activities?.[0]?.dueDate ?? '9999-12-31',
             hideBelow: 'md',
             cell: deal => {
                 const step = nextStep(deal, now)
@@ -1126,6 +1137,8 @@ export default function NegociosPage() {
         {
             id: 'age',
             header: 'Idade',
+            sortable: true,
+            sortValue: deal => daysInStage(deal, now) ?? 0,
             numeric: true,
             hideBelow: 'lg',
             cell: deal => {
@@ -1158,6 +1171,8 @@ export default function NegociosPage() {
         {
             id: 'value',
             header: 'Valor',
+            sortable: true,
+            sortValue: deal => deal.value ?? 0,
             numeric: true,
             cell: deal =>
                 deal.value != null && deal.value > 0 ? (
@@ -1171,6 +1186,8 @@ export default function NegociosPage() {
         {
             id: 'stage',
             header: 'Fase',
+            sortable: true,
+            sortValue: deal => deal.stage?.name ?? '',
             cell: deal => (
                 <span
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground"
@@ -1182,6 +1199,8 @@ export default function NegociosPage() {
         },
         {
             id: 'status',
+            sortable: true,
+            sortValue: deal => deal.status,
             header: 'Status',
             cell: deal => <StatusBadge status={deal.status} />,
         },
@@ -1455,12 +1474,14 @@ export default function NegociosPage() {
             {/* Kanban View */}
             {viewMode === 'kanban' && (
                 <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-                  {/* `relative` por causa do painel: no quadro ele **sobrepõe**
-                      em vez de empurrar. Com seis etapas, uma coluna fixa de
-                      320px comeria duas delas enquanto estivesse aberto — e o
-                      painel se fecha, as etapas não. */}
-                  <div className="relative">
-                    <div className="flex gap-4 overflow-x-auto pb-4">
+                  {/* O painel toma lugar em vez de sobrepor.
+                      Sobrepondo, ele cobria as últimas colunas e não havia como
+                      chegar nelas — rolar o quadro trazia os cartões para baixo
+                      do painel. Agora o quadro perde largura e ganha setas: dá
+                      para andar por todas as fases com o painel aberto. */}
+                  <div className={cn('relative', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
+                    <div className="min-w-0">
+                    <BoardScroller>
                         {stages.map((stage) => (
                             <StageColumn key={stage.id} stage={stage} onAddDeal={handleAddDeal} onEditDeal={handleEditDeal}
                                 onDeleteDeal={(deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) }}
@@ -1483,7 +1504,7 @@ export default function NegociosPage() {
                                 Motivos de ganho e perda
                             </button>
                         </div>
-                    </div>
+                    </BoardScroller>
                     {/* Fechar é um gesto do quadro, não uma coluna.
                         Ganho e perdido não são posições: como coluna cresceriam
                         para sempre e apagariam a fase em que o negócio fechou. */}
@@ -1509,11 +1530,13 @@ export default function NegociosPage() {
                         )}
                     </DragOverlay>
 
+                    </div>
+
                     {panelProps ? (
                         <DealPanel
                             key={panelProps.deal.id}
                             {...panelProps}
-                            className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg"
+                            className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:h-full xl:w-auto xl:shadow-none"
                         />
                     ) : null}
                   </div>

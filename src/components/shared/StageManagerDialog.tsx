@@ -176,7 +176,12 @@ export function StageManagerDialog({
 
     return (
         <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setDeleting(null) }}>
-            <DialogContent className="sm:max-w-[460px]">
+            {/* A largura acompanhou os controles.
+                A fase ganhou prazo e modo de envio sem o diálogo crescer, e os
+                dois últimos campos saíam pela borda. `max-w-3xl` cabe a linha
+                inteira em 1280, e abaixo disso a linha quebra em duas em vez de
+                cortar. */}
+            <DialogContent className="sm:max-w-3xl">
                 <DialogHeader>
                     <DialogTitle>Fases do atendimento</DialogTitle>
                     <DialogDescription>
@@ -228,8 +233,22 @@ export function StageManagerDialog({
                     </div>
                 ) : (
                     <div className="space-y-2">
+                        {/* Cabeçalho da lista: sem ele, dois campos numéricos
+                            lado a lado não dizem o que são. */}
+                        <div className="hidden items-center gap-2 px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:flex">
+                            <span className="w-5" />
+                            <span className="flex-1">Fase</span>
+                            <span className="w-10 text-center">Negócios</span>
+                            <span className="w-[72px] text-center">Cobrar em</span>
+                            <span className="w-[116px]">Envio</span>
+                            <span className="w-[60px]" />
+                        </div>
+
                         {sorted.map((stage, index) => (
-                            <div key={stage.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                            <div
+                                key={stage.id}
+                                className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-2 sm:flex-nowrap"
+                            >
                                 <ColorPick
                                     color={stage.color}
                                     onPick={(color) => void patch(stage, { color })}
@@ -239,9 +258,9 @@ export function StageManagerDialog({
                                     onCommit={(name) => void patch(stage, { name })}
                                     ariaLabel={`Nome da fase ${stage.name}`}
                                     bare
-                                    className="min-w-0 flex-1"
+                                    className="min-w-[140px] flex-1"
                                 />
-                                <span className="num rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                <span className="num w-10 shrink-0 rounded-full bg-muted py-0.5 text-center text-xs text-muted-foreground">
                                     {dealCount(stage)}
                                 </span>
 
@@ -249,42 +268,20 @@ export function StageManagerDialog({
                                     retomada nascer sozinha. Vazio significa "esta
                                     fase não cobra" — e é o padrão, para ligar a
                                     automação ser decisão da clínica. */}
-                                <div className="flex items-center gap-1">
-                                    <Input
-                                        type="number"
-                                        min={0}
-                                        max={365}
-                                        value={stage.followUpDays ?? ''}
-                                        placeholder="—"
-                                        aria-label={`Cobrar retomada em quantos dias na fase ${stage.name}`}
-                                        onChange={(e) => {
-                                            const raw = e.target.value
-                                            void patch(stage, { followUpDays: raw === '' ? null : Number(raw) })
-                                        }}
-                                        className="num h-8 w-[56px] px-2 text-center text-xs"
-                                    />
-                                    <span className="text-[11px] text-muted-foreground">d</span>
-                                </div>
-                                <div className="flex flex-col">
-                                    <button
-                                        type="button"
-                                        onClick={() => void swap(index, -1)}
-                                        disabled={index === 0 || busy === stage.id}
-                                        aria-label="Subir"
-                                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                    >
-                                        <ChevronUp className="size-3.5" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => void swap(index, 1)}
-                                        disabled={index === sorted.length - 1 || busy === stage.id}
-                                        aria-label="Descer"
-                                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                    >
-                                        <ChevronDown className="size-3.5" />
-                                    </button>
-                                </div>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    max={365}
+                                    value={stage.followUpDays ?? ''}
+                                    placeholder="—"
+                                    aria-label={`Cobrar retomada em quantos dias na fase ${stage.name}`}
+                                    onChange={(e) => {
+                                        const raw = e.target.value
+                                        void patch(stage, { followUpDays: raw === '' ? null : Number(raw) })
+                                    }}
+                                    className="num h-8 w-[72px] shrink-0 px-2 text-center text-xs"
+                                />
+
                                 {/* Quem aperta enviar nesta fase. Três estados, e
                                     o do meio é o que evita soltar o sistema sem a
                                     clínica ter lido uma semana do que ele diria. */}
@@ -295,7 +292,7 @@ export function StageManagerDialog({
                                 >
                                     <SelectTrigger
                                         size="sm"
-                                        className="w-[112px]"
+                                        className="w-[116px] shrink-0"
                                         aria-label={`Envio automático na fase ${stage.name}`}
                                         title={canAutoSend === false ? 'Sem WhatsApp conectado' : undefined}
                                     >
@@ -308,20 +305,42 @@ export function StageManagerDialog({
                                     </SelectContent>
                                 </Select>
 
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    onClick={() => { setDeleting(stage); setMoveTo('') }}
-                                    aria-label={`Excluir fase ${stage.name}`}
-                                    disabled={sorted.length <= 1}
-                                    title={sorted.length <= 1 ? 'A jornada precisa de pelo menos uma fase' : undefined}
-                                >
-                                    <Trash2 className="size-3.5 text-muted-foreground" />
-                                </Button>
+                                <div className="flex w-[60px] shrink-0 items-center justify-end">
+                                    <div className="flex flex-col">
+                                        <button
+                                            type="button"
+                                            onClick={() => void swap(index, -1)}
+                                            disabled={index === 0 || busy === stage.id}
+                                            aria-label="Subir"
+                                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                        >
+                                            <ChevronUp className="size-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void swap(index, 1)}
+                                            disabled={index === sorted.length - 1 || busy === stage.id}
+                                            aria-label="Descer"
+                                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                        >
+                                            <ChevronDown className="size-3.5" />
+                                        </button>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        onClick={() => { setDeleting(stage); setMoveTo('') }}
+                                        aria-label={`Excluir fase ${stage.name}`}
+                                        disabled={sorted.length <= 1}
+                                        title={sorted.length <= 1 ? 'A jornada precisa de pelo menos uma fase' : undefined}
+                                    >
+                                        <Trash2 className="size-3.5 text-muted-foreground" />
+                                    </Button>
+                                </div>
                             </div>
                         ))}
 
-                        <div className="flex items-center gap-2 pt-1">
+                        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 sm:flex-nowrap">
                             <ColorPick color={newColor} onPick={setNewColor} />
                             <Input
                                 value={newName}

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -16,6 +17,17 @@ import { TableSkeleton } from './Skeletons'
 
 export interface Column<T> {
     id: string
+    /**
+     * Permite ordenar por esta coluna, clicando no cabeçalho.
+     *
+     * A ordenação é da tabela carregada, não do servidor: é o que o usuário vê
+     * sendo reordenado na frente dele. Numa lista paginada no servidor isso
+     * ordenaria só a página — por isso a opção é por coluna, e não ligada em
+     * todas por padrão.
+     */
+    sortable?: boolean
+    /** O valor pelo qual ordenar. Sem ele, usa o texto renderizado. */
+    sortValue?: (row: T) => string | number | null | undefined
     header: React.ReactNode
     cell: (row: T) => React.ReactNode
     /** Right-aligns and applies tabular figures, so columns of digits line up. */
@@ -91,7 +103,43 @@ export function DataTable<T>({
     footer,
     className,
 }: DataTableProps<T>) {
-    const ids = React.useMemo(() => rows.map(getRowId), [rows, getRowId])
+    /** Coluna e direção da ordenação. `null` = a ordem que veio do servidor. */
+    const [sort, setSort] = React.useState<{ id: string; dir: 'asc' | 'desc' } | null>(null)
+
+    const sortedRows = React.useMemo(() => {
+        if (!sort) return rows
+        const column = columns.find((c) => c.id === sort.id)
+        if (!column?.sortable) return rows
+
+        const value = (row: T) => {
+            if (column.sortValue) return column.sortValue(row) ?? ''
+            // Sem `sortValue`, ordena pelo texto da célula — serve para coluna
+            // simples e evita obrigar cada tela a declarar o óbvio.
+            const cell = column.cell(row)
+            return typeof cell === 'string' || typeof cell === 'number' ? cell : ''
+        }
+
+        return [...rows].sort((a, b) => {
+            const va = value(a)
+            const vb = value(b)
+            const cmp = typeof va === 'number' && typeof vb === 'number'
+                ? va - vb
+                : String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' })
+            return sort.dir === 'asc' ? cmp : -cmp
+        })
+    }, [rows, columns, sort])
+
+    const toggleSort = (id: string) => {
+        setSort((prev) => {
+            if (prev?.id !== id) return { id, dir: 'asc' }
+            if (prev.dir === 'asc') return { id, dir: 'desc' }
+            // Terceiro clique devolve a ordem original — sem isso, não há como
+            // voltar ao que o servidor mandou.
+            return null
+        })
+    }
+
+    const ids = React.useMemo(() => sortedRows.map(getRowId), [sortedRows, getRowId])
     const allSelected = ids.length > 0 && ids.every((id) => selected.includes(id))
     const someSelected = selected.length > 0 && !allSelected
 
@@ -153,19 +201,52 @@ export function DataTable<T>({
                                             />
                                         </TableHead>
                                     ) : null}
-                                    {columns.map((col) => (
-                                        <TableHead
-                                            key={col.id}
-                                            style={col.width ? { width: col.width } : undefined}
-                                            className={cn(
-                                                col.numeric && 'text-right',
-                                                col.hideBelow && HIDE_BELOW[col.hideBelow],
-                                                col.className
-                                            )}
-                                        >
-                                            {col.header}
-                                        </TableHead>
-                                    ))}
+                                    {columns.map((col) => {
+                                        const active = sort?.id === col.id
+                                        return (
+                                            <TableHead
+                                                key={col.id}
+                                                style={col.width ? { width: col.width } : undefined}
+                                                aria-sort={
+                                                    col.sortable
+                                                        ? active
+                                                            ? sort?.dir === 'asc' ? 'ascending' : 'descending'
+                                                            : 'none'
+                                                        : undefined
+                                                }
+                                                className={cn(
+                                                    col.numeric && 'text-right',
+                                                    col.hideBelow && HIDE_BELOW[col.hideBelow],
+                                                    col.className
+                                                )}
+                                            >
+                                                {col.sortable ? (
+                                                    /* Botão, não `onClick` num `th`: ordenar é
+                                                       ação, e ação precisa de foco e de Enter. */
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleSort(col.id)}
+                                                        className={cn(
+                                                            'group inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground',
+                                                            col.numeric && 'flex-row-reverse',
+                                                            active && 'text-foreground'
+                                                        )}
+                                                    >
+                                                        {col.header}
+                                                        {active ? (
+                                                            sort?.dir === 'asc'
+                                                                ? <ArrowUp className="size-3" />
+                                                                : <ArrowDown className="size-3" />
+                                                        ) : (
+                                                            <ChevronsUpDown className="size-3 opacity-0 transition-opacity group-hover:opacity-50" />
+                                                        )}
+                                                    </button>
+                                                ) : (
+                                                    col.header
+                                                )}
+                                            </TableHead>
+                                        )
+                                    })}
                                     {rowActions ? (
                                         <TableHead className="w-20 text-right">
                                             {hideActionsHeader ? (
@@ -178,7 +259,7 @@ export function DataTable<T>({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {rows.map((row) => {
+                                {sortedRows.map((row) => {
                                     const id = getRowId(row)
                                     return (
                                         <TableRow
@@ -239,7 +320,7 @@ export function DataTable<T>({
                     {/* Cards below md */}
                     {mobile ? (
                         <div className="divide-y divide-border md:hidden">
-                            {rows.map((row) => (
+                            {sortedRows.map((row) => (
                                 <div
                                     key={getRowId(row)}
                                     onClick={onRowClick ? () => onRowClick(row) : undefined}
