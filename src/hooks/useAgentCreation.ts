@@ -124,8 +124,15 @@ export function useAgentCreation(workspaceId: string) {
             const agent = await response.json()
             console.log('[SAVE] Agent saved:', agent)
 
-            // Salvar knowledge base se houver (apenas na criação)
-            if (!agentId && (cerebro.faqs.length > 0 || cerebro.websites.length > 0)) {
+            /**
+             * A base de conhecimento acompanha o salvar, criando ou editando.
+             *
+             * Antes só gravava na criação: arquivo, FAQ ou site acrescentado
+             * depois sumia no salvar sem dizer nada. Os itens novos são os que
+             * ainda não têm registro — FAQ e site repetidos seriam duplicata, e
+             * é por isso que a tela de edição carrega o que já existe.
+             */
+            if (cerebro.faqs.length > 0 || cerebro.websites.length > 0 || cerebro.videos.length > 0 || cerebro.files.length > 0) {
                 await saveKnowledgeBase(agent.id)
             }
 
@@ -190,6 +197,31 @@ export function useAgentCreation(workspaceId: string) {
                         title: website.url,
                         type: 'website',
                         url: website.url,
+                    }),
+                })
+            }
+
+            /**
+             * Arquivos: o texto vai para a fila de indexação, não para a tabela.
+             *
+             * `/api/rag/index` quebra em pedaços e gera os embeddings no worker
+             * — é o que faz o agente *achar* o trecho na hora de responder.
+             * Gravar o documento inteiro numa linha, como as FAQs fazem, deixa
+             * o texto no banco sem vetor: fica guardado e nunca é consultado.
+             */
+            for (const file of cerebro.files) {
+                if (!file.content?.trim()) continue
+                await fetch('/api/rag/index', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agentId,
+                        title: file.filename,
+                        content: file.content,
+                        type: 'doc',
+                        // Reenviar o mesmo arquivo substitui o que havia, em vez
+                        // de somar uma segunda cópia de cada trecho.
+                        replaceExisting: true,
                     }),
                 })
             }

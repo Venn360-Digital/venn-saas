@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CalendarClock, Loader2, Sparkles, Sun } from 'lucide-react'
+import { Loader2, Sparkles, Sun } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Label } from '@/components/ui/label'
@@ -99,13 +99,6 @@ export function AutomacoesTab() {
                     }
                 />
 
-                <Line
-                    icon={CalendarClock}
-                    title="Boletim também no WhatsApp"
-                    hint="Para o responsável da clínica — nunca para pacientes."
-                    checked={config.briefingWhatsApp}
-                    onChange={(v) => void save({ briefingWhatsApp: v })}
-                />
             </div>
 
             <p className="text-xs text-muted-foreground">

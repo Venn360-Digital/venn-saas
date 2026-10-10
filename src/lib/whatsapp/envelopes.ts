@@ -32,6 +32,7 @@ export type CanonicalEvent =
     | 'message.sent'
     | 'connection'
     | 'presence'
+    | 'contact.picture'
     | 'unknown' | 'recycle'
 
 export interface NormalizedEvent {
@@ -93,11 +94,25 @@ export interface NormalizedPresence extends NormalizedEvent {
     isTyping: boolean
 }
 
+/**
+ * O paciente trocou (ou tirou) a foto de perfil.
+ *
+ * O evento só avisa **que** mudou — o `events.Picture` do whatsmeow carrega
+ * JID, autor e um id, nunca a imagem. Quem quiser a foto busca depois.
+ */
+export interface NormalizedPicture extends NormalizedEvent {
+    kind: 'contact.picture'
+    jid: string
+    /** `true` quando a foto foi removida: o certo aí é apagar a que guardamos. */
+    removed: boolean
+}
+
 export type AnyNormalizedEvent =
     | NormalizedInbound
     | NormalizedAck
     | NormalizedConnection
     | NormalizedPresence
+    | NormalizedPicture
     | (NormalizedEvent & { kind: 'message.sent'; externalId?: string; chatJid?: string })
     | (NormalizedEvent & { kind: 'unknown' })
 
@@ -230,6 +245,15 @@ export function readEvolutionGoEvent(body: unknown): AnyNormalizedEvent {
                 chatJid: jid,
                 isTyping: /composing/i.test(stateField),
             }
+        }
+
+        case 'Picture': {
+            const jid =
+                (typeof data.JID === 'string' && data.JID) ||
+                (typeof data.Jid === 'string' && data.Jid) ||
+                ''
+            if (!jid) return { ...base, kind: 'unknown' }
+            return { ...base, kind: 'contact.picture', jid, removed: data.Remove === true }
         }
 
         default:

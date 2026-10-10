@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { WhatsAppQRModal } from '@/components/agents/creation/WhatsAppQRModal'
 import { Step1Workspace } from '@/components/onboarding/Step1Workspace'
 import { Step2Plan } from '@/components/onboarding/Step2Plan'
 import { Step3WhatsApp } from '@/components/onboarding/Step3WhatsApp'
@@ -14,12 +15,16 @@ import type { OnboardingData, OnboardingUpdate } from '@/components/onboarding/t
 
 export default function OnboardingPage() {
     const [currentStep, setCurrentStep] = useState(1)
+    /** O agente recém-criado, enquanto o QR está aberto. */
+    const [newAgentId, setNewAgentId] = useState<string | null>(null)
+    const [qrOpen, setQrOpen] = useState(false)
     const [loading, setLoading] = useState(true)
     const [onboardingData, setOnboardingData] = useState<OnboardingData>({
         workspaceName: '',
         workspaceSlug: '',
         plan: 'pro',
         agentName: '',
+        connectWhatsApp: false,
     })
     const router = useRouter()
 
@@ -95,6 +100,20 @@ export default function OnboardingPage() {
             if (!response.ok) throw new Error(result.error || 'Não foi possível criar o workspace')
 
             toast.success('Tudo pronto')
+
+            /**
+             * Quem pediu o WhatsApp no passo 3 recebe o QR agora.
+             *
+             * Agora, e não antes: o pareamento se liga ao agente, que acabou de
+             * nascer nesta mesma requisição. Sem agente — quem não deu nome a
+             * um — o cadastro termina como sempre terminou.
+             */
+            if (onboardingData.connectWhatsApp && result.agentId) {
+                setNewAgentId(result.agentId)
+                setQrOpen(true)
+                return
+            }
+
             router.push('/dashboard')
             router.refresh()
         } catch (error) {
@@ -183,6 +202,7 @@ export default function OnboardingPage() {
                     )}
                     {currentStep === 3 && (
                         <Step3WhatsApp
+                            updateData={updateData}
                             data={onboardingData}
                             onNext={nextStep}
                             onBack={prevStep}
@@ -205,6 +225,26 @@ export default function OnboardingPage() {
                     )}
                 </div>
             </div>
+
+            {/* O pareamento, assim que o agente existe. Fechar ou conectar leva
+                para o painel do mesmo jeito: o cadastro já está feito. */}
+            {newAgentId ? (
+                <WhatsAppQRModal
+                    agentId={newAgentId}
+                    isOpen={qrOpen}
+                    onClose={() => {
+                        setQrOpen(false)
+                        router.push('/dashboard')
+                        router.refresh()
+                    }}
+                    onConnected={() => {
+                        toast.success('WhatsApp conectado')
+                        setQrOpen(false)
+                        router.push('/dashboard')
+                        router.refresh()
+                    }}
+                />
+            ) : null}
         </div>
     )
 }

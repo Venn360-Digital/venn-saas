@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+
 import { CerebroData, KnowledgeFile, KnowledgeWebsite, KnowledgeVideo, KnowledgeFAQ } from '@/types/agent-creation'
 
 interface CerebroTabProps {
@@ -56,15 +58,53 @@ export function CerebroTab({ data, onChange }: CerebroTabProps) {
     const [videoUrl, setVideoUrl] = useState('')
     const [newFaq, setNewFaq] = useState({ question: '', answer: '' })
 
+    /**
+     * Upload de verdade: o arquivo é lido e o texto fica com o agente.
+     *
+     * Antes o botão fingia — dois segundos de "enviando" e nada era guardado.
+     * O arquivo em si não sobe para lugar nenhum: o que o agente consulta é o
+     * texto, indexado em pedaços quando o agente é salvo.
+     */
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files
-        if (!files) return
+        const chosen = Array.from(e.target.files ?? [])
+        if (chosen.length === 0) return
 
         setIsUploading(true)
-        // TODO: Implementar upload real
-        setTimeout(() => {
-            setIsUploading(false)
-        }, 2000)
+        const accepted: KnowledgeFile[] = []
+        for (const file of chosen) {
+            try {
+                const form = new FormData()
+                form.append('file', file)
+                const res = await fetch('/api/agents/knowledge/extract', { method: 'POST', body: form })
+                const payload = await res.json().catch(() => null)
+                if (!res.ok) {
+                    toast.error(`${file.name}: ${payload?.error ?? 'não foi possível ler o arquivo.'}`)
+                    continue
+                }
+                accepted.push({
+                    id: `${Date.now()}-${file.name}`,
+                    filename: payload.filename,
+                    size: payload.size,
+                    type: file.type || 'text/plain',
+                    uploadedAt: new Date(),
+                    content: payload.content,
+                    chars: payload.chars,
+                    truncated: payload.truncated,
+                })
+                if (payload.truncated) {
+                    toast.warning(`${file.name}: muito longo — indexamos o começo do documento.`)
+                }
+            } catch {
+                toast.error(`${file.name}: não foi possível ler o arquivo.`)
+            }
+        }
+        if (accepted.length > 0) {
+            onChange({ files: [...data.files, ...accepted] })
+            toast.success(`${accepted.length} arquivo(s) lido(s)`)
+        }
+        // Sem isto, escolher o mesmo arquivo de novo não dispara `change`.
+        e.target.value = ''
+        setIsUploading(false)
     }
 
     const handleAddWebsite = () => {
@@ -138,13 +178,13 @@ export function CerebroTab({ data, onChange }: CerebroTabProps) {
                                     Clique para fazer upload
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    PDF, TXT, DOCS, XLS, PNG, JPG
+                                    PDF, DOCX, TXT, MD ou CSV — até 10 MB
                                 </p>
                                 <input
                                     type="file"
                                     className="hidden"
                                     multiple
-                                    accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                                    accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json"
                                     onChange={handleFileUpload}
                                     disabled={isUploading}
                                 />
@@ -158,9 +198,13 @@ export function CerebroTab({ data, onChange }: CerebroTabProps) {
                                         key={file.id}
                                         className="flex items-center justify-between rounded-md border p-3"
                                     >
-                                        <div className="flex items-center gap-2">
-                                            <FileText className="h-4 w-4 text-muted-foreground" />
-                                            <span className="text-sm">{file.filename}</span>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                            <span className="truncate text-sm">{file.filename}</span>
+                                            <span className="num shrink-0 text-xs text-muted-foreground">
+                                                {file.chars.toLocaleString('pt-BR')} caracteres
+                                                {file.truncated ? ' (cortado)' : ''}
+                                            </span>
                                         </div>
                                         <Button
                                             variant="ghost"

@@ -5,10 +5,11 @@ import { Download, MessageCircle, Globe } from 'lucide-react'
 
 interface Conversation {
     id: string
-    contactName?: string
+    contactName?: string | null
     channel: string
+    status?: string
     messageCount: number
-    lastMessageAt: Date
+    lastMessageAt: string
 }
 
 interface HistoricoTabProps {
@@ -59,7 +60,8 @@ export function HistoricoTab({ agentId, conversations, onExportCSV }: HistoricoT
                                 <div>
                                     <p className="font-medium">{conv.contactName || 'Visitante'}</p>
                                     <p className="text-sm text-muted-foreground">
-                                        {conv.messageCount} mensagens
+                                        <span className="num">{conv.messageCount}</span>{' '}
+                                        {conv.messageCount === 1 ? 'mensagem' : 'mensagens'} · {conv.channel}
                                     </p>
                                 </div>
                                 <div className="text-sm text-muted-foreground">

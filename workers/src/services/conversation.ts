@@ -89,7 +89,16 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
         return
     }
 
-    await prisma.deal.create({
+    /**
+     * A primeira passagem nasce junto com o negócio.
+     *
+     * Sem ela o negócio criado pelo WhatsApp entrava no funil sem jornada: a
+     * primeira fase ficava sem data e sem marca, "dias nesta fase" caía no
+     * `createdAt` e a régua de follow-up contava de lá. Quem cria negócio pela
+     * tela e pelo intake já gravava a passagem; só este caminho não gravava, e
+     * é o caminho por onde entra a maioria dos pacientes.
+     */
+    const deal = await prisma.deal.create({
         data: {
             workspaceId,
             contactId: contact.id,
@@ -97,9 +106,12 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
             stageId: firstStage.id,
             source: 'whatsapp',
             status: 'open',
+            // `userId` nulo: não foi pessoa nenhuma que moveu, foi a mensagem
+            // do paciente chegando.
+            stageEntries: { create: { stageId: firstStage.id } },
         },
     })
-    log.info(`auto-created deal for contact ${contact.id}`)
+    log.info(`auto-created deal ${deal.id} for contact ${contact.id}`)
 }
 
 /**

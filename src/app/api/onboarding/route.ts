@@ -142,9 +142,10 @@ export async function POST(request: NextRequest) {
             console.log('[ONBOARDING] Subscription created:', chosen.id)
 
             // 7. Create first agent (optional)
+            let agentId: string | null = null
             if (agentName && agentName.trim()) {
                 console.log('[ONBOARDING] Creating agent...')
-                await tx.agent.create({
+                const agent = await tx.agent.create({
                     data: {
                         workspaceId: workspace.id,
                         name: agentName.trim(),
@@ -158,11 +159,15 @@ export async function POST(request: NextRequest) {
                         isActive: true,
                     }
                 })
+                agentId = agent.id
                 console.log('[ONBOARDING] Agent created')
             }
 
             return {
                 alreadyExists: false,
+                // Quem acabou de pedir para conectar o WhatsApp precisa deste
+                // id: a conexão só existe depois que o agente existe.
+                agentId,
                 workspace: {
                     id: workspace.id,
                     name: workspace.name,
@@ -184,6 +189,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             success: true,
             workspace: result.workspace,
+            agentId: result.agentId ?? null,
         })
     } catch (error) {
         console.error('[ONBOARDING] Error:', error)

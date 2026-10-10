@@ -29,6 +29,8 @@ import {
  */
 
 const DEFAULT_TIMEOUT_MS = 20_000
+/** Foto de perfil: curto de propósito — quem não tem foto faz a consulta pendurar. */
+const AVATAR_TIMEOUT_MS = 8_000
 
 /** Webhook events we subscribe to. See pkg/events for the full catalogue. */
 export const SUBSCRIBED_EVENTS = [
@@ -38,6 +40,17 @@ export const SUBSCRIBED_EVENTS = [
     'CHAT_PRESENCE',
     'CONNECTION',
     'QRCODE',
+    /**
+     * A foto do paciente chega por aqui.
+     *
+     * O Evolution Go já emite `Picture` o tempo todo (visível no log do
+     * contêiner); nós é que nunca assinávamos o balde. Não existe `PICTURE` no
+     * vocabulário aceito — `CONTACT` é o balde onde ele vem.
+     *
+     * A assinatura só vale a partir do próximo `/instance/connect`: a instância
+     * já pareada continua com a lista antiga até reconectar.
+     */
+    'CONTACT',
 ] as const
 
 interface Envelope<T> {
@@ -118,7 +131,8 @@ export class EvolutionGoProvider implements WhatsAppProvider {
     private async request<T>(
         endpoint: string,
         apiKey: string,
-        init: RequestInit = {}
+        init: RequestInit = {},
+        timeoutMs = DEFAULT_TIMEOUT_MS
     ): Promise<T> {
         this.assertConfigured()
 
@@ -127,7 +141,7 @@ export class EvolutionGoProvider implements WhatsAppProvider {
         }
 
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+        const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
         try {
             const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -334,6 +348,51 @@ export class EvolutionGoProvider implements WhatsAppProvider {
      * bloquear o cadastro por uma verificação instável é pior que aceitar um
      * número que talvez erre.
      */
+    /**
+     * `POST /user/avatar` — a foto de perfil, quando o paciente deixa ver.
+     *
+     * Três cuidados, todos medidos contra a instância de produção:
+     *
+     * 1. **Timeout curto.** Esta chamada já respondeu 500 depois de ~75s com
+     *    `GetProfilePictureInfo failed: info query timed out`. Quem não tem foto
+     *    pública faz a consulta pendurar em vez de responder "não tem", então
+     *    oito segundos é o limite entre tentar e atrapalhar.
+     * 2. **Leitura tolerante.** O Swagger tipa o 200 só como `gin.H`, sem nomes
+     *    de campo. Em vez de apostar num, procura-se a primeira string que
+     *    pareça URL — e `undefined` quando não houver.
+     * 3. **Nunca lança.** Foto é enfeite: a ficha com as iniciais está correta,
+     *    e derrubar o processamento de uma mensagem por causa dela não é troca
+     *    aceitável.
+     */
+    async getProfilePictureUrl(
+        credentials: InstanceCredentials,
+        number: string
+    ): Promise<string | undefined> {
+        const wanted = normalizeNumber(number)
+        if (!wanted) return undefined
+
+        try {
+            const payload = await this.request<Record<string, unknown> | undefined>(
+                '/user/avatar',
+                this.tokenOf(credentials, '/user/avatar'),
+                { method: 'POST', body: JSON.stringify({ number: wanted, preview: false }) },
+                AVATAR_TIMEOUT_MS
+            )
+
+            const container =
+                (payload && typeof payload.data === 'object' && payload.data !== null
+                    ? (payload.data as Record<string, unknown>)
+                    : payload) ?? {}
+
+            for (const value of Object.values(container)) {
+                if (typeof value === 'string' && /^https?:\/\//.test(value)) return value
+            }
+            return undefined
+        } catch {
+            return undefined
+        }
+    }
+
     async checkNumbers(
         credentials: InstanceCredentials,
         numbers: string[]

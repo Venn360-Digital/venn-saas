@@ -13,10 +13,12 @@ interface CustomField {
 
 interface Conversation {
     id: string
-    contactName?: string
+    contactName?: string | null
     channel: string
+    status?: string
     messageCount: number
-    lastMessageAt: Date
+    lastMessageAt: string
+    createdAt?: string
 }
 
 export function useAgentManagement(agentId?: string | null) {
@@ -43,7 +45,12 @@ export function useAgentManagement(agentId?: string | null) {
                 setIsActive(agent.isActive)
             }
 
-            // TODO: Carregar histórico de conversas
+            // O histórico do agente: a tela existia com a lista vazia por
+            // construção, porque nada a preenchia.
+            const conversationsResponse = await fetch(`/api/agents/${id}/conversations`)
+            if (conversationsResponse.ok) {
+                setConversations(await conversationsResponse.json())
+            }
         } catch (error) {
             console.error('Error loading management data:', error)
         }
@@ -139,10 +146,41 @@ export function useAgentManagement(agentId?: string | null) {
         }
     }
 
-    // Exportar CSV
+    /**
+     * O histórico em CSV, montado do que já está na tela.
+     *
+     * Sem rota nova: a lista carregada é exatamente o que o arquivo precisa
+     * ter, e uma segunda consulta só repetiria a primeira. Ponto e vírgula
+     * como separador e BOM na frente porque o destino é o Excel em português,
+     * que abre vírgula como separador decimal e lê UTF-8 sem BOM como latin-1
+     * — acento vira caractere quebrado.
+     */
     const exportConversationsCSV = async () => {
-        toast.info('Exportação de CSV em breve')
-        // TODO: Implementar exportação
+        if (conversations.length === 0) {
+            toast.info('Não há conversas para exportar')
+            return
+        }
+        const header = ['Paciente', 'Canal', 'Status', 'Mensagens', 'Última mensagem']
+        const cell = (value: string | number | null | undefined) => {
+            const text = value === null || value === undefined ? '' : String(value)
+            return `"${text.replace(/"/g, '""')}"`
+        }
+        const rows = conversations.map((conv) => [
+            cell(conv.contactName || 'Visitante'),
+            cell(conv.channel),
+            cell(conv.status),
+            cell(conv.messageCount),
+            cell(new Date(conv.lastMessageAt).toLocaleString('pt-BR')),
+        ].join(';'))
+
+        const csv = `\uFEFF${[header.map(cell).join(';'), ...rows].join('\r\n')}`
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `conversas-${agentId ?? 'agente'}-${new Date().toISOString().slice(0, 10)}.csv`
+        link.click()
+        URL.revokeObjectURL(url)
+        toast.success(`${conversations.length} conversa(s) exportada(s)`)
     }
 
     return {

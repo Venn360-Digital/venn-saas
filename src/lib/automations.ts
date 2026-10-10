@@ -15,7 +15,6 @@ export interface Automations {
     briefing: boolean
     briefingHour: number
     /** O boletim também no WhatsApp do responsável. */
-    briefingWhatsApp: boolean
 }
 
 export const DEFAULT_AUTOMATIONS: Automations = {
@@ -24,7 +23,6 @@ export const DEFAULT_AUTOMATIONS: Automations = {
     followUpTasks: true,
     briefing: true,
     briefingHour: 8,
-    briefingWhatsApp: false,
 }
 
 export function readAutomations(value: Prisma.JsonValue | null | undefined): Automations {
@@ -37,7 +35,5 @@ export function readAutomations(value: Prisma.JsonValue | null | undefined): Aut
         followUpTasks: typeof raw.followUpTasks === 'boolean' ? raw.followUpTasks : DEFAULT_AUTOMATIONS.followUpTasks,
         briefing: typeof raw.briefing === 'boolean' ? raw.briefing : DEFAULT_AUTOMATIONS.briefing,
         briefingHour: Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : DEFAULT_AUTOMATIONS.briefingHour,
-        briefingWhatsApp:
-            typeof raw.briefingWhatsApp === 'boolean' ? raw.briefingWhatsApp : DEFAULT_AUTOMATIONS.briefingWhatsApp,
     }
 }

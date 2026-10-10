@@ -4,22 +4,32 @@ import { Button } from '@/components/ui/button'
 import { ArrowRight, ArrowLeft, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
-import type { OnboardingData } from './types'
+import type { OnboardingData, OnboardingUpdate } from './types'
 
 interface Step3WhatsAppProps {
     data: OnboardingData
+    updateData: OnboardingUpdate
     onNext: () => void
     onBack: () => void
 }
 
-export function Step3WhatsApp({ data, onNext, onBack }: Step3WhatsAppProps) {
+/**
+ * A conexão é marcada aqui e acontece no fim.
+ *
+ * O QR se liga a um agente, e o agente só nasce depois do aceite — nada pode
+ * existir antes dele. Então o passo guarda a intenção e o código de pareamento
+ * abre sozinho assim que o agente existe, sem obrigar ninguém a procurar o
+ * caminho depois.
+ */
+export function Step3WhatsApp({ data, updateData, onNext, onBack }: Step3WhatsAppProps) {
     const handleSkip = () => {
+        updateData({ connectWhatsApp: false })
         onNext()
     }
 
     const handleConnect = () => {
-        // TODO: Implement WhatsApp connection logic
-        toast.info('A conexão com o WhatsApp ainda não está disponível aqui. Dá para configurar depois em Atendimento → Agentes.')
+        updateData({ connectWhatsApp: true })
+        toast.success('Combinado: o código de pareamento abre no fim do cadastro.')
         onNext()
     }
 
@@ -39,8 +49,8 @@ export function Step3WhatsApp({ data, onNext, onBack }: Step3WhatsAppProps) {
 
                 <h3 className="mb-4 text-xl font-bold">Conectar WhatsApp</h3>
                 <p className="mx-auto mb-8 max-w-md text-muted-foreground">
-                    A integração com WhatsApp Business estará disponível em breve. Por enquanto,
-                    você pode pular esta etapa.
+                    O código para parear o aparelho abre no fim do cadastro, quando o seu agente
+                    já existir. Dá para conectar depois, em Atendimento → Agentes.
                 </p>
 
                 <Button

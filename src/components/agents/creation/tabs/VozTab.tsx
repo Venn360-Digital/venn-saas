@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { toast } from 'sonner'
+
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,7 +14,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Play } from 'lucide-react'
+import { Play, Square } from 'lucide-react'
 import { VozData } from '@/types/agent-creation'
 
 interface VozTabProps {
@@ -31,11 +33,52 @@ const voiceModels = [
 
 export function VozTab({ data, onChange }: VozTabProps) {
     const [isPlaying, setIsPlaying] = useState(false)
+    const audioRef = useRef<HTMLAudioElement | null>(null)
 
-    const handlePlayVoice = () => {
+    /**
+     * Ouvir a voz escolhida, de verdade.
+     *
+     * O botão esperava dois segundos e voltava ao normal sem tocar nada — quem
+     * clicava concluía que a voz estava muda. O áudio vem da rota de amostra e
+     * é descartado ao terminar: `revokeObjectURL` evita segurar o arquivo na
+     * memória da aba a cada clique.
+     */
+    const handlePlayVoice = async () => {
+        if (isPlaying) {
+            audioRef.current?.pause()
+            setIsPlaying(false)
+            return
+        }
         setIsPlaying(true)
-        // TODO: Implementar preview de voz
-        setTimeout(() => setIsPlaying(false), 2000)
+        try {
+            const res = await fetch('/api/agents/voice-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voice: data.voiceModel || 'nova' }),
+            })
+            if (!res.ok) {
+                const detail = await res.json().catch(() => null)
+                toast.error(detail?.error ?? 'Não foi possível tocar a amostra.')
+                setIsPlaying(false)
+                return
+            }
+            const url = URL.createObjectURL(await res.blob())
+            const audio = new Audio(url)
+            audioRef.current = audio
+            audio.onended = () => {
+                setIsPlaying(false)
+                URL.revokeObjectURL(url)
+            }
+            audio.onerror = () => {
+                setIsPlaying(false)
+                URL.revokeObjectURL(url)
+                toast.error('Não foi possível tocar a amostra.')
+            }
+            await audio.play()
+        } catch {
+            setIsPlaying(false)
+            toast.error('Não foi possível tocar a amostra.')
+        }
     }
 
     return (
@@ -94,10 +137,11 @@ export function VozTab({ data, onChange }: VozTabProps) {
                         <Button
                             variant="outline"
                             size="icon"
-                            onClick={handlePlayVoice}
-                            disabled={!data.voiceEnabled || isPlaying}
+                            onClick={() => void handlePlayVoice()}
+                            disabled={!data.voiceEnabled}
+                            aria-label={isPlaying ? 'Parar amostra' : 'Ouvir amostra da voz'}
                         >
-                            <Play className="h-4 w-4" />
+                            {isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                         </Button>
                     </div>
                 </div>
@@ -109,8 +153,10 @@ export function VozTab({ data, onChange }: VozTabProps) {
                         Ao mudar o tom de voz no áudio, a personalidade do Agente será atualizada para manter a consistência
                     </p>
                     <Select
-                        value={data.voiceModel}
-                        onValueChange={(value) => onChange({ voiceModel: value })}
+                        // Era `voiceModel` nos dois campos: escolher o tom
+                        // reescrevia a voz e o play passava a tocar "formal".
+                        value={data.voiceTone}
+                        onValueChange={(value) => onChange({ voiceTone: value })}
                         disabled={!data.voiceEnabled}
                     >
                         <SelectTrigger id="voiceTone">

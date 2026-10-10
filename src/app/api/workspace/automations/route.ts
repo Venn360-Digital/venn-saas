@@ -52,8 +52,6 @@ export async function PATCH(request: NextRequest) {
             Number.isInteger(body.briefingHour) && body.briefingHour >= 0 && body.briefingHour <= 23
                 ? body.briefingHour
                 : current.briefingHour,
-        briefingWhatsApp:
-            typeof body.briefingWhatsApp === 'boolean' ? body.briefingWhatsApp : current.briefingWhatsApp,
     }
 
     await prisma.workspace.update({

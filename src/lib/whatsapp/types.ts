@@ -150,6 +150,15 @@ export interface WhatsAppProvider {
         numbers: string[]
     ): Promise<{ number: string; exists: boolean | undefined; jid?: string }[]>
 
+    /**
+     * A URL da foto de perfil do número, quando ela é pública. Opcional.
+     *
+     * `undefined` cobre os três casos que não se distinguem de fora: não tem
+     * foto, não deixa ver, e a consulta não respondeu. Nenhum deles é erro —
+     * a ficha sem foto mostra as iniciais e está certa.
+     */
+    getProfilePictureUrl?(credentials: InstanceCredentials, number: string): Promise<string | undefined>
+
     sendText(credentials: InstanceCredentials, to: string, text: string): Promise<SendResult>
 
     sendMedia(

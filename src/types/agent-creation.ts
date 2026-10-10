@@ -26,6 +26,8 @@ export interface CerebroData {
 export interface VozData {
     voiceEnabled: boolean
     voiceModel?: string
+    /** Prático, formal, casual, amigável — campo próprio, não a voz. */
+    voiceTone?: string
     voiceTraining?: string
 }
 
@@ -68,10 +70,14 @@ export interface AgentCreationData {
 export interface KnowledgeFile {
     id: string
     filename: string
-    url: string
     size: number
     type: string
     uploadedAt: Date
+    /** O texto extraído: é ele que vira cérebro, não o arquivo. */
+    content: string
+    chars: number
+    /** Texto cortado no teto de extração — a tela avisa. */
+    truncated?: boolean
 }
 
 export interface KnowledgeWebsite {

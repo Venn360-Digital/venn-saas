@@ -5,6 +5,7 @@ import { toMsisdn } from '@/lib/whatsapp'
 import type {
     NormalizedAck,
     NormalizedConnection,
+    NormalizedPicture,
     NormalizedPresence,
     NormalizedRecycle,
 } from '@/lib/whatsapp/envelopes'
@@ -12,6 +13,7 @@ import { webhookUrlFor } from '@/lib/whatsapp'
 import { env } from '../env'
 import { createLogger } from '../logger'
 import { QUEUE, getQueue, type WhatsAppEventJob } from '../queues'
+import { findContactByJid, syncContactAvatar } from '../services/avatar'
 import { findIntegrationByRef, providerFor } from '../services/integration'
 
 /** Measured: the forced logout lands ~105 s after PairSuccess; sync is done by ~15 s. */
@@ -37,7 +39,42 @@ export async function processWhatsAppEvent(job: Job<WhatsAppEventJob>): Promise<
             return handlePresence(event)
         case 'recycle':
             return handleRecycle(event)
+        case 'contact.picture':
+            return handlePicture(event)
     }
+}
+
+/**
+ * O paciente trocou a foto de perfil.
+ *
+ * O evento só avisa que mudou; a imagem vem numa segunda consulta, e é por isso
+ * que isto mora aqui e não no caminho da mensagem — uma consulta de foto já
+ * pendurou 75 s contra a instância de produção, e nenhuma mensagem pode esperar
+ * por um enfeite.
+ *
+ * Contato que ainda não existe é ignorado em silêncio: a foto chega de volta na
+ * próxima troca, e criar ficha a partir de um evento de foto inventaria
+ * paciente a cada contato da agenda do aparelho.
+ */
+async function handlePicture(event: NormalizedPicture): Promise<void> {
+    if (!event.jid || event.jid.endsWith('@g.us')) return
+
+    const integration = await findIntegrationByRef(event.instance)
+    if (!integration) return
+
+    const workspaceId = integration.agent.workspaceId
+    const contact = await findContactByJid(workspaceId, event.jid)
+    if (!contact) return
+
+    const { provider, credentials } = providerFor(integration)
+    await syncContactAvatar({
+        contactId: contact.id,
+        workspaceId,
+        phone: contact.phone,
+        provider,
+        credentials,
+        removed: event.removed,
+    })
 }
 
 /**

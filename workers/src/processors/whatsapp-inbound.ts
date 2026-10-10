@@ -8,6 +8,7 @@ import type { RuleContext } from '@/types/rules'
 import { env } from '../env'
 import { createLogger } from '../logger'
 import type { WhatsAppInboundJob } from '../queues'
+import { syncContactAvatar } from '../services/avatar'
 import { archiveInboundMedia } from '../services/media'
 import { delayForSpeed, scheduleAiReply } from '../services/ai-reply-schedule'
 import { transcribeAudio } from '../services/transcribe'
@@ -63,6 +64,25 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         pushName: inbound.pushName,
         profilePicUrl: inbound.profilePicUrl,
     })
+
+    /**
+     * A foto de perfil, em segundo plano e sem pressa.
+     *
+     * Sem `await` de propósito: a consulta de foto já pendurou 75 s contra a
+     * instância de produção, e a mensagem do paciente não pode esperar por um
+     * enfeite. Cada contato é tentado uma vez por processo, só quando ainda não
+     * tem foto — o restante da regra vive no serviço.
+     */
+    if (!contact.avatar) {
+        const { provider, credentials } = providerFor(integration)
+        void syncContactAvatar({
+            contactId: contact.id,
+            workspaceId: workspace.id,
+            phone: contact.phone,
+            provider,
+            credentials,
+        }).catch((error) => log.warn(`avatar sync failed: ${(error as Error).message}`))
+    }
 
     /**
      * "PARAR" desliga o envio automático, antes de qualquer outra coisa.
