@@ -94,13 +94,59 @@ export async function DELETE(
         })
         if (!stage) return NextResponse.json({ error: 'Etapa não encontrada' }, { status: 404 })
 
+        /**
+         * Fase com negócios dentro exige destino, não recusa.
+         *
+         * A versão anterior devolvia 409 e mandava "mova-os primeiro", o que
+         * obrigava a arrastar um por um antes de poder excluir. Agora a própria
+         * exclusão move: `?moveTo=<faseId>` recebe os negócios, e a recusa só
+         * acontece quando não vem destino — porque apagar a fase sem dizer para
+         * onde vão os negócios deixaria cartão órfão apontando para nada.
+         */
         if (stage.deals.length > 0) {
-            return NextResponse.json(
-                { error: 'Não é possível excluir uma etapa que contém negócios. Mova-os primeiro.' },
-                { status: 409 }
-            )
+            const moveTo = new URL(request.url).searchParams.get('moveTo')
+            if (!moveTo) {
+                return NextResponse.json(
+                    {
+                        error: 'Esta fase tem negócios. Escolha para qual fase eles vão.',
+                        dealCount: await prisma.deal.count({ where: { stageId: id } }),
+                    },
+                    { status: 409 }
+                )
+            }
+
+            const target = await prisma.pipelineStage.findFirst({
+                where: { id: moveTo, workspaceId: workspaceUser.workspaceId },
+                select: { id: true },
+            })
+            if (!target || target.id === id) {
+                return NextResponse.json({ error: 'Fase de destino inválida' }, { status: 400 })
+            }
+
+            // Move e registra a passagem: a entrada de fase é o que explica as
+            // datas da jornada, e uma mudança em massa não pode ser invisível.
+            const moved = await prisma.deal.findMany({ where: { stageId: id }, select: { id: true } })
+            await prisma.deal.updateMany({ where: { stageId: id }, data: { stageId: target.id } })
+            await prisma.dealStageEntry.createMany({
+                data: moved.map((deal) => ({
+                    dealId: deal.id,
+                    stageId: target.id,
+                    userId: user.id,
+                    note: `Movido na exclusão da fase "${stage.name}"`,
+                })),
+            })
         }
 
+        /**
+         * As entradas de fase vão com ela.
+         *
+         * `DealStageEntry.stage` tem FK em cascata, então excluir a fase apaga
+         * as passagens por ela — inclusive de negócios que já seguiram adiante.
+         * Preservá-las exigiria tornar `stageId` opcional e guardar o nome num
+         * instantâneo, e a jornada passaria a ter linhas "fase excluída" para
+         * sempre. A regra escolhida é a simples e explicável: fase que sai da
+         * jornada sai também do passado dela — e o diálogo avisa antes.
+         */
         await prisma.pipelineStage.delete({ where: { id } })
 
         return NextResponse.json({ success: true })

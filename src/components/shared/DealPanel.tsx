@@ -1,17 +1,43 @@
 'use client'
 
-import { useState } from 'react'
-import { CalendarPlus, Pencil, Route, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+    CalendarPlus,
+    Check,
+    ListTodo,
+    Loader2,
+    MoreVertical,
+    Route,
+    RotateCcw,
+    StickyNote,
+    Tag,
+    Trash2,
+    Trophy,
+    User,
+    X,
+    XCircle,
+} from 'lucide-react'
+import { toast } from 'sonner'
 
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { DealJourney } from '@/components/shared/DealJourney'
-import { TagChip } from '@/components/shared/TagChip'
-import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
+import { InlineField } from '@/components/shared/InlineField'
+import { PickField, type PickOption } from '@/components/shared/PickField'
+import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
 import { Button } from '@/components/ui/button'
-import { ageTone, daysInStage, nextStep, type DealLike } from '@/lib/deal-health'
-import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { activityType } from '@/lib/activity-types'
+import { type DealLike } from '@/lib/deal-health'
 import { formatPhone } from '@/lib/phone'
-import { useNow } from '@/hooks/useNow'
 import { cn } from '@/lib/utils'
 
 export interface PanelDeal extends DealLike {
@@ -19,6 +45,7 @@ export interface PanelDeal extends DealLike {
     title: string
     value: number | null
     status: string
+    notes?: string | null
     stage?: { name: string; color: string } | null
     contact: { id: string; name: string | null; phone: string | null } | null
     owner: { id: string; name: string | null } | null
@@ -26,185 +53,565 @@ export interface PanelDeal extends DealLike {
     media: { id: string; name: string } | null
     outcomeReason?: { id: string; name: string; kind: string } | null
     outcomeNotes?: string | null
+    closedValue?: number | null
     closedAt?: string | null
 }
 
+interface PanelActivity {
+    id: string
+    title: string
+    type: string
+    dueDate: string | null
+    startTime: string | null
+    completedAt: string | null
+}
+
+type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'
+
 /**
- * O negócio aberto ao lado do funil, para ler e agir — não para editar.
+ * A ficha do negócio: um painel que lê, edita e age.
  *
- * A edição completa continua no diálogo: título, valor, campos, abas. Este
- * painel responde às perguntas que se faz olhando o quadro — de quem é, quanto
- * vale, há quanto tempo está aí, o que está marcado — e oferece os quatro
- * gestos que seguem dessas respostas: falar com o paciente, agendar, mover de
- * fase, finalizar. Separar os dois é o que mantém o painel curto; um painel que
- * também edita viraria o formulário de novo, só mais estreito.
+ * Substitui o diálogo de tela cheia com abas, que existia só no quadro — a
+ * mesma tela tinha dois comportamentos dependendo da visão. Aqui os campos
+ * nascem abertos e gravam ao sair; não há botão de editar porque não há modo de
+ * edição.
  *
- * O layout é decidido por quem usa, não aqui: no quadro ele **sobrepõe**, para
- * que nenhuma etapa seja sacrificada por estar aberto; na lista ele é **coluna**,
- * porque a tabela encolhe sozinha. Daí as classes virem de fora.
+ * A faixa no topo é a mesma gramática da tela de conversas, com **um modo por
+ * vez**: clicar troca o conteúdo, clicar no ícone aceso volta para a ficha.
+ * Dois painéis em paralelo não existem — em 300px eles se estreitariam até não
+ * servir a nenhum dos dois.
+ *
+ * A jornada mora **dentro** da ficha, e não como um dos modos: nesta tela a
+ * fase é a razão de o painel existir, e cobrar um clique pelo gesto mais
+ * frequente seria o avesso do que esta mudança foi fazer.
  */
 export function DealPanel<T extends PanelDeal>({
     deal,
     stages,
-    whatsappStatus,
-    whatsappBusy,
-    onOpenWhatsApp,
-    onClose,
-    onEdit,
+    members,
+    origins,
+    channels,
+    onPatch,
     onChanged,
+    onClose,
+    onDelete,
     className,
 }: {
-    /**
-     * Genérico de propósito: a página passa o seu próprio tipo de negócio, com
-     * mais campos do que o painel usa, e os callbacks dela recebem esse tipo de
-     * volta — sem o parâmetro, cada `onEdit` precisaria de um molde na chamada.
-     */
     deal: T
     stages: { id: string; name: string; color: string }[]
-    whatsappStatus: boolean | null | undefined
-    whatsappBusy?: boolean
-    onOpenWhatsApp: (target: { id?: string; name?: string | null; phone?: string | null }) => void
-    onClose: () => void
-    onEdit: (deal: T) => void
-    /** Avisa a tela para reler: a jornada grava sozinha, a tela precisa saber. */
+    members: { userId: string; name: string }[]
+    origins: { id: string; name: string }[]
+    channels: { id: string; name: string }[]
+    /** Grava um pedaço do negócio. Devolve `true` quando deu certo. */
+    onPatch: (data: Record<string, unknown>) => Promise<boolean>
     onChanged: () => void
+    onClose: () => void
+    onDelete: (deal: T) => void
     className?: string
 }) {
-    const [scheduling, setScheduling] = useState(false)
-    const now = useNow()
-    const days = daysInStage(deal, now)
-    const age = ageTone(days)
-    const step = nextStep(deal, now)
+    const [mode, setMode] = useState<Mode>('ficha')
+    const [saved, setSaved] = useState(false)
     const closed = deal.status !== 'open'
 
+    // Listas que o painel cadastra por conta própria, para não esperar a tela
+    // recarregar os lookups depois de um `+`.
+    const [extraOrigins, setExtraOrigins] = useState<PickOption[]>([])
+    const [extraChannels, setExtraChannels] = useState<PickOption[]>([])
+
+    const [contactResults, setContactResults] = useState<PickOption[]>([])
+    const [searchingContacts, setSearchingContacts] = useState(false)
+
+    const [activities, setActivities] = useState<PanelActivity[] | null>(null)
+    const [tagsOpen, setTagsOpen] = useState(false)
+    const [availableTags, setAvailableTags] = useState<PickableTag[]>([])
+    const [appliedTags, setAppliedTags] = useState<PickableTag[]>([])
+
+    /*
+     * Trocar de negócio volta para a ficha, e isso acontece pela `key` que a
+     * tela passa: remontar é mais honesto que um efeito que zera estado — e o
+     * efeito dispararia uma renderização em cascata a cada troca de seleção.
+     */
+
+    const save = useCallback(
+        async (data: Record<string, unknown>) => {
+            const ok = await onPatch(data)
+            if (ok) {
+                setSaved(true)
+                setTimeout(() => setSaved(false), 2000)
+            }
+        },
+        [onPatch]
+    )
+
+    /** Atividades só quando o modo abre: o painel abre muitas vezes por sessão. */
+    useEffect(() => {
+        if (mode !== 'activities' || activities !== null) return
+        let cancelled = false
+        fetch(`/api/activities?dealId=${deal.id}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (cancelled) return
+                setActivities(Array.isArray(data) ? data : (data?.data ?? []))
+            })
+            .catch(() => {
+                if (!cancelled) setActivities([])
+            })
+        return () => { cancelled = true }
+    }, [mode, activities, deal.id])
+
+    /** Etiquetas são do paciente, as mesmas da conversa — não uma segunda lista. */
+    useEffect(() => {
+        if (!tagsOpen || !deal.contact?.id) return
+        let cancelled = false
+        Promise.all([
+            fetch('/api/tags?limit=100').then((r) => (r.ok ? r.json() : null)),
+            fetch(`/api/contacts/${deal.contact.id}`).then((r) => (r.ok ? r.json() : null)),
+        ])
+            .then(([tags, contact]) => {
+                if (cancelled) return
+                setAvailableTags(tags?.data ?? [])
+                type ContactTagRow = { tag: PickableTag }
+                setAppliedTags(((contact?.tags ?? []) as ContactTagRow[]).map((ct) => ct.tag))
+            })
+            .catch(() => { })
+        return () => { cancelled = true }
+    }, [tagsOpen, deal.contact?.id])
+
+    const syncTags = async (next: PickableTag[]) => {
+        if (!deal.contact?.id) return
+        setAppliedTags(next)
+        const res = await fetch(`/api/contacts/${deal.contact.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tagIds: next.map((t) => t.id) }),
+        })
+        if (!res.ok) toast.error('Não foi possível salvar as etiquetas')
+    }
+
+    const searchContacts = useCallback((term: string) => {
+        if (term.trim().length < 2) {
+            setContactResults([])
+            return
+        }
+        setSearchingContacts(true)
+        fetch(`/api/contacts?search=${encodeURIComponent(term)}&limit=10`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                const rows: { id: string; name: string | null; phone: string | null }[] = data?.data ?? data ?? []
+                setContactResults(rows.map((c) => ({
+                    id: c.id,
+                    name: c.name || formatPhone(c.phone) || 'Sem nome',
+                    hint: c.name ? formatPhone(c.phone) : null,
+                })))
+            })
+            .catch(() => setContactResults([]))
+            .finally(() => setSearchingContacts(false))
+    }, [])
+
+    const createLookup = async (
+        endpoint: 'agencies' | 'medias',
+        name: string,
+        field: 'agencyId' | 'mediaId',
+        remember: (option: PickOption) => void
+    ): Promise<PickOption | null> => {
+        const res = await fetch(`/api/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        })
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            toast.error(err.error || 'Não foi possível cadastrar')
+            return null
+        }
+        const created = await res.json()
+        const option = { id: created.id, name: created.name ?? name }
+        remember(option)
+        await save({ [field]: option.id })
+        return option
+    }
+
+    const originOptions = [...origins, ...extraOrigins]
+    const channelOptions = [...channels, ...extraChannels]
+
     return (
-        <aside className={cn('flex flex-col overflow-hidden bg-card', className)} aria-label={`Negócio ${deal.title}`}>
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-                <Route className="size-3.5 shrink-0 text-muted-foreground" />
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h3>
+        <aside
+            className={cn('flex flex-col overflow-hidden bg-card', className)}
+            aria-label={`Negócio ${deal.title}`}
+        >
+            {/* A faixa: um modo por vez, e o estado de gravação ao lado. */}
+            <div className="flex items-center gap-0.5 border-b border-border px-1.5 py-1">
+                <StripIcon
+                    icon={Route}
+                    label="Ficha do negócio"
+                    active={mode === 'ficha'}
+                    onClick={() => setMode('ficha')}
+                />
+                <StripIcon
+                    icon={CalendarPlus}
+                    label={closed ? 'Negócio finalizado — nada a agendar' : 'Agendar atividade'}
+                    active={mode === 'schedule'}
+                    disabled={closed || !deal.contact?.id}
+                    onClick={() => setMode(mode === 'schedule' ? 'ficha' : 'schedule')}
+                />
+                <StripIcon
+                    icon={ListTodo}
+                    label="Atividades"
+                    active={mode === 'activities'}
+                    onClick={() => setMode(mode === 'activities' ? 'ficha' : 'activities')}
+                />
+
+                {/* Etiquetas é popover, não modo: é escolha de um clique. */}
+                <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={tagsOpen ? 'secondary' : 'ghost'}
+                                    size="icon-sm"
+                                    disabled={!deal.contact?.id}
+                                    aria-label="Etiquetas do paciente"
+                                >
+                                    <Tag className="size-3.5" />
+                                </Button>
+                            </PopoverTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>Etiquetas do paciente</TooltipContent>
+                    </Tooltip>
+                    <PopoverContent align="start" className="w-64 p-2">
+                        <TagPicker
+                            available={availableTags}
+                            applied={appliedTags}
+                            onAdd={(tag) => void syncTags([...appliedTags, tag])}
+                            onRemove={(tagId) => void syncTags(appliedTags.filter((t) => t.id !== tagId))}
+                            onCreated={(tag) => {
+                                setAvailableTags((prev) => [...prev, tag])
+                                void syncTags([...appliedTags, tag])
+                            }}
+                        />
+                    </PopoverContent>
+                </Popover>
+
+                <StripIcon
+                    icon={StickyNote}
+                    label="Notas do negócio"
+                    active={mode === 'notes'}
+                    onClick={() => setMode(mode === 'notes' ? 'ficha' : 'notes')}
+                />
+
                 <span className="flex-1" />
-                {deal.stage ? <TagChip name={deal.stage.name} color={deal.stage.color ?? DEFAULT_ENTITY_COLOR} /> : null}
+
+                {saved ? (
+                    <span className="flex items-center gap-1 rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">
+                        <Check className="size-3" /> salvo
+                    </span>
+                ) : closed ? (
+                    <span className={cn(
+                        'flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                        deal.status === 'won'
+                            ? 'bg-success-subtle text-success-subtle-foreground'
+                            : 'bg-destructive-subtle text-destructive-subtle-foreground'
+                    )}>
+                        {deal.status === 'won' ? <Trophy className="size-3" /> : <XCircle className="size-3" />}
+                        {deal.status === 'won' ? 'Ganho' : 'Perdido'}
+                    </span>
+                ) : null}
+
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" aria-label="Mais ações">
+                            <MoreVertical className="size-3.5" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                        {/* Irreversível fica no menu, não à mão num painel que
+                            grava sozinho. */}
+                        <DropdownMenuItem variant="destructive" onClick={() => onDelete(deal)}>
+                            <Trash2 className="size-3.5" />
+                            Excluir negócio
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+
                 <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Fechar painel">
                     <X className="size-3.5" />
                 </Button>
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto p-3">
-                <div>
-                    <h4 className="text-sm font-semibold leading-snug">{deal.title}</h4>
-                    {deal.contact ? (
-                        <div className="mt-1 flex items-center gap-1.5">
-                            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                                {deal.contact.name || formatPhone(deal.contact.phone) || 'Sem paciente'}
-                            </span>
-                            <WhatsAppCell
-                                target={deal.contact}
-                                status={whatsappStatus}
-                                busy={whatsappBusy}
-                                onOpen={onOpenWhatsApp}
+            <div className="flex-1 overflow-y-auto p-3">
+                {mode === 'ficha' ? (
+                    <div className="space-y-3">
+                        {closed ? (
+                            <div className={cn(
+                                'rounded-md px-2.5 py-2 text-xs',
+                                deal.status === 'won'
+                                    ? 'bg-success-subtle text-success-subtle-foreground'
+                                    : 'bg-destructive-subtle text-destructive-subtle-foreground'
+                            )}>
+                                <p className="font-bold">
+                                    {deal.status === 'won' ? 'Ganho' : 'Perdido'}
+                                    {deal.closedAt
+                                        ? ` em ${new Date(deal.closedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`
+                                        : ''}
+                                </p>
+                                {deal.outcomeReason ? <p className="mt-0.5">Motivo: {deal.outcomeReason.name}</p> : null}
+                                {deal.status === 'won' && deal.closedValue != null ? (
+                                    <p className="num">Valor fechado R$ {deal.closedValue.toLocaleString('pt-BR')}</p>
+                                ) : null}
+                                {deal.outcomeNotes ? <p className="mt-0.5 opacity-90">{deal.outcomeNotes}</p> : null}
+                            </div>
+                        ) : null}
+
+                        <div>
+                            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Título</Label>
+                            <InlineField
+                                value={deal.title}
+                                onCommit={(title) => void save({ title })}
+                                disabled={closed}
+                                ariaLabel="Título do negócio"
+                                bare
+                                className="mt-0.5"
                             />
                         </div>
-                    ) : null}
-                </div>
 
-                {/* Os fatos, em duas colunas: o que se pergunta olhando o cartão. */}
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                    <dt className="text-muted-foreground">Valor</dt>
-                    <dd className="num m-0 font-semibold">
-                        {deal.value ? `R$ ${deal.value.toLocaleString('pt-BR')}` : '—'}
-                    </dd>
-                    <dt className="text-muted-foreground">Responsável</dt>
-                    <dd className="m-0 font-semibold">{deal.owner?.name || '—'}</dd>
-                    <dt className="text-muted-foreground">Origem</dt>
-                    <dd className="m-0 font-semibold">{deal.agency?.name || '—'}</dd>
-                    <dt className="text-muted-foreground">Canal</dt>
-                    <dd className="m-0 font-semibold">{deal.media?.name || '—'}</dd>
-                    {age.label ? (
-                        <>
-                            <dt className="text-muted-foreground">Nesta fase</dt>
-                            <dd className="m-0 flex items-center gap-1.5 font-semibold">
-                                <span className={cn('size-1.5 rounded-full', age.fill)} />
-                                <span className="num">{days} {days === 1 ? 'dia' : 'dias'}</span>
-                            </dd>
-                        </>
-                    ) : null}
-                </dl>
+                        <div>
+                            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Paciente</Label>
+                            <PickField
+                                className="mt-1"
+                                value={deal.contact ? {
+                                    id: deal.contact.id,
+                                    name: deal.contact.name || formatPhone(deal.contact.phone) || 'Sem nome',
+                                } : null}
+                                options={contactResults}
+                                searchable
+                                onSearch={searchContacts}
+                                loading={searchingContacts}
+                                disabled={closed}
+                                leading={<User className="size-3.5 shrink-0 text-muted-foreground" />}
+                                placeholder="Escolher paciente"
+                                newPlaceholder="Nome do novo paciente"
+                                onSelect={(option) => void save({ contactId: option?.id ?? null })}
+                                onCreate={async (name) => {
+                                    const res = await fetch('/api/contacts', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ name, source: 'manual' }),
+                                    })
+                                    const data = await res.json().catch(() => ({}))
+                                    if (!res.ok) {
+                                        toast.error(data.error || 'Não foi possível cadastrar o paciente')
+                                        return null
+                                    }
+                                    const option = { id: data.id, name: data.name ?? name }
+                                    await save({ contactId: option.id })
+                                    return option
+                                }}
+                            />
+                        </div>
 
-                {/* O próximo passo, e o caminho para criar um quando falta. */}
-                <div>
-                    <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Próximo passo
-                    </h5>
-                    <div className={cn(
-                        'flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium',
-                        step.missing || step.overdue
-                            ? 'bg-destructive-subtle text-destructive-subtle-foreground'
-                            : 'bg-primary-subtle text-primary-subtle-foreground'
-                    )}>
-                        <CalendarPlus className="size-3.5 shrink-0" />
-                        <span className="truncate">{step.label}</span>
-                    </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor</Label>
+                                <InlineField
+                                    value={deal.value != null ? String(deal.value) : ''}
+                                    onCommit={(next) => {
+                                        const parsed = next ? Number(next.replace(/\./g, '').replace(',', '.')) : null
+                                        void save({ value: Number.isNaN(parsed) ? null : parsed })
+                                    }}
+                                    disabled={closed}
+                                    placeholder="0,00"
+                                    ariaLabel="Valor do negócio"
+                                    className="num mt-1 h-9"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Responsável</Label>
+                                <Select
+                                    value={deal.owner?.id ?? 'none'}
+                                    disabled={closed}
+                                    onValueChange={(v) => void save({ userId: v === 'none' ? null : v })}
+                                >
+                                    <SelectTrigger className="mt-1 h-9 w-full"><SelectValue placeholder="—" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">—</SelectItem>
+                                        {members.map((m) => (
+                                            <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
 
-                    {scheduling && deal.contact?.id ? (
-                        <div className="mt-3 rounded-md border border-border p-2.5">
-                            <ActivityForm
-                                key={deal.id}
-                                contactId={deal.contact.id}
-                                contactName={deal.contact.name || formatPhone(deal.contact.phone) || 'paciente'}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Origem</Label>
+                                <PickField
+                                    className="mt-1"
+                                    value={deal.agency ?? null}
+                                    options={originOptions}
+                                    disabled={closed}
+                                    placeholder="—"
+                                    newPlaceholder="Nova origem"
+                                    onSelect={(option) => void save({ agencyId: option?.id ?? null })}
+                                    onCreate={(name) => createLookup('agencies', name, 'agencyId', (o) => setExtraOrigins((p) => [...p, o]))}
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Canal</Label>
+                                <PickField
+                                    className="mt-1"
+                                    value={deal.media ?? null}
+                                    options={channelOptions}
+                                    disabled={closed}
+                                    placeholder="—"
+                                    newPlaceholder="Novo canal"
+                                    onSelect={(option) => void save({ mediaId: option?.id ?? null })}
+                                    onCreate={(name) => createLookup('medias', name, 'mediaId', (o) => setExtraChannels((p) => [...p, o]))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="border-t border-border pt-3">
+                            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Jornada</Label>
+                            <DealJourney
+                                className="mt-1.5"
                                 dealId={deal.id}
                                 dealTitle={deal.title}
-                                onScheduled={() => {
-                                    setScheduling(false)
-                                    onChanged()
-                                }}
-                                onCancel={() => setScheduling(false)}
+                                dealValue={deal.value}
+                                stages={stages.map((stage, i) => ({ ...stage, order: i }))}
+                                currentStageId={deal.stageId}
+                                entries={deal.stageEntries ?? []}
+                                status={(deal.status as 'open' | 'won' | 'lost') ?? 'open'}
+                                outcomeReasonName={deal.outcomeReason?.name ?? null}
+                                outcomeNotes={deal.outcomeNotes ?? null}
+                                closedAt={deal.closedAt ?? null}
+                                onOutcome={onChanged}
+                                onChange={() => onChanged()}
                             />
                         </div>
-                    ) : deal.contact?.id ? (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-2 w-full gap-1.5"
-                            onClick={() => setScheduling(true)}
-                        >
-                            <CalendarPlus className="size-3.5" />
-                            Agendar atividade
-                        </Button>
-                    ) : null}
-                </div>
+                    </div>
+                ) : null}
 
-                {/* A jornada, a mesma da conversa.
-                    Substitui o seletor de fase e os dois botões de desfecho que
-                    moravam aqui: clicar na fase move e registra data e nota, e a
-                    Finalização abre dentro do próprio card. Três controles para a
-                    mesma coisa viravam três verdades. */}
-                <div>
-                    <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Jornada
-                    </h5>
-                    <DealJourney
+                {mode === 'schedule' && deal.contact?.id ? (
+                    <ActivityForm
+                        key={deal.id}
+                        contactId={deal.contact.id}
+                        contactName={deal.contact.name || formatPhone(deal.contact.phone) || 'paciente'}
                         dealId={deal.id}
                         dealTitle={deal.title}
-                        dealValue={deal.value}
-                        stages={stages.map((stage, i) => ({ ...stage, order: i }))}
-                        currentStageId={deal.stageId}
-                        entries={deal.stageEntries ?? []}
-                        status={(deal.status as 'open' | 'won' | 'lost') ?? 'open'}
-                        outcomeReasonName={deal.outcomeReason?.name ?? null}
-                        outcomeNotes={deal.outcomeNotes ?? null}
-                        closedAt={deal.closedAt ?? null}
-                        onOutcome={onChanged}
-                        onChange={() => onChanged()}
+                        onScheduled={() => {
+                            setActivities(null)
+                            setMode('activities')
+                            onChanged()
+                        }}
+                        onCancel={() => setMode('ficha')}
                     />
-                </div>
+                ) : null}
+
+                {mode === 'activities' ? (
+                    <div className="space-y-2">
+                        {activities === null ? (
+                            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="size-3.5 animate-spin" /> Carregando atividades…
+                            </p>
+                        ) : activities.length === 0 ? (
+                            <div className="rounded-md border border-dashed border-border px-3 py-5 text-center">
+                                <CalendarPlus className="mx-auto mb-2 size-5 text-muted-foreground" />
+                                <p className="text-xs text-muted-foreground">Nenhuma atividade neste negócio.</p>
+                            </div>
+                        ) : (
+                            activities.map((activity) => {
+                                const kind = activityType(activity.type)
+                                const done = Boolean(activity.completedAt)
+                                return (
+                                    <div
+                                        key={activity.id}
+                                        className={cn(
+                                            'rounded-md border border-border px-2.5 py-2',
+                                            done ? 'opacity-60' : 'border-l-2 border-l-primary'
+                                        )}
+                                    >
+                                        <p className="flex items-center gap-1.5 text-[12px] font-semibold">
+                                            {done ? <Check className="size-3 text-success-subtle-foreground" /> : null}
+                                            <kind.icon className={cn('size-3', kind.color)} />
+                                            {activity.title}
+                                        </p>
+                                        <p className="num text-[11px] text-muted-foreground">
+                                            {activity.dueDate
+                                                ? new Date(activity.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                                                : 'sem data'}
+                                            {activity.startTime ? ` ${activity.startTime}` : ''}
+                                            {done ? ' · concluída' : ' · pendente'}
+                                        </p>
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                ) : null}
+
+                {mode === 'notes' ? (
+                    <div className="space-y-1.5">
+                        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Notas</Label>
+                        <InlineField
+                            value={deal.notes ?? ''}
+                            onCommit={(notes) => void save({ notes })}
+                            multiline
+                            disabled={closed}
+                            placeholder="O que a equipe precisa saber sobre este negócio…"
+                            ariaLabel="Notas do negócio"
+                        />
+                        <p className="text-[11px] text-muted-foreground">Grava ao sair do campo.</p>
+                    </div>
+                ) : null}
             </div>
 
-            <div className="border-t border-border p-3">
-                <Button variant="ghost" size="sm" className="w-full gap-1.5" onClick={() => onEdit(deal)}>
-                    <Pencil className="size-3.5" />
-                    Editar negócio
-                </Button>
-            </div>
+            {closed ? (
+                <div className="border-t border-border p-3">
+                    <Button
+                        className="w-full gap-2"
+                        onClick={() => void save({ status: 'open' })}
+                    >
+                        <RotateCcw className="size-4" />
+                        Reabrir negócio
+                    </Button>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                        Negócio finalizado não se edita — o histórico é o que explica o resultado.
+                    </p>
+                </div>
+            ) : null}
         </aside>
+    )
+}
+
+function StripIcon({
+    icon: Icon,
+    label,
+    active,
+    disabled,
+    onClick,
+}: {
+    icon: typeof Route
+    label: string
+    active: boolean
+    disabled?: boolean
+    onClick: () => void
+}) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button
+                    variant={active ? 'secondary' : 'ghost'}
+                    size="icon-sm"
+                    disabled={disabled}
+                    aria-pressed={active}
+                    aria-label={label}
+                    onClick={onClick}
+                >
+                    <Icon className="size-3.5" />
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
     )
 }

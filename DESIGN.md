@@ -338,6 +338,29 @@ nunca atrás delas — 1px atravessando um ponto cheio aparece. Marco cumprido �
 `bg-success` com `Check`; pendente é `bg-card` com borda e o ícone do marco.
 Data em `num`. Só o marco em edição abre; os outros ficam em uma linha.
 
+**Painel que lê e age; nada de modo de edição.** Campo de painel nasce aberto e
+grava ao sair — `InlineField` só escreve quando o valor mudou, Enter grava, Esc
+devolve o anterior, e um selo "salvo" pisca por dois segundos. Não há botão
+Salvar nem botão Editar, porque não há modo: um diálogo de edição que cobre a
+tela para mudar um campo é o que esta regra existe para eliminar. Registro
+finalizado trava os campos (borda tracejada, fundo `muted`) e a ação primária
+passa a ser reabrir.
+
+**Campo que escolhe e cadastra: o `+` mora dentro da borda.** Um botão solto ao
+lado lê como "mais um campo" e custa 36px de largura em cada linha — num painel
+de 300px, um décimo da tela por campo. `PickField` põe o `+` como segmento
+dentro da própria caixa, separado por um filete, e o que foi digitado na busca
+vai pré-preenchido no cadastro. Busca dentro do menu só quando a lista é grande;
+para meia dúzia de itens, um campo de busca é cerimônia.
+
+**Telas de trabalho não usam o `PageHeader`.** Conversas e Negócios tratam a
+altura como recurso escasso: título em `text-h3` dentro de uma barra de duas
+linhas, sem descrição, filtros **abertos** na segunda linha (filtrar ali é
+rotina, não exceção — o `FilterPanel` recolhível continua certo nas telas de
+cadastro), e o conteúdo em `h-[calc(100svh-3.5rem)]` com rolagem por dentro de
+cada faixa. Números de resumo vão como tipografia na barra, não como cartões: um
+número que só se olha não merece 104px de altura.
+
 **Funil no eixo vertical, não no horizontal.** Coluna de etapa com largura
 fixa multiplica a largura necessária por etapa, e aí qualquer painel à direita
 disputa espaço com o funil — o problema não é o painel, é o eixo. O trilho

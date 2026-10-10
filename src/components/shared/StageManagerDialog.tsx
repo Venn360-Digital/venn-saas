@@ -1,0 +1,334 @@
+'use client'
+
+import { useState } from 'react'
+import { ChevronDown, ChevronUp, Loader2, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { InlineField } from '@/components/shared/InlineField'
+import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
+import { cn } from '@/lib/utils'
+
+export interface ManagedStage {
+    id: string
+    name: string
+    color: string
+    order: number
+    deals: unknown[]
+    _count?: { deals: number }
+}
+
+/**
+ * As fases do atendimento, num lugar só.
+ *
+ * Criar fase era um botão no fim do quadro — existia ali e sumia nas outras
+ * duas visões; renomear e excluir moravam no menu de cada coluna, que o trilho
+ * não tem. Com a jornada sendo a espinha desta tela, a jornada precisa de um
+ * cadastro próprio, alcançável de qualquer visão.
+ *
+ * Excluir uma fase com negócios pede destino, em vez de recusar e mandar mover
+ * um por um. E avisa o que se perde: as passagens por aquela fase vão com ela.
+ */
+export function StageManagerDialog({
+    open,
+    onOpenChange,
+    stages,
+    onChanged,
+}: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    stages: ManagedStage[]
+    onChanged: () => void
+}) {
+    const [busy, setBusy] = useState<string | null>(null)
+    const [newName, setNewName] = useState('')
+    const [newColor, setNewColor] = useState(PICKER_RAMP[0] ?? DEFAULT_ENTITY_COLOR)
+    const [deleting, setDeleting] = useState<ManagedStage | null>(null)
+    const [moveTo, setMoveTo] = useState('')
+
+    const sorted = [...stages].sort((a, b) => a.order - b.order)
+
+    const patch = async (stage: ManagedStage, data: Record<string, unknown>) => {
+        setBusy(stage.id)
+        try {
+            const res = await fetch(`/api/pipelines/${stage.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                toast.error(err.error || 'Não foi possível salvar a fase')
+                return
+            }
+            onChanged()
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    /** Troca a ordem com a vizinha: duas escritas, não uma renumeração geral. */
+    const swap = async (index: number, direction: -1 | 1) => {
+        const current = sorted[index]
+        const neighbour = sorted[index + direction]
+        if (!current || !neighbour) return
+        setBusy(current.id)
+        try {
+            await Promise.all([
+                fetch(`/api/pipelines/${current.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: neighbour.order }),
+                }),
+                fetch(`/api/pipelines/${neighbour.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: current.order }),
+                }),
+            ])
+            onChanged()
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    const create = async () => {
+        const name = newName.trim()
+        if (!name) return
+        setBusy('new')
+        try {
+            const res = await fetch('/api/pipelines', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    color: newColor,
+                    order: (sorted.at(-1)?.order ?? 0) + 1,
+                }),
+            })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                toast.error(err.error || 'Não foi possível criar a fase')
+                return
+            }
+            setNewName('')
+            onChanged()
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    const confirmDelete = async () => {
+        if (!deleting) return
+        const count = dealCount(deleting)
+        if (count > 0 && !moveTo) {
+            toast.error('Escolha a fase que recebe os negócios')
+            return
+        }
+        setBusy(deleting.id)
+        try {
+            const query = count > 0 ? `?moveTo=${moveTo}` : ''
+            const res = await fetch(`/api/pipelines/${deleting.id}${query}`, { method: 'DELETE' })
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}))
+                toast.error(err.error || 'Não foi possível excluir a fase')
+                return
+            }
+            toast.success('Fase excluída')
+            setDeleting(null)
+            setMoveTo('')
+            onChanged()
+        } finally {
+            setBusy(null)
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setDeleting(null) }}>
+            <DialogContent className="sm:max-w-[460px]">
+                <DialogHeader>
+                    <DialogTitle>Fases do atendimento</DialogTitle>
+                    <DialogDescription>
+                        A jornada desta clínica. Vale para o funil, para a lista e para o painel do paciente.
+                    </DialogDescription>
+                </DialogHeader>
+
+                {deleting ? (
+                    <div className="space-y-3">
+                        <p className="text-sm">
+                            Excluir <strong>{deleting.name}</strong>?
+                        </p>
+                        {dealCount(deleting) > 0 ? (
+                            <div className="space-y-1.5">
+                                <Label htmlFor="stage-move" className="text-xs">
+                                    {dealCount(deleting)} {dealCount(deleting) === 1 ? 'negócio está' : 'negócios estão'} nesta fase. Mover para
+                                </Label>
+                                <Select value={moveTo} onValueChange={setMoveTo}>
+                                    <SelectTrigger id="stage-move" className="w-full">
+                                        <SelectValue placeholder="Escolha a fase de destino" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {sorted.filter((s) => s.id !== deleting.id).map((s) => (
+                                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">
+                            As passagens por esta fase saem da jornada junto com ela — inclusive de
+                            negócios que já seguiram adiante. Os negócios não são apagados.
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => { setDeleting(null); setMoveTo('') }}>
+                                Cancelar
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => void confirmDelete()}
+                                disabled={busy === deleting.id}
+                                className="gap-1.5"
+                            >
+                                {busy === deleting.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                                Excluir fase
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {sorted.map((stage, index) => (
+                            <div key={stage.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                                <ColorPick
+                                    color={stage.color}
+                                    onPick={(color) => void patch(stage, { color })}
+                                />
+                                <InlineField
+                                    value={stage.name}
+                                    onCommit={(name) => void patch(stage, { name })}
+                                    ariaLabel={`Nome da fase ${stage.name}`}
+                                    bare
+                                    className="min-w-0 flex-1"
+                                />
+                                <span className="num rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                    {dealCount(stage)}
+                                </span>
+                                <div className="flex flex-col">
+                                    <button
+                                        type="button"
+                                        onClick={() => void swap(index, -1)}
+                                        disabled={index === 0 || busy === stage.id}
+                                        aria-label="Subir"
+                                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                    >
+                                        <ChevronUp className="size-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => void swap(index, 1)}
+                                        disabled={index === sorted.length - 1 || busy === stage.id}
+                                        aria-label="Descer"
+                                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                    >
+                                        <ChevronDown className="size-3.5" />
+                                    </button>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    onClick={() => { setDeleting(stage); setMoveTo('') }}
+                                    aria-label={`Excluir fase ${stage.name}`}
+                                    disabled={sorted.length <= 1}
+                                    title={sorted.length <= 1 ? 'A jornada precisa de pelo menos uma fase' : undefined}
+                                >
+                                    <Trash2 className="size-3.5 text-muted-foreground" />
+                                </Button>
+                            </div>
+                        ))}
+
+                        <div className="flex items-center gap-2 pt-1">
+                            <ColorPick color={newColor} onPick={setNewColor} />
+                            <Input
+                                value={newName}
+                                onChange={(e) => setNewName(e.target.value)}
+                                placeholder="Nome da nova fase"
+                                aria-label="Nome da nova fase"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        void create()
+                                    }
+                                }}
+                            />
+                            <Button
+                                size="sm"
+                                onClick={() => void create()}
+                                disabled={busy === 'new' || !newName.trim()}
+                                className="shrink-0 gap-1.5"
+                            >
+                                {busy === 'new' ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                                Acrescentar
+                            </Button>
+                        </div>
+
+                        <p className="pt-1 text-xs text-muted-foreground">
+                            A <strong>Finalização</strong> fecha toda jornada e não é uma fase daqui —
+                            ganho e perdido se registram no painel, e os motivos têm a sua própria lista.
+                        </p>
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function dealCount(stage: ManagedStage): number {
+    return stage._count?.deals ?? stage.deals.length
+}
+
+/** A cor da fase, escolhida da rampa da marca — nunca um campo hex livre. */
+function ColorPick({ color, onPick }: { color: string; onPick: (color: string) => void }) {
+    const [open, setOpen] = useState(false)
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    aria-label="Cor da fase"
+                    className="size-5 shrink-0 rounded ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-border"
+                    style={{ backgroundColor: color }}
+                />
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2">
+                <div className="flex gap-1.5" role="radiogroup" aria-label="Cor da fase">
+                    {PICKER_RAMP.map((hex) => (
+                        <button
+                            key={hex}
+                            type="button"
+                            role="radio"
+                            aria-checked={color === hex}
+                            aria-label={`Cor ${hex}`}
+                            onClick={() => { onPick(hex); setOpen(false) }}
+                            className={cn(
+                                'size-6 rounded-full ring-offset-2 ring-offset-popover',
+                                color === hex ? 'ring-2 ring-ring' : 'hover:ring-2 hover:ring-border'
+                            )}
+                            style={{ backgroundColor: hex }}
+                        />
+                    ))}
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
+}

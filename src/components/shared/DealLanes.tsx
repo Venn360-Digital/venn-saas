@@ -44,13 +44,57 @@ export function DealLanes({
     counts,
     selected,
     onSelect,
+    /**
+     * `chip` é a forma densa, para barras de ferramentas.
+     *
+     * A forma de cartão custa 76px de altura numa tela cuja altura é o recurso
+     * escasso — e a informação é um número e um rótulo curto, que caberiam numa
+     * pastilha de 24px.
+     */
+    variant = 'card',
     className,
 }: {
     counts: Record<DealLane, number> | null
     selected: DealLane | null
     onSelect: (lane: DealLane | null) => void
+    variant?: 'card' | 'chip'
     className?: string
 }) {
+    if (variant === 'chip') {
+        return (
+            <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
+                {DEAL_LANES.map((lane) => {
+                    const look = LOOK[lane.id]
+                    const count = counts?.[lane.id]
+                    const active = selected === lane.id
+                    const empty = count === 0
+
+                    return (
+                        <button
+                            key={lane.id}
+                            type="button"
+                            aria-pressed={active}
+                            disabled={empty}
+                            title={lane.hint}
+                            onClick={() => onSelect(active ? null : lane.id)}
+                            className={cn(
+                                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                                active
+                                    ? cn(look.fill, look.ink, 'border-transparent font-semibold')
+                                    : 'border-border bg-card',
+                                empty ? 'opacity-50' : 'hover:bg-muted'
+                            )}
+                        >
+                            <look.icon className={cn('size-3.5 shrink-0', active ? '' : look.ink)} />
+                            <span className="num font-semibold">{count ?? '—'}</span>
+                            <span className="hidden sm:inline">{lane.label}</span>
+                        </button>
+                    )
+                })}
+            </div>
+        )
+    }
+
     return (
         <div className={cn('grid gap-3 sm:grid-cols-3', className)}>
             {DEAL_LANES.map((lane) => {

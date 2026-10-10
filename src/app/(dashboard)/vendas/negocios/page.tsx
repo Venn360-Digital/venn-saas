@@ -20,6 +20,7 @@ import {
     Pencil,
     Plus,
     Search,
+    Settings2,
     Trash2,
     Trophy,
     User,
@@ -81,8 +82,6 @@ import {
 } from '@/components/shared/RowActions'
 import { ContactPicker } from '@/components/shared/ContactPicker'
 import { DealLanes } from '@/components/shared/DealLanes'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { FilterPanel, Toolbar } from '@/components/shared/Toolbar'
 import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
 import { isDealLane, type DealLane } from '@/lib/deal-lanes'
 import { useNow } from '@/hooks/useNow'
@@ -93,6 +92,8 @@ import { StageRail } from '@/components/shared/StageRail'
 import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
 import { DealPanel } from '@/components/shared/DealPanel'
 import { CLOSED_RAIL_ID, PipelineRail } from '@/components/shared/PipelineRail'
+import { StageManagerDialog } from '@/components/shared/StageManagerDialog'
+import { NewDealDialog } from '@/components/shared/NewDealDialog'
 import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
@@ -176,6 +177,24 @@ interface DealActivity {
 
 const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
 
+
+/**
+ * Um número do resumo: valor em cima, rótulo miúdo embaixo.
+ *
+ * Tipografia em vez de cartão. Três cartões de número grande custavam 104px de
+ * altura numa tela onde a altura é o recurso escasso, e diziam o mesmo que três
+ * pares de linhas dizem em 34px.
+ */
+function Figure({ label, value, tone }: { label: string; value?: number; tone?: string }) {
+    return (
+        <span className="leading-tight">
+            <span className={cn('num block text-sm font-semibold', tone)}>
+                {value == null ? '—' : `R$ ${value.toLocaleString('pt-BR')}`}
+            </span>
+            <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+        </span>
+    )
+}
 
 // ─── Creatable Select ────────────────────────────────────────────────
 
@@ -415,7 +434,7 @@ function DealCard({
 // ─── Stage Column ────────────────────────────────────────────────────
 function StageColumn({
     stage, onAddDeal, onEditDeal, onDeleteDeal, onStatusChange, stages, onMoveToStage,
-    onEditStage, onDeleteStage, isOver, whatsapp, onSelectDeal, selectedDealId,
+    isOver, whatsapp, onSelectDeal, selectedDealId,
 }: {
     stage: Stage
     onAddDeal: (stageId: string) => void
@@ -424,8 +443,6 @@ function StageColumn({
     onStatusChange: (deal: Deal, status: string) => void
     stages: Stage[]
     onMoveToStage: (deal: Deal, stageId: string) => void
-    onEditStage: (stage: Stage) => void
-    onDeleteStage: (stage: Stage) => void
     isOver?: boolean
     whatsapp: ReturnType<typeof useWhatsAppStatus>
     onSelectDeal: (deal: Deal) => void
@@ -459,34 +476,10 @@ function StageColumn({
             <div className="rounded-t-lg px-4 py-2 flex items-center justify-between" style={{ backgroundColor: stage.color }}>
                 <h3 className="font-semibold text-foreground truncate">{stage.name}</h3>
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground bg-accent px-2 py-0.5 rounded-full">{stage.deals.length}</span>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                aria-label={`Ações da etapa ${stage.name}`}
-                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-accent"
-                            >
-                                <MoreVertical className="h-3.5 w-3.5" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                            <RowActionItem icon={Pencil} onClick={() => onEditStage(stage)}>
-                                Renomear
-                            </RowActionItem>
-                            {canEdit && (
-                                <>
-                                    <RowActionsSeparator />
-                                    <RowActionItem
-                                        icon={Trash2}
-                                        destructive
-                                        onClick={() => onDeleteStage(stage)}
-                                    >
-                                        Excluir
-                                    </RowActionItem>
-                                </>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    {/* O menu da fase saiu: renomear, recolorir, reordenar e
+                        excluir vivem no gerenciador "Fases", que existe nas três
+                        visões — este menu só existia no quadro. */}
+                    <span className="num rounded-full bg-accent px-2 py-0.5 text-xs text-muted-foreground">{stage.deals.length}</span>
                 </div>
             </div>
             {/* O medidor da etapa: a largura de cada trecho é a contagem, então
@@ -565,7 +558,8 @@ export default function NegociosPage() {
     const [focusOrder, setFocusOrder] = useState<FocusOrder>('age')
     const [closedDeals, setClosedDeals] = useState<Deal[]>([])
     const [closedCount, setClosedCount] = useState<number | null>(null)
-    const [filtersOpen, setFiltersOpen] = useState(false)
+    const [stagesOpen, setStagesOpen] = useState(false)
+    const [newDealOpen, setNewDealOpen] = useState(false)
     /**
      * O negócio aberto no painel, por id e não por objeto.
      *
@@ -591,24 +585,20 @@ export default function NegociosPage() {
     const [dateTo, setDateTo] = useState('')
 
     // KPI summary
-    const [kpiActiveCount, setKpiActiveCount] = useState(0)
-    const [kpiOpenValue, setKpiOpenValue] = useState(0)
-    const [kpiWonValue, setKpiWonValue] = useState(0)
+    const [summary, setSummary] = useState<{
+        open: { count: number; value: number }
+        won: { count: number; value: number }
+        lost: { count: number; value: number }
+    } | null>(null)
     const [wonCount, setWonCount] = useState(0)
 
     // Deal dialog
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingDeal, setEditingDeal] = useState<Deal | null>(null)
     const [selectedStageId, setSelectedStageId] = useState<string>('')
-    const [dealForm, setDealForm] = useState({
-        title: '', value: '', notes: '', contactId: '',
-        userId: '', agencyId: '', mediaId: '', status: 'open',
-    })
 
     // Contact search
-    const [contactSearch, setContactSearch] = useState('')
     const [contactResults, setContactResults] = useState<Contact[]>([])
-    const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
 
     // Lookup data
     const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([])
@@ -628,19 +618,12 @@ export default function NegociosPage() {
     // Deal activities timeline
     const [dealActivities, setDealActivities] = useState<DealActivity[]>([])
     const [loadingActivities, setLoadingActivities] = useState(false)
-    const [activityForm, setActivityForm] = useState({ title: '', type: 'call', description: '', dueDate: '', startTime: '' })
-    const [showActivityForm, setShowActivityForm] = useState(false)
 
     // List view deals
     const [listDeals, setListDeals] = useState<Deal[]>([])
 
     // Stage management
-    const [stageDialogOpen, setStageDialogOpen] = useState(false)
-    const [editingStage, setEditingStage] = useState<Stage | null>(null)
-    const [stageName, setStageName] = useState('')
-    const [stageColor, setStageColor] = useState<string>(DEFAULT_ENTITY_COLOR)
     const [stageDeleteDialogOpen, setStageDeleteDialogOpen] = useState(false)
-    const [stageToDelete, setStageToDelete] = useState<Stage | null>(null)
 
     // DnD state
     const [overStageId, setOverStageId] = useState<string | null>(null)
@@ -682,29 +665,6 @@ export default function NegociosPage() {
             : [...stages.flatMap((st) => st.deals), ...closedDeals].find((d) => d.id === selectedDealId)) ?? null
 
     /** Props comuns do painel nas duas visões; só o layout difere. */
-    const panelProps = selectedDeal
-        ? {
-            deal: selectedDeal,
-            stages: stages.map((st) => ({ id: st.id, name: st.name, color: st.color })),
-            whatsappStatus: whatsapp.status[selectedDeal.contact?.phone ?? ''],
-            whatsappBusy: whatsapp.opening === selectedDeal.contact?.id,
-            onOpenWhatsApp: whatsapp.open,
-            onClose: () => setSelectedDealId(null),
-            onEdit: (deal: Deal) => handleEditDealWithActivities(deal),
-            /**
-             * A jornada e o agendamento gravam sozinhos; a tela relê.
-             *
-             * Recarregar em vez de aplicar o estado devolvido pelo componente
-             * porque aqui mudam coisas que ele não conhece: a contagem da etapa,
-             * o total da coluna e as faixas de prioridade.
-             */
-            onChanged: () => {
-                if (viewMode === 'list') loadListDeals()
-                else loadPipeline()
-                void loadLanes()
-            },
-        }
-        : null
 
     /**
      * Soltar uma linha num item do trilho move o negócio.
@@ -780,6 +740,7 @@ export default function NegociosPage() {
         }
     }, [])
 
+
     const loadLookups = useCallback(async () => {
         const [membersRes, agenciesRes, mediasRes] = await Promise.all([
             fetch('/api/workspace/members'),
@@ -791,35 +752,83 @@ export default function NegociosPage() {
         if (mediasRes.ok) setMedias(await mediasRes.json())
     }, [])
 
+    /**
+     * Em aberto, ganho e perdido — do servidor, não somados no navegador.
+     *
+     * A versão anterior buscava **todos** os abertos e **todos** os ganhos para
+     * somar três números, e nunca pedia os perdidos. Agora é uma agregação, e o
+     * perdido aparece: é metade da pergunta que se faz no fim do mês.
+     */
     const loadKpiSummary = useCallback(async () => {
         try {
             const params = new URLSearchParams()
             if (dateFrom) params.set('dateFrom', dateFrom)
             if (dateTo) params.set('dateTo', dateTo)
-
-            // Fetch open deals
-            const openParams = new URLSearchParams(params)
-            openParams.set('status', 'open')
-            const openRes = await fetch(`/api/deals?${openParams}`)
-            const openDeals: Deal[] = openRes.ok ? await openRes.json() : []
-
-            // Fetch won deals
-            const wonParams = new URLSearchParams(params)
-            wonParams.set('status', 'won')
-            const wonRes = await fetch(`/api/deals?${wonParams}`)
-            const wonDeals: Deal[] = wonRes.ok ? await wonRes.json() : []
-
-            setKpiActiveCount(openDeals.length)
-            setKpiOpenValue(openDeals.reduce((sum, d) => sum + (d.value || 0), 0))
-            // Ganho soma o valor fechado, não o da proposta: é o número que
-            // entrou. Cai no valor do negócio quando o fechamento é antigo e
-            // não tem `closedValue`.
-            setKpiWonValue(wonDeals.reduce((sum, d) => sum + (d.closedValue ?? d.value ?? 0), 0))
-            setWonCount(wonDeals.length)
-        } catch (error) {
-            console.error('Error loading KPI summary:', error)
+            const res = await fetch(`/api/deals/summary?${params}`)
+            if (!res.ok) return
+            const data = await res.json()
+            setSummary({
+                open: data.open ?? { count: 0, value: 0 },
+                won: data.won ?? { count: 0, value: 0 },
+                lost: data.lost ?? { count: 0, value: 0 },
+            })
+        } catch {
+            // Sem resumo a barra mostra trações e o funil segue inteiro.
         }
     }, [dateFrom, dateTo])
+
+    /**
+     * Relê o que a tela mostra.
+     *
+     * Recarregar em vez de aplicar o estado devolvido pelo componente porque
+     * aqui mudam coisas que ele não conhece: a contagem da fase, o total do
+     * trilho e as faixas de prioridade.
+     */
+    const reloadAll = useCallback(() => {
+        if (viewMode === 'list') loadListDeals()
+        else loadPipeline()
+        void loadLanes()
+        loadKpiSummary()
+    }, [viewMode, loadListDeals, loadPipeline, loadLanes, loadKpiSummary])
+
+    /** Grava um pedaço do negócio aberto no painel. */
+    const patchDeal = useCallback(
+        async (dealId: string, data: Record<string, unknown>): Promise<boolean> => {
+            try {
+                const res = await fetch(`/api/deals/${dealId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                })
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}))
+                    toast.error(err.error || 'Não foi possível salvar')
+                    return false
+                }
+                reloadAll()
+                return true
+            } catch {
+                toast.error('Não foi possível salvar')
+                return false
+            }
+        },
+        [reloadAll]
+    )
+
+    const panelProps = selectedDeal
+        ? {
+            deal: selectedDeal,
+            stages: stages.map((st) => ({ id: st.id, name: st.name, color: st.color })),
+            members: workspaceMembers.map((m) => ({ userId: m.userId, name: m.name })),
+            origins: agencies,
+            channels: medias,
+            onPatch: (data: Record<string, unknown>) => patchDeal(selectedDeal.id, data),
+            onChanged: reloadAll,
+            onClose: () => setSelectedDealId(null),
+            onDelete: (deal: Deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) },
+        }
+        : null
+
 
     useEffect(() => {
         loadLookups()
@@ -867,16 +876,6 @@ export default function NegociosPage() {
     }, [search])
 
     // ─── Contact Search ─────────────────────────────────────────────
-    useEffect(() => {
-        if (!contactSearch || contactSearch.length < 2) { setContactResults([]); return }
-        const timer = setTimeout(async () => {
-            try {
-                const res = await fetch(`/api/contacts?search=${encodeURIComponent(contactSearch)}&limit=10`)
-                if (res.ok) { const data = await res.json(); setContactResults(data.data || data) }
-            } catch { /* ignore */ }
-        }, 300)
-        return () => clearTimeout(timer)
-    }, [contactSearch])
 
     // ─── Pipeline Creation ──────────────────────────────────────────
     const createDefaultPipeline = async () => {
@@ -888,69 +887,19 @@ export default function NegociosPage() {
     }
 
     // ─── Deal CRUD ──────────────────────────────────────────────────
-    const handleAddDeal = (stageId: string) => {
-        setEditingDeal(null)
-        setSelectedStageId(stageId)
-        setDealForm({ title: '', value: '', notes: '', contactId: '', userId: '', agencyId: '', mediaId: '', status: 'open' })
-        setSelectedContact(null)
-        setContactSearch('')
-        setIsDialogOpen(true)
+    /** Abre o formulário mínimo; o resto da ficha é do painel. */
+    const handleAddDeal = (stageId?: string) => {
+        setSelectedStageId(stageId ?? stages[0]?.id ?? '')
+        setNewDealOpen(true)
     }
 
-    const handleEditDeal = (deal: Deal) => {
-        setEditingDeal(deal)
-        setSelectedStageId(deal.stageId)
-        setDealForm({
-            title: deal.title,
-            value: deal.value?.toString() || '',
-            notes: deal.notes || '',
-            contactId: deal.contact?.id || '',
-            userId: deal.owner?.id || '',
-            agencyId: deal.agency?.id || '',
-            mediaId: deal.media?.id || '',
-            status: deal.status || 'open',
-        })
-        setSelectedContact(deal.contact)
-        setContactSearch('')
-        setIsDialogOpen(true)
-    }
-
-    const handleSaveDeal = async () => {
-        if (!dealForm.title.trim()) { toast.error('Título é obrigatório'); return }
-
-        try {
-            const payload = {
-                title: dealForm.title,
-                value: dealForm.value ? parseFloat(dealForm.value) : undefined,
-                notes: dealForm.notes || undefined,
-                stageId: selectedStageId,
-                contactId: selectedContact?.id || undefined,
-                userId: dealForm.userId || undefined,
-                agencyId: dealForm.agencyId || null,
-                mediaId: dealForm.mediaId || null,
-                status: dealForm.status,
-            }
-
-            const url = editingDeal ? `/api/deals/${editingDeal.id}` : '/api/deals'
-            const method = editingDeal ? 'PATCH' : 'POST'
-
-            const res = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            })
-
-            if (res.ok) {
-                toast.success(editingDeal ? 'Negócio atualizado' : 'Negócio criado')
-                setIsDialogOpen(false)
-                if (viewMode === 'kanban') loadPipeline(); else loadListDeals()
-                loadKpiSummary()
-            } else {
-                const err = await res.json()
-                toast.error(err.error || 'Erro ao salvar negócio')
-            }
-        } catch { toast.error('Erro ao salvar negócio') }
-    }
+    /**
+     * Editar é abrir no painel.
+     *
+     * Era um diálogo de tela cheia com quatro abas, e existia só no quadro. O
+     * painel tem os mesmos campos, abertos, e não cobre o funil.
+     */
+    const handleEditDeal = (deal: Deal) => setSelectedDealId(deal.id)
 
     const handleDeleteDeal = async () => {
         if (!dealToDelete) return
@@ -1017,62 +966,6 @@ export default function NegociosPage() {
         } catch {
             toast.error('Erro ao fechar o negócio')
         }
-    }
-
-    // ─── Deal Activities (Timeline) ─────────────────────────────────
-    const loadDealActivities = async (dealId: string) => {
-        setLoadingActivities(true)
-        try {
-            const res = await fetch(`/api/activities?dealId=${dealId}`)
-            if (res.ok) setDealActivities(await res.json())
-        } catch { console.error('Error loading activities') }
-        finally { setLoadingActivities(false) }
-    }
-
-    const handleSaveActivity = async (dealId: string) => {
-        if (!activityForm.title.trim()) { toast.error('Título é obrigatório'); return }
-        try {
-            const res = await fetch('/api/activities', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...activityForm,
-                    dealId,
-                    dueDate: activityForm.dueDate || new Date().toISOString().split('T')[0],
-                }),
-            })
-            if (res.ok) {
-                toast.success('Atividade criada')
-                setShowActivityForm(false)
-                setActivityForm({ title: '', type: 'call', description: '', dueDate: '', startTime: '' })
-                loadDealActivities(dealId)
-            } else { toast.error('Erro ao criar atividade') }
-        } catch { toast.error('Erro ao criar atividade') }
-    }
-
-    const handleToggleActivity = async (activity: DealActivity, dealId: string) => {
-        try {
-            await fetch(`/api/activities/${activity.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ completed: !activity.completedAt }),
-            })
-            loadDealActivities(dealId)
-        } catch { toast.error('Erro ao atualizar atividade') }
-    }
-
-    const handleDeleteActivity = async (activityId: string, dealId: string) => {
-        try {
-            await fetch(`/api/activities/${activityId}`, { method: 'DELETE' })
-            loadDealActivities(dealId)
-        } catch { toast.error('Erro ao excluir atividade') }
-    }
-
-    // Load activities when editing a deal
-    const handleEditDealWithActivities = (deal: Deal) => {
-        handleEditDeal(deal)
-        loadDealActivities(deal.id)
-        setShowActivityForm(false)
     }
 
     const handleMoveToStage = async (deal: Deal, stageId: string) => {
@@ -1181,66 +1074,24 @@ export default function NegociosPage() {
     }
 
     // ─── Stage CRUD ─────────────────────────────────────────────────
-    const handleAddStage = () => {
-        setEditingStage(null)
-        setStageName('')
-        setStageColor(DEFAULT_ENTITY_COLOR)
-        setStageDialogOpen(true)
-    }
+    /*
+     * O cadastro de fases saiu daqui.
+     *
+     * Eram quatro funções e dois diálogos para criar, renomear, excluir e
+     * confirmar — todos alcançáveis só pelo menu da coluna do quadro. O
+     * gerenciador "Fases" faz o mesmo nas três visões, e a exclusão lá pede
+     * destino em vez de recusar quando a fase tem negócios.
+     */
 
-    const handleEditStage = (stage: Stage) => {
-        setEditingStage(stage)
-        setStageName(stage.name)
-        setStageColor(stage.color)
-        setStageDialogOpen(true)
-    }
-
-    const handleDeleteStage = (stage: Stage) => {
-        setStageToDelete(stage)
-        setStageDeleteDialogOpen(true)
-    }
-
-    const handleSaveStage = async () => {
-        const trimmed = stageName.trim()
-        if (!trimmed) { toast.error('Nome é obrigatório'); return }
-        if (trimmed.length > 30) { toast.error('Nome deve ter no máximo 30 caracteres'); return }
-
-        try {
-            if (editingStage) {
-                const res = await fetch(`/api/pipelines/${editingStage.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: trimmed, color: stageColor }),
-                })
-                if (res.ok) { toast.success('Etapa atualizada'); setStageDialogOpen(false); loadPipeline() }
-                else { const err = await res.json(); toast.error(err.error || 'Erro ao atualizar') }
-            } else {
-                const res = await fetch('/api/pipelines', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: trimmed, color: stageColor }),
-                })
-                if (res.ok) { toast.success('Etapa criada'); setStageDialogOpen(false); loadPipeline() }
-                else { const err = await res.json(); toast.error(err.error || 'Erro ao criar') }
-            }
-        } catch { toast.error('Erro ao salvar etapa') }
-    }
-
-    const handleConfirmDeleteStage = async () => {
-        if (!stageToDelete) return
-        try {
-            const res = await fetch(`/api/pipelines/${stageToDelete.id}`, { method: 'DELETE' })
-            if (res.ok) {
-                toast.success('Etapa excluída')
-                setStageDeleteDialogOpen(false)
-                setStageToDelete(null)
-                loadPipeline()
-            } else {
-                const err = await res.json()
-                toast.error(err.error || 'Erro ao excluir etapa')
-            }
-        } catch { toast.error('Erro ao excluir etapa') }
-    }
+    /*
+     * O cadastro de fases saiu daqui.
+     *
+     * Eram cinco funções e dois diálogos para criar, renomear, excluir e
+     * confirmar — todos alcançáveis só pelo menu da coluna do quadro, que a
+     * lista e o trilho não têm. O gerenciador "Fases" faz o mesmo nas três
+     * visões, e a exclusão lá pede destino em vez de recusar quando a fase tem
+     * negócios dentro.
+     */
 
     const STAGE_COLORS = PICKER_RAMP
 
@@ -1251,7 +1102,7 @@ export default function NegociosPage() {
         <RowActions label={`Ações do negócio ${deal.title}`}>
             <RowActionItem
                 icon={Pencil}
-                onClick={() => handleEditDealWithActivities(deal)}
+                onClick={() => handleEditDeal(deal)}
             >
                 Editar
             </RowActionItem>
@@ -1396,7 +1247,7 @@ export default function NegociosPage() {
         },
         {
             id: 'stage',
-            header: 'Etapa',
+            header: 'Fase',
             cell: deal => (
                 <span
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground"
@@ -1427,99 +1278,128 @@ export default function NegociosPage() {
         return <div className="flex items-center justify-center h-96"><div className="text-muted-foreground">Carregando...</div></div>
     }
 
-    if (stages.length === 0 && viewMode === 'kanban') {
+    // Sem fases não há funil em nenhuma das três visões — o estado vazio
+    // deixou de ser só do quadro.
+    if (stages.length === 0) {
         return (
             <div className="p-6">
-                <PageHeader
-                    bleed
-                    title="Negócios"
-                    description="O fluxo de tratamentos dos seus pacientes."
-                    className="mb-6"
-                />
-                <div className="flex flex-col items-center justify-center h-96">
-                    <h3 className="text-lg font-medium mb-2">Nenhum funil encontrado</h3>
-                    <p className="text-muted-foreground mb-6">Crie um funil para começar.</p>
-                    <Button onClick={createDefaultPipeline} className="bg-primary hover:bg-primary/90"><Plus className="h-4 w-4 mr-2" />Criar Funil</Button>
+                <h1 className="text-h3">Negócios</h1>
+                <div className="flex h-96 flex-col items-center justify-center">
+                    <h3 className="mb-2 text-lg font-medium">Nenhuma fase cadastrada</h3>
+                    <p className="mb-6 text-muted-foreground">A jornada da clínica começa aqui.</p>
+                    <Button onClick={createDefaultPipeline} className="gap-2">
+                        <Plus className="size-4" />Criar as fases padrão
+                    </Button>
                 </div>
             </div>
         )
     }
 
+    /*
+     * Altura de janela, como a tela de conversas.
+     *
+     * O painel esticava a página porque a página crescia com ele; aqui ela não
+     * cresce — cada faixa rola por dentro. `svh` em vez de `vh` para o chrome
+     * do navegador no celular não cortar o rodapé, e `3.5rem` é a altura do
+     * Topbar.
+     */
     return (
-        <div className="p-6">
-            {/* O cabeçalho da casa, finalmente.
-                Era um `h1` artesanal com "Negócios | Pipeline", uma caixa de
-                datas desenhada à mão com dois `<input type="date">` crus e três
-                cartões de número grande. O título, a descrição e a contagem
-                agora vêm do `PageHeader` como em todas as outras telas, e os
-                valores viraram uma linha de texto: número que só se olha não
-                merece três cartões. */}
-            <PageHeader
-                bleed
-                title="Negócios"
-                description="O fluxo de tratamentos dos seus pacientes."
-                count={{ value: kpiActiveCount, singular: 'em jogo', plural: 'em jogo' }}
-                className="mb-4"
-                actions={
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center rounded-lg border border-border bg-card p-1">
-                            <Button
-                                variant={viewMode === 'rail' ? 'default' : 'ghost'}
-                                size="icon-sm"
-                                onClick={() => setViewMode('rail')}
-                                aria-label="Ver como trilho de etapas"
-                                aria-pressed={viewMode === 'rail'}
-                            >
-                                <Columns3 className="size-4" />
-                            </Button>
-                            <Button
-                                variant={viewMode === 'kanban' ? 'default' : 'ghost'}
-                                size="icon-sm"
-                                onClick={() => setViewMode('kanban')}
-                                aria-label="Ver como quadro"
-                                aria-pressed={viewMode === 'kanban'}
-                            >
-                                <LayoutGrid className="size-4" />
-                            </Button>
-                            <Button
-                                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                                size="icon-sm"
-                                onClick={() => setViewMode('list')}
-                                aria-label="Ver como lista"
-                                aria-pressed={viewMode === 'list'}
-                            >
-                                <List className="size-4" />
-                            </Button>
-                        </div>
-                        <Button onClick={() => handleAddDeal(stages[0]?.id)} className="gap-2">
-                            <Plus className="size-4" /> Novo negócio
+        <div className="flex h-[calc(100svh-3.5rem)] min-h-0 flex-col">
+            {/* A barra, em duas linhas.
+                Esta tela não usa o `PageHeader` da casa — como a de conversas
+                também não. O topo comia 262px antes de o funil começar: título
+                com descrição, barra de busca, três cartões de número grande e o
+                painel de filtros atrás de um clique. Agora são duas linhas, e o
+                que se ganhou foi altura para as três faixas. */}
+            <div className="shrink-0 border-b border-border bg-card px-4 py-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <h1 className="text-h3">Negócios</h1>
+                    <span className="num rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {summary ? `${summary.open.count} em jogo` : '—'}
+                    </span>
+
+                    {/* O dinheiro como três números, não três cartões. Perdido
+                        entra ao lado de ganho: faltava, e é metade da pergunta. */}
+                    <div className="flex items-center gap-4">
+                        <Figure label="em aberto" value={summary?.open.value} />
+                        <Figure
+                            label={summary ? `ganho · ${summary.won.count}` : 'ganho'}
+                            value={summary?.won.value}
+                            tone="text-success-subtle-foreground"
+                        />
+                        <Figure
+                            label={summary ? `perdido · ${summary.lost.count}` : 'perdido'}
+                            value={summary?.lost.value}
+                            tone="text-destructive-subtle-foreground"
+                        />
+                    </div>
+
+                    <span className="flex-1" />
+
+                    <div className="flex items-center rounded-lg border border-border p-1">
+                        <Button
+                            variant={viewMode === 'rail' ? 'default' : 'ghost'}
+                            size="icon-sm"
+                            onClick={() => setViewMode('rail')}
+                            aria-label="Ver como trilho de fases"
+                            aria-pressed={viewMode === 'rail'}
+                        >
+                            <Columns3 className="size-4" />
+                        </Button>
+                        <Button
+                            variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+                            size="icon-sm"
+                            onClick={() => setViewMode('kanban')}
+                            aria-label="Ver como quadro"
+                            aria-pressed={viewMode === 'kanban'}
+                        >
+                            <LayoutGrid className="size-4" />
+                        </Button>
+                        <Button
+                            variant={viewMode === 'list' ? 'default' : 'ghost'}
+                            size="icon-sm"
+                            onClick={() => setViewMode('list')}
+                            aria-label="Ver como lista"
+                            aria-pressed={viewMode === 'list'}
+                        >
+                            <List className="size-4" />
                         </Button>
                     </div>
-                }
-            />
 
-            <Toolbar
-                search={search}
-                onSearchChange={setSearch}
-                placeholder="Buscar por título ou paciente…"
-                filterCount={activeFilters}
-                filtersOpen={filtersOpen}
-                onToggleFilters={() => setFiltersOpen(o => !o)}
-            >
-                {/* O dinheiro como texto, ao lado dos filtros: duas somas que se
-                    leem de passagem não precisam de cartão. */}
-                <p className="num ml-auto text-xs text-muted-foreground">
-                    <span className="text-info-subtle-foreground font-medium">R$ {kpiOpenValue.toLocaleString('pt-BR')}</span> em aberto
-                    {' · '}
-                    <span className="text-success-subtle-foreground font-medium">R$ {kpiWonValue.toLocaleString('pt-BR')}</span> ganho
-                </p>
-            </Toolbar>
+                    {/* Fases: o mesmo botão nas três visões. Criar fase vivia num
+                        botão no fim do quadro, que o trilho e a lista não têm. */}
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setStagesOpen(true)}>
+                        <Settings2 className="size-3.5" />
+                        Fases
+                    </Button>
+                    <Button size="sm" className="gap-1.5" onClick={() => handleAddDeal(stages[0]?.id)}>
+                        <Plus className="size-3.5" />
+                        Novo negócio
+                    </Button>
+                </div>
 
-            <FilterPanel open={filtersOpen} activeCount={activeFilters} onClear={clearFilters}>
-                <div className="min-w-[150px]">
-                    <Label htmlFor="f-status" className="text-xs">Status</Label>
+                {/* Filtros abertos: dois cliques para filtrar por período viravam
+                    um, e o recorte em vigor passa a ser legível sem abrir nada. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="relative w-[200px]">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Buscar negócio"
+                            aria-label="Buscar negócio"
+                            className="h-8 pl-8 text-sm"
+                        />
+                    </div>
+
+                    <DealLanes variant="chip" counts={laneCounts} selected={lane} onSelect={setLane} />
+
+                    <span className="flex-1" />
+
                     <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger id="f-status" className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                        <SelectTrigger size="sm" className="w-[112px]" aria-label="Status">
+                            <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="open">Abertos</SelectItem>
                             <SelectItem value="won">Ganhos</SelectItem>
@@ -1527,54 +1407,44 @@ export default function NegociosPage() {
                             <SelectItem value="all">Todos</SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
 
-                {viewMode === 'list' && (
-                    <div className="min-w-[170px]">
-                        <Label htmlFor="f-stage" className="text-xs">Etapa</Label>
-                        <Select value={filterStageId} onValueChange={setFilterStageId}>
-                            <SelectTrigger id="f-stage" className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                    {viewMode === 'list' && (
+                        <Select value={filterStageId || 'all'} onValueChange={(v) => setFilterStageId(v === 'all' ? '' : v)}>
+                            <SelectTrigger size="sm" className="w-[150px]" aria-label="Fase">
+                                <SelectValue placeholder="Todas as fases" />
+                            </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">Todas etapas</SelectItem>
+                                <SelectItem value="all">Todas as fases</SelectItem>
                                 {stages.map(st => <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                    </div>
-                )}
+                    )}
 
-                {/* Datas pelo primitivo, não por `<input>` cru numa caixa
-                    desenhada: foco, borda e tema vêm de graça. */}
-                <div>
-                    <Label htmlFor="f-from" className="text-xs">De</Label>
                     <Input
-                        id="f-from"
                         type="date"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
-                        className="num mt-1 w-[150px]"
+                        aria-label="Período de"
+                        className="num h-8 w-[132px] text-sm"
                     />
-                </div>
-                <div>
-                    <Label htmlFor="f-to" className="text-xs">Até</Label>
                     <Input
-                        id="f-to"
                         type="date"
                         value={dateTo}
                         onChange={(e) => setDateTo(e.target.value)}
-                        className="num mt-1 w-[150px]"
+                        aria-label="Período até"
+                        className="num h-8 w-[132px] text-sm"
                     />
+                    {activeFilters > 0 ? (
+                        <Button variant="ghost" size="icon-sm" onClick={clearFilters} aria-label="Limpar filtros">
+                            <X className="size-3.5" />
+                        </Button>
+                    ) : null}
                 </div>
-            </FilterPanel>
-
-            {/* A faixa de prioridades: três perguntas que são consultas. */}
-            <DealLanes
-                counts={laneCounts}
-                selected={lane}
-                onSelect={setLane}
-                className="mt-4 mb-5"
-            />
+            </div>
 
 
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {/* Trilho + foco + jornada.
                 A geometria que resolve a sobreposição pela raiz: o funil vive no
                 eixo vertical (o trilho cresce para baixo, não para o lado), então
@@ -1588,7 +1458,7 @@ export default function NegociosPage() {
                     onDragStart={handleDragStart}
                     onDragEnd={handleRailDragEnd}
                 >
-                    <div className="relative grid gap-3 lg:grid-cols-[150px_1fr] xl:grid-cols-[170px_1fr]">
+                    <div className="relative grid h-full min-h-0 gap-3 lg:grid-cols-[150px_1fr] xl:grid-cols-[170px_1fr]">
                         <PipelineRail
                             stages={stages}
                             filtered={Boolean(lane || search || filterStatus !== 'open')}
@@ -1598,11 +1468,11 @@ export default function NegociosPage() {
                                 setSelectedDealId(null)
                             }}
                             closedCount={closedCount}
-                            className="hidden self-start lg:block"
+                            className="hidden min-h-0 self-stretch overflow-y-auto lg:block"
                         />
 
-                        <div className={cn('min-w-0', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
-                            <div className="min-w-0 space-y-3">
+                        <div className={cn('min-h-0 min-w-0', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
+                            <div className="flex min-h-0 min-w-0 flex-col gap-3">
                                 {/* Abaixo de 1024 o trilho não cabe, e um seletor
                                     diz a mesma coisa sem roubar a largura. */}
                                 <div className="lg:hidden">
@@ -1610,7 +1480,7 @@ export default function NegociosPage() {
                                         value={activeStageId ?? ''}
                                         onValueChange={(stageId) => { setFocusStageId(stageId); setSelectedDealId(null) }}
                                     >
-                                        <SelectTrigger className="w-full"><SelectValue placeholder="Etapa" /></SelectTrigger>
+                                        <SelectTrigger className="w-full"><SelectValue placeholder="Fase" /></SelectTrigger>
                                         <SelectContent>
                                             {stages.map((st) => (
                                                 <SelectItem key={st.id} value={st.id}>
@@ -1623,7 +1493,7 @@ export default function NegociosPage() {
                                 </div>
 
                                 <StageFocus
-                                    stageName={activeStageId === CLOSED_RAIL_ID ? 'Finalizados' : (activeStage?.name ?? 'Etapa')}
+                                    stageName={activeStageId === CLOSED_RAIL_ID ? 'Finalizados' : (activeStage?.name ?? 'Fase')}
                                     deals={focusDeals}
                                     order={focusOrder}
                                     onOrderChange={setFocusOrder}
@@ -1633,15 +1503,17 @@ export default function NegociosPage() {
                                     emptyHint={
                                         activeStageId === CLOSED_RAIL_ID
                                             ? 'Nenhum negócio finalizado ainda.'
-                                            : 'Arraste um negócio de outra etapa para cá, ou crie um novo.'
+                                            : 'Arraste um negócio de outra fase para cá, ou crie um novo.'
                                     }
+                                    className="min-h-0 flex-1"
                                 />
                             </div>
 
                             {panelProps ? (
                                 <DealPanel
+                                    key={panelProps.deal.id}
                                     {...panelProps}
-                                    className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:w-auto xl:self-start xl:shadow-none"
+                                    className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:h-full xl:w-auto xl:shadow-none"
                                 />
                             ) : null}
                         </div>
@@ -1652,7 +1524,7 @@ export default function NegociosPage() {
                             <div className="w-[280px] rounded-lg border border-primary bg-card p-2.5 opacity-90 shadow-xl">
                                 <p className="truncate text-[13px] font-semibold">{activeDeal.title}</p>
                                 <p className="truncate text-[11px] text-muted-foreground">
-                                    {activeDeal.contact?.name ?? 'Sem paciente'} · soltar numa etapa do trilho
+                                    {activeDeal.contact?.name ?? 'Sem paciente'} · soltar numa fase do trilho
                                 </p>
                             </div>
                         ) : null}
@@ -1670,31 +1542,25 @@ export default function NegociosPage() {
                   <div className="relative">
                     <div className="flex gap-4 overflow-x-auto pb-4">
                         {stages.map((stage) => (
-                            <StageColumn key={stage.id} stage={stage} onAddDeal={handleAddDeal} onEditDeal={handleEditDealWithActivities}
+                            <StageColumn key={stage.id} stage={stage} onAddDeal={handleAddDeal} onEditDeal={handleEditDeal}
                                 onDeleteDeal={(deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) }}
                                 onStatusChange={handleStatusChange} stages={stages} onMoveToStage={handleMoveToStage}
-                                onEditStage={handleEditStage} onDeleteStage={handleDeleteStage}
                                 isOver={overStageId === stage.id} whatsapp={whatsapp}
                                 onSelectDeal={(deal) => setSelectedDealId(deal.id)}
                                 selectedDealId={selectedDealId}
                             />
                         ))}
-                        {/* Configuração do funil: etapa e motivo de desfecho são
-                            a mesma categoria de ajuste, então ficam juntos. */}
-                        <div className="w-72 flex-shrink-0 space-y-2">
+                        {/* "Nova fase" saiu daqui: criar fase existia só no
+                            quadro e sumia nas outras duas visões. Agora é o botão
+                            Fases, na barra de cima. Motivos de ganho e perda
+                            continuam aqui porque são do funil, não da fase. */}
+                        <div className="w-56 flex-shrink-0">
                             <button
                                 onClick={() => setReasonsOpen(true)}
                                 className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                             >
                                 <Trophy className="size-3.5" />
                                 Motivos de ganho e perda
-                            </button>
-                            <button
-                                onClick={handleAddStage}
-                                className="w-full h-[80px] rounded-lg border-2 border-dashed border-border hover:border-primary/50 text-muted-foreground hover:text-foreground flex items-center justify-center gap-2 transition-colors"
-                            >
-                                <Plus className="h-5 w-5" />
-                                <span className="font-medium">Nova etapa</span>
                             </button>
                         </div>
                     </div>
@@ -1705,7 +1571,7 @@ export default function NegociosPage() {
                         <OutcomeZone
                             side="won"
                             count={wonCount}
-                            total={kpiWonValue}
+                            total={summary?.won.value ?? 0}
                             active={overStageId === 'outcome-won'}
                         />
                         <OutcomeZone
@@ -1725,6 +1591,7 @@ export default function NegociosPage() {
 
                     {panelProps ? (
                         <DealPanel
+                            key={panelProps.deal.id}
                             {...panelProps}
                             className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg"
                         />
@@ -1792,6 +1659,7 @@ export default function NegociosPage() {
 
                 {panelProps ? (
                     <DealPanel
+                        key={panelProps.deal.id}
                         {...panelProps}
                         className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:w-auto xl:shadow-none"
                     />
@@ -1799,260 +1667,32 @@ export default function NegociosPage() {
               </div>
             )}
 
-            {/* Create/Edit Deal Dialog */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="!w-[90vw] !max-w-[1600px] max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{editingDeal ? 'Editar negócio' : 'Novo negócio'}</DialogTitle>
-                    </DialogHeader>
+            {/* O diálogo de edição com abas Dados/Atividades foi excluído.
+                Existia só no quadro — a mesma tela tinha dois comportamentos
+                dependendo da visão — e cobria o funil inteiro para mudar um
+                campo. Quem edita agora é o painel, nas três visões, com os
+                campos abertos e gravando ao sair. */}
 
-                    <Tabs defaultValue="dados" className="pt-2">
-                        <TabsList className="mb-4">
-                            <TabsTrigger value="dados">📋 Dados</TabsTrigger>
-                            {editingDeal && <TabsTrigger value="atividades">🕐 Atividades ({dealActivities.length})</TabsTrigger>}
-                        </TabsList>
+            </div>
 
-                        {/* ── Dados Tab ── */}
-                        <TabsContent value="dados">
-                            <div className="space-y-5">
-                                {/* Row 1: Title + Contact */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label>Título *</Label>
-                                        <Input value={dealForm.title} onChange={(e) => setDealForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Ex: Proposta Website" className="mt-1" />
-                                    </div>
-                                    <div>
-                                        <Label>Paciente</Label>
-                                        <div className="mt-1">
-                                            {/* Busca e cadastro no mesmo campo. Era um
-                                                `div z-50` artesanal — sem Esc, sem clique
-                                                fora, sem teclado — e sem caminho para o
-                                                paciente que ainda não existe. */}
-                                            <ContactPicker
-                                                value={selectedContact}
-                                                onSelect={(contact) => {
-                                                    setSelectedContact(contact as Contact)
-                                                    setDealForm(prev => ({ ...prev, contactId: contact.id }))
-                                                    setContactSearch('')
-                                                    setContactResults([])
-                                                }}
-                                                onClear={() => {
-                                                    setSelectedContact(null)
-                                                    setDealForm(prev => ({ ...prev, contactId: '' }))
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
+            {/* As fases da clínica — um lugar só, alcançável das três visões. */}
+            <StageManagerDialog
+                open={stagesOpen}
+                onOpenChange={setStagesOpen}
+                stages={stages}
+                onChanged={() => { loadPipeline(); void loadLanes() }}
+            />
 
-                                {/* Loss info (read-only when editing a lost deal) */}
-                                {editingDeal?.status !== 'open' && editingDeal?.outcomeReason && (
-                                    <div className="bg-destructive-subtle border border-destructive/30 rounded-lg p-3">
-                                        <div className="flex items-center gap-2 text-destructive-subtle-foreground text-sm font-medium mb-1">
-                                            <AlertTriangle className="h-4 w-4" /> Motivo da perda
-                                        </div>
-                                        <p className="text-sm">
-                                            {editingDeal.outcomeReason.name}
-                                        </p>
-                                        {editingDeal.outcomeNotes && (
-                                            <p className="text-xs text-muted-foreground mt-1">{editingDeal.outcomeNotes}</p>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Row 2: Value (1/4) + Stage (1/4) + Responsável (2/4) */}
-                                <div className="grid grid-cols-4 gap-4">
-                                    <div>
-                                        <Label>Valor (R$)</Label>
-                                        <Input type="number" value={dealForm.value} onChange={(e) => setDealForm(prev => ({ ...prev, value: e.target.value }))} placeholder="0,00" className="mt-1" />
-                                    </div>
-                                    <div>
-                                        <Label>Etapa</Label>
-                                        <Select value={selectedStageId} onValueChange={setSelectedStageId}>
-                                            <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                                            <SelectContent>
-                                                {stages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <Label>Responsável</Label>
-                                        <Select value={dealForm.userId || 'none'} onValueChange={(v) => setDealForm(prev => ({ ...prev, userId: v === 'none' ? '' : v }))}>
-                                            <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">Sem responsável</SelectItem>
-                                                {workspaceMembers.map(m => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                {/* Row 4: Agency + Media */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <CreatableSelect
-                                        label="Origem"
-                                        value={dealForm.agencyId}
-                                        options={agencies}
-                                        onSelect={(id) => setDealForm(prev => ({ ...prev, agencyId: id }))}
-                                        onCreate={createAgency}
-                                        placeholder="Selecione a origem"
-                                        emptyLabel="Nenhuma"
-                                    />
-                                    <CreatableSelect
-                                        label="Canal"
-                                        value={dealForm.mediaId}
-                                        options={medias}
-                                        onSelect={(id) => setDealForm(prev => ({ ...prev, mediaId: id }))}
-                                        onCreate={createMedia}
-                                        placeholder="Selecione o canal"
-                                        emptyLabel="Nenhum"
-                                    />
-                                </div>
-
-                                {/* Row 5: Notes */}
-                                <div>
-                                    <Label>Observações</Label>
-                                    <Textarea value={dealForm.notes} onChange={(e) => setDealForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="Notas sobre o negócio..." className="mt-1" rows={2} />
-                                </div>
-
-                            </div>
-                        </TabsContent>
-
-                        {/* ── Atividades Tab ── */}
-                        {editingDeal && (
-                            <TabsContent value="atividades">
-                                <div className="space-y-4">
-                                    {/* Add Activity Button */}
-                                    {!showActivityForm ? (
-                                        <Button variant="outline" size="sm" onClick={() => {
-                                            setShowActivityForm(true)
-                                            setActivityForm({ title: '', type: 'call', description: '', dueDate: new Date().toISOString().split('T')[0], startTime: '' })
-                                        }}>
-                                            <Plus className="h-4 w-4 mr-2" /> Nova Atividade
-                                        </Button>
-                                    ) : (
-                                        <div className="bg-accent/30 border border-border rounded-lg p-4 space-y-3">
-                                            <div className="grid grid-cols-3 gap-3">
-                                                <div className="col-span-2">
-                                                    <Label>Título *</Label>
-                                                    <Input value={activityForm.title} onChange={(e) => setActivityForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Ex: Ligar para cliente" className="mt-1" />
-                                                </div>
-                                                <div>
-                                                    <Label>Tipo</Label>
-                                                    <Select value={activityForm.type} onValueChange={(v) => setActivityForm(prev => ({ ...prev, type: v }))}>
-                                                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {Object.entries(ACTIVITY_TYPES_CONFIG).map(([key, cfg]) => (
-                                                                <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <Label>Data</Label>
-                                                    <Input type="date" value={activityForm.dueDate} onChange={(e) => setActivityForm(prev => ({ ...prev, dueDate: e.target.value }))} className="mt-1" />
-                                                </div>
-                                                <div>
-                                                    <Label>Hora (opcional)</Label>
-                                                    <Input type="time" value={activityForm.startTime} onChange={(e) => setActivityForm(prev => ({ ...prev, startTime: e.target.value }))} className="mt-1" />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <Label>Descrição (opcional)</Label>
-                                                <Textarea value={activityForm.description} onChange={(e) => setActivityForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Detalhes da atividade..." className="mt-1" rows={2} />
-                                            </div>
-                                            <div className="flex justify-end gap-2">
-                                                <Button variant="outline" size="sm" onClick={() => setShowActivityForm(false)}>Cancelar</Button>
-                                                <Button size="sm" onClick={() => handleSaveActivity(editingDeal.id)}>Salvar</Button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Timeline */}
-                                    {loadingActivities ? (
-                                        <div className="text-sm text-muted-foreground text-center py-8">Carregando atividades...</div>
-                                    ) : dealActivities.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                                            <Clock className="h-10 w-10 mb-3 opacity-40" />
-                                            <p className="text-sm">Nenhuma atividade registrada</p>
-                                            <p className="text-xs mt-1">Adicione atividades como ligações, reuniões e follow-ups</p>
-                                        </div>
-                                    ) : (
-                                        <div className="relative pl-6 border-l-2 border-border space-y-4">
-                                            {dealActivities.map((activity) => {
-                                                const config = ACTIVITY_TYPES_CONFIG[activity.type] || ACTIVITY_TYPES_CONFIG.note
-                                                const Icon = config.icon
-                                                return (
-                                                    <div key={activity.id} className="relative group">
-                                                        {/* Timeline dot */}
-                                                        <div className={`absolute -left-[calc(1.5rem+5px)] w-3 h-3 rounded-full border-2 ${activity.completedAt ? 'bg-success border-success' : 'bg-card border-border'}`} />
-
-                                                        <div className={`rounded-lg border border-border p-3 ${activity.completedAt ? 'opacity-60' : ''}`}>
-                                                            <div className="flex items-start justify-between gap-2">
-                                                                <div className="flex items-center gap-2 min-w-0">
-                                                                    <button onClick={() => handleToggleActivity(activity, editingDeal.id)} title={activity.completedAt ? 'Marcar como pendente' : 'Marcar como concluída'}>
-                                                                        {activity.completedAt
-                                                                            ? <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground flex-shrink-0" />
-                                                                            : <Circle className="h-5 w-5 text-muted-foreground hover:text-primary flex-shrink-0" />
-                                                                        }
-                                                                    </button>
-                                                                    <Icon className={`h-4 w-4 flex-shrink-0 ${config.color}`} />
-                                                                    <span className={`font-medium text-sm truncate ${activity.completedAt ? 'line-through' : ''}`}>
-                                                                        {activity.title}
-                                                                    </span>
-                                                                    <Badge variant="outline" className="text-xs flex-shrink-0">{config.label}</Badge>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => handleDeleteActivity(activity.id, editingDeal.id)}
-                                                                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive-subtle-foreground transition-opacity p-1"
-                                                                >
-                                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                                </button>
-                                                            </div>
-                                                            {activity.description && <p className="text-xs text-muted-foreground mt-1.5 ml-7">{activity.description}</p>}
-                                                            <div className="flex items-center gap-3 mt-1.5 ml-7 text-xs text-muted-foreground">
-                                                                {activity.dueDate && (
-                                                                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(activity.dueDate).toLocaleDateString('pt-BR')}</span>
-                                                                )}
-                                                                {activity.startTime && (
-                                                                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{activity.startTime}</span>
-                                                                )}
-                                                                {activity.user?.name && (
-                                                                    <span className="flex items-center gap-1"><User className="h-3 w-3" />{activity.user.name}</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            </TabsContent>
-                        )}
-                    </Tabs>
-
-                    <DialogFooter className="pt-4">
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleSaveDeal} className="bg-primary hover:bg-primary/90">{editingDeal ? 'Salvar' : 'Criar'}</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Um diálogo para os dois desfechos, o mesmo que a jornada do
-                paciente usa: existe um lugar só que grava fechamento. */}
-            <OutcomeReasonsDialog open={reasonsOpen} onOpenChange={setReasonsOpen} />
-
-            <OutcomeDialog
-                open={outcomeOpen}
-                onOpenChange={setOutcomeOpen}
-                dealTitle={dealToLose?.title ?? ''}
-                dealValue={dealToLose?.value ?? null}
-                stageName={dealToLose?.stage?.name ?? null}
-                initialOutcome={outcomeSide}
-                onConfirm={handleConfirmOutcome}
+            <NewDealDialog
+                open={newDealOpen}
+                onOpenChange={setNewDealOpen}
+                stages={stages}
+                defaultStageId={selectedStageId}
+                onCreated={(dealId) => {
+                    reloadAll()
+                    // Abre no painel, que é onde o resto se preenche.
+                    setSelectedDealId(dealId)
+                }}
             />
 
             {/* Delete Confirmation */}
@@ -2067,57 +1707,8 @@ export default function NegociosPage() {
             />
 
             {/* Stage Create/Edit Dialog */}
-            <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>{editingStage ? 'Editar etapa' : 'Nova etapa'}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-2">
-                        <div>
-                            <Label>Nome (máx. 30 caracteres)</Label>
-                            <Input
-                                value={stageName}
-                                onChange={(e) => setStageName(e.target.value.slice(0, 30))}
-                                placeholder="Ex: Contato inicial"
-                                maxLength={30}
-                                className="mt-1"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1 text-right">{stageName.length}/30</p>
-                        </div>
-                        <div>
-                            <Label>Cor</Label>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                {STAGE_COLORS.map(c => (
-                                    <button
-                                        key={c}
-                                        onClick={() => setStageColor(c)}
-                                        className={`w-8 h-8 rounded-full border-2 transition-all ${stageColor === c ? 'border-foreground scale-110' : 'border-transparent hover:border-muted-foreground'}`}
-                                        style={{ backgroundColor: c }}
-                                        title={c}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setStageDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleSaveStage} disabled={!stageName.trim()}>
-                            {editingStage ? 'Salvar' : 'Criar'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* Stage Delete Confirmation */}
-            <ConfirmDialog
-                open={stageDeleteDialogOpen}
-                onOpenChange={setStageDeleteDialogOpen}
-                title="Excluir etapa"
-                description={`"${stageToDelete?.name ?? ''}" sai do funil. Uma etapa que ainda tem negócios não pode ser excluída.`}
-                confirmLabel="Excluir"
-                destructive
-                onConfirm={handleConfirmDeleteStage}
-            />
         </div>
     )
 }
