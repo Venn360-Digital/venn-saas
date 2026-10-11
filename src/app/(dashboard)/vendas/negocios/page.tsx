@@ -1135,10 +1135,24 @@ export default function NegociosPage() {
                 ),
         },
         {
+            id: 'stage',
+            header: 'Fase',
+            sortable: true,
+            sortValue: deal => deal.stage?.name ?? '',
+            cell: deal => (
+                <span
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground"
+                    style={{ backgroundColor: deal.stage?.color || DEFAULT_ENTITY_COLOR }}
+                >
+                    {deal.stage?.name || '—'}
+                </span>
+            ),
+        },
+        {
             // As mesmas duas informações do cartão: trocar de visão não pode
             // trocar o que se sabe sobre o negócio.
             id: 'next',
-            header: 'Próximo passo',
+            header: 'Atividade',
             sortable: true,
             // Pela data da atividade; sem atividade vai para o fim crescente,
             // que é onde a atenção deve cair primeiro ao inverter.
@@ -1161,7 +1175,9 @@ export default function NegociosPage() {
         },
         {
             id: 'age',
-            header: 'Idade',
+            // "Sem movimento" e não "Idade": o número é há quantos dias o
+            // negócio não anda, não quanto tempo ele existe.
+            header: 'Sem movimento',
             sortable: true,
             sortValue: deal => daysInStage(deal, now) ?? 0,
             numeric: true,
@@ -1207,20 +1223,6 @@ export default function NegociosPage() {
                 ) : (
                     <span className="text-muted-foreground">—</span>
                 ),
-        },
-        {
-            id: 'stage',
-            header: 'Fase',
-            sortable: true,
-            sortValue: deal => deal.stage?.name ?? '',
-            cell: deal => (
-                <span
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-foreground"
-                    style={{ backgroundColor: deal.stage?.color || DEFAULT_ENTITY_COLOR }}
-                >
-                    {deal.stage?.name || '—'}
-                </span>
-            ),
         },
         {
             id: 'status',
