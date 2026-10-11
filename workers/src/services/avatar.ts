@@ -24,6 +24,23 @@ const DOWNLOAD_TIMEOUT_MS = 8_000
 const tried = new Set<string>()
 
 /**
+ * Desiste do endpoint depois de algumas recusas seguidas.
+ *
+ * Medido em 2026-10-10 contra a instância de produção: `POST /user/avatar`
+ * responde **500 `info query timed out` depois de 75 s**, para um número com
+ * foto e conversa aberta, nos dois modos de `preview`. `/user/info` também
+ * pendura; `/user/check`, no mesmo socket, responde em 0,4 s — ou seja, a
+ * sessão está boa e são as consultas de perfil que esta versão da imagem não
+ * consegue fazer.
+ *
+ * Enquanto isso não muda, cada tentativa custa oito segundos de um worker para
+ * um enfeite que não vem. Três recusas seguidas desligam a busca até o próximo
+ * reinício, que é quando uma imagem nova teria entrado.
+ */
+const MAX_CONSECUTIVE_FAILURES = 3
+let consecutiveFailures = 0
+
+/**
  * A foto do paciente, dos bytes até a ficha.
  *
  * **Os bytes, não a URL.** O que o WhatsApp devolve é um endereço assinado que
@@ -52,14 +69,25 @@ export async function syncContactAvatar(input: {
     }
 
     if (!provider.getProfilePictureUrl || !phone) return
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return
     if (tried.has(contactId)) return
     tried.add(contactId)
 
     const url = await provider.getProfilePictureUrl(credentials, phone)
     if (!url) {
-        log.info(`no public picture for contact ${contactId}`)
+        consecutiveFailures += 1
+        // "Não consegui saber", e não "não tem foto": são estados diferentes e
+        // confundi-los já produziu uma afirmação falsa com cara de certeza
+        // ("este número não tem WhatsApp") na verificação de número.
+        log.info(
+            `could not read a picture for contact ${contactId}` +
+                (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES
+                    ? ' — desistindo até o próximo reinício do worker'
+                    : '')
+        )
         return
     }
+    consecutiveFailures = 0
 
     try {
         const controller = new AbortController()
