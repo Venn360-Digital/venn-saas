@@ -11,14 +11,6 @@ export interface OnboardingData {
     workspaceSlug: string
     plan: string
     agentName: string
-    /**
-     * Pediu para conectar o WhatsApp no passo 3.
-     *
-     * A conexão não cabe ali: nada existe antes do aceite, e o QR se liga a um
-     * agente que só nasce no fim. O passo guarda a intenção e o QR abre assim
-     * que o agente existe.
-     */
-    connectWhatsApp?: boolean
 }
 
 export type OnboardingUpdate = (data: Partial<OnboardingData>) => void

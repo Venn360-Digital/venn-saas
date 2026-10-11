@@ -21,9 +21,27 @@ export async function GET() {
             select: { workspaceId: true }
         })
 
+        /**
+         * "Tem workspace" passou a significar "terminou o cadastro".
+         *
+         * O pareamento do WhatsApp acontece no passo 3, antes do aceite, e para
+         * isso o workspace precisa existir antes do fim. Sem esta checagem,
+         * quem abandonasse no passo 4 entraria direto no painel na próxima
+         * visita e nunca veria os termos — o aceite deixaria de existir para
+         * aquela clínica. Com ela, o cadastro inacabado volta ao onboarding.
+         */
+        const accepted = workspaceUser
+            ? await prisma.termsAcceptance.findFirst({
+                  where: { userId: user.id, workspaceId: workspaceUser.workspaceId },
+                  select: { id: true },
+              })
+            : null
+
         return NextResponse.json({
-            hasWorkspace: !!workspaceUser,
-            workspaceId: workspaceUser?.workspaceId || null
+            hasWorkspace: Boolean(workspaceUser && accepted),
+            // O workspace provisório, para quem está no meio do cadastro.
+            workspaceId: workspaceUser?.workspaceId || null,
+            acceptedTerms: Boolean(accepted),
         })
     } catch (error) {
         console.error('[CHECK_WORKSPACE] Error:', error)

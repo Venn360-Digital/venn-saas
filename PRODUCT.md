@@ -153,6 +153,13 @@ clínica tenha podido levá-lo embora é o pior cenário, legal e comercialmente
 **Aceite:** os termos são apresentados na **última tela do onboarding**, com
 aceite explícito registrado (quem, quando, qual versão).
 
+> O WhatsApp é pareado antes disso, no passo 3, porque o QR se liga a um agente
+> e esperar o fim obrigaria a pessoa a procurar o caminho depois. O workspace e
+> o agente nascem ali, **sem aceite**, e é o passo 5 que fecha o cadastro. Quem
+> abandona no meio não entra pela porta dos fundos: a checagem de onboarding
+> exige workspace *e* aceite registrado, então um cadastro pela metade volta
+> para o onboarding em vez de cair no painel.
+
 > **A exclusão está desligada.** O job de retenção roda e registra o que
 > *apagaria*, mas só apaga de fato com `RETENTION_DELETION_ENABLED=true` no
 > ambiente. Deve continuar assim até o produto rodar tempo suficiente para as

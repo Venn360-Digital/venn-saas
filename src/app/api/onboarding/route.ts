@@ -64,12 +64,66 @@ export async function POST(request: NextRequest) {
                 where: { userId: user.id }
             })
 
+            /**
+             * Workspace já existe: é o cadastro voltando para terminar.
+             *
+             * Acontece de propósito desde que o WhatsApp é pareado no passo 3 —
+             * o pareamento precisa de workspace e agente, então eles nascem
+             * ali. Esta chamada é a segunda, a do aceite, e é ela que fecha o
+             * cadastro: registra o aceite que faltava e cria o agente se o
+             * primeiro passo não tiver criado nenhum.
+             *
+             * Antes esta ramificação devolvia e pronto. Com o pareamento no
+             * meio do caminho, isso deixaria a clínica rodando sem aceite
+             * registrado — exatamente o que o fluxo existe para evitar.
+             */
             if (existingWorkspaceUser) {
-                console.log('[ONBOARDING] User already has workspace')
-                return {
-                    alreadyExists: true,
-                    workspaceId: existingWorkspaceUser.workspaceId
+                const workspaceId = existingWorkspaceUser.workspaceId
+                console.log('[ONBOARDING] User already has workspace; finishing it')
+
+                if (acceptedTermsVersion) {
+                    await tx.termsAcceptance.upsert({
+                        where: {
+                            userId_workspaceId_version: {
+                                userId: user.id,
+                                workspaceId,
+                                version: String(acceptedTermsVersion),
+                            },
+                        },
+                        create: {
+                            userId: user.id,
+                            workspaceId,
+                            version: String(acceptedTermsVersion),
+                        },
+                        update: {},
+                    })
                 }
+
+                const existingAgent = await tx.agent.findFirst({
+                    where: { workspaceId },
+                    select: { id: true },
+                })
+                let agentId = existingAgent?.id ?? null
+
+                if (!agentId && agentName && agentName.trim()) {
+                    const agent = await tx.agent.create({
+                        data: {
+                            workspaceId,
+                            name: agentName.trim(),
+                            description: 'Meu primeiro agente',
+                            llmProvider: 'openai',
+                            llmModel: DEFAULT_MODEL,
+                            systemPrompt: 'Você é um assistente útil e amigável.',
+                            temperature: 0.7,
+                            primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
+                            language: 'pt-BR',
+                            isActive: true,
+                        },
+                    })
+                    agentId = agent.id
+                }
+
+                return { alreadyExists: true, workspaceId, agentId }
             }
 
             // 3. Create workspace
@@ -181,8 +235,9 @@ export async function POST(request: NextRequest) {
         if (result.alreadyExists) {
             return NextResponse.json({
                 success: true,
-                message: 'Workspace já existe',
+                message: 'Cadastro concluído',
                 workspaceId: result.workspaceId,
+                agentId: result.agentId ?? null,
             })
         }
 

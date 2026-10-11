@@ -15,16 +15,17 @@ import type { OnboardingData, OnboardingUpdate } from '@/components/onboarding/t
 
 export default function OnboardingPage() {
     const [currentStep, setCurrentStep] = useState(1)
-    /** O agente recém-criado, enquanto o QR está aberto. */
+    /** O agente provisionado no passo 3, dono do pareamento. */
     const [newAgentId, setNewAgentId] = useState<string | null>(null)
     const [qrOpen, setQrOpen] = useState(false)
+    const [connecting, setConnecting] = useState(false)
+    const [whatsAppConnected, setWhatsAppConnected] = useState(false)
     const [loading, setLoading] = useState(true)
     const [onboardingData, setOnboardingData] = useState<OnboardingData>({
         workspaceName: '',
         workspaceSlug: '',
         plan: 'pro',
         agentName: '',
-        connectWhatsApp: false,
     })
     const router = useRouter()
 
@@ -77,6 +78,49 @@ export default function OnboardingPage() {
     const [submitting, setSubmitting] = useState(false)
 
     /**
+     * O que o pareamento exige, criado na hora.
+     *
+     * O QR se liga a um agente, e o agente a um workspace — nenhum dos dois
+     * existiria ainda no passo 3. Esta chamada cria os dois **sem o aceite**:
+     * o cadastro continua, e o aceite do passo 5 é que o fecha (a mesma rota,
+     * ao ver o workspace já existindo, registra o aceite em vez de criar outro).
+     *
+     * O custo dessa antecipação é um cadastro pela metade se a pessoa
+     * desaparecer aqui. Está coberto: sem aceite registrado, a próxima visita
+     * volta para o onboarding em vez de entrar no painel.
+     */
+    const handleConnectWhatsApp = async () => {
+        setConnecting(true)
+        try {
+            const response = await fetch('/api/onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    workspaceName: onboardingData.workspaceName,
+                    workspaceSlug: onboardingData.workspaceSlug,
+                    plan: onboardingData.plan,
+                    // O nome do agente é opcional no passo 4 e o pareamento não
+                    // pode esperar por ele.
+                    agentName: onboardingData.agentName?.trim() || 'Atendimento',
+                }),
+            })
+            const result = await response.json()
+            if (!response.ok || !result.agentId) {
+                throw new Error(result.error || 'Não foi possível preparar a conexão')
+            }
+            setNewAgentId(result.agentId)
+            setQrOpen(true)
+        } catch (error) {
+            console.error('[ONBOARDING] connect', error)
+            toast.error(
+                error instanceof Error ? error.message : 'Não foi possível preparar a conexão'
+            )
+        } finally {
+            setConnecting(false)
+        }
+    }
+
+    /**
      * Creates the workspace. It lives here rather than in a step because nothing
      * should exist before the agreement is accepted — the acceptance travels with
      * the same request that creates everything else.
@@ -91,16 +135,7 @@ export default function OnboardingPage() {
                     workspaceName: onboardingData.workspaceName,
                     workspaceSlug: onboardingData.workspaceSlug,
                     plan: onboardingData.plan,
-                    /**
-                     * Pedir o WhatsApp implica ter um agente.
-                     *
-                     * O nome do agente é opcional no passo 4, e sem agente não
-                     * existe pareamento: quem pediu para conectar e pulou o
-                     * nome terminava o cadastro sem QR nenhum e sem explicação.
-                     */
-                    agentName:
-                        onboardingData.agentName?.trim() ||
-                        (onboardingData.connectWhatsApp ? 'Atendimento' : undefined),
+                    agentName: onboardingData.agentName?.trim(),
                     acceptedTermsVersion: TERMS_VERSION,
                 }),
             })
@@ -109,20 +144,6 @@ export default function OnboardingPage() {
             if (!response.ok) throw new Error(result.error || 'Não foi possível criar o workspace')
 
             toast.success('Tudo pronto')
-
-            /**
-             * Quem pediu o WhatsApp no passo 3 recebe o QR agora.
-             *
-             * Agora, e não antes: o pareamento se liga ao agente, que acabou de
-             * nascer nesta mesma requisição. Sem agente — quem não deu nome a
-             * um — o cadastro termina como sempre terminou.
-             */
-            if (onboardingData.connectWhatsApp && result.agentId) {
-                setNewAgentId(result.agentId)
-                setQrOpen(true)
-                return
-            }
-
             router.push('/dashboard')
             router.refresh()
         } catch (error) {
@@ -211,8 +232,9 @@ export default function OnboardingPage() {
                     )}
                     {currentStep === 3 && (
                         <Step3WhatsApp
-                            updateData={updateData}
-                            data={onboardingData}
+                            connected={whatsAppConnected}
+                            onConnect={() => void handleConnectWhatsApp()}
+                            connecting={connecting}
                             onNext={nextStep}
                             onBack={prevStep}
                         />
@@ -235,22 +257,17 @@ export default function OnboardingPage() {
                 </div>
             </div>
 
-            {/* O pareamento, assim que o agente existe. Fechar ou conectar leva
-                para o painel do mesmo jeito: o cadastro já está feito. */}
+            {/* O pareamento acontece no passo 3 e devolve para o cadastro:
+                falta o agente e o aceite, e é o aceite que fecha tudo. */}
             {newAgentId ? (
                 <WhatsAppQRModal
                     agentId={newAgentId}
                     isOpen={qrOpen}
-                    onClose={() => {
-                        setQrOpen(false)
-                        router.push('/dashboard')
-                        router.refresh()
-                    }}
+                    onClose={() => setQrOpen(false)}
                     onConnected={() => {
                         toast.success('WhatsApp conectado')
+                        setWhatsAppConnected(true)
                         setQrOpen(false)
-                        router.push('/dashboard')
-                        router.refresh()
                     }}
                 />
             ) : null}
