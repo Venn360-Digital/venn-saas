@@ -2,6 +2,7 @@ import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
 import { syncActivityToGoogleCalendar } from '@/lib/google-calendar'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
@@ -42,110 +43,79 @@ function generateRecurrenceDates(startDate: Date, type: string, endDate: Date): 
 // GET - List activities with filters
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status })
         }
-
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
-
-        if (!workspaceUser) {
-            return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-        }
+        const workspaceId = auth.member.workspaceId
 
         const { searchParams } = new URL(request.url)
-        const filter = searchParams.get('filter') || 'today'
         const dealId = searchParams.get('dealId')
+        const contactId = searchParams.get('contactId')
         const search = searchParams.get('search')
         const typeFilter = searchParams.get('type')
-        const assigneeId = searchParams.get('userId')
+        const status = searchParams.get('status') || 'all'
+        // Pedido na URL, decidido aqui: um atendente recebe o próprio recorte
+        // mesmo pedindo `userId=all`. Esconder o seletor na tela não é
+        // autorização.
+        const owner = resolveOwnerScope(auth.member, searchParams.get('userId'))
 
-        // If fetching by dealId, return all activities for that deal
-        if (dealId) {
+        const where: Prisma.ActivityWhereInput = { workspaceId }
+        if (owner) where.userId = owner
+
+        // Atividades de um registro que a pessoa já tem aberto — a ficha do
+        // negócio, o painel do paciente. O recorte por data não se aplica: o
+        // que se pergunta ali é "o que existe deste negócio", não "o que cai
+        // nesta semana".
+        if (dealId || contactId) {
+            if (dealId) where.dealId = dealId
+            if (contactId) where.contactId = contactId
             const activities = await prisma.activity.findMany({
-                where: {
-                    workspaceId: workspaceUser.workspaceId,
-                    dealId,
-                },
+                where,
                 include: {
                     contact: { select: { id: true, name: true, phone: true } },
                     deal: { select: { id: true, title: true } },
                     user: { select: { id: true, name: true } }
                 },
-                orderBy: { createdAt: 'desc' }
+                orderBy: [{ completedAt: 'asc' }, { dueDate: 'asc' }],
+                take: 200,
             })
             return NextResponse.json(activities)
         }
 
-        // Build where clause
-        const where: Prisma.ActivityWhereInput = {
-            workspaceId: workspaceUser.workspaceId,
-        }
-
         const now = new Date()
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-        if (filter === 'overdue') {
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        if (status === 'overdue') {
+            // Atrasada é anterior a hoje por definição; cruzar isso com um
+            // período escolhido devolveria "atrasadas de agosto" quando o
+            // filtro estivesse em agosto, que é outra pergunta.
             where.dueDate = { lt: todayStart }
             where.completedAt = null
         } else {
-            let startDate: Date
-            let endDate: Date
+            if (status === 'pending') where.completedAt = null
+            if (status === 'done') where.completedAt = { not: null }
 
-            switch (filter) {
-                case 'today':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-                    break
-                case 'week':
-                    const dayOfWeek = now.getDay()
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek)
-                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - dayOfWeek))
-                    break
-                case 'month':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-                    break
-                case 'lastMonth':
-                    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-                    endDate = new Date(now.getFullYear(), now.getMonth(), 1)
-                    break
-                default: {
-                    const customStart = searchParams.get('startDate')
-                    const customEnd = searchParams.get('endDate')
-                    startDate = customStart ? new Date(customStart) : new Date(now.getFullYear(), now.getMonth(), now.getDate())
-                    if (customEnd) {
-                        const ce = new Date(customEnd)
-                        endDate = new Date(ce.getFullYear(), ce.getMonth(), ce.getDate() + 1)
-                    } else {
-                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-                    }
+            const from = searchParams.get('from') || searchParams.get('startDate')
+            const to = searchParams.get('to') || searchParams.get('endDate')
+            if (from || to) {
+                const range: Prisma.DateTimeNullableFilter = {}
+                if (from) {
+                    const [y, m, d] = from.split('-').map(Number)
+                    range.gte = new Date(y, m - 1, d)
                 }
+                if (to) {
+                    const [y, m, d] = to.split('-').map(Number)
+                    range.lt = new Date(y, m - 1, d + 1)
+                }
+                where.dueDate = range
             }
-
-            where.dueDate = { gte: startDate, lt: endDate }
         }
 
-        // Type filter
         if (typeFilter && typeFilter !== 'all') {
             where.type = typeFilter
         }
 
-        // User filter
-        if (assigneeId && assigneeId !== 'all') {
-            where.userId = assigneeId
-        }
-
-        // Search
         if (search) {
             where.searchText = { contains: normalizeSearch(search) }
         }

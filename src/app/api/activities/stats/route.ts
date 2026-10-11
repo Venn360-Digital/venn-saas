@@ -1,57 +1,63 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
+
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
 
-// GET - Activity KPI stats
-export async function GET() {
+/**
+ * Os quatro números do topo da Agenda.
+ *
+ * Dois são absolutos e dois seguem o filtro, de propósito. **Hoje** e
+ * **Atrasadas** são o que exige ação agora: com "Este mês" selecionado, um
+ * "Hoje" recortado pelo mês continuaria sendo hoje, mas com "Últimos 90 dias"
+ * um "Atrasadas" recortado esconderia o que venceu há quatro meses — e é
+ * exatamente esse o que ninguém olhou. **Concluídas** e **Total** respondem
+ * pelo período escolhido, e por isso somam entre si.
+ */
+export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const params = request.nextUrl.searchParams
+        const owner = resolveOwnerScope(auth.member, params.get('userId'))
 
-        if (!workspaceUser) {
-            return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-        }
+        const where: Prisma.ActivityWhereInput = { workspaceId: auth.member.workspaceId }
+        if (owner) where.userId = owner
 
-        const wId = workspaceUser.workspaceId
         const now = new Date()
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
-        const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()))
 
-        const [today, overdue, completedWeek, totalWeek] = await Promise.all([
-            // Activities due today (not completed)
+        const from = params.get('from')
+        const to = params.get('to')
+        const range: Prisma.DateTimeNullableFilter = {}
+        if (from) {
+            const [y, m, d] = from.split('-').map(Number)
+            range.gte = new Date(y, m - 1, d)
+        }
+        if (to) {
+            const [y, m, d] = to.split('-').map(Number)
+            range.lt = new Date(y, m - 1, d + 1)
+        }
+        const inPeriod = from || to ? { dueDate: range } : {}
+
+        const [today, overdue, completed, total] = await Promise.all([
             prisma.activity.count({
-                where: { workspaceId: wId, dueDate: { gte: todayStart, lt: todayEnd }, completedAt: null }
+                where: { ...where, dueDate: { gte: todayStart, lt: todayEnd }, completedAt: null },
             }),
-            // Overdue (past due, not completed)
             prisma.activity.count({
-                where: { workspaceId: wId, dueDate: { lt: todayStart }, completedAt: null }
+                where: { ...where, dueDate: { lt: todayStart }, completedAt: null },
             }),
-            // Completed this week
             prisma.activity.count({
-                where: { workspaceId: wId, completedAt: { gte: weekStart, lt: weekEnd } }
+                where: { ...where, ...inPeriod, completedAt: { not: null } },
             }),
-            // Total this week
-            prisma.activity.count({
-                where: { workspaceId: wId, dueDate: { gte: weekStart, lt: weekEnd } }
-            }),
+            prisma.activity.count({ where: { ...where, ...inPeriod } }),
         ])
 
-        return NextResponse.json({ today, overdue, completedWeek, totalWeek })
+        return NextResponse.json({ today, overdue, completed, total })
     } catch (error) {
         console.error('[ACTIVITIES_STATS]', error)
         return NextResponse.json({ error: 'Internal error' }, { status: 500 })

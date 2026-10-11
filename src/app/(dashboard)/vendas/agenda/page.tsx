@@ -4,7 +4,7 @@ import { ACTIVITY_TYPES as SHARED_ACTIVITY_TYPES } from '@/lib/activity-types'
 import { useState, useEffect, useMemo } from 'react'
 import {
     Plus, List, Calendar, Clock, CheckCircle2, Circle, Trash2, Pencil,
-    Search, ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight,
     AlertTriangle, User, Briefcase, X, TrendingUp,
     Columns3, BellRing, Repeat,
 } from 'lucide-react'
@@ -24,6 +24,9 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
+import { OwnerPicker } from '@/components/shared/OwnerPicker'
+import { PeriodPicker } from '@/components/shared/PeriodPicker'
+import { isoDay, periodRange, type PeriodRange } from '@/lib/period'
 import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -51,13 +54,13 @@ interface DealOption { id: string; title: string }
 interface WorkspaceMember { userId: string; name: string; avatar: string | null; role: string }
 
 // ─── Constants ──────────────────────────────────────────────────────
-const FILTERS = [
-    { id: 'today', label: 'Hoje' },
-    { id: 'week', label: 'Esta Semana' },
-    { id: 'month', label: 'Este Mês' },
-    { id: 'overdue', label: '⚠️ Atrasadas' },
-    { id: 'lastMonth', label: 'Mês Anterior' },
-    { id: 'custom', label: 'Personalizado' },
+/** Situação, como a Agenda pergunta. "Atrasadas" ignora o período: vencido é
+    vencido, e recortá-lo esconderia justamente o que ninguém olhou. */
+const STATUS_OPTIONS = [
+    { id: 'all', label: 'Todas' },
+    { id: 'pending', label: 'Pendentes' },
+    { id: 'done', label: 'Concluídas' },
+    { id: 'overdue', label: 'Atrasadas' },
 ]
 
 const ACTIVITY_TYPES = SHARED_ACTIVITY_TYPES
@@ -113,24 +116,29 @@ function isSameDay(d1: Date, d2: Date): boolean {
 export default function AgendaPage() {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Delete controls that answer 403.
-    const { canEdit } = usePermissions()
+    const { canEdit, canSeeEveryone: canChooseOwner } = usePermissions()
     const [deletingActivity, setDeletingActivity] = useState<Activity | null>(null)
     const [activities, setActivities] = useState<Activity[]>([])
     const [loading, setLoading] = useState(true)
-    const [filter, setFilter] = useState('today')
     const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'kanban'>('list')
-    const [search, setSearch] = useState('')
     const [typeFilter, setTypeFilter] = useState('all')
+    const [statusFilter, setStatusFilter] = useState('all')
+    const [ownerFilter, setOwnerFilter] = useState('')
+
+    /**
+     * O recorte, igual ao do resto do produto — e `null` até montar.
+     *
+     * "Esta semana" depende do dia de hoje, e calcular isso durante o render
+     * faria o HTML do servidor e o do cliente discordarem. Nasce nulo, o efeito
+     * resolve, e nada é buscado antes disso — por isso o `null` é diferente de
+     * `{from:'', to:''}`, que é o "Todo o período" escolhido.
+     */
+    const [range, setRange] = useState<PeriodRange | null>(null)
+    useEffect(() => { setRange(periodRange('week', Date.now())) }, [])
 
     // Calendar navigation
     const [calMonth, setCalMonth] = useState(new Date().getMonth())
     const [calYear, setCalYear] = useState(new Date().getFullYear())
-
-    // Custom date range
-    const [customRange, setCustomRange] = useState({
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0],
-    })
 
     // Dialog state
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -158,15 +166,17 @@ export default function AgendaPage() {
     const [members, setMembers] = useState<WorkspaceMember[]>([])
 
     // KPI stats
-    const [stats, setStats] = useState({ today: 0, overdue: 0, completedWeek: 0, totalWeek: 0 })
+    const [stats, setStats] = useState({ today: 0, overdue: 0, completed: 0, total: 0 })
 
     // ─── Data Loading ───────────────────────────────────────────────
-    useEffect(() => { loadMembers(); loadStats() }, [])
+    useEffect(() => { loadMembers() }, [])
 
     useEffect(() => {
-        const timer = setTimeout(() => { loadActivities() }, search ? 300 : 0)
-        return () => clearTimeout(timer)
-    }, [filter, customRange, viewMode, calMonth, calYear, typeFilter, search])
+        if (!range) return
+        loadStats()
+        loadActivities()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [range, viewMode, calMonth, calYear, typeFilter, statusFilter, ownerFilter])
 
     // Contact search debounce
     useEffect(() => {
@@ -199,9 +209,22 @@ export default function AgendaPage() {
         } catch { /* ignore */ }
     }
 
+    /** Os filtros que valem para qualquer consulta desta tela. */
+    const commonParams = () => {
+        const params = new URLSearchParams()
+        if (typeFilter !== 'all') params.set('type', typeFilter)
+        if (statusFilter !== 'all') params.set('status', statusFilter)
+        if (ownerFilter) params.set('userId', ownerFilter)
+        return params
+    }
+
     const loadStats = async () => {
         try {
-            const res = await fetch('/api/activities/stats')
+            const params = new URLSearchParams()
+            if (range?.from) params.set('from', range.from)
+            if (range?.to) params.set('to', range.to)
+            if (ownerFilter) params.set('userId', ownerFilter)
+            const res = await fetch(`/api/activities/stats?${params}`)
             if (res.ok) setStats(await res.json())
         } catch { /* ignore */ }
     }
@@ -209,29 +232,27 @@ export default function AgendaPage() {
     const loadActivities = async () => {
         setLoading(true)
         try {
-            let url: string
+            const params = commonParams()
 
             if (viewMode === 'calendar') {
-                // Load entire visible calendar range
+                // O calendário mostra o mês que está na tela, não o período do
+                // filtro: navegar para novembro com "Esta semana" ligado
+                // desenharia uma grade vazia.
                 const firstDay = new Date(calYear, calMonth, 1)
                 const startDow = firstDay.getDay()
                 const calStart = new Date(calYear, calMonth, 1 - startDow)
                 const calEnd = new Date(calYear, calMonth + 1, 7)
-                url = `/api/activities?filter=custom&startDate=${calStart.toISOString().split('T')[0]}&endDate=${calEnd.toISOString().split('T')[0]}`
-            } else if (filter === 'custom') {
-                url = `/api/activities?filter=custom&startDate=${customRange.startDate}&endDate=${customRange.endDate}`
+                params.set('from', isoDay(calStart))
+                params.set('to', isoDay(calEnd))
             } else {
-                url = `/api/activities?filter=${filter}`
+                if (range?.from) params.set('from', range.from)
+                if (range?.to) params.set('to', range.to)
             }
 
-            if (search) url += `&search=${encodeURIComponent(search)}`
-            if (typeFilter !== 'all') url += `&type=${typeFilter}`
-
-            const res = await fetch(url)
+            const res = await fetch(`/api/activities?${params}`)
             if (res.ok) setActivities(await res.json())
         } catch (error) {
             console.error('Error loading activities:', error)
-            loadStats()
         } finally {
             setLoading(false)
         }
@@ -416,111 +437,111 @@ export default function AgendaPage() {
                 </div>
             </div>
 
-            {/* KPI Cards */}
+            {/* Os quatro números.
+                Hoje e Atrasadas são absolutos — com "Este mês" no filtro, um
+                "Atrasadas" recortado pelo mês esconderia o que venceu em
+                agosto, que é exatamente o que ninguém olhou. Concluídas e Total
+                seguem o período, e por isso somam entre si. */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <button
-                    onClick={() => { setFilter('today'); setViewMode('list') }}
-                    className={cn(
-                        "group relative flex items-center gap-3 p-4 rounded-xl border bg-card transition-all hover:shadow-md",
-                        filter === 'today' ? "border-info/50 ring-1 ring-info/20" : "border-border"
-                    )}
-                >
-                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-info-subtle flex items-center justify-center">
-                        <Calendar className="h-5 w-5 text-info-subtle-foreground" />
-                    </div>
-                    <div className="text-left">
-                        <p className="text-2xl font-bold leading-none">{stats.today}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Hoje</p>
-                    </div>
-                </button>
-
-                <button
-                    onClick={() => { setFilter('overdue'); setViewMode('list') }}
-                    className={cn(
-                        "group relative flex items-center gap-3 p-4 rounded-xl border bg-card transition-all hover:shadow-md",
-                        filter === 'overdue' ? "border-destructive/50 ring-1 ring-destructive/20" : "border-border",
-                        stats.overdue > 0 && "border-destructive/30 bg-destructive-subtle"
-                    )}
-                >
-                    <div className={cn(
-                        "flex-shrink-0 h-10 w-10 rounded-lg flex items-center justify-center",
-                        stats.overdue > 0 ? "bg-destructive-subtle" : "bg-destructive-subtle/60"
-                    )}>
-                        <AlertTriangle className={cn("h-5 w-5", stats.overdue > 0 ? "text-destructive-subtle-foreground animate-pulse" : "text-destructive-subtle-foreground/60")} />
-                    </div>
-                    <div className="text-left">
-                        <p className={cn("text-2xl font-bold leading-none", stats.overdue > 0 && "text-destructive-subtle-foreground")}>
-                            {stats.overdue}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">Atrasadas</p>
-                    </div>
-                </button>
-
-                <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card">
-                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-success-subtle flex items-center justify-center">
-                        <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold leading-none">{stats.completedWeek}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Concluídas na semana</p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card">
-                    <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <TrendingUp className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold leading-none">{stats.totalWeek}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Total na semana</p>
-                    </div>
-                </div>
+                <StatCard
+                    icon={Calendar}
+                    value={stats.today}
+                    label="Hoje"
+                    hint="pendentes, agora"
+                    tone="info"
+                    active={statusFilter === 'pending'}
+                    onClick={() => {
+                        setRange(periodRange('today', Date.now()))
+                        setStatusFilter('pending')
+                        setViewMode('list')
+                    }}
+                />
+                <StatCard
+                    icon={AlertTriangle}
+                    value={stats.overdue}
+                    label="Atrasadas"
+                    hint="vencidas, agora"
+                    tone={stats.overdue > 0 ? 'danger' : 'muted'}
+                    active={statusFilter === 'overdue'}
+                    onClick={() => { setStatusFilter('overdue'); setViewMode('list') }}
+                />
+                <StatCard
+                    icon={CheckCircle2}
+                    value={stats.completed}
+                    label="Concluídas"
+                    hint="no período"
+                    tone="success"
+                    active={statusFilter === 'done'}
+                    onClick={() => { setStatusFilter('done'); setViewMode('list') }}
+                />
+                <StatCard
+                    icon={TrendingUp}
+                    value={stats.total}
+                    label="Total"
+                    hint="no período"
+                    tone="primary"
+                    active={statusFilter === 'all'}
+                    onClick={() => { setStatusFilter('all'); setViewMode('list') }}
+                />
             </div>
 
-            {/* Filters & Search */}
-            <div className="mb-6 space-y-3">
-                {(viewMode === 'list' || viewMode === 'kanban') && (
-                    <div className="flex flex-wrap items-center gap-2">
-                        {FILTERS.map((f) => (
-                            <Button key={f.id} variant="ghost" size="sm"
-                                onClick={() => setFilter(f.id)}
-                                className={cn("rounded-full", filter === f.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                                {f.label}
-                            </Button>
-                        ))}
-                        {filter === 'custom' && (
-                            <div className="flex items-center gap-2 ml-2">
-                                <span className="text-sm text-muted-foreground">De:</span>
-                                <Input type="date" value={customRange.startDate}
-                                    onChange={(e) => setCustomRange(prev => ({ ...prev, startDate: e.target.value }))}
-                                    className="w-36 h-8 text-sm" />
-                                <span className="text-sm text-muted-foreground">Até:</span>
-                                <Input type="date" value={customRange.endDate}
-                                    onChange={(e) => setCustomRange(prev => ({ ...prev, endDate: e.target.value }))}
-                                    className="w-36 h-8 text-sm" />
-                            </div>
-                        )}
-                    </div>
-                )}
+            {/* Uma linha só de filtros, no padrão do resto do produto: período,
+                tipo, responsável e situação. A busca por texto saiu — numa tela
+                que já recorta por data, tipo, pessoa e situação, ela era o
+                quinto caminho para a mesma lista. */}
+            <div className="mb-6 flex flex-wrap items-center gap-1.5">
+                <PeriodPicker
+                    from={range?.from ?? ''}
+                    to={range?.to ?? ''}
+                    onChange={(from, to) => setRange({ from, to })}
+                />
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="relative flex-1 min-w-[200px] max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Buscar atividade..." value={search}
-                            onChange={(e) => setSearch(e.target.value)} className="pl-10 h-9" />
-                    </div>
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger className="w-[150px] h-9">
-                            <SelectValue placeholder="Tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todos os tipos</SelectItem>
-                            {ACTIVITY_TYPES.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger size="sm" className="w-[150px] shrink-0" aria-label="Tipo">
+                        <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Todos os tipos</SelectItem>
+                        {ACTIVITY_TYPES.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <OwnerPicker
+                    value={ownerFilter}
+                    onChange={setOwnerFilter}
+                    members={members.map(m => ({ userId: m.userId, name: m.name }))}
+                    canChoose={canChooseOwner}
+                />
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger size="sm" className="w-[132px] shrink-0" aria-label="Situação">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {STATUS_OPTIONS.map((o) => (
+                            <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                {typeFilter !== 'all' || statusFilter !== 'all' || ownerFilter ? (
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Limpar filtros"
+                        className="shrink-0"
+                        onClick={() => {
+                            setTypeFilter('all')
+                            setStatusFilter('all')
+                            setOwnerFilter('')
+                            setRange(periodRange('week', Date.now()))
+                        }}
+                    >
+                        <X className="size-3.5" />
+                    </Button>
+                ) : null}
             </div>
 
             {/* Calendar Navigation (calendar mode only) */}
@@ -1018,5 +1039,59 @@ export default function AgendaPage() {
                 }}
             />
         </div>
+    )
+}
+
+/**
+ * Um dos quatro números do topo, que também é um filtro.
+ *
+ * Eram quatro blocos escritos à mão, dois clicáveis e dois não — e os dois que
+ * clicavam não diziam que clicavam. Aqui todos são botão, e o que está ligado
+ * se vê pelo anel, não pela cor de fundo.
+ */
+function StatCard({
+    icon: Icon,
+    value,
+    label,
+    hint,
+    tone,
+    active,
+    onClick,
+}: {
+    icon: typeof Calendar
+    value: number
+    label: string
+    hint: string
+    tone: 'info' | 'danger' | 'success' | 'primary' | 'muted'
+    active: boolean
+    onClick: () => void
+}) {
+    const tones = {
+        info: { bg: 'bg-info-subtle', fg: 'text-info-subtle-foreground' },
+        danger: { bg: 'bg-destructive-subtle', fg: 'text-destructive-subtle-foreground' },
+        success: { bg: 'bg-success-subtle', fg: 'text-success-subtle-foreground' },
+        primary: { bg: 'bg-primary-subtle', fg: 'text-primary-subtle-foreground' },
+        muted: { bg: 'bg-muted', fg: 'text-muted-foreground' },
+    }[tone]
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={cn(
+                'flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-border-strong',
+                active ? 'border-primary ring-1 ring-primary/20' : 'border-border'
+            )}
+        >
+            <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', tones.bg)}>
+                <Icon className={cn('size-5', tones.fg)} />
+            </span>
+            <span className="min-w-0">
+                <span className="num block text-2xl font-bold leading-none">{value}</span>
+                <span className="mt-1 block truncate text-xs">{label}</span>
+                <span className="block truncate text-[11px] text-muted-foreground">{hint}</span>
+            </span>
+        </button>
     )
 }
