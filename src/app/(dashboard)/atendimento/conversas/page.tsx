@@ -82,6 +82,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
 import { ActivityForm } from '@/components/shared/ActivityForm'
+import { ActivityList } from '@/components/shared/ActivityList'
 import { AiSummaryPanel } from '@/components/shared/AiSummaryPanel'
 import { ConversationFilesPanel } from '@/components/shared/ConversationFilesPanel'
 import { InternalNotesPanel } from '@/components/shared/InternalNotesPanel'
@@ -508,7 +509,7 @@ export default function ConversasPage() {
     /** O título do painel aberto, que o cabeçalho e o leitor de tela usam. */
     const PANEL_TITLES: Record<PanelMode, string> = {
         summary: 'Resumo do paciente',
-        schedule: 'Nova atividade',
+        schedule: 'Atividades',
         files: 'Arquivos da conversa',
         journey: 'Jornada do paciente',
         notes: 'Notas internas',
@@ -517,6 +518,9 @@ export default function ConversasPage() {
     // Tags state
     const [availableTags, setAvailableTags] = useState<TagItem[]>([])
     const [showTagPicker, setShowTagPicker] = useState(false)
+
+    /** Sobe quando o painel marca uma atividade — a lista relê a partir dele. */
+    const [activitiesToken, setActivitiesToken] = useState(0)
     const [conversationTags, setConversationTags] = useState<TagItem[]>([])
 
     // Internal note mode
@@ -2697,23 +2701,43 @@ export default function ConversasPage() {
                                             ) : null}
 
                                             {panel === 'schedule' && conv.contact?.id ? (
-                                                <ActivityForm
-                                                    key={conv.id}
-                                                    contactId={conv.contact.id}
-                                                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
-                                                    dealId={conv.openDeal?.id ?? null}
-                                                    dealTitle={conv.openDeal?.title ?? null}
-                                                    onScheduled={({ date, time }) => {
-                                                        // O texto entra no compositor em vez de ser
-                                                        // enviado: quem confirma o horário com o
-                                                        // paciente é a pessoa, não a tela.
-                                                        const [y, m, d] = date.split('-')
-                                                        setMessageInput(
-                                                            `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
-                                                        )
-                                                        textareaRef.current?.focus()
-                                                    }}
-                                                />
+                                                <div className="space-y-4">
+                                                    <ActivityForm
+                                                        key={conv.id}
+                                                        contactId={conv.contact.id}
+                                                        contactName={conv.contact.name || conv.contact.phone || 'paciente'}
+                                                        dealId={conv.openDeal?.id ?? null}
+                                                        dealTitle={conv.openDeal?.title ?? null}
+                                                        onScheduled={({ date, time }) => {
+                                                            // O texto entra no compositor em vez de ser
+                                                            // enviado: quem confirma o horário com o
+                                                            // paciente é a pessoa, não a tela.
+                                                            const [y, m, d] = date.split('-')
+                                                            setMessageInput(
+                                                                `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
+                                                            )
+                                                            textareaRef.current?.focus()
+                                                            setActivitiesToken((n) => n + 1)
+                                                        }}
+                                                    />
+
+                                                    {/* O que já está marcado para este paciente, e o
+                                                        círculo que conclui. Quem está na conversa é
+                                                        quem acabou de confirmar por escrito que o
+                                                        retorno aconteceu — cobrar uma ida à Agenda
+                                                        para registrar isso é como pedir que ligue de
+                                                        outro telefone. */}
+                                                    <div className="space-y-2 border-t border-border pt-3">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Atividades do paciente
+                                                        </p>
+                                                        <ActivityList
+                                                            key={`list-${conv.id}`}
+                                                            contactId={conv.contact.id}
+                                                            refreshToken={activitiesToken}
+                                                        />
+                                                    </div>
+                                                </div>
                                             ) : null}
 
                                             {panel === 'journey' ? (

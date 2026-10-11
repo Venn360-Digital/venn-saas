@@ -1,11 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
     CalendarPlus,
     Check,
     ListTodo,
-    Loader2,
     MoreVertical,
     Route,
     RotateCcw,
@@ -19,6 +18,7 @@ import {
 import { toast } from 'sonner'
 
 import { ActivityForm } from '@/components/shared/ActivityForm'
+import { ActivityList } from '@/components/shared/ActivityList'
 import { DealJourney } from '@/components/shared/DealJourney'
 import { InlineField } from '@/components/shared/InlineField'
 import { PickField, type PickOption } from '@/components/shared/PickField'
@@ -32,7 +32,6 @@ import {
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { activityType } from '@/lib/activity-types'
 import { type DealLike } from '@/lib/deal-health'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
@@ -52,15 +51,6 @@ export interface PanelDeal extends DealLike {
     outcomeNotes?: string | null
     closedValue?: number | null
     closedAt?: string | null
-}
-
-interface PanelActivity {
-    id: string
-    title: string
-    type: string
-    dueDate: string | null
-    startTime: string | null
-    completedAt: string | null
 }
 
 type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'
@@ -126,7 +116,8 @@ export function DealPanel<T extends PanelDeal>({
     const [contactResults, setContactResults] = useState<PickOption[]>([])
     const [searchingContacts, setSearchingContacts] = useState(false)
 
-    const [activities, setActivities] = useState<PanelActivity[] | null>(null)
+    /** Sobe quando algo muda a lista — a `ActivityList` relê a partir dele. */
+    const [activitiesToken, setActivitiesToken] = useState(0)
 
     /*
      * Trocar de negócio volta para a ficha, e isso acontece pela `key` que a
@@ -144,22 +135,6 @@ export function DealPanel<T extends PanelDeal>({
         },
         [onPatch]
     )
-
-    /** Atividades só quando o modo abre: o painel abre muitas vezes por sessão. */
-    useEffect(() => {
-        if (mode !== 'activities' || activities !== null) return
-        let cancelled = false
-        fetch(`/api/activities?dealId=${deal.id}`)
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-                if (cancelled) return
-                setActivities(Array.isArray(data) ? data : (data?.data ?? []))
-            })
-            .catch(() => {
-                if (!cancelled) setActivities([])
-            })
-        return () => { cancelled = true }
-    }, [mode, activities, deal.id])
 
     const searchContacts = useCallback((term: string) => {
         if (term.trim().length < 2) {
@@ -454,7 +429,7 @@ export function DealPanel<T extends PanelDeal>({
                         dealId={deal.id}
                         dealTitle={deal.title}
                         onScheduled={() => {
-                            setActivities(null)
+                            setActivitiesToken((n) => n + 1)
                             setMode('activities')
                             onChanged()
                         }}
@@ -463,45 +438,12 @@ export function DealPanel<T extends PanelDeal>({
                 ) : null}
 
                 {mode === 'activities' ? (
-                    <div className="space-y-2">
-                        {activities === null ? (
-                            <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Loader2 className="size-3.5 animate-spin" /> Carregando atividades…
-                            </p>
-                        ) : activities.length === 0 ? (
-                            <div className="rounded-md border border-dashed border-border px-3 py-5 text-center">
-                                <CalendarPlus className="mx-auto mb-2 size-5 text-muted-foreground" />
-                                <p className="text-xs text-muted-foreground">Nenhuma atividade neste negócio.</p>
-                            </div>
-                        ) : (
-                            activities.map((activity) => {
-                                const kind = activityType(activity.type)
-                                const done = Boolean(activity.completedAt)
-                                return (
-                                    <div
-                                        key={activity.id}
-                                        className={cn(
-                                            'rounded-md border border-border px-2.5 py-2',
-                                            done ? 'opacity-60' : 'border-l-2 border-l-primary'
-                                        )}
-                                    >
-                                        <p className="flex items-center gap-1.5 text-[12px] font-semibold">
-                                            {done ? <Check className="size-3 text-success-subtle-foreground" /> : null}
-                                            <kind.icon className={cn('size-3', kind.color)} />
-                                            {activity.title}
-                                        </p>
-                                        <p className="num text-[11px] text-muted-foreground">
-                                            {activity.dueDate
-                                                ? new Date(activity.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-                                                : 'sem data'}
-                                            {activity.startTime ? ` ${activity.startTime}` : ''}
-                                            {done ? ' · concluída' : ' · pendente'}
-                                        </p>
-                                    </div>
-                                )
-                            })
-                        )}
-                    </div>
+                    <ActivityList
+                        key={deal.id}
+                        dealId={deal.id}
+                        refreshToken={activitiesToken}
+                        onChanged={onChanged}
+                    />
                 ) : null}
 
                 {mode === 'notes' ? (
