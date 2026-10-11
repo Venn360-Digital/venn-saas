@@ -13,7 +13,8 @@
     "worker:build": "tsup --config workers/tsup.config.ts",
     "worker:start": "node workers/dist/index.js",
     "lint:colors": "node scripts/lint-colors.mjs",
-    "prebuild": "node scripts/lint-colors.mjs"
+    "prebuild": "node scripts/lint-colors.mjs",
+    "check:period": "tsx --conditions=react-server scripts/check-period.ts"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",
