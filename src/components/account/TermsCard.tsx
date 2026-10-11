@@ -120,12 +120,19 @@ export function TermsCard() {
                         </span>
                         Aceito
                         {state.acceptedAt ? (
+                            // Com hora, e não só a data: o que dá valor a um
+                            // aceite é ser um registro, e registro sem hora é
+                            // meia anotação. O banco guarda em UTC — aqui o
+                            // próprio navegador converte para o fuso de quem
+                            // lê, que é o único relógio que a pessoa reconhece.
                             <span className="num text-muted-foreground">
                                 em{' '}
-                                {new Date(state.acceptedAt).toLocaleDateString('pt-BR', {
+                                {new Date(state.acceptedAt).toLocaleString('pt-BR', {
                                     day: '2-digit',
                                     month: '2-digit',
                                     year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
                                 })}
                             </span>
                         ) : null}
