@@ -4,6 +4,15 @@ import { cn } from '@/lib/utils'
 
 interface PageHeaderProps {
     title: string
+    /**
+     * Encosta no título, à direita dele.
+     *
+     * É para um controle que **troca o que a tela mostra** — o seletor Dados |
+     * Gráfico do painel. Ele não cabe em `actions`: ali moram os filtros, que
+     * recortam o conteúdo, e um controle que troca a tela inteira lido no meio
+     * deles vira mais um filtro.
+     */
+    titleAfter?: React.ReactNode
     description?: string
     /**
      * Renders as "12 pacientes" after the description. Screens were each
@@ -27,6 +36,7 @@ interface PageHeaderProps {
  */
 export function PageHeader({
     title,
+    titleAfter,
     description,
     count,
     actions,
@@ -43,7 +53,10 @@ export function PageHeader({
         <div className={cn(!bleed && 'px-4 py-5 md:px-6', className)}>
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
-                    <h1 className="text-h1">{title}</h1>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="text-h1">{title}</h1>
+                        {titleAfter}
+                    </div>
                     {description || countLabel ? (
                         <p className="mt-1 text-sm text-muted-foreground">
                             {description}

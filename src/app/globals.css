@@ -124,6 +124,12 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  --color-chart-series: var(--chart-series);
+  --color-chart-ramp-1: var(--chart-ramp-1);
+  --color-chart-ramp-2: var(--chart-ramp-2);
+  --color-chart-ramp-3: var(--chart-ramp-3);
+  --color-chart-ramp-4: var(--chart-ramp-4);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -253,6 +259,26 @@
   --chart-4: #7dd3e8;
   --chart-5: #065f46;
 
+  /* A série que carrega sentido, e a rampa sequencial.
+     `chart-1` a `chart-5` são uma paleta categórica, e medida ela não sustenta
+     cinco categorias: no claro `chart-1` dá 2,43:1 sobre o cartão branco (o
+     piso de marca gráfica é 3:1), `chart-2` 2,65 e `chart-4` 1,70 — e
+     `chart-1` contra `chart-2` dá 1,09:1, dois blocos indistinguíveis em cinza.
+     A marca é teal e verde, famílias vizinhas; o problema não é o valor de um
+     token, é pedir identidade de cinco categorias a uma paleta quase
+     monocromática.
+     Os gráficos então usam UMA cor com significado — esta, 5,36:1 no claro —, o
+     período anterior vira forma (tracejado em `muted-foreground`), e N
+     categorias viram barras ordenadas num matiz só, com a identidade no rótulo. */
+  --chart-series: #0e7490;
+
+  /* Rampa sequencial do mapa de calor: um matiz, luminosidade monótona, ponta
+     clara acima de 2:1 contra o cartão. Aprovada pelo validador nos dois modos. */
+  --chart-ramp-1: #37c4dc;
+  --chart-ramp-2: #13889f;
+  --chart-ramp-3: #0a5566;
+  --chart-ramp-4: #05323e;
+
   --sidebar: #ffffff;
   --sidebar-foreground: #0b1f3b;
   --sidebar-primary: #06b6d4;
@@ -350,6 +376,16 @@
   --chart-3: #7dd3e8;
   --chart-4: #22a5c4;
   --chart-5: #a7f3d0;
+
+  /* 6,43:1 sobre `--card`. O valor do claro daria 2,43:1 aqui — a série é a
+     mesma ideia nos dois modos, e dois valores diferentes porque o fundo é. */
+  --chart-series: #06b6d4;
+
+  /* A mesma rampa, re-escolhida contra `--card` escuro em vez de invertida. */
+  --chart-ramp-1: #0a5e7b;
+  --chart-ramp-2: #0798b6;
+  --chart-ramp-3: #38c9e0;
+  --chart-ramp-4: #9fe6f2;
 
   /* One step below the page, so the rail recedes instead of advancing. */
   --sidebar: #050f1f;
