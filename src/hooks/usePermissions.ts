@@ -17,6 +17,8 @@ export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'GESTOR' | 'ATENDENTE'
 
 const EDITOR_ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN', 'GESTOR']
 const MANAGER_ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN']
+/** Quem pode olhar o trabalho de outra pessoa — espelha `OVERSIGHT_ROLES`. */
+const OVERSIGHT_ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN', 'GESTOR']
 
 export interface Permissions {
     loading: boolean
@@ -27,6 +29,12 @@ export interface Permissions {
     canManage: boolean
     /** May reassign a conversation to another operator. */
     canTransfer: boolean
+    /**
+     * May look at other people's work — o seletor "Responsável" só existe para
+     * estes perfis. Atendente vê o próprio recorte, e o servidor impõe isso de
+     * novo (`resolveOwnerScope`): isto aqui é conforto, não autorização.
+     */
+    canSeeEveryone: boolean
 }
 
 export function usePermissions(): Permissions {
@@ -66,5 +74,6 @@ export function usePermissions(): Permissions {
         canEdit: role !== null && EDITOR_ROLES.includes(role),
         canManage: role !== null && MANAGER_ROLES.includes(role),
         canTransfer,
+        canSeeEveryone: role !== null && OVERSIGHT_ROLES.includes(role),
     }
 }

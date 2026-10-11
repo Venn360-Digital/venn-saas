@@ -155,3 +155,36 @@ export async function assertAgentAccess(
     })
     return agent !== null
 }
+
+/**
+ * Perfis que podem ver o trabalho de outra pessoa.
+ *
+ * Gestão (dono, administrador, gestor) escolhe entre "Todos" e um responsável;
+ * atendente vê o próprio trabalho e nada mais — seus pacientes, suas mensagens,
+ * seus negócios, suas conversas, suas atividades. É a mesma lista de perfis de
+ * `EDITOR_ROLES`, mas nomeada pelo que decide: não é sobre poder editar, é
+ * sobre poder olhar.
+ */
+export const OVERSIGHT_ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN', 'GESTOR']
+
+/** Se este perfil pode pedir os dados de todo o workspace. */
+export function canSeeEveryone(role: string): boolean {
+    return (OVERSIGHT_ROLES as string[]).includes(role)
+}
+
+/**
+ * Qual responsável os dados devem respeitar.
+ *
+ * Devolve `null` para "todos" e um `userId` quando o recorte é de uma pessoa.
+ * Um atendente recebe sempre o próprio id, **independente do que pediu** — por
+ * isso esta função existe no servidor: esconder o seletor na tela não é
+ * autorização, e `?userId=` na URL é um campo de texto como qualquer outro.
+ */
+export function resolveOwnerScope(
+    member: WorkspaceMember,
+    requested: string | null | undefined
+): string | null {
+    if (!canSeeEveryone(member.role)) return member.userId
+    if (!requested || requested === 'all') return null
+    return requested
+}
