@@ -21,6 +21,7 @@ import {
     X
 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { TermsCard } from '@/components/account/TermsCard'
 import { toast } from 'sonner'
 
 interface SubscriptionData {
@@ -527,6 +528,11 @@ export function PlanoTab() {
                 destructive
                 onConfirm={handleCancelPlan}
             />
+
+            {/* O acordo fica junto das outras condições — o que se paga, o que
+                se gasta, até quando. É onde alguém procura quando quer reler o
+                que aceitou. */}
+            <TermsCard />
         </div>
     )
 }

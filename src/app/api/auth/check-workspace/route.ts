@@ -49,7 +49,8 @@ export async function GET() {
         const accepted = workspaceUser
             ? await prisma.termsAcceptance.findFirst({
                   where: { userId: user.id, workspaceId: workspaceUser.workspaceId },
-                  select: { id: true },
+                  orderBy: { acceptedAt: 'desc' },
+                  select: { id: true, version: true, acceptedAt: true },
               })
             : null
 
@@ -64,6 +65,10 @@ export async function GET() {
             // O workspace provisório, para quem está no meio do cadastro.
             workspaceId: workspaceUser?.workspaceId || null,
             acceptedTerms: Boolean(accepted),
+            // Qual versão, e quando — é o que a tela de Plano mostra de volta
+            // depois do aceite. Um aceite sem data não é registro de nada.
+            acceptedVersion: accepted?.version ?? null,
+            acceptedAt: accepted?.acceptedAt ?? null,
             /** Tem workspace e entra, mas o aceite ainda não existe. */
             termsPending: Boolean(workspaceUser && !accepted && grandfathered),
         })
