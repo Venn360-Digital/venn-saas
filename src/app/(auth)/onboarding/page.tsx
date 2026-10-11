@@ -91,7 +91,16 @@ export default function OnboardingPage() {
                     workspaceName: onboardingData.workspaceName,
                     workspaceSlug: onboardingData.workspaceSlug,
                     plan: onboardingData.plan,
-                    agentName: onboardingData.agentName?.trim(),
+                    /**
+                     * Pedir o WhatsApp implica ter um agente.
+                     *
+                     * O nome do agente é opcional no passo 4, e sem agente não
+                     * existe pareamento: quem pediu para conectar e pulou o
+                     * nome terminava o cadastro sem QR nenhum e sem explicação.
+                     */
+                    agentName:
+                        onboardingData.agentName?.trim() ||
+                        (onboardingData.connectWhatsApp ? 'Atendimento' : undefined),
                     acceptedTermsVersion: TERMS_VERSION,
                 }),
             })
