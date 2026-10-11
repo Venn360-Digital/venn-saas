@@ -19,7 +19,6 @@ import {
     SidebarContent,
     SidebarFooter,
     SidebarGroup,
-    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuBadge,
@@ -106,7 +105,6 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <SidebarGroup>
-                    <SidebarGroupLabel>Navegação</SidebarGroupLabel>
                     <SidebarMenu>
                         {sections.map((section) => {
                             const Icon = section.icon

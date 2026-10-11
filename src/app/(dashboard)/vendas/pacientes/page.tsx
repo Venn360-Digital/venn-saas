@@ -9,6 +9,7 @@ import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
+import { PeriodPicker } from '@/components/shared/PeriodPicker'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { useRouter } from 'next/navigation'
@@ -546,14 +547,22 @@ export default function ContatosPage() {
                             </Select>
                         </FormField>
                     </div>
-                    <div className="min-w-36 flex-1 sm:flex-none">
-                        <FormField label="De" htmlFor="f-from">
-                            <Input id="f-from" type="date" value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} />
-                        </FormField>
-                    </div>
-                    <div className="min-w-36 flex-1 sm:flex-none">
-                        <FormField label="Até" htmlFor="f-to">
-                            <Input id="f-to" type="date" value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPagination(p => ({ ...p, page: 1 })) }} />
+                    {/* Um controle, não dois campos: é o mesmo seletor de
+                        período do funil, do Dashboard e da Agenda — e ele diz o
+                        recorte em vigor, que dois `input[type=date]` vazios não
+                        diziam. */}
+                    <div className="flex-1 sm:flex-none">
+                        <FormField label="Cadastrado em">
+                            <PeriodPicker
+                                from={filterDateFrom}
+                                to={filterDateTo}
+                                onChange={(from, to) => {
+                                    setFilterDateFrom(from)
+                                    setFilterDateTo(to)
+                                    setPagination(p => ({ ...p, page: 1 }))
+                                }}
+                                className="h-9"
+                            />
                         </FormField>
                     </div>
                 </FilterPanel>

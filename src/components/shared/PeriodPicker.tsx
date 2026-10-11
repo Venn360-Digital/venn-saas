@@ -7,18 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useNow } from '@/hooks/useNow'
+import { PERIOD_PRESETS, matchPreset, periodRange, type PeriodPresetId } from '@/lib/period'
 import { cn } from '@/lib/utils'
-
-/** Atalhos que cobrem o que se pergunta de verdade num funil. */
-const PRESETS: { label: string; days: number }[] = [
-    { label: 'Últimos 7 dias', days: 7 },
-    { label: 'Últimos 30 dias', days: 30 },
-    { label: 'Últimos 90 dias', days: 90 },
-]
-
-function iso(date: Date): string {
-    return date.toISOString().slice(0, 10)
-}
 
 function short(value: string): string {
     const [y, m, d] = value.split('-')
@@ -26,13 +16,16 @@ function short(value: string): string {
 }
 
 /**
- * O período como um controle só.
+ * O período como um controle só — o mesmo em toda tela que filtra por data.
  *
  * Dois `<input type="date">` lado a lado custavam 270px e quebravam a barra em
  * três linhas numa janela de 1280 — e, piores que largos, eram mudos: um campo
  * vazio não diz se o recorte está ligado. Aqui o botão **mostra o recorte em
- * vigor** ("01/10 – 10/10" ou "Todo o período") e os campos moram dentro, com
- * os atalhos que cobrem a maioria das perguntas.
+ * vigor** ("Este mês", "01/10 – 10/10" ou "Todo o período") e os campos moram
+ * dentro, com os seis atalhos do produto.
+ *
+ * O rótulo prefere o nome do atalho ao par de datas: quem escolheu "Este mês"
+ * reconhece "Este mês" de volta, não "01/10 – 31/10".
  */
 export function PeriodPicker({
     from,
@@ -47,21 +40,22 @@ export function PeriodPicker({
 }) {
     const now = useNow()
     const active = Boolean(from || to)
+    const preset = matchPreset(from, to, now)
 
     const label = !active
         ? 'Todo o período'
-        : from && to
-            ? `${short(from)} – ${short(to)}`
-            : from
-                ? `desde ${short(from)}`
-                : `até ${short(to)}`
+        : preset
+            ? PERIOD_PRESETS.find((p) => p.id === preset)!.label
+            : from && to
+                ? `${short(from)} – ${short(to)}`
+                : from
+                    ? `desde ${short(from)}`
+                    : `até ${short(to)}`
 
-    const applyPreset = (days: number) => {
+    const applyPreset = (id: PeriodPresetId) => {
         if (!now) return
-        const end = new Date(now)
-        const start = new Date(now)
-        start.setDate(start.getDate() - days + 1)
-        onChange(iso(start), iso(end))
+        const range = periodRange(id, now)
+        onChange(range.from, range.to)
     }
 
     return (
@@ -76,7 +70,7 @@ export function PeriodPicker({
                     <span className="num">{label}</span>
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[260px] space-y-3 p-3">
+            <PopoverContent align="end" className="w-[268px] space-y-3 p-3">
                 <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                         <Label htmlFor="period-from" className="text-xs">De</Label>
@@ -100,33 +94,33 @@ export function PeriodPicker({
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5">
-                    {PRESETS.map((preset) => (
+                {/* Duas colunas: os seis atalhos em linha única viravam quatro
+                    linhas irregulares, e "Últimos 30 dias" sozinho numa delas
+                    lê como sobra, não como opção. */}
+                <div className="grid grid-cols-2 gap-1.5">
+                    {PERIOD_PRESETS.map((item) => (
                         <Button
-                            key={preset.days}
-                            variant="outline"
+                            key={item.id}
+                            variant={preset === item.id ? 'secondary' : 'outline'}
                             size="sm"
-                            className="h-7 text-xs font-normal"
-                            onClick={() => applyPreset(preset.days)}
+                            className="h-7 justify-start text-xs font-normal"
+                            onClick={() => applyPreset(item.id)}
                         >
-                            {preset.label}
+                            {item.label}
                         </Button>
                     ))}
-                    {active ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => onChange('', '')}
-                        >
-                            Limpar
-                        </Button>
-                    ) : null}
                 </div>
 
-                <p className="text-[11px] text-muted-foreground">
-                    Negócio aberto entra pelo dia em que nasceu; ganho e perdido, pelo dia em que fecharam.
-                </p>
+                {active ? (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-full text-xs"
+                        onClick={() => onChange('', '')}
+                    >
+                        Todo o período
+                    </Button>
+                ) : null}
             </PopoverContent>
         </Popover>
     )
