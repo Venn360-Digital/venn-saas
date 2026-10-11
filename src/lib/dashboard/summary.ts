@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client'
+
 import prisma from '@/lib/prisma'
 
 /**
@@ -10,35 +12,93 @@ import prisma from '@/lib/prisma'
  *
  * It lives here rather than only behind the API route so the server component
  * can await it directly, with no round trip and no session cookie to forward.
+ *
+ * O recorte chega como **duas datas**, não como `7d | 30d | 90d`: o seletor de
+ * período do produto é um só (ver `PeriodPicker`) e oferece tanto os atalhos
+ * quanto um intervalo digitado. Sem datas, o painel conta tudo — e então não há
+ * período anterior com que comparar, logo não há delta.
  */
-const PERIODS = { '7d': 7, '30d': 30, '90d': 90 } as const
-type PeriodKey = keyof typeof PERIODS
-
-export const PERIOD_LABELS: Record<PeriodKey, string> = {
-    '7d': '7 dias',
-    '30d': '30 dias',
-    '90d': '90 dias',
+export interface DashboardScope {
+    /** `yyyy-MM-dd`, inclusivo. Vazio = todo o período. */
+    from?: string | null
+    /** `yyyy-MM-dd`, inclusivo. */
+    to?: string | null
+    /** Responsável. `null` = todos (só gestão pode pedir). */
+    userId?: string | null
 }
 
-export const PERIOD_KEYS = Object.keys(PERIODS) as PeriodKey[]
-export type { PeriodKey }
-
-export function resolvePeriod(raw: string | undefined | null): PeriodKey {
-    return raw && raw in PERIODS ? (raw as PeriodKey) : '30d'
+/** Meia-noite local do dia `yyyy-MM-dd`. */
+function startOfDay(iso: string): Date {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, m - 1, d)
 }
 
-export async function getDashboardSummary(workspaceId: string, period: PeriodKey) {
-    const days = PERIODS[period]
+/** Meia-noite local do dia seguinte — o fim exclusivo de um intervalo inclusivo. */
+function endOfDay(iso: string): Date {
+    const date = startOfDay(iso)
+    date.setDate(date.getDate() + 1)
+    return date
+}
+
+interface Window {
+    from: Date
+    to: Date
+    /** A janela imediatamente anterior, do mesmo tamanho. */
+    previousFrom: Date
+    previousTo: Date
+}
+
+function resolveWindow(scope: DashboardScope): Window | null {
+    if (!scope.from || !scope.to) return null
+    const from = startOfDay(scope.from)
+    const to = endOfDay(scope.to)
+    const span = to.getTime() - from.getTime()
+    return {
+        from,
+        to,
+        previousFrom: new Date(from.getTime() - span),
+        previousTo: from,
+    }
+}
+
+export async function getDashboardSummary(
+    workspaceId: string,
+    scope: DashboardScope = {}
+) {
+    const window = resolveWindow(scope)
+    const owner = scope.userId ?? null
 
     const now = new Date()
-    const from = new Date(now.getTime() - days * 86_400_000)
-    // The window immediately before this one, same length, so the delta
-    // compares like with like.
-    const previousFrom = new Date(from.getTime() - days * 86_400_000)
-
-    const startOfToday = new Date(now)
-    startOfToday.setHours(0, 0, 0, 0)
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const endOfToday = new Date(startOfToday.getTime() + 86_400_000)
+
+    /**
+     * O recorte por responsável, modelo a modelo.
+     *
+     * Paciente não tem dono: a tabela `contacts` não guarda responsável. "Meus
+     * pacientes" é então **o paciente de quem eu atendo** — tem conversa
+     * atribuída a mim ou negócio sob minha responsabilidade. É a única
+     * definição que os dados sustentam, e é a mesma que a lista de pacientes
+     * usaria se filtrasse por responsável.
+     */
+    const contactOwner: Prisma.ContactWhereInput = owner
+        ? {
+            OR: [
+                { conversations: { some: { assignedTo: owner } } },
+                { deals: { some: { userId: owner } } },
+            ],
+        }
+        : {}
+    const messageOwner = owner ? { assignedTo: owner } : {}
+    const dealOwner = owner ? { userId: owner } : {}
+    const conversationOwner = owner ? { assignedTo: owner } : {}
+    const activityOwner = owner ? { userId: owner } : {}
+
+    /** Intervalo de datas, ou nada quando o recorte é "todo o período". */
+    const inWindow = window ? { gte: window.from, lt: window.to } : undefined
+    const inPrevious = window
+        ? { gte: window.previousFrom, lt: window.previousTo }
+        : undefined
 
     const [
         contactsNow,
@@ -53,77 +113,98 @@ export async function getDashboardSummary(workspaceId: string, period: PeriodKey
         activitiesToday,
         overdueActivities,
         stages,
+        openByStage,
         recentActivities,
     ] = await Promise.all([
         prisma.contact.count({
-            where: { workspaceId, createdAt: { gte: from } },
+            where: { workspaceId, ...contactOwner, ...(inWindow && { createdAt: inWindow }) },
         }),
-        prisma.contact.count({
-            where: { workspaceId, createdAt: { gte: previousFrom, lt: from } },
-        }),
+        window
+            ? prisma.contact.count({
+                where: { workspaceId, ...contactOwner, createdAt: inPrevious },
+            })
+            : Promise.resolve(0),
         // Messages carry no workspaceId of their own; they are scoped through
         // the conversation that owns them.
         prisma.message.count({
             where: {
                 direction: 'inbound',
-                createdAt: { gte: from },
-                conversation: { workspaceId },
+                ...(inWindow && { createdAt: inWindow }),
+                conversation: { workspaceId, ...messageOwner },
             },
         }),
-        prisma.message.count({
-            where: {
-                direction: 'inbound',
-                createdAt: { gte: previousFrom, lt: from },
-                conversation: { workspaceId },
-            },
-        }),
-        prisma.deal.aggregate({
-            _sum: { value: true },
-            _count: true,
-            where: { workspaceId, status: 'won', closedAt: { gte: from } },
-        }),
+        window
+            ? prisma.message.count({
+                where: {
+                    direction: 'inbound',
+                    createdAt: inPrevious,
+                    conversation: { workspaceId, ...messageOwner },
+                },
+            })
+            : Promise.resolve(0),
         prisma.deal.aggregate({
             _sum: { value: true },
             _count: true,
             where: {
                 workspaceId,
+                ...dealOwner,
                 status: 'won',
-                closedAt: { gte: previousFrom, lt: from },
+                ...(inWindow && { closedAt: inWindow }),
             },
         }),
-        prisma.deal.count({
-            where: { workspaceId, status: 'lost', closedAt: { gte: from } },
+        prisma.deal.aggregate({
+            _sum: { value: true },
+            _count: true,
+            where: { workspaceId, ...dealOwner, status: 'won', closedAt: inPrevious },
         }),
         prisma.deal.count({
             where: {
                 workspaceId,
+                ...dealOwner,
                 status: 'lost',
-                closedAt: { gte: previousFrom, lt: from },
+                ...(inWindow && { closedAt: inWindow }),
             },
         }),
-        prisma.conversation.count({ where: { workspaceId, status: 'active' } }),
+        window
+            ? prisma.deal.count({
+                where: { workspaceId, ...dealOwner, status: 'lost', closedAt: inPrevious },
+            })
+            : Promise.resolve(0),
+        prisma.conversation.count({
+            where: { workspaceId, ...conversationOwner, status: 'active' },
+        }),
         prisma.activity.count({
             where: {
                 workspaceId,
+                ...activityOwner,
                 completedAt: null,
                 dueDate: { gte: startOfToday, lt: endOfToday },
             },
         }),
         prisma.activity.count({
-            where: { workspaceId, completedAt: null, dueDate: { lt: startOfToday } },
+            where: {
+                workspaceId,
+                ...activityOwner,
+                completedAt: null,
+                dueDate: { lt: startOfToday },
+            },
         }),
         prisma.pipelineStage.findMany({
             where: { workspaceId },
             orderBy: { order: 'asc' },
-            select: {
-                id: true,
-                name: true,
-                color: true,
-                _count: { select: { deals: true } },
-            },
+            select: { id: true, name: true, color: true },
+        }),
+        // Um `_count` na etapa contaria negócio fechado junto, e contaria o de
+        // todo mundo — "onde o funil está parado" é o que está **aberto**, de
+        // quem o filtro escolheu.
+        prisma.deal.groupBy({
+            by: ['stageId'],
+            where: { workspaceId, ...dealOwner, status: 'open' },
+            _count: { _all: true },
+            _sum: { value: true },
         }),
         prisma.activity.findMany({
-            where: { workspaceId },
+            where: { workspaceId, ...activityOwner },
             orderBy: { createdAt: 'desc' },
             take: 6,
             select: {
@@ -133,12 +214,17 @@ export async function getDashboardSummary(workspaceId: string, period: PeriodKey
                 dueDate: true,
                 completedAt: true,
                 contact: { select: { id: true, name: true } },
+                user: { select: { id: true, name: true, lastName: true } },
             },
         }),
     ])
 
-    /** Percentage change, as a display string. Null when there is no base. */
+    /**
+     * Percentage change, as a display string. Null when there is no base — e
+     * null também quando não há período: comparar "todo o período" com o quê?
+     */
     function delta(current: number, previous: number) {
+        if (!window) return null
         if (previous === 0) {
             return current === 0 ? null : { value: 'novo', direction: 'up' as const }
         }
@@ -155,8 +241,15 @@ export async function getDashboardSummary(workspaceId: string, period: PeriodKey
     const conversionBefore =
         closedBefore > 0 ? (wonBefore._count / closedBefore) * 100 : 0
 
+    const byStageCount = new Map(
+        openByStage.map((row) => [
+            row.stageId,
+            { count: row._count._all, value: row._sum.value ?? 0 },
+        ])
+    )
+
     return {
-        period,
+        scope: { from: scope.from ?? null, to: scope.to ?? null, userId: owner },
         kpis: {
             contacts: { value: contactsNow, delta: delta(contactsNow, contactsBefore) },
             messages: { value: messagesNow, delta: delta(messagesNow, messagesBefore) },
@@ -184,7 +277,8 @@ export async function getDashboardSummary(workspaceId: string, period: PeriodKey
             // The stage's own stored colour, so the chart stays honest about
             // the pipeline the user actually built.
             color: s.color,
-            count: s._count.deals,
+            count: byStageCount.get(s.id)?.count ?? 0,
+            value: byStageCount.get(s.id)?.value ?? 0,
         })),
         recentActivities,
     }

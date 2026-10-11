@@ -10,19 +10,21 @@ import {
     Users,
 } from 'lucide-react'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import prisma from '@/lib/prisma'
 import {
-    PERIOD_KEYS,
-    PERIOD_LABELS,
-    getDashboardSummary,
-    resolvePeriod,
-} from '@/lib/dashboard/summary'
+    canSeeEveryone,
+    getWorkspaceMember,
+    resolveOwnerScope,
+} from '@/lib/auth/workspace'
+import { getDashboardSummary } from '@/lib/dashboard/summary'
+import { resolvePeriodParams } from '@/lib/period'
 import { activityType } from '@/lib/activity-types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 
 const BRL = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -32,20 +34,40 @@ const BRL = new Intl.NumberFormat('pt-BR', {
 
 /**
  * Stays a server component, so the figures are already in the HTML — no client
- * fetch, no loading flash on the first screen of the product. The period switch
- * is a link rather than state for the same reason.
+ * fetch, no loading flash on the first screen of the product. O filtro vive na
+ * URL pelo mesmo motivo: ele reescreve o endereço e o servidor recalcula, em
+ * vez de a tela virar cliente para guardar duas datas.
  */
 export default async function DashboardPage({
     searchParams,
 }: {
-    searchParams: Promise<{ period?: string }>
+    searchParams: Promise<{
+        from?: string
+        to?: string
+        period?: string
+        userId?: string
+    }>
 }) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) redirect('/login')
 
-    const { period: raw } = await searchParams
-    const period = resolvePeriod(raw)
-    const data = await getDashboardSummary(auth.member.workspaceId, period)
+    const params = await searchParams
+    // Esta tela nasce em "Este mês": é o recorte da pergunta que o dono faz
+    // olhando o painel ("como estamos este mês?"), não os últimos 30 dias.
+    const range = resolvePeriodParams(params, 'month')
+    const owner = resolveOwnerScope(auth.member, params.userId)
+    const canChoose = canSeeEveryone(auth.member.role)
+
+    const [data, members] = await Promise.all([
+        getDashboardSummary(auth.member.workspaceId, { ...range, userId: owner }),
+        canChoose
+            ? prisma.workspaceUser.findMany({
+                where: { workspaceId: auth.member.workspaceId, isActive: true },
+                orderBy: { createdAt: 'asc' },
+                select: { userId: true, user: { select: { name: true, lastName: true } } },
+            })
+            : Promise.resolve([]),
+    ])
 
     const { kpis, snapshot, byStage, recentActivities } = data
     const totalInStages = byStage.reduce((sum, s) => sum + s.count, 0)
@@ -54,23 +76,17 @@ export default async function DashboardPage({
         <>
             <PageHeader
                 title="Dashboard"
-                description={`Últimos ${PERIOD_LABELS[period]}`}
                 actions={
-                    <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
-                        {PERIOD_KEYS.map((key) => (
-                            <Button
-                                key={key}
-                                asChild
-                                size="sm"
-                                variant={key === period ? 'secondary' : 'ghost'}
-                                className={cn(key === period && 'shadow-sm')}
-                            >
-                                <Link href={`/dashboard?period=${key}`} scroll={false}>
-                                    {PERIOD_LABELS[key]}
-                                </Link>
-                            </Button>
-                        ))}
-                    </div>
+                    <DashboardFilters
+                        from={range.from}
+                        to={range.to}
+                        userId={params.userId && canChoose ? params.userId : ''}
+                        canChoose={canChoose}
+                        members={members.map((m) => ({
+                            userId: m.userId,
+                            name: [m.user.name, m.user.lastName].filter(Boolean).join(' '),
+                        }))}
+                    />
                 }
             />
 
@@ -248,11 +264,20 @@ export default async function DashboardPage({
                                                     <p className="truncate text-sm">
                                                         {activity.title}
                                                     </p>
+                                                    {/* Quem é o responsável vai
+                                                        atrás de uma barra, e não
+                                                        de outro ponto: "Ligação ·
+                                                        Ana · Carla" não diz qual
+                                                        das duas atende. */}
                                                     <p className="truncate text-xs text-muted-foreground">
                                                         {type.label}
                                                         {activity.contact?.name
                                                             ? ` · ${activity.contact.name}`
                                                             : ''}
+                                                        {' | Responsável: '}
+                                                        {[activity.user?.name, activity.user?.lastName]
+                                                            .filter(Boolean)
+                                                            .join(' ') || 'sem responsável'}
                                                     </p>
                                                 </div>
                                                 {activity.completedAt ? (

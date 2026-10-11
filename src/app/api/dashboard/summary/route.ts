@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { getDashboardSummary, resolvePeriod } from '@/lib/dashboard/summary'
+import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
+import { getDashboardSummary } from '@/lib/dashboard/summary'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,10 +13,16 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: auth.error }, { status: auth.status })
         }
 
-        const period = resolvePeriod(request.nextUrl.searchParams.get('period'))
-        const summary = await getDashboardSummary(auth.member.workspaceId, period)
+        const params = request.nextUrl.searchParams
+        const summary = await getDashboardSummary(auth.member.workspaceId, {
+            from: params.get('from'),
+            to: params.get('to'),
+            // Pedido na URL, decidido no servidor: atendente recebe o próprio
+            // recorte mesmo pedindo `userId=all`.
+            userId: resolveOwnerScope(auth.member, params.get('userId')),
+        })
 
-        // The summary already carries the period it was computed for.
+        // The summary already carries the scope it was computed for.
         return NextResponse.json(summary)
     } catch (error) {
         console.error('[DASHBOARD_SUMMARY]', error)
