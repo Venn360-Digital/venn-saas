@@ -54,7 +54,13 @@ export function VozTab({ data, onChange }: VozTabProps) {
             const res = await fetch('/api/agents/voice-preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ voice: data.voiceModel || 'nova' }),
+                // Lê o que a pessoa escreveu, não uma frase pronta: quem
+                // digitou o treinamento espera ouvir aquilo. O teto de 200
+                // caracteres é da rota — amostra, não locução.
+                body: JSON.stringify({
+                    voice: data.voiceModel || 'nova',
+                    text: data.voiceTraining?.trim().slice(0, 200) || undefined,
+                }),
             })
             if (!res.ok) {
                 const detail = await res.json().catch(() => null)
