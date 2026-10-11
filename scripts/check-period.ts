@@ -1,3 +1,13 @@
+/**
+ * As contas que erram calado.
+ *
+ * O projeto não tem suíte de testes, e esta é a parte do código onde um erro não
+ * aparece na tela: a semana que começa num dia errado, fevereiro com 28 dias num
+ * ano bissexto, o `toISOString()` que empurra o dia no fuso de São Paulo, e o
+ * atendente que recebe o recorte de outra pessoa por pedir na URL.
+ *
+ * `npm run check:period`
+ */
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, type WorkspaceRole } from '@/lib/auth/workspace'
 
@@ -8,7 +18,8 @@ function eq(label: string, got: unknown, want: unknown) {
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${ok ? '' : `\n       got  ${JSON.stringify(got)}\n       want ${JSON.stringify(want)}`}`)
 }
 
-// Domingo 11/10/2026 é um domingo? 2026-10-11 -> confere com o calendário.
+// Três âncoras na mesma semana de outubro de 2026, para pegar as bordas do
+// domingo: 11/10 é domingo, 10/10 é o sábado anterior, 14/10 é a quarta.
 const sat = new Date(2026, 9, 10, 15, 0).getTime()   // sábado
 const sun = new Date(2026, 9, 11, 15, 0).getTime()   // domingo
 const wed = new Date(2026, 9, 14, 9, 30).getTime()   // quarta
