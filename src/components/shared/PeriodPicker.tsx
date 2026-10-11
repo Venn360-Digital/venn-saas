@@ -31,16 +31,28 @@ export function PeriodPicker({
     from,
     to,
     onChange,
+    presetHint,
     className,
 }: {
     from: string
     to: string
     onChange: (from: string, to: string) => void
+    /**
+     * O atalho que este recorte é, para quem já sabe — a tela que resolveu o
+     * padrão no servidor, ou o efeito que o escolheu ao montar.
+     *
+     * Existe por causa de um piscar: `useNow()` devolve `0` até o relógio
+     * entrar, e sem "agora" não dá para saber que 01/10–31/10 é *este* mês. O
+     * botão nascia "01/10 – 31/10" e virava "Este mês" um quadro depois. A
+     * dica vale só enquanto o relógio não respondeu; a partir daí quem manda é
+     * a conta, senão a dica congelaria o rótulo numa escolha velha.
+     */
+    presetHint?: PeriodPresetId | null
     className?: string
 }) {
     const now = useNow()
     const active = Boolean(from || to)
-    const preset = matchPreset(from, to, now)
+    const preset = now ? matchPreset(from, to, now) : (presetHint ?? null)
 
     const label = !active
         ? 'Todo o período'

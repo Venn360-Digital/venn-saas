@@ -26,7 +26,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { OwnerPicker } from '@/components/shared/OwnerPicker'
 import { PeriodPicker } from '@/components/shared/PeriodPicker'
-import { isoDay, periodRange, type PeriodRange } from '@/lib/period'
+import { isoDay, periodRange, type PeriodPresetId, type PeriodRange } from '@/lib/period'
 import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -134,6 +134,8 @@ export default function AgendaPage() {
      * `{from:'', to:''}`, que é o "Todo o período" escolhido.
      */
     const [range, setRange] = useState<PeriodRange | null>(null)
+    /** Qual atalho o recorte é, enquanto o relógio do `PeriodPicker` não entra. */
+    const [presetHint, setPresetHint] = useState<PeriodPresetId | null>('week')
     useEffect(() => { setRange(periodRange('week', Date.now())) }, [])
 
     // Calendar navigation
@@ -452,6 +454,7 @@ export default function AgendaPage() {
                     active={statusFilter === 'pending'}
                     onClick={() => {
                         setRange(periodRange('today', Date.now()))
+                        setPresetHint('today')
                         setStatusFilter('pending')
                         setViewMode('list')
                     }}
@@ -469,7 +472,7 @@ export default function AgendaPage() {
                     icon={CheckCircle2}
                     value={stats.completed}
                     label="Concluídas"
-                    hint="no período"
+                    hint="das que vencem no período"
                     tone="success"
                     active={statusFilter === 'done'}
                     onClick={() => { setStatusFilter('done'); setViewMode('list') }}
@@ -478,7 +481,7 @@ export default function AgendaPage() {
                     icon={TrendingUp}
                     value={stats.total}
                     label="Total"
-                    hint="no período"
+                    hint="vencem no período"
                     tone="primary"
                     active={statusFilter === 'all'}
                     onClick={() => { setStatusFilter('all'); setViewMode('list') }}
@@ -493,7 +496,8 @@ export default function AgendaPage() {
                 <PeriodPicker
                     from={range?.from ?? ''}
                     to={range?.to ?? ''}
-                    onChange={(from, to) => setRange({ from, to })}
+                    presetHint={presetHint}
+                    onChange={(from, to) => { setRange({ from, to }); setPresetHint(null) }}
                 />
 
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -537,6 +541,7 @@ export default function AgendaPage() {
                             setStatusFilter('all')
                             setOwnerFilter('')
                             setRange(periodRange('week', Date.now()))
+                            setPresetHint('week')
                         }}
                     >
                         <X className="size-3.5" />
@@ -599,7 +604,13 @@ export default function AgendaPage() {
                                                         activity.completedAt && "opacity-60",
                                                     )}>
                                                     <div className="flex items-center gap-2 mb-1.5">
-                                                        <button onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity) }} className="flex-shrink-0">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity) }}
+                                                            aria-pressed={Boolean(activity.completedAt)}
+                                                            aria-label={activity.completedAt
+                                                                ? `Reabrir ${activity.title}`
+                                                                : `Concluir ${activity.title}`}
+                                                            className="flex-shrink-0">
                                                             {activity.completedAt
                                                                 ? <CheckCircle2 className="h-4 w-4 text-success-subtle-foreground" />
                                                                 : <Circle className={cn("h-4 w-4", overdue ? "text-destructive-subtle-foreground" : "text-muted-foreground")} />
@@ -664,7 +675,13 @@ export default function AgendaPage() {
                                         !overdue && !activity.completedAt && "border-border"
                                     )}>
                                     {/* Toggle */}
-                                    <button onClick={() => handleToggleComplete(activity)} className="flex-shrink-0 mt-0.5">
+                                    <button
+                                        onClick={() => handleToggleComplete(activity)}
+                                        aria-pressed={Boolean(activity.completedAt)}
+                                        aria-label={activity.completedAt
+                                            ? `Reabrir ${activity.title}`
+                                            : `Concluir ${activity.title}`}
+                                        className="flex-shrink-0 mt-0.5">
                                         {activity.completedAt
                                             ? <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground" />
                                             : <Circle className={cn("h-5 w-5", overdue ? "text-destructive-subtle-foreground hover:text-destructive-hover" : "text-muted-foreground hover:text-primary")} />

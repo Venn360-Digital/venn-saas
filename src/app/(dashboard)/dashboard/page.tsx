@@ -71,6 +71,7 @@ export default async function DashboardPage({
                         to={range.to}
                         userId={params.userId && canChoose ? params.userId : ''}
                         canChoose={canChoose}
+                        presetHint={range.preset}
                         members={members.map((m) => ({
                             userId: m.userId,
                             name: [m.user.name, m.user.lastName].filter(Boolean).join(' '),

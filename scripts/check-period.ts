@@ -42,11 +42,15 @@ eq('intervalo digitado não é atalho', matchPreset('2026-10-03', '2026-10-09', 
 eq('sem data não é atalho', matchPreset('', '', wed), null)
 
 console.log('\n— o que a URL manda')
-eq('sem nada, o padrão da tela', resolvePeriodParams({}, 'month', wed), { from: '2026-10-01', to: '2026-10-31' })
-eq('period=all é "todo o período"', resolvePeriodParams({ period: 'all' }, 'month', wed), { from: '', to: '' })
-eq('datas na URL ganham do padrão', resolvePeriodParams({ from: '2026-01-01', to: '2026-01-31' }, 'month', wed), { from: '2026-01-01', to: '2026-01-31' })
-eq('só o começo', resolvePeriodParams({ from: '2026-01-01' }, 'week', wed), { from: '2026-01-01', to: '' })
-eq('padrão da Agenda é a semana', resolvePeriodParams({}, 'week', wed), { from: '2026-10-11', to: '2026-10-17' })
+eq('sem nada, o padrão da tela', resolvePeriodParams({}, 'month', wed), { from: '2026-10-01', to: '2026-10-31', preset: 'month' })
+eq('period=all é "todo o período"', resolvePeriodParams({ period: 'all' }, 'month', wed), { from: '', to: '', preset: null })
+eq('datas na URL ganham do padrão', resolvePeriodParams({ from: '2026-01-01', to: '2026-01-31' }, 'month', wed), { from: '2026-01-01', to: '2026-01-31', preset: null })
+eq('só o começo', resolvePeriodParams({ from: '2026-01-01' }, 'week', wed), { from: '2026-01-01', to: '', preset: null })
+eq('padrão da Agenda é a semana', resolvePeriodParams({}, 'week', wed), { from: '2026-10-11', to: '2026-10-17', preset: 'week' })
+
+// A dica que impede o rótulo de piscar: o recorte que veio da URL e por acaso
+// é um atalho precisa ser reconhecido como tal, senão o botão mostra as datas.
+eq('intervalo da URL que coincide com o mês', resolvePeriodParams({ from: '2026-10-01', to: '2026-10-31' }, 'week', wed), { from: '2026-10-01', to: '2026-10-31', preset: 'month' })
 
 console.log('\n— isoDay não empurra o dia no fuso de São Paulo')
 eq('meia-noite local', isoDay(new Date(2026, 9, 14, 0, 0, 0)), '2026-10-14')

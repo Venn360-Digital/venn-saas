@@ -10,6 +10,7 @@ import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
 import { PeriodPicker } from '@/components/shared/PeriodPicker'
+import { SOURCE_FILTER_OPTIONS, sourceLabel } from '@/lib/sources'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { useRouter } from 'next/navigation'
@@ -88,14 +89,6 @@ const getInitials = (name: string | null) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 }
-
-const SOURCE_OPTIONS = [
-    { value: '', label: 'Todas as origens' },
-    { value: 'manual', label: 'Manual' },
-    { value: 'whatsapp', label: 'WhatsApp' },
-    { value: 'import', label: 'Importação' },
-    { value: 'instagram', label: 'Instagram' },
-]
 
 const DEAL_FILTER_OPTIONS = [
     { value: '', label: 'Todos' },
@@ -433,7 +426,7 @@ export default function ContatosPage() {
                 </div>
             ),
         },
-        { id: 'source', header: 'Origem', hideBelow: 'sm', sortable: true, sortValue: (c) => c.source ?? '', cell: (c) => <StatusBadge value={c.source || 'manual'} tone="neutral" /> },
+        { id: 'source', header: 'Origem', hideBelow: 'sm', sortable: true, sortValue: (c) => c.source ?? '', cell: (c) => <StatusBadge value={sourceLabel(c.source)} tone="neutral" /> },
         {
             id: 'whatsapp',
             header: 'WhatsApp',
@@ -469,7 +462,7 @@ export default function ContatosPage() {
                     </div>
                 )}
             </div>
-            <StatusBadge value={c.source || 'manual'} tone="neutral" />
+            <StatusBadge value={sourceLabel(c.source)} tone="neutral" />
         </div>
     )
 
@@ -532,7 +525,7 @@ export default function ContatosPage() {
                             <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
                                 <SelectTrigger id="f-source"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    {SOURCE_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                    {SOURCE_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </FormField>

@@ -5,6 +5,7 @@ import { useCallback } from 'react'
 
 import { OwnerPicker, type OwnerOption } from '@/components/shared/OwnerPicker'
 import { PeriodPicker } from '@/components/shared/PeriodPicker'
+import type { PeriodPresetId } from '@/lib/period'
 
 /**
  * O recorte do Dashboard, na URL.
@@ -20,12 +21,14 @@ export function DashboardFilters({
     userId,
     members,
     canChoose,
+    presetHint,
 }: {
     from: string
     to: string
     userId: string
     members: OwnerOption[]
     canChoose: boolean
+    presetHint: PeriodPresetId | null
 }) {
     const router = useRouter()
     const pathname = usePathname()
@@ -54,6 +57,7 @@ export function DashboardFilters({
             <PeriodPicker
                 from={from}
                 to={to}
+                presetHint={presetHint}
                 onChange={(nextFrom, nextTo) => push({ from: nextFrom, to: nextTo, userId })}
             />
         </div>

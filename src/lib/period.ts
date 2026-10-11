@@ -99,10 +99,11 @@ export function resolvePeriodParams(
         proíbe `Date.now()` durante o render — com razão no cliente, e sem jeito
         de distinguir um componente de servidor. */
     nowMs: number = Date.now()
-): PeriodRange {
-    if (params.period === 'all') return { from: '', to: '' }
+): PeriodRange & { preset: PeriodPresetId | null } {
+    if (params.period === 'all') return { from: '', to: '', preset: null }
     if (params.from || params.to) {
-        return { from: params.from ?? '', to: params.to ?? '' }
+        const range = { from: params.from ?? '', to: params.to ?? '' }
+        return { ...range, preset: matchPreset(range.from, range.to, nowMs) }
     }
-    return periodRange(fallback, nowMs)
+    return { ...periodRange(fallback, nowMs), preset: fallback }
 }

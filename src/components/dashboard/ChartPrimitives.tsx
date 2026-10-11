@@ -246,7 +246,16 @@ export function CumulativeChart({
         points.map((p, i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ')
 
     const last = points.at(-1)
-    const gridValues = [0, max / 2, max]
+    // O rótulo do meio some quando ele repete uma das pontas: com um máximo
+    // pequeno, "R$ 1 / R$ 1 / R$ 0" arredondava para o mesmo texto duas vezes e
+    // o eixo passava a mentir sobre a escala. A linha fica; o texto é que sai.
+    const midLabel = format(max / 2)
+    const showMid = midLabel !== format(0) && midLabel !== format(max)
+    const gridValues: { value: number; label: string | null }[] = [
+        { value: 0, label: format(0) },
+        { value: max / 2, label: showMid ? midLabel : null },
+        { value: max, label: format(max) },
+    ]
 
     return (
         <figure className="m-0">
@@ -256,24 +265,26 @@ export function CumulativeChart({
                 role="img"
                 aria-label={`${labelCurrent}: ${format(last?.current ?? 0)}. ${labelPrevious}: ${format(last?.previous ?? 0)}.`}
             >
-                {gridValues.map((value) => (
-                    <g key={value}>
+                {gridValues.map((grid) => (
+                    <g key={grid.value}>
                         <line
                             x1={left}
-                            y1={y(value)}
+                            y1={y(grid.value)}
                             x2={right}
-                            y2={y(value)}
+                            y2={y(grid.value)}
                             className="stroke-border"
                             strokeWidth="1"
                         />
-                        <text
-                            x={left - 8}
-                            y={y(value) + 3.5}
-                            textAnchor="end"
-                            className="num fill-muted-foreground text-[10px]"
-                        >
-                            {format(value)}
-                        </text>
+                        {grid.label ? (
+                            <text
+                                x={left - 8}
+                                y={y(grid.value) + 3.5}
+                                textAnchor="end"
+                                className="num fill-muted-foreground text-[10px]"
+                            >
+                                {grid.label}
+                            </text>
+                        ) : null}
                     </g>
                 ))}
 

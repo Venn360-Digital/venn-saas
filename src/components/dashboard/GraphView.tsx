@@ -1,4 +1,5 @@
 import { getDashboardCharts } from '@/lib/dashboard/charts'
+import { sourceLabel } from '@/lib/sources'
 import {
     BarList,
     ChartCard,
@@ -44,13 +45,23 @@ export async function GraphView({
             : null
 
     const maxSource = Math.max(1, ...data.sources.map((s) => s.count))
-    const maxLoss = Math.max(1, ...data.lossReasons.map((r) => r.value))
-    const maxUser = Math.max(1, ...data.byUser.map((u) => u.value))
+    // Motivo registrado sem valor no negócio existe — e com todos em R$ 0 a
+    // barra virava um toco de 1,5% que lê como defeito de renderização. Sem
+    // valor nenhum, o comprimento passa a medir a contagem, que é o que sobra
+    // de verdadeiro.
+    const lossByCount = data.lossReasons.every((r) => r.value === 0)
+    const maxLoss = lossByCount
+        ? Math.max(1, ...data.lossReasons.map((r) => r.count))
+        : Math.max(1, ...data.lossReasons.map((r) => r.value))
+    const userByCount = data.byUser.every((u) => u.value === 0)
+    const maxUser = userByCount
+        ? Math.max(1, ...data.byUser.map((u) => u.won))
+        : Math.max(1, ...data.byUser.map((u) => u.value))
     const maxStageDays = Math.max(1, ...data.stageDays.stages.map((s) => s.days))
 
     const sourceRows: BarRow[] = data.sources.map((source) => ({
         key: source.source,
-        label: source.source,
+        label: sourceLabel(source.source),
         percent: (source.count / maxSource) * 100,
         value: source.count.toLocaleString('pt-BR'),
         note:
@@ -64,7 +75,7 @@ export async function GraphView({
     const lossRows: BarRow[] = data.lossReasons.map((reason) => ({
         key: reason.name,
         label: reason.name,
-        percent: (reason.value / maxLoss) * 100,
+        percent: ((lossByCount ? reason.count : reason.value) / maxLoss) * 100,
         value: fullBRL(reason.value),
         note: `${reason.count} negócio${reason.count === 1 ? '' : 's'} perdido${reason.count === 1 ? '' : 's'}`,
         tone: 'loss',
@@ -73,7 +84,7 @@ export async function GraphView({
     const userRows: BarRow[] = data.byUser.map((person) => ({
         key: person.userId ?? 'sem-responsavel',
         label: person.name,
-        percent: (person.value / maxUser) * 100,
+        percent: ((userByCount ? person.won : person.value) / maxUser) * 100,
         value: fullBRL(person.value),
         note: `${person.won} fechado${person.won === 1 ? '' : 's'}${person.rate !== null ? ` · ${person.rate.toFixed(0)}% de conversão` : ''}`,
         // Sem responsável fica cinza e não disputa com a equipe: é aviso de
@@ -209,7 +220,7 @@ export async function GraphView({
 
                 <ChartCard
                     title="A equipe fecha o que abre?"
-                    hint="Atividades criadas e concluídas ao longo do período."
+                    hint="Criadas e concluídas ao longo do período, pela data de vencimento."
                 >
                     {data.hasWindow && data.activities.series.length > 0 ? (
                         <>
