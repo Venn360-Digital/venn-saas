@@ -292,6 +292,13 @@ nenhum**: ela é alvo de arrasto, e um alvo que só existe depois de rolar até 
 fim não é alvo. Medido: com seis colunas de doze cartões, a região externa rola
 zero, o quadro rola 193px na vertical e o rodapé não sai do lugar.
 
+**Cabeçalho em ícone precisa continuar tendo nome.** Coluna estreita pode
+trocar o rótulo por um ícone — é o caso de WhatsApp e do medidor de dias sem
+movimento, onde a palavra era mais larga que o dado. O ícone vai acompanhado de
+um `sr-only` com o nome e de um `Tooltip`: sem o primeiro, o botão de ordenar
+fica sem nome acessível; sem o segundo, o cabeçalho vira adivinhação para quem
+enxerga. Ícone mudo em cabeçalho é bug, não economia.
+
 **Ordenação é padrão de tabela, não recurso de uma tela.** Toda coluna que
 carrega **um valor comparável** — texto, número, data, estado de duas vias —
 nasce com `sortable: true`. Não recebem ordenação apenas as colunas que não têm

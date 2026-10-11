@@ -14,6 +14,7 @@ import {
     Clock,
     Columns3,
     DollarSign,
+    Footprints,
     LayoutGrid,
     List,
     MoreVertical,
@@ -82,6 +83,9 @@ import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
 import { isDealLane, type DealLane } from '@/lib/deal-lanes'
 import { useNow } from '@/hooks/useNow'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
+import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
+import { formatPhone } from '@/lib/phone'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
@@ -488,6 +492,28 @@ function StageColumn({
 }
 
 // ─── Status Badge ───────────────────────────────────────────────────
+/**
+ * Cabeçalho que é só ícone — e continua tendo nome.
+ *
+ * Coluna estreita não comporta rótulo por extenso, mas um ícone mudo num
+ * cabeçalho é adivinhação: o `sr-only` dá o nome ao leitor de tela (e ao botão
+ * de ordenar, que sem ele ficaria sem nome acessível) e o tooltip o devolve a
+ * quem passa o mouse.
+ */
+function IconHeader({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <span className="inline-flex items-center" aria-hidden={false}>
+                    {children}
+                    <span className="sr-only">{label}</span>
+                </span>
+            </TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+    )
+}
+
 function StatusBadge({ status }: { status: string }) {
     const config: Record<string, { label: string; className: string }> = {
         open: { label: 'Aberto', className: 'bg-info-subtle text-info-subtle-foreground border-info/30' },
@@ -1104,22 +1130,24 @@ export default function NegociosPage() {
             sortable: true,
             sortValue: deal => deal.title,
             header: 'Título',
-            cell: deal => <span className="font-medium">{deal.title}</span>,
-        },
-        {
-            id: 'contact',
-            header: 'Paciente',
-            sortable: true,
-            sortValue: deal => deal.contact?.name ?? '',
-            cell: deal =>
-                deal.contact ? (
-                    <div className="flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{deal.contact.name || deal.contact.phone}</span>
-                    </div>
-                ) : (
-                    <span className="text-muted-foreground">—</span>
-                ),
+            /**
+             * O paciente virou a segunda linha do título, não uma coluna.
+             *
+             * A lista pedida tem nove colunas e Paciente não está entre elas —
+             * mas um negócio com título próprio ("Orçamento clareamento") não
+             * diz de quem é, e numa clínica essa é a informação que se procura
+             * primeiro. Fica aqui, abaixo, sem gastar coluna.
+             */
+            cell: deal => (
+                <div className="min-w-0">
+                    <span className="block truncate font-medium">{deal.title}</span>
+                    {deal.contact ? (
+                        <span className="block truncate text-xs text-muted-foreground">
+                            {deal.contact.name || formatPhone(deal.contact.phone)}
+                        </span>
+                    ) : null}
+                </div>
+            ),
         },
         {
             id: 'owner',
@@ -1175,9 +1203,10 @@ export default function NegociosPage() {
         },
         {
             id: 'age',
-            // "Sem movimento" e não "Idade": o número é há quantos dias o
-            // negócio não anda, não quanto tempo ele existe.
-            header: 'Sem movimento',
+            // Cabeçalho em ícone: a coluna é estreita (um ponto e "12 d") e
+            // o rótulo por extenso era mais largo que o dado. O nome continua
+            // existindo no leitor de tela e no hover.
+            header: <IconHeader label="Sem movimento"><Footprints className="size-4" /></IconHeader>,
             sortable: true,
             sortValue: deal => daysInStage(deal, now) ?? 0,
             numeric: true,
@@ -1195,21 +1224,6 @@ export default function NegociosPage() {
             },
         },
         {
-            id: 'whatsapp',
-            header: 'WhatsApp',
-            width: '96px',
-            className: 'text-center',
-            cell: deal => (
-                <WhatsAppCell
-                    target={deal.contact ?? {}}
-                    status={whatsapp.status[deal.contact?.phone ?? '']}
-                    busy={whatsapp.opening === deal.contact?.id}
-                    onOpen={whatsapp.open}
-                    className="mx-auto"
-                />
-            ),
-        },
-        {
             id: 'value',
             header: 'Valor',
             sortable: true,
@@ -1223,6 +1237,21 @@ export default function NegociosPage() {
                 ) : (
                     <span className="text-muted-foreground">—</span>
                 ),
+        },
+        {
+            id: 'whatsapp',
+            header: <IconHeader label="WhatsApp"><WhatsAppMark className="size-4" /></IconHeader>,
+            width: '96px',
+            className: 'text-center',
+            cell: deal => (
+                <WhatsAppCell
+                    target={deal.contact ?? {}}
+                    status={whatsapp.status[deal.contact?.phone ?? '']}
+                    busy={whatsapp.opening === deal.contact?.id}
+                    onOpen={whatsapp.open}
+                    className="mx-auto"
+                />
+            ),
         },
         {
             id: 'status',
