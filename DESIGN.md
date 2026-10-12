@@ -414,35 +414,55 @@ reflui. Uma tabela encolhe sozinha (as colunas somem por `hideBelow`), então al
 ele é coluna de verdade em `xl:grid-cols-[1fr_320px]`, e volta a sobrepor abaixo
 de 1280, onde a tabela já está apertada.
 
-**Tela de índice: o quadro, a ficha e o diálogo.** Pacientes, Etiquetas,
-Produtos, Departamentos, Respostas rápidas e Usuários são a mesma tela
-(`IndexFrame` + `DataTable frame`), e todo índice que vier entra nela:
+**Tela 01 — a tela de índice.** O padrão fechado em 2026-10-12, depois de
+Pacientes, Etiquetas, Produtos, Departamentos, Respostas rápidas e Usuários.
+Todo índice que vier (Negócios em lista, Agentes, Campanhas…) nasce nela, com as
+cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
+`FilterPill`, `DataTable frame` + `Pagination` + `BulkBar`, `RecordPanel` +
+`PanelActions` + `InlineField`, `RecordDialog` + `FormField` + `MaskedInput`,
+`ConfirmDialog`.
 
-- **Linha 1 (50px)**: nome da tela, ações secundárias à vista (Importar,
-  Exportar) e o botão de criar no canto direito. **Linha 2 (46px)**: busca
-  (só "Buscar" no placeholder), filtros como `FilterPill` que mostram o próprio
-  valor e somem com ×, Limpar, modo de visualização. As duas presas; nada atrás
-  de um menu `⋯`; sem contador de registros — ele vive no rodapé, em "1–7 de 7".
-- **A tabela vai sangrada**, sem margem nem cartão próprio: o shell já emoldura.
-  Cabeçalho de 36px em maiúsculas pequenas preso; só as linhas rolam; rodapé
-  preso com paginação, que vira a `BulkBar` quando há linha marcada.
-- **A ficha edita; o diálogo cria — e edita tudo de uma vez.** Clicar na
-  linha abre a `RecordPanel` (380px, terceira coluna; ‹ › × no topo; ↑↓ e Esc)
-  com os campos em `InlineField`, gravando ao sair com o selo "salvo". No
-  rodapé da ficha, dois ícones com dica (`PanelActions`): o lápis abre o mesmo
-  `RecordDialog` do Novo em modo de edição ("Editar X" / "Salvar X", sem Criar
-  e novo) e a lixeira exclui com confirmação. Nada de botão com texto ali.
-- **`RecordDialog`, 840 × 700 sempre** (a altura em que o Novo paciente cabe
-  sem rolar), branco como a ficha. Cabeçalho e rodapé presos, só o formulário rola; resumo vivo à direita ("como vai aparecer", com o aviso de
-  duplicado quando dá para saber antes); rótulo em cima, asterisco vermelho no
-  obrigatório e a legenda no rodapé ao lado de Esc · ⌘↵; erro **abaixo do
-  campo**, em vermelho — nunca toast, nunca resumo no topo; Cancelar ·
-  **Criar e novo** · **Criar X** (verbo e objeto, nunca "Salvar"). Formulário
-  curto deixa espaço vazio: é o preço de o Criar estar sempre no mesmo lugar.
-- **Máscara aparece ao digitar, grava limpo** (`lib/masks`, `MaskedInput`,
-  `PhoneInput`): o molde que falta fica em cinza por cima do campo; o estado é
-  só dígitos ou centavos. Validação forte (dígito verificador, data que existe)
-  ao sair do campo, não a cada tecla.
+1. **Cabeçalho e rodapé, presos.** Linha 1 (50px): nome da tela, ações
+   secundárias à vista (Importar, Exportar) e o botão de criar no canto
+   direito. Linha 2 (46px, conteúdo 3px acima do centro): busca (só "Buscar" no
+   placeholder, fundo `card`), filtros como `FilterPill` que mostram o próprio
+   valor, abrem a lista no primeiro clique e somem com ×, Limpar, modo de
+   visualização. Nada atrás de um menu `⋯`; sem contador — ele vive no rodapé.
+   A tabela vai sangrada, sem margem nem cartão próprio: cabeçalho de 36px em
+   maiúsculas pequenas preso; só as linhas rolam; rodapé preso com "1–7 de 7 ·
+   Por página · ‹ › " que vira a `BulkBar` ("N selecionados · ações · Excluir ·
+   ×") quando há linha marcada. Lista sem paginação no servidor pagina no
+   cliente — o rodapé existe sempre.
+2. **Linha e seleção.** Checkbox por linha e "Selecionar todos" no cabeçalho;
+   clicar na linha abre a ficha; o menu ⋮ tem "Abrir ficha" e "Excluir", nunca
+   "Editar". Etiquetas: até três lado a lado, da quarta em diante quebra.
+3. **A ficha (`RecordPanel`, 380px).** Terceira coluna à direita da tabela
+   (tela inteira no celular); faixa de 40px com "Ficha", ‹ › × ; ↑↓ trocam de
+   registro e Esc fecha. Os campos nascem abertos (`InlineField`) e gravam ao
+   sair, com o selo "salvo" por dois segundos ao lado do rótulo; o item
+   recarregado da lista sempre vence o remendo local. No rodapé, só dois
+   ícones com dica (`PanelActions`): o **lápis** abre o diálogo em modo de
+   edição e a **lixeira** exclui com confirmação. Sem botão com texto ali, sem
+   "formulário completo".
+4. **O diálogo (`RecordDialog`, 840 × 700 sempre).** Serve o Novo e a edição
+   completa. Branco como a ficha; cabeçalho e rodapé presos, só o formulário
+   rola; resumo vivo à direita ("Como vai aparecer", com o aviso "parece já
+   existir" quando dá para saber antes). Rótulo em cima, asterisco vermelho no
+   obrigatório e a legenda "* Campo obrigatório" no rodapé ao lado de Esc ·
+   ⌘↵; erro **abaixo do campo**, em vermelho — nunca toast, nunca resumo no
+   topo; o erro do servidor volta para o campo que o causou. Criar: Cancelar ·
+   **Criar e novo** · **Criar X**. Editar: Cancelar · **Salvar X** (verbo e
+   objeto, nunca "Salvar" nem "OK"). Primeiro campo com foco ao abrir.
+   Formulário curto deixa espaço vazio: é o preço de o Criar estar sempre no
+   mesmo lugar. Máscara aparece ao digitar e grava limpo (`lib/masks`,
+   `MaskedInput`, `PhoneInput`): o molde que falta fica em cinza por cima do
+   campo; validação forte ao sair do campo, não a cada tecla.
+5. **O alerta de exclusão (`ConfirmDialog`, `destructive`).** Pela lixeira da
+   ficha, pelo ⋮ da linha e pelo lote. Título "Excluir X" (no lote, "Excluir
+   N X"), descrição que diz **o que se perde** ("será removida de todos os
+   pacientes e conversas que a usam"), botão "Excluir". O lote apaga um a um,
+   conta os que deram certo e avisa quantos não puderam; o que a API protege
+   (primeiro administrador) fica de fora antes de chamar.
 
 **Faixa de números clicáveis, não painel de indicadores.** Número que só se olha
 pertence a um relatório. Se ele vai ficar no topo de uma tela de trabalho, cada
