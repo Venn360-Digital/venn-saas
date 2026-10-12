@@ -426,10 +426,12 @@ Produtos, Departamentos, Respostas rápidas e Usuários são a mesma tela
 - **A tabela vai sangrada**, sem margem nem cartão próprio: o shell já emoldura.
   Cabeçalho de 36px em maiúsculas pequenas preso; só as linhas rolam; rodapé
   preso com paginação, que vira a `BulkBar` quando há linha marcada.
-- **A ficha edita; o diálogo cria.** Clicar na linha abre a `RecordPanel`
-  (380px, terceira coluna; ‹ › × no topo; ↑↓ e Esc) com **todos** os campos em
-  `InlineField`, gravando ao sair com o selo "salvo". Não existe "formulário
-  completo" de edição. O diálogo só nasce registro.
+- **A ficha edita; o diálogo cria — e edita tudo de uma vez.** Clicar na
+  linha abre a `RecordPanel` (380px, terceira coluna; ‹ › × no topo; ↑↓ e Esc)
+  com os campos em `InlineField`, gravando ao sair com o selo "salvo". No
+  rodapé da ficha, dois ícones com dica (`PanelActions`): o lápis abre o mesmo
+  `RecordDialog` do Novo em modo de edição ("Editar X" / "Salvar X", sem Criar
+  e novo) e a lixeira exclui com confirmação. Nada de botão com texto ali.
 - **`RecordDialog`, 840 × 700 sempre** (a altura em que o Novo paciente cabe
   sem rolar), branco como a ficha. Cabeçalho e rodapé presos, só o formulário rola; resumo vivo à direita ("como vai aparecer", com o aviso de
   duplicado quando dá para saber antes); rótulo em cima, asterisco vermelho no

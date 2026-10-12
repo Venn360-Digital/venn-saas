@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 /**
@@ -14,10 +15,11 @@ import { cn } from '@/lib/utils'
  *
  * É a terceira coluna de 380px à direita da tabela (no celular toma a tela):
  * uma faixa de 40px com "Ficha", ‹ › para andar pela lista e × para fechar;
- * o corpo rola; o rodapé tem Excluir, e "Formulário completo" só quando o
- * diálogo ainda guarda algum campo que a ficha não tem. Os campos gravam ao
- * sair, um a um — não há botão Salvar, e o selo "salvo" ao lado do rótulo é
- * o único aviso de que a gravação aconteceu.
+ * o corpo rola; o rodapé tem dois ícones com dica — o lápis abre o mesmo
+ * diálogo do Novo em modo de edição, com todos os campos de uma vez, e a
+ * lixeira exclui com confirmação. Os campos gravam ao sair, um a um — não há
+ * botão Salvar, e o selo "salvo" ao lado do rótulo é o único aviso de que a
+ * gravação aconteceu.
  */
 export function RecordPanel({
     label,
@@ -74,26 +76,47 @@ export function RecordPanel({
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-                <div className="flex items-center gap-1">
-                    {onEditFull ? (
-                        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={onEditFull}>
-                            <Pencil className="size-3.5" /> Formulário completo
-                        </Button>
-                    ) : null}
-                    {onDelete ? (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
-                            onClick={onDelete}
-                        >
-                            Excluir
-                        </Button>
-                    ) : null}
-                </div>
+                <PanelActions onEditFull={onEditFull} onDelete={onDelete} />
                 <span className="num hidden lg:inline">↑↓ navegam · Esc fecha</span>
             </div>
         </aside>
+    )
+}
+
+/**
+ * Os dois gestos do rodapé da ficha: editar no formulário (o diálogo do Novo,
+ * com tudo de uma vez) e excluir. Ícones com dica, no mesmo lugar em toda ficha.
+ */
+export function PanelActions({ onEditFull, onDelete }: { onEditFull?: () => void; onDelete?: () => void }) {
+    return (
+        <div className="flex items-center gap-0.5">
+            {onEditFull ? (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" onClick={onEditFull} aria-label="Editar no formulário">
+                            <Pencil className="size-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Editar no formulário</TooltipContent>
+                </Tooltip>
+            ) : null}
+            {onDelete ? (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={onDelete}
+                            aria-label="Excluir"
+                            className="text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                        >
+                            <Trash2 className="size-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Excluir</TooltipContent>
+                </Tooltip>
+            ) : null}
+        </div>
     )
 }
 
@@ -151,9 +174,13 @@ export function PanelField({
  * Devolve também o que já foi gravado nesta ficha, para a tela mostrar o
  * valor novo antes de a lista recarregar.
  */
-export function usePanelSave<T extends object>(url: string, onChanged: () => void) {
+export function usePanelSave<T extends object>(url: string, onChanged: () => void, item?: T) {
     const [saved, setSaved] = useState<string | null>(null)
-    const [local, setLocal] = useState<Partial<T>>({})
+    // Os remendos valem só para o objeto que os recebeu: quando a lista
+    // recarrega (e o diálogo de edição pode ter mudado tudo), o item novo
+    // chega inteiro do servidor e o que foi gravado aqui já está nele.
+    const [patched, setPatched] = useState<{ of: T | undefined; local: Partial<T> }>({ of: item, local: {} })
+    const local: Partial<T> = patched.of === item ? patched.local : {}
 
     const save = useCallback(
         async (field: string, patch: Partial<T>) => {
@@ -168,7 +195,7 @@ export function usePanelSave<T extends object>(url: string, onChanged: () => voi
                     toast.error(data.error || 'Não foi possível salvar')
                     return false
                 }
-                setLocal((prev) => ({ ...prev, ...patch }))
+                setPatched((prev) => ({ of: item, local: { ...(prev.of === item ? prev.local : {}), ...patch } }))
                 setSaved(field)
                 setTimeout(() => setSaved((s) => (s === field ? null : s)), 2000)
                 onChanged()
@@ -178,7 +205,7 @@ export function usePanelSave<T extends object>(url: string, onChanged: () => voi
                 return false
             }
         },
-        [url, onChanged]
+        [url, onChanged, item]
     )
 
     return { save, saved, local }

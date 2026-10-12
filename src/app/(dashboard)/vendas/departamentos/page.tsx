@@ -52,6 +52,8 @@ export default function DepartamentosPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [errors, setErrors] = useState<{ name?: string }>({})
     const [submitting, setSubmitting] = useState(false)
+    /** O diálogo do Novo em modo de edição: o id do registro aberto no formulário. */
+    const [editingId, setEditingId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState<Department | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -101,7 +103,16 @@ export default function DepartamentosPage() {
     }, [load])
 
     function openNew() {
+        setEditingId(null)
         setFormData({ name: '', description: '' })
+        setErrors({})
+        setIsDialogOpen(true)
+    }
+
+    /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
+    function openEdit(item: Department) {
+        setEditingId(item.id)
+        setFormData({ name: item.name, description: item.description ?? '' })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -115,15 +126,15 @@ export default function DepartamentosPage() {
         }
         setSubmitting(true)
         try {
-            const res = await fetch('/api/departments', {
-                method: 'POST',
+            const res = await fetch(editingId ? `/api/departments/${editingId}` : '/api/departments', {
+                method: editingId ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description: formData.description.trim() || undefined }),
             })
             if (res.ok) {
-                toast.success('Departamento criado')
+                toast.success(editingId ? 'Departamento atualizado' : 'Departamento criado')
                 setErrors({})
-                if (again) setFormData({ name: '', description: '' })
+                if (again && !editingId) setFormData({ name: '', description: '' })
                 else setIsDialogOpen(false)
                 load()
             } else {
@@ -194,6 +205,7 @@ export default function DepartamentosPage() {
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
                         onChanged={() => void load()}
+                        onEditFull={(id) => { const x = departments.find((i) => i.id === id); if (x) openEdit(x) }}
                         onDelete={(id) => { const d = departments.find((x) => x.id === id); if (d) setDeleting(d) }}
                     />
                 ) : null}
@@ -285,9 +297,10 @@ export default function DepartamentosPage() {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title="Novo departamento"
+                title={editingId ? 'Editar departamento' : 'Novo departamento'}
                 description="Organiza quem atende o quê: filas, transferências e relatórios."
-                submitLabel="Criar departamento"
+                submitLabel={editingId ? 'Salvar departamento' : 'Criar departamento'}
+                hideAgain={editingId !== null}
                 onSubmit={handleSave}
                 submitting={submitting}
                 summary={

@@ -66,6 +66,8 @@ export default function EtiquetasPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [errors, setErrors] = useState<{ name?: string }>({})
     const [submitting, setSubmitting] = useState(false)
+    /** O diálogo do Novo em modo de edição: o id do registro aberto no formulário. */
+    const [editingId, setEditingId] = useState<string | null>(null)
     const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -115,7 +117,16 @@ export default function EtiquetasPage() {
     }, [loadTags])
 
     function openNew() {
+        setEditingId(null)
         setFormData({ name: '', color: COLOR_PALETTE[0] })
+        setErrors({})
+        setIsDialogOpen(true)
+    }
+
+    /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
+    function openEdit(item: TagItem) {
+        setEditingId(item.id)
+        setFormData({ name: item.name, color: item.color })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -129,15 +140,15 @@ export default function EtiquetasPage() {
         }
         setSubmitting(true)
         try {
-            const res = await fetch('/api/tags', {
-                method: 'POST',
+            const res = await fetch(editingId ? `/api/tags/${editingId}` : '/api/tags', {
+                method: editingId ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, color: formData.color }),
             })
             if (res.ok) {
-                toast.success('Etiqueta criada')
+                toast.success(editingId ? 'Etiqueta atualizada' : 'Etiqueta criada')
                 setErrors({})
-                if (again) setFormData({ name: '', color: COLOR_PALETTE[0] })
+                if (again && !editingId) setFormData({ name: '', color: COLOR_PALETTE[0] })
                 else setIsDialogOpen(false)
                 loadTags()
             } else {
@@ -203,6 +214,7 @@ export default function EtiquetasPage() {
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
                         onChanged={() => void loadTags()}
+                        onEditFull={(id) => { const x = tags.find((i) => i.id === id); if (x) openEdit(x) }}
                         onDelete={(id) => { const t = tags.find((x) => x.id === id); if (t) setDeletingTag(t) }}
                     />
                 ) : null}
@@ -290,9 +302,10 @@ export default function EtiquetasPage() {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title="Nova etiqueta"
+                title={editingId ? 'Editar etiqueta' : 'Nova etiqueta'}
                 description="Aparece na lista, na ficha e no filtro."
-                submitLabel="Criar etiqueta"
+                submitLabel={editingId ? 'Salvar etiqueta' : 'Criar etiqueta'}
+                hideAgain={editingId !== null}
                 onSubmit={handleSave}
                 submitting={submitting}
                 summary={

@@ -20,6 +20,7 @@ export function TagPanel({
     onPrev,
     onNext,
     onChanged,
+    onEditFull,
     onDelete,
 }: {
     item: TagPanelItem
@@ -28,9 +29,11 @@ export function TagPanel({
     onPrev?: () => void
     onNext?: () => void
     onChanged: () => void
+    /** Abre o diálogo do Novo em modo de edição, com todos os campos. */
+    onEditFull?: (id: string) => void
     onDelete: (id: string) => void
 }) {
-    const { save, saved, local } = usePanelSave<TagPanelItem>(`/api/tags/${item.id}`, onChanged)
+    const { save, saved, local } = usePanelSave<TagPanelItem>(`/api/tags/${item.id}`, onChanged, item)
     const tag = { ...item, ...local }
 
     return (
@@ -40,6 +43,7 @@ export function TagPanel({
             onClose={onClose}
             onPrev={onPrev}
             onNext={onNext}
+            onEditFull={canEdit && onEditFull ? () => onEditFull(item.id) : undefined}
             onDelete={canEdit ? () => onDelete(item.id) : undefined}
         >
             <PanelSection title="Dados" aside={<span className="text-[10px] text-muted-foreground">grava ao sair do campo</span>}>

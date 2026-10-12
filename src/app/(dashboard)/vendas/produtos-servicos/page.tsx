@@ -80,6 +80,8 @@ export default function ProdutosServicosPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [errors, setErrors] = useState<{ name?: string }>({})
     const [submitting, setSubmitting] = useState(false)
+    /** O diálogo do Novo em modo de edição: o id do registro aberto no formulário. */
+    const [editingId, setEditingId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState<Product | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -137,7 +139,16 @@ export default function ProdutosServicosPage() {
     }, [load])
 
     function openNew() {
+        setEditingId(null)
         setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
+        setErrors({})
+        setIsDialogOpen(true)
+    }
+
+    /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
+    function openEdit(item: Product) {
+        setEditingId(item.id)
+        setFormData({ name: item.name, description: item.description ?? '', sku: item.sku ?? '', category: item.category, priceCents: item.price != null ? String(Math.round(item.price * 100)) : '', group: item.group ?? '' })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -152,8 +163,8 @@ export default function ProdutosServicosPage() {
         setSubmitting(true)
         try {
             const cents = parseCents(formData.priceCents)
-            const res = await fetch('/api/products', {
-                method: 'POST',
+            const res = await fetch(editingId ? `/api/products/${editingId}` : '/api/products', {
+                method: editingId ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name,
@@ -165,9 +176,9 @@ export default function ProdutosServicosPage() {
                 }),
             })
             if (res.ok) {
-                toast.success('Item criado')
+                toast.success(editingId ? 'Item atualizado' : 'Item criado')
                 setErrors({})
-                if (again) setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
+                if (again && !editingId) setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
                 else setIsDialogOpen(false)
                 load()
             } else {
@@ -278,6 +289,7 @@ export default function ProdutosServicosPage() {
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
                         onChanged={() => void load()}
+                        onEditFull={(id) => { const x = products.find((i) => i.id === id); if (x) openEdit(x) }}
                         onDelete={(id) => { const p = products.find((x) => x.id === id); if (p) setDeleting(p) }}
                     />
                 ) : null}
@@ -381,9 +393,10 @@ export default function ProdutosServicosPage() {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title="Novo item"
+                title={editingId ? 'Editar item' : 'Novo item'}
                 description="Produto ou serviço do catálogo, com o preço que entra no negócio."
-                submitLabel="Criar item"
+                submitLabel={editingId ? 'Salvar item' : 'Criar item'}
+                hideAgain={editingId !== null}
                 onSubmit={handleSave}
                 submitting={submitting}
                 summary={

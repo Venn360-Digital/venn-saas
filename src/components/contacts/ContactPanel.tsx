@@ -28,6 +28,7 @@ import { Switch } from '@/components/ui/switch'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
 import { InlineField } from '@/components/shared/InlineField'
+import { PanelActions } from '@/components/shared/RecordPanel'
 import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
 import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
 import { formatPhone } from '@/lib/phone'
@@ -116,6 +117,7 @@ export function ContactPanel({
     onPrev,
     onNext,
     onChanged,
+    onEditFull,
     onDelete,
     onTagCreated,
 }: {
@@ -127,6 +129,8 @@ export function ContactPanel({
     onNext?: () => void
     /** A lista precisa recarregar — nome, telefone ou etiqueta mudaram. */
     onChanged: () => void
+    /** Abre o diálogo do Novo em modo de edição, com todos os campos. */
+    onEditFull: (contactId: string) => void
     onDelete: (contactId: string) => void
     onTagCreated?: (tag: PickableTag) => void
 }) {
@@ -471,16 +475,7 @@ export function ContactPanel({
                     </div>
 
                     <div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
-                                onClick={() => onDelete(detail.id)}
-                            >
-                                Excluir
-                            </Button>
-                        </div>
+                        <PanelActions onEditFull={() => onEditFull(detail.id)} onDelete={() => onDelete(detail.id)} />
                         <span className="num hidden lg:inline">↑↓ navegam · Esc fecha</span>
                     </div>
                 </>

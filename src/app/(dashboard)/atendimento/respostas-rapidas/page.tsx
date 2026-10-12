@@ -39,6 +39,8 @@ export default function RespostasRapidasPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [errors, setErrors] = useState<{ command?: string; text?: string }>({})
     const [submitting, setSubmitting] = useState(false)
+    /** O diálogo do Novo em modo de edição: o id do registro aberto no formulário. */
+    const [editingId, setEditingId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState<QuickResponse | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -67,7 +69,16 @@ export default function RespostasRapidasPage() {
     }
 
     function openNew() {
+        setEditingId(null)
         setFormData(EMPTY_FORM)
+        setErrors({})
+        setIsDialogOpen(true)
+    }
+
+    /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
+    function openEdit(item: QuickResponse & { id: string }) {
+        setEditingId(item.id)
+        setFormData({ command: item.command, text: item.text })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -85,8 +96,8 @@ export default function RespostasRapidasPage() {
         }
         setSubmitting(true)
         try {
-            const res = await fetch('/api/quick-responses', {
-                method: 'POST',
+            const res = await fetch(editingId ? `/api/quick-responses/${editingId}` : '/api/quick-responses', {
+                method: editingId ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command, text }),
             })
@@ -95,9 +106,9 @@ export default function RespostasRapidasPage() {
                 setErrors({ command: error?.error ?? 'Não foi possível salvar a resposta' })
                 return
             }
-            toast.success('Resposta criada')
+            toast.success(editingId ? 'Resposta atualizada' : 'Resposta criada')
             setErrors({})
-            if (again) setFormData(EMPTY_FORM)
+            if (again && !editingId) setFormData(EMPTY_FORM)
             else setIsDialogOpen(false)
             loadResponses()
         } catch {
@@ -211,6 +222,7 @@ export default function RespostasRapidasPage() {
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
                         onChanged={() => void loadResponses()}
+                        onEditFull={(id) => { const x = responses.find((i) => i.id === id); if (x?.id) openEdit({ ...x, id: x.id }) }}
                         onDelete={(id) => { const r = responses.find((x) => x.id === id); if (r) setDeleting(r) }}
                     />
                 ) : null}
@@ -303,9 +315,10 @@ export default function RespostasRapidasPage() {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title="Nova resposta rápida"
+                title={editingId ? 'Editar resposta rápida' : 'Nova resposta rápida'}
                 description="Um atalho digitado no chat que vira o texto inteiro."
-                submitLabel="Criar resposta"
+                submitLabel={editingId ? 'Salvar resposta' : 'Criar resposta'}
+                hideAgain={editingId !== null}
                 onSubmit={handleSave}
                 submitting={submitting}
                 summary={

@@ -59,9 +59,6 @@ import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface ContactTag { tag: { id: string; name: string; color: string } }
-interface DealInfo { id: string; title: string; value: number | null; status: string; stage: { id: string; name: string; color: string } | null; createdAt: string; closedAt: string | null }
-interface ConversationInfo { id: string; channel: string; status: string; agentName: string | null; messageCount: number; lastMessageAt: string | null; createdAt: string }
-interface ContactStats { totalMessages: number; totalConversations: number; totalDeals: number; openDeals: number; wonDeals: number; lostDeals: number; firstContact: string | null; lastContact: string | null }
 /**
  * Valor de um campo personalizado.
  *
@@ -125,6 +122,10 @@ export default function ContatosPage() {
     const [formData, setFormData] = useState(EMPTY_FORM)
     const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string }>({})
     const [submitting, setSubmitting] = useState(false)
+    /** O diálogo do Novo em modo de edição: o id do paciente aberto no formulário. */
+    const [editingId, setEditingId] = useState<string | null>(null)
+    /** Sobe quando o formulário completo grava: a ficha remonta e relê o paciente. */
+    const [panelRev, setPanelRev] = useState(0)
     /** Quem já usa o telefone digitado — o aviso "parece já existir". */
     const [clash, setClash] = useState<{ id: string; name: string | null; createdAt: string } | null>(null)
     const [clashDismissed, setClashDismissed] = useState(false)
@@ -206,6 +207,7 @@ export default function ContatosPage() {
 
     // ─── Contact Detail ─────────────────────────────────────────────
     const openNew = () => {
+        setEditingId(null)
         setFormData(EMPTY_FORM)
         setSelectedTagIds([])
         setCustomFieldValues({})
@@ -213,6 +215,21 @@ export default function ContatosPage() {
         setClash(null)
         setClashDismissed(false)
         setIsDialogOpen(true)
+    }
+
+    /** O lápis da ficha: o mesmo diálogo, com tudo do paciente de uma vez. */
+    const openEdit = async (id: string) => {
+        try {
+            const res = await fetch(`/api/contacts/${id}`)
+            if (!res.ok) { toast.error('Não foi possível abrir o paciente'); return }
+            const c: Contact = await res.json()
+            setEditingId(id)
+            setFormData({ name: c.name ?? '', email: c.email ?? '', phone: nationalDigits(c.phone), notes: c.notes ?? '', source: c.source ?? 'manual' })
+            setSelectedTagIds(c.tags?.map(ct => ct.tag.id) ?? [])
+            setCustomFieldValues(c.customFields ?? {})
+            setErrors({}); setClash(null); setClashDismissed(false)
+            setIsDialogOpen(true)
+        } catch { toast.error('Não foi possível abrir o paciente') }
     }
 
     // O telefone é o que reencontra o paciente quando a mensagem chega — então,
@@ -228,12 +245,12 @@ export default function ContatosPage() {
                 const res = await fetch(`/api/contacts?search=${encodeURIComponent(digits)}&limit=5`)
                 if (!res.ok || cancelled) return
                 const data = await res.json()
-                const found = (data.data ?? data.contacts ?? []).find((c: Contact) => nationalDigits(c.phone) === digits) ?? null
+                const found = (data.data ?? data.contacts ?? []).find((c: Contact) => nationalDigits(c.phone) === digits && c.id !== editingId) ?? null
                 if (!cancelled) setClash(found ? { id: found.id, name: found.name, createdAt: found.createdAt } : null)
             } catch { /* o aviso é um extra; o servidor barra de qualquer jeito */ }
         }, 350)
         return () => { cancelled = true; clearTimeout(timer) }
-    }, [formData.phone, isDialogOpen])
+    }, [formData.phone, isDialogOpen, editingId])
 
     /** `again` = Criar e novo: grava, limpa e fica aberto. */
     const handleSave = async (again: boolean) => {
@@ -255,12 +272,15 @@ export default function ContatosPage() {
                 tagIds: selectedTagIds,
                 customFields: customFieldValues,
             }
-            const res = await fetch('/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            const res = await fetch(editingId ? `/api/contacts/${editingId}` : '/api/contacts', { method: editingId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             if (res.ok) {
                 const created = await res.json().catch(() => null)
-                toast.success('Paciente criado')
+                toast.success(editingId ? 'Paciente atualizado' : 'Paciente criado')
                 setErrors({})
-                if (again) {
+                if (editingId) {
+                    setIsDialogOpen(false)
+                    setPanelRev(r => r + 1)
+                } else if (again) {
                     setFormData(EMPTY_FORM); setSelectedTagIds([]); setCustomFieldValues({}); setClash(null); setClashDismissed(false)
                 } else {
                     setIsDialogOpen(false)
@@ -619,7 +639,7 @@ export default function ContatosPage() {
                 aside={
                     openId ? (
                         <ContactPanel
-                            key={openId}
+                            key={`${openId}:${panelRev}`}
                             contactId={openId}
                             allTags={allTags}
                             fieldDefs={customFieldDefs}
@@ -627,6 +647,7 @@ export default function ContatosPage() {
                             onPrev={openIndex > 0 ? () => setOpenId(contacts[openIndex - 1].id) : undefined}
                             onNext={openIndex >= 0 && openIndex < contacts.length - 1 ? () => setOpenId(contacts[openIndex + 1].id) : undefined}
                             onChanged={() => void loadContacts()}
+                            onEditFull={(id) => void openEdit(id)}
                             onDelete={(id) => { const c = contacts.find(x => x.id === id); if (c) setDeletingContact(c) }}
                             onTagCreated={(tag) => setAllTags(prev => prev.some(t => t.id === tag.id) ? prev : [...prev, tag])}
                         />
@@ -708,9 +729,10 @@ export default function ContatosPage() {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title="Novo paciente"
+                title={editingId ? 'Editar paciente' : 'Novo paciente'}
                 description="O telefone é o que liga a conversa ao cadastro."
-                submitLabel="Criar paciente"
+                submitLabel={editingId ? 'Salvar paciente' : 'Criar paciente'}
+                hideAgain={editingId !== null}
                 onSubmit={handleSave}
                 submitting={submitting}
                 summary={
