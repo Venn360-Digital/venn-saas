@@ -1631,7 +1631,10 @@ export default function NegociosPage() {
                 onChanged={() => { loadPipeline(); void loadLanes() }}
             />
 
+            {/* `key`: a fase padrão é lida ao montar, e as fases chegam depois
+                do primeiro render — sem remontar, o seletor abria vazio. */}
             <NewDealDialog
+                key={`${selectedStageId}:${stages.length}`}
                 open={newDealOpen}
                 onOpenChange={setNewDealOpen}
                 stages={stages}
