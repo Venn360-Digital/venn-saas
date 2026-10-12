@@ -228,7 +228,7 @@ export default function ContatosPage() {
                 const res = await fetch(`/api/contacts?search=${encodeURIComponent(digits)}&limit=5`)
                 if (!res.ok || cancelled) return
                 const data = await res.json()
-                const found = (data.contacts ?? data.items ?? []).find((c: Contact) => nationalDigits(c.phone) === digits) ?? null
+                const found = (data.data ?? data.contacts ?? []).find((c: Contact) => nationalDigits(c.phone) === digits) ?? null
                 if (!cancelled) setClash(found ? { id: found.id, name: found.name, createdAt: found.createdAt } : null)
             } catch { /* o aviso é um extra; o servidor barra de qualquer jeito */ }
         }, 350)
