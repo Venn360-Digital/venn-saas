@@ -1930,16 +1930,19 @@ export default function ConversasPage() {
                                         primeira coisa a sumir quando falta
                                         largura. */}
                                     {conversationTags.length > 0 && (
-                                        <div className="hidden min-w-0 items-center gap-1.5 overflow-hidden lg:flex">
-                                            {conversationTags.map(tag => (
-                                                <TagChip
-                                                    key={tag.id}
-                                                    size="sm"
-                                                    name={tag.name}
-                                                    color={tag.color}
-                                                    onRemove={() => removeTagFromConversation(tag.id)}
-                                                />
+                                        <div className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden xl:flex">
+                                            {/* Duas e a conta do resto: com quatro,
+                                                a última chegava cortada embaixo do
+                                                chip de estado. Tirar e pôr é no
+                                                seletor de etiquetas, ao lado. */}
+                                            {conversationTags.slice(0, 2).map(tag => (
+                                                <TagChip key={tag.id} size="sm" name={tag.name} color={tag.color} />
                                             ))}
+                                            {conversationTags.length > 2 ? (
+                                                <span className="num shrink-0 text-[11px] text-muted-foreground">
+                                                    +{conversationTags.length - 2}
+                                                </span>
+                                            ) : null}
                                         </div>
                                     )}
                                 </div>
