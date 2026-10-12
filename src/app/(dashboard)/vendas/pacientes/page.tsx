@@ -433,7 +433,7 @@ export default function ContatosPage() {
             sortValue: (c) => c.name ?? '',
             cell: (c) => (
                 <div className="flex min-w-0 items-center gap-3">
-                    <Avatar className="size-8 shrink-0">
+                    <Avatar className="size-6 shrink-0">
                         <AvatarFallback className="bg-primary-subtle text-xs text-primary-subtle-foreground">
                             {getInitials(c.name)}
                         </AvatarFallback>
@@ -600,6 +600,7 @@ export default function ContatosPage() {
             <div className="space-y-3 px-4 pt-3 pb-6 md:px-6">
 
                 <DataTable
+                    density="compact"
                     columns={contactColumns}
                     rows={contacts}
                     getRowId={c => c.id}

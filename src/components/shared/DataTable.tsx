@@ -66,6 +66,14 @@ interface DataTableProps<T> {
      * Rendered instead of the table below `md`. A six-column table at 375px is
      * not a table, it is a horizontal scroll nobody finds.
      */
+    /**
+     * `compact` fecha a linha em 36px — o padrão das telas de índice depois do
+     * cabeçalho de 48px. Ela não muda a fonte nem o alvo de clique da linha
+     * inteira; aperta o respiro vertical da célula, que é o que custa altura.
+     * Fica opcional porque nem toda tabela quer densidade: a de uso de créditos
+     * tem duas linhas por célula.
+     */
+    density?: 'comfortable' | 'compact'
     mobile?: (row: T) => React.ReactNode
     footer?: React.ReactNode
     className?: string
@@ -101,6 +109,7 @@ export function DataTable<T>({
     onSelectedChange,
     mobile,
     footer,
+    density = 'comfortable',
     className,
 }: DataTableProps<T>) {
     /** Coluna e direção da ordenação. `null` = a ordem que veio do servidor. */
@@ -182,7 +191,12 @@ export function DataTable<T>({
                     {/* Table from md up. No scroll container here: `Table`
                         already wraps itself in `overflow-x-auto`, and nesting
                         two gave the inner one a width it never overflowed. */}
-                    <div className={mobile ? 'hidden md:block' : undefined}>
+                    <div
+                        className={cn(
+                            mobile && 'hidden md:block',
+                            density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
+                        )}
+                    >
                         <Table>
                             <TableHeader>
                                 <TableRow>
