@@ -414,11 +414,33 @@ reflui. Uma tabela encolhe sozinha (as colunas somem por `hideBelow`), então al
 ele é coluna de verdade em `xl:grid-cols-[1fr_320px]`, e volta a sobrepor abaixo
 de 1280, onde a tabela já está apertada.
 
-**Painel lê e age; diálogo edita.** Clicar numa linha ou num cartão abre o
-painel, que responde às perguntas de quem está olhando a lista e oferece os
-gestos que seguem delas. A edição completa — todos os campos, abas — continua no
-diálogo, chamada explicitamente. Sem essa divisão o painel vira o formulário de
-novo, só mais estreito; e um clique distraído deixa de abrir uma tela cheia.
+**Tela de índice: o quadro, a ficha e o diálogo.** Pacientes, Etiquetas,
+Produtos, Departamentos, Respostas rápidas e Usuários são a mesma tela
+(`IndexFrame` + `DataTable frame`), e todo índice que vier entra nela:
+
+- **Linha 1 (50px)**: nome da tela, ações secundárias à vista (Importar,
+  Exportar) e o botão de criar no canto direito. **Linha 2 (46px)**: busca
+  (só "Buscar" no placeholder), filtros como `FilterPill` que mostram o próprio
+  valor e somem com ×, Limpar, modo de visualização. As duas presas; nada atrás
+  de um menu `⋯`; sem contador de registros — ele vive no rodapé, em "1–7 de 7".
+- **A tabela vai sangrada**, sem margem nem cartão próprio: o shell já emoldura.
+  Cabeçalho de 36px em maiúsculas pequenas preso; só as linhas rolam; rodapé
+  preso com paginação, que vira a `BulkBar` quando há linha marcada.
+- **A ficha edita; o diálogo cria.** Clicar na linha abre a `RecordPanel`
+  (380px, terceira coluna; ‹ › × no topo; ↑↓ e Esc) com **todos** os campos em
+  `InlineField`, gravando ao sair com o selo "salvo". Não existe "formulário
+  completo" de edição. O diálogo só nasce registro.
+- **`RecordDialog`, 840 × 620 sempre.** Cabeçalho e rodapé presos, só o
+  formulário rola; resumo vivo à direita ("como vai aparecer", com o aviso de
+  duplicado quando dá para saber antes); rótulo em cima, asterisco vermelho no
+  obrigatório e a legenda no rodapé ao lado de Esc · ⌘↵; erro **abaixo do
+  campo**, em vermelho — nunca toast, nunca resumo no topo; Cancelar ·
+  **Criar e novo** · **Criar X** (verbo e objeto, nunca "Salvar"). Formulário
+  curto deixa espaço vazio: é o preço de o Criar estar sempre no mesmo lugar.
+- **Máscara aparece ao digitar, grava limpo** (`lib/masks`, `MaskedInput`,
+  `PhoneInput`): o molde que falta fica em cinza por cima do campo; o estado é
+  só dígitos ou centavos. Validação forte (dígito verificador, data que existe)
+  ao sair do campo, não a cada tecla.
 
 **Faixa de números clicáveis, não painel de indicadores.** Número que só se olha
 pertence a um relatório. Se ele vai ficar no topo de uma tela de trabalho, cada
