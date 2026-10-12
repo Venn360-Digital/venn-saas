@@ -154,6 +154,8 @@ export async function GET(
                 stage: { select: { name: true, color: true } },
                 agencyId: true,
                 mediaId: true,
+                userId: true,
+                owner: { select: { name: true, lastName: true } },
                 value: true,
                 status: true,
                 closedAt: true,
@@ -205,6 +207,12 @@ export async function GET(
                           // migração valer a pena.
                           originId: openDeal.agencyId,
                           channelId: openDeal.mediaId,
+                          // De quem é o negócio — não quem está com a conversa,
+                          // que o chip de estado do chat já diz.
+                          ownerId: openDeal.userId,
+                          ownerName: openDeal.owner
+                              ? `${openDeal.owner.name ?? ''} ${openDeal.owner.lastName ?? ''}`.trim() || null
+                              : null,
                           value: openDeal.value,
                           status: openDeal.status as 'open' | 'won' | 'lost',
                           closedAt: openDeal.closedAt?.toISOString() ?? null,

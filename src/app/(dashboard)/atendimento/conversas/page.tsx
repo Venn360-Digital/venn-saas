@@ -3,6 +3,8 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { formatPhone } from '@/lib/phone'
+import { prettyPhone } from '@/lib/masks'
+import { useNow } from '@/hooks/useNow'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
@@ -89,7 +91,8 @@ import { InternalNotesPanel } from '@/components/shared/InternalNotesPanel'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { TagPicker } from '@/components/shared/TagPicker'
 import { TagChip } from '@/components/shared/TagChip'
-import { RecordPanel } from '@/components/shared/RecordPanel'
+import { PanelField, PanelSection, RecordPanel } from '@/components/shared/RecordPanel'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
     DealJourney,
@@ -198,6 +201,9 @@ interface OpenDeal {
     originId: string | null
     /** Por onde veio — "Mídia" no banco. */
     channelId: string | null
+    /** De quem é o negócio. Quem está com a conversa é outra coisa, e é do chip. */
+    ownerId: string | null
+    ownerName: string | null
     value: number | null
     status: 'open' | 'won' | 'lost'
     closedAt: string | null
@@ -401,6 +407,8 @@ export default function ConversasPage() {
      * Carregadas uma vez: são listas curtas de cadastro, não dado de conversa, e
      * o painel é aberto muitas vezes por sessão.
      */
+    /** Quem pode ser dono do negócio — carregado uma vez, para o campo da ficha. */
+    const [dealOwners, setDealOwners] = useState<{ userId: string; name: string }[]>([])
     const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
     const [channels, setChannels] = useState<{ id: string; name: string }[]>([])
     const [slashIndex, setSlashIndex] = useState(0)
@@ -525,6 +533,28 @@ export default function ConversasPage() {
         return () => window.removeEventListener('keydown', onKey)
     }, [panel])
 
+    /**
+     * Há quanto tempo o negócio está na fase atual.
+     *
+     * Da última entrada de fase, como no funil — e `null` quando não há
+     * registro, que é diferente de zero dia.
+     */
+    const nowMs = useNow()
+    const openDealForDays = conversationDetail?.conversation?.openDeal ?? null
+    const stageSince = openDealForDays
+        ? openDealForDays.entries
+              .filter((e) => e.stageId === openDealForDays.stageId && e.enteredAt)
+              .map((e) => new Date(e.enteredAt as string).getTime())
+              .sort((a, b) => b - a)[0]
+        : undefined
+    const stageDays = stageSince && nowMs ? Math.max(0, Math.floor((nowMs - stageSince) / 86_400_000)) : null
+    const stageDaysLabel =
+        stageDays === null
+            ? null
+            : stageDays === 0
+              ? 'entrou nesta fase hoje'
+              : `nesta fase há ${stageDays} ${stageDays === 1 ? 'dia' : 'dias'}`
+
     const PANEL_TITLES: Record<PanelMode, string> = {
         summary: 'Resumo do paciente',
         schedule: 'Atividades',
@@ -625,11 +655,17 @@ export default function ConversasPage() {
         Promise.all([
             fetch('/api/agencies').then((r) => (r.ok ? r.json() : [])),
             fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/workspace/members').then((r) => (r.ok ? r.json() : [])),
         ])
-            .then(([agencies, medias]) => {
+            .then(([agencies, medias, members]) => {
                 if (cancelled) return
                 setOrigins(Array.isArray(agencies) ? agencies : [])
                 setChannels(Array.isArray(medias) ? medias : [])
+                setDealOwners(
+                    Array.isArray(members)
+                        ? members.map((m: { userId: string; name: string }) => ({ userId: m.userId, name: m.name }))
+                        : []
+                )
             })
             .catch(() => {
                 // Sem as listas os campos aparecem vazios e não editáveis; a
@@ -1335,6 +1371,38 @@ export default function ConversasPage() {
 
     /** Abre um negócio na primeira etapa do funil para o paciente desta conversa. */
     /** Origem e canal do negócio aberto, pela mesma rota que o funil usa. */
+    /** De quem é o negócio. O campo é do negócio, não do atendimento. */
+    const setDealOwner = async (userId: string) => {
+        const deal = conversationDetail?.conversation?.openDeal
+        if (!deal) return
+        const id = userId || null
+        try {
+            const res = await fetch(`/api/deals/${deal.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: id }),
+            })
+            if (!res.ok) throw new Error()
+            setConversationDetail((prev) =>
+                prev && prev.conversation.openDeal
+                    ? {
+                          ...prev,
+                          conversation: {
+                              ...prev.conversation,
+                              openDeal: {
+                                  ...prev.conversation.openDeal,
+                                  ownerId: id,
+                                  ownerName: dealOwners.find((m) => m.userId === id)?.name ?? null,
+                              },
+                          },
+                      }
+                    : prev
+            )
+        } catch {
+            toast.error('Não foi possível salvar')
+        }
+    }
+
     const setDealLookup = async (field: 'agencyId' | 'mediaId', value: string) => {
         const deal = conversationDetail?.conversation?.openDeal
         if (!deal) return
@@ -2743,120 +2811,147 @@ export default function ConversasPage() {
                                             ) : null}
 
                                             {panel === 'journey' ? (
-                                        <div className="space-y-4">
-                                            {/* Paciente + quem atende — compacto: o espaço é da jornada */}
-                                            <div className="flex items-center gap-3">
-                                                <ContactAvatar
-                                                    avatar={conv.contact.avatar}
-                                                    name={conv.contact.name}
-                                                    phone={formatPhone(conv.contact.phone)}
-                                                />
-                                                <div className="min-w-0 flex-1">
-                                                    <h3 className="truncate text-sm font-semibold">{conv.contact.name || 'Desconhecido'}</h3>
-                                                    {conv.contact.phone && (
-                                                        <p className="num flex items-center gap-1 text-xs text-muted-foreground">
-                                                            <Phone className="h-3 w-3" />{formatPhone(conv.contact.phone)}
-                                                        </p>
-                                                    )}
-                                                    {conv.contact.email && (
-                                                        <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                                                            <Mail className="h-3 w-3 shrink-0" />{conv.contact.email}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Origem e canal: de onde o paciente
-                                                veio e por onde. Quem atende saiu
-                                                daqui — a barra do chat já diz com
-                                                quem a conversa está, e dizia duas
-                                                vezes. */}
-                                            {conv.openDeal ? (
-                                                <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 text-xs">
-                                                    <label htmlFor="deal-origin" className="text-muted-foreground">Origem</label>
-                                                    <select
-                                                        id="deal-origin"
-                                                        value={conv.openDeal.originId ?? ''}
-                                                        onChange={(e) => void setDealLookup('agencyId', e.target.value)}
-                                                        className="min-w-0 truncate rounded border border-border bg-card px-1.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                                                    >
-                                                        <option value="">—</option>
-                                                        {origins.map((o) => (
-                                                            <option key={o.id} value={o.id}>{o.name}</option>
-                                                        ))}
-                                                    </select>
-                                                    <label htmlFor="deal-channel" className="text-muted-foreground">Canal</label>
-                                                    <select
-                                                        id="deal-channel"
-                                                        value={conv.openDeal.channelId ?? ''}
-                                                        onChange={(e) => void setDealLookup('mediaId', e.target.value)}
-                                                        className="min-w-0 truncate rounded border border-border bg-card px-1.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                                                    >
-                                                        <option value="">—</option>
-                                                        {channels.map((c) => (
-                                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            ) : null}
-
-                                            {/* Negócio: título e etapa atual. A
-                                                jornada logo abaixo são as etapas
-                                                desta clínica — fase e etapa são a
-                                                mesma coisa desde a fusão. */}
-                                            <div className="space-y-2">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Negócio</h4>
-                                                    {conv.openDeal?.status === 'won' ? (
-                                                        <span className="rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">Ganho</span>
-                                                    ) : conv.openDeal?.status === 'lost' ? (
-                                                        <span className="rounded-full bg-destructive-subtle px-2 py-0.5 text-[10px] font-semibold text-destructive-subtle-foreground">Perdido</span>
-                                                    ) : conv.openDeal?.stageName ? (
-                                                        <TagChip name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? DEFAULT_ENTITY_COLOR} />
-                                                    ) : null}
-                                                </div>
-                                                {conv.openDeal ? (
-                                                    <>
-                                                        <p className="truncate text-xs text-muted-foreground" title={conv.openDeal.title}>{conv.openDeal.title}</p>
-                                                        {/* A "fase atual" saiu daqui: o selo ao lado de
-                                                            "Negócio" já é a etapa, e as duas linhas
-                                                            diziam a mesma coisa desde a fusão. */}
-                                                        <div className="pt-1">
-                                                            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jornada</h4>
-                                                            <DealJourney
-                                                                dealId={conv.openDeal.id}
-                                                                dealTitle={conv.openDeal.title}
-                                                                dealValue={conv.openDeal.value}
-                                                                stages={conv.openDeal.stages}
-                                                                currentStageId={conv.openDeal.stageId}
-                                                                entries={conv.openDeal.entries}
-                                                                status={conv.openDeal.status}
-                                                                outcomeReasonName={conv.openDeal.outcomeReasonName}
-                                                                outcomeNotes={conv.openDeal.outcomeNotes}
-                                                                closedAt={conv.openDeal.closedAt}
-                                                                closedStageName={conv.openDeal.closedStageName}
-                                                                onOutcome={() => {
-                                                                    // Relê o negócio e a lista: o desfecho muda o
-                                                                    // selo aqui e o cartão no funil.
-                                                                    void fetchMessages(conv.id)
-                                                                    void fetchConversations()
-                                                                }}
-                                                                onChange={applyDealJourney}
-                                                            />
+                                                <>
+                                                    {/* Quem é — nome, telefone e por onde a conversa chegou. */}
+                                                    <div className="flex items-center gap-3">
+                                                        <ContactAvatar
+                                                            avatar={conv.contact.avatar}
+                                                            name={conv.contact.name}
+                                                            phone={formatPhone(conv.contact.phone)}
+                                                        />
+                                                        <div className="min-w-0">
+                                                            <h3 className="truncate text-[15px] font-bold">{conv.contact.name || 'Desconhecido'}</h3>
+                                                            <p className="num truncate text-[11px] text-muted-foreground">
+                                                                {conv.contact.phone ? prettyPhone(conv.contact.phone) : 'Sem telefone'}
+                                                                {conv.agent ? ` · ${conv.agent.name}` : ''}
+                                                            </p>
+                                                            {conv.contact.email ? (
+                                                                <p className="truncate text-[11px] text-muted-foreground">{conv.contact.email}</p>
+                                                            ) : null}
                                                         </div>
-                                                    </>
-                                                ) : (
-                                                    <div className="rounded-md border border-dashed border-border px-3 py-3 text-center">
-                                                        <p className="text-xs text-muted-foreground">Nenhum negócio aberto para este paciente.</p>
-                                                        <Button size="sm" variant="outline" className="mt-2 text-xs" onClick={createDealForContact} disabled={creatingDeal}>
-                                                            {creatingDeal ? 'Criando…' : 'Abrir negócio'}
+                                                    </div>
+
+                                                    {/* Os dois gestos que seguem de ler a ficha. */}
+                                                    <div className="grid grid-cols-2 gap-1.5">
+                                                        <Button
+                                                            size="sm"
+                                                            className="h-8 gap-1.5"
+                                                            disabled={!conv.contact.id}
+                                                            onClick={() => setPanel('schedule')}
+                                                        >
+                                                            <CalendarPlus className="size-3.5" /> Nova atividade
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 gap-1.5"
+                                                            disabled={!canTransfer || !conv.assignedTo}
+                                                            onClick={() => openTransferModal(conv.id)}
+                                                        >
+                                                            <ArrowRightLeft className="size-3.5" /> Transferir
                                                         </Button>
                                                     </div>
-                                                )}
-                                            </div>
 
+                                                    {conv.openDeal ? (
+                                                        <>
+                                                            <PanelSection
+                                                                title="Negócio aberto"
+                                                                aside={
+                                                                    stageDaysLabel ? (
+                                                                        <span className="text-[10px] text-muted-foreground">{stageDaysLabel}</span>
+                                                                    ) : null
+                                                                }
+                                                            >
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="truncate text-[13px] font-semibold" title={conv.openDeal.title}>
+                                                                        {conv.openDeal.title}
+                                                                    </span>
+                                                                    {conv.openDeal.status === 'won' ? (
+                                                                        <span className="shrink-0 rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">Ganho</span>
+                                                                    ) : conv.openDeal.status === 'lost' ? (
+                                                                        <span className="shrink-0 rounded-full bg-destructive-subtle px-2 py-0.5 text-[10px] font-semibold text-destructive-subtle-foreground">Perdido</span>
+                                                                    ) : conv.openDeal.stageName ? (
+                                                                        <TagChip size="sm" name={conv.openDeal.stageName} color={conv.openDeal.stageColor ?? DEFAULT_ENTITY_COLOR} />
+                                                                    ) : null}
+                                                                </div>
+                                                            </PanelSection>
 
-                                        </div>
+                                                            <PanelSection title="Jornada">
+                                                                <DealJourney
+                                                                    dealId={conv.openDeal.id}
+                                                                    dealTitle={conv.openDeal.title}
+                                                                    dealValue={conv.openDeal.value}
+                                                                    stages={conv.openDeal.stages}
+                                                                    currentStageId={conv.openDeal.stageId}
+                                                                    entries={conv.openDeal.entries}
+                                                                    status={conv.openDeal.status}
+                                                                    outcomeReasonName={conv.openDeal.outcomeReasonName}
+                                                                    outcomeNotes={conv.openDeal.outcomeNotes}
+                                                                    closedAt={conv.openDeal.closedAt}
+                                                                    closedStageName={conv.openDeal.closedStageName}
+                                                                    onOutcome={() => {
+                                                                        // Relê o negócio e a lista: o desfecho muda o
+                                                                        // selo aqui e o cartão no funil.
+                                                                        void fetchMessages(conv.id)
+                                                                        void fetchConversations()
+                                                                    }}
+                                                                    onChange={applyDealJourney}
+                                                                />
+                                                            </PanelSection>
+
+                                                            {/* Os três campos do negócio que esta tela responde:
+                                                                de onde veio, por onde, e de quem é. */}
+                                                            <PanelSection
+                                                                title="Dados"
+                                                                aside={<span className="text-[10px] text-muted-foreground">grava ao escolher</span>}
+                                                            >
+                                                                <PanelField label="Origem">
+                                                                    <Select
+                                                                        value={conv.openDeal.originId ?? 'none'}
+                                                                        onValueChange={(v) => void setDealLookup('agencyId', v === 'none' ? '' : v)}
+                                                                    >
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Origem"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="none">—</SelectItem>
+                                                                            {origins.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </PanelField>
+                                                                <PanelField label="Canal">
+                                                                    <Select
+                                                                        value={conv.openDeal.channelId ?? 'none'}
+                                                                        onValueChange={(v) => void setDealLookup('mediaId', v === 'none' ? '' : v)}
+                                                                    >
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Canal"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="none">—</SelectItem>
+                                                                            {channels.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </PanelField>
+                                                                <PanelField label="Responsável">
+                                                                    <Select
+                                                                        value={conv.openDeal.ownerId ?? 'none'}
+                                                                        onValueChange={(v) => void setDealOwner(v === 'none' ? '' : v)}
+                                                                    >
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Responsável pelo negócio"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="none">—</SelectItem>
+                                                                            {dealOwners.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </PanelField>
+                                                            </PanelSection>
+                                                        </>
+                                                    ) : (
+                                                        <div className="rounded-md border border-dashed border-border px-3 py-3 text-center">
+                                                            <p className="text-xs text-muted-foreground">Nenhum negócio aberto para este paciente.</p>
+                                                            <Button size="sm" variant="outline" className="mt-2 text-xs" onClick={createDealForContact} disabled={creatingDeal}>
+                                                                {creatingDeal ? 'Criando…' : 'Abrir negócio'}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </>
                                             ) : null}
                                     </RecordPanel>
                                 )}
