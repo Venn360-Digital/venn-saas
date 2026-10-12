@@ -106,6 +106,10 @@ import { CreatableSelect } from '@/components/shared/CreatableSelect'
 
 const STATUS_LABELS: Record<string, string> = { open: 'Abertos', won: 'Ganhos', lost: 'Perdidos', all: 'Todos' }
 
+function money(value?: number | null): string {
+    return value == null ? '—' : `R$ ${value.toLocaleString('pt-BR')}`
+}
+
 function shortDate(iso: string): string {
     const [, m, d] = iso.split('-')
     return `${d}/${m}`
@@ -1331,12 +1335,10 @@ export default function NegociosPage() {
             stats={
                 <>
                     <StatPill value={summary?.open.count ?? '—'} label="em jogo" title="Negócios abertos" pressed={!lane} onClick={() => setLane(null)} />
-                    {/* O dinheiro como três números, não três cartões. */}
-                    <span className="ml-1 flex items-center gap-4 px-2">
-                        <Figure label="em aberto" value={summary?.open.value} />
-                        <Figure label={summary ? `ganho · ${summary.won.count}` : 'ganho'} value={summary?.won.value} tone="text-success-subtle-foreground" />
-                        <Figure label={summary ? `perdido · ${summary.lost.count}` : 'perdido'} value={summary?.lost.value} tone="text-destructive-subtle-foreground" />
-                    </span>
+                    {/* O dinheiro nas mesmas pastilhas, sem clique: informam, não filtram. */}
+                    <StatPill value={money(summary?.open.value)} label="em aberto" />
+                    <StatPill value={money(summary?.won.value)} label={summary ? `ganho · ${summary.won.count}` : 'ganho'} tone="ok" />
+                    <StatPill value={money(summary?.lost.value)} label={summary ? `perdido · ${summary.lost.count}` : 'perdido'} tone="danger" />
                 </>
             }
             actions={
