@@ -48,6 +48,7 @@ export function UserPanel({
     onPrev,
     onNext,
     onChanged,
+    onEditFull,
     onDelete,
 }: {
     item: UserPanelItem
@@ -57,6 +58,8 @@ export function UserPanel({
     onPrev?: () => void
     onNext?: () => void
     onChanged: () => void
+    /** O lápis: o diálogo do Novo em modo de edição (é lá que a senha não entra). */
+    onEditFull?: (id: string) => void
     onDelete: (id: string) => void
 }) {
     const { save, saved, local } = usePanelSave<UserPanelItem>(`/api/users/${item.id}`, onChanged)
@@ -88,6 +91,7 @@ export function UserPanel({
             onClose={onClose}
             onPrev={onPrev}
             onNext={onNext}
+            onEditFull={canEdit && onEditFull ? () => onEditFull(item.id) : undefined}
             onDelete={canEdit && !u.isFirstAdmin ? () => onDelete(item.id) : undefined}
         >
             <PanelSection title="Dados" aside={<span className="text-[10px] text-muted-foreground">grava ao sair do campo</span>}>
