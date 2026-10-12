@@ -464,6 +464,25 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    conta os que deram certo e avisa quantos não puderam; o que a API protege
    (primeiro administrador) fica de fora antes de chamar.
 
+**Tela 02 — a tela de trabalho.** Agenda e Negócios (Conversas ainda não):
+a mesma Tela 01 com um miolo próprio — lista · quadro · calendário; trilho de
+fases · quadro · lista. O que muda é o miolo; o que entra nele é a gramática:
+
+- **Linha 1 vira o lugar dos números.** Os cartões de indicador saem da frente
+  do conteúdo e viram a faixa de números clicáveis (`StatPill`, 30px) ao lado
+  do título — número em negrito, rótulo em cinza, `aria-pressed`, zero
+  desabilitado. Em Negócios os R$ ficam ao lado como `Figure` compacta.
+- **Linha 2 é só filtro.** Selects soltos, abas e "chips" viram `FilterPill`
+  (Período, Tipo, Responsável, Situação, Fase, Alertas); o modo de visualização
+  é o `ViewSeg` (ícones com dica) no fim da linha.
+- **O corpo é sangrado.** Sem cartão em volta da lista, do trilho ou do
+  calendário; a lista é `DataTable frame` com cabeçalho de 36px e rodapé de
+  paginação (no cliente, se a API não pagina).
+- **A ficha é a `RecordPanel`**, com os modos como ícones ao lado de "Ficha"
+  (agendar, atividades, notas) e um gesto extra no rodapé quando a tela pede
+  (a bandeira de desfecho do negócio). Clicar em linha, cartão ou item do
+  calendário abre a ficha; o diálogo fica para o Novo e para o lápis.
+
 **Faixa de números clicáveis, não painel de indicadores.** Número que só se olha
 pertence a um relatório. Se ele vai ficar no topo de uma tela de trabalho, cada
 faixa é um `button` com `aria-pressed` que filtra a lista — e **o filtro do
