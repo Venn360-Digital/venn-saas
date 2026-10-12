@@ -1,8 +1,6 @@
 'use client'
 
 import { TagChip } from '@/components/shared/TagChip'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { Toolbar, FilterPanel } from '@/components/shared/Toolbar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
@@ -10,6 +8,8 @@ import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
 import { PeriodPicker } from '@/components/shared/PeriodPicker'
+import { IndexBar, type ActiveChip } from '@/components/shared/IndexBar'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { SOURCE_FILTER_OPTIONS, sourceLabel } from '@/lib/sources'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
@@ -115,7 +115,6 @@ export default function ContatosPage() {
     const [filterDeal, setFilterDeal] = useState('')
     const [filterDateFrom, setFilterDateFrom] = useState('')
     const [filterDateTo, setFilterDateTo] = useState('')
-    const [showFilters, setShowFilters] = useState(false)
 
     // Dialog state
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -386,6 +385,46 @@ export default function ContatosPage() {
     const activeFilterCount = [filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo]
         .filter(Boolean).length
 
+    /**
+     * O que está filtrado, dito por extenso no cabeçalho.
+     *
+     * O contador no botão responde "tem filtro?"; a pastilha responde "qual?" —
+     * e some com um clique, sem abrir o painel. Antes era preciso abrir o painel
+     * recolhido para descobrir as duas coisas.
+     */
+    const activeChips: ActiveChip[] = [
+        filterTagId && {
+            id: 'tag',
+            label: allTags.find(t => t.id === filterTagId)?.name ?? 'Etiqueta',
+        },
+        filterSource && {
+            id: 'source',
+            label: SOURCE_FILTER_OPTIONS.find(o => o.value === filterSource)?.label ?? filterSource,
+        },
+        filterDeal && {
+            id: 'deal',
+            label: DEAL_FILTER_OPTIONS.find(o => o.value === filterDeal)?.label ?? filterDeal,
+        },
+        (filterDateFrom || filterDateTo) && {
+            id: 'period',
+            label: `Cadastro ${filterDateFrom || '…'} a ${filterDateTo || '…'}`,
+        },
+    ].filter(Boolean) as ActiveChip[]
+
+    const clearChip = (id: string) => {
+        if (id === 'tag') setFilterTagId('')
+        if (id === 'source') setFilterSource('')
+        if (id === 'deal') setFilterDeal('')
+        if (id === 'period') { setFilterDateFrom(''); setFilterDateTo('') }
+        setPagination(p => ({ ...p, page: 1 }))
+    }
+
+    const clearAllFilters = () => {
+        setFilterTagId(''); setFilterSource(''); setFilterDeal('')
+        setFilterDateFrom(''); setFilterDateTo('')
+        setPagination(p => ({ ...p, page: 1 }))
+    }
+
     const contactColumns: Column<Contact>[] = [
         {
             id: 'name',
@@ -469,96 +508,96 @@ export default function ContatosPage() {
     // ─── Render ─────────────────────────────────────────────────────
     return (
         <>
-            <PageHeader
+            <IndexBar
                 title="Pacientes"
-                description="Quem é atendido pela clínica, com histórico, etiquetas e negócios."
-                count={{ value: pagination.total, singular: 'paciente', plural: 'pacientes' }}
-                actions={
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Buscar por nome, telefone ou e-mail…"
+                chips={activeChips}
+                onClearChip={clearChip}
+                filterCount={activeFilterCount}
+                filters={
                     <>
-                        <Button variant="outline" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
-                            <Upload /> Importar
-                        </Button>
-                        <Button variant="outline" onClick={handleExport}>
-                            <Download /> Exportar
-                        </Button>
-                        <Button onClick={() => handleOpenDialog()}>
-                            <Plus /> Novo paciente
-                        </Button>
+                        {/* Num painel de 300px cada campo ocupa a linha
+                            inteira: as larguras mínimas que existiam aqui foram
+                            calibradas para a faixa horizontal, que não existe
+                            mais. */}
+                        <div className="flex flex-col gap-3">
+                        <div>
+                            <FormField label="Etiqueta" htmlFor="f-tag">
+                                <Select value={filterTagId || 'all'} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                    <SelectTrigger id="f-tag"><SelectValue placeholder="Todas" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas</SelectItem>
+                                        {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </FormField>
+                        </div>
+                        <div>
+                            <FormField label="Origem" htmlFor="f-source">
+                                <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                    <SelectTrigger id="f-source"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {SOURCE_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </FormField>
+                        </div>
+                        <div>
+                            <FormField label="Negócio" htmlFor="f-deal">
+                                <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                    <SelectTrigger id="f-deal"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </FormField>
+                        </div>
+                        {/* Um controle, não dois campos: é o mesmo seletor de
+                            período do funil, do Dashboard e da Agenda — e ele diz o
+                            recorte em vigor, que dois `input[type=date]` vazios não
+                            diziam. */}
+                        <div>
+                            <FormField label="Cadastrado em">
+                                <PeriodPicker
+                                    from={filterDateFrom}
+                                    to={filterDateTo}
+                                    onChange={(from, to) => {
+                                        setFilterDateFrom(from)
+                                        setFilterDateTo(to)
+                                        setPagination(p => ({ ...p, page: 1 }))
+                                    }}
+                                    className="h-9"
+                                />
+                            </FormField>
+                        </div>
+                        </div>
+                        {activeFilterCount > 0 ? (
+                            <Button variant="ghost" size="sm" className="w-full" onClick={clearAllFilters}>
+                                Limpar filtros
+                            </Button>
+                        ) : null}
                     </>
+                }
+                overflow={
+                    <>
+                        <DropdownMenuItem onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
+                            <Upload className="size-4" /> Importar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExport}>
+                            <Download className="size-4" /> Exportar
+                        </DropdownMenuItem>
+                    </>
+                }
+                action={
+                    <Button size="sm" className="h-[30px] shrink-0" onClick={() => handleOpenDialog()}>
+                        <Plus className="size-3.5" /> Novo paciente
+                    </Button>
                 }
             />
 
-            <div className="space-y-3 px-4 pb-6 md:px-6">
-                <Toolbar
-                    search={search}
-                    onSearchChange={setSearch}
-                    placeholder="Buscar por nome, telefone ou e-mail…"
-                    filterCount={activeFilterCount}
-                    filtersOpen={showFilters}
-                    onToggleFilters={() => setShowFilters(v => !v)}
-                />
-
-                <FilterPanel
-                    open={showFilters}
-                    activeCount={activeFilterCount}
-                    onClear={() => {
-                        setFilterTagId(''); setFilterSource(''); setFilterDeal('')
-                        setFilterDateFrom(''); setFilterDateTo('')
-                        setPagination(p => ({ ...p, page: 1 }))
-                    }}
-                >
-                    {/* Widths are min-, not fixed: Open Sans sets wider than the
-                        previous face, and a fixed w-44 now crowds its label. */}
-                    <div className="min-w-44 flex-1 sm:flex-none">
-                        <FormField label="Etiqueta" htmlFor="f-tag">
-                            <Select value={filterTagId || 'all'} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                <SelectTrigger id="f-tag"><SelectValue placeholder="Todas" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas</SelectItem>
-                                    {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </FormField>
-                    </div>
-                    <div className="min-w-40 flex-1 sm:flex-none">
-                        <FormField label="Origem" htmlFor="f-source">
-                            <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                <SelectTrigger id="f-source"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {SOURCE_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </FormField>
-                    </div>
-                    <div className="min-w-40 flex-1 sm:flex-none">
-                        <FormField label="Negócio" htmlFor="f-deal">
-                            <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                <SelectTrigger id="f-deal"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </FormField>
-                    </div>
-                    {/* Um controle, não dois campos: é o mesmo seletor de
-                        período do funil, do Dashboard e da Agenda — e ele diz o
-                        recorte em vigor, que dois `input[type=date]` vazios não
-                        diziam. */}
-                    <div className="flex-1 sm:flex-none">
-                        <FormField label="Cadastrado em">
-                            <PeriodPicker
-                                from={filterDateFrom}
-                                to={filterDateTo}
-                                onChange={(from, to) => {
-                                    setFilterDateFrom(from)
-                                    setFilterDateTo(to)
-                                    setPagination(p => ({ ...p, page: 1 }))
-                                }}
-                                className="h-9"
-                            />
-                        </FormField>
-                    </div>
-                </FilterPanel>
+            <div className="space-y-3 px-4 pt-3 pb-6 md:px-6">
 
                 <DataTable
                     columns={contactColumns}
