@@ -47,6 +47,8 @@ export interface JourneyEntry {
 }
 
 interface DealJourneyProps {
+    /** A linha "Nesta fase há N dias". Fora quando a tela já diz isso ao lado do título. */
+    showAge?: boolean
     dealId: string
     dealTitle?: string
     dealValue?: number | null
@@ -80,6 +82,7 @@ export function DealJourney({
     closedStageName,
     onOutcome,
     onChange,
+    showAge = true,
     className,
 }: DealJourneyProps) {
     const now = useNow()
@@ -310,7 +313,7 @@ export function DealJourney({
 
     return (
         <div className={cn(busy && 'opacity-70', className)}>
-            {daysHere !== null ? (
+            {daysHere !== null && showAge ? (
                 <p className="mb-2 text-xs">
                     <span className="text-muted-foreground">Nesta fase há </span>
                     <span

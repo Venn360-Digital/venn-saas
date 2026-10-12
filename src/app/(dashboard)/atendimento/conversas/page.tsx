@@ -2889,6 +2889,8 @@ export default function ConversasPage() {
                                                                     outcomeNotes={conv.openDeal.outcomeNotes}
                                                                     closedAt={conv.openDeal.closedAt}
                                                                     closedStageName={conv.openDeal.closedStageName}
+                                                                    // O tempo na fase já está ao lado de "Negócio aberto".
+                                                                    showAge={false}
                                                                     onOutcome={() => {
                                                                         // Relê o negócio e a lista: o desfecho muda o
                                                                         // selo aqui e o cartão no funil.
