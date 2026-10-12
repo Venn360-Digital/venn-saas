@@ -597,9 +597,10 @@ export default function ContatosPage() {
                 }
             />
 
-            <div className="space-y-3 px-4 pt-3 pb-6 md:px-6">
+            <div className="pb-6">
 
                 <DataTable
+                    bleed
                     density="compact"
                     columns={contactColumns}
                     rows={contacts}
@@ -646,6 +647,10 @@ export default function ContatosPage() {
                     }
                     footer={
                         <Pagination
+                            // Alinha com a primeira coluna da tabela sem cartão:
+                            // o padding do rodapé é 16px e o da tabela vira 24px
+                            // a partir de `md`.
+                            className="md:px-6"
                             page={pagination.page}
                             totalPages={pagination.totalPages}
                             total={pagination.total}

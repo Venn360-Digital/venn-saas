@@ -74,6 +74,18 @@ interface DataTableProps<T> {
      * tem duas linhas por célula.
      */
     density?: 'comfortable' | 'compact'
+    /**
+     * A tabela de ponta a ponta, sem cartão em volta — o "Desenho 1".
+     *
+     * A separação com o cabeçalho preso passa a ser o fio da própria faixa mais
+     * a troca de superfície do cabeçalho da tabela, em vez de margem, borda e
+     * canto arredondado. Devolve à tabela a largura que a moldura consumia, que
+     * é onde nome e e-mail deixam de terminar em reticência.
+     *
+     * O respiro lateral não some junto: ele vira padding da primeira e da
+     * última coluna, senão o texto encosta na borda da janela.
+     */
+    bleed?: boolean
     mobile?: (row: T) => React.ReactNode
     footer?: React.ReactNode
     className?: string
@@ -110,6 +122,7 @@ export function DataTable<T>({
     mobile,
     footer,
     density = 'comfortable',
+    bleed = false,
     className,
 }: DataTableProps<T>) {
     /** Coluna e direção da ordenação. `null` = a ordem que veio do servidor. */
@@ -180,7 +193,9 @@ export function DataTable<T>({
     return (
         <div
             className={cn(
-                'overflow-hidden rounded-lg border border-border bg-card',
+                bleed
+                    ? 'bg-card [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4 md:[&_td:first-child]:pl-6 md:[&_td:last-child]:pr-6 md:[&_th:first-child]:pl-6 md:[&_th:last-child]:pr-6'
+                    : 'overflow-hidden rounded-lg border border-border bg-card',
                 className
             )}
         >
@@ -198,7 +213,7 @@ export function DataTable<T>({
                         )}
                     >
                         <Table>
-                            <TableHeader>
+                            <TableHeader className={cn(bleed && '[&_tr]:bg-background')}>
                                 <TableRow>
                                     {selectable ? (
                                         <TableHead className="w-10">
