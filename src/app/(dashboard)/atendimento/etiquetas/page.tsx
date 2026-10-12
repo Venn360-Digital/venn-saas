@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -21,6 +21,8 @@ import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { TagPanel } from '@/components/tags/TagPanel'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
 import { TagChip } from '@/components/shared/TagChip'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -72,6 +74,11 @@ export default function EtiquetasPage() {
     const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
+    /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
+    const [openId, setOpenId] = useState<string | null>(null)
+    const rowIds = useMemo(() => tags.map((r) => r.id).filter((id): id is string => Boolean(id)), [tags])
+    usePanelKeys(openId, rowIds, setOpenId)
+    const openItem = openId ? tags.find((r) => r.id === openId) ?? null : null
     const [formData, setFormData] = useState({ name: '', color: COLOR_PALETTE[0] })
 
     useEffect(() => {
@@ -196,6 +203,17 @@ export default function EtiquetasPage() {
     return (
         <>
             <IndexFrame
+                aside={openItem ? (
+                    <TagPanel
+                        key={openItem.id}
+                        item={openItem}
+                        canEdit={canEdit}
+                        onClose={() => setOpenId(null)}
+                        {...panelNeighbours(openId, rowIds, setOpenId)}
+                        onChanged={() => void loadTags()}
+                        onDelete={(id) => { const t = tags.find((x) => x.id === id); if (t) setDeletingTag(t) }}
+                    />
+                ) : null}
                 title="Etiquetas"
                 primary={
                     canEdit ? (
@@ -220,15 +238,16 @@ export default function EtiquetasPage() {
                     rows={tags}
                     getRowId={(tag) => tag.id}
                     loading={loading}
+                    onRowClick={(r) => { if (r.id) setOpenId(r.id) }}
                     rowActions={
                         canEdit
                             ? (tag) => (
                                   <RowActions label={`Ações da etiqueta ${tag.name}`}>
                                       <RowActionItem
                                           icon={Pencil}
-                                          onClick={() => handleOpenDialog(tag)}
+                                          onClick={() => setOpenId(tag.id)}
                                       >
-                                          Editar
+                                          Abrir ficha
                                       </RowActionItem>
                                       <RowActionItem
                                           icon={Trash2}

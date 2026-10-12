@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -21,6 +21,8 @@ import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { DepartmentPanel } from '@/components/departments/DepartmentPanel'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
 import { usePermissions } from '@/hooks/usePermissions'
 
@@ -58,6 +60,11 @@ export default function DepartamentosPage() {
     const [deleting, setDeleting] = useState<Department | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
+    /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
+    const [openId, setOpenId] = useState<string | null>(null)
+    const rowIds = useMemo(() => departments.map((r) => r.id).filter((id): id is string => Boolean(id)), [departments])
+    usePanelKeys(openId, rowIds, setOpenId)
+    const openItem = openId ? departments.find((r) => r.id === openId) ?? null : null
     const [formData, setFormData] = useState({ name: '', description: '' })
 
     useEffect(() => {
@@ -193,6 +200,17 @@ export default function DepartamentosPage() {
     return (
         <>
             <IndexFrame
+                aside={openItem ? (
+                    <DepartmentPanel
+                        key={openItem.id}
+                        item={openItem}
+                        canEdit={canEdit}
+                        onClose={() => setOpenId(null)}
+                        {...panelNeighbours(openId, rowIds, setOpenId)}
+                        onChanged={() => void load()}
+                        onDelete={(id) => { const d = departments.find((x) => x.id === id); if (d) setDeleting(d) }}
+                    />
+                ) : null}
                 title="Departamentos"
                 primary={
                     canEdit ? (
@@ -217,15 +235,16 @@ export default function DepartamentosPage() {
                     rows={departments}
                     getRowId={(d) => d.id}
                     loading={loading}
+                    onRowClick={(r) => { if (r.id) setOpenId(r.id) }}
                     rowActions={
                         canEdit
                             ? (d) => (
                                   <RowActions label={`Ações do departamento ${d.name}`}>
                                       <RowActionItem
                                           icon={Pencil}
-                                          onClick={() => handleOpenDialog(d)}
+                                          onClick={() => setOpenId(d.id)}
                                       >
-                                          Editar
+                                          Abrir ficha
                                       </RowActionItem>
                                       <RowActionItem
                                           icon={Trash2}

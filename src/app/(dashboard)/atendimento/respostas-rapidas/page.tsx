@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -17,6 +17,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { QuickResponsePanel } from '@/components/quick-responses/QuickResponsePanel'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
@@ -45,6 +47,11 @@ export default function RespostasRapidasPage() {
     const [deleting, setDeleting] = useState<QuickResponse | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
+    /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
+    const [openId, setOpenId] = useState<string | null>(null)
+    const rowIds = useMemo(() => responses.map((r) => r.id).filter((id): id is string => Boolean(id)), [responses])
+    usePanelKeys(openId, rowIds, setOpenId)
+    const openItem = openId ? responses.find((r) => r.id === openId) ?? null : null
     const [formData, setFormData] = useState(EMPTY_FORM)
 
     useEffect(() => {
@@ -208,6 +215,17 @@ export default function RespostasRapidasPage() {
     return (
         <>
             <IndexFrame
+                aside={openItem ? (
+                    <QuickResponsePanel
+                        key={openItem.id}
+                        item={{ ...openItem, id: openItem.id! }}
+                        canEdit={canEdit}
+                        onClose={() => setOpenId(null)}
+                        {...panelNeighbours(openId, rowIds, setOpenId)}
+                        onChanged={() => void loadResponses()}
+                        onDelete={(id) => { const r = responses.find((x) => x.id === id); if (r) setDeleting(r) }}
+                    />
+                ) : null}
                 title="Respostas rápidas"
                 search={search}
                 onSearchChange={setSearch}
@@ -232,15 +250,16 @@ export default function RespostasRapidasPage() {
                     rows={visibleResponses}
                     getRowId={response => response.id ?? response.command}
                     loading={loading}
+                    onRowClick={(r) => { if (r.id) setOpenId(r.id) }}
                     rowActions={
                         canEdit
                             ? response => (
                                   <RowActions label={`Ações da resposta ${response.command}`}>
                                       <RowActionItem
                                           icon={Pencil}
-                                          onClick={() => handleOpenDialog(response)}
+                                          onClick={() => setOpenId(response.id!)}
                                       >
-                                          Editar
+                                          Abrir ficha
                                       </RowActionItem>
                                       <RowActionItem
                                           icon={Trash2}

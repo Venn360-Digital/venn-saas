@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -13,6 +13,8 @@ import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
+import { UserPanel } from '@/components/users/UserPanel'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
 import { UserFormModal } from '@/components/users/UserFormModal'
 
@@ -63,6 +65,11 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
     const [deleting, setDeleting] = useState<WorkspaceUser | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
+    /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
+    const [openId, setOpenId] = useState<string | null>(null)
+    const rowIds = useMemo(() => users.map((u) => u.id), [users])
+    usePanelKeys(openId, rowIds, setOpenId)
+    const openItem = openId ? users.find((u) => u.id === openId) ?? null : null
 
     useEffect(() => {
         const timer = setTimeout(() => setQuery(search), 300)
@@ -280,6 +287,19 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                 </>
             ) : (
                 <IndexFrame
+                    aside={openItem ? (
+                        <UserPanel
+                            key={openItem.id}
+                            item={openItem}
+                            departments={departments}
+                            canEdit
+                            onClose={() => setOpenId(null)}
+                            {...panelNeighbours(openId, rowIds, setOpenId)}
+                            onChanged={() => void fetchUsers()}
+                            onEditFull={(id) => { const u = users.find((x) => x.id === id); if (u) { setEditingUser(u); setIsModalOpen(true) } }}
+                            onDelete={(id) => { const u = users.find((x) => x.id === id); if (u) setDeleting(u) }}
+                        />
+                    ) : null}
                     title="Usuários"
                     primary={newUserButton}
                     search={search}
@@ -298,16 +318,14 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                     rows={users}
                     getRowId={(u) => u.id}
                     loading={loading}
+                    onRowClick={(u) => setOpenId(u.id)}
                     rowActions={(u) => (
                         <RowActions label={`Ações de ${u.name}`}>
                             <RowActionItem
                                 icon={Pencil}
-                                onClick={() => {
-                                    setEditingUser(u)
-                                    setIsModalOpen(true)
-                                }}
+                                onClick={() => setOpenId(u.id)}
                             >
-                                Editar
+                                Abrir ficha
                             </RowActionItem>
                             <RowActionItem
                                 icon={Trash2}

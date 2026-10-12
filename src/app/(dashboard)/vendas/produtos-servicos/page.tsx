@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -29,6 +29,8 @@ import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { ProductPanel } from '@/components/products/ProductPanel'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -85,6 +87,11 @@ export default function ProdutosServicosPage() {
     const [deleting, setDeleting] = useState<Product | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
+    /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
+    const [openId, setOpenId] = useState<string | null>(null)
+    const rowIds = useMemo(() => products.map((r) => r.id).filter((id): id is string => Boolean(id)), [products])
+    usePanelKeys(openId, rowIds, setOpenId)
+    const openItem = openId ? products.find((r) => r.id === openId) ?? null : null
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -286,6 +293,18 @@ export default function ProdutosServicosPage() {
     return (
         <>
             <IndexFrame
+                aside={openItem ? (
+                    <ProductPanel
+                        key={openItem.id}
+                        item={openItem}
+                        categories={CATEGORIES}
+                        canEdit={canEdit}
+                        onClose={() => setOpenId(null)}
+                        {...panelNeighbours(openId, rowIds, setOpenId)}
+                        onChanged={() => void load()}
+                        onDelete={(id) => { const p = products.find((x) => x.id === id); if (p) setDeleting(p) }}
+                    />
+                ) : null}
                 title="Produtos e serviços"
                 primary={
                     canEdit ? (
@@ -322,15 +341,16 @@ export default function ProdutosServicosPage() {
                     rows={products}
                     getRowId={(p) => p.id}
                     loading={loading}
+                    onRowClick={(r) => { if (r.id) setOpenId(r.id) }}
                     rowActions={
                         canEdit
                             ? (p) => (
                                   <RowActions label={`Ações de ${p.name}`}>
                                       <RowActionItem
                                           icon={Pencil}
-                                          onClick={() => handleOpenDialog(p)}
+                                          onClick={() => setOpenId(p.id)}
                                       >
-                                          Editar
+                                          Abrir ficha
                                       </RowActionItem>
                                       <RowActionItem
                                           icon={Trash2}

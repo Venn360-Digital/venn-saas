@@ -1,0 +1,217 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { Check, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+
+/**
+ * A ficha lateral das telas de índice — o mesmo quadro da ficha do paciente,
+ * para Etiquetas, Produtos, Departamentos, Respostas rápidas e Usuários.
+ *
+ * É a terceira coluna de 380px à direita da tabela (no celular toma a tela):
+ * uma faixa de 40px com "Ficha", ‹ › para andar pela lista e × para fechar;
+ * o corpo rola; o rodapé tem Excluir, e "Formulário completo" só quando o
+ * diálogo ainda guarda algum campo que a ficha não tem. Os campos gravam ao
+ * sair, um a um — não há botão Salvar, e o selo "salvo" ao lado do rótulo é
+ * o único aviso de que a gravação aconteceu.
+ */
+export function RecordPanel({
+    label,
+    title,
+    avatar,
+    onClose,
+    onPrev,
+    onNext,
+    onEditFull,
+    onDelete,
+    children,
+}: {
+    /** Para o leitor de tela: "Ficha da etiqueta Protocolo". */
+    label: string
+    /** O nome do registro, em negrito no topo. */
+    title: React.ReactNode
+    avatar?: React.ReactNode
+    onClose: () => void
+    onPrev?: () => void
+    onNext?: () => void
+    onEditFull?: () => void
+    onDelete?: () => void
+    children: React.ReactNode
+}) {
+    return (
+        <aside
+            aria-label={label}
+            className={cn(
+                'absolute inset-0 z-20 flex flex-col bg-card',
+                'lg:static lg:z-auto lg:w-[380px] lg:shrink-0 lg:border-l lg:border-border'
+            )}
+        >
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-border pl-4 pr-2">
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Ficha</span>
+                <span className="flex items-center">
+                    <Button variant="ghost" size="icon-sm" onClick={onPrev} disabled={!onPrev} aria-label="Registro anterior">
+                        <ChevronLeft className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" onClick={onNext} disabled={!onNext} aria-label="Próximo registro">
+                        <ChevronRight className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Fechar ficha">
+                        <X className="size-4" />
+                    </Button>
+                </span>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                    {avatar}
+                    <div className="min-w-0 truncate text-[15px] font-bold">{title}</div>
+                </div>
+                {children}
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1">
+                    {onEditFull ? (
+                        <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={onEditFull}>
+                            <Pencil className="size-3.5" /> Formulário completo
+                        </Button>
+                    ) : null}
+                    {onDelete ? (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                            onClick={onDelete}
+                        >
+                            Excluir
+                        </Button>
+                    ) : null}
+                </div>
+                <span className="num hidden lg:inline">↑↓ navegam · Esc fecha</span>
+            </div>
+        </aside>
+    )
+}
+
+export function PanelSection({
+    title,
+    aside,
+    children,
+}: {
+    title: string
+    aside?: React.ReactNode
+    children: React.ReactNode
+}) {
+    return (
+        <section className="border-t border-border pt-3">
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+                <h3 className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">{title}</h3>
+                {aside}
+            </div>
+            <div className="space-y-1.5">{children}</div>
+        </section>
+    )
+}
+
+/** Rótulo à esquerda, campo à direita, e o selo "salvo" por dois segundos. */
+export function PanelField({
+    label,
+    htmlFor,
+    saved = false,
+    top = false,
+    children,
+}: {
+    label: string
+    htmlFor?: string
+    saved?: boolean
+    top?: boolean
+    children: React.ReactNode
+}) {
+    return (
+        <div className={cn('grid grid-cols-[88px_1fr] gap-2', top ? 'items-start' : 'items-center')}>
+            <Label htmlFor={htmlFor} className={cn('flex items-center justify-between gap-1 text-xs text-muted-foreground', top && 'pt-2')}>
+                <span className="truncate">{label}</span>
+                {saved ? (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-success-subtle-foreground">
+                        <Check className="size-3" /> salvo
+                    </span>
+                ) : null}
+            </Label>
+            <div className="min-w-0">{children}</div>
+        </div>
+    )
+}
+
+/**
+ * Grava um campo por PATCH e acende o selo "salvo" dele por dois segundos.
+ * Devolve também o que já foi gravado nesta ficha, para a tela mostrar o
+ * valor novo antes de a lista recarregar.
+ */
+export function usePanelSave<T extends object>(url: string, onChanged: () => void) {
+    const [saved, setSaved] = useState<string | null>(null)
+    const [local, setLocal] = useState<Partial<T>>({})
+
+    const save = useCallback(
+        async (field: string, patch: Partial<T>) => {
+            try {
+                const res = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(patch),
+                })
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    toast.error(data.error || 'Não foi possível salvar')
+                    return false
+                }
+                setLocal((prev) => ({ ...prev, ...patch }))
+                setSaved(field)
+                setTimeout(() => setSaved((s) => (s === field ? null : s)), 2000)
+                onChanged()
+                return true
+            } catch {
+                toast.error('Não foi possível salvar')
+                return false
+            }
+        },
+        [url, onChanged]
+    )
+
+    return { save, saved, local }
+}
+
+/**
+ * ↑↓ passam de registro em registro sem fechar a ficha; Esc fecha. Dentro de
+ * um campo as setas são do campo, e dentro de um diálogo nada disso vale.
+ */
+export function usePanelKeys(openId: string | null, ids: string[], setOpenId: (id: string | null) => void) {
+    useEffect(() => {
+        if (!openId) return
+        const onKey = (e: KeyboardEvent) => {
+            const el = e.target as HTMLElement | null
+            if (el && el.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="listbox"], [role="menu"]')) return
+            if (e.key === 'Escape') { setOpenId(null); return }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault()
+                const i = ids.indexOf(openId)
+                const next = e.key === 'ArrowDown' ? i + 1 : i - 1
+                if (next >= 0 && next < ids.length) setOpenId(ids[next])
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [openId, ids, setOpenId])
+}
+
+/** Quem pode andar pela lista a partir de `openId`: ‹ e › para o pai ligar. */
+export function panelNeighbours(openId: string | null, ids: string[], setOpenId: (id: string) => void) {
+    const i = openId ? ids.indexOf(openId) : -1
+    return {
+        onPrev: i > 0 ? () => setOpenId(ids[i - 1]) : undefined,
+        onNext: i >= 0 && i < ids.length - 1 ? () => setOpenId(ids[i + 1]) : undefined,
+    }
+}
