@@ -239,17 +239,10 @@ export function ContactPanel({
                                     {initials(detail.name)}
                                 </AvatarFallback>
                             </Avatar>
-                            <div className="min-w-0">
-                                <p className="truncate text-[15px] font-bold">{detail.name || 'Sem nome'}</p>
-                                <div className="mt-1 flex flex-wrap gap-1.5">
-                                    {applied.map((tag) => (
-                                        <TagChip key={tag.id} name={tag.name} color={tag.color} />
-                                    ))}
-                                    {openDeal?.stage ? (
-                                        <TagChip name={openDeal.stage.name} color={openDeal.stage.color} />
-                                    ) : null}
-                                </div>
-                            </div>
+                            {/* Só o nome: as etiquetas e a fase do negócio já
+                                têm as próprias seções logo abaixo, e repeti-las
+                                aqui era ler duas vezes a mesma coisa. */}
+                            <p className="min-w-0 truncate text-[15px] font-bold">{detail.name || 'Sem nome'}</p>
                         </div>
 
                         <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5">
