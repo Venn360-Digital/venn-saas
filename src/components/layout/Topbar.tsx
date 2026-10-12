@@ -166,12 +166,16 @@ export function Topbar() {
                 own h1 names the screen. Keeping them apart is what stops the name
                 from appearing twice at the top of every page. */}
             <div className="flex min-w-0 items-center gap-2">
-                <SidebarTrigger />
+                {/* No desktop quem recolhe a sidebar é a seta na divisória
+                    (`SidebarEdgeToggle`); aqui o gatilho só existe para o
+                    celular, onde a sidebar é uma folha. */}
+                <SidebarTrigger className="md:hidden" />
                 <BreadcrumbTrail />
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 sm:gap-3">
+            {/* Som e sino juntos — os dois são avisos; o tema fica à parte,
+                separado por um fio, porque é outra natureza de ajuste. */}
+            <div className="flex items-center gap-0.5">
                 {/* Sound Toggle */}
                 <Button
                     variant="ghost"
@@ -306,10 +310,11 @@ export function Topbar() {
                     </PopoverContent>
                 </Popover>
 
-                {/* Tema: três botões, ao lado do sino. É o lugar dos
-                    interruptores desta natureza — som, notificações — e fica
-                    visível em todo estado do shell, inclusive no rail
-                    recolhido, onde no pé da sidebar ele desaparecia. */}
+                <span aria-hidden="true" className="mx-2 h-5 w-px bg-border sm:mx-3" />
+
+                {/* Tema: três botões, afastados do sino. Fica no cabeçalho
+                    porque é visível em todo estado do shell, inclusive no
+                    rail recolhido, onde no pé da sidebar ele desaparecia. */}
                 <ThemeToggle />
             </div>
         </header>

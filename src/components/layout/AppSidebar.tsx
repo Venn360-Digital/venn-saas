@@ -32,6 +32,7 @@ import { navSections } from '@/lib/nav'
 import { usePermissions } from '@/hooks/usePermissions'
 import { NavSecondary } from './NavSecondary'
 import { NavUser } from './NavUser'
+import { SidebarEdgeToggle } from './SidebarEdgeToggle'
 
 
 export function AppSidebar() {
@@ -204,6 +205,10 @@ export function AppSidebar() {
                 <PlanSummary />
                 <NavUser />
             </SidebarFooter>
+
+            {/* O contêiner fixo da sidebar é o ancestral posicionado: o botão
+                se ancora na borda direita dele, que é a divisória com a página. */}
+            <SidebarEdgeToggle />
         </Sidebar>
     )
 }
