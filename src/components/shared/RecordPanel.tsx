@@ -105,12 +105,19 @@ export function RecordPanel({
                     {badge}
                 </span>
                 <span className="flex items-center">
-                    <Button variant="ghost" size="icon-sm" onClick={onPrev} disabled={!onPrev} aria-label="Registro anterior">
-                        <ChevronLeft className="size-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={onNext} disabled={!onNext} aria-label="Próximo registro">
-                        <ChevronRight className="size-4" />
-                    </Button>
+                    {/* O par só aparece onde há por onde andar: numa conversa a
+                        ficha segue a conversa escolhida, e duas setas mortas no
+                        topo diziam que havia uma lista aqui. */}
+                    {onPrev || onNext ? (
+                        <>
+                            <Button variant="ghost" size="icon-sm" onClick={onPrev} disabled={!onPrev} aria-label="Registro anterior">
+                                <ChevronLeft className="size-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon-sm" onClick={onNext} disabled={!onNext} aria-label="Próximo registro">
+                                <ChevronRight className="size-4" />
+                            </Button>
+                        </>
+                    ) : null}
                     <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Fechar ficha">
                         <X className="size-4" />
                     </Button>
