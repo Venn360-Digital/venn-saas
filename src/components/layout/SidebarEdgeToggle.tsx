@@ -30,7 +30,10 @@ export function SidebarEdgeToggle({ className }: { className?: string }) {
             title={open ? 'Recolher menu' : 'Abrir menu'}
             className={cn(
                 'absolute top-7 z-30 hidden size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:flex',
-                '-right-3',
+                // Aberta, a divisória é a borda do contêiner fixo. Recolhida,
+                // o cartão da página ganha `ml-2` e a divisória anda 6px: a
+                // seta vai junto, para continuar em cima da linha.
+                '-right-3 group-data-[state=collapsed]:-right-[18px]',
                 className
             )}
         >
