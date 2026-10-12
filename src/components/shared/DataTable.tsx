@@ -228,8 +228,12 @@ export function DataTable<T>({
                         // borda de `tr` não acompanha o `sticky`.
                         '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-background',
                         '[&_th]:h-9 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]',
-                        '[&_td]:py-2',
-                        density === 'compact' && '[&_td]:py-1.5'
+                        // O cabeçalho ordenável é um `button`, e o reset do botão
+                        // desfaz o `uppercase` herdado do `th`.
+                        '[&_th_button]:uppercase [&_th_button]:tracking-wide',
+                        // 6px de respiro: a célula mais alta é a dos botões de
+                        // ícone (32px), e 32 + 12 + a borda fecham em 45px.
+                        '[&_td]:py-1.5'
                     )}
                 >
                     {body ? (

@@ -659,7 +659,10 @@ export default function ContatosPage() {
                             </Button>
                         </>
                     )}
-                    columns={contactColumns}
+                    // Com a ficha aberta a tabela perde 380px: E-mail e Origem
+                    // saem, porque os dois estão na ficha e as outras colunas
+                    // precisam do espaço.
+                    columns={openId ? contactColumns.filter(c => c.id !== 'email' && c.id !== 'source') : contactColumns}
                     rows={contacts}
                     getRowId={c => c.id}
                     loading={loading}
