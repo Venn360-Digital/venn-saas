@@ -1,6 +1,7 @@
 'use client'
 
 import { TagChip } from '@/components/shared/TagChip'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
@@ -23,7 +24,6 @@ import {
     FileText,
     Hash,
     List as ListIcon,
-    Loader2,
     MessageSquare,
     Pencil,
     Phone,
@@ -34,7 +34,6 @@ import {
     TrendingUp,
     Upload,
     User,
-    X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -55,13 +54,13 @@ import {
 } from '@/components/ui/table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface ContactTag { tag: { id: string; name: string; color: string } }
@@ -445,13 +444,7 @@ export default function ContatosPage() {
     }
 
     const deleteSelected = async () => {
-        let ok = 0
-        for (const id of selectedIds) {
-            try {
-                const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
-                if (res.ok) ok++
-            } catch { /* conta como falha */ }
-        }
+        const ok = await deleteEach(selectedIds, (id) => `/api/contacts/${id}`)
         if (ok > 0) toast.success(`${ok} paciente${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
         if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
         if (selectedIds.includes(openId ?? '')) setOpenId(null)
@@ -491,8 +484,10 @@ export default function ContatosPage() {
             id: 'tags',
             header: 'Etiquetas',
             hideBelow: 'md',
+            // Até três etiquetas cabem lado a lado; a quarta quebra a linha em
+            // vez de alargar a coluna até empurrar as outras para fora.
             cell: (c) => (
-                <div className="flex flex-wrap gap-1">
+                <div className={cn('flex gap-1', c.tags?.length > 3 ? 'max-w-[260px] flex-wrap' : 'flex-nowrap')}>
                     {c.tags?.length > 0
                         ? c.tags.map(ct => <TagChip key={ct.tag.id} size="sm" name={ct.tag.name} color={ct.tag.color} />)
                         : <span className="text-xs text-muted-foreground">—</span>}
@@ -561,49 +556,35 @@ export default function ContatosPage() {
                 }
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Buscar por nome, telefone ou e-mail…"
+                searchLabel="Buscar por nome, telefone ou e-mail"
                 hasFilters={activeFilterCount > 0}
                 onClearFilters={clearAllFilters}
-                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'paciente' : 'pacientes'}`}
                 filters={
                     <>
                         <FilterPill
                             label="Etiqueta"
                             value={filterTagId ? (allTags.find(t => t.id === filterTagId)?.name ?? null) : null}
                             onClear={() => { setFilterTagId(''); setPagination(p => ({ ...p, page: 1 })) }}
-                        >
-                            <Select value={filterTagId || 'all'} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                                                <SelectTrigger id="f-tag" className="w-full"><SelectValue placeholder="Todas" /></SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="all">Todas</SelectItem>
-                                                                    {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                                                </SelectContent>
-                                                            </Select>
-                        </FilterPill>
+                            options={[{ value: '', label: 'Todas' }, ...allTags.map(t => ({ value: t.id, label: t.name }))]}
+                            selected={filterTagId}
+                            onSelect={v => { setFilterTagId(v); setPagination(p => ({ ...p, page: 1 })) }}
+                        />
                         <FilterPill
                             label="Origem"
                             value={filterSource ? (SOURCE_FILTER_OPTIONS.find(o => o.value === filterSource)?.label ?? filterSource) : null}
                             onClear={() => { setFilterSource(''); setPagination(p => ({ ...p, page: 1 })) }}
-                        >
-                            <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                                                <SelectTrigger id="f-source" className="w-full"><SelectValue /></SelectTrigger>
-                                                                <SelectContent>
-                                                                    {SOURCE_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                                                                </SelectContent>
-                                                            </Select>
-                        </FilterPill>
+                            options={SOURCE_FILTER_OPTIONS.map(o => ({ value: o.value, label: o.value ? o.label : 'Todas' }))}
+                            selected={filterSource}
+                            onSelect={v => { setFilterSource(v); setPagination(p => ({ ...p, page: 1 })) }}
+                        />
                         <FilterPill
                             label="Negócio"
                             value={filterDeal ? (DEAL_FILTER_OPTIONS.find(o => o.value === filterDeal)?.label ?? filterDeal) : null}
                             onClear={() => { setFilterDeal(''); setPagination(p => ({ ...p, page: 1 })) }}
-                        >
-                            <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                                                <SelectTrigger id="f-deal" className="w-full"><SelectValue /></SelectTrigger>
-                                                                <SelectContent>
-                                                                    {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                                                                </SelectContent>
-                                                            </Select>
-                        </FilterPill>
+                            options={DEAL_FILTER_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                            selected={filterDeal}
+                            onSelect={v => { setFilterDeal(v); setPagination(p => ({ ...p, page: 1 })) }}
+                        />
                         <FilterPill
                             label="Cadastrado em"
                             value={periodLabel}
@@ -645,19 +626,11 @@ export default function ContatosPage() {
                     selected={selectedIds}
                     onSelectedChange={setSelectedIds}
                     bulkActions={(ids) => (
-                        <>
-                            <span className="num mr-2 text-xs font-semibold">{ids.length} selecionado{ids.length === 1 ? '' : 's'}</span>
+                        <BulkBar count={ids.length} noun={['paciente', 'pacientes']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])}>
                             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-background hover:bg-background/10 hover:text-background" onClick={() => exportSelected(ids)}>
                                 <Download className="size-3.5" /> Exportar
                             </Button>
-                            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-background hover:bg-background/10 hover:text-background" onClick={() => setBulkDeleting(true)}>
-                                <Trash2 className="size-3.5" /> Excluir
-                            </Button>
-                            <span className="flex-1" />
-                            <Button variant="ghost" size="icon-sm" className="text-background hover:bg-background/10 hover:text-background" onClick={() => setSelectedIds([])} aria-label="Limpar seleção">
-                                <X className="size-4" />
-                            </Button>
-                        </>
+                        </BulkBar>
                     )}
                     // Com a ficha aberta a tabela perde 380px: E-mail e Origem
                     // saem, porque os dois estão na ficha e as outras colunas

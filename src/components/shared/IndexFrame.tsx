@@ -17,8 +17,8 @@ import { cn } from '@/lib/utils'
  *
  * **Linha 1 (50px)** — o nome da tela, as ações secundárias à vista (Importar,
  * Exportar) e o botão de criar, sempre no canto direito. **Linha 2 (46px)** —
- * busca, os filtros como pílulas que mostram o próprio valor, Limpar, a
- * contagem e o modo de visualização. Nada atrás de um menu `⋯`: a versão
+ * busca, os filtros como pílulas que mostram o próprio valor, Limpar e o modo
+ * de visualização. A contagem de registros fica no rodapé, em "1–7 de 7". Nada atrás de um menu `⋯`: a versão
  * anterior escondia filtro e ação, e foi recusada por isso.
  *
  * As posições não mudam entre telas. Quando uma tela não tem filtros nem
@@ -34,11 +34,10 @@ export function IndexFrame({
     primary,
     search,
     onSearchChange,
-    searchPlaceholder = 'Buscar…',
+    searchLabel = 'Buscar',
     filters,
     hasFilters = false,
     onClearFilters,
-    count,
     view,
     aside,
     children,
@@ -51,13 +50,12 @@ export function IndexFrame({
     primary?: React.ReactNode
     search?: string
     onSearchChange?: (value: string) => void
-    searchPlaceholder?: string
+    /** Só para o leitor de tela: o campo mostra sempre "Buscar". */
+    searchLabel?: string
     /** As pílulas de filtro (`FilterPill`). */
     filters?: React.ReactNode
     hasFilters?: boolean
     onClearFilters?: () => void
-    /** "7 pacientes" — a contagem do que a tabela está mostrando. */
-    count?: string
     /** Modo de visualização, quando a tela tem mais de um. */
     view?: React.ReactNode
     /** A ficha lateral, quando aberta. */
@@ -87,8 +85,8 @@ export function IndexFrame({
                         <Input
                             value={search ?? ''}
                             onChange={(e) => onSearchChange(e.target.value)}
-                            placeholder={searchPlaceholder}
-                            aria-label={searchPlaceholder}
+                            placeholder="Buscar"
+                            aria-label={searchLabel}
                             className="h-8 bg-background pl-8 text-sm"
                         />
                     </div>
@@ -114,9 +112,6 @@ export function IndexFrame({
 
                 <span className="flex-1" />
 
-                {count ? (
-                    <span className="num shrink-0 whitespace-nowrap text-xs text-muted-foreground">{count}</span>
-                ) : null}
                 {view}
             </div>
 

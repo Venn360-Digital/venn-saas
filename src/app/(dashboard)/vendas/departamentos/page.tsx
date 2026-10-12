@@ -19,6 +19,7 @@ import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { FormField } from '@/components/shared/FormField'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -55,6 +56,8 @@ export default function DepartamentosPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editing, setEditing] = useState<Department | null>(null)
     const [deleting, setDeleting] = useState<Department | null>(null)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [bulkDeleting, setBulkDeleting] = useState(false)
     const [formData, setFormData] = useState({ name: '', description: '' })
 
     useEffect(() => {
@@ -156,6 +159,14 @@ export default function DepartamentosPage() {
         }
     }
 
+    const deleteSelected = async () => {
+        const ok = await deleteEach(selectedIds, (id) => `/api/departments/${id}`)
+        if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'departamento' : 'departamentos'} excluído${ok === 1 ? '' : 's'}`)
+        if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
+        setSelectedIds([])
+        await load()
+    }
+
     const columns: Column<Department>[] = [
         {
             id: 'name',
@@ -192,11 +203,16 @@ export default function DepartamentosPage() {
                 }
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Buscar departamentos…"
-                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'departamento' : 'departamentos'}`}
+                searchLabel="Buscar departamentos"
             >
                 <DataTable
                     frame
+                    selectable={canEdit}
+                    selected={selectedIds}
+                    onSelectedChange={setSelectedIds}
+                    bulkActions={(ids) => (
+                        <BulkBar count={ids.length} noun={['departamento', 'departamentos']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                    )}
                     columns={columns}
                     rows={departments}
                     getRowId={(d) => d.id}
@@ -320,6 +336,15 @@ export default function DepartamentosPage() {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}
+            />
+            <ConfirmDialog
+                open={bulkDeleting}
+                onOpenChange={(open) => !open && setBulkDeleting(false)}
+                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'departamento' : 'departamentos'}`}
+                description="Os departamentos marcados serão removidos. Atendimentos e negócios ligados a eles ficam sem departamento."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={deleteSelected}
             />
         </>
     )

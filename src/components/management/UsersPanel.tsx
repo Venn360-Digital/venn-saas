@@ -11,6 +11,7 @@ import { Toolbar } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
 import { UserFormModal } from '@/components/users/UserFormModal'
@@ -60,6 +61,8 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingUser, setEditingUser] = useState<WorkspaceUser | null>(null)
     const [deleting, setDeleting] = useState<WorkspaceUser | null>(null)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [bulkDeleting, setBulkDeleting] = useState(false)
 
     useEffect(() => {
         const timer = setTimeout(() => setQuery(search), 300)
@@ -109,6 +112,16 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
         } catch {
             toast.error('Não foi possível excluir o usuário')
         }
+    }
+
+    const deleteSelected = async () => {
+        const ids = selectedIds.filter((id) => !users.find((u) => u.id === id)?.isFirstAdmin)
+        if (ids.length < selectedIds.length) toast.error('O primeiro administrador não pode ser excluído')
+        const ok = await deleteEach(ids, (id) => `/api/users/${id}`)
+        if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'usuário' : 'usuários'} excluído${ok === 1 ? '' : 's'}`)
+        if (ok < ids.length) toast.error(`${ids.length - ok} não puderam ser excluídos`)
+        setSelectedIds([])
+        await fetchUsers()
     }
 
     const columns: Column<WorkspaceUser>[] = [
@@ -271,11 +284,16 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                     primary={newUserButton}
                     search={search}
                     onSearchChange={setSearch}
-                    searchPlaceholder="Buscar por nome ou e-mail…"
-                    count={`${users.length.toLocaleString('pt-BR')} ${users.length === 1 ? 'usuário' : 'usuários'}`}
+                    searchLabel="Buscar por nome ou e-mail"
                 >
                 <DataTable
                     frame
+                    selectable
+                    selected={selectedIds}
+                    onSelectedChange={setSelectedIds}
+                    bulkActions={(ids) => (
+                        <BulkBar count={ids.length} noun={['usuário', 'usuários']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                    )}
                     columns={columns}
                     rows={users}
                     getRowId={(u) => u.id}
@@ -364,6 +382,15 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}
+            />
+            <ConfirmDialog
+                open={bulkDeleting}
+                onOpenChange={(open) => !open && setBulkDeleting(false)}
+                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'usuário' : 'usuários'}`}
+                description="As pessoas marcadas perdem o acesso a este workspace. As conversas e negócios atribuídos a elas continuam, sem responsável."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={deleteSelected}
             />
         </>
     )

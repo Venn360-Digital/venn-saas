@@ -19,6 +19,7 @@ import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { FormField } from '@/components/shared/FormField'
 import { TagChip } from '@/components/shared/TagChip'
@@ -69,6 +70,8 @@ export default function EtiquetasPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editingTag, setEditingTag] = useState<TagItem | null>(null)
     const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [bulkDeleting, setBulkDeleting] = useState(false)
     const [formData, setFormData] = useState({ name: '', color: COLOR_PALETTE[0] })
 
     useEffect(() => {
@@ -164,6 +167,14 @@ export default function EtiquetasPage() {
         }
     }
 
+    const deleteSelected = async () => {
+        const ok = await deleteEach(selectedIds, (id) => `/api/tags/${id}`)
+        if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'etiqueta' : 'etiquetas'} excluída${ok === 1 ? '' : 's'}`)
+        if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídas`)
+        setSelectedIds([])
+        await loadTags()
+    }
+
     const columns: Column<TagItem>[] = [
         {
             id: 'tag',
@@ -195,11 +206,16 @@ export default function EtiquetasPage() {
                 }
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Buscar etiquetas…"
-                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'etiqueta' : 'etiquetas'}`}
+                searchLabel="Buscar etiquetas"
             >
                 <DataTable
                     frame
+                    selectable={canEdit}
+                    selected={selectedIds}
+                    onSelectedChange={setSelectedIds}
+                    bulkActions={(ids) => (
+                        <BulkBar count={ids.length} noun={['etiqueta', 'etiquetas']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                    )}
                     columns={columns}
                     rows={tags}
                     getRowId={(tag) => tag.id}
@@ -343,6 +359,15 @@ export default function EtiquetasPage() {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}
+            />
+            <ConfirmDialog
+                open={bulkDeleting}
+                onOpenChange={(open) => !open && setBulkDeleting(false)}
+                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'etiqueta' : 'etiquetas'}`}
+                description="As etiquetas marcadas serão removidas de todos os pacientes e conversas que as usam."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={deleteSelected}
             />
         </>
     )

@@ -27,6 +27,7 @@ import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { FormField } from '@/components/shared/FormField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -82,6 +83,8 @@ export default function ProdutosServicosPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editing, setEditing] = useState<Product | null>(null)
     const [deleting, setDeleting] = useState<Product | null>(null)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [bulkDeleting, setBulkDeleting] = useState(false)
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -210,6 +213,14 @@ export default function ProdutosServicosPage() {
         }
     }
 
+    const deleteSelected = async () => {
+        const ok = await deleteEach(selectedIds, (id) => `/api/products/${id}`)
+        if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'item' : 'itens'} excluído${ok === 1 ? '' : 's'}`)
+        if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
+        setSelectedIds([])
+        await load()
+    }
+
     const columns: Column<Product>[] = [
         {
             id: 'name',
@@ -285,7 +296,7 @@ export default function ProdutosServicosPage() {
                 }
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Buscar por nome ou SKU…"
+                searchLabel="Buscar por nome ou SKU"
                 hasFilters={categoryFilter !== 'all'}
                 onClearFilters={() => { setCategoryFilter('all'); setPagination((p) => ({ ...p, page: 1 })) }}
                 filters={
@@ -293,32 +304,20 @@ export default function ProdutosServicosPage() {
                         label="Categoria"
                         value={categoryFilter === 'all' ? null : (CATEGORIES.find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
                         onClear={() => { setCategoryFilter('all'); setPagination((p) => ({ ...p, page: 1 })) }}
-                    >
-                        <Select
-                                                    value={categoryFilter}
-                                                    onValueChange={(v) => {
-                                                        setCategoryFilter(v)
-                                                        setPagination((p) => ({ ...p, page: 1 }))
-                                                    }}
-                                                >
-                                                    <SelectTrigger id="filter-category" className="w-full">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="all">Todas</SelectItem>
-                                                        {CATEGORIES.map((c) => (
-                                                            <SelectItem key={c.id} value={c.id}>
-                                                                {c.label}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                    </FilterPill>
+                        options={[{ value: 'all', label: 'Todas' }, ...CATEGORIES.map((c) => ({ value: c.id, label: c.label }))]}
+                        selected={categoryFilter}
+                        onSelect={(v) => { setCategoryFilter(v); setPagination((p) => ({ ...p, page: 1 })) }}
+                    />
                 }
-                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'item' : 'itens'}`}
             >
                 <DataTable
                     frame
+                    selectable={canEdit}
+                    selected={selectedIds}
+                    onSelectedChange={setSelectedIds}
+                    bulkActions={(ids) => (
+                        <BulkBar count={ids.length} noun={['item', 'itens']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                    )}
                     columns={columns}
                     rows={products}
                     getRowId={(p) => p.id}
@@ -491,6 +490,15 @@ export default function ProdutosServicosPage() {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={handleDelete}
+            />
+            <ConfirmDialog
+                open={bulkDeleting}
+                onOpenChange={(open) => !open && setBulkDeleting(false)}
+                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'item' : 'itens'}`}
+                description="Os itens marcados saem do catálogo. Negócios que já os referenciam não mudam."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={deleteSelected}
             />
         </>
     )

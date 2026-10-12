@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -41,6 +42,8 @@ export default function RespostasRapidasPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editing, setEditing] = useState<QuickResponse | null>(null)
     const [deleting, setDeleting] = useState<QuickResponse | null>(null)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [bulkDeleting, setBulkDeleting] = useState(false)
     const [formData, setFormData] = useState(EMPTY_FORM)
 
     useEffect(() => {
@@ -145,6 +148,14 @@ export default function RespostasRapidasPage() {
         }
     }
 
+    const deleteSelected = async () => {
+        const ok = await deleteEach(selectedIds, (id) => `/api/quick-responses/${id}`)
+        if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'resposta' : 'respostas'} excluída${ok === 1 ? '' : 's'}`)
+        if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídas`)
+        setSelectedIds([])
+        await loadResponses()
+    }
+
     const columns: Column<QuickResponse>[] = [
         {
             id: 'command',
@@ -199,10 +210,15 @@ export default function RespostasRapidasPage() {
                         </Button>
                     ) : null
                 }
-                count={`${responses.length.toLocaleString('pt-BR')} ${responses.length === 1 ? 'resposta' : 'respostas'}`}
             >
                 <DataTable
                     frame
+                    selectable={canEdit}
+                    selected={selectedIds}
+                    onSelectedChange={setSelectedIds}
+                    bulkActions={(ids) => (
+                        <BulkBar count={ids.length} noun={['resposta', 'respostas']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                    )}
                     columns={columns}
                     rows={responses}
                     getRowId={response => response.id ?? response.command}
@@ -331,6 +347,15 @@ export default function RespostasRapidasPage() {
                 onConfirm={async () => {
                     if (deleting?.id) await deleteResponse(deleting.id)
                 }}
+            />
+            <ConfirmDialog
+                open={bulkDeleting}
+                onOpenChange={(open) => !open && setBulkDeleting(false)}
+                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'resposta' : 'respostas'}`}
+                description="Os atalhos marcados deixam de funcionar no chat e os textos são perdidos."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={deleteSelected}
             />
         </>
     )

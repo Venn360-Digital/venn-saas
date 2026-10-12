@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronDown, X } from 'lucide-react'
+import { useState } from 'react'
+import { Check, ChevronDown, X } from 'lucide-react'
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -17,10 +18,18 @@ import { cn } from '@/lib/utils'
  * O × é um botão irmão, não um filho do gatilho: botão dentro de botão é HTML
  * inválido e o leitor de tela anuncia os dois como um só.
  */
+export interface FilterOption {
+    value: string
+    label: string
+}
+
 export function FilterPill({
     label,
     value,
     onClear,
+    options,
+    selected = '',
+    onSelect,
     children,
     align = 'start',
     contentClassName,
@@ -29,12 +38,21 @@ export function FilterPill({
     /** O valor escolhido, por extenso. Vazio = filtro desligado. */
     value?: string | null
     onClear?: () => void
-    /** O seletor que abre ao clicar. */
-    children: React.ReactNode
+    /**
+     * As opções, quando o filtro é uma lista simples. Clicar na pílula já abre
+     * a lista — sem um seletor no meio que exige o segundo clique — e clicar
+     * numa opção escolhe e fecha. A opção de valor vazio é "todas".
+     */
+    options?: FilterOption[]
+    selected?: string
+    onSelect?: (value: string) => void
+    /** Um seletor sob medida, para o que não é lista (o período). */
+    children?: React.ReactNode
     align?: 'start' | 'end'
     contentClassName?: string
 }) {
     const active = Boolean(value)
+    const [open, setOpen] = useState(false)
 
     return (
         <span
@@ -45,7 +63,7 @@ export function FilterPill({
                     : 'border-input bg-card text-foreground'
             )}
         >
-            <Popover>
+            <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <button
                         type="button"
@@ -68,8 +86,37 @@ export function FilterPill({
                         )}
                     </button>
                 </PopoverTrigger>
-                <PopoverContent align={align} className={cn('w-[260px] p-3', contentClassName)}>
-                    {children}
+                <PopoverContent
+                    align={align}
+                    className={cn(options ? 'w-[220px] p-1' : 'w-[260px] p-3', contentClassName)}
+                >
+                    {options ? (
+                        <ul role="listbox" aria-label={label} className="max-h-72 overflow-y-auto">
+                            {options.map((option) => {
+                                const isSelected = option.value === selected
+                                return (
+                                    <li key={option.value || '__all'} role="option" aria-selected={isSelected}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onSelect?.(option.value)
+                                                setOpen(false)
+                                            }}
+                                            className={cn(
+                                                'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent focus-visible:bg-accent',
+                                                isSelected && 'font-semibold text-primary-subtle-foreground'
+                                            )}
+                                        >
+                                            <span className="truncate">{option.label}</span>
+                                            {isSelected ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                                        </button>
+                                    </li>
+                                )
+                            })}
+                        </ul>
+                    ) : (
+                        children
+                    )}
                 </PopoverContent>
             </Popover>
 
