@@ -1931,18 +1931,17 @@ export default function ConversasPage() {
                                         largura. */}
                                     {conversationTags.length > 0 && !panel && (
                                         <div className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden xl:flex">
-                                            {/* Duas e a conta do resto, e nenhuma
-                                                com a ficha aberta: com quatro, ou
-                                                com 380px a menos de chat, a última
-                                                chegava cortada embaixo do chip de
-                                                estado. Tirar e pôr é no seletor de
-                                                etiquetas, ao lado. */}
-                                            {conversationTags.slice(0, 2).map(tag => (
-                                                <TagChip key={tag.id} size="sm" name={tag.name} color={tag.color} />
+                                            {/* Uma e a conta do resto, e nenhuma com
+                                                a ficha aberta: o que sobra de largura
+                                                nesta linha não cabe duas sem cortar a
+                                                segunda no meio. Ver todas, tirar e pôr
+                                                é no seletor de etiquetas, ao lado. */}
+                                            {conversationTags.slice(0, 1).map(tag => (
+                                                <TagChip key={tag.id} size="sm" name={tag.name} color={tag.color} className="max-w-[150px] overflow-hidden" />
                                             ))}
-                                            {conversationTags.length > 2 ? (
+                                            {conversationTags.length > 1 ? (
                                                 <span className="num shrink-0 text-[11px] text-muted-foreground">
-                                                    +{conversationTags.length - 2}
+                                                    +{conversationTags.length - 1}
                                                 </span>
                                             ) : null}
                                         </div>

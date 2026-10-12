@@ -464,7 +464,16 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    conta os que deram certo e avisa quantos não puderam; o que a API protege
    (primeiro administrador) fica de fora antes de chamar.
 
-**Tela 02 — a tela de trabalho.** Agenda e Negócios (Conversas ainda não):
+**Conversas.** A coluna de 320px (fila, busca, abas, Ver) e o chat ficam como
+são: ali a lista *é* a navegação, e o cabeçalho da conversa é de uma linha só —
+as etiquetas vivem nela (uma e a conta do resto, nenhuma com a ficha aberta),
+não numa faixa que mudava a altura conforme a conversa. O painel direito é a
+ficha do padrão: `RecordPanel` de 380px, faixa de 40px dizendo **qual modo está
+aberto** e ×, rodapé com o lápis que abre a ficha do paciente e a dica; Esc
+fecha. As ferramentas continuam no cabeçalho do chat — é de lá que se escolhe o
+modo.
+
+**Tela 02 — a tela de trabalho.** Agenda e Negócios:
 a mesma Tela 01 com um miolo próprio — lista · quadro · calendário; trilho de
 fases · quadro · lista. O que muda é o miolo; o que entra nele é a gramática:
 
