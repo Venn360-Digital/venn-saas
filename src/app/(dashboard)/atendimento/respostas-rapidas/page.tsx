@@ -16,6 +16,7 @@ import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
+import { Pagination } from '@/components/shared/Pagination'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -35,6 +36,8 @@ export default function RespostasRapidasPage() {
     const { canEdit } = usePermissions()
     const [responses, setResponses] = useState<QuickResponse[]>([])
     const [search, setSearch] = useState('')
+    const [page, setPage] = useState(1)
+    const [pageSize, setPageSize] = useState(20)
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [errors, setErrors] = useState<{ command?: string; text?: string }>({})
@@ -163,10 +166,16 @@ export default function RespostasRapidasPage() {
         await loadResponses()
     }
 
+    // A API devolve a lista inteira; a busca e a paginação são daqui. A
+    // página volta ao 1 quando a busca muda, senão a página 3 de um recorte
+    // de 2 páginas fica vazia.
     const needle = search.trim().toLowerCase()
-    const visibleResponses = needle
+    const filtered = needle
         ? responses.filter((r) => r.command.toLowerCase().includes(needle) || r.text.toLowerCase().includes(needle))
         : responses
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+    const currentPage = Math.min(page, totalPages)
+    const visibleResponses = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
     const columns: Column<QuickResponse>[] = [
         {
@@ -228,7 +237,7 @@ export default function RespostasRapidasPage() {
                 ) : null}
                 title="Respostas rápidas"
                 search={search}
-                onSearchChange={setSearch}
+                onSearchChange={(v) => { setSearch(v); setPage(1) }}
                 searchLabel="Buscar por atalho ou texto"
                 primary={
                     canEdit ? (
@@ -251,6 +260,16 @@ export default function RespostasRapidasPage() {
                     getRowId={response => response.id ?? response.command}
                     loading={loading}
                     onRowClick={(r) => { if (r.id) setOpenId(r.id) }}
+                    footer={
+                        <Pagination
+                            page={currentPage}
+                            totalPages={totalPages}
+                            total={filtered.length}
+                            limit={pageSize}
+                            onPageChange={setPage}
+                            onLimitChange={(limit) => { setPageSize(limit); setPage(1) }}
+                        />
+                    }
                     rowActions={
                         canEdit
                             ? response => (
