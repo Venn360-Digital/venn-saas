@@ -14,8 +14,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from '@/components/ui/dialog'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { Toolbar } from '@/components/shared/Toolbar'
+import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
@@ -182,27 +181,22 @@ export default function DepartamentosPage() {
 
     return (
         <>
-            <PageHeader
+            <IndexFrame
                 title="Departamentos"
-                description="Organize a equipe por área para direcionar atendimentos e negócios."
-                actions={
+                primary={
                     canEdit ? (
-                        <Button onClick={() => handleOpenDialog()}>
-                            <Plus />
-                            Novo departamento
+                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                            <Plus className="size-3.5" /> Novo departamento
                         </Button>
                     ) : null
                 }
-            />
-
-            <div className="space-y-3 px-4 pb-6 md:px-6">
-                <Toolbar
-                    search={search}
-                    onSearchChange={setSearch}
-                    placeholder="Buscar departamentos…"
-                />
-
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Buscar departamentos…"
+                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'departamento' : 'departamentos'}`}
+            >
                 <DataTable
+                    frame
                     columns={columns}
                     rows={departments}
                     getRowId={(d) => d.id}
@@ -265,7 +259,7 @@ export default function DepartamentosPage() {
                         />
                     }
                 />
-            </div>
+            </IndexFrame>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-md">

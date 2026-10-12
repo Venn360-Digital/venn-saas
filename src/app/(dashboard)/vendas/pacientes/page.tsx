@@ -6,10 +6,10 @@ import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { FormField } from '@/components/shared/FormField'
-import { PeriodPicker } from '@/components/shared/PeriodPicker'
-import { IndexBar, type ActiveChip } from '@/components/shared/IndexBar'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { IndexFrame } from '@/components/shared/IndexFrame'
+import { FilterPill } from '@/components/shared/FilterPill'
+import { PeriodFields } from '@/components/shared/PeriodPicker'
+import { ContactPanel } from '@/components/contacts/ContactPanel'
 import { SOURCE_FILTER_OPTIONS, sourceLabel } from '@/lib/sources'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
@@ -34,6 +34,7 @@ import {
     TrendingUp,
     Upload,
     User,
+    X,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -85,6 +86,11 @@ interface Pagination { page: number; limit: number; total: number; totalPages: n
 interface ImportRow { index: number; name?: string; email?: string; phone?: string; notes?: string; status: 'new' | 'duplicate'; existingId: string | null; existingName: string | null }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+function shortDate(iso: string): string {
+    const [, m, d] = iso.split('-')
+    return `${d}/${m}`
+}
+
 const getInitials = (name: string | null) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -132,6 +138,11 @@ export default function ContatosPage() {
     const router = useRouter()
     const whatsapp = useWhatsAppStatus(contacts.map(c => c.phone))
     const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
+    /** A ficha aberta ao lado da lista. */
+    const [openId, setOpenId] = useState<string | null>(null)
+    /** Linhas marcadas para ação em lote. */
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const [bulkDeleting, setBulkDeleting] = useState(false)
     /** O paciente para quem se vai abrir atendimento, ou nulo. */
     const [intakeFor, setIntakeFor] = useState<Contact | null>(null)
     const [deletingField, setDeletingField] = useState<CustomFieldDef | null>(null)
@@ -385,44 +396,67 @@ export default function ContatosPage() {
     const activeFilterCount = [filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo]
         .filter(Boolean).length
 
-    /**
-     * O que está filtrado, dito por extenso no cabeçalho.
-     *
-     * O contador no botão responde "tem filtro?"; a pastilha responde "qual?" —
-     * e some com um clique, sem abrir o painel. Antes era preciso abrir o painel
-     * recolhido para descobrir as duas coisas.
-     */
-    const activeChips: ActiveChip[] = [
-        filterTagId && {
-            id: 'tag',
-            label: allTags.find(t => t.id === filterTagId)?.name ?? 'Etiqueta',
-        },
-        filterSource && {
-            id: 'source',
-            label: SOURCE_FILTER_OPTIONS.find(o => o.value === filterSource)?.label ?? filterSource,
-        },
-        filterDeal && {
-            id: 'deal',
-            label: DEAL_FILTER_OPTIONS.find(o => o.value === filterDeal)?.label ?? filterDeal,
-        },
-        (filterDateFrom || filterDateTo) && {
-            id: 'period',
-            label: `Cadastro ${filterDateFrom || '…'} a ${filterDateTo || '…'}`,
-        },
-    ].filter(Boolean) as ActiveChip[]
-
-    const clearChip = (id: string) => {
-        if (id === 'tag') setFilterTagId('')
-        if (id === 'source') setFilterSource('')
-        if (id === 'deal') setFilterDeal('')
-        if (id === 'period') { setFilterDateFrom(''); setFilterDateTo('') }
-        setPagination(p => ({ ...p, page: 1 }))
-    }
-
     const clearAllFilters = () => {
         setFilterTagId(''); setFilterSource(''); setFilterDeal('')
         setFilterDateFrom(''); setFilterDateTo('')
         setPagination(p => ({ ...p, page: 1 }))
+    }
+
+    const periodLabel = filterDateFrom || filterDateTo
+        ? `${filterDateFrom ? shortDate(filterDateFrom) : '…'} – ${filterDateTo ? shortDate(filterDateTo) : '…'}`
+        : null
+
+    /** Qual ficha está aberta ao lado, e onde ela está na lista — para ↑↓. */
+    const openIndex = openId ? contacts.findIndex(c => c.id === openId) : -1
+
+    // ↑↓ passam de paciente em paciente sem fechar a ficha; Esc fecha. Dentro de
+    // um campo as setas são do campo, e dentro de um diálogo nada disso vale.
+    useEffect(() => {
+        if (!openId) return
+        const onKey = (e: KeyboardEvent) => {
+            const el = e.target as HTMLElement | null
+            if (el && (el.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="listbox"]'))) return
+            if (e.key === 'Escape') { setOpenId(null); return }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault()
+                const i = contacts.findIndex(c => c.id === openId)
+                const next = e.key === 'ArrowDown' ? i + 1 : i - 1
+                if (next >= 0 && next < contacts.length) setOpenId(contacts[next].id)
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [openId, contacts])
+
+    /** A exportação em lote é do que está marcado, feita aqui mesmo — a do servidor é do recorte inteiro. */
+    const exportSelected = (ids: string[]) => {
+        const rows = contacts.filter(c => ids.includes(c.id))
+        const esc = (v: string | null | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`
+        const csv = [
+            ['Nome', 'Telefone', 'E-mail', 'Origem', 'Etiquetas'].join(';'),
+            ...rows.map(c => [esc(c.name), esc(c.phone), esc(c.email), esc(sourceLabel(c.source)), esc(c.tags.map(t => t.tag.name).join(', '))].join(';')),
+        ].join('\n')
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `pacientes_selecionados_${new Date().toISOString().split('T')[0]}.csv`
+        a.click(); URL.revokeObjectURL(url)
+        toast.success(`${rows.length} exportado${rows.length === 1 ? '' : 's'}`)
+    }
+
+    const deleteSelected = async () => {
+        let ok = 0
+        for (const id of selectedIds) {
+            try {
+                const res = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
+                if (res.ok) ok++
+            } catch { /* conta como falha */ }
+        }
+        if (ok > 0) toast.success(`${ok} paciente${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
+        if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
+        if (selectedIds.includes(openId ?? '')) setOpenId(null)
+        setSelectedIds([])
+        await loadContacts()
     }
 
     const contactColumns: Column<Contact>[] = [
@@ -508,110 +542,133 @@ export default function ContatosPage() {
     // ─── Render ─────────────────────────────────────────────────────
     return (
         <>
-            <IndexBar
+            <IndexFrame
                 title="Pacientes"
-                search={search}
-                onSearchChange={setSearch}
-                searchPlaceholder="Buscar por nome, telefone ou e-mail…"
-                chips={activeChips}
-                onClearChip={clearChip}
-                filterCount={activeFilterCount}
-                filters={
+                actions={
                     <>
-                        {/* Num painel de 300px cada campo ocupa a linha
-                            inteira: as larguras mínimas que existiam aqui foram
-                            calibradas para a faixa horizontal, que não existe
-                            mais. */}
-                        <div className="flex flex-col gap-3">
-                        <div>
-                            <FormField label="Etiqueta" htmlFor="f-tag">
-                                <Select value={filterTagId || 'all'} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                    <SelectTrigger id="f-tag"><SelectValue placeholder="Todas" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todas</SelectItem>
-                                        {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </FormField>
-                        </div>
-                        <div>
-                            <FormField label="Origem" htmlFor="f-source">
-                                <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                    <SelectTrigger id="f-source"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {SOURCE_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </FormField>
-                        </div>
-                        <div>
-                            <FormField label="Negócio" htmlFor="f-deal">
-                                <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
-                                    <SelectTrigger id="f-deal"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </FormField>
-                        </div>
-                        {/* Um controle, não dois campos: é o mesmo seletor de
-                            período do funil, do Dashboard e da Agenda — e ele diz o
-                            recorte em vigor, que dois `input[type=date]` vazios não
-                            diziam. */}
-                        <div>
-                            <FormField label="Cadastrado em">
-                                <PeriodPicker
-                                    from={filterDateFrom}
-                                    to={filterDateTo}
-                                    onChange={(from, to) => {
-                                        setFilterDateFrom(from)
-                                        setFilterDateTo(to)
-                                        setPagination(p => ({ ...p, page: 1 }))
-                                    }}
-                                    className="h-9"
-                                />
-                            </FormField>
-                        </div>
-                        </div>
-                        {activeFilterCount > 0 ? (
-                            <Button variant="ghost" size="sm" className="w-full" onClick={clearAllFilters}>
-                                Limpar filtros
-                            </Button>
-                        ) : null}
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
+                            <Upload className="size-3.5" /> Importar
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleExport}>
+                            <Download className="size-3.5" /> Exportar
+                        </Button>
                     </>
                 }
-                overflow={
-                    <>
-                        <DropdownMenuItem onClick={() => { setShowImportDialog(true); setImportStep('upload') }}>
-                            <Upload className="size-4" /> Importar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleExport}>
-                            <Download className="size-4" /> Exportar
-                        </DropdownMenuItem>
-                    </>
-                }
-                action={
-                    <Button size="sm" className="h-[30px] shrink-0" onClick={() => handleOpenDialog()}>
+                primary={
+                    <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
                         <Plus className="size-3.5" /> Novo paciente
                     </Button>
                 }
-            />
-
-            <div className="pb-6">
-
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Buscar por nome, telefone ou e-mail…"
+                hasFilters={activeFilterCount > 0}
+                onClearFilters={clearAllFilters}
+                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'paciente' : 'pacientes'}`}
+                filters={
+                    <>
+                        <FilterPill
+                            label="Etiqueta"
+                            value={filterTagId ? (allTags.find(t => t.id === filterTagId)?.name ?? null) : null}
+                            onClear={() => { setFilterTagId(''); setPagination(p => ({ ...p, page: 1 })) }}
+                        >
+                            <Select value={filterTagId || 'all'} onValueChange={v => { setFilterTagId(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                                                <SelectTrigger id="f-tag" className="w-full"><SelectValue placeholder="Todas" /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="all">Todas</SelectItem>
+                                                                    {allTags.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                                                                </SelectContent>
+                                                            </Select>
+                        </FilterPill>
+                        <FilterPill
+                            label="Origem"
+                            value={filterSource ? (SOURCE_FILTER_OPTIONS.find(o => o.value === filterSource)?.label ?? filterSource) : null}
+                            onClear={() => { setFilterSource(''); setPagination(p => ({ ...p, page: 1 })) }}
+                        >
+                            <Select value={filterSource || 'all'} onValueChange={v => { setFilterSource(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                                                <SelectTrigger id="f-source" className="w-full"><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    {SOURCE_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                                                </SelectContent>
+                                                            </Select>
+                        </FilterPill>
+                        <FilterPill
+                            label="Negócio"
+                            value={filterDeal ? (DEAL_FILTER_OPTIONS.find(o => o.value === filterDeal)?.label ?? filterDeal) : null}
+                            onClear={() => { setFilterDeal(''); setPagination(p => ({ ...p, page: 1 })) }}
+                        >
+                            <Select value={filterDeal || 'all'} onValueChange={v => { setFilterDeal(v === 'all' ? '' : v); setPagination(p => ({ ...p, page: 1 })) }}>
+                                                                <SelectTrigger id="f-deal" className="w-full"><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    {DEAL_FILTER_OPTIONS.map(o => <SelectItem key={o.value || 'all'} value={o.value || 'all'}>{o.label}</SelectItem>)}
+                                                                </SelectContent>
+                                                            </Select>
+                        </FilterPill>
+                        <FilterPill
+                            label="Cadastrado em"
+                            value={periodLabel}
+                            onClear={() => { setFilterDateFrom(''); setFilterDateTo(''); setPagination(p => ({ ...p, page: 1 })) }}
+                            contentClassName="w-auto"
+                        >
+                            {/* O seletor de período já é um popover: dentro da
+                                pílula ele vira os dois campos e os atalhos, sem
+                                o botão do meio. */}
+                            <PeriodFields
+                                from={filterDateFrom}
+                                to={filterDateTo}
+                                onChange={(from, to) => { setFilterDateFrom(from); setFilterDateTo(to); setPagination(p => ({ ...p, page: 1 })) }}
+                            />
+                        </FilterPill>
+                    </>
+                }
+                aside={
+                    openId ? (
+                        <ContactPanel
+                            key={openId}
+                            contactId={openId}
+                            allTags={allTags}
+                            fieldDefs={customFieldDefs}
+                            onClose={() => setOpenId(null)}
+                            onPrev={openIndex > 0 ? () => setOpenId(contacts[openIndex - 1].id) : undefined}
+                            onNext={openIndex >= 0 && openIndex < contacts.length - 1 ? () => setOpenId(contacts[openIndex + 1].id) : undefined}
+                            onChanged={() => void loadContacts()}
+                            onEditFull={(id) => { const c = contacts.find(x => x.id === id); if (c) handleOpenDialog(c) }}
+                            onDelete={(id) => { const c = contacts.find(x => x.id === id); if (c) setDeletingContact(c) }}
+                            onTagCreated={(tag) => setAllTags(prev => prev.some(t => t.id === tag.id) ? prev : [...prev, tag])}
+                        />
+                    ) : null
+                }
+            >
                 <DataTable
-                    bleed
-                    density="compact"
+                    frame
+                    selectable
+                    selected={selectedIds}
+                    onSelectedChange={setSelectedIds}
+                    bulkActions={(ids) => (
+                        <>
+                            <span className="num mr-2 text-xs font-semibold">{ids.length} selecionado{ids.length === 1 ? '' : 's'}</span>
+                            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-background hover:bg-background/10 hover:text-background" onClick={() => exportSelected(ids)}>
+                                <Download className="size-3.5" /> Exportar
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-background hover:bg-background/10 hover:text-background" onClick={() => setBulkDeleting(true)}>
+                                <Trash2 className="size-3.5" /> Excluir
+                            </Button>
+                            <span className="flex-1" />
+                            <Button variant="ghost" size="icon-sm" className="text-background hover:bg-background/10 hover:text-background" onClick={() => setSelectedIds([])} aria-label="Limpar seleção">
+                                <X className="size-4" />
+                            </Button>
+                        </>
+                    )}
                     columns={contactColumns}
                     rows={contacts}
                     getRowId={c => c.id}
                     loading={loading}
-                    onRowClick={c => handleOpenDialog(c)}
+                    onRowClick={c => setOpenId(c.id)}
                     mobile={ContactRowCard}
                     rowActions={c => (
                         <RowActions label={`Ações de ${c.name || 'paciente'}`}>
-                            <RowActionItem icon={Pencil} onClick={() => handleOpenDialog(c)}>
-                                Editar
+                            <RowActionItem icon={Pencil} onClick={() => setOpenId(c.id)}>
+                                Abrir ficha
                             </RowActionItem>
                             {/* O atendimento ativo a partir de quem já está na
                                 base: o telefone não precisa ser digitado de
@@ -647,10 +704,6 @@ export default function ContatosPage() {
                     }
                     footer={
                         <Pagination
-                            // Alinha com a primeira coluna da tabela sem cartão:
-                            // o padding do rodapé é 16px e o da tabela vira 24px
-                            // a partir de `md`.
-                            className="md:px-6"
                             page={pagination.page}
                             totalPages={pagination.totalPages}
                             total={pagination.total}
@@ -660,7 +713,7 @@ export default function ContatosPage() {
                         />
                     }
                 />
-            </div>
+            </IndexFrame>
 
             {/* ═══ Create/Edit Contact Dialog (Full-screen) ═══ */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -1042,6 +1095,16 @@ export default function ContatosPage() {
                 onConfirm={async () => {
                     if (deletingContact) await handleDelete(deletingContact.id)
                 }}
+            />
+
+            <ConfirmDialog
+                open={bulkDeleting}
+                onOpenChange={open => { if (!open) setBulkDeleting(false) }}
+                title={`Excluir ${selectedIds.length} paciente${selectedIds.length === 1 ? '' : 's'}`}
+                description="Eles saem da lista junto com suas etiquetas. Negócios e conversas ligados a eles não são apagados."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={deleteSelected}
             />
 
             <ConfirmDialog

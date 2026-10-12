@@ -4,11 +4,23 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  scroll = true,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /**
+   * `false` tira o contêiner de rolagem horizontal. É o que permite um `thead`
+   * `sticky` grudar no topo de um corpo que rola — com o `overflow-x-auto`
+   * aqui, o `sticky` prendia-se a este embrulho, que nunca rola na vertical, e
+   * não fazia nada. Quem desliga assume a rolagem por fora.
+   */
+  scroll?: boolean
+}) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full", scroll && "overflow-x-auto")}
     >
       <table
         data-slot="table"

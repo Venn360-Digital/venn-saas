@@ -64,12 +64,6 @@ export function PeriodPicker({
                     ? `desde ${short(from)}`
                     : `até ${short(to)}`
 
-    const applyPreset = (id: PeriodPresetId) => {
-        if (!now) return
-        const range = periodRange(id, now)
-        onChange(range.from, range.to)
-    }
-
     return (
         <Popover>
             <PopoverTrigger asChild>
@@ -82,58 +76,93 @@ export function PeriodPicker({
                     <span className="num">{label}</span>
                 </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-[268px] space-y-3 p-3">
-                <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                        <Label htmlFor="period-from" className="text-xs">De</Label>
-                        <Input
-                            id="period-from"
-                            type="date"
-                            value={from}
-                            onChange={(e) => onChange(e.target.value, to)}
-                            className="num h-8"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="period-to" className="text-xs">Até</Label>
-                        <Input
-                            id="period-to"
-                            type="date"
-                            value={to}
-                            onChange={(e) => onChange(from, e.target.value)}
-                            className="num h-8"
-                        />
-                    </div>
-                </div>
-
-                {/* Duas colunas: os seis atalhos em linha única viravam quatro
-                    linhas irregulares, e "Últimos 30 dias" sozinho numa delas
-                    lê como sobra, não como opção. */}
-                <div className="grid grid-cols-2 gap-1.5">
-                    {PERIOD_PRESETS.map((item) => (
-                        <Button
-                            key={item.id}
-                            variant={preset === item.id ? 'secondary' : 'outline'}
-                            size="sm"
-                            className="h-7 justify-start text-xs font-normal"
-                            onClick={() => applyPreset(item.id)}
-                        >
-                            {item.label}
-                        </Button>
-                    ))}
-                </div>
-
-                {active ? (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-full text-xs"
-                        onClick={() => onChange('', '')}
-                    >
-                        Todo o período
-                    </Button>
-                ) : null}
+            <PopoverContent align="end" className="w-[268px] p-3">
+                <PeriodFields from={from} to={to} onChange={onChange} />
             </PopoverContent>
         </Popover>
+    )
+}
+
+/**
+ * Os campos e os atalhos do período, sem o botão em volta.
+ *
+ * O `PeriodPicker` é botão + este miolo. A pílula de filtro das telas de índice
+ * já é o botão — então ela abre só o miolo, e o rótulo "Este mês" passa a viver
+ * na pílula, onde os outros filtros também mostram o próprio valor.
+ */
+export function PeriodFields({
+    from,
+    to,
+    onChange,
+    className,
+}: {
+    from: string
+    to: string
+    onChange: (from: string, to: string) => void
+    className?: string
+}) {
+    const now = useNow()
+    const active = Boolean(from || to)
+    const preset = matchPreset(from, to, now)
+
+    const applyPreset = (id: PeriodPresetId) => {
+        if (!now) return
+        const range = periodRange(id, now)
+        onChange(range.from, range.to)
+    }
+
+    return (
+    <div className={cn('w-[244px] space-y-3', className)}>
+            <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                    <Label htmlFor="period-from" className="text-xs">De</Label>
+                    <Input
+                        id="period-from"
+                        type="date"
+                        value={from}
+                        onChange={(e) => onChange(e.target.value, to)}
+                        className="num h-8"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label htmlFor="period-to" className="text-xs">Até</Label>
+                    <Input
+                        id="period-to"
+                        type="date"
+                        value={to}
+                        onChange={(e) => onChange(from, e.target.value)}
+                        className="num h-8"
+                    />
+                </div>
+            </div>
+
+            {/* Duas colunas: os seis atalhos em linha única viravam quatro
+                linhas irregulares, e "Últimos 30 dias" sozinho numa delas
+                lê como sobra, não como opção. */}
+            <div className="grid grid-cols-2 gap-1.5">
+                {PERIOD_PRESETS.map((item) => (
+                    <Button
+                        key={item.id}
+                        variant={preset === item.id ? 'secondary' : 'outline'}
+                        size="sm"
+                        className="h-7 justify-start text-xs font-normal"
+                        onClick={() => applyPreset(item.id)}
+                    >
+                        {item.label}
+                    </Button>
+                ))}
+            </div>
+
+            {active ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full text-xs"
+                    onClick={() => onChange('', '')}
+                >
+                    Todo o período
+                </Button>
+            ) : null}
+    </div>
     )
 }

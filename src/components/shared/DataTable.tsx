@@ -86,6 +86,25 @@ interface DataTableProps<T> {
      * última coluna, senão o texto encosta na borda da janela.
      */
     bleed?: boolean
+    /**
+     * O quadro fixo das telas de índice.
+     *
+     * O cartão preenche a altura que o pai lhe der; o cabeçalho da tabela fica
+     * preso em cima, o rodapé embaixo, e **só as linhas rolam** no meio. Com 7
+     * registros sobra espaço vazio dentro do cartão e a paginação continua no
+     * pé; com 700, as linhas rolam por dentro e nada mais se mexe.
+     *
+     * Exige `scroll={false}` no primitivo `Table`: o embrulho `overflow-x-auto`
+     * dele era o que prendia o `sticky` do `thead` a um contêiner que nunca
+     * rola na vertical.
+     */
+    frame?: boolean
+    /**
+     * As ações em lote. Com linhas marcadas, o rodapé troca a paginação por
+     * estas ações — no mesmo lugar e na mesma altura, nada flutuando por cima da
+     * lista. Só faz sentido com `selectable`.
+     */
+    bulkActions?: (selected: string[]) => React.ReactNode
     mobile?: (row: T) => React.ReactNode
     footer?: React.ReactNode
     className?: string
@@ -123,6 +142,8 @@ export function DataTable<T>({
     footer,
     density = 'comfortable',
     bleed = false,
+    frame = false,
+    bulkActions,
     className,
 }: DataTableProps<T>) {
     /** Coluna e direção da ordenação. `null` = a ordem que veio do servidor. */
@@ -189,6 +210,203 @@ export function DataTable<T>({
         }
         return null
     })()
+
+    if (frame) {
+        const bulk = selectable && bulkActions && selected.length > 0 ? bulkActions(selected) : null
+        return (
+            <div
+                className={cn(
+                    'flex min-h-0 flex-1 flex-col overflow-clip rounded-lg border border-border bg-card',
+                    className
+                )}
+            >
+                <div
+                    className={cn(
+                        'min-h-0 flex-1 overflow-auto overscroll-contain',
+                        // Cabeçalho da tabela preso: superfície da página para
+                        // separar das linhas, e a borda como sombra interna porque
+                        // borda de `tr` não acompanha o `sticky`.
+                        '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-background',
+                        '[&_th]:h-9 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]',
+                        '[&_td]:py-2',
+                        density === 'compact' && '[&_td]:py-1.5'
+                    )}
+                >
+                    {body ? (
+                        <div className="flex min-h-full items-center justify-center p-6">{body}</div>
+                    ) : (
+                <>
+                    {/* Table from md up. No scroll container here: `Table`
+                        already wraps itself in `overflow-x-auto`, and nesting
+                        two gave the inner one a width it never overflowed. */}
+                    <div
+                        className={cn(
+                            mobile && 'hidden md:block',
+                            density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
+                        )}
+                    >
+                        <Table scroll={false}>
+                            <TableHeader className={cn(bleed && '[&_tr]:bg-background')}>
+                                <TableRow>
+                                    {selectable ? (
+                                        <TableHead className="w-10">
+                                            <Checkbox
+                                                checked={
+                                                    allSelected
+                                                        ? true
+                                                        : someSelected
+                                                          ? 'indeterminate'
+                                                          : false
+                                                }
+                                                onCheckedChange={toggleAll}
+                                                aria-label="Selecionar todos"
+                                            />
+                                        </TableHead>
+                                    ) : null}
+                                    {columns.map((col) => {
+                                        const active = sort?.id === col.id
+                                        return (
+                                            <TableHead
+                                                key={col.id}
+                                                style={col.width ? { width: col.width } : undefined}
+                                                aria-sort={
+                                                    col.sortable
+                                                        ? active
+                                                            ? sort?.dir === 'asc' ? 'ascending' : 'descending'
+                                                            : 'none'
+                                                        : undefined
+                                                }
+                                                className={cn(
+                                                    col.numeric && 'text-right',
+                                                    col.hideBelow && HIDE_BELOW[col.hideBelow],
+                                                    col.className
+                                                )}
+                                            >
+                                                {col.sortable ? (
+                                                    /* Botão, não `onClick` num `th`: ordenar é
+                                                       ação, e ação precisa de foco e de Enter. */
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleSort(col.id)}
+                                                        className={cn(
+                                                            'group inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground',
+                                                            col.numeric && 'flex-row-reverse',
+                                                            active && 'text-foreground'
+                                                        )}
+                                                    >
+                                                        {col.header}
+                                                        {active ? (
+                                                            sort?.dir === 'asc'
+                                                                ? <ArrowUp className="size-3" />
+                                                                : <ArrowDown className="size-3" />
+                                                        ) : (
+                                                            <ChevronsUpDown className="size-3 opacity-0 transition-opacity group-hover:opacity-50" />
+                                                        )}
+                                                    </button>
+                                                ) : (
+                                                    col.header
+                                                )}
+                                            </TableHead>
+                                        )
+                                    })}
+                                    {rowActions ? (
+                                        <TableHead className="w-20 text-right">
+                                            {hideActionsHeader ? (
+                                                <span className="sr-only">Ações</span>
+                                            ) : (
+                                                'Ações'
+                                            )}
+                                        </TableHead>
+                                    ) : null}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedRows.map((row) => {
+                                    const id = getRowId(row)
+                                    return (
+                                        <TableRow
+                                            key={id}
+                                            data-state={
+                                                selected.includes(id) ? 'selected' : undefined
+                                            }
+                                            onClick={
+                                                onRowClick ? () => onRowClick(row) : undefined
+                                            }
+                                            className={cn(onRowClick && 'cursor-pointer')}
+                                        >
+                                            {selectable ? (
+                                                <TableCell
+                                                    // The checkbox must not also open the row.
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Checkbox
+                                                        checked={selected.includes(id)}
+                                                        onCheckedChange={() => toggleOne(id)}
+                                                        aria-label="Selecionar linha"
+                                                    />
+                                                </TableCell>
+                                            ) : null}
+                                            {columns.map((col) => (
+                                                <TableCell
+                                                    key={col.id}
+                                                    className={cn(
+                                                        // Cell data is the content, so it takes
+                                                        // foreground — muted is for headers and
+                                                        // metadata.
+                                                        'text-foreground',
+                                                        col.numeric && 'num text-right',
+                                                        col.hideBelow &&
+                                                            HIDE_BELOW[col.hideBelow],
+                                                        col.className
+                                                    )}
+                                                >
+                                                    {col.cell(row)}
+                                                </TableCell>
+                                            ))}
+                                            {rowActions ? (
+                                                <TableCell
+                                                    className="text-right"
+                                                    // Opening the menu must not also open the row.
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {rowActions(row)}
+                                                </TableCell>
+                                            ) : null}
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    {/* Cards below md */}
+                    {mobile ? (
+                        <div className="divide-y divide-border md:hidden">
+                            {sortedRows.map((row) => (
+                                <div
+                                    key={getRowId(row)}
+                                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                                    className={cn('p-4', onRowClick && 'cursor-pointer')}
+                                >
+                                    {mobile(row)}
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
+                </>
+                    )}
+                </div>
+
+                {bulk ? (
+                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-2 pl-4 text-background">
+                        {bulk}
+                    </div>
+                ) : footer ? (
+                    <div className="shrink-0">{footer}</div>
+                ) : null}
+            </div>
+        )
+    }
 
     return (
         <div

@@ -21,8 +21,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { Toolbar } from '@/components/shared/Toolbar'
+import { IndexFrame } from '@/components/shared/IndexFrame'
+import { FilterPill } from '@/components/shared/FilterPill'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { Pagination } from '@/components/shared/Pagination'
@@ -72,7 +72,6 @@ export default function ProdutosServicosPage() {
     const [search, setSearch] = useState('')
     const [query, setQuery] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('all')
-    const [showFilters, setShowFilters] = useState(false)
     const [pagination, setPagination] = useState<PaginationState>({
         page: 1,
         limit: 20,
@@ -275,59 +274,51 @@ export default function ProdutosServicosPage() {
 
     return (
         <>
-            <PageHeader
+            <IndexFrame
                 title="Produtos e serviços"
-                description="Catálogo usado nos negócios e nas respostas do agente."
-                count={{ value: pagination.total, singular: 'item', plural: 'itens' }}
-                actions={
+                primary={
                     canEdit ? (
-                        <Button onClick={() => handleOpenDialog()}>
-                            <Plus />
-                            Novo item
+                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                            <Plus className="size-3.5" /> Novo item
                         </Button>
                     ) : null
                 }
-            />
-
-            <div className="space-y-3 px-4 pb-6 md:px-6">
-                <Toolbar
-                    search={search}
-                    onSearchChange={setSearch}
-                    placeholder="Buscar por nome ou SKU…"
-                    filterCount={activeFilters}
-                    filtersOpen={showFilters}
-                    onToggleFilters={() => setShowFilters((v) => !v)}
-                />
-
-                {showFilters ? (
-                    <div className="rounded-lg border border-border bg-card p-4">
-                        <div className="w-full sm:w-48">
-                            <FormField label="Categoria" htmlFor="filter-category">
-                                <Select
-                                    value={categoryFilter}
-                                    onValueChange={(v) => {
-                                        setCategoryFilter(v)
-                                        setPagination((p) => ({ ...p, page: 1 }))
-                                    }}
-                                >
-                                    <SelectTrigger id="filter-category">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todas</SelectItem>
-                                        {CATEGORIES.map((c) => (
-                                            <SelectItem key={c.id} value={c.id}>
-                                                {c.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </FormField>
-                        </div>
-                    </div>
-                ) : null}
-
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Buscar por nome ou SKU…"
+                hasFilters={categoryFilter !== 'all'}
+                onClearFilters={() => { setCategoryFilter('all'); setPagination((p) => ({ ...p, page: 1 })) }}
+                filters={
+                    <FilterPill
+                        label="Categoria"
+                        value={categoryFilter === 'all' ? null : (CATEGORIES.find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
+                        onClear={() => { setCategoryFilter('all'); setPagination((p) => ({ ...p, page: 1 })) }}
+                    >
+                        <Select
+                                                    value={categoryFilter}
+                                                    onValueChange={(v) => {
+                                                        setCategoryFilter(v)
+                                                        setPagination((p) => ({ ...p, page: 1 }))
+                                                    }}
+                                                >
+                                                    <SelectTrigger id="filter-category" className="w-full">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="all">Todas</SelectItem>
+                                                        {CATEGORIES.map((c) => (
+                                                            <SelectItem key={c.id} value={c.id}>
+                                                                {c.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                    </FilterPill>
+                }
+                count={`${pagination.total.toLocaleString('pt-BR')} ${pagination.total === 1 ? 'item' : 'itens'}`}
+            >
                 <DataTable
+                    frame
                     columns={columns}
                     rows={products}
                     getRowId={(p) => p.id}
@@ -390,7 +381,7 @@ export default function ProdutosServicosPage() {
                         />
                     }
                 />
-            </div>
+            </IndexFrame>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-lg">

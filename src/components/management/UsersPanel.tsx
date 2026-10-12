@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { IndexFrame } from '@/components/shared/IndexFrame'
 import { Toolbar } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
@@ -184,32 +184,98 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
     return (
         <>
             {embedded ? (
-                // Dentro da guia o título da tela já é "Gerenciar conta": um
-                // segundo `h1` aqui seria o defeito que acabamos de remover do
-                // resto do sistema. Resta a contagem e a ação.
-                <div className="mb-4 flex items-start justify-between gap-4">
-                    <p className="num text-sm text-muted-foreground">
-                        {users.length} {users.length === 1 ? 'usuário' : 'usuários'}
-                    </p>
-                    {newUserButton}
-                </div>
+                <>
+                    {/* Dentro da guia o título da tela já é "Gerenciar conta": um
+                        segundo `h1` aqui seria o defeito que acabamos de remover do
+                        resto do sistema. Resta a contagem e a ação. */}
+                    <div className="mb-4 flex items-start justify-between gap-4">
+                        <p className="num text-sm text-muted-foreground">
+                            {users.length} {users.length === 1 ? 'usuário' : 'usuários'}
+                        </p>
+                        {newUserButton}
+                    </div>
+                    <div className="space-y-3">
+                        <Toolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            placeholder="Buscar por nome ou e-mail…"
+                        />
+                    <DataTable
+                        columns={columns}
+                        rows={users}
+                        getRowId={(u) => u.id}
+                        loading={loading}
+                        rowActions={(u) => (
+                            <RowActions label={`Ações de ${u.name}`}>
+                                <RowActionItem
+                                    icon={Pencil}
+                                    onClick={() => {
+                                        setEditingUser(u)
+                                        setIsModalOpen(true)
+                                    }}
+                                >
+                                    Editar
+                                </RowActionItem>
+                                <RowActionItem
+                                    icon={Trash2}
+                                    destructive
+                                    onClick={() => {
+                                        // The workspace must keep an owner, and the
+                                        // API refuses this anyway — saying so here
+                                        // avoids a round trip that only returns an
+                                        // error.
+                                        if (u.isFirstAdmin) {
+                                            toast.error(
+                                                'O administrador principal não pode ser excluído'
+                                            )
+                                            return
+                                        }
+                                        setDeleting(u)
+                                    }}
+                                >
+                                    Excluir
+                                </RowActionItem>
+                            </RowActions>
+                        )}
+                        empty={
+                            <EmptyState
+                                variant="inline"
+                                icon={Users}
+                                title={query ? 'Nenhum usuário encontrado' : 'Nenhum usuário ainda'}
+                                description={
+                                    query
+                                        ? 'Tente outro nome ou e-mail.'
+                                        : 'Convide a equipe para dar acesso ao atendimento.'
+                                }
+                                action={
+                                    !query ? (
+                                        <Button
+                                            onClick={() => {
+                                                setEditingUser(null)
+                                                setIsModalOpen(true)
+                                            }}
+                                        >
+                                            <Plus />
+                                            Novo usuário
+                                        </Button>
+                                    ) : null
+                                }
+                            />
+                        }
+                    />
+                    </div>
+                </>
             ) : (
-                <PageHeader
+                <IndexFrame
                     title="Usuários"
-                    description="Quem acessa a clínica e o que cada pessoa pode fazer."
-                    count={{ value: users.length, singular: 'usuário', plural: 'usuários' }}
-                    actions={newUserButton}
-                />
-            )}
-
-            <div className={embedded ? 'space-y-3' : 'space-y-3 px-4 pb-6 md:px-6'}>
-                <Toolbar
+                    primary={newUserButton}
                     search={search}
                     onSearchChange={setSearch}
-                    placeholder="Buscar por nome ou e-mail…"
-                />
-
+                    searchPlaceholder="Buscar por nome ou e-mail…"
+                    count={`${users.length.toLocaleString('pt-BR')} ${users.length === 1 ? 'usuário' : 'usuários'}`}
+                >
                 <DataTable
+                    frame
                     columns={columns}
                     rows={users}
                     getRowId={(u) => u.id}
@@ -272,7 +338,8 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                         />
                     }
                 />
-            </div>
+                </IndexFrame>
+            )}
 
             <UserFormModal
                 isOpen={isModalOpen}

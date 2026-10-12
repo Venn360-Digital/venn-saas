@@ -19,7 +19,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { IndexFrame } from '@/components/shared/IndexFrame'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
 
@@ -190,20 +190,19 @@ export default function RespostasRapidasPage() {
 
     return (
         <>
-            <PageHeader
+            <IndexFrame
                 title="Respostas rápidas"
-                description="Mensagens prontas para usar no chat."
-                actions={
+                primary={
                     canEdit ? (
-                        <Button onClick={() => handleOpenDialog()}>
-                            <Plus />
-                            Nova resposta
+                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                            <Plus className="size-3.5" /> Nova resposta
                         </Button>
-                    ) : undefined
+                    ) : null
                 }
-            />
-            <div className="space-y-3 px-4 pb-6 md:px-6">
+                count={`${responses.length.toLocaleString('pt-BR')} ${responses.length === 1 ? 'resposta' : 'respostas'}`}
+            >
                 <DataTable
+                    frame
                     columns={columns}
                     rows={responses}
                     getRowId={response => response.id ?? response.command}
@@ -267,7 +266,7 @@ export default function RespostasRapidasPage() {
                         />
                     }
                 />
-            </div>
+            </IndexFrame>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-md">
