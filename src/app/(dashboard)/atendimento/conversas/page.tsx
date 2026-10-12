@@ -1921,16 +1921,6 @@ export default function ConversasPage() {
                                             )}
                                         </div>
                                     </div>
-
-                                    {/* As etiquetas na própria linha do cabeçalho.
-                                        Eram uma faixa de 34px logo abaixo, que só
-                                        existia quando havia etiqueta: o cabeçalho
-                                        mudava de altura conforme a conversa. Aqui
-                                        a altura é sempre a mesma, e elas são a
-                                        primeira coisa a sumir quando falta
-                                        largura. */}
-                                </div>
-                                    )}
                                 </div>
 
                                 {/* ── Comandos ──────────────────────────────
