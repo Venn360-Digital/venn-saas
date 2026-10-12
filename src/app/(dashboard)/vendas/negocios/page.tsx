@@ -203,16 +203,6 @@ const ACTIVITY_TYPES_CONFIG = ACTIVITY_TYPE_BY_ID
  * altura numa tela onde a altura é o recurso escasso, e diziam o mesmo que três
  * pares de linhas dizem em 34px.
  */
-function Figure({ label, value, tone }: { label: string; value?: number; tone?: string }) {
-    return (
-        <span className="leading-tight">
-            <span className={cn('num block text-sm font-semibold', tone)}>
-                {value == null ? '—' : `R$ ${value.toLocaleString('pt-BR')}`}
-            </span>
-            <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
-        </span>
-    )
-}
 
 // ─── Creatable Select ────────────────────────────────────────────────
 
