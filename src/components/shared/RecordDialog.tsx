@@ -10,8 +10,9 @@ import { cn } from '@/lib/utils'
 /**
  * O diálogo de cadastro — o quadro padrão de todo "Novo".
  *
- * **840 × 620, sempre.** Formulário curto deixa espaço vazio embaixo; é o
- * preço de o Criar estar sempre no mesmo ponto da tela, em qualquer cadastro.
+ * **840 × 700, sempre** — a altura em que o Novo paciente cabe sem rolar.
+ * Formulário curto deixa espaço vazio embaixo; é o preço de o Criar estar
+ * sempre no mesmo ponto da tela, em qualquer cadastro.
  * Cabeçalho e rodapé presos; só a coluna do formulário rola. À direita, o
  * resumo vivo — como o registro vai aparecer na lista — fica parado.
  *
@@ -66,8 +67,10 @@ export function RecordDialog({
             <DialogContent
                 showCloseButton={false}
                 className={cn(
-                    'flex h-svh w-svw max-w-none flex-col gap-0 overflow-hidden rounded-none p-0',
-                    'md:h-[620px] md:w-[840px] md:max-w-[calc(100vw-2rem)] md:rounded-xl'
+                    // `bg-card` e não `bg-background`: no claro o fundo da página é
+                    // azulado; o quadro de cadastro é branco, como a ficha.
+                    'flex h-svh w-svw max-w-none flex-col gap-0 overflow-hidden rounded-none bg-card p-0',
+                    'md:h-[700px] md:max-h-[calc(100svh-2rem)] md:w-[840px] md:max-w-[calc(100vw-2rem)] md:rounded-xl'
                 )}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

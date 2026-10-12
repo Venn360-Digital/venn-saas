@@ -430,8 +430,8 @@ Produtos, Departamentos, Respostas rápidas e Usuários são a mesma tela
   (380px, terceira coluna; ‹ › × no topo; ↑↓ e Esc) com **todos** os campos em
   `InlineField`, gravando ao sair com o selo "salvo". Não existe "formulário
   completo" de edição. O diálogo só nasce registro.
-- **`RecordDialog`, 840 × 620 sempre.** Cabeçalho e rodapé presos, só o
-  formulário rola; resumo vivo à direita ("como vai aparecer", com o aviso de
+- **`RecordDialog`, 840 × 700 sempre** (a altura em que o Novo paciente cabe
+  sem rolar), branco como a ficha. Cabeçalho e rodapé presos, só o formulário rola; resumo vivo à direita ("como vai aparecer", com o aviso de
   duplicado quando dá para saber antes); rótulo em cima, asterisco vermelho no
   obrigatório e a legenda no rodapé ao lado de Esc · ⌘↵; erro **abaixo do
   campo**, em vermelho — nunca toast, nunca resumo no topo; Cancelar ·
