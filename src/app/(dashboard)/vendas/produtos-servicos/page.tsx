@@ -8,13 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog'
-import {
     Select,
     SelectContent,
     SelectItem,
@@ -32,6 +25,8 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { ProductPanel } from '@/components/products/ProductPanel'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
+import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
+import { formatCents, onlyDigits, parseCents } from '@/lib/masks'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { usePermissions } from '@/hooks/usePermissions'
 
@@ -83,7 +78,8 @@ export default function ProdutosServicosPage() {
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editing, setEditing] = useState<Product | null>(null)
+    const [errors, setErrors] = useState<{ name?: string }>({})
+    const [submitting, setSubmitting] = useState(false)
     const [deleting, setDeleting] = useState<Product | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -97,7 +93,7 @@ export default function ProdutosServicosPage() {
         description: '',
         sku: '',
         category: 'product',
-        price: '',
+        priceCents: '',
         group: '',
     })
 
@@ -140,68 +136,48 @@ export default function ProdutosServicosPage() {
         load()
     }, [load])
 
-    function handleOpenDialog(product?: Product) {
-        if (product) {
-            setEditing(product)
-            setFormData({
-                name: product.name,
-                description: product.description ?? '',
-                sku: product.sku ?? '',
-                category: product.category,
-                price: product.price != null ? String(product.price).replace('.', ',') : '',
-                group: product.group ?? '',
-            })
-        } else {
-            setEditing(null)
-            setFormData({
-                name: '',
-                description: '',
-                sku: '',
-                category: 'product',
-                price: '',
-                group: '',
-            })
-        }
+    function openNew() {
+        setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
+        setErrors({})
         setIsDialogOpen(true)
     }
 
-    async function handleSave() {
-        if (!formData.name.trim()) {
-            toast.error('Informe um nome')
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    async function handleSave(again: boolean) {
+        const name = formData.name.trim()
+        if (!name) {
+            setErrors({ name: 'Dê um nome ao item.' })
             return
         }
-
+        setSubmitting(true)
         try {
-            const priceValue = formData.price
-                ? parseFloat(formData.price.replace(/\./g, '').replace(',', '.'))
-                : undefined
-
-            const res = await fetch(
-                editing ? `/api/products/${editing.id}` : '/api/products',
-                {
-                    method: editing ? 'PATCH' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: formData.name,
-                        description: formData.description || undefined,
-                        sku: formData.sku || undefined,
-                        category: formData.category,
-                        price: priceValue,
-                        group: formData.group || undefined,
-                    }),
-                }
-            )
-
+            const cents = parseCents(formData.priceCents)
+            const res = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    description: formData.description.trim() || undefined,
+                    sku: formData.sku.trim() || undefined,
+                    category: formData.category,
+                    price: cents == null ? undefined : cents / 100,
+                    group: formData.group.trim() || undefined,
+                }),
+            })
             if (res.ok) {
-                toast.success(editing ? 'Item atualizado' : 'Item criado')
-                setIsDialogOpen(false)
+                toast.success('Item criado')
+                setErrors({})
+                if (again) setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
+                else setIsDialogOpen(false)
                 load()
             } else {
-                const error = await res.json()
-                toast.error(error.error ?? 'Não foi possível salvar')
+                const error = await res.json().catch(() => ({}))
+                setErrors({ name: error.error ?? 'Não foi possível salvar' })
             }
         } catch {
             toast.error('Não foi possível salvar')
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -308,7 +284,7 @@ export default function ProdutosServicosPage() {
                 title="Produtos e serviços"
                 primary={
                     canEdit ? (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                        <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
                             <Plus className="size-3.5" /> Novo item
                         </Button>
                     ) : null
@@ -379,7 +355,7 @@ export default function ProdutosServicosPage() {
                             }
                             action={
                                 canEdit && !query && !activeFilters ? (
-                                    <Button onClick={() => handleOpenDialog()}>
+                                    <Button onClick={openNew}>
                                         <Plus />
                                         Novo item
                                     </Button>
@@ -402,105 +378,83 @@ export default function ProdutosServicosPage() {
                 />
             </IndexFrame>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>{editing ? 'Editar item' : 'Novo item'}</DialogTitle>
-                    </DialogHeader>
+            <RecordDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                title="Novo item"
+                description="Produto ou serviço do catálogo, com o preço que entra no negócio."
+                submitLabel="Criar item"
+                onSubmit={handleSave}
+                submitting={submitting}
+                summary={
+                    <>
+                        <SummaryCard className="flex-col items-start gap-1.5">
+                            <span className="flex w-full items-center justify-between gap-2">
+                                <span className="truncate text-sm font-semibold">{formData.name.trim() || 'Nome do item'}</span>
+                                <StatusBadge value={formData.category} map={CATEGORY_TONES} />
+                            </span>
+                            <span className="num text-xs text-muted-foreground">
+                                {formData.priceCents ? formatCents(parseCents(formData.priceCents)) : 'Sem preço'}
+                                {formData.sku.trim() ? <span className="font-mono"> · {formData.sku.trim()}</span> : null}
+                            </span>
+                        </SummaryCard>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">O preço é o sugerido ao montar um negócio; cada negócio pode ajustar o seu.</p>
+                    </>
+                }
+            >
+                <FormField label="Nome" htmlFor="prod-name" required error={errors.name} className="col-span-2">
+                    <Input
+                        id="prod-name"
+                        value={formData.name}
+                        onChange={(e) => { setFormData((p) => ({ ...p, name: e.target.value })); if (errors.name) setErrors({}) }}
+                        placeholder="Limpeza e profilaxia"
+                        aria-invalid={errors.name ? true : undefined}
+                        autoFocus
+                    />
+                </FormField>
 
-                    <div className="grid gap-5 py-2 sm:grid-cols-2">
-                        <FormField label="Nome" htmlFor="prod-name" required className="sm:col-span-2">
-                            <Input
-                                id="prod-name"
-                                value={formData.name}
-                                onChange={(e) =>
-                                    setFormData((p) => ({ ...p, name: e.target.value }))
-                                }
-                                placeholder="Limpeza e profilaxia"
-                                autoFocus
-                            />
-                        </FormField>
+                <FormField label="Categoria" htmlFor="prod-category" required>
+                    <Select value={formData.category} onValueChange={(v) => setFormData((p) => ({ ...p, category: v }))}>
+                        <SelectTrigger id="prod-category" className="w-full">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {CATEGORIES.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FormField>
 
-                        <FormField label="Categoria" htmlFor="prod-category">
-                            <Select
-                                value={formData.category}
-                                onValueChange={(v) => setFormData((p) => ({ ...p, category: v }))}
-                            >
-                                <SelectTrigger id="prod-category">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {CATEGORIES.map((c) => (
-                                        <SelectItem key={c.id} value={c.id}>
-                                            {c.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </FormField>
+                <FormField label="Preço" htmlFor="prod-price" hint="Só os números; a vírgula entra sozinha.">
+                    <Input
+                        id="prod-price"
+                        inputMode="numeric"
+                        value={formData.priceCents ? formatCents(parseCents(formData.priceCents)) : ''}
+                        onChange={(e) => setFormData((p) => ({ ...p, priceCents: onlyDigits(e.target.value).replace(/^0+(?=\d)/, '') }))}
+                        placeholder="R$ 0,00"
+                        className="num"
+                    />
+                </FormField>
 
-                        <FormField label="Preço" htmlFor="prod-price" hint="Em reais, por exemplo 180,00">
-                            <Input
-                                id="prod-price"
-                                inputMode="decimal"
-                                value={formData.price}
-                                onChange={(e) =>
-                                    setFormData((p) => ({ ...p, price: e.target.value }))
-                                }
-                                placeholder="180,00"
-                                className="num"
-                            />
-                        </FormField>
+                <FormField label="SKU" htmlFor="prod-sku">
+                    <Input id="prod-sku" value={formData.sku} onChange={(e) => setFormData((p) => ({ ...p, sku: e.target.value }))} placeholder="PROF-001" className="font-mono" />
+                </FormField>
 
-                        <FormField label="SKU" htmlFor="prod-sku">
-                            <Input
-                                id="prod-sku"
-                                value={formData.sku}
-                                onChange={(e) =>
-                                    setFormData((p) => ({ ...p, sku: e.target.value }))
-                                }
-                                placeholder="PROF-001"
-                                className="font-mono"
-                            />
-                        </FormField>
+                <FormField label="Grupo" htmlFor="prod-group">
+                    <Input id="prod-group" value={formData.group} onChange={(e) => setFormData((p) => ({ ...p, group: e.target.value }))} placeholder="Preventivo" />
+                </FormField>
 
-                        <FormField label="Grupo" htmlFor="prod-group">
-                            <Input
-                                id="prod-group"
-                                value={formData.group}
-                                onChange={(e) =>
-                                    setFormData((p) => ({ ...p, group: e.target.value }))
-                                }
-                                placeholder="Preventivo"
-                            />
-                        </FormField>
-
-                        <FormField
-                            label="Descrição"
-                            htmlFor="prod-description"
-                            className="sm:col-span-2"
-                        >
-                            <Textarea
-                                id="prod-description"
-                                value={formData.description}
-                                onChange={(e) =>
-                                    setFormData((p) => ({ ...p, description: e.target.value }))
-                                }
-                                placeholder="O que está incluído, duração média, observações"
-                            />
-                        </FormField>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSave}>
-                            {editing ? 'Salvar' : 'Criar item'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                <FormField label="Descrição" htmlFor="prod-description" className="col-span-2">
+                    <Textarea
+                        id="prod-description"
+                        value={formData.description}
+                        onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+                        placeholder="O que está incluído, duração média, observações"
+                        rows={3}
+                    />
+                </FormField>
+            </RecordDialog>
 
             <ConfirmDialog
                 open={deleting !== null}

@@ -296,7 +296,6 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                             onClose={() => setOpenId(null)}
                             {...panelNeighbours(openId, rowIds, setOpenId)}
                             onChanged={() => void fetchUsers()}
-                            onEditFull={(id) => { const u = users.find((x) => x.id === id); if (u) { setEditingUser(u); setIsModalOpen(true) } }}
                             onDelete={(id) => { const u = users.find((x) => x.id === id); if (u) setDeleting(u) }}
                         />
                     ) : null}

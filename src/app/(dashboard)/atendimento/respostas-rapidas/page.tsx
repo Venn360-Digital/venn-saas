@@ -5,13 +5,6 @@ import { MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -22,6 +15,7 @@ import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
+import { RecordDialog } from '@/components/shared/RecordDialog'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -43,7 +37,8 @@ export default function RespostasRapidasPage() {
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editing, setEditing] = useState<QuickResponse | null>(null)
+    const [errors, setErrors] = useState<{ command?: string; text?: string }>({})
+    const [submitting, setSubmitting] = useState(false)
     const [deleting, setDeleting] = useState<QuickResponse | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -71,51 +66,44 @@ export default function RespostasRapidasPage() {
         }
     }
 
-    function handleOpenDialog(response?: QuickResponse) {
-        if (response) {
-            setEditing(response)
-            setFormData({ command: response.command, text: response.text })
-        } else {
-            setEditing(null)
-            setFormData(EMPTY_FORM)
-        }
+    function openNew() {
+        setFormData(EMPTY_FORM)
+        setErrors({})
         setIsDialogOpen(true)
     }
 
-    async function handleSave() {
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    async function handleSave(again: boolean) {
         const command = formData.command.trim()
         const text = formData.text.trim()
-
-        if (!command) {
-            toast.error('Informe o comando da resposta')
+        const next: { command?: string; text?: string } = {}
+        if (!command) next.command = 'Informe o atalho que será digitado no chat.'
+        if (!text) next.text = 'Informe o texto que será enviado.'
+        if (next.command || next.text) {
+            setErrors(next)
             return
         }
-        if (!text) {
-            toast.error('Informe o texto que será enviado')
-            return
-        }
-
+        setSubmitting(true)
         try {
-            const res = await fetch(
-                editing?.id ? `/api/quick-responses/${editing.id}` : '/api/quick-responses',
-                {
-                    method: editing?.id ? 'PATCH' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command, text }),
-                }
-            )
-
+            const res = await fetch('/api/quick-responses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command, text }),
+            })
             if (!res.ok) {
                 const error = await res.json().catch(() => null)
-                toast.error(error?.error ?? 'Não foi possível salvar a resposta')
+                setErrors({ command: error?.error ?? 'Não foi possível salvar a resposta' })
                 return
             }
-
-            toast.success(editing ? 'Resposta atualizada' : 'Resposta criada')
-            setIsDialogOpen(false)
+            toast.success('Resposta criada')
+            setErrors({})
+            if (again) setFormData(EMPTY_FORM)
+            else setIsDialogOpen(false)
             loadResponses()
         } catch {
             toast.error('Não foi possível salvar a resposta')
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -232,7 +220,7 @@ export default function RespostasRapidasPage() {
                 searchLabel="Buscar por atalho ou texto"
                 primary={
                     canEdit ? (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                        <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
                             <Plus className="size-3.5" /> Nova resposta
                         </Button>
                     ) : null
@@ -301,7 +289,7 @@ export default function RespostasRapidasPage() {
                             description="Crie um atalho como /orcamento para enviar a mensagem pronta no chat."
                             action={
                                 canEdit ? (
-                                    <Button onClick={() => handleOpenDialog()}>
+                                    <Button onClick={openNew}>
                                         <Plus />
                                         Nova resposta
                                     </Button>
@@ -312,56 +300,47 @@ export default function RespostasRapidasPage() {
                 />
             </IndexFrame>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editing ? 'Editar resposta rápida' : 'Nova resposta rápida'}
-                        </DialogTitle>
-                    </DialogHeader>
+            <RecordDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                title="Nova resposta rápida"
+                description="Um atalho digitado no chat que vira o texto inteiro."
+                submitLabel="Criar resposta"
+                onSubmit={handleSave}
+                submitting={submitting}
+                summary={
+                    <>
+                        <span className="font-mono text-xs text-primary-subtle-foreground">{formData.command.trim() || '/atalho'}</span>
+                        <div className="max-w-full self-start rounded-2xl rounded-tl-sm bg-card px-3 py-2 text-xs leading-relaxed shadow-xs">
+                            {formData.text.trim() || <span className="text-muted-foreground">O texto que será enviado, como o paciente vai ler.</span>}
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">Nasce ativa. Dá para pausar na lista sem apagar.</p>
+                    </>
+                }
+            >
+                <FormField label="Comando" htmlFor="qr-command" required error={errors.command} hint="O atalho digitado no chat para inserir o texto." className="col-span-2">
+                    <Input
+                        id="qr-command"
+                        value={formData.command}
+                        onChange={e => { setFormData(prev => ({ ...prev, command: e.target.value })); if (errors.command) setErrors(p => ({ ...p, command: undefined })) }}
+                        placeholder="/orcamento"
+                        className="font-mono"
+                        aria-invalid={errors.command ? true : undefined}
+                        autoFocus
+                    />
+                </FormField>
 
-                    <div className="space-y-5 py-2">
-                        <FormField
-                            label="Comando"
-                            htmlFor="qr-command"
-                            required
-                            hint="O atalho digitado no chat para inserir o texto."
-                        >
-                            <Input
-                                id="qr-command"
-                                value={formData.command}
-                                onChange={e =>
-                                    setFormData(prev => ({ ...prev, command: e.target.value }))
-                                }
-                                placeholder="/orcamento"
-                                className="font-mono"
-                                autoFocus
-                            />
-                        </FormField>
-
-                        <FormField label="Texto" htmlFor="qr-text" required>
-                            <Textarea
-                                id="qr-text"
-                                value={formData.text}
-                                onChange={e =>
-                                    setFormData(prev => ({ ...prev, text: e.target.value }))
-                                }
-                                placeholder="Olá! Segue o orçamento solicitado…"
-                                rows={4}
-                            />
-                        </FormField>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSave}>
-                            {editing ? 'Salvar' : 'Criar resposta'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                <FormField label="Texto" htmlFor="qr-text" required error={errors.text} className="col-span-2">
+                    <Textarea
+                        id="qr-text"
+                        value={formData.text}
+                        onChange={e => { setFormData(prev => ({ ...prev, text: e.target.value })); if (errors.text) setErrors(p => ({ ...p, text: undefined })) }}
+                        placeholder="Olá! Segue o orçamento solicitado…"
+                        rows={6}
+                        aria-invalid={errors.text ? true : undefined}
+                    />
+                </FormField>
+            </RecordDialog>
 
             <ConfirmDialog
                 open={deleting !== null}

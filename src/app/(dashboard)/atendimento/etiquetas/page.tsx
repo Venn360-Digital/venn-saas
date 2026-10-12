@@ -7,13 +7,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
@@ -24,6 +17,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TagPanel } from '@/components/tags/TagPanel'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
+import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { TagChip } from '@/components/shared/TagChip'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PICKER_RAMP } from '@/lib/palette'
@@ -70,7 +64,8 @@ export default function EtiquetasPage() {
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editingTag, setEditingTag] = useState<TagItem | null>(null)
+    const [errors, setErrors] = useState<{ name?: string }>({})
+    const [submitting, setSubmitting] = useState(false)
     const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -119,43 +114,40 @@ export default function EtiquetasPage() {
         loadTags()
     }, [loadTags])
 
-    function handleOpenDialog(tag?: TagItem) {
-        if (tag) {
-            setEditingTag(tag)
-            setFormData({ name: tag.name, color: tag.color })
-        } else {
-            setEditingTag(null)
-            setFormData({ name: '', color: COLOR_PALETTE[0] })
-        }
+    function openNew() {
+        setFormData({ name: '', color: COLOR_PALETTE[0] })
+        setErrors({})
         setIsDialogOpen(true)
     }
 
-    async function handleSave() {
-        if (!formData.name.trim()) {
-            toast.error('Informe um nome para a etiqueta')
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    async function handleSave(again: boolean) {
+        const name = formData.name.trim()
+        if (!name) {
+            setErrors({ name: 'Dê um nome à etiqueta.' })
             return
         }
-
+        setSubmitting(true)
         try {
-            const res = await fetch(
-                editingTag ? `/api/tags/${editingTag.id}` : '/api/tags',
-                {
-                    method: editingTag ? 'PATCH' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: formData.name, color: formData.color }),
-                }
-            )
-
+            const res = await fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, color: formData.color }),
+            })
             if (res.ok) {
-                toast.success(editingTag ? 'Etiqueta atualizada' : 'Etiqueta criada')
-                setIsDialogOpen(false)
+                toast.success('Etiqueta criada')
+                setErrors({})
+                if (again) setFormData({ name: '', color: COLOR_PALETTE[0] })
+                else setIsDialogOpen(false)
                 loadTags()
             } else {
-                const error = await res.json()
-                toast.error(error.error ?? 'Não foi possível salvar a etiqueta')
+                const error = await res.json().catch(() => ({}))
+                setErrors({ name: error.error ?? 'Não foi possível salvar a etiqueta' })
             }
         } catch {
             toast.error('Não foi possível salvar a etiqueta')
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -217,7 +209,7 @@ export default function EtiquetasPage() {
                 title="Etiquetas"
                 primary={
                     canEdit ? (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                        <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
                             <Plus className="size-3.5" /> Nova etiqueta
                         </Button>
                     ) : null
@@ -272,7 +264,7 @@ export default function EtiquetasPage() {
                             }
                             action={
                                 canEdit && !query ? (
-                                    <Button onClick={() => handleOpenDialog()}>
+                                    <Button onClick={openNew}>
                                         <Plus />
                                         Nova etiqueta
                                     </Button>
@@ -295,80 +287,61 @@ export default function EtiquetasPage() {
                 />
             </IndexFrame>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingTag ? 'Editar etiqueta' : 'Nova etiqueta'}
-                        </DialogTitle>
-                    </DialogHeader>
+            <RecordDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                title="Nova etiqueta"
+                description="Aparece na lista, na ficha e no filtro."
+                submitLabel="Criar etiqueta"
+                onSubmit={handleSave}
+                submitting={submitting}
+                summary={
+                    <>
+                        <SummaryCard>
+                            <TagChip name={formData.name.trim() || 'Nome da etiqueta'} color={formData.color} />
+                        </SummaryCard>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">Na lista, na ficha e no filtro — sempre com este ponto de cor.</p>
+                    </>
+                }
+            >
+                <FormField label="Nome" htmlFor="tag-name" required error={errors.name} className="col-span-2">
+                    <Input
+                        id="tag-name"
+                        value={formData.name}
+                        onChange={(e) => { setFormData((prev) => ({ ...prev, name: e.target.value })); if (errors.name) setErrors({}) }}
+                        placeholder="Avaliação agendada"
+                        aria-invalid={errors.name ? true : undefined}
+                        autoFocus
+                    />
+                </FormField>
 
-                    <div className="space-y-5 py-2">
-                        <FormField label="Nome" htmlFor="tag-name" required>
-                            <Input
-                                id="tag-name"
-                                value={formData.name}
-                                onChange={(e) =>
-                                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                                }
-                                placeholder="Avaliação agendada"
-                                autoFocus
-                            />
-                        </FormField>
-
-                        <div className="space-y-2">
-                            <Label>Cor</Label>
-                            <div
-                                role="radiogroup"
-                                aria-label="Cor da etiqueta"
-                                className="grid grid-cols-4 gap-3"
-                            >
-                                {COLOR_PALETTE.map((color) => {
-                                    const selected = formData.color === color
-                                    return (
-                                        <button
-                                            key={color}
-                                            type="button"
-                                            role="radio"
-                                            aria-checked={selected}
-                                            aria-label={`Cor ${color}`}
-                                            onClick={() =>
-                                                setFormData((prev) => ({ ...prev, color }))
-                                            }
-                                            // ring-offset takes the surface token. It was
-                                            // pinned to a navy hex, which painted a dark halo
-                                            // around the selected swatch on a white dialog.
-                                            className={`aspect-square w-full rounded-lg transition-transform ${
-                                                selected
-                                                    ? 'scale-95 ring-2 ring-ring ring-offset-2 ring-offset-background'
-                                                    : 'hover:scale-95'
-                                            }`}
-                                            style={{ backgroundColor: color }}
-                                        />
-                                    )
-                                })}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Prévia:{' '}
-                                <TagChip
-                                    size="sm"
-                                    name={formData.name || 'Etiqueta'}
-                                    color={formData.color}
+                <div className="col-span-2 space-y-2">
+                    <Label>
+                        Cor<span className="text-destructive-subtle-foreground" aria-hidden="true">*</span>
+                    </Label>
+                    <div role="radiogroup" aria-label="Cor da etiqueta" className="grid grid-cols-8 gap-2.5">
+                        {COLOR_PALETTE.map((color) => {
+                            const selected = formData.color === color
+                            return (
+                                <button
+                                    key={color}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={selected}
+                                    aria-label={`Cor ${color}`}
+                                    onClick={() => setFormData((prev) => ({ ...prev, color }))}
+                                    className={`aspect-square w-full rounded-lg transition-transform ${
+                                        selected
+                                            ? 'scale-95 ring-2 ring-ring ring-offset-2 ring-offset-background'
+                                            : 'hover:scale-95'
+                                    }`}
+                                    style={{ backgroundColor: color }}
                                 />
-                            </p>
-                        </div>
+                            )
+                        })}
                     </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSave}>
-                            {editingTag ? 'Salvar' : 'Criar etiqueta'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </div>
+            </RecordDialog>
 
             <ConfirmDialog
                 open={deletingTag !== null}

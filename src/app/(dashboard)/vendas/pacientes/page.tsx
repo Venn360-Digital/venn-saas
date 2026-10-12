@@ -18,20 +18,14 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     AlertCircle,
-    Calendar,
     Check,
+    ChevronDown,
     Download,
-    FileText,
-    Hash,
-    List as ListIcon,
     MessageSquare,
     Pencil,
-    Phone,
     Plus,
     Settings,
-    ToggleLeft,
     Trash2,
-    TrendingUp,
     Upload,
     User,
 } from 'lucide-react'
@@ -41,10 +35,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatPhone, phoneIssue } from '@/lib/phone'
+import { formatPhone, nationalDigits, phoneIssue } from '@/lib/phone'
+import { MASKS, dateFromMask, maskDigitsFromIso, prettyPhone } from '@/lib/masks'
+import { MaskedInput } from '@/components/shared/MaskedInput'
+import { RecordDialog, SummaryCard, SummaryNotice } from '@/components/shared/RecordDialog'
+import { FormField } from '@/components/shared/FormField'
 import {
-    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+    Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -55,8 +52,6 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
@@ -78,7 +73,6 @@ interface ContactStats { totalMessages: number; totalConversations: number; tota
 type CustomFieldValue = string | number | boolean | null
 
 interface Contact { id: string; name: string | null; email: string | null; phone: string | null; notes: string | null; source: string | null; customFields: Record<string, CustomFieldValue> | null; tags: ContactTag[]; createdAt: string }
-interface ContactDetail extends Contact { deals: DealInfo[]; conversations: ConversationInfo[]; stats: ContactStats }
 interface TagOption { id: string; name: string; color: string }
 interface CustomFieldDef { id: string; name: string; key: string; type: string; options: string[] | null; required: boolean; order: number }
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
@@ -94,6 +88,8 @@ const getInitials = (name: string | null) => {
     if (!name) return '?'
     return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 }
+
+const SOURCE_OPTIONS = ['manual', 'whatsapp', 'ligacao', 'instagram', 'indicacao', 'google', 'site', 'facebook']
 
 const DEAL_FILTER_OPTIONS = [
     { value: '', label: 'Todos' },
@@ -123,11 +119,16 @@ export default function ContatosPage() {
 
     // Dialog state
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editingContact, setEditingContact] = useState<ContactDetail | null>(null)
-    const [loadingDetail, setLoadingDetail] = useState(false)
 
-    // Form state
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', notes: '' })
+    // Form state — o diálogo só cria; editar é na ficha ao lado da lista.
+    const EMPTY_FORM = { name: '', email: '', phone: '', notes: '', source: 'manual' }
+    const [formData, setFormData] = useState(EMPTY_FORM)
+    const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string }>({})
+    const [submitting, setSubmitting] = useState(false)
+    /** Quem já usa o telefone digitado — o aviso "parece já existir". */
+    const [clash, setClash] = useState<{ id: string; name: string | null; createdAt: string } | null>(null)
+    const [clashDismissed, setClashDismissed] = useState(false)
+    const [showFieldManager, setShowFieldManager] = useState(false)
     const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
     const [customFieldValues, setCustomFieldValues] = useState<Record<string, CustomFieldValue>>({})
 
@@ -159,7 +160,6 @@ export default function ContatosPage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Custom field management
-    const [showFieldManager, setShowFieldManager] = useState(false)
     const [newFieldName, setNewFieldName] = useState('')
     const [newFieldType, setNewFieldType] = useState('text')
     const [newFieldOptions, setNewFieldOptions] = useState('')
@@ -205,62 +205,76 @@ export default function ContatosPage() {
     }, [search])
 
     // ─── Contact Detail ─────────────────────────────────────────────
-    const loadContactDetail = async (id: string) => {
-        setLoadingDetail(true)
-        try {
-            const res = await fetch(`/api/contacts/${id}`)
-            if (res.ok) {
-                const data: ContactDetail = await res.json()
-                setEditingContact(data)
-                setFormData({ name: data.name || '', email: data.email || '', phone: formatPhone(data.phone), notes: data.notes || '' })
-                setSelectedTagIds(data.tags?.map(ct => ct.tag.id) || [])
-                setCustomFieldValues(data.customFields || {})
-            }
-        } catch (error) {
-            console.error('Error loading contact:', error)
-        } finally {
-            setLoadingDetail(false)
-        }
-    }
-
-    const handleOpenDialog = (contact?: Contact) => {
-        if (contact) {
-            loadContactDetail(contact.id)
-        } else {
-            setEditingContact(null)
-            setFormData({ name: '', email: '', phone: '', notes: '' })
-            setSelectedTagIds([])
-            setCustomFieldValues({})
-        }
+    const openNew = () => {
+        setFormData(EMPTY_FORM)
+        setSelectedTagIds([])
+        setCustomFieldValues({})
+        setErrors({})
+        setClash(null)
+        setClashDismissed(false)
         setIsDialogOpen(true)
     }
 
-    const handleSave = async () => {
-        if (!formData.name.trim() && !formData.phone.trim() && !formData.email.trim()) {
-            toast.error('Preencha pelo menos um campo')
-            return
-        }
-        // Telefone errado não grava: é por ele que o paciente é reencontrado
-        // quando a mensagem chega.
+    // O telefone é o que reencontra o paciente quando a mensagem chega — então,
+    // assim que ele fica completo, a lista é consultada e o resumo avisa se
+    // alguém já o usa, antes do clique em Criar.
+    useEffect(() => {
+        if (!isDialogOpen) return
+        const digits = nationalDigits(formData.phone)
+        if (phoneIssue(digits)) { setClash(null); return }
+        let cancelled = false
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/contacts?search=${encodeURIComponent(digits)}&limit=5`)
+                if (!res.ok || cancelled) return
+                const data = await res.json()
+                const found = (data.contacts ?? data.items ?? []).find((c: Contact) => nationalDigits(c.phone) === digits) ?? null
+                if (!cancelled) setClash(found ? { id: found.id, name: found.name, createdAt: found.createdAt } : null)
+            } catch { /* o aviso é um extra; o servidor barra de qualquer jeito */ }
+        }, 350)
+        return () => { cancelled = true; clearTimeout(timer) }
+    }, [formData.phone, isDialogOpen])
+
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    const handleSave = async (again: boolean) => {
+        const name = formData.name.trim()
+        const next: typeof errors = {}
+        if (!name) next.name = 'Dê um nome ao paciente.'
         const issue = phoneIssue(formData.phone)
-        if (issue) {
-            toast.error(issue)
-            return
-        }
+        if (!formData.phone.trim()) next.phone = 'Informe o telefone, com DDD.'
+        else if (issue) next.phone = issue
+        if (formData.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email.trim())) next.email = 'Esse e-mail não parece completo.'
+        if (Object.keys(next).length) { setErrors(next); return }
+        setSubmitting(true)
         try {
-            const url = editingContact ? `/api/contacts/${editingContact.id}` : '/api/contacts'
             const payload = {
                 ...formData,
+                name,
+                email: formData.email.trim() || null,
+                notes: formData.notes.trim() || null,
                 tagIds: selectedTagIds,
                 customFields: customFieldValues,
             }
-            const res = await fetch(url, { method: editingContact ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+            const res = await fetch('/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             if (res.ok) {
-                toast.success(editingContact ? 'Paciente atualizado' : 'Paciente criado')
-                setIsDialogOpen(false)
+                const created = await res.json().catch(() => null)
+                toast.success('Paciente criado')
+                setErrors({})
+                if (again) {
+                    setFormData(EMPTY_FORM); setSelectedTagIds([]); setCustomFieldValues({}); setClash(null); setClashDismissed(false)
+                } else {
+                    setIsDialogOpen(false)
+                    if (created?.id) setOpenId(created.id)
+                }
                 loadContacts()
-            } else { toast.error('Erro ao salvar paciente') }
-        } catch { toast.error('Erro ao salvar paciente') }
+            } else {
+                const data = await res.json().catch(() => ({}))
+                const msg: string = data.error || 'Não foi possível criar o paciente'
+                // O choque de telefone volta para o campo que o causou.
+                if (/telefone/i.test(msg)) setErrors({ phone: msg })
+                else toast.error(msg)
+            }
+        } catch { toast.error('Não foi possível criar o paciente') } finally { setSubmitting(false) }
     }
 
     const handleDelete = async (id: string) => {
@@ -550,7 +564,7 @@ export default function ContatosPage() {
                     </>
                 }
                 primary={
-                    <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                    <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
                         <Plus className="size-3.5" /> Novo paciente
                     </Button>
                 }
@@ -613,7 +627,6 @@ export default function ContatosPage() {
                             onPrev={openIndex > 0 ? () => setOpenId(contacts[openIndex - 1].id) : undefined}
                             onNext={openIndex >= 0 && openIndex < contacts.length - 1 ? () => setOpenId(contacts[openIndex + 1].id) : undefined}
                             onChanged={() => void loadContacts()}
-                            onEditFull={(id) => { const c = contacts.find(x => x.id === id); if (c) handleOpenDialog(c) }}
                             onDelete={(id) => { const c = contacts.find(x => x.id === id); if (c) setDeletingContact(c) }}
                             onTagCreated={(tag) => setAllTags(prev => prev.some(t => t.id === tag.id) ? prev : [...prev, tag])}
                         />
@@ -673,7 +686,7 @@ export default function ContatosPage() {
                             }
                             action={
                                 !search && !activeFilterCount ? (
-                                    <Button onClick={() => handleOpenDialog()}><Plus /> Novo paciente</Button>
+                                    <Button onClick={openNew}><Plus /> Novo paciente</Button>
                                 ) : null
                             }
                         />
@@ -692,251 +705,171 @@ export default function ContatosPage() {
             </IndexFrame>
 
             {/* ═══ Create/Edit Contact Dialog (Full-screen) ═══ */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="!w-[90vw] !max-w-[1400px] max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
-                    <DialogHeader>
-                        <DialogTitle>{editingContact ? 'Editar paciente' : 'Novo paciente'}</DialogTitle>
-                    </DialogHeader>
+            <RecordDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                title="Novo paciente"
+                description="O telefone é o que liga a conversa ao cadastro."
+                submitLabel="Criar paciente"
+                onSubmit={handleSave}
+                submitting={submitting}
+                summary={
+                    <>
+                        <SummaryCard>
+                            <Avatar className="size-7 shrink-0">
+                                <AvatarFallback className="bg-muted text-[10px] font-bold text-muted-foreground">{getInitials(formData.name) || '?'}</AvatarFallback>
+                            </Avatar>
+                            <span className="min-w-0">
+                                <span className="block truncate text-[12.5px] font-semibold">{formData.name.trim() || 'Nome do paciente'}</span>
+                                <span className="num block text-[11px] text-muted-foreground">{prettyPhone(formData.phone) || '(00) 00000-0000'}</span>
+                            </span>
+                        </SummaryCard>
+                        <div className="flex flex-wrap gap-1.5">
+                            {allTags.filter(t => selectedTagIds.includes(t.id)).map(t => <TagChip key={t.id} size="sm" name={t.name} color={t.color} />)}
+                            <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{sourceLabel(formData.source)}</span>
+                        </div>
+                        {clash && !clashDismissed ? (
+                            <SummaryNotice>
+                                <span className="flex items-start gap-1.5">
+                                    <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                                    <span><strong>Parece já existir.</strong> {clash.name || 'Um paciente'} usa o mesmo telefone desde {shortDate(clash.createdAt.slice(0, 10))}.</span>
+                                </span>
+                                <span className="mt-2 flex gap-3">
+                                    <button type="button" className="font-semibold underline-offset-2 hover:underline" onClick={() => { setIsDialogOpen(false); setOpenId(clash.id) }}>Abrir a ficha</button>
+                                    <button type="button" className="underline-offset-2 hover:underline" onClick={() => setClashDismissed(true)}>Criar mesmo assim</button>
+                                </span>
+                            </SummaryNotice>
+                        ) : null}
+                    </>
+                }
+            >
+                <FormField label="Nome" htmlFor="ct-name" required error={errors.name} className="col-span-2">
+                    <Input id="ct-name" value={formData.name} onChange={e => { setFormData(p => ({ ...p, name: e.target.value })); if (errors.name) setErrors(p => ({ ...p, name: undefined })) }} placeholder="Nome do paciente" aria-invalid={errors.name ? true : undefined} autoFocus />
+                </FormField>
 
-                    {loadingDetail ? (
-                        <div className="flex items-center justify-center h-40"><span className="text-muted-foreground">Carregando...</span></div>
+                <FormField label="Telefone" htmlFor="ct-phone" required error={errors.phone} hint="Com DDD. É por ele que a conversa chega.">
+                    <PhoneInput id="ct-phone" value={formData.phone} onChange={digits => { setFormData(p => ({ ...p, phone: digits })); if (errors.phone) setErrors(p => ({ ...p, phone: undefined })); setClashDismissed(false) }} />
+                </FormField>
+
+                <FormField label="Origem" htmlFor="ct-source" required>
+                    <Select value={formData.source} onValueChange={v => setFormData(p => ({ ...p, source: v }))}>
+                        <SelectTrigger id="ct-source" className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {SOURCE_OPTIONS.map(v => <SelectItem key={v} value={v}>{sourceLabel(v)}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+
+                <FormField label="E-mail" htmlFor="ct-email" error={errors.email} className="col-span-2">
+                    <Input id="ct-email" type="email" value={formData.email} onChange={e => { setFormData(p => ({ ...p, email: e.target.value })); if (errors.email) setErrors(p => ({ ...p, email: undefined })) }} placeholder="nome@exemplo.com" aria-invalid={errors.email ? true : undefined} />
+                </FormField>
+
+                <div className="col-span-2 space-y-2">
+                    <Label>Etiquetas</Label>
+                    {allTags.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Nenhuma etiqueta cadastrada.</p>
                     ) : (
-                        <Tabs defaultValue="dados" className="pt-2">
-                            <TabsList className="mb-4">
-                                <TabsTrigger value="dados">📋 Dados</TabsTrigger>
-                                {editingContact && <TabsTrigger value="historico">📊 Histórico</TabsTrigger>}
-                                <TabsTrigger value="campos">⚙️ Campos Personalizados</TabsTrigger>
-                            </TabsList>
-
-                            {/* ── Dados Tab ── */}
-                            <TabsContent value="dados">
-                                <div className="grid grid-cols-2 gap-6">
-                                    {/* Left Column: Basic info */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Informações Básicas</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div><Label>Nome</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Nome do paciente" className="mt-1" /></div>
-                                            <div>
-                                                <Label>Telefone</Label>
-                                                <PhoneInput
-                                                    value={formData.phone}
-                                                    onChange={digits => setFormData(p => ({ ...p, phone: digits }))}
-                                                    className="mt-1"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div><Label>E-mail</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" className="mt-1" /></div>
-                                        <div><Label>Observações</Label><Textarea value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o paciente..." className="mt-1" rows={3} /></div>
-
-                                        {/* Custom field values */}
-                                        {customFieldDefs.length > 0 && (
-                                            <>
-                                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-2">Campos Personalizados</h3>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    {customFieldDefs.map(field => (
-                                                        <div key={field.id}>
-                                                            <Label className="text-xs">{field.name}</Label>
-                                                            {field.type === 'text' && (
-                                                                <Input value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
-                                                            )}
-                                                            {field.type === 'number' && (
-                                                                <Input type="number" value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
-                                                            )}
-                                                            {field.type === 'date' && (
-                                                                <Input type="date" value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} className="mt-1" />
-                                                            )}
-                                                            {field.type === 'checkbox' && (
-                                                                <div className="flex items-center gap-2 mt-2">
-                                                                    <Switch checked={!!customFieldValues[field.key]} onCheckedChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))} />
-                                                                    <span className="text-sm text-muted-foreground">{customFieldValues[field.key] ? 'Sim' : 'Não'}</span>
-                                                                </div>
-                                                            )}
-                                                            {field.type === 'select' && Array.isArray(field.options) && (
-                                                                <Select value={String(customFieldValues[field.key] ?? '')} onValueChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))}>
-                                                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {field.options.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    {/* Right Column: Tags + Stats */}
-                                    <div className="space-y-4">
-                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Etiquetas</h3>
-                                        {allTags.length === 0 ? (
-                                            <p className="text-xs text-muted-foreground">Nenhuma etiqueta cadastrada.</p>
-                                        ) : (
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {allTags.map(tag => {
-                                                    const sel = selectedTagIds.includes(tag.id)
-                                                    return (
-                                                        <button
-                                                            key={tag.id}
-                                                            type="button"
-                                                            aria-pressed={sel}
-                                                            onClick={() => setSelectedTagIds(prev => sel ? prev.filter(i => i !== tag.id) : [...prev, tag.id])}
-                                                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${sel ? 'border-primary bg-primary-subtle text-primary-subtle-foreground' : 'border-border bg-card text-foreground hover:bg-accent'}`}>
-                                                            {sel
-                                                                ? <Check className="size-3" />
-                                                                : <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />}
-                                                            {tag.name}
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {/* Quick stats (edit mode only) */}
-                                        {editingContact?.stats && (
-                                            <>
-                                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pt-4">Resumo</h3>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="p-3 rounded-lg bg-card border border-border">
-                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><MessageSquare className="h-4 w-4" /><span className="text-xs">Mensagens</span></div>
-                                                        <span className="text-lg font-semibold text-foreground num">{editingContact.stats.totalMessages}</span>
-                                                    </div>
-                                                    <div className="p-3 rounded-lg bg-card border border-border">
-                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><Phone className="h-4 w-4" /><span className="text-xs">Conversas</span></div>
-                                                        <span className="text-lg font-semibold text-foreground num">{editingContact.stats.totalConversations}</span>
-                                                    </div>
-                                                    <div className="p-3 rounded-lg bg-card border border-border">
-                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><TrendingUp className="h-4 w-4" /><span className="text-xs">Negócios</span></div>
-                                                        <span className="text-lg font-semibold text-foreground num">{editingContact.stats.totalDeals}</span>
-                                                        {editingContact.stats.openDeals > 0 && <span className="ml-1 text-xs text-success-subtle-foreground">({editingContact.stats.openDeals} aberto{editingContact.stats.openDeals > 1 ? 's' : ''})</span>}
-                                                    </div>
-                                                    <div className="p-3 rounded-lg bg-card border border-border">
-                                                        <div className="flex items-center gap-2 text-muted-foreground mb-1"><Calendar className="h-4 w-4" /><span className="text-xs">Primeiro contato</span></div>
-                                                        <span className="text-sm font-medium text-foreground">{editingContact.stats.firstContact ? format(new Date(editingContact.stats.firstContact), 'dd/MM/yy', { locale: ptBR }) : '—'}</span>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </TabsContent>
-
-                            {/* ── Histórico Tab ── */}
-                            {editingContact && (
-                                <TabsContent value="historico">
-                                    <div className="grid grid-cols-2 gap-6">
-                                        {/* Conversations */}
-                                        <div>
-                                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Conversas ({editingContact.conversations?.length || 0})</h3>
-                                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                                {editingContact.conversations?.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma conversa</p>}
-                                                {editingContact.conversations?.map(conv => (
-                                                    <div key={conv.id} className="p-3 rounded-lg bg-card border border-border flex items-center justify-between">
-                                                        <div>
-                                                            <div className="flex items-center gap-2">
-                                                                <Badge variant="outline" className={`text-[10px] ${conv.status === 'active' ? 'border-success text-success-subtle-foreground' : 'border-border-strong text-muted-foreground'}`}>{conv.status === 'active' ? 'Ativa' : 'Fechada'}</Badge>
-                                                                <span className="text-xs text-muted-foreground">{conv.channel}</span>
-                                                                {conv.agentName && <span className="text-xs text-muted-foreground">via {conv.agentName}</span>}
-                                                            </div>
-                                                            <p className="text-xs text-muted-foreground mt-1">{conv.messageCount} mensagens</p>
-                                                        </div>
-                                                        <span className="text-xs text-muted-foreground">{conv.lastMessageAt ? format(new Date(conv.lastMessageAt), 'dd/MM/yy HH:mm', { locale: ptBR }) : '—'}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        {/* Deals */}
-                                        <div>
-                                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Negócios ({editingContact.deals?.length || 0})</h3>
-                                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                                {editingContact.deals?.length === 0 && <p className="text-sm text-muted-foreground">Nenhum negócio</p>}
-                                                {editingContact.deals?.map(deal => (
-                                                    <div key={deal.id} className="p-3 rounded-lg bg-card border border-border">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-sm font-medium text-foreground">{deal.title}</span>
-                                                            <Badge variant="outline" className={`text-[10px] ${deal.status === 'open' ? 'border-info text-info-subtle-foreground' : deal.status === 'won' ? 'border-success text-success-subtle-foreground' : 'border-destructive text-destructive-subtle-foreground'}`}>{deal.status === 'open' ? 'Aberto' : deal.status === 'won' ? 'Ganho' : 'Perdido'}</Badge>
-                                                        </div>
-                                                        <div className="flex items-center gap-3 mt-1">
-                                                            {deal.value && <span className="text-xs text-success-subtle-foreground">R$ {deal.value.toLocaleString('pt-BR')}</span>}
-                                                            {deal.stage && <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: deal.stage.color + '25', color: deal.stage.color }}>{deal.stage.name}</span>}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </TabsContent>
-                            )}
-
-                            {/* ── Custom Fields Tab ── */}
-                            <TabsContent value="campos">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Campos Personalizados do Workspace</h3>
-                                        {canEdit && (
-                                            <Button variant="outline" size="sm" className="border-border" onClick={() => setShowFieldManager(!showFieldManager)}>
-                                                <Settings className="h-3.5 w-3.5 mr-1.5" /> {showFieldManager ? 'Fechar' : 'Gerenciar campos'}
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    {showFieldManager && canEdit && (
-                                        <div className="p-4 rounded-lg border border-border bg-card space-y-3">
-                                            <div className="flex gap-3 items-end">
-                                                <div className="flex-1"><Label className="text-xs">Nome do campo</Label><Input value={newFieldName} onChange={e => setNewFieldName(e.target.value)} placeholder="Ex: Empresa" className="mt-1 bg-card border-border" /></div>
-                                                <div className="w-32">
-                                                    <Label className="text-xs">Tipo</Label>
-                                                    <Select value={newFieldType} onValueChange={setNewFieldType}>
-                                                        <SelectTrigger className="mt-1 bg-card border-border"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="text">Texto</SelectItem>
-                                                            <SelectItem value="number">Número</SelectItem>
-                                                            <SelectItem value="date">Data</SelectItem>
-                                                            <SelectItem value="select">Seleção</SelectItem>
-                                                            <SelectItem value="checkbox">Checkbox</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                {newFieldType === 'select' && (
-                                                    <div className="flex-1"><Label className="text-xs">Opções (separadas por vírgula)</Label><Input value={newFieldOptions} onChange={e => setNewFieldOptions(e.target.value)} placeholder="Opção 1, Opção 2, Opção 3" className="mt-1 bg-card border-border" /></div>
-                                                )}
-                                                <Button size="sm" onClick={handleCreateField} ><Plus className="h-4 w-4" /></Button>
-                                            </div>
-                                            {customFieldDefs.length > 0 && (
-                                                <div className="space-y-1 pt-2 border-t border-border">
-                                                    {customFieldDefs.map(f => (
-                                                        <div key={f.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-card">
-                                                            <div className="flex items-center gap-2">
-                                                                {f.type === 'text' && <FileText className="h-3.5 w-3.5 text-muted-foreground" />}
-                                                                {f.type === 'number' && <Hash className="h-3.5 w-3.5 text-muted-foreground" />}
-                                                                {f.type === 'date' && <Calendar className="h-3.5 w-3.5 text-muted-foreground" />}
-                                                                {f.type === 'select' && <ListIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-                                                                {f.type === 'checkbox' && <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
-                                                                <span className="text-sm text-foreground">{f.name}</span>
-                                                                <span className="text-[10px] text-muted-foreground">({f.type})</span>
-                                                            </div>
-                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive-subtle-foreground" onClick={() => setDeletingField(f)}><Trash2 className="h-3 w-3" /></Button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {!showFieldManager && customFieldDefs.length === 0 && (
-                                        <p className="text-sm text-muted-foreground">Nenhum campo personalizado configurado. Clique em “Gerenciar campos” para criar.</p>
-                                    )}
-                                </div>
-                            </TabsContent>
-                        </Tabs>
+                        <div className="flex flex-wrap gap-1.5">
+                            {allTags.map(tag => {
+                                const sel = selectedTagIds.includes(tag.id)
+                                return (
+                                    <button
+                                        key={tag.id}
+                                        type="button"
+                                        aria-pressed={sel}
+                                        onClick={() => setSelectedTagIds(prev => sel ? prev.filter(i => i !== tag.id) : [...prev, tag.id])}
+                                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${sel ? 'border-primary-subtle-foreground bg-primary-subtle text-primary-subtle-foreground' : 'border-border bg-card text-foreground hover:bg-accent'}`}>
+                                        {sel ? <Check className="size-3" /> : <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />}
+                                        {tag.name}
+                                    </button>
+                                )
+                            })}
+                        </div>
                     )}
+                </div>
 
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-border">Cancelar</Button>
-                        <Button onClick={handleSave} >{editingContact ? 'Salvar' : 'Criar'}</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                {customFieldDefs.map(field => (
+                    <FormField key={field.id} label={field.name} htmlFor={`cf-${field.key}`} required={field.required}>
+                        {field.type === 'text' && (
+                            <Input id={`cf-${field.key}`} value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} />
+                        )}
+                        {field.type === 'number' && (
+                            <Input id={`cf-${field.key}`} type="number" className="num" value={String(customFieldValues[field.key] ?? '')} onChange={e => setCustomFieldValues(p => ({ ...p, [field.key]: e.target.value }))} />
+                        )}
+                        {field.type === 'date' && (
+                            <MaskedInput
+                                id={`cf-${field.key}`}
+                                mask={MASKS.date}
+                                value={maskDigitsFromIso(String(customFieldValues[field.key] ?? ''))}
+                                onChange={digits => setCustomFieldValues(p => ({ ...p, [field.key]: dateFromMask(digits) ?? (digits ? `~${digits}` : '') }))}
+                            />
+                        )}
+                        {field.type === 'checkbox' && (
+                            <div className="flex h-9 items-center gap-2">
+                                <Switch id={`cf-${field.key}`} checked={!!customFieldValues[field.key]} onCheckedChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))} />
+                                <span className="text-sm text-muted-foreground">{customFieldValues[field.key] ? 'Sim' : 'Não'}</span>
+                            </div>
+                        )}
+                        {field.type === 'select' && Array.isArray(field.options) && (
+                            <Select value={String(customFieldValues[field.key] ?? '')} onValueChange={v => setCustomFieldValues(p => ({ ...p, [field.key]: v }))}>
+                                <SelectTrigger id={`cf-${field.key}`} className="w-full"><SelectValue placeholder="Selecione…" /></SelectTrigger>
+                                <SelectContent>
+                                    {field.options.map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </FormField>
+                ))}
+
+                <FormField label="Observações" htmlFor="ct-notes" className="col-span-2">
+                    <Textarea id="ct-notes" value={formData.notes} onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Preferências de horário, como chegou até vocês…" rows={3} />
+                </FormField>
+
+                {/* Os campos personalizados são do workspace, não deste paciente:
+                    o gerenciador fica recolhido no fim, para quem administra. */}
+                {canEdit ? (
+                    <div className="col-span-2 rounded-lg border border-dashed border-input">
+                        <button type="button" onClick={() => setShowFieldManager(v => !v)} aria-expanded={showFieldManager} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-2"><Settings className="size-3.5" /><strong className="font-semibold text-foreground">Campos personalizados</strong> · {customFieldDefs.length === 0 ? 'nenhum ainda' : `${customFieldDefs.length} no workspace`}</span>
+                            <ChevronDown className={cn('size-3.5 transition-transform', showFieldManager && 'rotate-180')} />
+                        </button>
+                        {showFieldManager ? (
+                            <div className="space-y-3 border-t border-border p-3">
+                                <div className="flex items-end gap-2">
+                                    <div className="flex-1"><Label className="text-xs">Nome do campo</Label><Input value={newFieldName} onChange={e => setNewFieldName(e.target.value)} placeholder="Ex: Convênio" className="mt-1" /></div>
+                                    <div className="w-32">
+                                        <Label className="text-xs">Tipo</Label>
+                                        <Select value={newFieldType} onValueChange={setNewFieldType}>
+                                            <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="text">Texto</SelectItem>
+                                                <SelectItem value="number">Número</SelectItem>
+                                                <SelectItem value="date">Data</SelectItem>
+                                                <SelectItem value="select">Seleção</SelectItem>
+                                                <SelectItem value="checkbox">Sim/não</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {newFieldType === 'select' && (
+                                        <div className="flex-1"><Label className="text-xs">Opções (separadas por vírgula)</Label><Input value={newFieldOptions} onChange={e => setNewFieldOptions(e.target.value)} placeholder="Opção 1, Opção 2" className="mt-1" /></div>
+                                    )}
+                                    <Button type="button" size="sm" onClick={handleCreateField} aria-label="Criar campo"><Plus className="size-4" /></Button>
+                                </div>
+                                {customFieldDefs.length > 0 && (
+                                    <div className="space-y-0.5 border-t border-border pt-2">
+                                        {customFieldDefs.map(f => (
+                                            <div key={f.id} className="flex items-center justify-between rounded px-2 py-1 hover:bg-accent/40">
+                                                <span className="flex items-center gap-2 text-sm">{f.name}<span className="text-[10px] text-muted-foreground">({f.type})</span></span>
+                                                <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive-subtle-foreground" onClick={() => setDeletingField(f)} aria-label={`Excluir campo ${f.name}`}><Trash2 className="size-3.5" /></Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
+                    </div>
+                ) : null}
+            </RecordDialog>
 
             {/* ═══ Import Dialog ═══ */}
             <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>

@@ -9,7 +9,6 @@ import {
     ChevronRight,
     Loader2,
     MessageSquare,
-    Pencil,
     X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -29,7 +28,6 @@ import { Switch } from '@/components/ui/switch'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
 import { InlineField } from '@/components/shared/InlineField'
-import { TagChip } from '@/components/shared/TagChip'
 import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
 import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
 import { formatPhone } from '@/lib/phone'
@@ -118,7 +116,6 @@ export function ContactPanel({
     onPrev,
     onNext,
     onChanged,
-    onEditFull,
     onDelete,
     onTagCreated,
 }: {
@@ -130,8 +127,6 @@ export function ContactPanel({
     onNext?: () => void
     /** A lista precisa recarregar — nome, telefone ou etiqueta mudaram. */
     onChanged: () => void
-    /** Abre o formulário completo (campos personalizados e tudo o mais). */
-    onEditFull: (contactId: string) => void
     onDelete: (contactId: string) => void
     onTagCreated?: (tag: PickableTag) => void
 }) {
@@ -477,9 +472,6 @@ export function ContactPanel({
 
                     <div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
                         <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => onEditFull(detail.id)}>
-                                <Pencil className="size-3.5" /> Formulário completo
-                            </Button>
                             <Button
                                 variant="ghost"
                                 size="sm"

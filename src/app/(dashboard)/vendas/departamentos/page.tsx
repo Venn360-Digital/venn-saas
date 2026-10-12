@@ -7,13 +7,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
@@ -24,6 +17,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DepartmentPanel } from '@/components/departments/DepartmentPanel'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
+import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 
 interface Department {
@@ -56,7 +50,8 @@ export default function DepartamentosPage() {
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editing, setEditing] = useState<Department | null>(null)
+    const [errors, setErrors] = useState<{ name?: string }>({})
+    const [submitting, setSubmitting] = useState(false)
     const [deleting, setDeleting] = useState<Department | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -105,49 +100,40 @@ export default function DepartamentosPage() {
         load()
     }, [load])
 
-    function handleOpenDialog(department?: Department) {
-        if (department) {
-            setEditing(department)
-            setFormData({
-                name: department.name,
-                description: department.description ?? '',
-            })
-        } else {
-            setEditing(null)
-            setFormData({ name: '', description: '' })
-        }
+    function openNew() {
+        setFormData({ name: '', description: '' })
+        setErrors({})
         setIsDialogOpen(true)
     }
 
-    async function handleSave() {
-        if (!formData.name.trim()) {
-            toast.error('Informe um nome para o departamento')
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    async function handleSave(again: boolean) {
+        const name = formData.name.trim()
+        if (!name) {
+            setErrors({ name: 'Dê um nome ao departamento.' })
             return
         }
-
+        setSubmitting(true)
         try {
-            const res = await fetch(
-                editing ? `/api/departments/${editing.id}` : '/api/departments',
-                {
-                    method: editing ? 'PATCH' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: formData.name,
-                        description: formData.description || undefined,
-                    }),
-                }
-            )
-
+            const res = await fetch('/api/departments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description: formData.description.trim() || undefined }),
+            })
             if (res.ok) {
-                toast.success(editing ? 'Departamento atualizado' : 'Departamento criado')
-                setIsDialogOpen(false)
+                toast.success('Departamento criado')
+                setErrors({})
+                if (again) setFormData({ name: '', description: '' })
+                else setIsDialogOpen(false)
                 load()
             } else {
-                const error = await res.json()
-                toast.error(error.error ?? 'Não foi possível salvar o departamento')
+                const error = await res.json().catch(() => ({}))
+                setErrors({ name: error.error ?? 'Não foi possível salvar o departamento' })
             }
         } catch {
             toast.error('Não foi possível salvar o departamento')
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -214,7 +200,7 @@ export default function DepartamentosPage() {
                 title="Departamentos"
                 primary={
                     canEdit ? (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                        <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
                             <Plus className="size-3.5" /> Novo departamento
                         </Button>
                     ) : null
@@ -273,7 +259,7 @@ export default function DepartamentosPage() {
                             }
                             action={
                                 canEdit && !query ? (
-                                    <Button onClick={() => handleOpenDialog()}>
+                                    <Button onClick={openNew}>
                                         <Plus />
                                         Novo departamento
                                     </Button>
@@ -296,56 +282,48 @@ export default function DepartamentosPage() {
                 />
             </IndexFrame>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editing ? 'Editar departamento' : 'Novo departamento'}
-                        </DialogTitle>
-                    </DialogHeader>
+            <RecordDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                title="Novo departamento"
+                description="Organiza quem atende o quê: filas, transferências e relatórios."
+                submitLabel="Criar departamento"
+                onSubmit={handleSave}
+                submitting={submitting}
+                summary={
+                    <>
+                        <SummaryCard className="flex-col items-start gap-1">
+                            <span className="flex items-center gap-2 text-sm font-semibold">
+                                <Users className="size-4 text-muted-foreground" />
+                                {formData.name.trim() || 'Nome do departamento'}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{formData.description.trim() || 'Sem descrição'}</span>
+                        </SummaryCard>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">Usuários entram nele pela ficha de cada um; conversas e negócios, pela transferência.</p>
+                    </>
+                }
+            >
+                <FormField label="Nome" htmlFor="dept-name" required error={errors.name} className="col-span-2">
+                    <Input
+                        id="dept-name"
+                        value={formData.name}
+                        onChange={(e) => { setFormData((prev) => ({ ...prev, name: e.target.value })); if (errors.name) setErrors({}) }}
+                        placeholder="Recepção"
+                        aria-invalid={errors.name ? true : undefined}
+                        autoFocus
+                    />
+                </FormField>
 
-                    <div className="space-y-5 py-2">
-                        <FormField label="Nome" htmlFor="dept-name" required>
-                            <Input
-                                id="dept-name"
-                                value={formData.name}
-                                onChange={(e) =>
-                                    setFormData((prev) => ({ ...prev, name: e.target.value }))
-                                }
-                                placeholder="Recepção"
-                                autoFocus
-                            />
-                        </FormField>
-
-                        <FormField
-                            label="Descrição"
-                            htmlFor="dept-description"
-                            hint="Opcional. Ajuda a equipe a saber o que cai aqui."
-                        >
-                            <Textarea
-                                id="dept-description"
-                                value={formData.description}
-                                onChange={(e) =>
-                                    setFormData((prev) => ({
-                                        ...prev,
-                                        description: e.target.value,
-                                    }))
-                                }
-                                placeholder="Primeiro contato, agendamento e confirmação"
-                            />
-                        </FormField>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSave}>
-                            {editing ? 'Salvar' : 'Criar departamento'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                <FormField label="Descrição" htmlFor="dept-description" hint="Ajuda a equipe a saber o que cai aqui." className="col-span-2">
+                    <Textarea
+                        id="dept-description"
+                        value={formData.description}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                        placeholder="Primeiro contato, agendamento e confirmação"
+                        rows={3}
+                    />
+                </FormField>
+            </RecordDialog>
 
             <ConfirmDialog
                 open={deleting !== null}

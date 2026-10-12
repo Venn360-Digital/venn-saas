@@ -37,7 +37,7 @@ function initials(name: string, lastName: string | null) {
 
 /**
  * A ficha de quem acessa a clínica. O e-mail é só leitura (é o login), e a
- * senha fica no formulário completo. Função e desativação do primeiro
+ * senha a pessoa troca na própria conta. Função e desativação do primeiro
  * administrador ficam travadas — a API recusa, e dizer isso aqui poupa a volta.
  */
 export function UserPanel({
@@ -48,7 +48,6 @@ export function UserPanel({
     onPrev,
     onNext,
     onChanged,
-    onEditFull,
     onDelete,
 }: {
     item: UserPanelItem
@@ -58,7 +57,6 @@ export function UserPanel({
     onPrev?: () => void
     onNext?: () => void
     onChanged: () => void
-    onEditFull: (id: string) => void
     onDelete: (id: string) => void
 }) {
     const { save, saved, local } = usePanelSave<UserPanelItem>(`/api/users/${item.id}`, onChanged)
@@ -90,7 +88,6 @@ export function UserPanel({
             onClose={onClose}
             onPrev={onPrev}
             onNext={onNext}
-            onEditFull={canEdit ? () => onEditFull(item.id) : undefined}
             onDelete={canEdit && !u.isFirstAdmin ? () => onDelete(item.id) : undefined}
         >
             <PanelSection title="Dados" aside={<span className="text-[10px] text-muted-foreground">grava ao sair do campo</span>}>
