@@ -1929,22 +1929,7 @@ export default function ConversasPage() {
                                         a altura é sempre a mesma, e elas são a
                                         primeira coisa a sumir quando falta
                                         largura. */}
-                                    {conversationTags.length > 0 && !panel && (
-                                        <div className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden xl:flex">
-                                            {/* Uma e a conta do resto, e nenhuma com
-                                                a ficha aberta: o que sobra de largura
-                                                nesta linha não cabe duas sem cortar a
-                                                segunda no meio. Ver todas, tirar e pôr
-                                                é no seletor de etiquetas, ao lado. */}
-                                            {conversationTags.slice(0, 1).map(tag => (
-                                                <TagChip key={tag.id} size="sm" name={tag.name} color={tag.color} className="max-w-[150px] overflow-hidden" />
-                                            ))}
-                                            {conversationTags.length > 1 ? (
-                                                <span className="num shrink-0 text-[11px] text-muted-foreground">
-                                                    +{conversationTags.length - 1}
-                                                </span>
-                                            ) : null}
-                                        </div>
+                                </div>
                                     )}
                                 </div>
 
@@ -2145,9 +2130,29 @@ export default function ConversasPage() {
                                                         <Button
                                                             variant={showTagPicker ? 'secondary' : 'ghost'}
                                                             size="icon-sm"
-                                                            aria-label="Etiquetas da conversa"
+                                                            className="relative"
+                                                            aria-label={
+                                                                conversationTags.length > 0
+                                                                    ? `Etiquetas da conversa: ${conversationTags.map(t => t.name).join(', ')}`
+                                                                    : 'Etiquetas da conversa'
+                                                            }
                                                         >
                                                             <Tag className="size-3.5" />
+                                                            {/* A faixa de etiquetas abaixo do cabeçalho saiu:
+                                                                ela mudava a altura do cabeçalho conforme a
+                                                                conversa tinha ou não etiqueta, e as mensagens
+                                                                pulavam ao trocar de conversa. O que ela dizia
+                                                                de longe — "esta conversa está classificada, e
+                                                                em quantas" — vive aqui; quais são, e tirar ou
+                                                                pôr, é o clique que já existia. */}
+                                                            {conversationTags.length > 0 ? (
+                                                                <span
+                                                                    aria-hidden="true"
+                                                                    className="num absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary-subtle-foreground text-[9px] font-bold text-card"
+                                                                >
+                                                                    {conversationTags.length}
+                                                                </span>
+                                                            ) : null}
                                                         </Button>
                                                     </PopoverTrigger>
                                                 </TooltipTrigger>

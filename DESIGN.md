@@ -465,9 +465,11 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    (primeiro administrador) fica de fora antes de chamar.
 
 **Conversas.** A coluna de 320px (fila, busca, abas, Ver) e o chat ficam como
-são: ali a lista *é* a navegação, e o cabeçalho da conversa é de uma linha só —
-as etiquetas vivem nela (uma e a conta do resto, nenhuma com a ficha aberta),
-não numa faixa que mudava a altura conforme a conversa. O painel direito é a
+são: ali a lista *é* a navegação, e o cabeçalho da conversa é de **uma linha
+só, de altura fixa** — a faixa de etiquetas que aparecia só quando havia
+etiqueta saiu, porque fazia o cabeçalho mudar de altura e as mensagens pularem
+ao trocar de conversa; quantas há se vê no ícone de etiquetas, quais são e
+tirar ou pôr é o clique que já existia. O painel direito é a
 ficha do padrão: `RecordPanel` de 380px, faixa de 40px dizendo **qual modo está
 aberto** e ×, rodapé com o lápis que abre a ficha do paciente e a dica; Esc
 fecha. As ferramentas continuam no cabeçalho do chat — é de lá que se escolhe o
