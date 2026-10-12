@@ -15,6 +15,11 @@ import { cn } from '@/lib/utils'
  * do cartão e a paginação continua no pé; com 700, as linhas rolam por dentro
  * e nada mais se mexe.
  *
+ * A tabela vai sangrada, sem margem nem cartão próprio: a área de conteúdo do
+ * shell já é um cartão arredondado, e um cartão dentro do outro dobrava os
+ * cantos e custava 32px de largura. O fio de baixo da linha 2 é o fio de cima
+ * do cabeçalho da tabela.
+ *
  * **Linha 1 (50px)** — o nome da tela, as ações secundárias à vista (Importar,
  * Exportar) e o botão de criar, sempre no canto direito. **Linha 2 (46px)** —
  * busca, os filtros como pílulas que mostram o próprio valor, Limpar e o modo
@@ -117,7 +122,7 @@ export function IndexFrame({
 
             {/* O corpo: o cartão da tabela, e a ficha ao lado quando houver. */}
             <div className="relative flex min-h-0 flex-1">
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col p-3 md:px-4 md:pt-3.5">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     {children}
                 </div>
                 {aside}
