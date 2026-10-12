@@ -14,7 +14,7 @@ import { ContactPanel } from '@/components/contacts/ContactPanel'
 import { SOURCE_FILTER_OPTIONS, sourceLabel } from '@/lib/sources'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     AlertCircle,
@@ -137,10 +137,16 @@ export default function ContatosPage() {
     const [allTags, setAllTags] = useState<TagOption[]>([])
     const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([])
     const router = useRouter()
+    const openParam = useSearchParams().get('open')
     const whatsapp = useWhatsAppStatus(contacts.map(c => c.phone))
     const [deletingContact, setDeletingContact] = useState<Contact | null>(null)
-    /** A ficha aberta ao lado da lista. */
-    const [openId, setOpenId] = useState<string | null>(null)
+    /**
+     * A ficha aberta ao lado da lista. `?open=<id>` abre direto numa ficha —
+     * é o que o lápis da conversa e o link da atividade usam para trazer a
+     * pessoa até aqui. Lido no inicializador, como em Conversas: derivar a
+     * cada render impediria fechar a ficha.
+     */
+    const [openId, setOpenId] = useState<string | null>(openParam)
     /** Linhas marcadas para ação em lote. */
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)

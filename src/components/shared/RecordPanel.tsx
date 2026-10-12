@@ -36,7 +36,9 @@ export function RecordPanel({
     onEditFull,
     footerExtra,
     onDelete,
+    editLabel,
     hint = '↑↓ navegam · Esc fecha',
+    className,
     children,
 }: {
     /** Para o leitor de tela: "Ficha da etiqueta Protocolo". */
@@ -59,7 +61,11 @@ export function RecordPanel({
     /** Um gesto a mais entre o lápis e a lixeira — a bandeira do negócio. */
     footerExtra?: React.ReactNode
     onDelete?: () => void
+    /** O que o lápis faz, quando não é "Editar no formulário". */
+    editLabel?: string
     hint?: string
+    /** Onde o painel vira coluna, quando não é em `lg`. */
+    className?: string
     children: React.ReactNode
 }) {
     return (
@@ -67,7 +73,8 @@ export function RecordPanel({
             aria-label={label}
             className={cn(
                 'absolute inset-0 z-20 flex flex-col bg-card',
-                'lg:static lg:z-auto lg:w-[380px] lg:shrink-0 lg:border-l lg:border-border'
+                'lg:static lg:z-auto lg:w-[380px] lg:shrink-0 lg:border-l lg:border-border',
+                className
             )}
         >
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-border pl-4 pr-2">
@@ -121,7 +128,7 @@ export function RecordPanel({
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-                <PanelActions onEditFull={onEditFull} extra={footerExtra} onDelete={onDelete} />
+                <PanelActions onEditFull={onEditFull} editLabel={editLabel} extra={footerExtra} onDelete={onDelete} />
                 <span className="num hidden lg:inline">{hint}</span>
             </div>
         </aside>
@@ -132,17 +139,17 @@ export function RecordPanel({
  * Os dois gestos do rodapé da ficha: editar no formulário (o diálogo do Novo,
  * com tudo de uma vez) e excluir. Ícones com dica, no mesmo lugar em toda ficha.
  */
-export function PanelActions({ onEditFull, extra, onDelete }: { onEditFull?: () => void; extra?: React.ReactNode; onDelete?: () => void }) {
+export function PanelActions({ onEditFull, editLabel = 'Editar no formulário', extra, onDelete }: { onEditFull?: () => void; editLabel?: string; extra?: React.ReactNode; onDelete?: () => void }) {
     return (
         <div className="flex items-center gap-0.5">
             {onEditFull ? (
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" onClick={onEditFull} aria-label="Editar no formulário">
+                        <Button variant="ghost" size="icon-sm" onClick={onEditFull} aria-label={editLabel}>
                             <Pencil className="size-4" />
                         </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Editar no formulário</TooltipContent>
+                    <TooltipContent>{editLabel}</TooltipContent>
                 </Tooltip>
             ) : null}
             {extra}

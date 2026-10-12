@@ -1,6 +1,6 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import { formatPhone } from '@/lib/phone'
 
@@ -89,6 +89,7 @@ import { InternalNotesPanel } from '@/components/shared/InternalNotesPanel'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { TagPicker } from '@/components/shared/TagPicker'
 import { TagChip } from '@/components/shared/TagChip'
+import { RecordPanel } from '@/components/shared/RecordPanel'
 import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
     DealJourney,
@@ -414,6 +415,7 @@ export default function ConversasPage() {
      * cada render impediria fechar a conversa no celular, que é o que
      * `setSelectedConversation(null)` faz.
      */
+    const router = useRouter()
     const convParam = useSearchParams().get('conv')
     const [selectedConversation, setSelectedConversation] = useState<string | null>(convParam)
     const [conversationDetail, setConversationDetail] = useState<ConversationDetail | null>(null)
@@ -507,6 +509,22 @@ export default function ConversasPage() {
     const togglePanel = (next: PanelMode) => setPanel((prev) => (prev === next ? null : next))
 
     /** O título do painel aberto, que o cabeçalho e o leitor de tela usam. */
+    /**
+     * Esc fecha a ficha — o mesmo gesto das outras telas. Dentro de um campo ou
+     * de um diálogo o Esc é deles.
+     */
+    useEffect(() => {
+        if (!panel) return
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return
+            const el = e.target as HTMLElement | null
+            if (el && el.closest('input, textarea, [contenteditable="true"], [role="dialog"], [role="listbox"], [role="menu"]')) return
+            setPanel(null)
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [panel])
+
     const PANEL_TITLES: Record<PanelMode, string> = {
         summary: 'Resumo do paciente',
         schedule: 'Atividades',
@@ -1884,8 +1902,8 @@ export default function ConversasPage() {
                                         name={conv.contact.name}
                                         phone={formatPhone(conv.contact.phone)}
                                     />
-                                    <div>
-                                        <h3 className="font-medium text-sm">
+                                    <div className="min-w-0">
+                                        <h3 className="truncate text-sm font-medium">
                                             {conv.contact.name || conv.contact.phone || 'Desconhecido'}
                                         </h3>
                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1896,13 +1914,34 @@ export default function ConversasPage() {
                                                 </span>
                                             )}
                                             {conv.agent && (
-                                                <span className="flex items-center gap-1">
-                                                    <Bot className="h-3 w-3" />
+                                                <span className="flex items-center gap-1 truncate">
+                                                    <Bot className="h-3 w-3 shrink-0" />
                                                     {conv.agent.name}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* As etiquetas na própria linha do cabeçalho.
+                                        Eram uma faixa de 34px logo abaixo, que só
+                                        existia quando havia etiqueta: o cabeçalho
+                                        mudava de altura conforme a conversa. Aqui
+                                        a altura é sempre a mesma, e elas são a
+                                        primeira coisa a sumir quando falta
+                                        largura. */}
+                                    {conversationTags.length > 0 && (
+                                        <div className="hidden min-w-0 items-center gap-1.5 overflow-hidden lg:flex">
+                                            {conversationTags.map(tag => (
+                                                <TagChip
+                                                    key={tag.id}
+                                                    size="sm"
+                                                    name={tag.name}
+                                                    color={tag.color}
+                                                    onRemove={() => removeTagFromConversation(tag.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* ── Comandos ──────────────────────────────
@@ -2171,29 +2210,6 @@ export default function ConversasPage() {
                                     </div>
                                 </div>
                             </div>
-                            {/* Tags ribbon */}
-                            {conversationTags.length > 0 && (
-                                <div className="flex items-center gap-1.5 px-4 py-1.5 border-b bg-muted/30">
-                                    <Tag className="h-3 w-3 text-muted-foreground" />
-                                    {conversationTags.map(tag => (
-                                        <span
-                                            key={tag.id}
-                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium group/tag"
-                                            style={{ backgroundColor: tag.color + '20', color: tag.color }}
-                                        >
-                                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
-                                            {tag.name}
-                                            <button
-                                                onClick={() => removeTagFromConversation(tag.id)}
-                                                className="opacity-0 group-hover/tag:opacity-100 transition-opacity ml-0.5"
-                                            >
-                                                <X className="h-2.5 w-2.5" />
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-
                             {/* Chat + Contact Panel layout */}
                             {/* `relative` por causa do painel: abaixo de 1280 ele
                                 sobrepõe o chat em vez de encolhê-lo, porque uma
@@ -2662,31 +2678,18 @@ export default function ConversasPage() {
                                     cinco conteúdos possíveis no mesmo lugar, o
                                     painel tem de dizer qual deles está aberto. */}
                                 {panel && conv && (
-                                    <aside
-                                        className={cn(
-                                            // No celular o painel toma a tela, que é o padrão
-                                            // da própria conversa ali. De 768 para cima ele é
-                                            // coluna, porque a lista saiu de cena.
-                                            'absolute inset-0 z-20 flex flex-col overflow-hidden bg-card',
-                                            'md:static md:z-auto md:w-[300px] md:shrink-0 md:border-l'
-                                        )}
-                                        aria-label={PANEL_TITLES[panel]}
+                                    <RecordPanel
+                                        label={PANEL_TITLES[panel]}
+                                        heading={PANEL_TITLES[panel]}
+                                        onClose={() => setPanel(null)}
+                                        onEditFull={conv.contact?.id ? () => router.push(`/vendas/pacientes?open=${conv.contact.id}`) : undefined}
+                                        editLabel="Abrir a ficha do paciente"
+                                        hint="Esc fecha"
+                                        /* No celular o painel toma a tela, que é o padrão da
+                                           própria conversa ali. De 768 para cima ele é coluna,
+                                           porque a lista saiu de cena. */
+                                        className="md:static md:z-auto md:w-[380px] md:shrink-0 md:border-l md:border-border"
                                     >
-                                        <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-                                            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                                {PANEL_TITLES[panel]}
-                                            </h3>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon-sm"
-                                                onClick={() => setPanel(null)}
-                                                aria-label="Fechar painel"
-                                            >
-                                                <X className="size-3.5" />
-                                            </Button>
-                                        </div>
-
-                                        <div className="flex-1 overflow-y-auto p-3">
                                             {panel === 'summary' ? <AiSummaryPanel key={conv.id} conversationId={conv.id} /> : null}
 
                                             {panel === 'files' ? <ConversationFilesPanel key={conv.id} conversationId={conv.id} /> : null}
@@ -2856,8 +2859,7 @@ export default function ConversasPage() {
 
                                         </div>
                                             ) : null}
-                                        </div>
-                                    </aside>
+                                    </RecordPanel>
                                 )}
                             </div> {/* end Chat + Contact Panel layout */}
 
