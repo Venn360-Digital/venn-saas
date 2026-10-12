@@ -38,6 +38,7 @@ export default function RespostasRapidasPage() {
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
     const [responses, setResponses] = useState<QuickResponse[]>([])
+    const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(true)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [editing, setEditing] = useState<QuickResponse | null>(null)
@@ -156,6 +157,11 @@ export default function RespostasRapidasPage() {
         await loadResponses()
     }
 
+    const needle = search.trim().toLowerCase()
+    const visibleResponses = needle
+        ? responses.filter((r) => r.command.toLowerCase().includes(needle) || r.text.toLowerCase().includes(needle))
+        : responses
+
     const columns: Column<QuickResponse>[] = [
         {
             id: 'command',
@@ -203,6 +209,9 @@ export default function RespostasRapidasPage() {
         <>
             <IndexFrame
                 title="Respostas rápidas"
+                search={search}
+                onSearchChange={setSearch}
+                searchLabel="Buscar por atalho ou texto"
                 primary={
                     canEdit ? (
                         <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
@@ -217,10 +226,10 @@ export default function RespostasRapidasPage() {
                     selected={selectedIds}
                     onSelectedChange={setSelectedIds}
                     bulkActions={(ids) => (
-                        <BulkBar count={ids.length} noun={['resposta', 'respostas']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                        <BulkBar count={ids.length} noun={['resposta', 'respostas']} feminine onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
                     )}
                     columns={columns}
-                    rows={responses}
+                    rows={visibleResponses}
                     getRowId={response => response.id ?? response.command}
                     loading={loading}
                     rowActions={

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 export function BulkBar({
     count,
     noun,
+    feminine = false,
     children,
     onDelete,
     onClear,
@@ -23,6 +24,8 @@ export function BulkBar({
     count: number
     /** `['paciente', 'pacientes']` — para "3 pacientes selecionados". */
     noun: [string, string]
+    /** "2 etiquetas selecionadas", não "selecionados". */
+    feminine?: boolean
     /** As ações próprias da tela (Exportar…), antes do Excluir. */
     children?: React.ReactNode
     onDelete?: () => void
@@ -32,7 +35,7 @@ export function BulkBar({
     return (
         <>
             <span className="num mr-2 text-xs font-semibold">
-                {count} {one ? noun[0] : noun[1]} selecionado{one ? '' : 's'}
+                {count} {one ? noun[0] : noun[1]} selecionad{feminine ? 'a' : 'o'}{one ? '' : 's'}
             </span>
             {children}
             {onDelete ? (

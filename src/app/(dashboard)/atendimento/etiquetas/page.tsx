@@ -214,7 +214,7 @@ export default function EtiquetasPage() {
                     selected={selectedIds}
                     onSelectedChange={setSelectedIds}
                     bulkActions={(ids) => (
-                        <BulkBar count={ids.length} noun={['etiqueta', 'etiquetas']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                        <BulkBar count={ids.length} noun={['etiqueta', 'etiquetas']} feminine onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
                     )}
                     columns={columns}
                     rows={tags}
