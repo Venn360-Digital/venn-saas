@@ -1,21 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, User } from 'lucide-react'
+import { User } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { FormField } from '@/components/shared/FormField'
 import { PickField, type PickOption } from '@/components/shared/PickField'
-import { Button } from '@/components/ui/button'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
+import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatPhone } from '@/lib/phone'
 
@@ -50,6 +42,7 @@ export function NewDealDialog({
     const [titleOverride, setTitleOverride] = useState<string | null>(null)
     const [stageId, setStageId] = useState(defaultStageId ?? stages[0]?.id ?? '')
     const [saving, setSaving] = useState(false)
+    const [errors, setErrors] = useState<{ contact?: string; title?: string }>({})
 
     // O mesmo texto que o webhook usa quando o paciente escreve primeiro: dois
     // caminhos criando negócios com títulos diferentes dariam duas convenções.
@@ -75,15 +68,13 @@ export function NewDealDialog({
             .finally(() => setSearching(false))
     }
 
-    const submit = async () => {
-        if (!title.trim()) {
-            toast.error('Informe o título')
-            return
-        }
-        if (!stageId) {
-            toast.error('Escolha a fase')
-            return
-        }
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    const submit = async (again: boolean) => {
+        const next: typeof errors = {}
+        if (!contact) next.contact = 'Escolha o paciente — ou cadastre um novo aqui mesmo.'
+        if (!title.trim()) next.title = 'Dê um título ao negócio.'
+        if (Object.keys(next).length) { setErrors(next); return }
+        if (!stageId) { toast.error('Escolha a fase'); return }
         setSaving(true)
         try {
             const res = await fetch('/api/deals', {
@@ -101,12 +92,18 @@ export function NewDealDialog({
                 toast.error(data.error || 'Não foi possível criar o negócio')
                 return
             }
+            setErrors({})
+            setContact(null)
+            setTitleOverride(null)
+            if (again) {
+                toast.success('Negócio criado')
+                onCreated(data.id)
+                return
+            }
             // Abre no painel: o resto da ficha se preenche lá, com os campos
             // abertos — não há segundo formulário.
             onCreated(data.id)
             onOpenChange(false)
-            setContact(null)
-            setTitleOverride(null)
         } catch {
             toast.error('Não foi possível criar o negócio')
         } finally {
@@ -114,78 +111,78 @@ export function NewDealDialog({
         }
     }
 
+    const stageName = stages.find((st) => st.id === stageId)?.name
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[400px]">
-                <DialogHeader>
-                    <DialogTitle>Novo negócio</DialogTitle>
-                    <DialogDescription>
-                        O resto da ficha se preenche no painel, com os campos abertos.
-                    </DialogDescription>
-                </DialogHeader>
+        <RecordDialog
+            open={open}
+            onOpenChange={onOpenChange}
+            title="Novo negócio"
+            description="O resto da ficha se preenche ao lado da lista, com os campos abertos."
+            submitLabel="Criar negócio"
+            onSubmit={submit}
+            submitting={saving}
+            summary={
+                <>
+                    <SummaryCard className="flex-col items-start gap-1.5">
+                        <span className="truncate text-sm font-semibold">{title.trim() || 'Título do negócio'}</span>
+                        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <User className="size-3" />{contact?.name ?? 'Sem paciente'}
+                        </span>
+                        {stageName ? <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{stageName}</span> : null}
+                    </SummaryCard>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">Cartão vazio criado por clique distraído é sujeira: por isso o diálogo pede de quem é e como se chama.</p>
+                </>
+            }
+        >
+            <FormField label="Paciente" htmlFor="new-deal-contact" required error={errors.contact} className="col-span-2">
+                <PickField
+                    id="new-deal-contact"
+                    value={contact}
+                    options={results}
+                    searchable
+                    onSearch={search}
+                    loading={searching}
+                    leading={<User className="size-3.5 shrink-0 text-muted-foreground" />}
+                    placeholder="Buscar paciente"
+                    newPlaceholder="Nome do novo paciente"
+                    onSelect={(c) => { setContact(c); if (errors.contact) setErrors({}) }}
+                    onCreate={async (name) => {
+                        const res = await fetch('/api/contacts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, source: 'manual' }),
+                        })
+                        const data = await res.json().catch(() => ({}))
+                        if (!res.ok) {
+                            toast.error(data.error || 'Não foi possível cadastrar o paciente')
+                            return null
+                        }
+                        return { id: data.id, name: data.name ?? name }
+                    }}
+                />
+            </FormField>
 
-                <div className="space-y-3">
-                    <div>
-                        <Label className="text-xs">Paciente</Label>
-                        <PickField
-                            className="mt-1"
-                            value={contact}
-                            options={results}
-                            searchable
-                            onSearch={search}
-                            loading={searching}
-                            leading={<User className="size-3.5 shrink-0 text-muted-foreground" />}
-                            placeholder="Buscar paciente"
-                            newPlaceholder="Nome do novo paciente"
-                            onSelect={setContact}
-                            onCreate={async (name) => {
-                                const res = await fetch('/api/contacts', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ name, source: 'manual' }),
-                                })
-                                const data = await res.json().catch(() => ({}))
-                                if (!res.ok) {
-                                    toast.error(data.error || 'Não foi possível cadastrar o paciente')
-                                    return null
-                                }
-                                return { id: data.id, name: data.name ?? name }
-                            }}
-                        />
-                    </div>
+            <FormField label="Título" htmlFor="new-deal-title" required error={errors.title} hint="Segue o nome do paciente até você mudar.">
+                <Input
+                    id="new-deal-title"
+                    value={title}
+                    onChange={(e) => { setTitleOverride(e.target.value); if (errors.title) setErrors({}) }}
+                    placeholder="Ex: Ortodontia"
+                    aria-invalid={errors.title ? true : undefined}
+                />
+            </FormField>
 
-                    <div>
-                        <Label htmlFor="new-deal-title" className="text-xs">Título</Label>
-                        <Input
-                            id="new-deal-title"
-                            value={title}
-                            onChange={(e) => setTitleOverride(e.target.value)}
-                            placeholder="Ex: Ortodontia"
-                            className="mt-1"
-                        />
-                    </div>
-
-                    <div>
-                        <Label htmlFor="new-deal-stage" className="text-xs">Fase</Label>
-                        <Select value={stageId} onValueChange={setStageId}>
-                            <SelectTrigger id="new-deal-stage" className="mt-1 w-full"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {stages.map((stage) => (
-                                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                <DialogFooter>
-                    <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button>
-                    <Button onClick={() => void submit()} disabled={saving} className="gap-2">
-                        {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-                        Abrir negócio
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            <FormField label="Fase" htmlFor="new-deal-stage" required>
+                <Select value={stageId} onValueChange={setStageId}>
+                    <SelectTrigger id="new-deal-stage" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </FormField>
+        </RecordDialog>
     )
 }

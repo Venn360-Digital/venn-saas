@@ -20,13 +20,11 @@ import {
     MoreVertical,
     Pencil,
     Plus,
-    Search,
     Settings,
     Settings2,
     Trash2,
     Trophy,
     User,
-    X,
     XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -78,10 +76,15 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ContactPicker } from '@/components/shared/ContactPicker'
-import { DealLanes } from '@/components/shared/DealLanes'
-import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
-import { isDealLane, type DealLane } from '@/lib/deal-lanes'
+import { IndexFrame } from '@/components/shared/IndexFrame'
+import { FilterPill } from '@/components/shared/FilterPill'
+import { StatPill } from '@/components/shared/StatPill'
+import { ViewSeg } from '@/components/shared/ViewSeg'
+import { Pagination } from '@/components/shared/Pagination'
+import { DEAL_LANES, isDealLane, type DealLane } from '@/lib/deal-lanes'
 import { useNow } from '@/hooks/useNow'
+import { PERIOD_PRESETS, matchPreset } from '@/lib/period'
+import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
 import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
 import { formatPhone } from '@/lib/phone'
@@ -94,12 +97,19 @@ import { DealPanel } from '@/components/shared/DealPanel'
 import { CLOSED_RAIL_ID, PipelineRail } from '@/components/shared/PipelineRail'
 import { StageManagerDialog } from '@/components/shared/StageManagerDialog'
 import { NewDealDialog } from '@/components/shared/NewDealDialog'
-import { PeriodPicker } from '@/components/shared/PeriodPicker'
+import { PeriodFields } from '@/components/shared/PeriodPicker'
 import { BoardScroller } from '@/components/shared/BoardScroller'
 import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
+
+const STATUS_LABELS: Record<string, string> = { open: 'Abertos', won: 'Ganhos', lost: 'Perdidos', all: 'Todos' }
+
+function shortDate(iso: string): string {
+    const [, m, d] = iso.split('-')
+    return `${d}/${m}`
+}
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Contact {
@@ -568,6 +578,9 @@ export default function NegociosPage() {
     const [search, setSearch] = useState('')
     const [filterStageId, setFilterStageId] = useState<string>('')
     const [filterStatus, setFilterStatus] = useState<string>('open')
+    const [listPage, setListPage] = useState(1)
+    const [listPageSize, setListPageSize] = useState(20)
+    const nowMs = useNow()
 
     // Date range for KPI
     const [dateFrom, setDateFrom] = useState('')
@@ -623,6 +636,11 @@ export default function NegociosPage() {
         dateFrom,
         dateTo,
     ].filter(Boolean).length
+
+    const periodPreset = dateFrom || dateTo ? (nowMs ? matchPreset(dateFrom, dateTo, nowMs) : null) : null
+    const periodLabel = dateFrom || dateTo
+        ? (PERIOD_PRESETS.find(p => p.id === periodPreset)?.label ?? `${dateFrom ? shortDate(dateFrom) : '…'} – ${dateTo ? shortDate(dateTo) : '…'}`)
+        : null
 
     const clearFilters = () => {
         setFilterStatus('open')
@@ -817,6 +835,7 @@ export default function NegociosPage() {
             // em foco passa a ser a fase nova e o cartão aparece onde caiu.
             onStageChange: (stageId: string) => setFocusStageId(stageId),
             onClose: () => setSelectedDealId(null),
+            onOutcome: (side: 'won' | 'lost') => { setDealToLose(selectedDeal); setOutcomeSide(side); setOutcomeOpen(true) },
             onDelete: (deal: Deal) => { setDealToDelete(deal); setDeleteDialogOpen(true) },
         }
         : null
@@ -1306,152 +1325,96 @@ export default function NegociosPage() {
      * de dentro, que é o que deve rolar.
      */
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
-            {/* A barra, em duas linhas.
-                Esta tela não usa o `PageHeader` da casa — como a de conversas
-                também não. O topo comia 262px antes de o funil começar: título
-                com descrição, barra de busca, três cartões de número grande e o
-                painel de filtros atrás de um clique. Agora são duas linhas, e o
-                que se ganhou foi altura para as três faixas. */}
-            <div className="shrink-0 border-b border-border bg-card px-4 py-2">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <h1 className="text-h3">Negócios</h1>
-                    <span className="num rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        {summary ? `${summary.open.count} em jogo` : '—'}
-                    </span>
-
-                    {/* O dinheiro como três números, não três cartões. Perdido
-                        entra ao lado de ganho: faltava, e é metade da pergunta. */}
-                    <div className="flex items-center gap-4">
+        <>
+        <IndexFrame
+            title="Negócios"
+            stats={
+                <>
+                    <StatPill value={summary?.open.count ?? '—'} label="em jogo" title="Negócios abertos" pressed={!lane} onClick={() => setLane(null)} />
+                    {/* O dinheiro como três números, não três cartões. */}
+                    <span className="ml-1 flex items-center gap-4 px-2">
                         <Figure label="em aberto" value={summary?.open.value} />
-                        <Figure
-                            label={summary ? `ganho · ${summary.won.count}` : 'ganho'}
-                            value={summary?.won.value}
-                            tone="text-success-subtle-foreground"
-                        />
-                        <Figure
-                            label={summary ? `perdido · ${summary.lost.count}` : 'perdido'}
-                            value={summary?.lost.value}
-                            tone="text-destructive-subtle-foreground"
-                        />
-                    </div>
-
-                    <span className="flex-1" />
-
-                    <div className="flex items-center rounded-lg border border-border p-1">
-                        <Button
-                            variant={viewMode === 'rail' ? 'default' : 'ghost'}
-                            size="icon-sm"
-                            onClick={() => setViewMode('rail')}
-                            aria-label="Ver como trilho de fases"
-                            aria-pressed={viewMode === 'rail'}
-                        >
-                            <Columns3 className="size-4" />
-                        </Button>
-                        <Button
-                            variant={viewMode === 'kanban' ? 'default' : 'ghost'}
-                            size="icon-sm"
-                            onClick={() => setViewMode('kanban')}
-                            aria-label="Ver como quadro"
-                            aria-pressed={viewMode === 'kanban'}
-                        >
-                            <LayoutGrid className="size-4" />
-                        </Button>
-                        <Button
-                            variant={viewMode === 'list' ? 'default' : 'ghost'}
-                            size="icon-sm"
-                            onClick={() => setViewMode('list')}
-                            aria-label="Ver como lista"
-                            aria-pressed={viewMode === 'list'}
-                        >
-                            <List className="size-4" />
-                        </Button>
-                    </div>
-
-                    {/* Fases: o mesmo botão nas três visões. Criar fase vivia num
-                        botão no fim do quadro, que o trilho e a lista não têm. */}
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setStagesOpen(true)}>
-                        <Settings2 className="size-3.5" />
-                        Fases
-                    </Button>
-                    <Button size="sm" className="gap-1.5" onClick={() => handleAddDeal(stages[0]?.id)}>
-                        <Plus className="size-3.5" />
-                        Novo negócio
-                    </Button>
-                </div>
-
-                {/* Filtros abertos, numa linha só.
-                    A versão anterior quebrava em três linhas numa janela de
-                    1280: cada pastilha trazia a frase inteira e as duas datas
-                    ocupavam 270px. Agora a pastilha mostra número e ícone — a
-                    frase vive no tooltip e volta a partir de 1536px — e o
-                    período é um controle só, que diz o recorte em vigor sem
-                    gastar dois campos. */}
-                <div className="mt-1.5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
-                    <div className="relative w-[180px] shrink-0">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar negócio"
-                            aria-label="Buscar negócio"
-                            className="h-8 pl-8 text-sm"
-                        />
-                    </div>
-
-                    <DealLanes variant="chip" counts={laneCounts} selected={lane} onSelect={setLane} />
-
-                    <span className="flex-1" />
-
-                    <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger size="sm" className="w-[104px] shrink-0" aria-label="Status">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="open">Abertos</SelectItem>
-                            <SelectItem value="won">Ganhos</SelectItem>
-                            <SelectItem value="lost">Perdidos</SelectItem>
-                            <SelectItem value="all">Todos</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    {viewMode === 'list' && (
-                        <Select value={filterStageId || 'all'} onValueChange={(v) => setFilterStageId(v === 'all' ? '' : v)}>
-                            <SelectTrigger size="sm" className="w-[136px] shrink-0" aria-label="Fase">
-                                <SelectValue placeholder="Todas as fases" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas as fases</SelectItem>
-                                {stages.map(st => <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    )}
-
-                    <PeriodPicker
-                        from={dateFrom}
-                        to={dateTo}
-                        onChange={(nextFrom, nextTo) => { setDateFrom(nextFrom); setDateTo(nextTo) }}
+                        <Figure label={summary ? `ganho · ${summary.won.count}` : 'ganho'} value={summary?.won.value} tone="text-success-subtle-foreground" />
+                        <Figure label={summary ? `perdido · ${summary.lost.count}` : 'perdido'} value={summary?.lost.value} tone="text-destructive-subtle-foreground" />
+                    </span>
+                </>
+            }
+            actions={
+                <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setStagesOpen(true)}>
+                    <Settings2 className="size-3.5" />
+                    Fases
+                </Button>
+            }
+            primary={
+                <Button size="sm" className="h-8 gap-1.5" onClick={() => handleAddDeal(stages[0]?.id)}>
+                    <Plus className="size-3.5" />
+                    Novo negócio
+                </Button>
+            }
+            search={search}
+            onSearchChange={setSearch}
+            searchLabel="Buscar negócio"
+            filters={
+                <>
+                    <FilterPill
+                        label="Situação"
+                        value={STATUS_LABELS[filterStatus] ?? null}
+                        onClear={() => setFilterStatus('open')}
+                        options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+                        selected={filterStatus}
+                        onSelect={setFilterStatus}
                     />
-
-                    {activeFilters > 0 ? (
-                        <Button variant="ghost" size="icon-sm" onClick={clearFilters} aria-label="Limpar filtros" className="shrink-0">
-                            <X className="size-3.5" />
-                        </Button>
+                    <FilterPill
+                        label="Período"
+                        value={periodLabel}
+                        onClear={() => { setDateFrom(''); setDateTo('') }}
+                        contentClassName="w-auto"
+                    >
+                        <PeriodFields from={dateFrom} to={dateTo} onChange={(nextFrom, nextTo) => { setDateFrom(nextFrom); setDateTo(nextTo) }} />
+                    </FilterPill>
+                    {viewMode === 'list' ? (
+                        <FilterPill
+                            label="Fase"
+                            value={filterStageId ? (stages.find(st => st.id === filterStageId)?.name ?? null) : null}
+                            onClear={() => setFilterStageId('')}
+                            options={[{ value: '', label: 'Todas as fases' }, ...stages.map(st => ({ value: st.id, label: st.name }))]}
+                            selected={filterStageId}
+                            onSelect={setFilterStageId}
+                        />
                     ) : null}
-                </div>
-            </div>
-
-
-
+                    {/* As três perguntas do dia como um filtro só: o número que
+                        a pílula mostra sai da mesma consulta que o clique aplica. */}
+                    <FilterPill
+                        label="Alertas"
+                        value={lane ? (DEAL_LANES.find(l => l.id === lane)?.label ?? null) : null}
+                        onClear={() => setLane(null)}
+                        options={[{ value: '', label: 'Sem alerta' }, ...DEAL_LANES.map(l => ({ value: l.id, label: laneCounts ? `${l.label} · ${laneCounts[l.id]}` : l.label }))]}
+                        selected={lane ?? ''}
+                        onSelect={(v) => setLane(isDealLane(v) ? v : null)}
+                    />
+                </>
+            }
+            hasFilters={activeFilters > 0 || lane !== null}
+            onClearFilters={() => { clearFilters(); setLane(null) }}
+            view={
+                <ViewSeg
+                    value={viewMode}
+                    onChange={setViewMode}
+                    options={[
+                        { id: 'rail' as const, label: 'Trilho de fases', icon: Columns3 },
+                        { id: 'kanban' as const, label: 'Quadro', icon: LayoutGrid },
+                        { id: 'list' as const, label: 'Lista', icon: List },
+                    ]}
+                />
+            }
+            aside={panelProps ? (
+                <DealPanel key={panelProps.deal.id} {...panelProps} />
+            ) : null}
+        >
             {/* No kanban a região não rola: ela se divide em quadro (que rola
                 por dentro) e rodapé fixo. Nas outras duas visões continua sendo
                 a própria região que rola. */}
-            <div
-                className={cn(
-                    'min-h-0 flex-1 p-3',
-                    viewMode === 'kanban' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
-                )}
-            >
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* Trilho + foco + jornada.
                 A geometria que resolve a sobreposição pela raiz: o funil vive no
                 eixo vertical (o trilho cresce para baixo, não para o lado), então
@@ -1465,7 +1428,7 @@ export default function NegociosPage() {
                     onDragStart={handleDragStart}
                     onDragEnd={handleRailDragEnd}
                 >
-                    <div className="relative grid h-full min-h-0 gap-3 lg:grid-cols-[150px_1fr] xl:grid-cols-[170px_1fr]">
+                    <div className="relative grid h-full min-h-0 lg:grid-cols-[200px_1fr]">
                         <PipelineRail
                             stages={stages}
                             selectedId={activeStageId}
@@ -1474,14 +1437,14 @@ export default function NegociosPage() {
                                 setSelectedDealId(null)
                             }}
                             closedCount={closedCount}
-                            className="hidden min-h-0 self-stretch overflow-y-auto lg:block"
+                            className="hidden min-h-0 self-stretch overflow-y-auto rounded-none border-0 border-r lg:block"
                         />
 
-                        <div className={cn('min-h-0 min-w-0', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
-                            <div className="flex min-h-0 min-w-0 flex-col gap-3">
+                        <div className="min-h-0 min-w-0">
+                            <div className="flex h-full min-h-0 min-w-0 flex-col">
                                 {/* Abaixo de 1024 o trilho não cabe, e um seletor
                                     diz a mesma coisa sem roubar a largura. */}
-                                <div className="lg:hidden">
+                                <div className="p-2 lg:hidden">
                                     <Select
                                         value={activeStageId ?? ''}
                                         onValueChange={(stageId) => { setFocusStageId(stageId); setSelectedDealId(null) }}
@@ -1511,17 +1474,9 @@ export default function NegociosPage() {
                                             ? 'Nenhum negócio finalizado ainda.'
                                             : 'Arraste um negócio de outra fase para cá, ou crie um novo.'
                                     }
-                                    className="min-h-0 flex-1"
+                                    className="min-h-0 flex-1 rounded-none border-0"
                                 />
                             </div>
-
-                            {panelProps ? (
-                                <DealPanel
-                                    key={panelProps.deal.id}
-                                    {...panelProps}
-                                    className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:h-full xl:w-auto xl:shadow-none"
-                                />
-                            ) : null}
                         </div>
                     </div>
 
@@ -1546,7 +1501,7 @@ export default function NegociosPage() {
                       chegar nelas — rolar o quadro trazia os cartões para baixo
                       do painel. Agora o quadro perde largura e ganha setas: dá
                       para andar por todas as fases com o painel aberto. */}
-                  <div className={cn('relative flex min-h-0 flex-1 flex-col', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-3')}>
+                  <div className="relative flex min-h-0 flex-1 flex-col p-3">
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     <BoardScroller className="min-h-0 flex-1">
                         {stages.map((stage) => (
@@ -1598,14 +1553,6 @@ export default function NegociosPage() {
                     </DragOverlay>
 
                     </div>
-
-                    {panelProps ? (
-                        <DealPanel
-                            key={panelProps.deal.id}
-                            {...panelProps}
-                            className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:h-full xl:w-auto xl:shadow-none"
-                        />
-                    ) : null}
                   </div>
                 </DndContext>
             )}
@@ -1615,11 +1562,11 @@ export default function NegociosPage() {
                 `hideBelow`, então dividir a largura não esconde nada. Abaixo de
                 1280 ele volta a sobrepor, porque aí a tabela já está apertada. */}
             {viewMode === 'list' && (
-              <div className={cn('relative', panelProps && 'xl:grid xl:grid-cols-[1fr_320px] xl:gap-4')}>
-                <div className="min-w-0">
+              <div className="flex min-h-0 flex-1 flex-col">
                 <DataTable
+                    frame
                     columns={listColumns}
-                    rows={listDeals}
+                    rows={listDeals.slice((listPage - 1) * listPageSize, listPage * listPageSize)}
                     getRowId={deal => deal.id}
                     // Clicar na linha abre o painel, não o formulário: ler é o
                     // gesto comum, e editar acontece lá dentro.
@@ -1659,26 +1606,22 @@ export default function NegociosPage() {
                             description="Ajuste os filtros ou crie um novo negócio."
                         />
                     }
+                    footer={
+                        <Pagination
+                            page={Math.min(listPage, Math.max(1, Math.ceil(listDeals.length / listPageSize)))}
+                            totalPages={Math.max(1, Math.ceil(listDeals.length / listPageSize))}
+                            total={listDeals.length}
+                            limit={listPageSize}
+                            onPageChange={setListPage}
+                            onLimitChange={(limit) => { setListPageSize(limit); setListPage(1) }}
+                        />
+                    }
                 />
-                </div>
-
-                {panelProps ? (
-                    <DealPanel
-                        key={panelProps.deal.id}
-                        {...panelProps}
-                        className="absolute inset-y-0 right-0 z-20 w-[320px] rounded-lg border border-border shadow-lg xl:static xl:z-auto xl:w-auto xl:shadow-none"
-                    />
-                ) : null}
               </div>
             )}
 
-            {/* O diálogo de edição com abas Dados/Atividades foi excluído.
-                Existia só no quadro — a mesma tela tinha dois comportamentos
-                dependendo da visão — e cobria o funil inteiro para mudar um
-                campo. Quem edita agora é o painel, nas três visões, com os
-                campos abertos e gravando ao sair. */}
-
             </div>
+        </IndexFrame>
 
             {/* As fases da clínica — um lugar só, alcançável das três visões. */}
             <StageManagerDialog
@@ -1700,6 +1643,22 @@ export default function NegociosPage() {
                 }}
             />
 
+            {/* O desfecho pela bandeira da ficha: ganho e perdido sempre
+                passam pelo motivo. */}
+            <OutcomeDialog
+                key={`${dealToLose?.id ?? ''}:${outcomeSide}`}
+                open={outcomeOpen}
+                onOpenChange={(open) => { setOutcomeOpen(open); if (!open) setDealToLose(null) }}
+                dealTitle={dealToLose?.title ?? ''}
+                dealValue={dealToLose?.value}
+                stageName={stages.find((st) => st.id === dealToLose?.stageId)?.name ?? null}
+                initialOutcome={outcomeSide}
+                onConfirm={async (result) => {
+                    if (!dealToLose) return
+                    const ok = await patchDeal(dealToLose.id, { ...result })
+                    if (ok) { setOutcomeOpen(false); setDealToLose(null); reloadAll() }
+                }}
+            />
             {/* Delete Confirmation */}
             <ConfirmDialog
                 open={deleteDialogOpen}
@@ -1714,6 +1673,6 @@ export default function NegociosPage() {
             {/* Stage Create/Edit Dialog */}
 
             {/* Stage Delete Confirmation */}
-        </div>
+        </>
     )
 }

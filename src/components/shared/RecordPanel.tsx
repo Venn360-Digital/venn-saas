@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -25,23 +25,41 @@ export function RecordPanel({
     label,
     title,
     avatar,
+    heading = 'Ficha',
+    modes,
+    mode,
+    onModeChange,
+    badge,
     onClose,
     onPrev,
     onNext,
     onEditFull,
+    footerExtra,
     onDelete,
+    hint = '↑↓ navegam · Esc fecha',
     children,
 }: {
     /** Para o leitor de tela: "Ficha da etiqueta Protocolo". */
     label: string
-    /** O nome do registro, em negrito no topo. */
-    title: React.ReactNode
+    /** O nome do registro, em negrito no topo. Vazio quando o corpo já traz o próprio cabeçalho. */
+    title?: React.ReactNode
     avatar?: React.ReactNode
+    /** A palavra da faixa de 40px. */
+    heading?: string
+    /** Os modos da ficha (resumo, arquivos, notas…), como ícones ao lado da palavra. */
+    modes?: { id: string; label: string; icon: LucideIcon; disabled?: boolean }[]
+    mode?: string
+    onModeChange?: (id: string) => void
+    /** Um selo na faixa — "salvo", "Ganho". */
+    badge?: React.ReactNode
     onClose: () => void
     onPrev?: () => void
     onNext?: () => void
     onEditFull?: () => void
+    /** Um gesto a mais entre o lápis e a lixeira — a bandeira do negócio. */
+    footerExtra?: React.ReactNode
     onDelete?: () => void
+    hint?: string
     children: React.ReactNode
 }) {
     return (
@@ -53,7 +71,32 @@ export function RecordPanel({
             )}
         >
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-border pl-4 pr-2">
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Ficha</span>
+                <span className="flex min-w-0 items-center gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">{heading}</span>
+                    {modes ? (
+                        <span className="flex items-center gap-0.5">
+                            {modes.map(({ id, label: l, icon: Icon, disabled }) => (
+                                <Tooltip key={id}>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            disabled={disabled}
+                                            aria-pressed={mode === id}
+                                            aria-label={l}
+                                            onClick={() => onModeChange?.(id)}
+                                            className={cn('size-7', mode === id && 'bg-primary-subtle text-primary-subtle-foreground hover:bg-primary-subtle')}
+                                        >
+                                            <Icon className="size-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{l}</TooltipContent>
+                                </Tooltip>
+                            ))}
+                        </span>
+                    ) : null}
+                    {badge}
+                </span>
                 <span className="flex items-center">
                     <Button variant="ghost" size="icon-sm" onClick={onPrev} disabled={!onPrev} aria-label="Registro anterior">
                         <ChevronLeft className="size-4" />
@@ -68,16 +111,18 @@ export function RecordPanel({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
-                <div className="flex min-w-0 items-center gap-3">
-                    {avatar}
-                    <div className="min-w-0 truncate text-[15px] font-bold">{title}</div>
-                </div>
+                {title ? (
+                    <div className="flex min-w-0 items-center gap-3">
+                        {avatar}
+                        <div className="min-w-0 truncate text-[15px] font-bold">{title}</div>
+                    </div>
+                ) : null}
                 {children}
             </div>
 
             <div className="flex shrink-0 items-center justify-between border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-                <PanelActions onEditFull={onEditFull} onDelete={onDelete} />
-                <span className="num hidden lg:inline">↑↓ navegam · Esc fecha</span>
+                <PanelActions onEditFull={onEditFull} extra={footerExtra} onDelete={onDelete} />
+                <span className="num hidden lg:inline">{hint}</span>
             </div>
         </aside>
     )
@@ -87,7 +132,7 @@ export function RecordPanel({
  * Os dois gestos do rodapé da ficha: editar no formulário (o diálogo do Novo,
  * com tudo de uma vez) e excluir. Ícones com dica, no mesmo lugar em toda ficha.
  */
-export function PanelActions({ onEditFull, onDelete }: { onEditFull?: () => void; onDelete?: () => void }) {
+export function PanelActions({ onEditFull, extra, onDelete }: { onEditFull?: () => void; extra?: React.ReactNode; onDelete?: () => void }) {
     return (
         <div className="flex items-center gap-0.5">
             {onEditFull ? (
@@ -100,6 +145,7 @@ export function PanelActions({ onEditFull, onDelete }: { onEditFull?: () => void
                     <TooltipContent>Editar no formulário</TooltipContent>
                 </Tooltip>
             ) : null}
+            {extra}
             {onDelete ? (
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -183,12 +229,14 @@ export function usePanelSave<T extends object>(url: string, onChanged: () => voi
     const local: Partial<T> = patched.of === item ? patched.local : {}
 
     const save = useCallback(
-        async (field: string, patch: Partial<T>) => {
+        // `body` é o que vai para a API quando difere do que a tela guarda
+        // (concluir manda `completed`, a ficha guarda `completedAt`).
+        async (field: string, patch: Partial<T>, body: Record<string, unknown> = patch) => {
             try {
                 const res = await fetch(url, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(patch),
+                    body: JSON.stringify(body),
                 })
                 if (!res.ok) {
                     const data = await res.json().catch(() => ({}))

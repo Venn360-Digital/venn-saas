@@ -4,15 +4,13 @@ import { useCallback, useState } from 'react'
 import {
     CalendarPlus,
     Check,
+    Flag,
     ListTodo,
-    MoreVertical,
     Route,
     RotateCcw,
     StickyNote,
-    Trash2,
     Trophy,
     User,
-    X,
     XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -22,6 +20,7 @@ import { ActivityList } from '@/components/shared/ActivityList'
 import { DealJourney } from '@/components/shared/DealJourney'
 import { InlineField } from '@/components/shared/InlineField'
 import { PickField, type PickOption } from '@/components/shared/PickField'
+import { RecordPanel } from '@/components/shared/RecordPanel'
 import { Button } from '@/components/ui/button'
 import {
     DropdownMenu,
@@ -63,10 +62,10 @@ type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'
  * nascem abertos e gravam ao sair; não há botão de editar porque não há modo de
  * edição.
  *
- * A faixa no topo é a mesma gramática da tela de conversas, com **um modo por
- * vez**: clicar troca o conteúdo, clicar no ícone aceso volta para a ficha.
- * Dois painéis em paralelo não existem — em 300px eles se estreitariam até não
- * servir a nenhum dos dois.
+ * É a ficha da Tela 01/02 (`RecordPanel`): a faixa de 40px com os modos como
+ * ícones ao lado de "Ficha", **um modo por vez** — clicar troca o conteúdo,
+ * clicar no ícone aceso volta para a ficha — e o rodapé com a bandeira do
+ * desfecho e a lixeira.
  *
  * A jornada mora **dentro** da ficha, e não como um dos modos: nesta tela a
  * fase é a razão de o painel existir, e cobrar um clique pelo gesto mais
@@ -82,8 +81,10 @@ export function DealPanel<T extends PanelDeal>({
     onChanged,
     onStageChange,
     onClose,
+    onPrev,
+    onNext,
+    onOutcome,
     onDelete,
-    className,
 }: {
     deal: T
     stages: { id: string; name: string; color: string }[]
@@ -101,8 +102,11 @@ export function DealPanel<T extends PanelDeal>({
      */
     onStageChange?: (stageId: string) => void
     onClose: () => void
+    onPrev?: () => void
+    onNext?: () => void
+    /** A bandeira do rodapé: abre o diálogo de desfecho da tela. */
+    onOutcome?: (side: 'won' | 'lost') => void
     onDelete: (deal: T) => void
-    className?: string
 }) {
     const [mode, setMode] = useState<Mode>('ficha')
     const [saved, setSaved] = useState(false)
@@ -182,89 +186,67 @@ export function DealPanel<T extends PanelDeal>({
     const originOptions = [...origins, ...extraOrigins]
     const channelOptions = [...channels, ...extraChannels]
 
-    return (
-        <aside
-            className={cn('flex flex-col overflow-hidden bg-card', className)}
-            aria-label={`Negócio ${deal.title}`}
-        >
-            {/* A faixa: um modo por vez, e o estado de gravação ao lado. */}
-            <div className="flex items-center gap-0.5 border-b border-border px-1.5 py-1">
-                <StripIcon
-                    icon={Route}
-                    label="Ficha do negócio"
-                    active={mode === 'ficha'}
-                    onClick={() => setMode('ficha')}
-                />
-                {/* "Follow-up sugerido" saiu daqui para a tela de conversas.
-                    O texto nasce da conversa e vai para o compositor logo
-                    abaixo, onde alguém lê, ajusta e envia; no funil ele era um
-                    texto sem destino — copiar e ir procurar a conversa. */}
-                <StripIcon
-                    icon={CalendarPlus}
-                    label={closed ? 'Negócio finalizado — nada a agendar' : 'Agendar atividade'}
-                    active={mode === 'schedule'}
-                    disabled={closed || !deal.contact?.id}
-                    onClick={() => setMode(mode === 'schedule' ? 'ficha' : 'schedule')}
-                />
-                <StripIcon
-                    icon={ListTodo}
-                    label="Atividades"
-                    active={mode === 'activities'}
-                    onClick={() => setMode(mode === 'activities' ? 'ficha' : 'activities')}
-                />
+    const modes = [
+        { id: 'ficha', label: 'Ficha do negócio', icon: Route },
+        { id: 'schedule', label: closed ? 'Negócio finalizado — nada a agendar' : 'Agendar atividade', icon: CalendarPlus, disabled: closed || !deal.contact?.id },
+        { id: 'activities', label: 'Atividades', icon: ListTodo },
+        { id: 'notes', label: 'Notas do negócio', icon: StickyNote },
+    ]
 
-                {/* Etiquetas saíram daqui: elas são do paciente, não do negócio.
-                    Editá-las a partir de um negócio sugeria que cada negócio
-                    tivesse as suas, e a mesma pessoa com dois negócios teria duas
-                    listas que, no banco, são uma só. Continuam na conversa e na
-                    ficha do paciente. */}
-                <StripIcon
-                    icon={StickyNote}
-                    label="Notas do negócio"
-                    active={mode === 'notes'}
-                    onClick={() => setMode(mode === 'notes' ? 'ficha' : 'notes')}
-                />
+    const badge = saved ? (
+        <span className="flex items-center gap-1 rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">
+            <Check className="size-3" /> salvo
+        </span>
+    ) : closed ? (
+        <span className={cn(
+            'flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+            deal.status === 'won'
+                ? 'bg-success-subtle text-success-subtle-foreground'
+                : 'bg-destructive-subtle text-destructive-subtle-foreground'
+        )}>
+            {deal.status === 'won' ? <Trophy className="size-3" /> : <XCircle className="size-3" />}
+            {deal.status === 'won' ? 'Ganho' : 'Perdido'}
+        </span>
+    ) : null
 
-                <span className="flex-1" />
-
-                {saved ? (
-                    <span className="flex items-center gap-1 rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success-subtle-foreground">
-                        <Check className="size-3" /> salvo
-                    </span>
-                ) : closed ? (
-                    <span className={cn(
-                        'flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                        deal.status === 'won'
-                            ? 'bg-success-subtle text-success-subtle-foreground'
-                            : 'bg-destructive-subtle text-destructive-subtle-foreground'
-                    )}>
-                        {deal.status === 'won' ? <Trophy className="size-3" /> : <XCircle className="size-3" />}
-                        {deal.status === 'won' ? 'Ganho' : 'Perdido'}
-                    </span>
-                ) : null}
-
-                <DropdownMenu>
+    // A bandeira: o desfecho do negócio, que vivia longe. Ganho e perdido
+    // sempre passam pelo diálogo de motivo.
+    const flag = onOutcome && !closed ? (
+        <DropdownMenu>
+            <Tooltip>
+                <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm" aria-label="Mais ações">
-                            <MoreVertical className="size-3.5" />
+                        <Button variant="ghost" size="icon-sm" aria-label="Ganho ou perdido">
+                            <Flag className="size-4" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
-                        {/* Irreversível fica no menu, não à mão num painel que
-                            grava sozinho. */}
-                        <DropdownMenuItem variant="destructive" onClick={() => onDelete(deal)}>
-                            <Trash2 className="size-3.5" />
-                            Excluir negócio
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>Ganho ou perdido</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuItem onClick={() => onOutcome('won')}>
+                    <Trophy className="size-3.5 text-success-subtle-foreground" /> Marcar como ganho
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onOutcome('lost')}>
+                    <XCircle className="size-3.5 text-destructive-subtle-foreground" /> Marcar como perdido
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    ) : null
 
-                <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Fechar painel">
-                    <X className="size-3.5" />
-                </Button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3">
+    return (
+        <RecordPanel
+            label={`Negócio ${deal.title}`}
+            modes={modes}
+            mode={mode}
+            onModeChange={(id) => setMode(id === mode && id !== 'ficha' ? 'ficha' : (id as Mode))}
+            badge={badge}
+            onClose={onClose}
+            onPrev={onPrev}
+            onNext={onNext}
+            footerExtra={flag}
+            onDelete={() => onDelete(deal)}
+        >
                 {mode === 'ficha' ? (
                     <div className="space-y-3">
                         {closed ? (
@@ -460,10 +442,9 @@ export function DealPanel<T extends PanelDeal>({
                         <p className="text-[11px] text-muted-foreground">Grava ao sair do campo.</p>
                     </div>
                 ) : null}
-            </div>
 
             {closed ? (
-                <div className="border-t border-border p-3">
+                <div className="border-t border-border pt-3">
                     <Button
                         className="w-full gap-2"
                         onClick={() => void save({ status: 'open' })}
@@ -476,38 +457,6 @@ export function DealPanel<T extends PanelDeal>({
                     </p>
                 </div>
             ) : null}
-        </aside>
-    )
-}
-
-function StripIcon({
-    icon: Icon,
-    label,
-    active,
-    disabled,
-    onClick,
-}: {
-    icon: typeof Route
-    label: string
-    active: boolean
-    disabled?: boolean
-    onClick: () => void
-}) {
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Button
-                    variant={active ? 'secondary' : 'ghost'}
-                    size="icon-sm"
-                    disabled={disabled}
-                    aria-pressed={active}
-                    aria-label={label}
-                    onClick={onClick}
-                >
-                    <Icon className="size-3.5" />
-                </Button>
-            </TooltipTrigger>
-            <TooltipContent>{label}</TooltipContent>
-        </Tooltip>
+        </RecordPanel>
     )
 }

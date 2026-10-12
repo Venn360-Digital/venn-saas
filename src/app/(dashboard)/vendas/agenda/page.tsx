@@ -3,19 +3,14 @@
 import { ACTIVITY_TYPES as SHARED_ACTIVITY_TYPES } from '@/lib/activity-types'
 import { useState, useEffect, useMemo } from 'react'
 import {
-    Plus, List, Calendar, Clock, CheckCircle2, Circle, Trash2, Pencil,
+    Plus, List, Calendar, CheckCircle2, Circle, Trash2, Pencil,
     ChevronLeft, ChevronRight,
-    AlertTriangle, User, Briefcase, X, TrendingUp,
+    User, Briefcase, X,
     Columns3, BellRing, Repeat,
 } from 'lucide-react'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-    Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -24,9 +19,21 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
-import { OwnerPicker } from '@/components/shared/OwnerPicker'
-import { PeriodPicker } from '@/components/shared/PeriodPicker'
-import { isoDay, periodRange, type PeriodPresetId, type PeriodRange } from '@/lib/period'
+import { PeriodFields } from '@/components/shared/PeriodPicker'
+import { IndexFrame } from '@/components/shared/IndexFrame'
+import { FilterPill } from '@/components/shared/FilterPill'
+import { StatPill } from '@/components/shared/StatPill'
+import { ViewSeg } from '@/components/shared/ViewSeg'
+import { DataTable, type Column } from '@/components/shared/DataTable'
+import { Pagination } from '@/components/shared/Pagination'
+import { FormField } from '@/components/shared/FormField'
+import { MaskedInput } from '@/components/shared/MaskedInput'
+import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
+import { ActivityPanel } from '@/components/activities/ActivityPanel'
+import { MASKS, dateFromMask, maskDigitsFromIso } from '@/lib/masks'
+import { useNow } from '@/hooks/useNow'
+import { PERIOD_PRESETS, isoDay, matchPreset, periodRange, type PeriodPresetId, type PeriodRange } from '@/lib/period'
 import { usePermissions } from '@/hooks/usePermissions'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -108,6 +115,11 @@ function formatDateLabel(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
+function shortDate(iso: string): string {
+    const [, m, d] = iso.split('-')
+    return `${d}/${m}`
+}
+
 function isSameDay(d1: Date, d2: Date): boolean {
     return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
 }
@@ -169,6 +181,17 @@ export default function AgendaPage() {
 
     // KPI stats
     const [stats, setStats] = useState({ today: 0, overdue: 0, completed: 0, total: 0 })
+
+    // Tela 02: busca da tela, paginação da lista, a ficha aberta ao lado
+    const [search, setSearch] = useState('')
+    const [page, setPage] = useState(1)
+    const [pageSize, setPageSize] = useState(20)
+    const [openId, setOpenId] = useState<string | null>(null)
+    /** Sobe quando o formulário completo grava: a ficha remonta com o item novo. */
+    const [panelRev, setPanelRev] = useState(0)
+    const [errors, setErrors] = useState<{ title?: string; dueDate?: string }>({})
+    const [submitting, setSubmitting] = useState(false)
+    const nowMs = useNow()
 
     // ─── Data Loading ───────────────────────────────────────────────
     useEffect(() => { loadMembers() }, [])
@@ -296,15 +319,22 @@ export default function AgendaPage() {
         setDealSearch('')
         setShowContactDropdown(false)
         setShowDealDropdown(false)
+        setErrors({})
         setIsDialogOpen(true)
     }
 
-    const handleSave = async () => {
-        if (!formData.title.trim()) { toast.error('Título é obrigatório'); return }
+    /** `again` = Criar e novo: grava, limpa e fica aberto. */
+    const handleSave = async (again: boolean) => {
+        const next: typeof errors = {}
+        if (!formData.title.trim()) next.title = 'Dê um título à atividade.'
+        if (!formData.dueDate) next.dueDate = 'Informe o dia.'
+        if (Object.keys(next).length) { setErrors(next); return }
+        setSubmitting(true)
         try {
             const url = editingActivity ? `/api/activities/${editingActivity.id}` : '/api/activities'
             const payload = {
                 ...formData,
+                title: formData.title.trim(),
                 dueDate: formData.dueDate || undefined,
                 contactId: selectedContact?.id || undefined,
                 dealId: selectedDeal?.id || undefined,
@@ -320,11 +350,24 @@ export default function AgendaPage() {
             })
             if (res.ok) {
                 toast.success(editingActivity ? 'Atividade atualizada' : 'Atividade criada')
-                setIsDialogOpen(false)
+                setErrors({})
+                if (editingActivity) {
+                    setIsDialogOpen(false)
+                    setPanelRev(r => r + 1)
+                } else if (again) {
+                    handleOpenDialog(undefined, formData.dueDate)
+                } else {
+                    const created = await res.json().catch(() => null)
+                    setIsDialogOpen(false)
+                    if (created?.id) setOpenId(created.id)
+                }
                 loadActivities()
                 loadStats()
-            } else { toast.error('Erro ao salvar atividade') }
-        } catch { toast.error('Erro ao salvar atividade') }
+            } else {
+                const data = await res.json().catch(() => ({}))
+                toast.error(data.error ?? 'Não foi possível salvar a atividade')
+            }
+        } catch { toast.error('Não foi possível salvar a atividade') } finally { setSubmitting(false) }
     }
 
     const handleToggleComplete = async (activity: Activity) => {
@@ -406,641 +449,546 @@ export default function AgendaPage() {
         }
     }, [activities])
 
+    // ─── Tela 02 ─────────────────────────────────────────────────────
+    /** A busca é da tela: a API já recorta por data, tipo, pessoa e situação. */
+    const needle = search.trim().toLowerCase()
+    const visible = needle
+        ? activities.filter(a =>
+            a.title.toLowerCase().includes(needle)
+            || (a.contact?.name ?? '').toLowerCase().includes(needle)
+            || (a.deal?.title ?? '').toLowerCase().includes(needle))
+        : activities
+    const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+    const currentPage = Math.min(page, totalPages)
+    const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    const visibleIds = useMemo(() => visible.map(a => a.id), [visible])
+    usePanelKeys(openId, visibleIds, setOpenId)
+    const openItem = openId ? activities.find(a => a.id === openId) ?? null : null
+
+    const preset = range ? (nowMs ? matchPreset(range.from, range.to, nowMs) : presetHint) : presetHint
+    const periodLabel = preset
+        ? PERIOD_PRESETS.find(p => p.id === preset)?.label ?? null
+        : range && (range.from || range.to)
+            ? `${range.from ? shortDate(range.from) : '…'} – ${range.to ? shortDate(range.to) : '…'}`
+            : null
+    const hasFilters = typeFilter !== 'all' || statusFilter !== 'all' || Boolean(ownerFilter) || preset !== 'week'
+    const clearFilters = () => {
+        setTypeFilter('all'); setStatusFilter('all'); setOwnerFilter('')
+        setRange(periodRange('week', Date.now())); setPresetHint('week'); setPage(1)
+    }
+
+    const openPanel = (id: string) => { setOpenId(id); if (viewMode !== 'list') setViewMode(viewMode) }
+
+    const columns: Column<Activity>[] = [
+        {
+            id: 'done',
+            header: '',
+            width: '2.5rem',
+            cell: (a) => {
+                const overdue = isOverdue(a)
+                return (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); void handleToggleComplete(a) }}
+                        aria-pressed={Boolean(a.completedAt)}
+                        aria-label={a.completedAt ? `Reabrir ${a.title}` : `Concluir ${a.title}`}
+                        className="flex size-7 items-center justify-center rounded-md hover:bg-accent"
+                    >
+                        {a.completedAt
+                            ? <CheckCircle2 className="size-[18px] text-success-subtle-foreground" />
+                            : <Circle className={cn('size-[18px]', overdue ? 'text-destructive-subtle-foreground' : 'text-muted-foreground')} />}
+                    </button>
+                )
+            },
+        },
+        {
+            id: 'title',
+            header: 'Atividade',
+            sortable: true,
+            sortValue: (a) => a.title,
+            cell: (a) => {
+                const t = getTypeInfo(a.type); const TypeIcon = t.icon
+                return (
+                    <span className="flex min-w-0 items-center gap-2">
+                        <TypeIcon className={cn('size-3.5 shrink-0', t.color)} />
+                        <span className={cn('truncate font-semibold', a.completedAt && 'text-muted-foreground line-through')}>{a.title}</span>
+                        {a.recurrenceParentId ? <Repeat className="size-3 shrink-0 text-muted-foreground" /> : null}
+                        {a.reminderMinutes ? <BellRing className="size-3 shrink-0 text-muted-foreground" /> : null}
+                    </span>
+                )
+            },
+        },
+        {
+            id: 'who',
+            header: 'Paciente · Negócio',
+            hideBelow: 'md',
+            cell: (a) => (
+                <span className="truncate text-muted-foreground">
+                    {a.contact?.name || a.contact?.phone || '—'}
+                    {a.deal ? <span> · {a.deal.title}</span> : null}
+                </span>
+            ),
+        },
+        {
+            id: 'when',
+            header: 'Quando',
+            sortable: true,
+            sortValue: (a) => `${a.dueDate ?? ''} ${a.startTime ?? ''}`,
+            width: '11rem',
+            cell: (a) => {
+                const overdue = isOverdue(a)
+                const todayIso = nowMs ? isoDay(new Date(nowMs)) : ''
+                const isToday = a.dueDate?.slice(0, 10) === todayIso && !a.completedAt
+                return (
+                    <span className={cn('num', overdue && 'font-semibold text-destructive-subtle-foreground', isToday && 'font-semibold text-primary-subtle-foreground')}>
+                        {a.dueDate ? (isToday ? 'Hoje' : formatDateLabel(a.dueDate)) : '—'}
+                        {a.startTime ? ` · ${a.startTime}` : ''}
+                        {overdue ? <span className="ml-1 text-[10.5px] font-normal">atrasada</span> : null}
+                    </span>
+                )
+            },
+        },
+        {
+            id: 'owner',
+            header: 'Responsável',
+            hideBelow: 'lg',
+            width: '9rem',
+            cell: (a) => a.user?.name ? (
+                <span className="flex items-center gap-1.5">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground">{a.user.name.trim()[0]?.toUpperCase()}</span>
+                    <span className="truncate">{a.user.name}</span>
+                </span>
+            ) : <span className="text-muted-foreground">—</span>,
+        },
+    ]
+
+    const viewOptions = [
+        { id: 'list' as const, label: 'Lista', icon: List },
+        { id: 'kanban' as const, label: 'Quadro', icon: Columns3 },
+        { id: 'calendar' as const, label: 'Calendário', icon: Calendar },
+    ]
+
+    const formType = getTypeInfo(formData.type)
+    const FormTypeIcon = formType.icon
+    const formWhen = formData.dueDate
+        ? `${formData.dueDate.slice(8, 10)}/${formData.dueDate.slice(5, 7)}/${formData.dueDate.slice(0, 4)}${formData.startTime ? ` · ${formData.startTime}` : ''}`
+        : 'Sem data'
+    const formOwner = members.find(m => m.userId === formData.userId)?.name ?? 'Você'
+
     // ─── Render ─────────────────────────────────────────────────────
     return (
-        <div className="p-6">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h1 className="text-h1">Agenda</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Organize suas tarefas, reuniões e follow-ups.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-card border border-border rounded-lg p-1">
-                        <button onClick={() => setViewMode('list')}
-                            className={cn("p-2 rounded-md transition-colors", viewMode === 'list' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                            title="Lista">
-                            <List className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => setViewMode('kanban')}
-                            className={cn("p-2 rounded-md transition-colors", viewMode === 'kanban' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                            title="Kanban">
-                            <Columns3 className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => setViewMode('calendar')}
-                            className={cn("p-2 rounded-md transition-colors", viewMode === 'calendar' ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                            title="Calendário">
-                            <Calendar className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <Button onClick={() => handleOpenDialog()} className="bg-primary hover:bg-primary/90">
-                        <Plus className="h-4 w-4 mr-2" /> Nova atividade
+        <>
+            <IndexFrame
+                title="Agenda"
+                stats={
+                    <>
+                        {/* Hoje e Atrasadas são absolutos; Concluídas e Total seguem o
+                            período — e por isso somam entre si. */}
+                        <StatPill value={stats.today} label="hoje" title="Pendentes para hoje" pressed={statusFilter === 'pending' && preset === 'today'}
+                            onClick={() => { setRange(periodRange('today', Date.now())); setPresetHint('today'); setStatusFilter('pending'); setViewMode('list') }} />
+                        <StatPill value={stats.overdue} label="atrasadas" tone="danger" title="Vencidas, agora" pressed={statusFilter === 'overdue'}
+                            onClick={() => { setStatusFilter('overdue'); setViewMode('list') }} />
+                        <StatPill value={stats.completed} label="concluídas" tone="ok" title="Concluídas das que vencem no período" pressed={statusFilter === 'done'}
+                            onClick={() => { setStatusFilter('done'); setViewMode('list') }} />
+                        <StatPill value={stats.total} label="no período" title="Vencem no período" pressed={statusFilter === 'all'}
+                            onClick={() => { setStatusFilter('all'); setViewMode('list') }} />
+                    </>
+                }
+                primary={
+                    <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                        <Plus className="size-3.5" /> Nova atividade
                     </Button>
-                </div>
-            </div>
-
-            {/* Os quatro números.
-                Hoje e Atrasadas são absolutos — com "Este mês" no filtro, um
-                "Atrasadas" recortado pelo mês esconderia o que venceu em
-                agosto, que é exatamente o que ninguém olhou. Concluídas e Total
-                seguem o período, e por isso somam entre si. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <StatCard
-                    icon={Calendar}
-                    value={stats.today}
-                    label="Hoje"
-                    hint="pendentes, agora"
-                    tone="info"
-                    active={statusFilter === 'pending'}
-                    onClick={() => {
-                        setRange(periodRange('today', Date.now()))
-                        setPresetHint('today')
-                        setStatusFilter('pending')
-                        setViewMode('list')
-                    }}
-                />
-                <StatCard
-                    icon={AlertTriangle}
-                    value={stats.overdue}
-                    label="Atrasadas"
-                    hint="vencidas, agora"
-                    tone={stats.overdue > 0 ? 'danger' : 'muted'}
-                    active={statusFilter === 'overdue'}
-                    onClick={() => { setStatusFilter('overdue'); setViewMode('list') }}
-                />
-                <StatCard
-                    icon={CheckCircle2}
-                    value={stats.completed}
-                    label="Concluídas"
-                    hint="das que vencem no período"
-                    tone="success"
-                    active={statusFilter === 'done'}
-                    onClick={() => { setStatusFilter('done'); setViewMode('list') }}
-                />
-                <StatCard
-                    icon={TrendingUp}
-                    value={stats.total}
-                    label="Total"
-                    hint="vencem no período"
-                    tone="primary"
-                    active={statusFilter === 'all'}
-                    onClick={() => { setStatusFilter('all'); setViewMode('list') }}
-                />
-            </div>
-
-            {/* Uma linha só de filtros, no padrão do resto do produto: período,
-                tipo, responsável e situação. A busca por texto saiu — numa tela
-                que já recorta por data, tipo, pessoa e situação, ela era o
-                quinto caminho para a mesma lista. */}
-            <div className="mb-6 flex flex-wrap items-center gap-1.5">
-                <PeriodPicker
-                    from={range?.from ?? ''}
-                    to={range?.to ?? ''}
-                    presetHint={presetHint}
-                    onChange={(from, to) => { setRange({ from, to }); setPresetHint(null) }}
-                />
-
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger size="sm" className="w-[150px] shrink-0" aria-label="Tipo">
-                        <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos os tipos</SelectItem>
-                        {ACTIVITY_TYPES.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <OwnerPicker
-                    value={ownerFilter}
-                    onChange={setOwnerFilter}
-                    members={members.map(m => ({ userId: m.userId, name: m.name }))}
-                    canChoose={canChooseOwner}
-                />
-
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger size="sm" className="w-[132px] shrink-0" aria-label="Situação">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {STATUS_OPTIONS.map((o) => (
-                            <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                {typeFilter !== 'all' || statusFilter !== 'all' || ownerFilter ? (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Limpar filtros"
-                        className="shrink-0"
-                        onClick={() => {
-                            setTypeFilter('all')
-                            setStatusFilter('all')
-                            setOwnerFilter('')
-                            setRange(periodRange('week', Date.now()))
-                            setPresetHint('week')
-                        }}
-                    >
-                        <X className="size-3.5" />
-                    </Button>
-                ) : null}
-            </div>
-
-            {/* Calendar Navigation (calendar mode only) */}
-            {viewMode === 'calendar' && (
-                <div className="flex items-center justify-between mb-4">
-                    <Button variant="ghost" size="icon" onClick={() => navigateCalendar(-1)}>
-                        <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <h2 className="text-lg font-semibold">{MONTHS[calMonth]} {calYear}</h2>
-                    <Button variant="ghost" size="icon" onClick={() => navigateCalendar(1)}>
-                        <ChevronRight className="h-5 w-5" />
-                    </Button>
-                </div>
-            )}
-
-            {/* Content */}
-            {loading ? (
-                <div className="flex items-center justify-center h-64">
-                    <span className="text-muted-foreground">Carregando...</span>
-                </div>
-            ) : viewMode === 'kanban' ? (
-                /* ─── Kanban View ─────────────────────────────────────────── */
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {KANBAN_COLUMNS.map((col) => {
-                        const colActivities = kanbanData[col.id as keyof typeof kanbanData] || []
-                        return (
-                            <div key={col.id} className={cn("rounded-xl border-2 p-3", col.color, 'bg-card')}>
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <span className={cn("text-sm font-semibold", col.textColor)}>{col.label}</span>
-                                        <span className={cn("text-xs px-1.5 py-0.5 rounded-full", col.bg, col.textColor)}>
-                                            {colActivities.length}
-                                        </span>
-                                    </div>
-                                    {col.id === 'todo' && (
-                                        <button onClick={() => handleOpenDialog()} className="text-muted-foreground hover:text-foreground">
-                                            <Plus className="h-4 w-4" />
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="space-y-2 min-h-[100px]">
-                                    {colActivities.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground text-center py-6">Nenhuma atividade</p>
-                                    ) : (
-                                        colActivities.map((activity) => {
-                                            const typeInfo = getTypeInfo(activity.type)
-                                            const TypeIcon = typeInfo.icon
-                                            const overdue = isOverdue(activity)
-                                            return (
-                                                <div key={activity.id}
-                                                    onClick={() => handleOpenDialog(activity)}
-                                                    className={cn(
-                                                        "p-3 rounded-lg border bg-background cursor-pointer transition-all hover:shadow-md hover:border-primary/30",
-                                                        overdue && "border-destructive/40 bg-destructive-subtle",
-                                                        activity.completedAt && "opacity-60",
-                                                    )}>
-                                                    <div className="flex items-center gap-2 mb-1.5">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity) }}
-                                                            aria-pressed={Boolean(activity.completedAt)}
-                                                            aria-label={activity.completedAt
-                                                                ? `Reabrir ${activity.title}`
-                                                                : `Concluir ${activity.title}`}
-                                                            className="flex-shrink-0">
-                                                            {activity.completedAt
-                                                                ? <CheckCircle2 className="h-4 w-4 text-success-subtle-foreground" />
-                                                                : <Circle className={cn("h-4 w-4", overdue ? "text-destructive-subtle-foreground" : "text-muted-foreground")} />
-                                                            }
-                                                        </button>
-                                                        <span className={cn("text-sm font-medium truncate", activity.completedAt && "line-through text-muted-foreground")}>
-                                                            {activity.title}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-wrap ml-6">
-                                                        <span className={cn("inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full", typeInfo.bg, typeInfo.color)}>
-                                                            <TypeIcon className="h-2.5 w-2.5" /> {typeInfo.label}
-                                                        </span>
-                                                        {overdue && <span className="text-[10px] text-destructive-subtle-foreground">Atrasada</span>}
-                                                        {activity.dueDate && (
-                                                            <span className="text-[10px] text-muted-foreground">
-                                                                {formatDateLabel(activity.dueDate)}
-                                                                {activity.startTime && ` ${activity.startTime}`}
-                                                            </span>
-                                                        )}
-                                                        {activity.recurrenceParentId && <Repeat className="h-2.5 w-2.5 text-muted-foreground" />}
-                                                        {activity.reminderMinutes && <BellRing className="h-2.5 w-2.5 text-muted-foreground" />}
-                                                    </div>
-                                                    {activity.contact && (
-                                                        <p className="text-[10px] text-muted-foreground ml-6 mt-1 truncate">
-                                                            {activity.contact.name}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            )
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            ) : viewMode === 'list' ? (
-                /* ─── List View ───────────────────────────────────────────── */
-                <div className="space-y-2">
-                    {activities.length === 0 ? (
-                        <EmptyState
-                            icon={Calendar}
-                            title="Nenhuma atividade encontrada"
-                            description="Ajuste os filtros ou crie uma nova atividade."
+                }
+                search={search}
+                onSearchChange={(v) => { setSearch(v); setPage(1) }}
+                searchLabel="Buscar atividade, paciente ou negócio"
+                filters={
+                    <>
+                        <FilterPill
+                            label="Período"
+                            value={periodLabel}
+                            onClear={() => { setRange({ from: '', to: '' }); setPresetHint(null) }}
+                            contentClassName="w-auto"
+                        >
+                            <PeriodFields
+                                from={range?.from ?? ''}
+                                to={range?.to ?? ''}
+                                onChange={(from, to) => { setRange({ from, to }); setPresetHint(null); setPage(1) }}
+                            />
+                        </FilterPill>
+                        <FilterPill
+                            label="Tipo"
+                            value={typeFilter === 'all' ? null : getTypeInfo(typeFilter).label}
+                            onClear={() => setTypeFilter('all')}
+                            options={[{ value: 'all', label: 'Todos os tipos' }, ...ACTIVITY_TYPES.map(t => ({ value: t.id, label: t.label }))]}
+                            selected={typeFilter}
+                            onSelect={setTypeFilter}
                         />
-                    ) : (
-                        activities.map((activity) => {
-                            const typeInfo = getTypeInfo(activity.type)
-                            const TypeIcon = typeInfo.icon
-                            const overdue = isOverdue(activity)
-                            const timeStr = activity.startTime
-                                ? (activity.endTime ? `${activity.startTime} - ${activity.endTime}` : activity.startTime)
-                                : null
-
-                            return (
-                                <div key={activity.id}
-                                    className={cn(
-                                        "flex items-start gap-4 p-4 rounded-lg border bg-card transition-colors",
-                                        overdue && "border-destructive/40 bg-destructive-subtle",
-                                        activity.completedAt && "opacity-50",
-                                        !overdue && !activity.completedAt && "border-border"
-                                    )}>
-                                    {/* Toggle */}
-                                    <button
-                                        onClick={() => handleToggleComplete(activity)}
-                                        aria-pressed={Boolean(activity.completedAt)}
-                                        aria-label={activity.completedAt
-                                            ? `Reabrir ${activity.title}`
-                                            : `Concluir ${activity.title}`}
-                                        className="flex-shrink-0 mt-0.5">
-                                        {activity.completedAt
-                                            ? <CheckCircle2 className="h-5 w-5 text-success-subtle-foreground" />
-                                            : <Circle className={cn("h-5 w-5", overdue ? "text-destructive-subtle-foreground hover:text-destructive-hover" : "text-muted-foreground hover:text-primary")} />
-                                        }
-                                    </button>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className={cn("font-medium", activity.completedAt && "line-through text-muted-foreground")}>
-                                                {activity.title}
-                                            </span>
-                                            <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full", typeInfo.bg, typeInfo.color)}>
-                                                <TypeIcon className="h-3 w-3" /> {typeInfo.label}
-                                            </span>
-                                            {overdue && (
-                                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-destructive-subtle text-destructive-subtle-foreground">
-                                                    <AlertTriangle className="h-3 w-3" /> Atrasada
-                                                </span>
-                                            )}
+                        {canChooseOwner ? (
+                            <FilterPill
+                                label="Responsável"
+                                value={ownerFilter ? (members.find(m => m.userId === ownerFilter)?.name ?? null) : null}
+                                onClear={() => setOwnerFilter('')}
+                                options={[{ value: '', label: 'Todos' }, ...members.map(m => ({ value: m.userId, label: m.name }))]}
+                                selected={ownerFilter}
+                                onSelect={setOwnerFilter}
+                            />
+                        ) : null}
+                        <FilterPill
+                            label="Situação"
+                            value={statusFilter === 'all' ? null : (STATUS_OPTIONS.find(o => o.id === statusFilter)?.label ?? null)}
+                            onClear={() => setStatusFilter('all')}
+                            options={STATUS_OPTIONS.map(o => ({ value: o.id, label: o.label }))}
+                            selected={statusFilter}
+                            onSelect={setStatusFilter}
+                        />
+                    </>
+                }
+                hasFilters={hasFilters}
+                onClearFilters={clearFilters}
+                view={<ViewSeg value={viewMode} onChange={setViewMode} options={viewOptions} />}
+                aside={openItem ? (
+                    <ActivityPanel
+                        key={`${openItem.id}:${panelRev}`}
+                        item={openItem}
+                        members={members.map(m => ({ userId: m.userId, name: m.name }))}
+                        canEdit={canEdit}
+                        nowMs={nowMs || Date.now()}
+                        onClose={() => setOpenId(null)}
+                        {...panelNeighbours(openId, visibleIds, setOpenId)}
+                        onChanged={() => { loadActivities(); loadStats() }}
+                        onEditFull={(id) => { const a = activities.find(x => x.id === id); if (a) handleOpenDialog(a) }}
+                        onDelete={(id) => { const a = activities.find(x => x.id === id); if (a) setDeletingActivity(a) }}
+                    />
+                ) : null}
+            >
+                {viewMode === 'list' ? (
+                    <DataTable
+                        frame
+                        columns={columns}
+                        rows={pageRows}
+                        getRowId={a => a.id}
+                        loading={loading}
+                        onRowClick={a => openPanel(a.id)}
+                        rowActions={a => (
+                            <RowActions label={`Ações da atividade ${a.title}`}>
+                                <RowActionItem icon={Pencil} onClick={() => openPanel(a.id)}>Abrir ficha</RowActionItem>
+                                {canEdit ? (
+                                    <RowActionItem icon={Trash2} destructive onClick={() => setDeletingActivity(a)}>Excluir</RowActionItem>
+                                ) : null}
+                            </RowActions>
+                        )}
+                        empty={
+                            <EmptyState
+                                variant="inline"
+                                icon={Calendar}
+                                title="Nenhuma atividade encontrada"
+                                description="Ajuste os filtros ou crie uma nova atividade."
+                            />
+                        }
+                        footer={
+                            <Pagination
+                                page={currentPage}
+                                totalPages={totalPages}
+                                total={visible.length}
+                                limit={pageSize}
+                                onPageChange={setPage}
+                                onLimitChange={(limit) => { setPageSize(limit); setPage(1) }}
+                            />
+                        }
+                    />
+                ) : viewMode === 'kanban' ? (
+                    <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-4">
+                        {loading ? (
+                            <p className="py-10 text-center text-sm text-muted-foreground">Carregando…</p>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                {KANBAN_COLUMNS.map((col) => {
+                                    const colActivities = kanbanData[col.id as keyof typeof kanbanData] || []
+                                    return (
+                                        <div key={col.id} className={cn('rounded-xl border-2 bg-card p-3', col.color)}>
+                                            <div className="mb-3 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={cn('text-sm font-semibold', col.textColor)}>{col.label}</span>
+                                                    <span className={cn('num rounded-full px-1.5 py-0.5 text-xs', col.bg, col.textColor)}>{colActivities.length}</span>
+                                                </div>
+                                                {col.id === 'todo' && (
+                                                    <button onClick={() => handleOpenDialog()} aria-label="Nova atividade" className="text-muted-foreground hover:text-foreground">
+                                                        <Plus className="size-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="min-h-[100px] space-y-2">
+                                                {colActivities.length === 0 ? (
+                                                    <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma atividade</p>
+                                                ) : colActivities.map((activity) => {
+                                                    const typeInfo = getTypeInfo(activity.type)
+                                                    const TypeIcon = typeInfo.icon
+                                                    const overdue = isOverdue(activity)
+                                                    return (
+                                                        <div key={activity.id}
+                                                            onClick={() => openPanel(activity.id)}
+                                                            className={cn(
+                                                                'cursor-pointer rounded-lg border bg-background p-3 transition-all hover:border-primary/30 hover:shadow-md',
+                                                                overdue && 'border-destructive/40 bg-destructive-subtle',
+                                                                activity.completedAt && 'opacity-60',
+                                                                openId === activity.id && 'border-primary-subtle-foreground ring-1 ring-primary-subtle-foreground/30',
+                                                            )}>
+                                                            <div className="mb-1.5 flex items-center gap-2">
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity) }}
+                                                                    aria-pressed={Boolean(activity.completedAt)}
+                                                                    aria-label={activity.completedAt ? `Reabrir ${activity.title}` : `Concluir ${activity.title}`}
+                                                                    className="shrink-0">
+                                                                    {activity.completedAt
+                                                                        ? <CheckCircle2 className="size-4 text-success-subtle-foreground" />
+                                                                        : <Circle className={cn('size-4', overdue ? 'text-destructive-subtle-foreground' : 'text-muted-foreground')} />}
+                                                                </button>
+                                                                <span className={cn('truncate text-sm font-medium', activity.completedAt && 'text-muted-foreground line-through')}>{activity.title}</span>
+                                                            </div>
+                                                            <div className="ml-6 flex flex-wrap items-center gap-2">
+                                                                <span className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]', typeInfo.bg, typeInfo.color)}>
+                                                                    <TypeIcon className="size-2.5" /> {typeInfo.label}
+                                                                </span>
+                                                                {overdue && <span className="text-[10px] text-destructive-subtle-foreground">Atrasada</span>}
+                                                                {activity.dueDate && (
+                                                                    <span className="num text-[10px] text-muted-foreground">{formatDateLabel(activity.dueDate)}{activity.startTime && ` ${activity.startTime}`}</span>
+                                                                )}
+                                                                {activity.recurrenceParentId && <Repeat className="size-2.5 text-muted-foreground" />}
+                                                                {activity.reminderMinutes && <BellRing className="size-2.5 text-muted-foreground" />}
+                                                            </div>
+                                                            {activity.contact && <p className="ml-6 mt-1 truncate text-[10px] text-muted-foreground">{activity.contact.name}</p>}
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
                                         </div>
-                                        {activity.description && (
-                                            <p className="text-sm text-muted-foreground truncate mt-1">{activity.description}</p>
-                                        )}
-                                        {/* Metadata row */}
-                                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
-                                            {activity.dueDate && (
-                                                <span className="flex items-center gap-1">
-                                                    <Calendar className="h-3 w-3" /> {formatDateLabel(activity.dueDate)}
-                                                </span>
-                                            )}
-                                            {timeStr && (
-                                                <span className="flex items-center gap-1">
-                                                    <Clock className="h-3 w-3" /> {timeStr}
-                                                </span>
-                                            )}
-                                            {activity.contact && (
-                                                <Link href="/vendas/pacientes"
-                                                    className="flex items-center gap-1 hover:text-primary transition-colors"
-                                                    onClick={(e) => e.stopPropagation()}>
-                                                    <User className="h-3 w-3" /> {activity.contact.name || activity.contact.phone}
-                                                </Link>
-                                            )}
-                                            {activity.deal && (
-                                                <Link href="/vendas/negocios"
-                                                    className="flex items-center gap-1 hover:text-primary transition-colors"
-                                                    onClick={(e) => e.stopPropagation()}>
-                                                    <Briefcase className="h-3 w-3" /> {activity.deal.title}
-                                                </Link>
-                                            )}
-                                            {activity.user && (
-                                                <span className="flex items-center gap-1 text-primary/70">
-                                                    👤 {activity.user.name}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Actions — the same menu the tables use, so a
-                                        row of activities and a row of contacts
-                                        answer to the same gesture. */}
-                                    <div className="flex-shrink-0">
-                                        <RowActions
-                                            label={`Ações da atividade ${activity.title}`}
-                                        >
-                                            <RowActionItem
-                                                icon={Pencil}
-                                                onClick={() => handleOpenDialog(activity)}
-                                            >
-                                                Editar
-                                            </RowActionItem>
-                                            {canEdit ? (
-                                                <RowActionItem
-                                                    icon={Trash2}
-                                                    destructive
-                                                    onClick={() => setDeletingActivity(activity)}
-                                                >
-                                                    Excluir
-                                                </RowActionItem>
-                                            ) : null}
-                                        </RowActions>
-                                    </div>
-                                </div>
-                            )
-                        })
-                    )}
-                </div>
-            ) : (
-                /* ─── Calendar View ───────────────────────────────────────── */
-                <div className="bg-card border border-border rounded-lg overflow-hidden">
-                    {/* Weekday headers */}
-                    <div className="grid grid-cols-7 border-b border-border">
-                        {WEEKDAYS.map((d) => (
-                            <div key={d} className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                {d}
-                            </div>
-                        ))}
-                    </div>
-                    {/* Day cells */}
-                    <div className="grid grid-cols-7">
-                        {calendarDays.map((cell, idx) => {
-                            const dateKey = cell.date.toISOString().split('T')[0]
-                            const dayActivities = activitiesByDate[dateKey] || []
-                            const isToday = isSameDay(cell.date, today)
-                            const MAX_VISIBLE = 3
-
-                            return (
-                                <div key={idx}
-                                    onClick={() => handleOpenDialog(undefined, dateKey)}
-                                    className={cn(
-                                        "min-h-[100px] p-1.5 border-b border-r border-border cursor-pointer transition-colors hover:bg-accent/30",
-                                        !cell.isCurrentMonth && "bg-muted/20"
-                                    )}>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className={cn(
-                                            "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full",
-                                            isToday && "bg-primary text-primary-foreground",
-                                            !cell.isCurrentMonth && "text-muted-foreground/50",
-                                            cell.isCurrentMonth && !isToday && "text-foreground"
-                                        )}>
-                                            {cell.day}
-                                        </span>
-                                        {dayActivities.length > MAX_VISIBLE && (
-                                            <span className="text-[10px] text-muted-foreground">+{dayActivities.length - MAX_VISIBLE}</span>
-                                        )}
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        {dayActivities.slice(0, MAX_VISIBLE).map((a) => {
-                                            const ti = getTypeInfo(a.type)
-                                            const od = isOverdue(a)
-                                            return (
-                                                <button key={a.id}
-                                                    onClick={(e) => { e.stopPropagation(); handleOpenDialog(a) }}
-                                                    className={cn(
-                                                        "w-full text-left text-[11px] leading-tight truncate rounded px-1 py-0.5 transition-colors hover:bg-accent/50",
-                                                        a.completedAt && "line-through text-muted-foreground/60",
-                                                        od && "text-destructive-subtle-foreground"
-                                                    )}>
-                                                    <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1 flex-shrink-0", od ? "bg-destructive" : ti.dot)} />
-                                                    {a.startTime && <span className="text-muted-foreground mr-1">{a.startTime}</span>}
-                                                    {a.title}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* ─── Create/Edit Dialog ────────────────────────────────────── */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="!max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{editingActivity ? 'Editar atividade' : 'Nova atividade'}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-2">
-                        {/* Title */}
-                        <div>
-                            <Label>Título *</Label>
-                            <Input value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                placeholder="Ex: Reunião com Cliente" className="mt-1" />
-                        </div>
-
-                        {/* Type + Responsible */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label>Tipo</Label>
-                                <Select value={formData.type}
-                                    onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {ACTIVITY_TYPES.map((type) => (
-                                            <SelectItem key={type.id} value={type.id}>
-                                                <span className="flex items-center gap-2">
-                                                    <type.icon className={cn("h-3.5 w-3.5", type.color)} />
-                                                    {type.label}
-                                                </span>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label>Responsável</Label>
-                                <Select value={formData.userId}
-                                    onValueChange={(value) => setFormData({ ...formData, userId: value })}>
-                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Eu mesmo</SelectItem>
-                                        {members.map((m) => (
-                                            <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        {/* Date + Times */}
-                        <div className="grid grid-cols-3 gap-4">
-                            <div>
-                                <Label>Data</Label>
-                                <Input type="date" value={formData.dueDate}
-                                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                                    className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Hora início</Label>
-                                <Input type="time" value={formData.startTime}
-                                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                                    className="mt-1" />
-                            </div>
-                            <div>
-                                <Label>Hora fim</Label>
-                                <Input type="time" value={formData.endTime}
-                                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                                    className="mt-1" />
-                            </div>
-                        </div>
-
-                        {/* Reminder + Recurrence */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label className="flex items-center gap-1.5"><BellRing className="h-3.5 w-3.5" /> Lembrete</Label>
-                                <Select value={String(formData.reminderMinutes)}
-                                    onValueChange={(v) => setFormData({ ...formData, reminderMinutes: Number(v) })}>
-                                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {REMINDER_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="flex items-center gap-1.5"><Repeat className="h-3.5 w-3.5" /> Repetir</Label>
-                                <Select value={formData.recurrenceType}
-                                    onValueChange={(v) => setFormData({ ...formData, recurrenceType: v })}>
-                                    <SelectTrigger className="mt-1"><SelectValue placeholder="Não repetir" /></SelectTrigger>
-                                    <SelectContent>
-                                        {RECURRENCE_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value || 'none'} value={opt.value || 'none'}>{opt.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        {/* Recurrence End Date (if recurrence selected) */}
-                        {formData.recurrenceType && formData.recurrenceType !== 'none' && (
-                            <div>
-                                <Label>Repetir até</Label>
-                                <Input type="date" value={formData.recurrenceEnd}
-                                    onChange={(e) => setFormData({ ...formData, recurrenceEnd: e.target.value })}
-                                    className="mt-1 max-w-xs" />
+                                    )
+                                })}
                             </div>
                         )}
-
-                        {/* Contact + Deal */}
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Contact Search */}
-                            <div>
-                                <Label>Paciente</Label>
-                                {selectedContact ? (
-                                    <div className="mt-1 flex items-center gap-2 p-2 rounded-md border border-border bg-accent/30">
-                                        <User className="h-4 w-4 text-muted-foreground" />
-                                        <span className="text-sm flex-1 truncate">
-                                            {selectedContact.name || selectedContact.phone}
-                                        </span>
-                                        <button onClick={() => { setSelectedContact(null); setFormData(f => ({ ...f, contactId: '' })) }}
-                                            className="text-muted-foreground hover:text-foreground">
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="relative mt-1">
-                                        <Input placeholder="Buscar paciente..."
-                                            value={contactSearch}
-                                            onChange={(e) => { setContactSearch(e.target.value); setShowContactDropdown(true) }}
-                                            onFocus={() => setShowContactDropdown(true)} />
-                                        {showContactDropdown && contactResults.length > 0 && (
-                                            <div className="absolute z-50 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-40 overflow-y-auto">
-                                                {contactResults.map((c) => (
-                                                    <button key={c.id}
-                                                        onClick={() => {
-                                                            setSelectedContact(c)
-                                                            setFormData(f => ({ ...f, contactId: c.id }))
-                                                            setContactSearch('')
-                                                            setShowContactDropdown(false)
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors">
-                                                        {c.name || 'Sem nome'} {c.phone && <span className="text-muted-foreground ml-1">({c.phone})</span>}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Deal Search */}
-                            <div>
-                                <Label>Negócio</Label>
-                                {selectedDeal ? (
-                                    <div className="mt-1 flex items-center gap-2 p-2 rounded-md border border-border bg-accent/30">
-                                        <Briefcase className="h-4 w-4 text-muted-foreground" />
-                                        <span className="text-sm flex-1 truncate">{selectedDeal.title}</span>
-                                        <button onClick={() => { setSelectedDeal(null); setFormData(f => ({ ...f, dealId: '' })) }}
-                                            className="text-muted-foreground hover:text-foreground">
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="relative mt-1">
-                                        <Input placeholder="Buscar negócio..."
-                                            value={dealSearch}
-                                            onChange={(e) => { setDealSearch(e.target.value); setShowDealDropdown(true) }}
-                                            onFocus={() => setShowDealDropdown(true)} />
-                                        {showDealDropdown && dealResults.length > 0 && (
-                                            <div className="absolute z-50 top-full mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-40 overflow-y-auto">
-                                                {dealResults.map((d) => (
-                                                    <button key={d.id}
-                                                        onClick={() => {
-                                                            setSelectedDeal(d)
-                                                            setFormData(f => ({ ...f, dealId: d.id }))
-                                                            setDealSearch('')
-                                                            setShowDealDropdown(false)
-                                                        }}
-                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors">
-                                                        {d.title}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                    </div>
+                ) : (
+                    <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+                            <Button variant="ghost" size="icon-sm" onClick={() => navigateCalendar(-1)} aria-label="Mês anterior"><ChevronLeft className="size-4" /></Button>
+                            <h2 className="text-sm font-semibold">{MONTHS[calMonth]} {calYear}</h2>
+                            <Button variant="ghost" size="icon-sm" onClick={() => navigateCalendar(1)} aria-label="Próximo mês"><ChevronRight className="size-4" /></Button>
                         </div>
-
-                        {/* Description */}
-                        <div>
-                            <Label>Descrição</Label>
-                            <Textarea value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                placeholder="Detalhes da atividade..."
-                                className="mt-1 min-h-[80px] resize-none" />
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">Salvar</Button>
+                        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+                            <div className="grid grid-cols-7 border-b border-border bg-background">
+                                {WEEKDAYS.map((d) => (
+                                    <div key={d} className="p-2 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{d}</div>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-7">
+                                {calendarDays.map((cell, idx) => {
+                                    const dateKey = isoDay(cell.date)
+                                    const dayActivities = activitiesByDate[dateKey] || []
+                                    const isToday = isSameDay(cell.date, today)
+                                    const MAX_VISIBLE = 3
+                                    return (
+                                        <div key={idx}
+                                            onClick={() => handleOpenDialog(undefined, dateKey)}
+                                            className={cn(
+                                                'min-h-[100px] cursor-pointer border-b border-r border-border p-1.5 transition-colors hover:bg-accent/30',
+                                                !cell.isCurrentMonth && 'bg-muted/20'
+                                            )}>
+                                            <div className="mb-1 flex items-center justify-between">
+                                                <span className={cn(
+                                                    'num flex size-6 items-center justify-center rounded-full text-xs font-medium',
+                                                    isToday && 'bg-primary text-primary-foreground',
+                                                    !cell.isCurrentMonth && 'text-muted-foreground/50',
+                                                    cell.isCurrentMonth && !isToday && 'text-foreground'
+                                                )}>{cell.day}</span>
+                                                {dayActivities.length > MAX_VISIBLE && (
+                                                    <span className="num text-[10px] text-muted-foreground">+{dayActivities.length - MAX_VISIBLE}</span>
+                                                )}
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                {dayActivities.slice(0, MAX_VISIBLE).map((a) => {
+                                                    const ti = getTypeInfo(a.type)
+                                                    const od = isOverdue(a)
+                                                    return (
+                                                        <button key={a.id}
+                                                            onClick={(e) => { e.stopPropagation(); openPanel(a.id) }}
+                                                            className={cn(
+                                                                'w-full truncate rounded px-1 py-0.5 text-left text-[11px] leading-tight transition-colors hover:bg-accent/50',
+                                                                a.completedAt && 'text-muted-foreground/60 line-through',
+                                                                od && 'text-destructive-subtle-foreground',
+                                                                openId === a.id && 'bg-primary-subtle'
+                                                            )}>
+                                                            <span className={cn('mr-1 inline-block size-1.5 shrink-0 rounded-full', od ? 'bg-destructive' : ti.dot)} />
+                                                            {a.startTime && <span className="num mr-1 text-muted-foreground">{a.startTime}</span>}
+                                                            {a.title}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
                         </div>
                     </div>
-                </DialogContent>
-            </Dialog>
+                )}
+            </IndexFrame>
+
+            {/* ─── O diálogo: Nova atividade e a edição completa ─── */}
+            <RecordDialog
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                title={editingActivity ? 'Editar atividade' : 'Nova atividade'}
+                description="Uma tarefa, reunião ou retorno, com dia e hora — e um lembrete, se precisar."
+                submitLabel={editingActivity ? 'Salvar atividade' : 'Criar atividade'}
+                hideAgain={editingActivity !== null}
+                onSubmit={handleSave}
+                submitting={submitting}
+                summary={
+                    <>
+                        <SummaryCard>
+                            <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', formType.bg)}>
+                                <FormTypeIcon className={cn('size-4', formType.color)} />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block truncate text-[12.5px] font-semibold">{formData.title.trim() || 'Título da atividade'}</span>
+                                <span className="num block text-[11px] text-muted-foreground">{formWhen}</span>
+                            </span>
+                        </SummaryCard>
+                        <div className="flex flex-wrap gap-1.5">
+                            <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{formOwner}</span>
+                            {selectedContact ? <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{selectedContact.name || selectedContact.phone}</span> : null}
+                            {selectedDeal ? <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{selectedDeal.title}</span> : null}
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                            {formData.reminderMinutes ? `Lembrete ${REMINDER_OPTIONS.find(o => o.value === formData.reminderMinutes)?.label?.toLowerCase()}. ` : ''}
+                            {formData.recurrenceType && formData.recurrenceType !== 'none' ? `Repete: ${RECURRENCE_OPTIONS.find(o => o.value === formData.recurrenceType)?.label?.toLowerCase()}.` : ''}
+                        </p>
+                    </>
+                }
+            >
+                <FormField label="Título" htmlFor="act-title" required error={errors.title} className="col-span-2">
+                    <Input id="act-title" value={formData.title} onChange={(e) => { setFormData({ ...formData, title: e.target.value }); if (errors.title) setErrors({}) }} placeholder="Ex: Reunião com paciente" aria-invalid={errors.title ? true : undefined} autoFocus />
+                </FormField>
+
+                <FormField label="Tipo" htmlFor="act-type" required>
+                    <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+                        <SelectTrigger id="act-type" className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {ACTIVITY_TYPES.map((type) => (
+                                <SelectItem key={type.id} value={type.id}>
+                                    <span className="flex items-center gap-2"><type.icon className={cn('size-3.5', type.color)} />{type.label}</span>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+
+                <FormField label="Responsável" htmlFor="act-owner">
+                    <Select value={formData.userId || 'none'} onValueChange={(value) => setFormData({ ...formData, userId: value })}>
+                        <SelectTrigger id="act-owner" className="w-full"><SelectValue placeholder="Eu mesmo" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">Eu mesmo</SelectItem>
+                            {members.map((m) => <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+
+                <FormField label="Data" htmlFor="act-date" required error={errors.dueDate} hint="dd/mm/aaaa">
+                    <MaskedInput id="act-date" mask={MASKS.date} value={maskDigitsFromIso(formData.dueDate)} onChange={(digits) => { setFormData({ ...formData, dueDate: dateFromMask(digits) ?? (digits.length === 8 ? '' : formData.dueDate) }); if (errors.dueDate) setErrors({}) }} aria-invalid={errors.dueDate ? true : undefined} />
+                </FormField>
+
+                <div className="grid grid-cols-2 gap-3.5">
+                    <FormField label="Início" htmlFor="act-start">
+                        <Input id="act-start" type="time" className="num" value={formData.startTime} onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} />
+                    </FormField>
+                    <FormField label="Fim" htmlFor="act-end">
+                        <Input id="act-end" type="time" className="num" value={formData.endTime} onChange={(e) => setFormData({ ...formData, endTime: e.target.value })} />
+                    </FormField>
+                </div>
+
+                <FormField label="Lembrete" htmlFor="act-reminder">
+                    <Select value={String(formData.reminderMinutes)} onValueChange={(v) => setFormData({ ...formData, reminderMinutes: Number(v) })}>
+                        <SelectTrigger id="act-reminder" className="w-full"><BellRing className="size-3.5 text-muted-foreground" /><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {REMINDER_OPTIONS.map((opt) => <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+
+                <FormField label="Repetir" htmlFor="act-repeat">
+                    <Select value={formData.recurrenceType || 'none'} onValueChange={(v) => setFormData({ ...formData, recurrenceType: v === 'none' ? '' : v })}>
+                        <SelectTrigger id="act-repeat" className="w-full"><Repeat className="size-3.5 text-muted-foreground" /><SelectValue placeholder="Não repetir" /></SelectTrigger>
+                        <SelectContent>
+                            {RECURRENCE_OPTIONS.map((opt) => <SelectItem key={opt.value || 'none'} value={opt.value || 'none'}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+
+                {formData.recurrenceType ? (
+                    <FormField label="Repetir até" htmlFor="act-repeat-end" hint="dd/mm/aaaa">
+                        <MaskedInput id="act-repeat-end" mask={MASKS.date} value={maskDigitsFromIso(formData.recurrenceEnd)} onChange={(digits) => setFormData({ ...formData, recurrenceEnd: dateFromMask(digits) ?? '' })} />
+                    </FormField>
+                ) : null}
+
+                <FormField label="Paciente" htmlFor="act-contact" className={formData.recurrenceType ? '' : 'col-span-1'}>
+                    {selectedContact ? (
+                        <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3">
+                            <User className="size-4 text-muted-foreground" />
+                            <span className="flex-1 truncate text-sm">{selectedContact.name || selectedContact.phone}</span>
+                            <button type="button" aria-label="Tirar o paciente" onClick={() => { setSelectedContact(null); setFormData(f => ({ ...f, contactId: '' })) }} className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <Input id="act-contact" placeholder="Buscar paciente…" value={contactSearch}
+                                onChange={(e) => { setContactSearch(e.target.value); setShowContactDropdown(true) }}
+                                onFocus={() => setShowContactDropdown(true)} />
+                            {showContactDropdown && contactResults.length > 0 && (
+                                <div className="absolute top-full z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+                                    {contactResults.map((c) => (
+                                        <button key={c.id} type="button"
+                                            onClick={() => { setSelectedContact(c); setFormData(f => ({ ...f, contactId: c.id })); setContactSearch(''); setShowContactDropdown(false) }}
+                                            className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-accent">
+                                            {c.name || 'Sem nome'} {c.phone && <span className="num ml-1 text-muted-foreground">({c.phone})</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </FormField>
+
+                <FormField label="Negócio" htmlFor="act-deal">
+                    {selectedDeal ? (
+                        <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3">
+                            <Briefcase className="size-4 text-muted-foreground" />
+                            <span className="flex-1 truncate text-sm">{selectedDeal.title}</span>
+                            <button type="button" aria-label="Tirar o negócio" onClick={() => { setSelectedDeal(null); setFormData(f => ({ ...f, dealId: '' })) }} className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <Input id="act-deal" placeholder="Buscar negócio…" value={dealSearch}
+                                onChange={(e) => { setDealSearch(e.target.value); setShowDealDropdown(true) }}
+                                onFocus={() => setShowDealDropdown(true)} />
+                            {showDealDropdown && dealResults.length > 0 && (
+                                <div className="absolute top-full z-50 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+                                    {dealResults.map((d) => (
+                                        <button key={d.id} type="button"
+                                            onClick={() => { setSelectedDeal(d); setFormData(f => ({ ...f, dealId: d.id })); setDealSearch(''); setShowDealDropdown(false) }}
+                                            className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-accent">
+                                            {d.title}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </FormField>
+
+                <FormField label="Descrição" htmlFor="act-description" className="col-span-2">
+                    <Textarea id="act-description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="O que precisa acontecer nesta atividade" rows={3} />
+                </FormField>
+            </RecordDialog>
 
             <ConfirmDialog
                 open={deletingActivity !== null}
@@ -1052,63 +1000,12 @@ export default function AgendaPage() {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={async () => {
-                    if (deletingActivity) await handleDelete(deletingActivity.id)
+                    if (deletingActivity) {
+                        await handleDelete(deletingActivity.id)
+                        if (openId === deletingActivity.id) setOpenId(null)
+                    }
                 }}
             />
-        </div>
-    )
-}
-
-/**
- * Um dos quatro números do topo, que também é um filtro.
- *
- * Eram quatro blocos escritos à mão, dois clicáveis e dois não — e os dois que
- * clicavam não diziam que clicavam. Aqui todos são botão, e o que está ligado
- * se vê pelo anel, não pela cor de fundo.
- */
-function StatCard({
-    icon: Icon,
-    value,
-    label,
-    hint,
-    tone,
-    active,
-    onClick,
-}: {
-    icon: typeof Calendar
-    value: number
-    label: string
-    hint: string
-    tone: 'info' | 'danger' | 'success' | 'primary' | 'muted'
-    active: boolean
-    onClick: () => void
-}) {
-    const tones = {
-        info: { bg: 'bg-info-subtle', fg: 'text-info-subtle-foreground' },
-        danger: { bg: 'bg-destructive-subtle', fg: 'text-destructive-subtle-foreground' },
-        success: { bg: 'bg-success-subtle', fg: 'text-success-subtle-foreground' },
-        primary: { bg: 'bg-primary-subtle', fg: 'text-primary-subtle-foreground' },
-        muted: { bg: 'bg-muted', fg: 'text-muted-foreground' },
-    }[tone]
-
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
-            className={cn(
-                'flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-border-strong',
-                active ? 'border-primary ring-1 ring-primary/20' : 'border-border'
-            )}
-        >
-            <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', tones.bg)}>
-                <Icon className={cn('size-5', tones.fg)} />
-            </span>
-            <span className="min-w-0">
-                <span className="num block text-2xl font-bold leading-none">{value}</span>
-                <span className="mt-1 block truncate text-xs">{label}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">{hint}</span>
-            </span>
-        </button>
+        </>
     )
 }

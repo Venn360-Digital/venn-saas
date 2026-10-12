@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
  */
 export function IndexFrame({
     title,
+    stats,
     actions,
     primary,
     search,
@@ -49,6 +50,8 @@ export function IndexFrame({
     className,
 }: {
     title: string
+    /** A faixa de números clicáveis (`StatPill`), logo depois do título. */
+    stats?: React.ReactNode
     /** Ações secundárias da linha 1 — botões de contorno. */
     actions?: React.ReactNode
     /** O botão de criar. Uma ação primária só. */
@@ -65,7 +68,7 @@ export function IndexFrame({
     view?: React.ReactNode
     /** A ficha lateral, quando aberta. */
     aside?: React.ReactNode
-    /** O `DataTable` em modo `frame`. */
+    /** O miolo: o `DataTable` em modo `frame`, ou qualquer corpo da Tela 02. */
     children: React.ReactNode
     className?: string
 }) {
@@ -74,6 +77,7 @@ export function IndexFrame({
             {/* Linha 1 */}
             <div className="flex h-[50px] shrink-0 items-center gap-2 bg-card px-4 md:px-6">
                 <h1 className="truncate text-[17px] font-bold tracking-tight">{title}</h1>
+                {stats ? <span className="ml-1 flex min-w-0 items-center gap-0.5 overflow-x-auto">{stats}</span> : null}
                 <span className="flex-1" />
                 {actions}
                 {primary ? <span className="ml-1 shrink-0">{primary}</span> : null}
