@@ -38,6 +38,8 @@ export function RecordDialog({
     summary,
     hideAgain = false,
     size = 'default',
+    submitDisabled = false,
+    destructive = false,
     children,
 }: {
     open: boolean
@@ -61,13 +63,17 @@ export function RecordDialog({
      * a largura de duas colunas de campo.
      */
     size?: 'default' | 'wide'
+    /** Trava a ação primária enquanto a condição de segurança não é cumprida. */
+    submitDisabled?: boolean
+    /** A ação primária destrói algo: botão vermelho, como no alerta. */
+    destructive?: boolean
     children: React.ReactNode
 }) {
     const formId = useId()
     const [again, setAgain] = useState(false)
 
     const submit = (isAgain: boolean) => {
-        if (!onSubmit) return
+        if (!onSubmit || submitDisabled) return
         setAgain(isAgain)
         void onSubmit(isAgain)
     }
@@ -81,8 +87,10 @@ export function RecordDialog({
                     // azulado; o quadro de cadastro é branco, como a ficha.
                     'flex h-svh w-svw max-w-none flex-col gap-0 overflow-hidden rounded-none bg-card p-0',
                     'md:max-h-[calc(100svh-2rem)] md:max-w-[calc(100vw-2rem)] md:rounded-xl',
+                    // O largo cresce com o conteúdo: três planos ocupam meia
+                    // tela, e esticá-los até o rodapé deixava um vão morto.
                     size === 'wide'
-                        ? 'md:h-[calc(100svh-2rem)] md:w-[1120px]'
+                        ? 'md:h-auto md:w-[1120px]'
                         : 'md:h-[700px] md:w-[840px]'
                 )}
                 onKeyDown={(e) => {
@@ -163,7 +171,12 @@ export function RecordDialog({
                             </Button>
                         ) : null}
                         {submitLabel ? (
-                            <Button type="submit" form={formId} disabled={submitting}>
+                            <Button
+                                type="submit"
+                                form={formId}
+                                variant={destructive ? 'destructive' : 'default'}
+                                disabled={submitting || submitDisabled}
+                            >
                                 {submitting && !again ? <Loader2 className="animate-spin" /> : null}
                                 {submitLabel}
                             </Button>

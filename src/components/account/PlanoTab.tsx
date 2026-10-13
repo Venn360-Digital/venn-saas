@@ -516,8 +516,10 @@ export function PlanoTab() {
                 description="Leia o que muda antes de confirmar."
                 submitLabel="Cancelar assinatura"
                 hideAgain
+                destructive
+                submitDisabled={!emailMatches}
                 submitting={processing}
-                onSubmit={() => { if (emailMatches) void handleCancelPlan() }}
+                onSubmit={() => { void handleCancelPlan() }}
                 summary={
                     <>
                         <SummaryCard className="flex-col items-start gap-1">

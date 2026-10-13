@@ -219,8 +219,10 @@ export function TermsCard({ band = false }: { band?: boolean }) {
                 description={`Versão ${state.acceptedVersion ?? TERMS_VERSION}.`}
                 size="wide"
             >
-                <div className="col-span-2 flex min-h-full flex-col">
-                    <TermsText className="min-h-0 flex-1" />
+                <div className="col-span-2">
+                    {/* Altura em viewport: o quadro largo cresce com o conteúdo,
+                        e o contrato é o conteúdo que deve ocupar a tela. */}
+                    <TermsText className="h-[calc(100svh-15rem)] min-h-[320px]" />
                 </div>
             </RecordDialog>
         </Frame>
