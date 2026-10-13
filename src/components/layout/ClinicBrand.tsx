@@ -19,7 +19,12 @@ export const WORKSPACE_UPDATED = 'workspace:updated'
  *
  * Com logo da clínica, ela toma o lugar do símbolo **e** do nome — é uma marca
  * no lugar de outra, não as duas lado a lado. Na calha recolhida volta o
- * símbolo: um lockup de 160 × 25 px não cabe num quadrado de 32.
+ * símbolo: uma logo de clínica não cabe num quadrado de 32.
+ *
+ * Altura de 78px, e não os 26 do começo: a logo enviada é um lockup quase
+ * quadrado (300 × 170), então limitar a altura é limitar tudo — em 26px de
+ * altura ela saía com 46 de largura, perdida ao lado de um menu de 240. Agora
+ * o que limita é a largura da calha, como deve ser.
  */
 export function ClinicBrand() {
     const [logo, setLogo] = useState<string | null>(null)
@@ -50,7 +55,11 @@ export function ClinicBrand() {
     }, [])
 
     return (
-        <Link href="/dashboard" aria-label={logo ? (name ?? 'Início') : 'OdontoBox360'}>
+        <Link
+            href="/dashboard"
+            aria-label={logo ? (name ?? 'Início') : 'OdontoBox360'}
+            className={cn(logo && 'justify-center')}
+        >
             <span
                 className={cn(
                     'aspect-square size-8 shrink-0 items-center justify-center',
@@ -67,7 +76,7 @@ export function ClinicBrand() {
                 <img
                     src={logo}
                     alt={name ?? 'Logo da clínica'}
-                    className="h-[26px] w-auto max-w-[168px] object-contain group-data-[collapsible=icon]:hidden"
+                    className="h-[78px] w-auto max-w-[196px] object-contain group-data-[collapsible=icon]:hidden"
                 />
             ) : (
                 <span className="grid flex-1 text-left leading-tight">
