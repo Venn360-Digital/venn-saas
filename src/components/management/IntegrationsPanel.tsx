@@ -3,13 +3,13 @@
 import { BRAND_COLORS } from '@/lib/brand-colors'
 import { useState, useEffect } from 'react'
 import { Plus, ExternalLink, Unplug, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PlatformCredentialsPanel } from '@/components/integrations/PlatformCredentialsPanel'
+import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 
@@ -422,27 +422,42 @@ function ComingSoonCard({ def }: { def: IntegrationDef }) {
  * guia dentro de Gerenciar conta, que é por onde se chega navegando.
  */
 export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) {
+    const cards = (
+        <>
+            <div className="grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-2">
+                {INTEGRATIONS.map((def) => (
+                    def.provider === 'google_calendar'
+                        ? <GoogleCalendarCard key={def.id} def={def} />
+                        : <ComingSoonCard key={def.id} def={def} />
+                ))}
+            </div>
+            {/* Só o responsável pela plataforma vê — é onde os aplicativos
+                ficam registrados para todas as clínicas. */}
+            <PlatformCredentialsPanel />
+        </>
+    )
+
+    if (embedded) {
+        return (
+            <BandLayout>
+                <SettingsBand
+                    title="Ferramentas"
+                    description="O que a clínica liga ao OdontoBox360. Cada cartão diz se está conectado e por qual conta."
+                    last
+                >
+                    {cards}
+                </SettingsBand>
+            </BandLayout>
+        )
+    }
+
     return (
         <>
-            {embedded ? null : (
-                <PageHeader
-                    title="Integrações"
-                    description="Conecte ferramentas externas para potencializar sua aplicação."
-                />
-            )}
-            <div className={embedded ? '' : 'px-4 pb-6 md:px-6'}>
-                {/* Só o responsável pela plataforma vê — é onde os aplicativos
-                    ficam registrados para todas as clínicas. */}
-                <PlatformCredentialsPanel />
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {INTEGRATIONS.map((def) => (
-                        def.provider === 'google_calendar'
-                            ? <GoogleCalendarCard key={def.id} def={def} />
-                            : <ComingSoonCard key={def.id} def={def} />
-                    ))}
-                </div>
-            </div>
+            <PageHeader
+                title="Integrações"
+                description="Conecte ferramentas externas para potencializar sua aplicação."
+            />
+            <div className="px-4 pb-6 md:px-6">{cards}</div>
         </>
     )
 }

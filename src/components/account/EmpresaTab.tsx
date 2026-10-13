@@ -132,7 +132,7 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                 <>
                     {saving ? <p className="mr-auto text-xs text-muted-foreground">Salvando…</p> : null}
                     <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
-                        Salvar dados da empresa
+                        Salvar dados da clínica
                     </Button>
                 </>
             }
@@ -147,7 +147,7 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                 <SettingsBand title="Identificação" description="Como a clínica aparece nos documentos e na cobrança.">
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <FormField
-                            label="Nome da empresa"
+                            label="Nome da clínica"
                             htmlFor="company-name"
                             hint="É o identificador do workspace e não muda por aqui."
                         >

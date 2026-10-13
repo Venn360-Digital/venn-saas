@@ -1,12 +1,11 @@
 'use client'
 
 import { forwardRef, useImperativeHandle, useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react'
+import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
@@ -227,25 +226,13 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
     return (
         <>
             {embedded ? (
-                <div className="flex min-h-0 flex-1 flex-col">
-                    {/* A linha de ferramentas da guia — o mesmo lugar e a mesma
-                        busca da linha 2 das telas de índice. */}
-                    <div className="flex h-[46px] shrink-0 items-center gap-2 border-b border-border bg-card px-4 pb-1.5 md:px-6">
-                        <div className="relative w-[250px] shrink-0">
-                            <Search
-                                className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                                aria-hidden="true"
-                            />
-                            <Input
-                                value={search}
-                                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                                placeholder="Buscar"
-                                aria-label="Buscar por nome ou e-mail"
-                                className="h-8 bg-card pl-8 text-sm"
-                            />
-                        </div>
-                    </div>
-
+                /* A ficha abre **ao lado** da tabela, como nas telas de
+                   índice: numa coluna ela entrava embaixo, ocupava a largura
+                   inteira e a tabela desaparecia. `relative` é o que segura a
+                   ficha sobreposta abaixo de `lg`. */
+                <div className="relative flex min-h-0 flex-1">
+                    {/* Sem linha de busca: a equipe de uma clínica cabe numa
+                        tela, e procurar vinte nomes custa mais que lê-los. */}
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                         <DataTable
                             frame

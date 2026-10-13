@@ -77,7 +77,7 @@ export function PlatformCredentialsPanel() {
     }
 
     return (
-        <section className="mb-8 rounded-xl border border-border bg-card p-5">
+        <section className="mt-4 max-w-5xl rounded-xl border border-border bg-card p-5">
             <div className="mb-1 flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" />
                 <h2 className="text-h4">Aplicativos da plataforma</h2>

@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { SettingsCard } from '@/components/shared/TabsFrame'
+import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { DEFAULT_AUTOMATIONS, type Automations } from '@/lib/automations'
 
 /**
@@ -58,61 +58,63 @@ export function AutomacoesTab() {
 
     if (!config) {
         return (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <p className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" /> Carregando…
             </p>
         )
     }
 
     return (
-        <SettingsCard
-            title="Rotinas automáticas"
-            description="O que o sistema faz sozinho todo dia. Grava ao mudar — não há botão Salvar."
-            contentClassName="p-0"
+        <BandLayout
             footer={
-                <p className="text-xs leading-relaxed text-muted-foreground">
+                <p className="mr-auto text-xs leading-relaxed text-muted-foreground">
                     Nenhuma destas chaves envia mensagem a paciente. Falar sozinho com quem está em
                     atendimento é decisão de cada fase, em <strong>Negócios → Fases</strong>.
                     {saving ? ' · salvando…' : ''}
                 </p>
             }
         >
-            <div className="divide-y divide-border">
-                <Line
-                    icon={Sparkles}
-                    title="Criar tarefa de retomada"
-                    hint="Todo dia de manhã, pacientes parados sem retorno marcado viram tarefa para o responsável. Usa o prazo de cada fase, definido em Negócios → Fases."
-                    checked={config.followUpTasks}
-                    onChange={(v) => void save({ followUpTasks: v })}
-                />
+            <SettingsBand
+                title="Rotinas automáticas"
+                description="O que o sistema faz sozinho todo dia. Grava ao mudar — não há botão Salvar."
+                last
+            >
+                <div className="divide-y divide-border rounded-lg border border-border">
+                    <Line
+                        icon={Sparkles}
+                        title="Criar tarefa de retomada"
+                        hint="Todo dia de manhã, pacientes parados sem retorno marcado viram tarefa para o responsável. Usa o prazo de cada fase, definido em Negócios → Fases."
+                        checked={config.followUpTasks}
+                        onChange={(v) => void save({ followUpTasks: v })}
+                    />
 
-                <Line
-                    icon={Sun}
-                    title="Boletim da manhã"
-                    hint="Três números e os nomes de quem ligar primeiro, para quem abre a clínica."
-                    checked={config.briefing}
-                    onChange={(v) => void save({ briefing: v })}
-                    extra={
-                        <Select
-                            value={String(config.briefingHour)}
-                            onValueChange={(v) => void save({ briefingHour: Number(v) })}
-                        >
-                            <SelectTrigger size="sm" className="w-[86px]" aria-label="Hora do boletim">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Array.from({ length: 24 }, (_, h) => (
-                                    <SelectItem key={h} value={String(h)} className="num">
-                                        {String(h).padStart(2, '0')}:00
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    }
-                />
-
-            </div>
-        </SettingsCard>
+                    <Line
+                        icon={Sun}
+                        title="Boletim da manhã"
+                        hint="Três números e os nomes de quem ligar primeiro, para quem abre a clínica."
+                        checked={config.briefing}
+                        onChange={(v) => void save({ briefing: v })}
+                        extra={
+                            <Select
+                                value={String(config.briefingHour)}
+                                onValueChange={(v) => void save({ briefingHour: Number(v) })}
+                            >
+                                <SelectTrigger size="sm" className="w-[86px]" aria-label="Hora do boletim">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 24 }, (_, h) => (
+                                        <SelectItem key={h} value={String(h)} className="num">
+                                            {String(h).padStart(2, '0')}:00
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        }
+                    />
+                </div>
+            </SettingsBand>
+        </BandLayout>
     )
 }
 

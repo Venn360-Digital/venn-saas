@@ -11,6 +11,31 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { SettingsBand } from '@/components/shared/TabsFrame'
+
+/** O mesmo contrato do `SectionCard`, desenhado como faixa. */
+function BandFrame({
+    title,
+    description,
+    action,
+    children,
+}: {
+    title: string
+    description?: React.ReactNode
+    action?: React.ReactNode
+    children: React.ReactNode
+}) {
+    return (
+        <SettingsBand
+            title={title}
+            description={typeof description === 'string' ? description : undefined}
+            aside={action}
+            last
+        >
+            <div className="max-w-5xl">{children}</div>
+        </SettingsBand>
+    )
+}
 import { TERMS, TERMS_VERSION } from '@/lib/terms'
 
 interface TermsState {
@@ -38,7 +63,7 @@ interface TermsState {
  * do passo 5 do cadastro: assinatura que ninguém teve como ler não vale
  * registrar.
  */
-export function TermsCard() {
+export function TermsCard({ band = false }: { band?: boolean }) {
     const [state, setState] = useState<TermsState | null>(null)
     const [accepted, setAccepted] = useState(false)
     const [reachedEnd, setReachedEnd] = useState(false)
@@ -81,11 +106,16 @@ export function TermsCard() {
         }
     }
 
+    /* Numa guia sangrada o acordo é uma faixa, não um cartão: o cartão
+       dentro do cartão do shell cobra duas molduras e empurra o conteúdo
+       para fora da tela. */
+    const Frame = band ? BandFrame : SectionCard
+
     if (state === null) {
         return (
-            <SectionCard title="Termos do acordo">
+            <Frame title="Termos do acordo">
                 <Skeleton className="h-5 w-64" />
-            </SectionCard>
+            </Frame>
         )
     }
 
@@ -93,7 +123,7 @@ export function TermsCard() {
     const needsSignature = !state.acceptedTerms || outdated
 
     return (
-        <SectionCard
+        <Frame
             title="Termos do acordo"
             description={
                 needsSignature
@@ -186,7 +216,7 @@ export function TermsCard() {
                     <TermsText />
                 </div>
             </RecordDialog>
-        </SectionCard>
+        </Frame>
     )
 }
 

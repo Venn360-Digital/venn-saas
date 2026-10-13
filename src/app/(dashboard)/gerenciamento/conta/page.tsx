@@ -22,7 +22,8 @@ import { IntegrationsPanel } from '@/components/management/IntegrationsPanel'
  */
 const TABS: FrameTab[] = [
     { id: 'perfil', label: 'Perfil do usuário', icon: User },
-    { id: 'empresa', label: 'Empresa', icon: Building2 },
+    // O id continua "empresa": é o que está nos links de ?tab= já salvos.
+    { id: 'empresa', label: 'Clínica', icon: Building2 },
     { id: 'usuarios', label: 'Usuários', icon: Users },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },
@@ -72,7 +73,9 @@ function ContaContent() {
             primary={primary}
             // A guia sangrada desenha as próprias faixas e o rodapé preso;
             // o quadro só lhe dá a altura.
-            fill={activeTab === 'usuarios' || activeTab === 'perfil' || activeTab === 'empresa'}
+            // Todas as guias são sangradas: cada uma desenha as próprias faixas
+            // e o rodapé preso, e o quadro só lhes dá a altura.
+            fill
         >
             {/* Uma guia por vez, montada só quando abre: os painéis buscam
                 dados próprios, e carregá-los sempre tornaria a tela de perfil

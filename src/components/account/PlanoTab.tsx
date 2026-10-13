@@ -3,7 +3,7 @@
 import { PLAN_CHANNELS } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+import { BandLayout, SettingsBand, SettingsRow } from '@/components/shared/TabsFrame'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { FormField } from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
@@ -193,11 +193,14 @@ export function PlanoTab() {
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0
 
+    /** "Plano Evolução" vira "Evolução": o rótulo ao lado já diz "Plano". */
+    const planLabel = (subscription?.planName ?? '').replace(/^Plano\s+/i, '')
+
     return (
-        <div className="space-y-4">
+        <BandLayout>
             {/* Trial Banner */}
             {isTrialing && (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary-subtle/40 px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                         <Gift className="h-6 w-6 text-primary" />
                         <div>
@@ -217,11 +220,11 @@ export function PlanoTab() {
                 </div>
             )}
 
-            <SettingsCard
+            <SettingsBand
                 title="Assinatura"
                 description="O que dá para mudar sem falar com a gente."
-                contentClassName="divide-y divide-border p-0"
             >
+              <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
                 <div className="px-5 py-4">
                     <SettingsRow
                         title="Forma de pagamento"
@@ -235,7 +238,13 @@ export function PlanoTab() {
                 </div>
                 <div className="px-5 py-4">
                     <SettingsRow
-                        title="Plano"
+                        title={
+                            <>
+                                Plano
+                                <span className="font-normal text-muted-foreground"> · Plano atual: </span>
+                                <span className="text-primary-subtle-foreground">{planLabel || '—'}</span>
+                            </>
+                        }
                         description="Subir ou descer de plano vale a partir do próximo ciclo."
                         action={
                             <Button variant="outline" size="sm" className="h-8" onClick={() => setShowPlanModal(true)}>
@@ -271,13 +280,8 @@ export function PlanoTab() {
                         }
                     />
                 </div>
-            </SettingsCard>
-
-            {/* Current Plan */}
-            <div className="pt-4">
-                <span className="text-muted-foreground">Plano atual: </span>
-                <span className="text-primary font-medium">{subscription?.planName}</span>
-            </div>
+              </div>
+            </SettingsBand>
 
             {/* Change Plan Modal */}
             <RecordDialog
@@ -482,7 +486,7 @@ export function PlanoTab() {
             {/* O acordo fica junto das outras condições — o que se paga, o que
                 se gasta, até quando. É onde alguém procura quando quer reler o
                 que aceitou. */}
-            <TermsCard />
-        </div>
+            <TermsCard band />
+        </BandLayout>
     )
 }
