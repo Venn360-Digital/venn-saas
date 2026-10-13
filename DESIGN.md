@@ -568,6 +568,42 @@ do dia em que foi gerado: "tem consulta marcada" continuaria afirmando isso uma
 semana depois da consulta. O dado entra no prompt como contexto, para o modelo
 não contradizê-lo, e não para ele repeti-lo.
 
+### Tela 03 — a tela de guias
+
+Uma tela, várias guias: Conta (perfil, empresa, usuários, integrações,
+automações, plano) e o que vier com a mesma forma. A geometria é a da Tela 01,
+de propósito.
+
+- **Linha 1 (50px)**: o nome da tela à esquerda, a ação primária no canto —
+  sempre no mesmo lugar, guia após guia. Só vai aqui a ação **da tela** (criar).
+- **Linha 2 (46px)**: as guias, no lugar onde as outras telas põem os filtros,
+  porque é ali que se escolhe o que se vê. A ativa leva o ícone e o sublinhado
+  em `primary-subtle-foreground`, texto em `font-semibold`.
+- A guia aberta vive no `?tab=`, não numa cópia em `useState`: dois links para
+  `?tab=` diferentes são navegação de cliente, não remontam a página, e a
+  guia ficava presa na primeira. Uma guia por vez, montada só quando abre.
+- **Salvar não vai no cabeçalho.** Lá em cima ele parece valer para a tela
+  inteira, e numa tela de guias vale para uma guia só — fica no fim do
+  formulário, com ele.
+- **Guia-tabela** (`fill`): é a Tela 01 inteira dentro da guia — linha de 46px
+  com a busca, tabela sangrada, rodapé com paginação e `BulkBar`.
+- **Guia-formulário sangrada** (`fill` + `BandLayout`): os grupos viram faixas
+  de ponta a ponta (`SettingsBand`), separadas por um fio, numa superfície
+  branca só, e o rodapé de 52px prende a ação de gravar. É o que se usa quando
+  a guia não pode rolar: o cartão dentro do cartão do shell cobra duas molduras
+  e dois paddings por grupo, e foi o que fazia o Perfil pedir rolagem para
+  mostrar o próprio botão de salvar.
+- **Guia de ajustes** (padrão): cartões brancos (`SettingsCard`) sobre o fundo
+  tingido, alinhados à esquerda na coluna do título — nunca centralizados, que
+  os deixa recuados em relação ao nome da tela. Linhas de "o que é + o que
+  fazer" são `SettingsRow`, com uma ação primária só por cartão.
+- Diálogos da guia são os mesmos do sistema: `RecordDialog` para formulário e
+  para texto longo (termos, em modo leitura), `ConfirmDialog` para o que
+  destrói.
+- Uma linha de 46px com um fio de 1px embaixo tem 45 de conteúdo: deixe
+  `overflow-y-hidden`, ou o navegador desenha uma barra de rolagem de 1px no
+  meio do cabeçalho.
+
 ---
 
 ## 6. O shell
