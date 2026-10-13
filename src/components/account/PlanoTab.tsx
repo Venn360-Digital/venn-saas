@@ -3,6 +3,7 @@
 import { PLAN_CHANNELS } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { Input } from '@/components/ui/input'
 import {
     Dialog,
@@ -221,73 +222,61 @@ export function PlanoTab() {
                 </div>
             )}
 
-            {/* Action Cards */}
-            <div className="space-y-4">
-                {/* Change Payment Method */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
-                    <div>
-                        <h3 className="font-medium">Alterar forma de pagamento</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Caso deseje alterar a forma de pagamento, basta clicar no botão ao lado
-                        </p>
-                    </div>
-                    <Button
-                        onClick={() => setShowPaymentModal(true)}
-
-                    >
-                        Alterar forma de pagamento
-                    </Button>
+            <SettingsCard
+                title="Assinatura"
+                description="O que dá para mudar sem falar com a gente."
+                contentClassName="divide-y divide-border p-0"
+            >
+                <div className="px-5 py-4">
+                    <SettingsRow
+                        title="Forma de pagamento"
+                        description="Troque o cartão que paga a mensalidade."
+                        action={
+                            <Button variant="outline" size="sm" className="h-8" onClick={() => setShowPaymentModal(true)}>
+                                Alterar
+                            </Button>
+                        }
+                    />
                 </div>
-
-                {/* Change Plan */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
-                    <div>
-                        <h3 className="font-medium">Alterar plano</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Caso deseje alterar o plano da sua conta, basta clicar no botão ao lado
-                        </p>
-                    </div>
-                    <Button
-                        onClick={() => setShowPlanModal(true)}
-
-                    >
-                        Alterar plano
-                    </Button>
+                <div className="px-5 py-4">
+                    <SettingsRow
+                        title="Plano"
+                        description="Subir ou descer de plano vale a partir do próximo ciclo."
+                        action={
+                            <Button variant="outline" size="sm" className="h-8" onClick={() => setShowPlanModal(true)}>
+                                Alterar plano
+                            </Button>
+                        }
+                    />
                 </div>
-
-                {/* Buy Credits */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
-                    <div>
-                        <h3 className="font-medium">Comprar créditos</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Ao comprar créditos, você será cobrado R$ {subscription?.creditPrice?.toFixed(2) || '49,90'} por mês para cada lote adquirido.
-                        </p>
-                    </div>
-                    <Button
-                        onClick={() => setShowCreditsModal(true)}
-
-                    >
-                        Comprar créditos
-                    </Button>
+                <div className="px-5 py-4">
+                    <SettingsRow
+                        title="Créditos de IA"
+                        description="Cada lote custa R$ 49,90 por mês enquanto estiver ativo."
+                        action={
+                            <Button size="sm" className="h-8" onClick={() => setShowCreditsModal(true)}>
+                                Comprar créditos
+                            </Button>
+                        }
+                    />
                 </div>
-
-                {/* Cancel Plan */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
-                    <div>
-                        <h3 className="font-medium">Cancelar plano</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Caso deseje cancelar a sua conta, basta clicar no botão ao lado
-                        </p>
-                    </div>
-                    <Button
-                        onClick={() => setShowCancelModal(true)}
-                        variant="outline"
-                        className="border-border"
-                    >
-                        Cancelar plano
-                    </Button>
+                <div className="px-5 py-4">
+                    <SettingsRow
+                        title="Cancelar assinatura"
+                        description="O acesso continua até o fim do período já pago."
+                        action={
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                                onClick={() => setShowCancelModal(true)}
+                            >
+                                Cancelar plano
+                            </Button>
+                        }
+                    />
                 </div>
-            </div>
+            </SettingsCard>
 
             {/* Current Plan */}
             <div className="pt-4">

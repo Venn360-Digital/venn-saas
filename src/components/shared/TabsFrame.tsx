@@ -91,7 +91,9 @@ export function TabsFrame({
 
             {/* O corpo da guia — o único que rola. */}
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
-                <div className="mx-auto w-full max-w-5xl px-4 py-4 md:px-6 md:py-5">{children}</div>
+                {/* Alinhado à esquerda, na mesma coluna do título: centralizar deixava
+                    os cartões recuados em relação ao nome da tela. */}
+                <div className="w-full max-w-5xl px-4 py-4 md:px-6 md:py-5">{children}</div>
             </div>
         </div>
     )
