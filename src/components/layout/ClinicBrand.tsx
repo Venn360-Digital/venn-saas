@@ -56,12 +56,12 @@ export function ClinicBrand() {
         }
     }, [])
 
+    // Sem `className` no link: o `asChild` do SidebarMenuButton deixa o filho
+    // sobrescrever a classe do botão, e um `justify-center` ali levava junto o
+    // padding, o hover e o próprio `display: flex`. Quem centraliza é a
+    // imagem, com `mx-auto`.
     return (
-        <Link
-            href="/dashboard"
-            aria-label={logo ? (name ?? 'Início') : 'OdontoBox360'}
-            className={cn(logo && 'justify-center')}
-        >
+        <Link href="/dashboard" aria-label={logo ? (name ?? 'Início') : 'OdontoBox360'}>
             <span
                 className={cn(
                     'aspect-square size-8 shrink-0 items-center justify-center',
@@ -78,7 +78,7 @@ export function ClinicBrand() {
                 <img
                     src={logo}
                     alt={name ?? 'Logo da clínica'}
-                    className="h-auto max-h-[112px] w-[120px] object-contain group-data-[collapsible=icon]:hidden"
+                    className="mx-auto h-auto max-h-[112px] w-[120px] object-contain group-data-[collapsible=icon]:hidden"
                 />
             ) : (
                 <span className="grid flex-1 text-left leading-tight">
