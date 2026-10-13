@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { AgentCreationData, PerfilData, TrabalhoData, CerebroData, VozData, VisualData } from '@/types/agent-creation'
+import { PerfilData, TrabalhoData, CerebroData, VozData } from '@/types/agent-creation'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
 
 export function useAgentCreation(workspaceId: string) {
@@ -28,8 +28,6 @@ export function useAgentCreation(workspaceId: string) {
     const [voz, setVoz] = useState<VozData>({
         voiceEnabled: false,
     })
-
-    const [visual, setVisual] = useState<VisualData>({})
 
     const handleSave = async (agentId?: string | null) => {
         // Validação básica
@@ -61,6 +59,7 @@ export function useAgentCreation(workspaceId: string) {
                 companySector: trabalho.companySector,
                 companyWebsite: trabalho.companyWebsite,
                 companyDescription: trabalho.companyDescription,
+                companyAddress: trabalho.companyAddress,
 
                 // Voz
                 voiceEnabled: voz.voiceEnabled,
@@ -124,9 +123,9 @@ export function useAgentCreation(workspaceId: string) {
              * desfaz o agente salvo: o aviso é específico e o resto do trabalho
              * da clínica fica de pé.
              */
-            if (visual.avatarFile) {
+            if (perfil.avatarFile) {
                 const form = new FormData()
-                form.append('file', visual.avatarFile)
+                form.append('file', perfil.avatarFile)
 
                 const avatarResponse = await fetch(`/api/agents/${agent.id}/avatar`, {
                     method: 'POST',
@@ -135,12 +134,12 @@ export function useAgentCreation(workspaceId: string) {
 
                 if (avatarResponse.ok) {
                     const { avatar } = await avatarResponse.json()
-                    setVisual({ avatar: avatar ?? undefined, avatarFile: null })
+                    setPerfil((atual) => ({ ...atual, avatar: avatar ?? undefined, avatarFile: null }))
                 } else {
                     const { error } = await avatarResponse.json().catch(() => ({ error: '' }))
                     toast.error(error || 'O agente foi salvo, mas a imagem não subiu')
                 }
-            } else if (visual.avatar === '' && agentId) {
+            } else if (perfil.avatar === '' && agentId) {
                 // Imagem removida na tela: a coluna precisa ser limpa no banco,
                 // senão o retrato antigo volta no próximo carregamento.
                 await fetch(`/api/agents/${agentId}/avatar`, { method: 'DELETE' })
@@ -285,8 +284,6 @@ export function useAgentCreation(workspaceId: string) {
         setCerebro,
         voz,
         setVoz,
-        visual,
-        setVisual,
         handleSave,
         isSaving,
     }

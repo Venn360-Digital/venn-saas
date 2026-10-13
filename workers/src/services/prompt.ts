@@ -38,6 +38,10 @@ export function buildSystemPrompt(agent: Agent, knowledge: KnowledgeChunk[] = []
     const company = [
         agent.companyName && `Nome: ${agent.companyName}`,
         agent.companySector && `Setor: ${agent.companySector}`,
+        // O endereço da unidade deste agente. "Onde vocês ficam?" é das
+        // perguntas mais frequentes numa clínica, e até aqui só tinha resposta
+        // se alguém a tivesse escrito dentro das atribuições ou de uma FAQ.
+        agent.companyAddress && `Endereço: ${agent.companyAddress}`,
         agent.companyWebsite && `Site: ${agent.companyWebsite}`,
         agent.companyDescription && `Sobre: ${agent.companyDescription}`,
     ].filter(Boolean)

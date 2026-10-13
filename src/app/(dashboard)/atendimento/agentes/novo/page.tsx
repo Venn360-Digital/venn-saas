@@ -9,7 +9,6 @@ import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
 import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
 import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
 import { VozTab } from '@/components/agents/creation/tabs/VozTab'
-import { VisualTab } from '@/components/agents/creation/tabs/VisualTab'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -61,8 +60,6 @@ function NovoAgenteContent() {
         setCerebro,
         voz,
         setVoz,
-        visual,
-        setVisual,
         handleSave: originalHandleSave,
         isSaving,
     } = useAgentCreation(workspaceId)
@@ -117,6 +114,8 @@ function NovoAgenteContent() {
 
             setPerfil({
                 name: agent.name,
+                avatar: agent.avatar || undefined,
+                avatarFile: null,
                 initialMessage: agent.initialMessage || '',
                 agentFunction: agent.agentFunction || undefined,
                 voiceTone: agent.voiceTone || '',
@@ -129,6 +128,7 @@ function NovoAgenteContent() {
                 companySector: agent.companySector || '',
                 companyWebsite: agent.companyWebsite || '',
                 companyDescription: agent.companyDescription || '',
+                companyAddress: agent.companyAddress || '',
             })
 
             setVoz({
@@ -136,8 +136,6 @@ function NovoAgenteContent() {
                 voiceModel: agent.voiceModel || '',
                 voiceTraining: agent.voiceTraining || '',
             })
-
-            setVisual({ avatar: agent.avatar || undefined, avatarFile: null })
 
             await loadKnowledge(agentId)
 
@@ -249,13 +247,6 @@ function NovoAgenteContent() {
                     <VozTab
                         data={voz}
                         onChange={(data) => setVoz({ ...voz, ...data })}
-                    />
-                )
-            case 'visual':
-                return (
-                    <VisualTab
-                        data={visual}
-                        onChange={(data) => setVisual({ ...visual, ...data })}
                     />
                 )
             default:

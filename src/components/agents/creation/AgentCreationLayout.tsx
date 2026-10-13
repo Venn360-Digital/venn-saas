@@ -24,7 +24,6 @@ const sections = [
             { id: 'trabalho', label: 'Trabalho', icon: '💼' },
             { id: 'cerebro', label: 'Cérebro', icon: '🧠' },
             { id: 'voz', label: 'Voz', icon: '🎤' },
-            { id: 'visual', label: 'Visual', icon: '👁️' },
         ],
     },
     {

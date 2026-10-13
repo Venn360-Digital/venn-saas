@@ -167,8 +167,13 @@ model Agent {
   jobDescription     String? @db.Text // Funções e atribuições
   companyName        String? // Nome da empresa
   companySector      String? // Setor da empresa
-  companyWebsite     String? // Site da empresa
+  companyWebsite     String? // Site da empresa — só o endereço; o conteúdo das páginas vive em KnowledgeDocument
   companyDescription String? @db.Text // Descrição da empresa
+  /// Logradouro completo da unidade que este agente atende.
+  ///
+  /// Fica no agente, não no workspace, porque a clínica com duas unidades usa um
+  /// agente por unidade: o endereço é o que as distingue para o paciente.
+  companyAddress     String? @db.Text
 
   // Visual & Tone
   primaryColor String  @default("#3B82F6")

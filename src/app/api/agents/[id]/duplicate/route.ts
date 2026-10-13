@@ -97,6 +97,7 @@ export async function POST(
                 companySector: originalAgent.companySector,
                 companyWebsite: originalAgent.companyWebsite,
                 companyDescription: originalAgent.companyDescription,
+                companyAddress: originalAgent.companyAddress,
                 primaryColor: originalAgent.primaryColor,
                 voiceTone: originalAgent.voiceTone,
                 language: originalAgent.language,

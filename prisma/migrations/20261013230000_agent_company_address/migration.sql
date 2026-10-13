@@ -1,0 +1,13 @@
+-- O endereço da unidade que este agente atende.
+--
+-- A aba Trabalho descreve a clínica para o agente, e faltava o dado que o
+-- paciente mais pergunta depois de preço: onde vocês ficam. Sem ele, "qual o
+-- endereço de vocês?" só podia ser respondida se alguém tivesse escrito o
+-- endereço dentro das atribuições ou de uma FAQ.
+--
+-- Faz ainda mais sentido com um agente por unidade: dois agentes da mesma
+-- clínica passam a diferir no endereço, não só no número de WhatsApp.
+--
+-- Coluna nova e anulável: nenhuma linha existente muda, e desfazer é um
+-- DROP COLUMN.
+ALTER TABLE "agents" ADD COLUMN "companyAddress" TEXT;

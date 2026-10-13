@@ -332,7 +332,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                 {/* Websites */}
                 <ExpandableSection
                     title="Websites"
-                    description="Adicione informações através de sites"
+                    description="O Agente lê o conteúdo das páginas que você adicionar"
                     icon={<Globe className="h-5 w-5" />}
                 >
                     <div className="space-y-4">

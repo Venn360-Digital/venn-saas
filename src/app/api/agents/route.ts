@@ -31,6 +31,7 @@ const createAgentSchema = z.object({
     companySector: z.string().optional(),
     companyWebsite: z.string().optional(),
     companyDescription: z.string().optional(),
+    companyAddress: z.string().optional(),
 
     // Visual & Tone
     primaryColor: z.string().optional(),

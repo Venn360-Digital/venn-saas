@@ -2,6 +2,15 @@
 
 export interface PerfilData {
     name: string
+    /**
+     * A imagem do agente, que vivia numa aba Visual só dela.
+     *
+     * `avatar` é a URL já gravada; `avatarFile` é o arquivo recém-escolhido, que
+     * só pode subir depois do agente existir — o caminho no Storage é escopado
+     * por workspace e agente.
+     */
+    avatar?: string
+    avatarFile?: File | null
     initialMessage?: string
     agentFunction?: 'sdr_atendimento' | 'vendas' | 'suporte'
     voiceTone?: string
@@ -14,6 +23,8 @@ export interface TrabalhoData {
     companySector?: string
     companyWebsite?: string
     companyDescription?: string
+    /** Logradouro completo da unidade que este agente atende. */
+    companyAddress?: string
 }
 
 export interface CerebroData {
@@ -29,22 +40,6 @@ export interface VozData {
     /** Prático, formal, casual, amigável — campo próprio, não a voz. */
     voiceTone?: string
     voiceTraining?: string
-}
-
-/**
- * As cores por agente saíram: só teriam efeito no widget do site, que não
- * existe, e o widget vai nascer na paleta do sistema.
- *
- * `avatar` é a URL já gravada; `avatarFile` é o arquivo que a tela acabou de
- * escolher e que só pode subir depois do agente existir — o upload precisa de um
- * `agentId` para escopar o caminho no Storage. Antes, a tela mandava a imagem
- * inteira como data URL dentro do PATCH; a API descartava o campo, e se não
- * descartasse teria enfiado megabytes de base64 numa coluna que o worker lê a
- * cada mensagem recebida.
- */
-export interface VisualData {
-    avatar?: string
-    avatarFile?: File | null
 }
 
 export interface AgentCreationData {
@@ -65,9 +60,6 @@ export interface AgentCreationData {
 
     // Voz
     voz: VozData
-
-    // Visual
-    visual: VisualData
 
     isActive: boolean
 }
