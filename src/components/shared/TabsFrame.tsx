@@ -109,6 +109,57 @@ export function TabsFrame({
 }
 
 /**
+ * Uma faixa de ponta a ponta dentro de uma guia sangrada: o grupo ocupa a
+ * largura inteira e um fio o separa do próximo. É o cartão sem a moldura —
+ * numa tela de guias, o cartão dentro do cartão do shell custava 727px de
+ * conteúdo para 603 de espaço, e a tela passava a rolar.
+ */
+export function SettingsBand({
+    title,
+    description,
+    aside,
+    last = false,
+    children,
+}: {
+    title: string
+    description?: string
+    aside?: React.ReactNode
+    /** A última não leva fio: o rodapé já fecha a coluna. */
+    last?: boolean
+    children: React.ReactNode
+}) {
+    return (
+        <section className={cn('px-5 py-4 md:px-6', !last && 'border-b border-border')}>
+            <div className="mb-3 flex items-baseline justify-between gap-3">
+                <div className="min-w-0">
+                    <h2 className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">{title}</h2>
+                    {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+                </div>
+                {aside}
+            </div>
+            {children}
+        </section>
+    )
+}
+
+/**
+ * O quadro de uma guia sangrada: as faixas rolam, o rodapé com a ação fica
+ * preso no pé — o Salvar nunca sai da vista.
+ */
+export function BandLayout({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
+    return (
+        <div className="flex min-h-0 flex-1 flex-col bg-card">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+            {footer ? (
+                <div className="flex h-[52px] shrink-0 items-center justify-end gap-3 border-t border-border px-5 md:px-6">
+                    {footer}
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
+/**
  * A barra de gravar de uma guia-formulário: o botão fica **junto do
  * formulário**, não na linha 1 — ali em cima ele parece agir sobre a tela
  * inteira, e numa tela de guias isso é justamente o que ele não faz.
