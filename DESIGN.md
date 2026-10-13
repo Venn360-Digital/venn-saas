@@ -593,7 +593,9 @@ de propósito.
   a guia não pode rolar: o cartão dentro do cartão do shell cobra duas molduras
   e dois paddings por grupo, e foi o que fazia o Perfil pedir rolagem para
   mostrar o próprio botão de salvar.
-- **Guia de ajustes** (padrão): cartões brancos (`SettingsCard`) sobre o fundo
+- Na Conta, **todas as guias são sangradas**: a tela de guias não rola, e
+  cartão dentro do cartão do shell é o que a fazia rolar.
+- **Guia de ajustes** (padrão, fora da Conta): cartões brancos (`SettingsCard`) sobre o fundo
   tingido, alinhados à esquerda na coluna do título — nunca centralizados, que
   os deixa recuados em relação ao nome da tela. Linhas de "o que é + o que
   fazer" são `SettingsRow`, com uma ação primária só por cartão.
