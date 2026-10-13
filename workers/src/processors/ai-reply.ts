@@ -66,17 +66,25 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
      *
      * É também a única trava que impede um fio em loop de queimar crédito
      * indefinidamente.
+     *
+     * Zero é sem limite, e é o que vale para o agente que nunca gravou
+     * preferência: a conversa de um paciente antigo é reaberta na mesma linha em
+     * vez de recriada, então ela acumula respostas por meses e cruzaria qualquer
+     * teto que nós escolhêssemos por ele. O limite passa a valer quando a
+     * clínica abre a aba Preferências e salva.
      */
-    const agentReplies = await prisma.message.count({
-        where: {
-            conversationId,
-            direction: 'outbound',
-            sentBy: 'agent',
-            isInternal: false,
-        },
-    })
+    const agentReplies = prefs.interactionLimit > 0
+        ? await prisma.message.count({
+              where: {
+                  conversationId,
+                  direction: 'outbound',
+                  sentBy: 'agent',
+                  isInternal: false,
+              },
+          })
+        : 0
 
-    if (agentReplies >= prefs.interactionLimit) {
+    if (prefs.interactionLimit > 0 && agentReplies >= prefs.interactionLimit) {
         log.info(
             `conversation ${conversationId} reached the interaction limit ` +
             `(${agentReplies}/${prefs.interactionLimit}); handing over`

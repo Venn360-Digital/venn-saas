@@ -49,18 +49,22 @@ export const agentPreferencesSchema = z.object({
     useEmojis: z.boolean(),
     /** Recusa assunto fora da empresa e das atribuições do agente. */
     restrictTopics: z.boolean(),
-    /** Respostas do agente por atendimento; ao estourar, a conversa vai para a equipe. */
-    interactionLimit: z.number().int().min(1).max(1000),
+    /**
+     * Respostas do agente por atendimento; ao estourar, a conversa vai para a
+     * equipe. Zero significa sem limite — valor que a tela não oferece, e que
+     * existe para o agente que nunca configurou preferência nenhuma.
+     */
+    interactionLimit: z.number().int().min(0).max(1000),
 })
 
 export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
 
 /**
- * O que um agente sem preferências gravadas se comporta como.
+ * O que um agente **novo** recebe gravado ao ser criado.
  *
  * `keepContext` nasce ligado porque um agente sem histórico responde cada
- * mensagem como se fosse a primeira — é o comportamento que o worker sempre
- * teve, e desligá-lo por omissão seria uma regressão silenciosa.
+ * mensagem como se fosse a primeira. O limite de 50 é a trava que impede um fio
+ * em loop de queimar crédito indefinidamente.
  */
 export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: true,
@@ -69,6 +73,38 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     useEmojis: false,
     restrictTopics: false,
     interactionLimit: 50,
+}
+
+/**
+ * O que um agente **já existente**, com a coluna `preferences` nula, se comporta
+ * como: exatamente o que o código fazia antes destas preferências passarem a ser
+ * lidas.
+ *
+ * Existe para que ligar o interruptor não mude, sozinho, o comportamento de um
+ * agente que já está atendendo. Até a Fase 1, nenhuma rota conseguia gravar
+ * `preferences` — o campo era descartado pela validação —, então *todo* agente
+ * em produção tem a coluna nula. Se o fallback fosse o conjunto acima, o deploy
+ * ligaria "digitando" em agentes no ar, acrescentaria "Não utilize emojis" ao
+ * prompt deles e passaria a encerrar na quinquagésima resposta a conversa de um
+ * paciente antigo — que acumula respostas na mesma linha, porque a conversa é
+ * reaberta em vez de recriada.
+ *
+ * A clínica passa a valer o conjunto de cima no momento em que abre a aba
+ * Preferências e salva, que é quando a escolha é dela.
+ */
+export const UNCONFIGURED_AGENT_PREFERENCES: AgentPreferences = {
+    showTypingIndicator: false,
+    responseSpeed: 0,
+    keepContext: true,
+    useEmojis: false,
+    restrictTopics: false,
+    /** Sem limite, como antes. */
+    interactionLimit: 0,
+}
+
+/** Se a clínica chegou a gravar preferência alguma para este agente. */
+export function hasStoredPreferences(raw: unknown): boolean {
+    return !!raw && typeof raw === 'object' && Object.keys(raw as object).length > 0
 }
 
 /** O que a API aceita num PATCH: qualquer subconjunto dos campos. */
@@ -82,9 +118,12 @@ export const agentPreferencesPatchSchema = agentPreferencesSchema.partial()
  * resposta ao paciente.
  */
 export function readAgentPreferences(raw: unknown): AgentPreferences {
-    if (!raw || typeof raw !== 'object') return DEFAULT_AGENT_PREFERENCES
+    if (!hasStoredPreferences(raw)) return UNCONFIGURED_AGENT_PREFERENCES
 
-    const result = { ...DEFAULT_AGENT_PREFERENCES }
+    // A base é o conjunto do agente não configurado, não o do agente novo: um
+    // campo que a clínica nunca escolheu continua valendo o comportamento
+    // anterior, mesmo que os vizinhos dele no JSON já tenham sido escolhidos.
+    const result = { ...UNCONFIGURED_AGENT_PREFERENCES }
     const source = raw as Record<string, unknown>
 
     for (const key of Object.keys(agentPreferencesSchema.shape) as (keyof AgentPreferences)[]) {

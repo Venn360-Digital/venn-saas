@@ -1,5 +1,9 @@
 import type { Agent } from '@prisma/client'
-import { type AgentPreferences, readAgentPreferences } from '@/types/agent-preferences'
+import {
+    type AgentPreferences,
+    hasStoredPreferences,
+    readAgentPreferences,
+} from '@/types/agent-preferences'
 
 export interface KnowledgeChunk {
     title: string
@@ -51,8 +55,18 @@ export function buildSystemPrompt(agent: Agent, knowledge: KnowledgeChunk[] = []
     if (agent.language) style.push(`Responda sempre em ${agent.language}.`)
 
     const prefs = readPreferences(agent)
-    if (prefs.useEmojis === false) style.push('Não utilize emojis.')
-    if (prefs.useEmojis === true) style.push('Use emojis com moderação.')
+
+    /**
+     * A instrução sobre emoji só existe quando a clínica escolheu.
+     *
+     * Antes das preferências passarem a ser gravadas, `useEmojis` era sempre
+     * indefinido e nenhuma das duas linhas entrava: o modelo decidia sozinho.
+     * Sem esta guarda, o agente que já atende passaria a receber "Não utilize
+     * emojis" por causa de um default nosso — mudança de tom que ninguém pediu.
+     */
+    if (hasStoredPreferences(agent.preferences)) {
+        style.push(prefs.useEmojis ? 'Use emojis com moderação.' : 'Não utilize emojis.')
+    }
     if (prefs.restrictTopics) {
         style.push(
             'Responda somente sobre assuntos relacionados à empresa e às suas atribuições. ' +
