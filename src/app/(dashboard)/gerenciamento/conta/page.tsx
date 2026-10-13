@@ -72,7 +72,7 @@ function ContaContent() {
             primary={primary}
             // A guia sangrada desenha as próprias faixas e o rodapé preso;
             // o quadro só lhe dá a altura.
-            fill={activeTab === 'usuarios' || activeTab === 'perfil'}
+            fill={activeTab === 'usuarios' || activeTab === 'perfil' || activeTab === 'empresa'}
         >
             {/* Uma guia por vez, montada só quando abre: os painéis buscam
                 dados próprios, e carregá-los sempre tornaria a tela de perfil

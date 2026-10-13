@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { FormField } from '@/components/shared/FormField'
 import { MaskedInput } from '@/components/shared/MaskedInput'
-import { FormActions, SettingsCard } from '@/components/shared/TabsFrame'
+import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { MASKS, onlyDigits } from '@/lib/masks'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 
@@ -127,91 +127,97 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
     }
 
     return (
-        <form
-            id={formId}
-            className="space-y-4"
-            onSubmit={(e) => {
-                e.preventDefault()
-                if (!saving) void handleSave()
-            }}
+        <BandLayout
+            footer={
+                <>
+                    {saving ? <p className="mr-auto text-xs text-muted-foreground">Salvando…</p> : null}
+                    <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
+                        Salvar dados da empresa
+                    </Button>
+                </>
+            }
         >
-            <SettingsCard title="Identificação" description="Como a clínica aparece nos documentos e na cobrança.">
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                        label="Nome da empresa"
-                        htmlFor="company-name"
-                        hint="É o identificador do workspace e não muda por aqui."
-                    >
-                        <Input id="company-name" value={workspace?.name || ''} disabled />
-                    </FormField>
-
-                    <FormField label="CNPJ" htmlFor="cnpj">
-                        <MaskedInput
-                            id="cnpj"
-                            mask={MASKS.cnpj}
-                            value={formData.cnpj}
-                            onChange={(digits) => setFormData(prev => ({ ...prev, cnpj: digits }))}
-                        />
-                    </FormField>
-                </div>
-            </SettingsCard>
-
-            <SettingsCard title="Contato" description="Onde a clínica fica e por onde falam com ela.">
-                <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
-                    <FormField label="Endereço" htmlFor="address">
-                        <Input
-                            id="address"
-                            value={formData.address}
-                            onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                            placeholder="Rua, número, bairro, cidade — UF"
-                        />
-                    </FormField>
-
-                    <FormField label="Telefone" htmlFor="phone" hint="Com DDD.">
-                        <PhoneInput
-                            id="phone"
-                            value={formData.phone}
-                            onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
-                        />
-                    </FormField>
-                </div>
-            </SettingsCard>
-
-            <SettingsCard
-                title="Logo"
-                description="Substitui a logo do OdontoBox360 no menu lateral. Até 160 × 25 px."
+            <form
+                id={formId}
+                onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!saving) void handleSave()
+                }}
             >
-                <button
-                    type="button"
-                    onClick={handleLogoClick}
-                    className="flex h-28 w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border bg-background outline-none transition-colors hover:border-border-strong focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                    {formData.logo ? (
-                        <img src={formData.logo} alt="Logo da empresa" className="max-h-16 max-w-[160px] object-contain" />
-                    ) : (
-                        <>
-                            <Upload className="size-6 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Escolher a imagem</span>
-                            <span className="text-xs text-muted-foreground">PNG com fundo transparente fica melhor</span>
-                        </>
-                    )}
-                </button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleLogoChange}
-                />
-            </SettingsCard>
+                <SettingsBand title="Identificação" description="Como a clínica aparece nos documentos e na cobrança.">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <FormField
+                            label="Nome da empresa"
+                            htmlFor="company-name"
+                            hint="É o identificador do workspace e não muda por aqui."
+                        >
+                            <Input id="company-name" value={workspace?.name || ''} disabled />
+                        </FormField>
 
-            {/* Gravar é do formulário e fica com ele: no cabeçalho da tela de
-                guias o botão parecia valer para todas as guias. */}
-            <FormActions hint={saving ? 'Salvando…' : undefined}>
-                <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
-                    Salvar dados da empresa
-                </Button>
-            </FormActions>
-        </form>
+                        <FormField label="CNPJ" htmlFor="cnpj">
+                            <MaskedInput
+                                id="cnpj"
+                                mask={MASKS.cnpj}
+                                value={formData.cnpj}
+                                onChange={(digits) => setFormData(prev => ({ ...prev, cnpj: digits }))}
+                            />
+                        </FormField>
+                    </div>
+                </SettingsBand>
+
+                <SettingsBand title="Contato" description="Onde a clínica fica e por onde falam com ela.">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+                        <FormField label="Endereço" htmlFor="address">
+                            <Input
+                                id="address"
+                                value={formData.address}
+                                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                                placeholder="Rua, número, bairro, cidade — UF"
+                            />
+                        </FormField>
+
+                        <FormField label="Telefone" htmlFor="phone" hint="Com DDD.">
+                            <PhoneInput
+                                id="phone"
+                                value={formData.phone}
+                                onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
+                            />
+                        </FormField>
+                    </div>
+                </SettingsBand>
+
+                <SettingsBand
+                    title="Logo"
+                    description="Substitui a logo do OdontoBox360 no menu lateral. Até 160 × 25 px."
+                    last
+                >
+                    {/* A área de soltar não precisa da largura da tela: sem
+                        moldura, um alvo de ponta a ponta viraria uma faixa
+                        vazia de 1400px. */}
+                    <button
+                        type="button"
+                        onClick={handleLogoClick}
+                        className="flex h-24 w-full max-w-md flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border bg-background outline-none transition-colors hover:border-border-strong focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                        {formData.logo ? (
+                            <img src={formData.logo} alt="Logo da empresa" className="max-h-16 max-w-[160px] object-contain" />
+                        ) : (
+                            <>
+                                <Upload className="size-6 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">Escolher a imagem</span>
+                                <span className="text-xs text-muted-foreground">PNG com fundo transparente fica melhor</span>
+                            </>
+                        )}
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoChange}
+                    />
+                </SettingsBand>
+            </form>
+        </BandLayout>
     )
 }
