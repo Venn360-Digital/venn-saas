@@ -21,10 +21,12 @@ export const WORKSPACE_UPDATED = 'workspace:updated'
  * no lugar de outra, não as duas lado a lado. Na calha recolhida volta o
  * símbolo: uma logo de clínica não cabe num quadrado de 32.
  *
- * Altura de 78px, e não os 26 do começo: a logo enviada é um lockup quase
- * quadrado (300 × 170), então limitar a altura é limitar tudo — em 26px de
- * altura ela saía com 46 de largura, perdida ao lado de um menu de 240. Agora
- * o que limita é a largura da calha, como deve ser.
+ * Quem manda é a **largura**: 120px, centrados na calha. Era a altura que
+ * mandava, e com um lockup quase quadrado (300 × 170) isso limitava tudo — em
+ * 26px de altura a logo saía com 46 de largura, perdida ao lado de um menu de
+ * 240. Com a largura fixa, cada clínica entra no mesmo lugar: um brasão alto
+ * fica alto, um lettering largo fica baixo, e os dois ocupam a mesma coluna.
+ * O teto de altura é só para o caso extremo do retrato.
  */
 export function ClinicBrand() {
     const [logo, setLogo] = useState<string | null>(null)
@@ -76,7 +78,7 @@ export function ClinicBrand() {
                 <img
                     src={logo}
                     alt={name ?? 'Logo da clínica'}
-                    className="h-[78px] w-auto max-w-[196px] object-contain group-data-[collapsible=icon]:hidden"
+                    className="h-auto max-h-[112px] w-[120px] object-contain group-data-[collapsible=icon]:hidden"
                 />
             ) : (
                 <span className="grid flex-1 text-left leading-tight">
