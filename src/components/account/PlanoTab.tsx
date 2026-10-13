@@ -4,14 +4,9 @@ import { PLAN_CHANNELS } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
+import { FormField } from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from '@/components/ui/dialog'
 import {
     Gift,
     Zap,
@@ -285,11 +280,13 @@ export function PlanoTab() {
             </div>
 
             {/* Change Plan Modal */}
-            <Dialog open={showPlanModal} onOpenChange={setShowPlanModal}>
-                <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle className="sr-only">Alterar plano</DialogTitle>
-                    </DialogHeader>
+            <RecordDialog
+                open={showPlanModal}
+                onOpenChange={setShowPlanModal}
+                title="Alterar plano"
+                description="A troca vale a partir do próximo ciclo; o que já foi pago continua valendo."
+            >
+                <div className="col-span-2 space-y-4">
 
                     {/* Trial Banner in Modal */}
                     {isTrialing && (
@@ -397,112 +394,76 @@ export function PlanoTab() {
                             )
                         })}
                     </div>
-                </DialogContent>
-            </Dialog>
+                </div>
+            </RecordDialog>
 
             {/* Buy Credits Modal */}
-            <Dialog open={showCreditsModal} onOpenChange={setShowCreditsModal}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Comprar créditos</DialogTitle>
-                    </DialogHeader>
-
-                    <p className="text-sm text-muted-foreground">
-                        Cada lote de 1000 créditos custa R$ {subscription?.creditPrice?.toFixed(2) || '49,90'} por mês
-                    </p>
-
-                    <div className="space-y-4 py-4">
-                        <div>
-                            <label className="text-sm text-muted-foreground block mb-2">
-                                Escolha a quantidade de créditos desejado
-                            </label>
-                            <Input
-                                type="number"
-                                value={creditQuantity}
-                                onChange={(e) => setCreditQuantity(Math.max(1000, parseInt(e.target.value) || 1000))}
-                                step={1000}
-                                min={1000}
-
-                            />
-                        </div>
-
-                        <div>
-                            <label className="text-sm text-muted-foreground block mb-2">Valor total</label>
-                            <div className="p-3 bg-muted border border-border rounded-md">
-                                <span className="text-lg font-bold">R$ {calculateCreditPrice()}</span>
-                            </div>
-                        </div>
-
-                        {subscription?.paymentMethod && (
-                            <div>
-                                <label className="text-sm text-muted-foreground block mb-2">Número do cartão</label>
-                                <div className="flex items-center gap-3 p-3 bg-muted border border-border rounded-md">
-                                    <CreditCard className="h-5 w-5 text-muted-foreground" />
-                                    <span>•••• •••• •••• {subscription.paymentMethod.last4}</span>
-                                </div>
-                            </div>
-                        )}
-
-                        <Button
-                            variant="outline"
-                            className="w-full border-border"
-                            onClick={() => {
-                                setShowCreditsModal(false)
-                                setShowPaymentModal(true)
-                            }}
+            <RecordDialog
+                open={showCreditsModal}
+                onOpenChange={setShowCreditsModal}
+                title="Comprar créditos"
+                description={`Cada lote de 1000 créditos custa R$ ${subscription?.creditPrice?.toFixed(2) || '49,90'} por mês enquanto estiver ativo.`}
+                submitLabel="Comprar créditos"
+                hideAgain
+                onSubmit={handleBuyCredits}
+                submitting={processing}
+                summary={
+                    <>
+                        <SummaryCard className="flex-col items-start gap-1">
+                            <span className="num text-lg font-bold">R$ {calculateCreditPrice()}</span>
+                            <span className="text-[11px] text-muted-foreground">por mês, enquanto os créditos estiverem ativos</span>
+                        </SummaryCard>
+                        {subscription?.paymentMethod ? (
+                            <p className="num flex items-center gap-2 text-[11px] text-muted-foreground">
+                                <CreditCard className="size-3.5" /> •••• {subscription.paymentMethod.last4}
+                            </p>
+                        ) : null}
+                        <button
+                            type="button"
+                            onClick={() => { setShowCreditsModal(false); setShowPaymentModal(true) }}
+                            className="w-fit text-[11px] font-semibold text-primary-subtle-foreground underline-offset-2 hover:underline"
                         >
                             Pagar de outra forma
-                        </Button>
-                    </div>
+                        </button>
+                    </>
+                }
+            >
+                <FormField label="Quantidade de créditos" htmlFor="credit-qty" required hint="Em lotes de 1000.">
+                    <Input
+                        id="credit-qty"
+                        type="number"
+                        className="num"
+                        value={creditQuantity}
+                        onChange={(e) => setCreditQuantity(Math.max(1000, parseInt(e.target.value) || 1000))}
+                        step={1000}
+                        min={1000}
+                    />
+                </FormField>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowCreditsModal(false)}
-                            className="border-border"
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={handleBuyCredits}
-                            disabled={processing}
+                <FormField label="Valor total" htmlFor="credit-total">
+                    <Input id="credit-total" className="num" value={`R$ ${calculateCreditPrice()}`} disabled />
+                </FormField>
+            </RecordDialog>
 
-                        >
-                            {processing ? 'Processando...' : 'Comprar créditos'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* Payment Method Modal */}
-            <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Alterar forma de pagamento</DialogTitle>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                        <p className="text-sm text-muted-foreground">
-                            Funcionalidade de pagamento será integrada com Stripe em breve.
+            <RecordDialog
+                open={showPaymentModal}
+                onOpenChange={setShowPaymentModal}
+                title="Forma de pagamento"
+                description="O cartão que paga a mensalidade e os créditos."
+            >
+                <div className="col-span-2 space-y-3">
+                    <div className="rounded-lg border border-dashed border-input p-6 text-center">
+                        <CreditCard className="mx-auto size-10 text-muted-foreground" />
+                        <p className="mt-2 text-sm font-semibold">Ainda não dá para trocar o cartão por aqui</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            O pagamento será integrado ao Stripe. Até lá, fale com a gente para alterar o cartão.
                         </p>
-
-                        <div className="p-4 bg-muted border border-border rounded-lg text-center">
-                            <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-muted-foreground">Adicione um cartão de crédito ou débito</p>
-                        </div>
                     </div>
+                </div>
+            </RecordDialog>
 
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowPaymentModal(false)}
-                            className="border-border"
-                        >
-                            Fechar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* A plain Dialog was standing in for a confirmation here, which is
                 why it escaped the first sweep: same job as every Excluir, but

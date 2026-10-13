@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { FormField } from '@/components/shared/FormField'
 import { MaskedInput } from '@/components/shared/MaskedInput'
-import { SettingsCard } from '@/components/shared/TabsFrame'
+import { FormActions, SettingsCard } from '@/components/shared/TabsFrame'
 import { MASKS, onlyDigits } from '@/lib/masks'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 
@@ -22,7 +23,7 @@ interface WorkspaceData {
 }
 
 interface EmpresaTabProps {
-    /** The page renders the Salvar button in its header and submits this form by id. */
+    /** O id que liga o botão do fim do formulário ao `<form>`. */
     formId: string
     onSavingChange?: (saving: boolean) => void
 }
@@ -203,6 +204,14 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                     onChange={handleLogoChange}
                 />
             </SettingsCard>
+
+            {/* Gravar é do formulário e fica com ele: no cabeçalho da tela de
+                guias o botão parecia valer para todas as guias. */}
+            <FormActions hint={saving ? 'Salvando…' : undefined}>
+                <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
+                    Salvar dados da empresa
+                </Button>
+            </FormActions>
         </form>
     )
 }

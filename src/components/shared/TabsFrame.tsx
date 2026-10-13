@@ -32,6 +32,7 @@ export function TabsFrame({
     onChange,
     actions,
     primary,
+    fill = false,
     children,
     className,
 }: {
@@ -41,8 +42,11 @@ export function TabsFrame({
     onChange: (id: string) => void
     /** Ações secundárias da linha 1 — botões de contorno. */
     actions?: React.ReactNode
-    /** A ação da guia aberta. Uma só, no canto. */
+    /** A ação da guia aberta. Uma só, no canto — e só quando é da tela (criar),
+        nunca o Salvar de um formulário, que vive junto do formulário. */
     primary?: React.ReactNode
+    /** A guia ocupa a altura inteira e cuida da própria rolagem — uma tabela. */
+    fill?: boolean
     children: React.ReactNode
     className?: string
 }) {
@@ -89,12 +93,31 @@ export function TabsFrame({
                 })}
             </div>
 
-            {/* O corpo da guia — o único que rola. */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
-                {/* Alinhado à esquerda, na mesma coluna do título: centralizar deixava
-                    os cartões recuados em relação ao nome da tela. */}
-                <div className="w-full max-w-5xl px-4 py-4 md:px-6 md:py-5">{children}</div>
-            </div>
+            {/* O corpo da guia — o único que rola. Em `fill` quem rola é a guia
+                (uma tabela com rodapé preso), e o corpo só dá a altura. */}
+            {fill ? (
+                <div className="flex min-h-0 flex-1 flex-col bg-background">{children}</div>
+            ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
+                    {/* Alinhado à esquerda, na mesma coluna do título: centralizar deixava
+                        os cartões recuados em relação ao nome da tela. */}
+                    <div className="w-full max-w-5xl px-4 py-4 md:px-6 md:py-5">{children}</div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+/**
+ * A barra de gravar de uma guia-formulário: o botão fica **junto do
+ * formulário**, não na linha 1 — ali em cima ele parece agir sobre a tela
+ * inteira, e numa tela de guias isso é justamente o que ele não faz.
+ */
+export function FormActions({ children, hint }: { children: React.ReactNode; hint?: string }) {
+    return (
+        <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+            {hint ? <p className="mr-auto text-xs text-muted-foreground">{hint}</p> : null}
+            {children}
         </div>
     )
 }

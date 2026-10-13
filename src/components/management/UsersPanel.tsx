@@ -11,9 +11,9 @@ import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { Pagination } from '@/components/shared/Pagination'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { SettingsCard } from '@/components/shared/TabsFrame'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { UserPanel } from '@/components/users/UserPanel'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
@@ -82,11 +82,17 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
     const [deleting, setDeleting] = useState<WorkspaceUser | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [bulkDeleting, setBulkDeleting] = useState(false)
+    /** A rota devolve a equipe inteira; a paginação é daqui. */
+    const [page, setPage] = useState(1)
+    const [pageSize, setPageSize] = useState(20)
     /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
     const [openId, setOpenId] = useState<string | null>(null)
     const rowIds = useMemo(() => users.map((u) => u.id), [users])
     usePanelKeys(openId, rowIds, setOpenId)
     const openItem = openId ? users.find((u) => u.id === openId) ?? null : null
+    const totalPages = Math.max(1, Math.ceil(users.length / pageSize))
+    const currentPage = Math.min(page, totalPages)
+    const pageRows = users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
     useEffect(() => {
         const timer = setTimeout(() => setQuery(search), 300)
@@ -221,95 +227,111 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
     return (
         <>
             {embedded ? (
-                <SettingsCard
-                    title="Equipe"
-                    description="Quem acessa esta clínica, e com qual função."
-                    contentClassName="p-0"
-                    aside={
-                        <div className="relative w-[230px]">
+                <div className="flex min-h-0 flex-1 flex-col">
+                    {/* A linha de ferramentas da guia — o mesmo lugar e a mesma
+                        busca da linha 2 das telas de índice. */}
+                    <div className="flex h-[46px] shrink-0 items-center gap-2 border-b border-border bg-card px-4 pb-1.5 md:px-6">
+                        <div className="relative w-[250px] shrink-0">
                             <Search
                                 className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
                                 aria-hidden="true"
                             />
                             <Input
                                 value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                                 placeholder="Buscar"
                                 aria-label="Buscar por nome ou e-mail"
                                 className="h-8 bg-card pl-8 text-sm"
                             />
                         </div>
-                    }
-                    footer={
-                        <p className="num text-xs text-muted-foreground">
-                            {users.length} {users.length === 1 ? 'usuário' : 'usuários'}
-                        </p>
-                    }
-                >
-                    <DataTable
-                        columns={columns}
-                        rows={users}
-                        getRowId={(u) => u.id}
-                        loading={loading}
-                        rowActions={(u) => (
-                            <RowActions label={`Ações de ${u.name}`}>
-                                <RowActionItem
-                                    icon={Pencil}
-                                    onClick={() => {
-                                        setEditingUser(u)
-                                        setIsModalOpen(true)
-                                    }}
-                                >
-                                    Editar
-                                </RowActionItem>
-                                <RowActionItem
-                                    icon={Trash2}
-                                    destructive
-                                    onClick={() => {
-                                        // The workspace must keep an owner, and the
-                                        // API refuses this anyway — saying so here
-                                        // avoids a round trip that only returns an
-                                        // error.
-                                        if (u.isFirstAdmin) {
-                                            toast.error(
-                                                'O administrador principal não pode ser excluído'
-                                            )
-                                            return
-                                        }
-                                        setDeleting(u)
-                                    }}
-                                >
-                                    Excluir
-                                </RowActionItem>
-                            </RowActions>
-                        )}
-                        empty={
-                            <EmptyState
-                                variant="inline"
-                                icon={Users}
-                                title={query ? 'Nenhum usuário encontrado' : 'Nenhum usuário ainda'}
-                                description={
-                                    query
-                                        ? 'Tente outro nome ou e-mail.'
-                                        : 'Convide a equipe para dar acesso ao atendimento.'
-                                }
-                                action={
-                                    !query ? (
-                                        <Button
-                                            onClick={() => {
-                                                setEditingUser(null)
-                                                setIsModalOpen(true)
-                                            }}
-                                        >
-                                            <Plus />
-                                            Novo usuário
-                                        </Button>
-                                    ) : null
-                                }
-                            />
-                        }
-                    />
-                </SettingsCard>
+                    </div>
+
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        <DataTable
+                            frame
+                            selectable
+                            selected={selectedIds}
+                            onSelectedChange={setSelectedIds}
+                            bulkActions={(ids) => (
+                                <BulkBar count={ids.length} noun={['usuário', 'usuários']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
+                            )}
+                            columns={columns}
+                            rows={pageRows}
+                            getRowId={(u) => u.id}
+                            loading={loading}
+                            onRowClick={(u) => setOpenId(u.id)}
+                            rowActions={(u) => (
+                                <RowActions label={`Ações de ${u.name}`}>
+                                    <RowActionItem icon={Pencil} onClick={() => setOpenId(u.id)}>
+                                        Abrir ficha
+                                    </RowActionItem>
+                                    <RowActionItem
+                                        icon={Trash2}
+                                        destructive
+                                        onClick={() => {
+                                            // The workspace must keep an owner, and the
+                                            // API refuses this anyway — saying so here
+                                            // avoids a round trip that only returns an
+                                            // error.
+                                            if (u.isFirstAdmin) {
+                                                toast.error('O administrador principal não pode ser excluído')
+                                                return
+                                            }
+                                            setDeleting(u)
+                                        }}
+                                    >
+                                        Excluir
+                                    </RowActionItem>
+                                </RowActions>
+                            )}
+                            empty={
+                                <EmptyState
+                                    variant="inline"
+                                    icon={Users}
+                                    title={query ? 'Nenhum usuário encontrado' : 'Nenhum usuário ainda'}
+                                    description={
+                                        query
+                                            ? 'Tente outro nome ou e-mail.'
+                                            : 'Convide a equipe para dar acesso ao atendimento.'
+                                    }
+                                    action={
+                                        !query ? (
+                                            <Button onClick={() => { setEditingUser(null); setIsModalOpen(true) }}>
+                                                <Plus />
+                                                Novo usuário
+                                            </Button>
+                                        ) : null
+                                    }
+                                />
+                            }
+                            footer={
+                                <Pagination
+                                    page={currentPage}
+                                    totalPages={totalPages}
+                                    total={users.length}
+                                    limit={pageSize}
+                                    onPageChange={setPage}
+                                    onLimitChange={(limit) => { setPageSize(limit); setPage(1) }}
+                                />
+                            }
+                        />
+                    </div>
+
+                    {/* A ficha, como nas telas de índice. */}
+                    {openItem ? (
+                        <UserPanel
+                            key={openItem.id}
+                            item={openItem}
+                            departments={departments}
+                            canEdit
+                            onClose={() => setOpenId(null)}
+                            {...panelNeighbours(openId, rowIds, setOpenId)}
+                            onChanged={() => void fetchUsers()}
+                            onEditFull={(id) => { const u = users.find((x) => x.id === id); if (u) { setEditingUser(u); setIsModalOpen(true) } }}
+                            onDelete={(id) => { const u = users.find((x) => x.id === id); if (u) setDeleting(u) }}
+                        />
+                    ) : null}
+                </div>
             ) : (
                 <IndexFrame
                     aside={openItem ? (

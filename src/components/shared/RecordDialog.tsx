@@ -43,10 +43,11 @@ export function RecordDialog({
     onOpenChange: (open: boolean) => void
     title: string
     description?: string
-    /** "Criar paciente" — verbo e objeto, nunca "Salvar". */
-    submitLabel: string
+    /** "Criar paciente" — verbo e objeto, nunca "Salvar". Sem ele o quadro é
+        de leitura e o rodapé traz só Fechar. */
+    submitLabel?: string
     /** `again` = Criar e novo: quem chama grava, limpa o formulário e não fecha. */
-    onSubmit: (again: boolean) => void | Promise<void>
+    onSubmit?: (again: boolean) => void | Promise<void>
     submitting?: boolean
     /** O resumo vivo da coluna direita. */
     summary?: React.ReactNode
@@ -58,6 +59,7 @@ export function RecordDialog({
     const [again, setAgain] = useState(false)
 
     const submit = (isAgain: boolean) => {
+        if (!onSubmit) return
         setAgain(isAgain)
         void onSubmit(isAgain)
     }
@@ -118,25 +120,43 @@ export function RecordDialog({
                 <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-3">
                     <span className="hidden items-center gap-2 text-[11px] text-muted-foreground md:inline-flex">
                         <Kbd>Esc</Kbd> fecha
-                        <span className="opacity-50">·</span>
-                        <Kbd>⌘</Kbd><Kbd>↵</Kbd> cria
-                        <span className="opacity-50">·</span>
-                        <span><span className="font-bold text-destructive-subtle-foreground">*</span> Campo obrigatório</span>
+                        {submitLabel ? (
+                            <>
+                                <span className="opacity-50">·</span>
+                                <Kbd>⌘</Kbd><Kbd>↵</Kbd> cria
+                            </>
+                        ) : null}
+                        {submitLabel ? (
+                            <>
+                                <span className="opacity-50">·</span>
+                                <span><span className="font-bold text-destructive-subtle-foreground">*</span> Campo obrigatório</span>
+                            </>
+                        ) : null}
                     </span>
                     <span className="ml-auto flex items-center gap-2">
-                        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-                            Cancelar
-                        </Button>
-                        {!hideAgain ? (
+                        {/* Sem ação primária o quadro é de leitura: um botão só,
+                            e ele fecha. */}
+                        {submitLabel ? (
+                            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+                                Cancelar
+                            </Button>
+                        ) : (
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                                Fechar
+                            </Button>
+                        )}
+                        {submitLabel && !hideAgain ? (
                             <Button type="button" variant="outline" onClick={() => submit(true)} disabled={submitting}>
                                 {submitting && again ? <Loader2 className="animate-spin" /> : null}
                                 Criar e novo
                             </Button>
                         ) : null}
-                        <Button type="submit" form={formId} disabled={submitting}>
-                            {submitting && !again ? <Loader2 className="animate-spin" /> : null}
-                            {submitLabel}
-                        </Button>
+                        {submitLabel ? (
+                            <Button type="submit" form={formId} disabled={submitting}>
+                                {submitting && !again ? <Loader2 className="animate-spin" /> : null}
+                                {submitLabel}
+                            </Button>
+                        ) : null}
                     </span>
                 </div>
             </DialogContent>

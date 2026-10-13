@@ -5,6 +5,7 @@ import { Check, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { RecordDialog } from '@/components/shared/RecordDialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -103,8 +104,8 @@ export function TermsCard() {
             }
             action={
                 needsSignature ? null : (
-                    <Button variant="outline" size="sm" onClick={() => setReading((v) => !v)}>
-                        {reading ? 'Fechar' : 'Ler os termos'}
+                    <Button variant="outline" size="sm" className="h-8" onClick={() => setReading(true)}>
+                        Ler os termos
                     </Button>
                 )
             }
@@ -137,7 +138,6 @@ export function TermsCard() {
                             </span>
                         ) : null}
                     </p>
-                    {reading ? <TermsText /> : null}
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -173,6 +173,19 @@ export function TermsCard() {
                     </div>
                 </div>
             )}
+            {/* O texto num quadro de diálogo, como todo formulário da casa:
+                expandido dentro do cartão ele empurrava o resto da guia para
+                baixo de nove parágrafos que ninguém estava procurando. */}
+            <RecordDialog
+                open={reading}
+                onOpenChange={setReading}
+                title="Termos do acordo"
+                description={`Versão ${state.acceptedVersion ?? TERMS_VERSION}.`}
+            >
+                <div className="col-span-2">
+                    <TermsText />
+                </div>
+            </RecordDialog>
         </SectionCard>
     )
 }

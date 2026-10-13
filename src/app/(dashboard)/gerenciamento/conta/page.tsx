@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useRef, useState } from 'react'
+import { Suspense, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Building2, CreditCard, Plug, Plus, User, Users, Zap } from 'lucide-react'
 
@@ -48,22 +48,16 @@ function ContaContent() {
     const setActiveTab = (next: string) =>
         router.replace(`${pathname}?tab=${next}`, { scroll: false })
 
-    const [saving, setSaving] = useState(false)
     const users = useRef<UsersPanelHandle>(null)
 
-    const formId = activeTab === 'perfil' ? 'perfil-form' : activeTab === 'empresa' ? 'empresa-form' : null
-
     /**
-     * A ação da guia aberta, sempre no mesmo canto da linha 1 — como o "Novo"
-     * das telas de índice. As guias que gravam sozinhas (Automações) ou que
-     * agem dentro dos cartões (Integrações, Plano) não têm ação aqui: o lugar
-     * fica vazio em vez de ganhar um botão que não faz nada.
+     * A linha 1 leva só a ação **da tela** — criar —, como o "Novo" das telas
+     * de índice. Gravar é do formulário e fica com ele, no fim da guia: no
+     * cabeçalho o Salvar parecia valer para a tela inteira, e numa tela de
+     * guias ele vale para uma guia só. Quem grava sozinho (Automações) ou age
+     * dentro dos cartões (Integrações, Plano) não põe nada aqui.
      */
-    const primary = formId ? (
-        <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
-            {saving ? 'Salvando…' : 'Salvar'}
-        </Button>
-    ) : activeTab === 'usuarios' ? (
+    const primary = activeTab === 'usuarios' ? (
         <Button size="sm" className="h-8 gap-1.5" onClick={() => users.current?.openNew()}>
             <Plus className="size-3.5" /> Novo usuário
         </Button>
@@ -76,12 +70,13 @@ function ContaContent() {
             active={activeTab}
             onChange={setActiveTab}
             primary={primary}
+            fill={activeTab === 'usuarios'}
         >
             {/* Uma guia por vez, montada só quando abre: os painéis buscam
                 dados próprios, e carregá-los sempre tornaria a tela de perfil
                 responsável por três requisições que ninguém pediu. */}
-            {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" onSavingChange={setSaving} /> : null}
-            {activeTab === 'empresa' ? <EmpresaTab formId="empresa-form" onSavingChange={setSaving} /> : null}
+            {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" /> : null}
+            {activeTab === 'empresa' ? <EmpresaTab formId="empresa-form" /> : null}
             {activeTab === 'usuarios' ? <UsersPanel ref={users} embedded /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel embedded /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
