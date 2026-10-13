@@ -291,8 +291,12 @@ function getContactInitials(name: string | null, phone: string | null) {
 
 /** O aceso dos painéis — a mesma tinta de estado das telas de índice. */
 const PANEL_ON = 'bg-primary-subtle text-primary-subtle-foreground hover:bg-primary-subtle hover:text-primary-subtle-foreground'
-const PANEL_TOGGLE =
-    'data-[state=on]:bg-primary-subtle data-[state=on]:text-primary-subtle-foreground data-[state=on]:hover:bg-primary-subtle'
+/**
+ * O `data-state` do Toggle não serve aqui: o `TooltipTrigger` que envolve cada
+ * um escreve o próprio estado no mesmo atributo, e `data-[state=on]` nunca
+ * casava — era por isso que o painel aberto não acendia. A classe vem da mesma
+ * condição que o `pressed`.
+ */
 
 function ContactAvatar({ avatar, name, phone, size = 'md' }: {
     avatar: string | null
@@ -2127,7 +2131,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(showSearch && PANEL_ON)}
                                                     pressed={showSearch}
                                                     onPressedChange={next => {
                                                         setShowSearch(next)
@@ -2145,7 +2149,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(panel === 'summary' && PANEL_ON)}
                                                     pressed={panel === 'summary'}
                                                     onPressedChange={() => togglePanel('summary')}
                                                     aria-label="Resumo do paciente"
@@ -2160,7 +2164,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(panel === 'schedule' && PANEL_ON)}
                                                     pressed={panel === 'schedule'}
                                                     onPressedChange={() => togglePanel('schedule')}
                                                     aria-label="Agendar atividade"
@@ -2175,7 +2179,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(panel === 'activities' && PANEL_ON)}
                                                     pressed={panel === 'activities'}
                                                     onPressedChange={() => togglePanel('activities')}
                                                     aria-label="Atividades do paciente"
@@ -2242,7 +2246,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(panel === 'files' && PANEL_ON)}
                                                     pressed={panel === 'files'}
                                                     onPressedChange={() => togglePanel('files')}
                                                     aria-label="Arquivos da conversa"
@@ -2257,7 +2261,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(panel === 'journey' && PANEL_ON)}
                                                     pressed={panel === 'journey'}
                                                     onPressedChange={() => togglePanel('journey')}
                                                     aria-label="Jornada do paciente"
@@ -2275,7 +2279,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
-                                                    className={PANEL_TOGGLE}
+                                                    className={cn(panel === 'notes' && PANEL_ON)}
                                                     pressed={panel === 'notes'}
                                                     onPressedChange={() => togglePanel('notes')}
                                                     aria-label="Notas internas"
