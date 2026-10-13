@@ -41,7 +41,6 @@ import {
     StickyNote,
     Tag,
     Trash2,
-    UserCheck,
     Users,
     UserX,
     X,
@@ -287,14 +286,6 @@ function getContactInitials(name: string | null, phone: string | null) {
     }
     if (phone) return phone.slice(-2)
     return '?'
-}
-
-function getSentByLabel(sentBy: string | null) {
-    if (!sentBy) return ''
-    if (sentBy === 'agent') return '🤖'
-    if (sentBy === 'auto') return ''
-    if (sentBy === 'user') return ''
-    return '👤'
 }
 
 function ContactAvatar({ avatar, name, phone, size = 'md' }: {
@@ -1858,14 +1849,10 @@ export default function ConversasPage() {
                                                     </span>
                                                 </div>
 
-                                                <div className="flex items-center justify-between mt-0.5">
-                                                    <p className="text-xs text-muted-foreground truncate pr-2">
-                                                        {conv.lastMessage && (
-                                                            <>
-                                                                {getSentByLabel(conv.lastMessage.sentBy)}{' '}
-                                                                {conv.lastMessage.content}
-                                                            </>
-                                                        )}
+                                                {/* 2. O que foi dito por último. */}
+                                                <div className="mt-0.5 flex items-center justify-between gap-2">
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        {conv.lastMessage?.content}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
                                                         <span className="num flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -1874,44 +1861,27 @@ export default function ConversasPage() {
                                                     )}
                                                 </div>
 
-                                                {/* Agent + Atendente badge */}
-                                                {(conv.agent || conv.assignedToName) && (
-                                                    <div className="flex items-center gap-1 mt-1">
-                                                        {conv.agent && (
-                                                            <>
-                                                                <Bot className="h-3 w-3 text-muted-foreground" />
-                                                                <span className="text-[10px] text-muted-foreground">{conv.agent.name}</span>
-                                                            </>
+                                                {/* 3. Por onde chegou, com quem está, e como está
+                                                    classificada — tudo na terceira linha. As
+                                                    etiquetas quebram para uma quarta e uma quinta
+                                                    quando são muitas: antes a quarta virava "+1",
+                                                    que é o número de uma informação que a pessoa
+                                                    procurava pelo nome. O canal e o atendente não
+                                                    quebram no meio. */}
+                                                {(conv.agent || conv.assignedToName || (conv.tags && conv.tags.length > 0)) && (
+                                                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                                                        {(conv.agent || conv.assignedToName) && (
+                                                            <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-muted-foreground">
+                                                                {conv.agent ? <span>{conv.agent.name}</span> : null}
+                                                                {conv.agent && conv.assignedToName ? (
+                                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                                ) : null}
+                                                                {conv.assignedToName ? <span>{conv.assignedToName}</span> : null}
+                                                            </span>
                                                         )}
-                                                        {conv.agent && conv.assignedToName && (
-                                                            <span className="text-[10px] text-muted-foreground/50 mx-0.5">|</span>
-                                                        )}
-                                                        {conv.assignedToName && (
-                                                            <>
-                                                                {conv.assignedToAvatar ? (
-                                                                    <img
-                                                                        src={conv.assignedToAvatar}
-                                                                        alt={conv.assignedToName}
-                                                                        className="h-3.5 w-3.5 rounded-full object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <UserCheck className="h-3 w-3 text-muted-foreground" />
-                                                                )}
-                                                                <span className="text-[10px] text-muted-foreground">{conv.assignedToName}</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* Tags */}
-                                                {conv.tags && conv.tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-1">
-                                                        {conv.tags.slice(0, 3).map(tag => (
+                                                        {conv.tags?.map(tag => (
                                                             <TagChip key={tag.id} name={tag.name} color={tag.color} size="sm" />
                                                         ))}
-                                                        {conv.tags.length > 3 && (
-                                                            <span className="text-[9px] text-muted-foreground">+{conv.tags.length - 3}</span>
-                                                        )}
                                                     </div>
                                                 )}
                                             </div>
