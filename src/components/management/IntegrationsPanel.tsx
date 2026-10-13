@@ -424,7 +424,9 @@ function ComingSoonCard({ def }: { def: IntegrationDef }) {
 export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) {
     const cards = (
         <>
-            <div className="grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Três colunas quando há largura: com duas, os cinco cartões viravam
+                três fileiras e a guia passava a rolar. */}
+            <div className="grid max-w-6xl grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {INTEGRATIONS.map((def) => (
                     def.provider === 'google_calendar'
                         ? <GoogleCalendarCard key={def.id} def={def} />
