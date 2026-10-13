@@ -464,35 +464,63 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    conta os que deram certo e avisa quantos não puderam; o que a API protege
    (primeiro administrador) fica de fora antes de chamar.
 
-**Conversas.** A coluna de 320px (fila, busca, abas, Ver) e o chat ficam como
-são: ali a lista *é* a navegação, e o cabeçalho da conversa é de **uma linha
-só, de altura fixa** — a faixa de etiquetas que aparecia só quando havia
-etiqueta saiu, porque fazia o cabeçalho mudar de altura e as mensagens pularem
-ao trocar de conversa; quantas há se vê no ícone de etiquetas, quais são e
-tirar ou pôr é o clique que já existia. O painel direito é a
-ficha do padrão: `RecordPanel` de 380px, faixa de 40px dizendo **qual modo está
-aberto** e ×, rodapé com o lápis que abre a ficha do paciente e a dica; Esc
-fecha. As ferramentas continuam no cabeçalho do chat — é de lá que se escolhe o
-modo.
+**Tela 02 — a tela de trabalho.** Agenda, Negócios e Conversas: a Tela 01 com
+um miolo próprio — lista · quadro · calendário; trilho de fases · quadro ·
+lista; lista de conversas · chat. **O miolo fica; o que entra nele é a
+gramática.** Fechada em 2026-10-12/13.
 
-**Tela 02 — a tela de trabalho.** Agenda e Negócios:
-a mesma Tela 01 com um miolo próprio — lista · quadro · calendário; trilho de
-fases · quadro · lista. O que muda é o miolo; o que entra nele é a gramática:
-
-- **Linha 1 vira o lugar dos números.** Os cartões de indicador saem da frente
-  do conteúdo e viram a faixa de números clicáveis (`StatPill`, 30px) ao lado
-  do título — número em negrito, rótulo em cinza, `aria-pressed`, zero
-  desabilitado. Em Negócios os R$ ficam ao lado como `Figure` compacta.
-- **Linha 2 é só filtro.** Selects soltos, abas e "chips" viram `FilterPill`
-  (Período, Tipo, Responsável, Situação, Fase, Alertas); o modo de visualização
-  é o `ViewSeg` (ícones com dica) no fim da linha.
+- **Linha 1 é o lugar dos números.** Os cartões de indicador (96px, quatro por
+  tela) saem da frente do conteúdo e viram pastilhas ao lado do título
+  (`StatPill`: chip de 26px, rótulo em cinza e número em negrito; vermelho no
+  que está atrasado, verde no concluído). O aceso veste `primary-subtle`, tem
+  `aria-pressed`, e **o filtro do clique é o mesmo predicado que produziu o
+  número**. Zero não clica. Sem `onClick` a pastilha só informa — é como os R$
+  de Negócios entram na mesma faixa.
+- **Linha 2 é só filtro.** Selects soltos, abas e chips viram `FilterPill`
+  (Período, Tipo, Responsável, Situação, Fase, Alertas), com o valor à mostra e
+  × para desligar; o modo de visualização é o `ViewSeg` (ícones com dica) no
+  fim da linha.
 - **O corpo é sangrado.** Sem cartão em volta da lista, do trilho ou do
   calendário; a lista é `DataTable frame` com cabeçalho de 36px e rodapé de
-  paginação (no cliente, se a API não pagina).
-- **A ficha é a `RecordPanel`**, com os modos como ícones ao lado de "Ficha"
-  (agendar, atividades, notas) e um gesto extra no rodapé quando a tela pede
-  (a bandeira de desfecho do negócio). Clicar em linha, cartão ou item do
-  calendário abre a ficha; o diálogo fica para o Novo e para o lápis.
+  paginação — que existe mesmo quando a API devolve tudo de uma vez (aí a
+  paginação é do cliente).
+- **A ficha é a `RecordPanel`** de 380px, com os modos como ícones ao lado da
+  palavra da faixa e um gesto a mais no rodapé quando a tela pede (a bandeira
+  de ganho/perdido do negócio). Clicar em linha, cartão ou item do calendário
+  abre a ficha; o diálogo fica para o Novo e para o lápis. **O ícone do modo
+  aberto acende em `primary-subtle`** — e a classe vem da mesma condição do
+  `pressed`, nunca de `data-[state=on]`: quando o gatilho está dentro de um
+  `Tooltip`, o Radix escreve o próprio estado nesse atributo e o seletor nunca
+  casa.
+
+**Conversas, o que é só dela.** A coluna de 320px (fila, busca, abas, Ver) e o
+chat **ficam como são**: ali a lista *é* a navegação e o chat é o trabalho —
+não há linha 1 e 2 de página por cima deles.
+
+- **A linha da conversa, na lista, tem três linhas**: nome e hora; a última
+  mensagem; canal · atendente · etiquetas. As etiquetas quebram para a quarta e
+  a quinta linha quando são muitas — "+1" escondia justamente o que a pessoa
+  procurava pelo nome. Um `|` separa o atendente delas.
+- **O cabeçalho da conversa é uma linha de altura fixa**: identidade, estado,
+  Finalizar e as ferramentas. A faixa de etiquetas que aparecia só quando havia
+  etiqueta saiu — ela mudava a altura do cabeçalho e as mensagens pulavam ao
+  trocar de conversa; quantas há se vê no contador do ícone de etiquetas, quais
+  são e tirar ou pôr é o clique que já existia.
+- **Os painéis** (`PanelMode`): resumo · agendar · atividades · arquivos ·
+  jornada · notas internas, **um por vez**, escolhidos no cabeçalho do chat. O
+  de agendar só agenda e manda para o de atividades depois de marcar. A ficha
+  da jornada é identidade → negócio aberto (com o tempo na fase ao lado do
+  título) → jornada → dados (origem, canal, responsável, que é o dono do
+  negócio). Sem botões de ação que já existem em outro lugar da tela.
+- **O compositor** carrega o que serve à mensagem: anexar, sugerir com IA,
+  emoji **dentro do campo, à direita**, e gravar/enviar. Nota interna não é um
+  modo do compositor — é o painel de notas. Cada botão leva dica (`Tooltip` +
+  `aria-label`), nunca `title=`.
+- **Etiqueta é do paciente.** `Tag` tem dois vínculos — `ContactTag` e
+  `ConversationTag` — e nenhum com o negócio. A conversa mostra a **união** dos
+  dois, então marcar e desmarcar por ali grava **nos dois**, como o executor de
+  regras sempre fez; mexer num lado só fazia o gesto voltar atrás na releitura.
+  O filtro de Pacientes já busca pelos dois.
 
 **Faixa de números clicáveis, não painel de indicadores.** Número que só se olha
 pertence a um relatório. Se ele vai ficar no topo de uma tela de trabalho, cada
