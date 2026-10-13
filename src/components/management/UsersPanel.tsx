@@ -1,18 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { forwardRef, useImperativeHandle, useState, useEffect, useCallback, useMemo } from 'react'
+import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { IndexFrame } from '@/components/shared/IndexFrame'
-import { Toolbar } from '@/components/shared/Toolbar'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { SettingsCard } from '@/components/shared/TabsFrame'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { UserPanel } from '@/components/users/UserPanel'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
@@ -54,13 +55,29 @@ function initials(name: string, lastName: string | null) {
  * dentro de Gerenciar conta, que é onde a navegação leva. Um componente, dois
  * enquadramentos — não duas cópias que divergem.
  */
-export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
+export interface UsersPanelHandle {
+    /** Abre o formulário de novo usuário — o botão vive na linha 1 da guia. */
+    openNew: () => void
+}
+
+export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(function UsersPanel(
+    { embedded = false },
+    ref
+) {
     const [users, setUsers] = useState<WorkspaceUser[]>([])
     const [departments, setDepartments] = useState<Department[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [query, setQuery] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
+
+    useImperativeHandle(ref, () => ({
+        openNew: () => {
+            setEditingUser(null)
+            setIsModalOpen(true)
+        },
+    }))
+
     const [editingUser, setEditingUser] = useState<WorkspaceUser | null>(null)
     const [deleting, setDeleting] = useState<WorkspaceUser | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -204,22 +221,31 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
     return (
         <>
             {embedded ? (
-                <>
-                    {/* Dentro da guia o título da tela já é "Gerenciar conta": um
-                        segundo `h1` aqui seria o defeito que acabamos de remover do
-                        resto do sistema. Resta a contagem e a ação. */}
-                    <div className="mb-4 flex items-start justify-between gap-4">
-                        <p className="num text-sm text-muted-foreground">
+                <SettingsCard
+                    title="Equipe"
+                    description="Quem acessa esta clínica, e com qual função."
+                    contentClassName="p-0"
+                    aside={
+                        <div className="relative w-[230px]">
+                            <Search
+                                className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                                aria-hidden="true"
+                            />
+                            <Input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Buscar"
+                                aria-label="Buscar por nome ou e-mail"
+                                className="h-8 bg-card pl-8 text-sm"
+                            />
+                        </div>
+                    }
+                    footer={
+                        <p className="num text-xs text-muted-foreground">
                             {users.length} {users.length === 1 ? 'usuário' : 'usuários'}
                         </p>
-                        {newUserButton}
-                    </div>
-                    <div className="space-y-3">
-                        <Toolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            placeholder="Buscar por nome ou e-mail…"
-                        />
+                    }
+                >
                     <DataTable
                         columns={columns}
                         rows={users}
@@ -283,8 +309,7 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
                             />
                         }
                     />
-                    </div>
-                </>
+                </SettingsCard>
             ) : (
                 <IndexFrame
                     aside={openItem ? (
@@ -412,4 +437,4 @@ export function UsersPanel({ embedded = false }: { embedded?: boolean }) {
             />
         </>
     )
-}
+})

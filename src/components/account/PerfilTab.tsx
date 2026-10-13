@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Camera, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
+import { FormField } from '@/components/shared/FormField'
+import { SettingsCard } from '@/components/shared/TabsFrame'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 
 interface UserProfile {
@@ -164,32 +165,34 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
     return (
         <form
             id={formId}
-            className="max-w-2xl space-y-8"
+            className="space-y-4"
             onSubmit={(e) => {
                 e.preventDefault()
                 if (!saving) void handleSave()
             }}
         >
-            {/* Avatar */}
-            <div>
-                <Label className="text-sm text-muted-foreground mb-3 block">
-                    (Avatar) Imagem do perfil do usuário
-                </Label>
-                <div
-                    onClick={handleAvatarClick}
-                    className="relative h-24 w-24 cursor-pointer rounded-lg bg-primary flex items-center justify-center overflow-hidden group hover:opacity-90 transition-opacity"
-                >
-                    {formData.avatar ? (
-                        <img
-                            src={formData.avatar}
-                            alt="Avatar"
-                            className="h-full w-full object-cover"
-                        />
-                    ) : (
-                        <User className="h-10 w-10 text-foreground" />
-                    )}
-                    <div className="absolute bottom-0 right-0 h-6 w-6 bg-primary rounded-full flex items-center justify-center border-2 border-border">
-                        <Camera className="h-3 w-3 text-foreground" />
+            <SettingsCard title="Foto" description="Aparece no seu perfil e ao lado do que você responde.">
+                <div className="flex items-center gap-4">
+                    <button
+                        type="button"
+                        onClick={handleAvatarClick}
+                        aria-label="Trocar a foto do perfil"
+                        className="group relative size-16 shrink-0 overflow-hidden rounded-xl bg-primary-subtle outline-none transition-opacity hover:opacity-90 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    >
+                        {formData.avatar ? (
+                            <img src={formData.avatar} alt="" className="size-full object-cover" />
+                        ) : (
+                            <User className="absolute inset-0 m-auto size-7 text-primary-subtle-foreground" />
+                        )}
+                        <span className="absolute inset-x-0 bottom-0 flex h-5 items-center justify-center bg-foreground/70">
+                            <Camera className="size-3 text-background" />
+                        </span>
+                    </button>
+                    <div className="min-w-0">
+                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleAvatarClick}>
+                            <Camera className="size-3.5" /> Trocar foto
+                        </Button>
+                        <p className="mt-1.5 text-xs text-muted-foreground">PNG ou JPG, até 2 MB.</p>
                     </div>
                 </div>
                 <input
@@ -199,132 +202,102 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                     className="hidden"
                     onChange={handleAvatarChange}
                 />
-            </div>
+            </SettingsCard>
 
-            {/* Name fields */}
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <Label htmlFor="name" className="text-sm text-muted-foreground">
-                        Nome
-                    </Label>
-                    <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Seu nome"
-                        className="mt-2"
-                    />
-                </div>
-                <div>
-                    <Label htmlFor="lastName" className="text-sm text-muted-foreground">
-                        Sobrenome
-                    </Label>
-                    <Input
-                        id="lastName"
-                        value={formData.lastName}
-                        onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                        placeholder="Seu sobrenome"
-                        className="mt-2"
-                    />
-                </div>
-            </div>
+            <SettingsCard title="Dados">
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Nome" htmlFor="name" required>
+                        <Input
+                            id="name"
+                            value={formData.name}
+                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Seu nome"
+                            autoComplete="given-name"
+                        />
+                    </FormField>
 
-            {/* WhatsApp */}
-            <div>
-                <Label htmlFor="phone" className="text-sm text-muted-foreground">
-                    Número do WhatsApp
-                </Label>
-                <div className="mt-2 flex gap-2">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-muted border border-border rounded-md text-sm">
-                        <span>🇧🇷</span>
-                        <span className="text-muted-foreground">Brazil (+55)</span>
-                    </div>
-                    <PhoneInput
-                        id="phone"
-                        value={formData.phone}
-                        onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
-                        className="flex-1"
-                    />
-                </div>
-            </div>
+                    <FormField label="Sobrenome" htmlFor="lastName">
+                        <Input
+                            id="lastName"
+                            value={formData.lastName}
+                            onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                            placeholder="Seu sobrenome"
+                            autoComplete="family-name"
+                        />
+                    </FormField>
 
-            {/* Email */}
-            <div>
-                <Label className="text-sm text-muted-foreground">
-                    E-mail da conta
-                </Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                    Para alterar o e-mail da conta, digite o novo e clique em “Alterar e-mail da conta”
-                </p>
-                <div className="mt-2 flex gap-2">
-                    <Input
-                        value={profile?.email || ''}
-                        disabled
-                        className="flex-1 text-muted-foreground"
-                    />
-                    <Button type="button" variant="outline" className="border-border text-foreground">
-                        Alterar e-mail da conta
-                    </Button>
-                </div>
-            </div>
+                    <FormField label="WhatsApp" htmlFor="phone" hint="Com DDD. É por ele que a equipe te encontra.">
+                        <PhoneInput
+                            id="phone"
+                            value={formData.phone}
+                            onChange={(digits) => setFormData(prev => ({ ...prev, phone: digits }))}
+                        />
+                    </FormField>
 
-            {/* Change Password Section */}
-            <div className="border-t border-border pt-6">
-                <h3 className="text-lg font-medium mb-4">Alterar senha</h3>
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="currentPassword" className="text-sm text-muted-foreground">
-                            Senha atual
-                        </Label>
+                    <FormField
+                        label="E-mail da conta"
+                        htmlFor="account-email"
+                        hint="É o seu login. Trocar pede confirmação no endereço novo."
+                    >
+                        <div className="flex gap-2">
+                            <Input id="account-email" value={profile?.email || ''} disabled className="flex-1" />
+                            <Button type="button" variant="outline" className="shrink-0">
+                                Alterar
+                            </Button>
+                        </div>
+                    </FormField>
+                </div>
+            </SettingsCard>
+
+            <SettingsCard
+                title="Senha"
+                description="Trocar a senha encerra as outras sessões abertas."
+                footer={
+                    <>
+                        <p className="text-xs text-muted-foreground">Mínimo de 8 caracteres.</p>
+                        <Button
+                            type="button"
+                            onClick={handleChangePassword}
+                            disabled={changingPassword || !passwordData.newPassword}
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                        >
+                            {changingPassword ? 'Alterando…' : 'Alterar senha'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="grid gap-4 sm:grid-cols-3">
+                    <FormField label="Senha atual" htmlFor="currentPassword">
                         <Input
                             id="currentPassword"
                             type="password"
                             value={passwordData.currentPassword}
                             onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                            placeholder="Digite sua senha atual"
-                            className="mt-2"
+                            autoComplete="current-password"
                         />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="newPassword" className="text-sm text-muted-foreground">
-                                Nova senha
-                            </Label>
-                            <Input
-                                id="newPassword"
-                                type="password"
-                                value={passwordData.newPassword}
-                                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                                placeholder="Digite a nova senha"
-                                className="mt-2"
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="confirmPassword" className="text-sm text-muted-foreground">
-                                Confirmar nova senha
-                            </Label>
-                            <Input
-                                id="confirmPassword"
-                                type="password"
-                                value={passwordData.confirmPassword}
-                                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                placeholder="Confirme a nova senha"
-                                className="mt-2"
-                            />
-                        </div>
-                    </div>
-                    <Button
-                        type="button"
-                        onClick={handleChangePassword}
-                        disabled={changingPassword || !passwordData.newPassword}
-                        variant="outline"
-                        className="border-border"
-                    >
-                        {changingPassword ? 'Alterando...' : 'Alterar senha'}
-                    </Button>
+                    </FormField>
+                    <FormField label="Nova senha" htmlFor="newPassword">
+                        <Input
+                            id="newPassword"
+                            type="password"
+                            value={passwordData.newPassword}
+                            onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                            autoComplete="new-password"
+                        />
+                    </FormField>
+                    <FormField label="Confirmar" htmlFor="confirmPassword">
+                        <Input
+                            id="confirmPassword"
+                            type="password"
+                            value={passwordData.confirmPassword}
+                            onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                            autoComplete="new-password"
+                        />
+                    </FormField>
                 </div>
-            </div>
-
+            </SettingsCard>
         </form>
     )
 }

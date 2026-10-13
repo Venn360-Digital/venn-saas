@@ -191,7 +191,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
 
     return (
         <div className={cn(
-            "rounded-xl border p-5 transition-all",
+            "rounded-lg border p-5 transition-all",
             isConnected
                 ? "border-success/40 bg-card"
                 : "border-border bg-card"
@@ -393,7 +393,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
 // ─── Generic Integration Card (Coming Soon) ─────────────────────
 function ComingSoonCard({ def }: { def: IntegrationDef }) {
     return (
-        <div className="rounded-xl border border-border bg-card p-5 opacity-60">
+        <div className="rounded-lg border border-border bg-card p-5 opacity-60">
             <div className="mb-4 flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg text-xl", def.iconBgColor)}>
@@ -435,7 +435,7 @@ export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) 
                     ficam registrados para todas as clínicas. */}
                 <PlatformCredentialsPanel />
 
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {INTEGRATIONS.map((def) => (
                         def.provider === 'google_calendar'
                             ? <GoogleCalendarCard key={def.id} def={def} />

@@ -1,27 +1,38 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Building2, CreditCard, Plug, Plus, User, Users, Zap } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
 import { AutomacoesTab } from '@/components/account/AutomacoesTab'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
 import { PlanoTab } from '@/components/account/PlanoTab'
-import { UsersPanel } from '@/components/management/UsersPanel'
+import { UsersPanel, type UsersPanelHandle } from '@/components/management/UsersPanel'
 import { IntegrationsPanel } from '@/components/management/IntegrationsPanel'
 
-// A lista branca é o que decide a aba: um valor fora dela cai em "perfil".
-// "automacoes" tinha gatilho e conteúdo, mas faltava aqui — clicar levava de
-// volta ao perfil, e a aba parecia não abrir.
-const TABS = ['perfil', 'empresa', 'usuarios', 'integracoes', 'automacoes', 'plano'] as const
+/**
+ * Conta — a Tela 03: uma tela, várias guias.
+ *
+ * A lista branca é o que decide a aba: um valor fora dela cai em "perfil".
+ * "automacoes" tinha gatilho e conteúdo, mas faltava aqui — clicar levava de
+ * volta ao perfil, e a aba parecia não abrir.
+ */
+const TABS: FrameTab[] = [
+    { id: 'perfil', label: 'Perfil do usuário', icon: User },
+    { id: 'empresa', label: 'Empresa', icon: Building2 },
+    { id: 'usuarios', label: 'Usuários', icon: Users },
+    { id: 'integracoes', label: 'Integrações', icon: Plug },
+    { id: 'automacoes', label: 'Automações', icon: Zap },
+    { id: 'plano', label: 'Plano', icon: CreditCard },
+]
 
 function ContaContent() {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
-
     /**
      * The URL is the active tab, not a copy of it.
      *
@@ -33,98 +44,49 @@ function ContaContent() {
      * a tab shareable, because the address bar follows.
      */
     const requested = searchParams.get('tab')
-    const activeTab = requested && (TABS as readonly string[]).includes(requested) ? requested : 'perfil'
+    const activeTab = requested && TABS.some((t) => t.id === requested) ? requested : 'perfil'
     const setActiveTab = (next: string) =>
         router.replace(`${pathname}?tab=${next}`, { scroll: false })
 
     const [saving, setSaving] = useState(false)
+    const users = useRef<UsersPanelHandle>(null)
+
     const formId = activeTab === 'perfil' ? 'perfil-form' : activeTab === 'empresa' ? 'empresa-form' : null
 
+    /**
+     * A ação da guia aberta, sempre no mesmo canto da linha 1 — como o "Novo"
+     * das telas de índice. As guias que gravam sozinhas (Automações) ou que
+     * agem dentro dos cartões (Integrações, Plano) não têm ação aqui: o lugar
+     * fica vazio em vez de ganhar um botão que não faz nada.
+     */
+    const primary = formId ? (
+        <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
+            {saving ? 'Salvando…' : 'Salvar'}
+        </Button>
+    ) : activeTab === 'usuarios' ? (
+        <Button size="sm" className="h-8 gap-1.5" onClick={() => users.current?.openNew()}>
+            <Plus className="size-3.5" /> Novo usuário
+        </Button>
+    ) : undefined
+
     return (
-        <>
-            <PageHeader
-                title="Gerenciar conta"
-                description="Perfil, dados da clínica, equipe, integrações e assinatura."
-                actions={
-                    formId ? (
-                        <Button type="submit" form={formId} disabled={saving}>
-                            {saving ? 'Salvando…' : 'Salvar'}
-                        </Button>
-                    ) : undefined
-                }
-            />
-            <div className="px-4 pb-6 md:px-6">
-            {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="mb-6 border-b border-border bg-transparent">
-                    <TabsTrigger
-                        value="perfil"
-                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
-                    >
-                        Perfil do usuário
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="empresa"
-                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
-                    >
-                        Empresa
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="usuarios"
-                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
-                    >
-                        Usuários
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="integracoes"
-                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
-                    >
-                        Integrações
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="automacoes"
-                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
-                    >
-                        Automações
-                    </TabsTrigger>
-                    <TabsTrigger
-                        value="plano"
-                        className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-2"
-                    >
-                        Plano
-                    </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="perfil">
-                    <PerfilTab formId="perfil-form" onSavingChange={setSaving} />
-                </TabsContent>
-
-                <TabsContent value="empresa">
-                    <EmpresaTab formId="empresa-form" onSavingChange={setSaving} />
-                </TabsContent>
-
-                {/* `mount` só quando a guia abre: os dois painéis buscam dados
-                    próprios, e carregá-los sempre tornaria a tela de perfil
-                    responsável por três requisições que ninguém pediu. */}
-                <TabsContent value="usuarios">
-                    <UsersPanel embedded />
-                </TabsContent>
-
-                <TabsContent value="integracoes">
-                    <IntegrationsPanel embedded />
-                </TabsContent>
-
-                <TabsContent value="automacoes">
-                    <AutomacoesTab />
-                </TabsContent>
-
-
-                <TabsContent value="plano">
-                    <PlanoTab />
-                </TabsContent>
-            </Tabs>
-            </div>
-        </>
+        <TabsFrame
+            title="Conta"
+            tabs={TABS}
+            active={activeTab}
+            onChange={setActiveTab}
+            primary={primary}
+        >
+            {/* Uma guia por vez, montada só quando abre: os painéis buscam
+                dados próprios, e carregá-los sempre tornaria a tela de perfil
+                responsável por três requisições que ninguém pediu. */}
+            {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" onSavingChange={setSaving} /> : null}
+            {activeTab === 'empresa' ? <EmpresaTab formId="empresa-form" onSavingChange={setSaving} /> : null}
+            {activeTab === 'usuarios' ? <UsersPanel ref={users} embedded /> : null}
+            {activeTab === 'integracoes' ? <IntegrationsPanel embedded /> : null}
+            {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
+            {activeTab === 'plano' ? <PlanoTab /> : null}
+        </TabsFrame>
     )
 }
 

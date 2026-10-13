@@ -198,10 +198,10 @@ export function PlanoTab() {
         : 0
 
     return (
-        <div className="max-w-4xl space-y-6">
+        <div className="space-y-4">
             {/* Trial Banner */}
             {isTrialing && (
-                <div className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
                     <div className="flex items-center gap-3">
                         <Gift className="h-6 w-6 text-primary" />
                         <div>
@@ -224,7 +224,7 @@ export function PlanoTab() {
             {/* Action Cards */}
             <div className="space-y-4">
                 {/* Change Payment Method */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
                     <div>
                         <h3 className="font-medium">Alterar forma de pagamento</h3>
                         <p className="text-sm text-muted-foreground">
@@ -240,7 +240,7 @@ export function PlanoTab() {
                 </div>
 
                 {/* Change Plan */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
                     <div>
                         <h3 className="font-medium">Alterar plano</h3>
                         <p className="text-sm text-muted-foreground">
@@ -256,7 +256,7 @@ export function PlanoTab() {
                 </div>
 
                 {/* Buy Credits */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
                     <div>
                         <h3 className="font-medium">Comprar créditos</h3>
                         <p className="text-sm text-muted-foreground">
@@ -272,7 +272,7 @@ export function PlanoTab() {
                 </div>
 
                 {/* Cancel Plan */}
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
                     <div>
                         <h3 className="font-medium">Cancelar plano</h3>
                         <p className="text-sm text-muted-foreground">

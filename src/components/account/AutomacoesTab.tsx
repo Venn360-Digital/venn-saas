@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { SettingsCard } from '@/components/shared/TabsFrame'
 import { DEFAULT_AUTOMATIONS, type Automations } from '@/lib/automations'
 
 /**
@@ -64,8 +65,19 @@ export function AutomacoesTab() {
     }
 
     return (
-        <div className="max-w-2xl space-y-4">
-            <div className="rounded-lg border border-border divide-y divide-border">
+        <SettingsCard
+            title="Rotinas automáticas"
+            description="O que o sistema faz sozinho todo dia. Grava ao mudar — não há botão Salvar."
+            contentClassName="p-0"
+            footer={
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                    Nenhuma destas chaves envia mensagem a paciente. Falar sozinho com quem está em
+                    atendimento é decisão de cada fase, em <strong>Negócios → Fases</strong>.
+                    {saving ? ' · salvando…' : ''}
+                </p>
+            }
+        >
+            <div className="divide-y divide-border">
                 <Line
                     icon={Sparkles}
                     title="Criar tarefa de retomada"
@@ -100,13 +112,7 @@ export function AutomacoesTab() {
                 />
 
             </div>
-
-            <p className="text-xs text-muted-foreground">
-                Nenhuma destas chaves envia mensagem a paciente. Falar sozinho com quem está em
-                atendimento é decisão de cada fase, em <strong>Negócios → Fases</strong>.
-                {saving ? ' · salvando…' : ''}
-            </p>
-        </div>
+        </SettingsCard>
     )
 }
 
