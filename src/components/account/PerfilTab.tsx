@@ -249,25 +249,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                 </div>
             </SettingsCard>
 
-            <SettingsCard
-                title="Senha"
-                description="Trocar a senha encerra as outras sessões abertas."
-                footer={
-                    <>
-                        <p className="text-xs text-muted-foreground">Mínimo de 8 caracteres.</p>
-                        <Button
-                            type="button"
-                            onClick={handleChangePassword}
-                            disabled={changingPassword || !passwordData.newPassword}
-                            variant="outline"
-                            size="sm"
-                            className="h-8"
-                        >
-                            {changingPassword ? 'Alterando…' : 'Alterar senha'}
-                        </Button>
-                    </>
-                }
-            >
+            <SettingsCard title="Senha" description="Trocar a senha encerra as outras sessões abertas. Mínimo de 8 caracteres.">
                 <div className="grid gap-4 sm:grid-cols-3">
                     <FormField label="Senha atual" htmlFor="currentPassword">
                         <Input
@@ -287,14 +269,29 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                             autoComplete="new-password"
                         />
                     </FormField>
+                    {/* O botão colado no último campo, como o "Alterar" do e-mail
+                        no cartão de cima: trocar a senha é uma gravação à parte,
+                        e o rodapé do cartão a deixava longe do que ela afeta. */}
                     <FormField label="Confirmar" htmlFor="confirmPassword">
-                        <Input
-                            id="confirmPassword"
-                            type="password"
-                            value={passwordData.confirmPassword}
-                            onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                            autoComplete="new-password"
-                        />
+                        <div className="flex gap-2">
+                            <Input
+                                id="confirmPassword"
+                                type="password"
+                                value={passwordData.confirmPassword}
+                                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                autoComplete="new-password"
+                                className="flex-1"
+                            />
+                            <Button
+                                type="button"
+                                onClick={handleChangePassword}
+                                disabled={changingPassword || !passwordData.newPassword}
+                                variant="outline"
+                                className="shrink-0"
+                            >
+                                {changingPassword ? 'Alterando…' : 'Alterar'}
+                            </Button>
+                        </div>
                     </FormField>
                 </div>
             </SettingsCard>
