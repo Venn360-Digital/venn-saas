@@ -2815,27 +2815,6 @@ export default function ConversasPage() {
                                                         </div>
                                                     </div>
 
-                                                    {/* Os dois gestos que seguem de ler a ficha. */}
-                                                    <div className="grid grid-cols-2 gap-1.5">
-                                                        <Button
-                                                            size="sm"
-                                                            className="h-8 gap-1.5"
-                                                            disabled={!conv.contact.id}
-                                                            onClick={() => setPanel('schedule')}
-                                                        >
-                                                            <CalendarPlus className="size-3.5" /> Nova atividade
-                                                        </Button>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-8 gap-1.5"
-                                                            disabled={!canTransfer || !conv.assignedTo}
-                                                            onClick={() => openTransferModal(conv.id)}
-                                                        >
-                                                            <ArrowRightLeft className="size-3.5" /> Transferir
-                                                        </Button>
-                                                    </div>
-
                                                     {conv.openDeal ? (
                                                         <>
                                                             <PanelSection
