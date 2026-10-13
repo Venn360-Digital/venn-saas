@@ -2,7 +2,7 @@
 
 import { BRAND_COLORS } from '@/lib/brand-colors'
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink, Unplug, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react'
+import { ExternalLink, Unplug, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -390,26 +390,26 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     )
 }
 
-// ─── Generic Integration Card (Coming Soon) ─────────────────────
-function ComingSoonCard({ def }: { def: IntegrationDef }) {
+/**
+ * O que ainda não dá para ligar.
+ *
+ * Era um cartão do mesmo tamanho do que funciona, com um botão desligado
+ * dentro — quatro caixas quase vazias ocupando mais tela que a única
+ * integração real. Linha compacta: diz o nome, o que faz e que ainda não é.
+ */
+function ComingSoonRow({ def }: { def: IntegrationDef }) {
     return (
-        <div className="rounded-lg border border-border bg-card p-5 opacity-60">
-            <div className="mb-4 flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg text-xl", def.iconBgColor)}>
-                        {def.icon}
-                    </div>
-                    <h3 className="font-semibold">{def.name}</h3>
-                </div>
-                <span className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-muted-foreground">
-                    Em breve
-                </span>
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 opacity-70">
+            <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg text-base', def.iconBgColor)}>
+                {def.icon}
             </div>
-            <p className="mb-4 text-sm text-muted-foreground">{def.description}</p>
-            <Button variant="outline" disabled className="w-full gap-2">
-                <Plus className="h-4 w-4" />
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold">{def.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{def.description}</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 Em breve
-            </Button>
+            </span>
         </div>
     )
 }
@@ -422,21 +422,18 @@ function ComingSoonCard({ def }: { def: IntegrationDef }) {
  * guia dentro de Gerenciar conta, que é por onde se chega navegando.
  */
 export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) {
-    const cards = (
-        <>
-            {/* Três colunas quando há largura: com duas, os cinco cartões viravam
-                três fileiras e a guia passava a rolar. */}
-            <div className="grid max-w-6xl grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {INTEGRATIONS.map((def) => (
-                    def.provider === 'google_calendar'
-                        ? <GoogleCalendarCard key={def.id} def={def} />
-                        : <ComingSoonCard key={def.id} def={def} />
-                ))}
-            </div>
-            {/* Só o responsável pela plataforma vê — é onde os aplicativos
-                ficam registrados para todas as clínicas. */}
-            <PlatformCredentialsPanel />
-        </>
+    const live = INTEGRATIONS.filter((def) => def.provider === 'google_calendar')
+    const soon = INTEGRATIONS.filter((def) => def.provider !== 'google_calendar')
+
+    const grid = (
+        <div className="grid max-w-6xl grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {live.map((def) => <GoogleCalendarCard key={def.id} def={def} />)}
+        </div>
+    )
+    const soonList = (
+        <div className="grid max-w-6xl grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {soon.map((def) => <ComingSoonRow key={def.id} def={def} />)}
+        </div>
     )
 
     if (embedded) {
@@ -444,10 +441,15 @@ export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) 
             <BandLayout>
                 <SettingsBand
                     title="Ferramentas"
-                    description="O que a clínica liga ao OdontoBox360. Cada cartão diz se está conectado e por qual conta."
-                    last
+                    description="O que a clínica liga ao OdontoBox360. O cartão diz se está conectado e por qual conta."
                 >
-                    {cards}
+                    {grid}
+                </SettingsBand>
+                <SettingsBand title="Em breve" last>
+                    {soonList}
+                    {/* Só o responsável pela plataforma vê — é onde os
+                        aplicativos ficam registrados para todas as clínicas. */}
+                    <PlatformCredentialsPanel />
                 </SettingsBand>
             </BandLayout>
         )
@@ -459,7 +461,11 @@ export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) 
                 title="Integrações"
                 description="Conecte ferramentas externas para potencializar sua aplicação."
             />
-            <div className="px-4 pb-6 md:px-6">{cards}</div>
+            <div className="space-y-4 px-4 pb-6 md:px-6">
+                {grid}
+                {soonList}
+                <PlatformCredentialsPanel />
+            </div>
         </>
     )
 }
