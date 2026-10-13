@@ -23,6 +23,7 @@ import {
     Film,
     Hand,
     Image as ImageIcon,
+    ListTodo,
     Loader2,
     Mail,
     MessageSquare,
@@ -288,6 +289,11 @@ function getContactInitials(name: string | null, phone: string | null) {
     return '?'
 }
 
+/** O aceso dos painéis — a mesma tinta de estado das telas de índice. */
+const PANEL_ON = 'bg-primary-subtle text-primary-subtle-foreground hover:bg-primary-subtle hover:text-primary-subtle-foreground'
+const PANEL_TOGGLE =
+    'data-[state=on]:bg-primary-subtle data-[state=on]:text-primary-subtle-foreground data-[state=on]:hover:bg-primary-subtle'
+
 function ContactAvatar({ avatar, name, phone, size = 'md' }: {
     avatar: string | null
     name: string | null
@@ -503,7 +509,7 @@ export default function ConversasPage() {
     const [intakeOpen, setIntakeOpen] = useState(false)
     const [suggesting, setSuggesting] = useState(false)
 
-    type PanelMode = 'journey' | 'schedule' | 'files' | 'summary' | 'notes'
+    type PanelMode = 'journey' | 'schedule' | 'activities' | 'files' | 'summary' | 'notes'
     const [panel, setPanel] = useState<PanelMode | null>(null)
     const togglePanel = (next: PanelMode) => setPanel((prev) => (prev === next ? null : next))
 
@@ -548,7 +554,8 @@ export default function ConversasPage() {
 
     const PANEL_TITLES: Record<PanelMode, string> = {
         summary: 'Resumo do paciente',
-        schedule: 'Atividades',
+        schedule: 'Agendar atividade',
+        activities: 'Atividades do paciente',
         files: 'Arquivos da conversa',
         journey: 'Jornada do paciente',
         notes: 'Notas internas',
@@ -563,7 +570,6 @@ export default function ConversasPage() {
     const [conversationTags, setConversationTags] = useState<TagItem[]>([])
 
     // Internal note mode
-    const [isNoteMode, setIsNoteMode] = useState(false)
 
     const tabs = [
         { id: 'waiting' as Tab, label: 'Em espera' },
@@ -1220,7 +1226,6 @@ export default function ConversasPage() {
             } else {
                 const body: SendMessageBody = { content: messageInput }
                 if (replyingTo) body.replyToId = replyingTo.id
-                if (isNoteMode) body.isInternal = true
                 res = await fetch(`/api/conversations/${selectedConversation}/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1235,7 +1240,6 @@ export default function ConversasPage() {
                 setAttachmentPreview(null)
                 setReplyingTo(null)
                 setShowQuickReplies(false)
-                setIsNoteMode(false)
                 fetchConversations()
             }
         } catch (error) {
@@ -1891,6 +1895,9 @@ export default function ConversasPage() {
                                                                     <span aria-hidden="true" className="text-muted-foreground/40">|</span>
                                                                 ) : null}
                                                                 {conv.assignedToName ? <span>{conv.assignedToName}</span> : null}
+                                                                {conv.tags && conv.tags.length > 0 ? (
+                                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                                ) : null}
                                                             </span>
                                                         )}
                                                         {conv.tags?.map(tag => (
@@ -2120,6 +2127,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
+                                                    className={PANEL_TOGGLE}
                                                     pressed={showSearch}
                                                     onPressedChange={next => {
                                                         setShowSearch(next)
@@ -2137,6 +2145,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
+                                                    className={PANEL_TOGGLE}
                                                     pressed={panel === 'summary'}
                                                     onPressedChange={() => togglePanel('summary')}
                                                     aria-label="Resumo do paciente"
@@ -2151,6 +2160,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
+                                                    className={PANEL_TOGGLE}
                                                     pressed={panel === 'schedule'}
                                                     onPressedChange={() => togglePanel('schedule')}
                                                     aria-label="Agendar atividade"
@@ -2161,6 +2171,20 @@ export default function ConversasPage() {
                                             <TooltipContent>Agendar atividade</TooltipContent>
                                         </Tooltip>
 
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Toggle
+                                                    size="sm"
+                                                    className={PANEL_TOGGLE}
+                                                    pressed={panel === 'activities'}
+                                                    onPressedChange={() => togglePanel('activities')}
+                                                    aria-label="Atividades do paciente"
+                                                >
+                                                    <ListTodo className="size-3.5" />
+                                                </Toggle>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Atividades do paciente</TooltipContent>
+                                        </Tooltip>
                                         {/* Etiquetas — Popover, não div com z-50:
                                             o primitivo trata Esc, clique fora,
                                             foco e aria-expanded. Popover e não
@@ -2170,9 +2194,9 @@ export default function ConversasPage() {
                                                 <TooltipTrigger asChild>
                                                     <PopoverTrigger asChild>
                                                         <Button
-                                                            variant={showTagPicker ? 'secondary' : 'ghost'}
+                                                            variant="ghost"
                                                             size="icon-sm"
-                                                            className="relative"
+                                                            className={cn('relative', showTagPicker && PANEL_ON)}
                                                             aria-label={
                                                                 conversationTags.length > 0
                                                                     ? `Etiquetas da conversa: ${conversationTags.map(t => t.name).join(', ')}`
@@ -2218,6 +2242,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
+                                                    className={PANEL_TOGGLE}
                                                     pressed={panel === 'files'}
                                                     onPressedChange={() => togglePanel('files')}
                                                     aria-label="Arquivos da conversa"
@@ -2232,6 +2257,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
+                                                    className={PANEL_TOGGLE}
                                                     pressed={panel === 'journey'}
                                                     onPressedChange={() => togglePanel('journey')}
                                                     aria-label="Jornada do paciente"
@@ -2249,6 +2275,7 @@ export default function ConversasPage() {
                                             <TooltipTrigger asChild>
                                                 <Toggle
                                                     size="sm"
+                                                    className={PANEL_TOGGLE}
                                                     pressed={panel === 'notes'}
                                                     onPressedChange={() => togglePanel('notes')}
                                                     aria-label="Notas internas"
@@ -2570,27 +2597,14 @@ export default function ConversasPage() {
                                                 </div>
                                             )}
 
-                                            {/* Note mode indicator */}
-                                            {isNoteMode && (
-                                                <div className="flex items-center gap-2 mb-2 px-3 py-1.5 bg-warning-subtle rounded-lg border border-dashed border-warning/40">
-                                                    <StickyNote className="h-3.5 w-3.5 text-warning-subtle-foreground flex-shrink-0" />
-                                                    <span className="text-xs text-warning-subtle-foreground font-medium">
-                                                        Modo nota interna — não será enviada ao cliente
-                                                    </span>
-                                                    <button onClick={() => setIsNoteMode(false)} className="ml-auto text-warning-subtle-foreground/60 hover:text-warning-subtle-foreground">
-                                                        <X className="h-3.5 w-3.5" />
-                                                    </button>
-                                                </div>
-                                            )}
-
                                             {isRecording ? (
                                                 <div className="flex items-center gap-3 px-2">
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="rounded-full h-10 w-10 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                                                        className="h-10 w-10 rounded-full text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
                                                         onClick={cancelRecording}
-                                                        title="Cancelar"
+                                                        aria-label="Cancelar gravação"
                                                     >
                                                         <X className="h-5 w-5" />
                                                     </Button>
@@ -2606,8 +2620,8 @@ export default function ConversasPage() {
                                                     <Button
                                                         size="icon"
                                                         onClick={stopRecording}
-                                                        className="rounded-full h-10 w-10 bg-primary"
-                                                        title="Enviar áudio"
+                                                        className="h-10 w-10 rounded-full bg-primary"
+                                                        aria-label="Enviar áudio"
                                                     >
                                                         <Send className="h-4 w-4" />
                                                     </Button>
@@ -2622,31 +2636,20 @@ export default function ConversasPage() {
                                                         accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
                                                         onChange={handleFileSelect}
                                                     />
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="rounded-lg h-10 w-10 flex-shrink-0 text-muted-foreground hover:text-foreground"
-                                                        onClick={() => fileInputRef.current?.click()}
-                                                        title="Enviar arquivo"
-                                                    >
-                                                        <Paperclip className="h-4 w-4" />
-                                                    </Button>
-
-                                                    {/* Internal note toggle */}
-                                                    <Button
-                                                        variant={isNoteMode ? 'secondary' : 'ghost'}
-                                                        size="icon"
-                                                        className={cn(
-                                                            'rounded-lg h-10 w-10 flex-shrink-0',
-                                                            isNoteMode
-                                                                ? 'text-warning-subtle-foreground bg-warning-subtle hover:bg-warning-subtle/70'
-                                                                : 'text-muted-foreground hover:text-foreground'
-                                                        )}
-                                                        onClick={() => setIsNoteMode(!isNoteMode)}
-                                                        title={isNoteMode ? 'Voltar para mensagem normal' : 'Nota interna (visível só para atendentes)'}
-                                                    >
-                                                        <StickyNote className="h-4 w-4" />
-                                                    </Button>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-10 w-10 flex-shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+                                                                onClick={() => fileInputRef.current?.click()}
+                                                                aria-label="Enviar arquivo"
+                                                            >
+                                                                <Paperclip className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>Enviar arquivo — imagem, PDF ou documento</TooltipContent>
+                                                    </Tooltip>
 
                                                     {/* Sugerir a próxima mensagem. Fica no
                                                         compositor porque é dali que ela sai —
@@ -2671,51 +2674,64 @@ export default function ConversasPage() {
                                                         </TooltipContent>
                                                     </Tooltip>
 
-                                                    <EmojiPicker onSelect={insertAtCursor} disabled={sending} />
-
-                                                    <textarea
-                                                        ref={textareaRef}
-                                                        value={messageInput}
-                                                        onChange={handleInputChange}
-                                                        onKeyDown={handleKeyDown}
-                                                        onPaste={handlePaste}
-                                                        placeholder={
-                                                            isNoteMode
-                                                                ? '📝 Nota interna (não será enviada ao cliente)...'
-                                                                : attachment
-                                                                    ? 'Legenda (opcional)...'
+                                                    {/* O campo e, dentro dele, o emoji: ele serve
+                                                        ao texto que está sendo escrito, e no lado
+                                                        de fora disputava lugar com o que age sobre
+                                                        a conversa. */}
+                                                    <div className="relative flex-1">
+                                                        <textarea
+                                                            ref={textareaRef}
+                                                            value={messageInput}
+                                                            onChange={handleInputChange}
+                                                            onKeyDown={handleKeyDown}
+                                                            onPaste={handlePaste}
+                                                            placeholder={
+                                                                attachment
+                                                                    ? 'Legenda (opcional)…'
                                                                     : 'Digite sua mensagem… ( / para comandos )'
-                                                        }
-                                                        rows={1}
-                                                        className={cn(
-                                                            'flex-1 bg-muted/50 rounded-lg px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 min-h-[40px] max-h-[120px]',
-                                                            isNoteMode
-                                                                ? 'focus:ring-warning/50 border border-warning/40'
-                                                                : 'focus:ring-primary/50'
-                                                        )}
-                                                        style={{ height: 'auto' }}
-                                                    />
+                                                            }
+                                                            rows={1}
+                                                            className="max-h-[120px] min-h-[40px] w-full resize-none rounded-lg bg-muted/50 py-2.5 pl-4 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                                            style={{ height: 'auto' }}
+                                                        />
+                                                        <EmojiPicker
+                                                            onSelect={insertAtCursor}
+                                                            disabled={sending}
+                                                            className="absolute bottom-0.5 right-1 size-9 text-muted-foreground hover:text-foreground"
+                                                        />
+                                                    </div>
 
                                                     {/* Mic button — visible only when no text and no attachment */}
                                                     {!messageInput.trim() && !attachment ? (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={startRecording}
-                                                            className="rounded-lg h-10 w-10 flex-shrink-0 text-muted-foreground hover:text-primary"
-                                                            title="Gravar áudio"
-                                                        >
-                                                            <Mic className="h-4 w-4" />
-                                                        </Button>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={startRecording}
+                                                                    className="h-10 w-10 flex-shrink-0 rounded-lg text-muted-foreground hover:text-primary"
+                                                                    aria-label="Gravar áudio"
+                                                                >
+                                                                    <Mic className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Gravar e enviar um áudio</TooltipContent>
+                                                        </Tooltip>
                                                     ) : (
-                                                        <Button
-                                                            size="icon"
-                                                            onClick={handleSendMessage}
-                                                            disabled={(!messageInput.trim() && !attachment) || sending}
-                                                            className="rounded-lg h-10 w-10 flex-shrink-0"
-                                                        >
-                                                            <Send className="h-4 w-4" />
-                                                        </Button>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    size="icon"
+                                                                    onClick={handleSendMessage}
+                                                                    disabled={(!messageInput.trim() && !attachment) || sending}
+                                                                    className="h-10 w-10 flex-shrink-0 rounded-lg"
+                                                                    aria-label="Enviar mensagem"
+                                                                >
+                                                                    <Send className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Enviar — Enter envia, Shift+Enter quebra a linha</TooltipContent>
+                                                        </Tooltip>
                                                     )}
                                                 </div>
                                             )}
@@ -2755,43 +2771,40 @@ export default function ConversasPage() {
                                             ) : null}
 
                                             {panel === 'schedule' && conv.contact?.id ? (
-                                                <div className="space-y-4">
-                                                    <ActivityForm
-                                                        key={conv.id}
-                                                        contactId={conv.contact.id}
-                                                        contactName={conv.contact.name || conv.contact.phone || 'paciente'}
-                                                        dealId={conv.openDeal?.id ?? null}
-                                                        dealTitle={conv.openDeal?.title ?? null}
-                                                        onScheduled={({ date, time }) => {
-                                                            // O texto entra no compositor em vez de ser
-                                                            // enviado: quem confirma o horário com o
-                                                            // paciente é a pessoa, não a tela.
-                                                            const [y, m, d] = date.split('-')
-                                                            setMessageInput(
-                                                                `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
-                                                            )
-                                                            textareaRef.current?.focus()
-                                                            setActivitiesToken((n) => n + 1)
-                                                        }}
-                                                    />
+                                                <ActivityForm
+                                                    key={conv.id}
+                                                    contactId={conv.contact.id}
+                                                    contactName={conv.contact.name || conv.contact.phone || 'paciente'}
+                                                    dealId={conv.openDeal?.id ?? null}
+                                                    dealTitle={conv.openDeal?.title ?? null}
+                                                    onScheduled={({ date, time }) => {
+                                                        // O texto entra no compositor em vez de ser
+                                                        // enviado: quem confirma o horário com o
+                                                        // paciente é a pessoa, não a tela.
+                                                        const [y, m, d] = date.split('-')
+                                                        setMessageInput(
+                                                            `Agendado para ${d}/${m}/${y} às ${time}. Qualquer coisa, me avise por aqui.`
+                                                        )
+                                                        textareaRef.current?.focus()
+                                                        setActivitiesToken((n) => n + 1)
+                                                        // O que foi marcado aparece no painel ao lado,
+                                                        // que é o lugar dele — aqui só se agenda.
+                                                        setPanel('activities')
+                                                    }}
+                                                />
+                                            ) : null}
 
-                                                    {/* O que já está marcado para este paciente, e o
-                                                        círculo que conclui. Quem está na conversa é
-                                                        quem acabou de confirmar por escrito que o
-                                                        retorno aconteceu — cobrar uma ida à Agenda
-                                                        para registrar isso é como pedir que ligue de
-                                                        outro telefone. */}
-                                                    <div className="space-y-2 border-t border-border pt-3">
-                                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                                            Atividades do paciente
-                                                        </p>
-                                                        <ActivityList
-                                                            key={`list-${conv.id}`}
-                                                            contactId={conv.contact.id}
-                                                            refreshToken={activitiesToken}
-                                                        />
-                                                    </div>
-                                                </div>
+                                            {/* O que já está marcado para este paciente, com o
+                                                círculo que conclui — o mesmo painel do negócio.
+                                                Quem está na conversa é quem acabou de confirmar
+                                                por escrito que o retorno aconteceu. */}
+                                            {panel === 'activities' && conv.contact?.id ? (
+                                                <ActivityList
+                                                    key={`list-${conv.id}`}
+                                                    contactId={conv.contact.id}
+                                                    refreshToken={activitiesToken}
+                                                    onChanged={() => setActivitiesToken((n) => n + 1)}
+                                                />
                                             ) : null}
 
                                             {panel === 'journey' ? (

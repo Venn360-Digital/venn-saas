@@ -5,6 +5,7 @@ import { Smile } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 /**
@@ -82,20 +83,24 @@ export function EmojiPicker({ onSelect, disabled, className }: EmojiPickerProps)
 
     return (
         <Popover open={open} onOpenChange={handleOpenChange}>
-            <PopoverTrigger asChild>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
                 <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     disabled={disabled}
                     aria-label="Inserir emoji"
-                    title="Emoji"
                     className={cn('h-9 w-9 shrink-0', className)}
                 >
                     <Smile className="h-4 w-4" />
                 </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" side="top" className="w-72 p-2">
+                    </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Inserir emoji</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="end" side="top" className="w-72 p-2">
                 <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                     {groups.map((group) => (
                         <div key={group.label}>
