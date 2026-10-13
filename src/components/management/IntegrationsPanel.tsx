@@ -399,14 +399,13 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
  */
 function ComingSoonRow({ def }: { def: IntegrationDef }) {
     return (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 opacity-70">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 opacity-70">
             <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg text-base', def.iconBgColor)}>
                 {def.icon}
             </div>
-            <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold">{def.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{def.description}</p>
-            </div>
+            {/* Só o nome: a descrição truncada em quatro colunas não dizia
+                nada que o nome já não diga, e dobrava a altura da faixa. */}
+            <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">{def.name}</p>
             <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 Em breve
             </span>
