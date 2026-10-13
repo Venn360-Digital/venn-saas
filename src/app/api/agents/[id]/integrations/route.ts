@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 const createIntegrationSchema = z.object({
-    channel: z.enum(['site', 'whatsapp_qr', 'whatsapp_business', 'instagram', 'telegram', 'mercadolivre']),
+    // 'mercadolivre' saiu: não haverá integração com a plataforma.
+    channel: z.enum(['site', 'whatsapp_qr', 'whatsapp_business', 'instagram', 'telegram']),
     config: z.record(z.string(), z.any()).optional(),
 })
 

@@ -31,14 +31,20 @@ export interface VozData {
     voiceTraining?: string
 }
 
+/**
+ * As cores por agente saíram: só teriam efeito no widget do site, que não
+ * existe, e o widget vai nascer na paleta do sistema.
+ *
+ * `avatar` é a URL já gravada; `avatarFile` é o arquivo que a tela acabou de
+ * escolher e que só pode subir depois do agente existir — o upload precisa de um
+ * `agentId` para escopar o caminho no Storage. Antes, a tela mandava a imagem
+ * inteira como data URL dentro do PATCH; a API descartava o campo, e se não
+ * descartasse teria enfiado megabytes de base64 numa coluna que o worker lê a
+ * cada mensagem recebida.
+ */
 export interface VisualData {
     avatar?: string
-    visualConfig?: {
-        userMessageColor?: string
-        userFontColor?: string
-        agentMessageColor?: string
-        agentFontColor?: string
-    }
+    avatarFile?: File | null
 }
 
 export interface AgentCreationData {
@@ -67,7 +73,20 @@ export interface AgentCreationData {
 }
 
 // Knowledge Base Types
-export interface KnowledgeFile {
+
+/**
+ * Já indexado para este agente, carregado da base ao abrir a tela de edição.
+ *
+ * Distingue o que a clínica acabou de acrescentar do que já está gravado: só o
+ * primeiro grupo é enviado para indexação ao salvar. Sem esta marca, abrir um
+ * agente e salvar re-embeddaria todo o acervo — e a tela de edição nem chegava a
+ * carregar o cérebro, então ninguém via o que o agente já sabia.
+ */
+interface Persisted {
+    persisted?: boolean
+}
+
+export interface KnowledgeFile extends Persisted {
     id: string
     filename: string
     size: number
@@ -80,14 +99,23 @@ export interface KnowledgeFile {
     truncated?: boolean
 }
 
-export interface KnowledgeWebsite {
+export interface KnowledgeWebsite extends Persisted {
     id: string
     url: string
     title?: string
     addedAt: Date
+    /**
+     * O texto da página, lido por `/api/agents/knowledge/fetch-url`.
+     *
+     * Antes só a URL era guardada e a página nunca era lida: o site aparecia na
+     * lista e o agente não sabia nada dele.
+     */
+    content?: string
+    chars?: number
+    truncated?: boolean
 }
 
-export interface KnowledgeVideo {
+export interface KnowledgeVideo extends Persisted {
     id: string
     url: string
     title?: string
@@ -95,7 +123,7 @@ export interface KnowledgeVideo {
     addedAt: Date
 }
 
-export interface KnowledgeFAQ {
+export interface KnowledgeFAQ extends Persisted {
     id: string
     question: string
     answer: string
@@ -118,16 +146,9 @@ export interface KnowledgeDocument {
     createdAt: Date
 }
 
-// Menu Comandos de Intenção - Preferências
-export interface PreferenciasData {
-    showTypingIndicator: boolean
-    responseSpeed: number
-    keepContext: boolean
-    useEmojis: boolean
-    allowManualTakeover: boolean
-    restrictTopics: boolean
-    interactionLimit: number
-}
+// As preferências da conversa moram em `@/types/agent-preferences`, junto com o
+// schema que a API valida e o leitor que o worker usa. A cópia que vivia aqui
+// divergiu do worker em `responseSpeed` e anulou o slider.
 
 // Menu Comandos de Intenção - Regras
 export interface RuleCondition {

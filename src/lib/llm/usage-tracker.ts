@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import { getBillingState } from '@/lib/billing'
+import { getBillingState, spendCredits } from '@/lib/billing'
 import { LLMProviderName } from '@/types/llm'
 import { Decimal } from '@prisma/client/runtime/library'
 import { Prisma } from '@prisma/client'
@@ -100,18 +100,35 @@ export async function trackUsage(
         }
     })
 
-    // Update credits used in subscription
     // 1 credit = $0.01 USD
     const creditsConsumed = Math.ceil(costUsd * 100) // Convert USD to credits (cents)
 
-    // updateMany, not update: a workspace without a subscription row would make
-    // update() throw, which used to abort the caller mid-reply.
-    await prisma.subscription.updateMany({
-        where: { workspaceId: context.workspaceId },
-        data: {
-            creditsUsed: { increment: creditsConsumed }
-        }
-    })
+    /**
+     * O débito passa pelos dois baldes, plano e avulso.
+     *
+     * Aqui havia um `subscription.updateMany` que só incrementava
+     * `creditsUsed` — o balde do plano. Mas `checkCredits` libera a resposta
+     * olhando `plano + avulso`, e `CreditPurchase.used` não era incrementado por
+     * ninguém: `spendCredits` existia em `lib/billing.ts` e nenhum caminho do
+     * sistema a chamava. O efeito era um workspace com um lote avulso vivo
+     * responder para sempre depois de estourar o plano, porque o saldo avulso
+     * nunca descia.
+     *
+     * `spendCredits` gasta o plano primeiro (que é descartado na renovação de
+     * todo modo) e depois os lotes avulsos, do que expira mais cedo para o mais
+     * tarde.
+     */
+    const { spent, shortfall } = await spendCredits(context.workspaceId, creditsConsumed)
+
+    if (shortfall > 0) {
+        // A resposta já foi gerada e entregue: cobrar o que não havia é
+        // impossível, e esconder isso deixaria o prejuízo invisível. A próxima
+        // chamada é barrada pelo `checkCredits`, que vê saldo zero.
+        console.warn(
+            `[USAGE_TRACKER] workspace ${context.workspaceId} consumiu ${creditsConsumed} ` +
+                `crédito(s) e só tinha ${spent}: ${shortfall} além do saldo.`
+        )
+    }
 
     console.log(`[USAGE_TRACKER] Logged: ${usage.totalTokens} tokens, $${costUsd.toFixed(6)} USD, ${creditsConsumed} credits`)
 }

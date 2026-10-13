@@ -3,7 +3,7 @@
 import { BRAND_COLORS, NEUTRAL_CHANNEL } from '@/lib/brand-colors'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Phone } from 'lucide-react'
-import { Globe, MessageCircle, Instagram, ShoppingBag, ChevronDown, Loader2 } from 'lucide-react'
+import { Globe, MessageCircle, Instagram, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WhatsAppQRModal } from '../WhatsAppQRModal'
 
@@ -25,11 +25,20 @@ interface CanaisTabProps {
 
 const CHANNELS = [
     {
+        /**
+         * O widget do site ainda não existe.
+         *
+         * O canal oferecia "Conectar" e prometia um código de embed, e não há
+         * nenhuma rota de widget no projeto: conectar criava uma integração com
+         * status "conectado" que não atende ninguém. Marcado como os outros
+         * canais que faltam, até o widget existir.
+         */
         id: 'site',
         name: 'Site',
         description: 'Adicione o Agente no seu site',
         icon: Globe,
         color: NEUTRAL_CHANNEL,
+        comingSoon: true,
     },
     {
         id: 'whatsapp_qr',
@@ -52,14 +61,6 @@ const CHANNELS = [
         description: 'Adicione o seu Agente no Instagram',
         icon: Instagram,
         color: BRAND_COLORS.instagram,
-        comingSoon: true,
-    },
-    {
-        id: 'mercadolivre',
-        name: 'Mercado Livre',
-        description: 'Conecte sua conta do Mercado Livre',
-        icon: ShoppingBag,
-        color: BRAND_COLORS.mercadoLivre,
         comingSoon: true,
     },
 ]
@@ -235,12 +236,6 @@ export function CanaisTab({ agentId, integrations, onConnect, onDisconnect, onIn
                                             )}
                                             <p className="text-muted-foreground mt-1">
                                                 Seu agente está recebendo e respondendo mensagens automaticamente.
-                                            </p>
-                                        </div>
-                                    ) : channel.id === 'site' ? (
-                                        <div className="text-sm">
-                                            <p className="text-muted-foreground">
-                                                Adicione o Widget do Agente no seu site copiando o código de embed.
                                             </p>
                                         </div>
                                     ) : (

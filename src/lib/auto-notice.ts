@@ -13,12 +13,17 @@ import prisma from '@/lib/prisma'
  * courtesy into a robot.
  */
 
-export type NoticeKind = 'out_of_credits' | 'read_only'
+export type NoticeKind = 'out_of_credits' | 'read_only' | 'interaction_limit'
 
 const TEXT: Record<NoticeKind, string> = {
     out_of_credits: 'Vamos continuar seu atendimento em instantes.',
     read_only:
         'No momento não conseguimos responder por aqui. Por favor, entre em contato com a clínica por telefone.',
+    // O agente atingiu o limite de interações do atendimento. Quem continua é
+    // uma pessoa, e o paciente precisa saber disso — senão a conversa
+    // simplesmente emudece no meio.
+    interaction_limit:
+        'Vou passar seu atendimento para alguém da nossa equipe, que continua com você por aqui.',
 }
 
 /**

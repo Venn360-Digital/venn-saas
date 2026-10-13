@@ -13,7 +13,29 @@ import { VisualTab } from '@/components/agents/creation/tabs/VisualTab'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
+
+interface KnowledgeSource {
+    id: string
+    title: string
+    type: string
+    url: string | null
+    chars: number
+    chunks: number
+    createdAt: string
+    content: string
+}
+
+/**
+ * A resposta de uma FAQ, de volta do texto indexado.
+ *
+ * O trecho é gravado como "Pergunta: …\nResposta: …" para que a busca encontre
+ * pela pergunta, que é como o paciente escreve. FAQ gravada por uma versão
+ * anterior tem só a resposta no conteúdo, e cai no retorno direto.
+ */
+function faqAnswer(content: string): string {
+    const match = content.match(/\nResposta:\s*([\s\S]*)$/)
+    return (match ? match[1] : content).trim()
+}
 
 function NovoAgenteContent() {
     const searchParams = useSearchParams()
@@ -115,12 +137,9 @@ function NovoAgenteContent() {
                 voiceTraining: agent.voiceTraining || '',
             })
 
-            setVisual({
-                avatar: agent.avatar || '',
-                visualConfig: agent.visualConfig || {
-                    ...AGENT_WIDGET_DEFAULTS,
-                },
-            })
+            setVisual({ avatar: agent.avatar || undefined, avatarFile: null })
+
+            await loadKnowledge(agentId)
 
             setDataLoaded(true)
             setLoading(false)
@@ -128,6 +147,76 @@ function NovoAgenteContent() {
             console.error('Error loading agent:', error)
             toast.error('Erro ao carregar dados do agente')
             setLoading(false)
+        }
+    }
+
+    /**
+     * Carrega o Cérebro já indexado.
+     *
+     * Faltava: a tela de edição montava perfil, trabalho, voz e visual e deixava
+     * `cerebro` vazio. Quem abria um agente para editar não via nenhum dos
+     * arquivos, FAQs ou sites que havia cadastrado — e não tinha por onde apagar
+     * nada. O que vem da base é marcado como `persisted`, então salvar não paga
+     * embedding de novo pelo acervo inteiro.
+     *
+     * Falhar aqui não impede a edição do resto: o aviso é específico e as outras
+     * abas continuam utilizáveis.
+     */
+    const loadKnowledge = async (agentId: string) => {
+        try {
+            const response = await fetch(`/api/agents/${agentId}/knowledge`)
+            if (!response.ok) throw new Error('Failed to load knowledge')
+
+            const sources: KnowledgeSource[] = await response.json()
+
+            setCerebro({
+                files: sources
+                    .filter((source) => source.type === 'doc')
+                    .map((source) => ({
+                        id: source.id,
+                        filename: source.title,
+                        size: 0,
+                        type: '',
+                        uploadedAt: new Date(source.createdAt),
+                        // O texto não volta inteiro: a tela só precisa do nome e
+                        // do tamanho, e trazer o acervo todo para o navegador a
+                        // cada abertura não serviria a ninguém.
+                        content: '',
+                        chars: source.chars,
+                        persisted: true,
+                    })),
+                websites: sources
+                    .filter((source) => source.type === 'website')
+                    .map((source) => ({
+                        id: source.id,
+                        url: source.url || source.title,
+                        title: source.title,
+                        addedAt: new Date(source.createdAt),
+                        chars: source.chars,
+                        persisted: true,
+                    })),
+                videos: sources
+                    .filter((source) => source.type === 'video')
+                    .map((source) => ({
+                        id: source.id,
+                        url: source.url || source.title,
+                        title: source.title,
+                        platform: 'youtube' as const,
+                        addedAt: new Date(source.createdAt),
+                        persisted: true,
+                    })),
+                faqs: sources
+                    .filter((source) => source.type === 'faq')
+                    .map((source) => ({
+                        id: source.id,
+                        question: source.title,
+                        answer: faqAnswer(source.content),
+                        persisted: true,
+                    })),
+            })
+        } catch (error) {
+            console.error('Error loading knowledge:', error)
+            toast.error('Não foi possível carregar a base de conhecimento do agente')
         }
     }
 
@@ -152,6 +241,7 @@ function NovoAgenteContent() {
                     <CerebroTab
                         data={cerebro}
                         onChange={(data) => setCerebro({ ...cerebro, ...data })}
+                        agentId={urlAgentId}
                     />
                 )
             case 'voz':

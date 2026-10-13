@@ -1,78 +1,80 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Upload } from 'lucide-react'
+import { Upload, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { VisualData } from '@/types/agent-creation'
 import { cn } from '@/lib/utils'
-import { AGENT_WIDGET_DEFAULTS, BRAND_HEX } from '@/lib/palette'
+
+/**
+ * A aba Visual, reduzida ao que existe.
+ *
+ * Saíram os quatro seletores de cor e o preview que eles pintavam: `visualConfig`
+ * só teria efeito no widget do site, que não existe, e a decisão foi o widget
+ * nascer na paleta do sistema em vez de cada clínica pintar o seu. Eram quatro
+ * controles que não mudavam nada em nenhum canal.
+ *
+ * Ficou a imagem — que agora é mesmo gravada. A tela antes lia o arquivo como
+ * data URL e mandava no PATCH, onde o campo era descartado pela validação; o
+ * arquivo agora é guardado no estado e sobe para `/api/agents/[id]/avatar`
+ * depois que o agente existe, porque o caminho no Storage é escopado por agente.
+ */
 
 interface VisualTabProps {
     data: VisualData
     onChange: (data: Partial<VisualData>) => void
 }
 
-interface ColorPickerProps {
-    label: string
-    description: string
-    value?: string
-    onChange: (color: string) => void
-}
-
-function ColorPicker({ label, description, value, onChange }: ColorPickerProps) {
-    const inputRef = useRef<HTMLInputElement>(null)
-
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between">
-                <div className="flex-1">
-                    <Label>{label}</Label>
-                    <p className="text-xs text-muted-foreground">{description}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div
-                        className="h-10 w-24 cursor-pointer rounded-md border"
-                        style={{ backgroundColor: value || BRAND_HEX.white }}
-                        onClick={() => inputRef.current?.click()}
-                    />
-                    <input
-                        ref={inputRef}
-                        type="color"
-                        value={value || BRAND_HEX.white}
-                        onChange={(e) => onChange(e.target.value)}
-                        className="sr-only"
-                    />
-                </div>
-            </div>
-        </div>
-    )
-}
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const MAX_BYTES = 2 * 1024 * 1024
 
 export function VisualTab({ data, onChange }: VisualTabProps) {
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(data.avatar || null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
+    /**
+     * O preview do arquivo recém-escolhido é um blob URL, não um data URL: a
+     * imagem não precisa virar texto para ser exibida.
+     *
+     * Derivado do arquivo, não guardado em estado — um `setState` dentro do
+     * efeito renderizaria duas vezes a cada escolha. O efeito abaixo só existe
+     * para revogar: sem isso, cada troca de imagem deixa um objeto preso na
+     * memória da aba.
+     */
+    const localPreview = useMemo(
+        () => (data.avatarFile ? URL.createObjectURL(data.avatarFile) : null),
+        [data.avatarFile]
+    )
+
+    useEffect(() => {
+        if (!localPreview) return
+        return () => URL.revokeObjectURL(localPreview)
+    }, [localPreview])
+
+    const preview = localPreview ?? data.avatar ?? null
+
+    const handleSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        // Limpa o input para que escolher o mesmo arquivo de novo volte a disparar.
+        event.target.value = ''
         if (!file) return
 
-        const reader = new FileReader()
-        reader.onloadend = () => {
-            const result = reader.result as string
-            setAvatarPreview(result)
-            onChange({ avatar: result })
+        if (!ALLOWED_TYPES.includes(file.type)) {
+            toast.error('Formato não suportado. Envie PNG, JPG ou WEBP.')
+            return
         }
-        reader.readAsDataURL(file)
+
+        if (file.size > MAX_BYTES) {
+            toast.error('Imagem maior que 2 MB. Envie uma versão menor.')
+            return
+        }
+
+        onChange({ avatarFile: file })
     }
 
-    const handleColorChange = (key: keyof NonNullable<VisualData['visualConfig']>, color: string) => {
-        onChange({
-            visualConfig: {
-                ...data.visualConfig,
-                [key]: color,
-            },
-        })
+    const handleRemove = () => {
+        onChange({ avatarFile: null, avatar: '' })
     }
 
     return (
@@ -80,124 +82,68 @@ export function VisualTab({ data, onChange }: VisualTabProps) {
             <div>
                 <h2 className="text-2xl font-bold">Personalize o seu Agente</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                    O estilo personalizado será aplicado ao compartilhar seu Agente IA
+                    A imagem identifica o Agente para a sua equipe dentro do OdontoBox360
                 </p>
             </div>
 
-            <div className="space-y-6">
-                {/* Imagem do Agente */}
-                <div className="space-y-3">
-                    <div>
-                        <Label>Imagem do Agente</Label>
-                        <p className="text-xs text-muted-foreground">
-                            Insira a imagem que você quer que apareça como perfil do seu Agente
-                        </p>
+            <div className="space-y-3">
+                <div>
+                    <Label>Imagem do Agente</Label>
+                    <p className="text-xs text-muted-foreground">
+                        Aparece na lista de agentes e nas conversas, para quem atende.
+                        Nos canais conectados o paciente continua vendo a foto da conta
+                        de WhatsApp, Instagram ou Facebook da clínica — essa imagem não
+                        substitui a do canal.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div
+                        className={cn(
+                            'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
+                            preview ? 'border-transparent' : 'border-muted-foreground/25'
+                        )}
+                    >
+                        {preview ? (
+                            // Imagem de origem variável (Storage ou blob local), fora
+                            // do alcance do next/image sem configurar remotePatterns.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={preview}
+                                alt="Imagem do agente"
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <span className="text-3xl text-muted-foreground">A</span>
+                        )}
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div
-                            className={cn(
-                                'flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed',
-                                avatarPreview ? 'border-transparent' : 'border-muted-foreground/25'
-                            )}
-                        >
-                            {avatarPreview ? (
-                                <img
-                                    src={avatarPreview}
-                                    alt="Avatar"
-                                    className="h-full w-full rounded-full object-cover"
-                                />
-                            ) : (
-                                <span className="text-3xl">A</span>
-                            )}
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            onClick={() => fileInputRef.current?.click()}
-                        >
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                             <Upload className="mr-2 h-4 w-4" />
-                            Alterar imagem
+                            {preview ? 'Alterar imagem' : 'Enviar imagem'}
                         </Button>
 
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleAvatarUpload}
-                        />
+                        {preview && (
+                            <Button variant="ghost" onClick={handleRemove}>
+                                <X className="mr-2 h-4 w-4" />
+                                Remover
+                            </Button>
+                        )}
                     </div>
-                </div>
 
-                {/* Cores */}
-                <div className="space-y-4">
-                    <h3 className="font-medium">
-                        Defina as cores e detalhes de interação do seu Agente IA
-                    </h3>
-
-                    <ColorPicker
-                        label="Cor da mensagem"
-                        description="do usuário"
-                        value={data.visualConfig?.userMessageColor}
-                        onChange={(color) => handleColorChange('userMessageColor', color)}
-                    />
-
-                    <ColorPicker
-                        label="Cor da fonte"
-                        description="do usuário"
-                        value={data.visualConfig?.userFontColor}
-                        onChange={(color) => handleColorChange('userFontColor', color)}
-                    />
-
-                    <ColorPicker
-                        label="Cor da mensagem"
-                        description="do Agente"
-                        value={data.visualConfig?.agentMessageColor}
-                        onChange={(color) => handleColorChange('agentMessageColor', color)}
-                    />
-
-                    <ColorPicker
-                        label="Cor da fonte"
-                        description="do Agente"
-                        value={data.visualConfig?.agentFontColor}
-                        onChange={(color) => handleColorChange('agentFontColor', color)}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={ALLOWED_TYPES.join(',')}
+                        className="hidden"
+                        onChange={handleSelect}
                     />
                 </div>
 
-                {/* Preview */}
-                <div className="rounded-lg border p-4">
-                    <h4 className="mb-3 text-sm font-medium">Preview</h4>
-                    <div className="space-y-2">
-                        {/* User message */}
-                        <div className="flex justify-end">
-                            <div
-                                className="max-w-[70%] rounded-lg p-3"
-                                style={{
-                                    backgroundColor: data.visualConfig?.userMessageColor || AGENT_WIDGET_DEFAULTS.userMessageColor,
-                                    color: data.visualConfig?.userFontColor || AGENT_WIDGET_DEFAULTS.userFontColor,
-                                }}
-                            >
-                                <p className="text-sm">Olá! Como posso ajudar?</p>
-                            </div>
-                        </div>
-
-                        {/* Agent message */}
-                        <div className="flex justify-start">
-                            <div
-                                className="max-w-[70%] rounded-lg p-3"
-                                style={{
-                                    backgroundColor: data.visualConfig?.agentMessageColor || AGENT_WIDGET_DEFAULTS.agentMessageColor,
-                                    color: data.visualConfig?.agentFontColor || AGENT_WIDGET_DEFAULTS.agentFontColor,
-                                }}
-                            >
-                                <p className="text-sm">
-                                    Olá! Sou seu assistente virtual. Como posso te ajudar hoje?
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                    PNG, JPG ou WEBP, até 2 MB. A imagem é enviada quando você salva o Agente.
+                </p>
             </div>
         </div>
     )

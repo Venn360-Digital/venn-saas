@@ -3,18 +3,18 @@ import { createLogger } from '../logger'
 
 const log = createLogger('AI_SCHEDULE')
 
-/** Response-speed preference → extra delay before the agent answers. */
-const SPEED_DELAY_MS: Record<string, number> = {
-    instant: 0,
-    fast: 1_000,
-    natural: 3_000,
-    slow: 8_000,
-}
-
-export function delayForSpeed(speed: string | undefined, debounceSeconds: number): number {
-    const base = debounceSeconds * 1_000
-    const extra = speed ? (SPEED_DELAY_MS[speed] ?? 0) : 0
-    return base + extra
+/**
+ * Debounce de entrada + o atraso extra que a clínica escolheu, em milissegundos.
+ *
+ * `extraSeconds` vem de `preferences.responseSpeed`, que é o número de segundos
+ * que o slider da aba Preferências sempre mostrou. A versão anterior recebia um
+ * enum de texto (`'instant' | 'fast' | 'natural' | 'slow'`) que a tela nunca
+ * gravou: a busca na tabela dava `undefined`, caía no `?? 0`, e o atraso era
+ * sempre só o debounce. Mover o slider não mudava nada.
+ */
+export function delayForSpeed(extraSeconds: number, debounceSeconds: number): number {
+    const extra = Number.isFinite(extraSeconds) ? Math.max(0, extraSeconds) : 0
+    return (debounceSeconds + extra) * 1_000
 }
 
 /**

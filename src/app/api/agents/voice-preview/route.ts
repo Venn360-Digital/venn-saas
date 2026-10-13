@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { createClient } from '@/lib/supabase/server'
+import { requireWritable } from '@/lib/billing'
+import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
 
 /** As vozes que a tela oferece — a lista fechada evita gastar com palpite. */
 const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
@@ -36,12 +37,33 @@ const MODELS = ['gpt-4o-mini-tts', 'tts-1'] as const
  * são poucos segundos de fala que ninguém vai ouvir duas vezes, e guardar
  * amostra descartável custa mais que refazer. O texto é limitado a 200
  * caracteres porque isto é uma amostra, não um sintetizador aberto.
+ *
+ * A autorização era só "ter sessão". Com o cadastro aberto para homologação,
+ * isso fazia da rota um sintetizador de fala gratuito na nossa chave da OpenAI,
+ * para qualquer pessoa que criasse uma conta. Agora pede o que a tela que a
+ * chama já exige: ser gestão de um workspace que pode escrever. Escolher a voz
+ * do agente é configuração, não trabalho de atendimento.
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return new NextResponse('Unauthorized', { status: 401 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status })
+        }
+
+        if (!MANAGER_ROLES.includes(auth.member.role)) {
+            return NextResponse.json(
+                { error: 'Você não tem permissão para configurar o agente' },
+                { status: 403 }
+            )
+        }
+
+        // Avaliação encerrada ou plano sem pagamento não gera áudio: é custo
+        // nosso numa conta que não está pagando.
+        const writable = await requireWritable(auth.member.workspaceId)
+        if (!writable.ok) {
+            return NextResponse.json({ error: writable.error }, { status: writable.status })
+        }
 
         const apiKey = process.env.OPENAI_API_KEY
         if (!apiKey) {

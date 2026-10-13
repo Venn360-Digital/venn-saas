@@ -1,9 +1,14 @@
 import { canCreateAgent } from '@/lib/limits'
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import {
+    DEFAULT_AGENT_PREFERENCES,
+    agentPreferencesPatchSchema,
+} from '@/types/agent-preferences'
 
 // Validation Schema for creating an agent
 const createAgentSchema = z.object({
@@ -37,13 +42,16 @@ const createAgentSchema = z.object({
     voiceModel: z.string().optional(),
     voiceTraining: z.string().optional(),
 
-    // VISUAL
-    visualConfig: z.object({
-        userMessageColor: z.string().optional(),
-        userFontColor: z.string().optional(),
-        agentMessageColor: z.string().optional(),
-        agentFontColor: z.string().optional(),
-    }).optional(),
+    /**
+     * PREFERÊNCIAS DA CONVERSA
+     *
+     * Ausente aqui pelo mesmo motivo que no PATCH: o campo era descartado pelo
+     * zod antes de chegar ao banco. Ver o comentário em `[id]/route.ts`.
+     *
+     * `visualConfig` saiu: as cores por agente só valeriam no widget do site, e
+     * o widget nasce na paleta do sistema.
+     */
+    preferences: agentPreferencesPatchSchema.optional(),
 
     isActive: z.boolean().default(true),
 })
@@ -233,10 +241,19 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: allowed.error }, { status: allowed.status })
         }
 
+        // O agente nasce com as preferências completas gravadas, não com a
+        // coluna nula: assim a tela mostra o mesmo que o worker vai ler, em vez
+        // de cada lado inventar o seu próprio default.
+        const { preferences, ...scalars } = validatedData
+
         const agent = await prisma.agent.create({
             data: {
-                ...validatedData,
+                ...scalars,
                 workspaceId,
+                preferences: {
+                    ...DEFAULT_AGENT_PREFERENCES,
+                    ...preferences,
+                } as Prisma.InputJsonValue,
             },
         })
 

@@ -55,6 +55,61 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
 
     const prefs = readPreferences(agent)
 
+    /**
+     * O limite de interações por atendimento, que a tela oferece e ninguém lia.
+     *
+     * Conta as respostas que o agente já deu neste fio — inclui saudação e
+     * mensagem de regra, que também são o agente falando. Ao estourar, o agente
+     * se cala de vez nesta conversa (a contagem não volta a cair), a thread fica
+     * sem responsável para aparecer em "Em espera", e o paciente ouve uma vez
+     * que uma pessoa vai continuar. Sem o aviso, a conversa emudeceria no meio.
+     *
+     * É também a única trava que impede um fio em loop de queimar crédito
+     * indefinidamente.
+     */
+    const agentReplies = await prisma.message.count({
+        where: {
+            conversationId,
+            direction: 'outbound',
+            sentBy: 'agent',
+            isInternal: false,
+        },
+    })
+
+    if (agentReplies >= prefs.interactionLimit) {
+        log.info(
+            `conversation ${conversationId} reached the interaction limit ` +
+            `(${agentReplies}/${prefs.interactionLimit}); handing over`
+        )
+
+        const notice = await claimAutoNotice(conversationId, 'interaction_limit')
+        if (notice) {
+            await prisma.message.create({
+                data: {
+                    conversationId,
+                    direction: 'internal',
+                    content:
+                        `O agente atingiu o limite de ${prefs.interactionLimit} interações ` +
+                        'neste atendimento e parou de responder. A conversa está aguardando a equipe.',
+                    contentType: 'text',
+                    sentBy: 'agent',
+                    isInternal: true,
+                    status: 'sent',
+                },
+            })
+
+            await enqueueOutboundText({
+                conversationId,
+                content: notice,
+                integrationId,
+                to,
+                sentBy: 'system',
+                agentId,
+            })
+        }
+        return
+    }
+
     // Typing indicator while the model works. Cosmetic, never fatal.
     if (prefs.showTypingIndicator) {
         try {

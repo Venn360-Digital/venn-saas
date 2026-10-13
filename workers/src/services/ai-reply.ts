@@ -6,7 +6,7 @@ import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '../env'
 import { createLogger } from '../logger'
-import { buildSystemPrompt, type KnowledgeChunk } from './prompt'
+import { buildSystemPrompt, readPreferences, type KnowledgeChunk } from './prompt'
 
 const log = createLogger('AI_REPLY')
 
@@ -77,11 +77,22 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     const credits = await checkCredits(workspaceId)
     if (!credits.hasCredits) throw new OutOfCreditsError(workspaceId)
 
-    // Newest messages matter most, so take from the end and restore chronology.
+    /**
+     * "Manter contexto da conversa" decide quanto do fio o modelo vê.
+     *
+     * Ligado (o padrão), o modelo recebe as últimas `AI_HISTORY_LIMIT` mensagens.
+     * Desligado, recebe só a última do paciente — cada mensagem é respondida como
+     * se fosse a primeira. O interruptor existia na tela e não era lido por
+     * ninguém; agora vale, e de quebra é o jeito de uma clínica cortar custo de
+     * token num atendimento que não precisa de memória.
+     */
+    const prefs = readPreferences(agent)
+
     const recent = await prisma.message.findMany({
         where: { conversationId },
+        // Newest messages matter most, so take from the end and restore chronology.
         orderBy: { createdAt: 'desc' },
-        take: env.AI_HISTORY_LIMIT,
+        take: prefs.keepContext ? env.AI_HISTORY_LIMIT : 1,
     })
     const history = recent.reverse()
 

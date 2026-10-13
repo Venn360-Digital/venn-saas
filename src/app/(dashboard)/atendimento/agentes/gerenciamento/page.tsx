@@ -4,7 +4,6 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
-import { CamposCustomizadosTab } from '@/components/agents/creation/tabs/CamposCustomizadosTab'
 import { HistoricoTab } from '@/components/agents/creation/tabs/HistoricoTab'
 import { AcoesTab } from '@/components/agents/creation/tabs/AcoesTab'
 import { useAgentManagement } from '@/hooks/useAgentManagement'
@@ -13,7 +12,7 @@ import { toast } from 'sonner'
 
 function GerenciamentoContent() {
     const searchParams = useSearchParams()
-    const currentTab = searchParams.get('tab') || 'campos'
+    const currentTab = searchParams.get('tab') || 'historico'
 
     const urlAgentId = searchParams.get('id')
     const agentIdRef = useRef<string | null>(urlAgentId)
@@ -25,17 +24,13 @@ function GerenciamentoContent() {
     const [loading, setLoading] = useState(!!urlAgentId)
 
     const {
-        customFields,
-        setCustomFields,
         conversations,
         isActive,
         loadManagementData,
-        saveCustomFields,
         duplicateAgent,
         toggleAgentActive,
         deleteAgent,
         exportConversationsCSV,
-        isSaving,
     } = useAgentManagement(urlAgentId)
 
     useEffect(() => {
@@ -46,27 +41,20 @@ function GerenciamentoContent() {
         }
     }, [urlAgentId])
 
-    const handleSave = useCallback(async () => {
-        const currentAgentId = agentIdRef.current
-
-        if (!currentAgentId) {
-            toast.error('É necessário criar o agente primeiro')
-            return
-        }
-
-        await saveCustomFields(currentAgentId)
-    }, [saveCustomFields])
+    /**
+     * Gerenciamento não tem o que salvar.
+     *
+     * Era aqui que os campos customizados eram gravados; com a aba fora, Histórico
+     * é leitura e Ações agem na hora do clique. O botão da moldura fica, porque é
+     * o mesmo rodapé de todas as seções, e diz o que está acontecendo em vez de
+     * fingir que gravou algo.
+     */
+    const handleSave = useCallback(() => {
+        toast.info('Nada a salvar aqui: as ações desta seção valem no momento do clique')
+    }, [])
 
     const renderTab = () => {
         switch (currentTab) {
-            case 'campos':
-                return (
-                    <CamposCustomizadosTab
-                        agentId={urlAgentId}
-                        fields={customFields}
-                        onChange={setCustomFields}
-                    />
-                )
             case 'historico':
                 return (
                     <HistoricoTab
@@ -103,7 +91,7 @@ function GerenciamentoContent() {
             currentSection="gerenciamento"
             currentTab={currentTab}
             onSave={handleSave}
-            isSaving={isSaving}
+            isSaving={false}
         >
             {renderTab()}
         </AgentCreationLayout>

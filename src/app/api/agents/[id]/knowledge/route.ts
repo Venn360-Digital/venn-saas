@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
-import { z } from 'zod'
-
-const knowledgeDocSchema = z.object({
-    title: z.string().min(1, "Título é obrigatório"),
-    content: z.string().default(''),
-    type: z.enum(['faq', 'doc', 'website', 'video']),
-    url: z.string().url().optional(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-})
 
 export async function GET(
     request: NextRequest,
@@ -43,31 +33,107 @@ export async function GET(
             return new NextResponse('Forbidden', { status: 403 })
         }
 
-        const documents = await prisma.knowledgeDocument.findMany({
-            where: {
-                agentId,
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
+        /**
+         * Uma linha por **fonte**, não por trecho.
+         *
+         * A tabela guarda um trecho por linha — um PDF de dez páginas são dez
+         * linhas com o mesmo título. Devolvendo as linhas cruas, a tela de
+         * edição listaria o mesmo arquivo dez vezes. O agrupamento é por
+         * (tipo, título), que é a chave que o indexador usa para substituir uma
+         * fonte reenviada.
+         *
+         * `chars` é a soma dos trechos: é o número que a tela mostra para a
+         * clínica saber o que de fato entrou no cérebro.
+         */
+        const chunks = await prisma.knowledgeDocument.findMany({
+            where: { agentId },
+            orderBy: { createdAt: 'asc' },
             select: {
                 id: true,
                 title: true,
+                content: true,
                 type: true,
                 url: true,
-                metadata: true,
                 createdAt: true,
-            }
+            },
         })
 
-        return NextResponse.json(documents)
+        const sources = new Map<
+            string,
+            {
+                id: string
+                title: string
+                type: string
+                url: string | null
+                chars: number
+                chunks: number
+                createdAt: Date
+                /** Só para FAQ, onde o texto indexado é "Pergunta:/Resposta:". */
+                content: string
+            }
+        >()
+
+        for (const chunk of chunks) {
+            const key = `${chunk.type}::${chunk.title}`
+            const found = sources.get(key)
+
+            if (found) {
+                found.chars += chunk.content.length
+                found.chunks += 1
+                continue
+            }
+
+            sources.set(key, {
+                id: chunk.id,
+                title: chunk.title,
+                type: chunk.type,
+                url: chunk.url,
+                chars: chunk.content.length,
+                chunks: 1,
+                createdAt: chunk.createdAt,
+                // O primeiro trecho basta para reconstruir a resposta de uma
+                // FAQ; um arquivo não é devolvido inteiro de propósito, porque
+                // a tela só precisa do nome e do tamanho.
+                content: chunk.type === 'faq' ? chunk.content : '',
+            })
+        }
+
+        return NextResponse.json(
+            [...sources.values()].sort(
+                (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+            )
+        )
     } catch (error) {
         console.error('[KNOWLEDGE_GET]', error)
         return new NextResponse('Internal Error', { status: 500 })
     }
 }
 
-export async function POST(
+/**
+ * Não existe mais POST aqui.
+ *
+ * Esta rota gravava o documento inteiro numa linha, sem embedding — e o
+ * buscador consulta por vetor, então o que ela gravava nunca era encontrado.
+ * Era por aqui que FAQ e site entravam, e é por isso que o Cérebro parecia
+ * funcionar na tela e não funcionava na conversa.
+ *
+ * O caminho único para acrescentar conhecimento é `POST /api/rag/index`, que
+ * quebra em trechos e gera os vetores no worker. O GET acima e o DELETE abaixo
+ * continuam aqui porque são sobre *ler* e *remover* o que já foi indexado.
+ */
+
+/**
+ * Apaga uma **fonte** do cérebro, com todos os seus trechos.
+ *
+ * Era `?documentId=`, que apaga uma linha — ou seja, um pedaço. Num arquivo de
+ * dez trechos, remover pela tela deixava nove no ar, e o agente continuava
+ * respondendo com o que a clínica acabou de apagar. A fonte é identificada por
+ * (tipo, título), a mesma chave que o indexador usa para substituir.
+ *
+ * `documentId` continua aceito: a linha é lida para descobrir tipo e título, e
+ * então a fonte inteira sai.
+ */
+export async function DELETE(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
@@ -80,9 +146,6 @@ export async function POST(
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        const body = await request.json()
-
-        // Verify user has access to this agent
         const agent = await prisma.agent.findFirst({
             where: {
                 id: agentId,
@@ -90,88 +153,50 @@ export async function POST(
                     users: {
                         some: {
                             userId: user.id,
-                            role: { in: ['OWNER', 'ADMIN'] }
-                        }
-                    }
-                }
-            }
+                            isActive: true,
+                            role: { in: ['OWNER', 'ADMIN'] },
+                        },
+                    },
+                },
+            },
+            select: { id: true },
         })
 
         if (!agent) {
             return new NextResponse('Forbidden', { status: 403 })
         }
 
-        const validatedData = knowledgeDocSchema.parse(body)
-
-        const document = await prisma.knowledgeDocument.create({
-            data: {
-                agentId,
-                title: validatedData.title,
-                content: validatedData.content,
-                type: validatedData.type,
-                url: validatedData.url,
-                // A coluna é Json?; o zod valida Record<string, unknown> e o
-                // Prisma exige a sua própria marca de JSON de entrada.
-                metadata: validatedData.metadata as Prisma.InputJsonValue,
-            },
-        })
-
-        return NextResponse.json(document)
-    } catch (error) {
-        if (error instanceof z.ZodError) {
-            return new NextResponse(JSON.stringify(error.issues), { status: 400 })
-        }
-        console.error('[KNOWLEDGE_POST]', error)
-        return new NextResponse('Internal Error', { status: 500 })
-    }
-}
-
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    // Note: params not used in DELETE, documentId comes from searchParams
-    try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const searchParams = request.nextUrl.searchParams
         const documentId = searchParams.get('documentId')
+        let title = searchParams.get('title')
+        let type = searchParams.get('type')
 
-        if (!documentId) {
-            return new NextResponse('Document ID required', { status: 400 })
-        }
-
-        // Verify user has access
-        const document = await prisma.knowledgeDocument.findFirst({
-            where: {
-                id: documentId,
-                agent: {
-                    workspace: {
-                        users: {
-                            some: {
-                                userId: user.id,
-                                role: { in: ['OWNER', 'ADMIN'] }
-                            }
-                        }
-                    }
-                }
+        if (!title || !type) {
+            if (!documentId) {
+                return NextResponse.json(
+                    { error: 'Informe title e type, ou documentId' },
+                    { status: 400 }
+                )
             }
-        })
 
-        if (!document) {
-            return new NextResponse('Forbidden', { status: 403 })
+            const chunk = await prisma.knowledgeDocument.findFirst({
+                where: { id: documentId, agentId },
+                select: { title: true, type: true },
+            })
+
+            if (!chunk) {
+                return new NextResponse('Not found', { status: 404 })
+            }
+
+            title = chunk.title
+            type = chunk.type
         }
 
-        await prisma.knowledgeDocument.delete({
-            where: { id: documentId },
+        const removed = await prisma.knowledgeDocument.deleteMany({
+            where: { agentId, title, type },
         })
 
-        return new NextResponse(null, { status: 204 })
+        return NextResponse.json({ removed: removed.count })
     } catch (error) {
         console.error('[KNOWLEDGE_DELETE]', error)
         return new NextResponse('Internal Error', { status: 500 })

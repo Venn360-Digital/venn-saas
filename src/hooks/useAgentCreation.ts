@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AgentCreationData, PerfilData, TrabalhoData, CerebroData, VozData, VisualData } from '@/types/agent-creation'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
-import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 export function useAgentCreation(workspaceId: string) {
     const router = useRouter()
@@ -30,14 +29,7 @@ export function useAgentCreation(workspaceId: string) {
         voiceEnabled: false,
     })
 
-    const [visual, setVisual] = useState<VisualData>({
-        visualConfig: {
-            userMessageColor: AGENT_WIDGET_DEFAULTS.userMessageColor,
-            userFontColor: AGENT_WIDGET_DEFAULTS.userFontColor,
-            agentMessageColor: AGENT_WIDGET_DEFAULTS.agentMessageColor,
-            agentFontColor: AGENT_WIDGET_DEFAULTS.agentFontColor,
-        },
-    })
+    const [visual, setVisual] = useState<VisualData>({})
 
     const handleSave = async (agentId?: string | null) => {
         // Validação básica
@@ -75,9 +67,6 @@ export function useAgentCreation(workspaceId: string) {
                 voiceModel: voz.voiceModel,
                 voiceTraining: voz.voiceTraining,
 
-                // Visual
-                avatar: visual.avatar,
-                visualConfig: visual.visualConfig,
 
                 // AI Configuration (defaults)
                 llmProvider: 'openai',
@@ -87,17 +76,10 @@ export function useAgentCreation(workspaceId: string) {
                 isActive: true,
             }
 
-            console.log('[SAVE] Saving agent with workspaceId:', workspaceId)
-            console.log('[SAVE] Agent ID:', agentId)
-            console.log('[SAVE] Agent ID type:', typeof agentId)
-            console.log('[SAVE] Is editing?', !!agentId && agentId.trim() !== '')
-            console.log('[SAVE] Payload:', payload)
-
             let response
             // Verificação robusta: agentId deve ser string não-vazia
             if (agentId && typeof agentId === 'string' && agentId.trim() !== '') {
                 // UPDATE - Editar agente existente
-                console.log('[SAVE] MODE: UPDATE (PATCH)')
                 response = await fetch(`/api/agents/${agentId}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -105,15 +87,12 @@ export function useAgentCreation(workspaceId: string) {
                 })
             } else {
                 // CREATE - Criar novo agente
-                console.log('[SAVE] MODE: CREATE (POST)')
                 response = await fetch(`/api/agents?workspaceId=${workspaceId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 })
             }
-
-            console.log('[SAVE] Response status:', response.status)
 
             if (!response.ok) {
                 const errorText = await response.text()
@@ -122,18 +101,49 @@ export function useAgentCreation(workspaceId: string) {
             }
 
             const agent = await response.json()
-            console.log('[SAVE] Agent saved:', agent)
 
             /**
              * A base de conhecimento acompanha o salvar, criando ou editando.
              *
              * Antes só gravava na criação: arquivo, FAQ ou site acrescentado
              * depois sumia no salvar sem dizer nada. Os itens novos são os que
-             * ainda não têm registro — FAQ e site repetidos seriam duplicata, e
-             * é por isso que a tela de edição carrega o que já existe.
+             * não vieram da base — a tela de edição carrega o que já existe e
+             * marca como `persisted`, então salvar não re-indexa o acervo.
              */
-            if (cerebro.faqs.length > 0 || cerebro.websites.length > 0 || cerebro.videos.length > 0 || cerebro.files.length > 0) {
+            // `videos` fora da conta: o YouTube não é indexado ainda — ver a
+            // nota na aba Cérebro — e um vídeo na lista não dá o que gravar.
+            if (cerebro.faqs.length > 0 || cerebro.websites.length > 0 || cerebro.files.length > 0) {
                 await saveKnowledgeBase(agent.id)
+            }
+
+            /**
+             * A imagem sobe depois do agente existir.
+             *
+             * O caminho no Storage é escopado por workspace e agente, então não
+             * há onde colocar o arquivo antes de haver um id. Falhar aqui não
+             * desfaz o agente salvo: o aviso é específico e o resto do trabalho
+             * da clínica fica de pé.
+             */
+            if (visual.avatarFile) {
+                const form = new FormData()
+                form.append('file', visual.avatarFile)
+
+                const avatarResponse = await fetch(`/api/agents/${agent.id}/avatar`, {
+                    method: 'POST',
+                    body: form,
+                })
+
+                if (avatarResponse.ok) {
+                    const { avatar } = await avatarResponse.json()
+                    setVisual({ avatar: avatar ?? undefined, avatarFile: null })
+                } else {
+                    const { error } = await avatarResponse.json().catch(() => ({ error: '' }))
+                    toast.error(error || 'O agente foi salvo, mas a imagem não subiu')
+                }
+            } else if (visual.avatar === '' && agentId) {
+                // Imagem removida na tela: a coluna precisa ser limpa no banco,
+                // senão o retrato antigo volta no próximo carregamento.
+                await fetch(`/api/agents/${agentId}/avatar`, { method: 'DELETE' })
             }
 
             toast.success(`Agente ${agentId ? 'atualizado' : 'criado'}`)
@@ -173,74 +183,96 @@ export function useAgentCreation(workspaceId: string) {
         return prompt
     }
 
+    /**
+     * Grava o Cérebro — tudo por `/api/rag/index`, que é o único caminho que
+     * gera vetor.
+     *
+     * Antes, só arquivo ia para a fila de indexação. FAQ e site eram gravados
+     * como linha crua em `/api/agents/[id]/knowledge`, sem embedding, e o
+     * buscador ordena por distância de vetor: linha sem vetor ordena por último
+     * e só aparecia enquanto houvesse menos trechos vetorizados que o limite.
+     * Bastava um PDF para as FAQs da clínica sumirem da consulta para sempre.
+     *
+     * Só o que é novo é enviado: `persisted` marca o que já veio da base ao abrir
+     * a tela, e reenviar tudo a cada salvar pagaria embedding do acervo inteiro.
+     */
     const saveKnowledgeBase = async (agentId: string) => {
-        try {
-            // Salvar FAQs
-            for (const faq of cerebro.faqs) {
-                await fetch(`/api/agents/${agentId}/knowledge`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: faq.question,
-                        content: faq.answer,
-                        type: 'faq',
-                    }),
-                })
+        const index = async (body: {
+            title: string
+            content: string
+            type: 'faq' | 'doc' | 'website'
+            url?: string
+        }) => {
+            const response = await fetch('/api/rag/index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agentId,
+                    ...body,
+                    // Reenviar a mesma fonte substitui o que havia, em vez de
+                    // somar uma segunda cópia de cada trecho.
+                    replaceExisting: true,
+                }),
+            })
+            if (!response.ok) {
+                throw new Error(body.title)
             }
+        }
 
-            // Salvar Websites
-            for (const website of cerebro.websites) {
-                await fetch(`/api/agents/${agentId}/knowledge`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: website.url,
-                        type: 'website',
-                        url: website.url,
-                    }),
-                })
-            }
+        const failed: string[] = []
 
-            /**
-             * Arquivos: o texto vai para a fila de indexação, não para a tabela.
-             *
-             * `/api/rag/index` quebra em pedaços e gera os embeddings no worker
-             * — é o que faz o agente *achar* o trecho na hora de responder.
-             * Gravar o documento inteiro numa linha, como as FAQs fazem, deixa
-             * o texto no banco sem vetor: fica guardado e nunca é consultado.
-             */
-            for (const file of cerebro.files) {
-                if (!file.content?.trim()) continue
-                await fetch('/api/rag/index', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        agentId,
-                        title: file.filename,
-                        content: file.content,
-                        type: 'doc',
-                        // Reenviar o mesmo arquivo substitui o que havia, em vez
-                        // de somar uma segunda cópia de cada trecho.
-                        replaceExisting: true,
-                    }),
+        /**
+         * A pergunta entra no texto indexado, não só no título.
+         *
+         * O embedding é calculado sobre o conteúdo do trecho. Indexando apenas a
+         * resposta, "vocês atendem convênio?" tinha que se parecer com o texto
+         * da resposta — que normalmente não repete a pergunta. Com as duas
+         * linhas juntas, a busca encontra pela pergunta, que é como o paciente
+         * escreve.
+         */
+        for (const faq of cerebro.faqs) {
+            if (faq.persisted) continue
+            try {
+                await index({
+                    title: faq.question,
+                    content: `Pergunta: ${faq.question}\nResposta: ${faq.answer}`,
+                    type: 'faq',
                 })
+            } catch {
+                failed.push(faq.question)
             }
+        }
 
-            // Salvar Videos
-            for (const video of cerebro.videos) {
-                await fetch(`/api/agents/${agentId}/knowledge`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: video.url,
-                        type: 'video',
-                        url: video.url,
-                    }),
+        for (const website of cerebro.websites) {
+            if (website.persisted) continue
+            if (!website.content?.trim()) continue
+            try {
+                await index({
+                    title: website.title || website.url,
+                    content: website.content,
+                    type: 'website',
+                    url: website.url,
                 })
+            } catch {
+                failed.push(website.url)
             }
-        } catch (error) {
-            console.error('Error saving knowledge base:', error)
-            // Não falhar a criação do agente se a knowledge base falhar
+        }
+
+        for (const file of cerebro.files) {
+            if (file.persisted) continue
+            if (!file.content?.trim()) continue
+            try {
+                await index({ title: file.filename, content: file.content, type: 'doc' })
+            } catch {
+                failed.push(file.filename)
+            }
+        }
+
+        if (failed.length > 0) {
+            toast.error(
+                `Não foi possível indexar: ${failed.slice(0, 3).join(', ')}` +
+                (failed.length > 3 ? ` e mais ${failed.length - 3}` : '')
+            )
         }
     }
 

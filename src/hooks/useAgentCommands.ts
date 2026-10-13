@@ -3,17 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { PreferenciasData, RuleData } from '@/types/agent-creation'
-
-const DEFAULT_PREFERENCIAS: PreferenciasData = {
-    showTypingIndicator: false,
-    responseSpeed: 2,
-    keepContext: false,
-    useEmojis: false,
-    allowManualTakeover: false,
-    restrictTopics: false,
-    interactionLimit: 50,
-}
+import { RuleData } from '@/types/agent-creation'
+import {
+    DEFAULT_AGENT_PREFERENCES,
+    readAgentPreferences,
+    type AgentPreferences,
+} from '@/types/agent-preferences'
 
 export function useAgentCommands(agentId?: string | null) {
     const router = useRouter()
@@ -23,7 +18,7 @@ export function useAgentCommands(agentId?: string | null) {
     const [rules, setRules] = useState<RuleData[]>([])
 
     // Estado das preferências
-    const [preferencias, setPreferencias] = useState<PreferenciasData>(DEFAULT_PREFERENCIAS)
+    const [preferencias, setPreferencias] = useState<AgentPreferences>(DEFAULT_AGENT_PREFERENCES)
 
     // Carregar dados do agente (preferências e regras)
     const loadCommands = async (id: string) => {
@@ -41,13 +36,13 @@ export function useAgentCommands(agentId?: string | null) {
                 })))
             }
 
-            // Carregar preferências do agente
+            // Carregar preferências do agente. `readAgentPreferences` descarta
+            // valor inválido e preenche o que falta, então um agente gravado por
+            // uma versão anterior da tela abre sem campo vazio nem `NaN`.
             const agentResponse = await fetch(`/api/agents/${id}`)
             if (agentResponse.ok) {
                 const agent = await agentResponse.json()
-                if (agent.preferences) {
-                    setPreferencias({ ...DEFAULT_PREFERENCIAS, ...agent.preferences })
-                }
+                setPreferencias(readAgentPreferences(agent.preferences))
             }
         } catch (error) {
             console.error('Error loading commands:', error)

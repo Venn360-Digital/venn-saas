@@ -1,4 +1,5 @@
 import type { Agent } from '@prisma/client'
+import { type AgentPreferences, readAgentPreferences } from '@/types/agent-preferences'
 
 export interface KnowledgeChunk {
     title: string
@@ -6,18 +7,16 @@ export interface KnowledgeChunk {
     similarity?: number
 }
 
-interface AgentPreferences {
-    useEmojis?: boolean
-    restrictTopics?: boolean
-    keepContext?: boolean
-    interactionLimit?: number
-    responseSpeed?: 'instant' | 'fast' | 'natural' | 'slow'
-    showTypingIndicator?: boolean
-    allowManualTakeover?: boolean
-}
-
+/**
+ * As preferências do agente, com os defaults preenchidos.
+ *
+ * A forma vive em `@/types/agent-preferences`, junto com a tela e a API. A
+ * interface local que existia aqui declarava `responseSpeed` como um enum de
+ * texto enquanto a tela gravava segundos — e como ninguém comparava as duas, o
+ * slider nunca teve efeito.
+ */
 export function readPreferences(agent: Agent): AgentPreferences {
-    return (agent.preferences ?? {}) as AgentPreferences
+    return readAgentPreferences(agent.preferences)
 }
 
 /**

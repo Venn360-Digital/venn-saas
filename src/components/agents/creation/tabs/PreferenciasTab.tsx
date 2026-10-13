@@ -3,29 +3,24 @@
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
-import { cn } from '@/lib/utils'
+import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-preferences'
 
-interface PreferenciasData {
-    showTypingIndicator: boolean
-    responseSpeed: number // 0-10 segundos
-    keepContext: boolean
-    useEmojis: boolean
-    allowManualTakeover: boolean
-    restrictTopics: boolean
-    interactionLimit: number // 10, 25, 50, 100
-}
-
+/**
+ * A forma dos dados vem de `@/types/agent-preferences`, que é a mesma que a API
+ * valida e o worker lê. Esta tela tinha a sua própria cópia da interface, e foi
+ * essa cópia solta que deixou `responseSpeed` virar segundos aqui e um enum de
+ * texto no worker, sem ninguém notar.
+ *
+ * Saiu daqui o interruptor "habilitar assumir a conversa manualmente": assumir
+ * uma conversa **sempre** interrompe o agente, não é opcional, e o interruptor
+ * sugeria que desligá-lo faria o agente responder por cima do atendente. O que
+ * falta de verdade é devolver a conversa ao agente depois, e isso é outro
+ * trabalho.
+ */
 interface PreferenciasTabProps {
-    data: PreferenciasData
-    onChange: (data: Partial<PreferenciasData>) => void
+    data: AgentPreferences
+    onChange: (data: Partial<AgentPreferences>) => void
 }
-
-const INTERACTION_LIMITS = [
-    { value: 10, label: '10 interações' },
-    { value: 25, label: '25 interações' },
-    { value: 50, label: '50 interações' },
-    { value: 100, label: '100 interações' },
-]
 
 function ToggleOption({
     checked,
@@ -74,7 +69,8 @@ export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
                     <div>
                         <Label className="text-base font-medium">Velocidade de resposta</Label>
                         <p className="text-sm text-muted-foreground">
-                            Controle o delay entre as mensagens do Agente
+                            Tempo de espera antes do Agente responder, somado à pausa que
+                            ele já faz para o paciente terminar de escrever
                         </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -104,13 +100,6 @@ export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
                 />
 
                 <ToggleOption
-                    checked={data.allowManualTakeover}
-                    onCheckedChange={(checked) => onChange({ allowManualTakeover: checked })}
-                    title="Habilitar assumir a conversa manualmente e interromper as respostas do Agente"
-                    description="Permite que operadores assumam a conversa e interrompam as respostas automáticas do Agente"
-                />
-
-                <ToggleOption
                     checked={data.restrictTopics}
                     onCheckedChange={(checked) => onChange({ restrictTopics: checked })}
                     title="Restringir Temas Permitidos"
@@ -122,7 +111,8 @@ export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
                     <div className="space-y-1">
                         <Label className="text-base font-medium">Limite de interações por atendimento</Label>
                         <p className="text-sm text-muted-foreground">
-                            Defina a quantidade de interações que o agente pode aceitar por atendimento.
+                            Quantas respostas o Agente dá numa conversa. Ao atingir o limite
+                            ele para, avisa o paciente e deixa a conversa para a equipe.
                         </p>
                     </div>
                     <select
@@ -131,8 +121,8 @@ export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
                         className="h-10 rounded-md border bg-muted/50 px-3 text-sm"
                     >
                         {INTERACTION_LIMITS.map((limit) => (
-                            <option key={limit.value} value={limit.value}>
-                                {limit.label}
+                            <option key={limit} value={limit}>
+                                {limit} interações
                             </option>
                         ))}
                     </select>

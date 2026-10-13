@@ -50,8 +50,12 @@ const sections = [
         id: 'gerenciamento',
         label: 'Gerenciamento',
         icon: '📊',
+        // "Campos customizados" saiu: a variável {{nome}} que a aba prometia
+        // nunca foi substituída em mensagem nenhuma — não havia interpolação em
+        // lugar algum do sistema. Era tela, tabela e rota para um recurso que
+        // nunca existiu. Os campos por paciente continuam em Pacientes, que são
+        // os que a clínica usa de verdade.
         tabs: [
-            { id: 'campos', label: 'Campos customizados', icon: '📝' },
             { id: 'historico', label: 'Histórico', icon: '📜' },
             { id: 'acoes', label: 'Ações', icon: '⚡' },
         ],
