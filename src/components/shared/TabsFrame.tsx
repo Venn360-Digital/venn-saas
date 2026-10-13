@@ -60,11 +60,15 @@ export function TabsFrame({
                 {primary ? <span className="ml-1 shrink-0">{primary}</span> : null}
             </div>
 
-            {/* Linha 2 — as guias */}
+            {/* Linha 2 — as guias. `overflow-y-hidden`: a linha tem 46px com um
+                fio de 1px, e o conteúdo de 46 não cabe nos 45 que sobram — sem
+                isso o navegador desenhava uma barra de rolagem vertical no
+                cabeçalho. As guias vão a `h-full` para o sublinhado encostar no
+                fio em vez de ser cortado por ele. */}
             <div
                 role="tablist"
                 aria-label={title}
-                className="flex h-[46px] shrink-0 items-center gap-6 overflow-x-auto border-b border-border bg-card px-4 md:px-6"
+                className="flex h-[46px] shrink-0 items-center gap-6 overflow-x-auto overflow-y-hidden border-b border-border bg-card px-4 md:px-6"
             >
                 {tabs.map(({ id, label, icon: Icon }) => {
                     const on = id === active
@@ -76,7 +80,7 @@ export function TabsFrame({
                             aria-selected={on}
                             onClick={() => onChange(id)}
                             className={cn(
-                                'relative flex h-[46px] shrink-0 items-center gap-2 whitespace-nowrap text-[13px] outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                                'relative flex h-full shrink-0 items-center gap-2 whitespace-nowrap text-[13px] outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
                                 on ? 'font-semibold text-foreground' : 'text-muted-foreground hover:text-foreground'
                             )}
                         >

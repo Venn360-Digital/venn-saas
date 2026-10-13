@@ -86,7 +86,7 @@ export function IndexFrame({
             {/* Linha 2 */}
             {/* `pb-1.5` sobe busca e pílulas 3px: o respiro vai para baixo, do
                 lado do cabeçalho da tabela, que é onde faz falta. */}
-            <div className="flex h-[46px] shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-4 pb-1.5 md:px-6">
+            <div className="flex h-[46px] shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-border bg-card px-4 pb-1.5 md:px-6">
                 {onSearchChange ? (
                     <div className="relative w-[250px] shrink-0">
                         <Search
