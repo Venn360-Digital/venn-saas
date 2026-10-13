@@ -3,6 +3,7 @@
 import { PLAN_CHANNELS } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { BandLayout, SettingsBand, SettingsRow } from '@/components/shared/TabsFrame'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { FormField } from '@/components/shared/FormField'
@@ -16,7 +17,6 @@ import {
     CreditCard,
     X
 } from 'lucide-react'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TermsCard } from '@/components/account/TermsCard'
 import { toast } from 'sonner'
 
@@ -34,6 +34,7 @@ interface SubscriptionData {
         brand: string
     } | null
     trialEndsAt: string | null
+    currentPeriodEnd: string | null
     plans: {
         flow: PlanConfig
         pro: PlanConfig
@@ -69,6 +70,9 @@ export function PlanoTab() {
     const [showCreditsModal, setShowCreditsModal] = useState(false)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showCancelModal, setShowCancelModal] = useState(false)
+    /** O cancelamento pede o e-mail de quem está logado, digitado à mão. */
+    const [cancelEmail, setCancelEmail] = useState('')
+    const [adminEmail, setAdminEmail] = useState('')
 
     // Action states
     const [selectedPlan, setSelectedPlan] = useState('')
@@ -150,19 +154,32 @@ export function PlanoTab() {
         }
     }
 
+    useEffect(() => {
+        fetch('/api/account/profile')
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => data?.email && setAdminEmail(data.email))
+            .catch(() => {
+                // Sem o e-mail a confirmação ainda funciona: quem confere de
+                // verdade é o servidor.
+            })
+    }, [])
+
     const handleCancelPlan = async () => {
         setProcessing(true)
         try {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'cancel' })
+                // O e-mail digitado vai junto: o servidor confere de novo,
+                // porque uma confirmação que só existe no navegador é teatro.
+                body: JSON.stringify({ action: 'cancel', confirmEmail: cancelEmail.trim() })
             })
 
             if (res.ok) {
                 const data = await res.json()
                 toast.success(data.message)
                 setShowCancelModal(false)
+                setCancelEmail('')
                 loadSubscription()
             } else {
                 const error = await res.json()
@@ -187,6 +204,15 @@ export function PlanoTab() {
             </div>
         )
     }
+
+    /** Até quando o acesso vale: o fim do ciclo pago ou o fim da avaliação. */
+    const accessUntil = subscription?.currentPeriodEnd ?? subscription?.trialEndsAt ?? null
+    const accessUntilLabel = accessUntil
+        ? new Date(accessUntil).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : 'o fim do período já pago'
+    const emailMatches =
+        adminEmail.trim().length > 0 &&
+        cancelEmail.trim().toLowerCase() === adminEmail.trim().toLowerCase()
 
     const isTrialing = subscription?.status === 'trialing'
     const trialDaysLeft = subscription?.trialEndsAt
@@ -289,27 +315,25 @@ export function PlanoTab() {
                 onOpenChange={setShowPlanModal}
                 title="Alterar plano"
                 description="A troca vale a partir do próximo ciclo; o que já foi pago continua valendo."
+                size="wide"
             >
-                <div className="col-span-2 space-y-4">
+                <div className="col-span-2 flex min-h-full flex-col gap-4">
 
-                    {/* Trial Banner in Modal */}
+                    {/* O aviso de avaliação em uma linha: a versão longa é a da
+                        guia, e repetida aqui empurrava os planos para fora. */}
                     {isTrialing && (
-                        <div className="flex items-center justify-between p-4 rounded-lg bg-muted border border-border mb-4">
-                            <div className="flex items-center gap-3">
-                                <Gift className="h-6 w-6 text-primary" />
-                                <div>
-                                    <p className="font-medium">Sua assinatura está em período de avaliação.</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Você possui {trialDaysLeft} dias de avaliação gratuita e {subscription?.credits?.toLocaleString('pt-BR')} créditos de IA para validar o seu agente de atendimento. Não é necessário inserir o cartão de crédito agora, e nada é cobrado até você efetivar a assinatura
-                                    </p>
-                                </div>
-                            </div>
-                            <Button variant="ghost" size="icon"><X className="h-5 w-5" /></Button>
-                        </div>
+                        <p className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-[12.5px]">
+                            <Gift className="size-4 shrink-0 text-primary" />
+                            <span>
+                                Em avaliação: faltam <strong>{trialDaysLeft} dias</strong> e você tem{' '}
+                                <strong>{subscription?.credits?.toLocaleString('pt-BR')} créditos</strong>. Nada é
+                                cobrado até efetivar a assinatura.
+                            </span>
+                        </p>
                     )}
 
                     {/* Plan Cards */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid flex-1 grid-cols-1 items-stretch gap-4 md:grid-cols-3">
                         {(['flow', 'pro', 'advanced'] as const).map((planKey) => {
                             const plan = subscription?.plans[planKey]
                             if (!plan) return null
@@ -323,46 +347,58 @@ export function PlanoTab() {
                                 <div
                                     key={planKey}
                                     onClick={() => setSelectedPlan(planKey)}
-                                    className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all ${isSelected
-                                            ? 'border-primary bg-primary-subtle'
-                                            : 'border-border bg-card hover:border-border-strong'
-                                        }`}
+                                    className={cn(
+                                        'relative flex flex-col rounded-xl border p-4 transition-colors',
+                                        isSelected
+                                            ? 'border-primary bg-primary-subtle/40'
+                                            : 'border-border bg-card hover:border-border-strong',
+                                        !isCurrent && 'cursor-pointer'
+                                    )}
                                 >
                                     {isPopular && (
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-brand-accent text-brand-accent-foreground text-xs font-medium rounded-full">
-                                            MAIS POPULAR
-                                        </div>
+                                        <span className="absolute -top-2.5 left-4 rounded-full bg-brand-accent px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-brand-accent-foreground">
+                                            Mais popular
+                                        </span>
+                                    )}
+                                    {isCurrent && (
+                                        <span className="absolute -top-2.5 right-4 rounded-full bg-primary-subtle px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-primary-subtle-foreground">
+                                            Atual
+                                        </span>
                                     )}
 
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${planKey === 'flow' ? 'bg-warning-subtle' :
-                                            planKey === 'pro' ? 'bg-primary-subtle' :
-                                                'bg-muted'
-                                        }`}>
-                                        <Icon className={`h-5 w-5 ${planKey === 'flow' ? 'text-warning-subtle-foreground' :
-                                                planKey === 'pro' ? 'text-primary' :
-                                                    'text-muted-foreground'
-                                            }`} />
+                                    <div className="flex items-center gap-2">
+                                        <span className={cn(
+                                            'flex size-8 shrink-0 items-center justify-center rounded-lg',
+                                            planKey === 'flow' ? 'bg-warning-subtle' : planKey === 'pro' ? 'bg-primary-subtle' : 'bg-muted'
+                                        )}>
+                                            <Icon className={cn(
+                                                'size-4',
+                                                planKey === 'flow' ? 'text-warning-subtle-foreground' : planKey === 'pro' ? 'text-primary' : 'text-muted-foreground'
+                                            )} />
+                                        </span>
+                                        <h3 className="text-[15px] font-bold">{plan.name}</h3>
                                     </div>
 
-                                    <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-                                    <div className="mb-4">
-                                        <span className="text-3xl font-bold">R$ {plan.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                        <span className="text-muted-foreground">/mês</span>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground mb-4">Cobrança mensal</p>
+                                    <p className="mt-3">
+                                        <span className="num text-2xl font-bold">
+                                            R$ {plan.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground"> /mês</span>
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">{plan.description}</p>
 
-                                    <div className="mb-4 border-t border-border pt-4">
-                                        <p className="text-xs text-muted-foreground">Conexões</p>
-                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                    <div className="mt-3 border-t border-border pt-3">
+                                        <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Conexões</p>
+                                        <div className="mt-1.5 flex flex-wrap gap-1">
                                             {PLAN_CHANNELS.map((channel) => {
                                                 const ChannelIcon = channel.icon
                                                 return (
                                                     <span
                                                         key={channel.id}
                                                         title={channel.label}
-                                                        className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+                                                        className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-1 text-[11px] text-muted-foreground"
                                                     >
-                                                        <ChannelIcon className="size-3.5" aria-hidden="true" />
+                                                        <ChannelIcon className="size-3" aria-hidden="true" />
                                                         {channel.label}
                                                     </span>
                                                 )
@@ -370,21 +406,21 @@ export function PlanoTab() {
                                         </div>
                                     </div>
 
-                                    <ul className="space-y-2 mb-6">
+                                    <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
                                         {plan.features.map((feature: string, idx: number) => (
-                                            <li key={idx} className="flex items-center gap-2 text-sm">
-                                                <Check className={`h-4 w-4 ${planKey === 'pro' ? 'text-primary' : 'text-primary'
-                                                    }`} />
+                                            <li key={idx} className="flex items-start gap-2 text-[12.5px] leading-snug">
+                                                <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
                                                 <span>{feature}</span>
                                             </li>
                                         ))}
                                     </ul>
 
+                                    {/* `mt-auto`: o botão fica no pé do cartão, na
+                                        mesma linha nos três, mesmo com listas de
+                                        tamanhos diferentes. */}
                                     <Button
-                                        className={`w-full ${planKey === 'pro'
-                                                ? 'bg-brand-accent text-brand-accent-foreground hover:bg-brand-accent-hover'
-                                                : 'bg-transparent border border-border-strong hover:bg-accent'
-                                            }`}
+                                        className="mt-auto w-full"
+                                        variant={isPopular && !isCurrent ? 'default' : 'outline'}
                                         onClick={(e) => {
                                             e.stopPropagation()
                                             setSelectedPlan(planKey)
@@ -392,7 +428,7 @@ export function PlanoTab() {
                                         }}
                                         disabled={isCurrent || processing}
                                     >
-                                        {isCurrent ? 'Plano atual' : 'Contratar →'}
+                                        {isCurrent ? 'Plano atual' : 'Contratar'}
                                     </Button>
                                 </div>
                             )
@@ -469,19 +505,94 @@ export function PlanoTab() {
             </RecordDialog>
 
 
-            {/* A plain Dialog was standing in for a confirmation here, which is
-                why it escaped the first sweep: same job as every Excluir, but
-                its own markup, its own button labels and its own pending flag. */}
-            <ConfirmDialog
+            {/* Cancelar não é um "tem certeza?": é a operação mais cara da
+                tela. O quadro diz até quando o plano vale e o que acontece
+                depois, e só libera o botão quando a pessoa digita o próprio
+                e-mail — o mesmo que o servidor confere. */}
+            <RecordDialog
                 open={showCancelModal}
-                onOpenChange={setShowCancelModal}
-                title="Cancelar plano"
-                description="O acesso continua até o fim do período já cobrado. Depois disso o workspace volta ao plano gratuito."
-                confirmLabel="Cancelar plano"
-                cancelLabel="Voltar"
-                destructive
-                onConfirm={handleCancelPlan}
-            />
+                onOpenChange={(open) => { setShowCancelModal(open); if (!open) setCancelEmail('') }}
+                title="Cancelar assinatura"
+                description="Leia o que muda antes de confirmar."
+                submitLabel="Cancelar assinatura"
+                hideAgain
+                submitting={processing}
+                onSubmit={() => { if (emailMatches) void handleCancelPlan() }}
+                summary={
+                    <>
+                        <SummaryCard className="flex-col items-start gap-1">
+                            <span className="text-[11px] text-muted-foreground">Acesso garantido até</span>
+                            <span className="num text-lg font-bold">{accessUntilLabel}</span>
+                        </SummaryCard>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                            Até lá nada muda. Depois dessa data os agentes param de responder e os
+                            números de WhatsApp são desconectados.
+                        </p>
+                    </>
+                }
+            >
+                <div className="col-span-2 space-y-4">
+                    <div className="rounded-lg border border-border bg-muted/40 p-4">
+                        <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                            O que acontece
+                        </p>
+                        <ul className="mt-2 space-y-2 text-[13px] leading-snug">
+                            <li className="flex items-start gap-2">
+                                <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                                <span>
+                                    O plano <strong>{subscription?.planName ?? '—'}</strong> continua valendo até{' '}
+                                    <strong className="num">{accessUntilLabel}</strong>. Não há reembolso do
+                                    período já pago, e nada é cobrado depois.
+                                </span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <X className="mt-0.5 size-3.5 shrink-0 text-destructive-subtle-foreground" />
+                                <span>
+                                    Depois dessa data os agentes param de responder, os números de WhatsApp
+                                    são desconectados e os{' '}
+                                    <strong className="num">{(subscription?.credits ?? 0).toLocaleString('pt-BR')}</strong>{' '}
+                                    créditos restantes deixam de valer.
+                                </span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                                <span>
+                                    As conversas, os pacientes e os negócios continuam guardados, e voltam
+                                    inteiros se a clínica assinar de novo.
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <FormField
+                        label="Digite o seu e-mail de administrador para confirmar"
+                        htmlFor="cancel-confirm-email"
+                        required
+                        hint={adminEmail ? `A conta em uso é ${adminEmail}.` : undefined}
+                        error={
+                            cancelEmail.trim() !== '' && !emailMatches
+                                ? 'O e-mail não confere com o da conta em uso.'
+                                : undefined
+                        }
+                    >
+                        <Input
+                            id="cancel-confirm-email"
+                            type="email"
+                            autoComplete="off"
+                            value={cancelEmail}
+                            onChange={(e) => setCancelEmail(e.target.value)}
+                            placeholder="voce@clinica.com.br"
+                        />
+                    </FormField>
+
+                    {!emailMatches ? (
+                        <p className="text-xs text-muted-foreground">
+                            O botão <strong>Cancelar assinatura</strong> só funciona depois que o e-mail
+                            confere.
+                        </p>
+                    ) : null}
+                </div>
+            </RecordDialog>
 
             {/* O acordo fica junto das outras condições — o que se paga, o que
                 se gasta, até quando. É onde alguém procura quando quer reler o

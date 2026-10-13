@@ -240,6 +240,21 @@ export async function POST(request: NextRequest) {
             }
 
             case 'cancel': {
+                /**
+                 * Cancelar é a operação mais cara da conta, e por isso pede o
+                 * e-mail de quem está logado digitado à mão. A conferência é
+                 * aqui, não só na tela: uma confirmação que só existe no
+                 * navegador não protege nada — some com um fetch.
+                 */
+                const { confirmEmail } = data as { confirmEmail?: string }
+                const typed = (confirmEmail ?? '').trim().toLowerCase()
+                if (!typed || typed !== (user.email ?? '').trim().toLowerCase()) {
+                    return NextResponse.json(
+                        { error: 'Digite o e-mail da conta em uso para confirmar o cancelamento' },
+                        { status: 400 }
+                    )
+                }
+
                 await prisma.subscription.update({
                     where: { workspaceId: workspaceUser.workspaceId },
                     data: {

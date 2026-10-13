@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, CreditCard, TriangleAlert } from 'lucide-react'
 
-import { Logo } from '@/components/brand/Logo'
+import { ClinicBrand } from '@/components/layout/ClinicBrand'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -88,17 +88,8 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard" aria-label="OdontoBox360">
-                                <span className="flex aspect-square size-8 shrink-0 items-center justify-center">
-                                    <Logo variant="mark" height={30} priority />
-                                </span>
-                                <span className="grid flex-1 text-left leading-tight">
-                                    <span className="truncate text-sm font-semibold">OdontoBox360</span>
-                                    <span className="truncate text-xs text-sidebar-foreground/70">
-                                        Atendimento com IA
-                                    </span>
-                                </span>
-                            </Link>
+                            {/* A marca é da clínica quando ela enviou uma logo. */}
+                            <ClinicBrand />
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>

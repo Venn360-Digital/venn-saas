@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { SettingsBand } from '@/components/shared/TabsFrame'
 
@@ -26,13 +27,18 @@ function BandFrame({
     children: React.ReactNode
 }) {
     return (
-        <SettingsBand
-            title={title}
-            description={typeof description === 'string' ? description : undefined}
-            aside={action}
-            last
-        >
-            <div className="max-w-5xl">{children}</div>
+        <SettingsBand title={title} last>
+            {/* O acordo num cartão de bordas arredondadas: a frase do estado e o
+                botão de ler ficam na mesma peça, e não soltos no pé da guia. */}
+            <div className="max-w-5xl rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">{children}</div>
+                    {action ? <div className="shrink-0">{action}</div> : null}
+                </div>
+                {description ? (
+                    <p className="mt-2 text-xs text-muted-foreground">{description}</p>
+                ) : null}
+            </div>
         </SettingsBand>
     )
 }
@@ -211,28 +217,31 @@ export function TermsCard({ band = false }: { band?: boolean }) {
                 onOpenChange={setReading}
                 title="Termos do acordo"
                 description={`Versão ${state.acceptedVersion ?? TERMS_VERSION}.`}
+                size="wide"
             >
-                <div className="col-span-2">
-                    <TermsText />
+                <div className="col-span-2 flex min-h-full flex-col">
+                    <TermsText className="min-h-0 flex-1" />
                 </div>
             </RecordDialog>
         </Frame>
     )
 }
 
-function TermsText({ onReachEnd }: { onReachEnd?: () => void }) {
+function TermsText({ onReachEnd, className }: { onReachEnd?: () => void; className?: string }) {
     return (
         <ScrollArea
-            className="h-72 rounded-lg border border-border"
+            className={cn('h-72 rounded-lg border border-border', className)}
             onScrollCapture={(e: React.UIEvent<HTMLDivElement>) => {
                 if (!onReachEnd) return
                 const el = e.currentTarget
                 if (el.scrollHeight - el.scrollTop - el.clientHeight < 32) onReachEnd()
             }}
         >
-            <div className="space-y-5 p-5">
+            {/* A leitura num quadro largo: duas colunas de texto cansam menos
+                que uma linha de 1000px. */}
+            <div className="columns-1 gap-8 space-y-5 p-5 lg:columns-2">
                 {TERMS.map((section) => (
-                    <section key={section.title}>
+                    <section key={section.title} className="break-inside-avoid">
                         <h3 className="text-h4">{section.title}</h3>
                         {section.body.map((paragraph) => (
                             <p

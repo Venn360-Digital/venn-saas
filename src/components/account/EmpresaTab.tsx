@@ -9,6 +9,7 @@ import { PhoneInput } from '@/components/shared/PhoneInput'
 import { FormField } from '@/components/shared/FormField'
 import { MaskedInput } from '@/components/shared/MaskedInput'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
+import { WORKSPACE_UPDATED } from '@/components/layout/ClinicBrand'
 import { MASKS, onlyDigits } from '@/lib/masks'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 
@@ -84,7 +85,10 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
             if (res.ok) {
                 const data = await res.json()
                 setWorkspace(data)
-                toast.success('Dados da empresa atualizados')
+                // A sidebar desenha a logo da clínica: avisada aqui, ela troca
+                // na hora, sem esperar a próxima navegação.
+                window.dispatchEvent(new Event(WORKSPACE_UPDATED))
+                toast.success('Dados da clínica atualizados')
             } else {
                 const error = await res.json()
                 toast.error(error.error || 'Erro ao atualizar dados')

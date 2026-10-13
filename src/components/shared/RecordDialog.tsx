@@ -37,6 +37,7 @@ export function RecordDialog({
     submitting = false,
     summary,
     hideAgain = false,
+    size = 'default',
     children,
 }: {
     open: boolean
@@ -53,6 +54,13 @@ export function RecordDialog({
     summary?: React.ReactNode
     /** Edição: sem "Criar e novo". */
     hideAgain?: boolean
+    /**
+     * `wide` para o que é de ler e comparar, não de preencher: três planos lado
+     * a lado ou nove parágrafos de contrato. Em 840px as colunas do plano
+     * cortavam o texto e o quadro rolava; o formulário continua em 840, que é
+     * a largura de duas colunas de campo.
+     */
+    size?: 'default' | 'wide'
     children: React.ReactNode
 }) {
     const formId = useId()
@@ -72,7 +80,10 @@ export function RecordDialog({
                     // `bg-card` e não `bg-background`: no claro o fundo da página é
                     // azulado; o quadro de cadastro é branco, como a ficha.
                     'flex h-svh w-svw max-w-none flex-col gap-0 overflow-hidden rounded-none bg-card p-0',
-                    'md:h-[700px] md:max-h-[calc(100svh-2rem)] md:w-[840px] md:max-w-[calc(100vw-2rem)] md:rounded-xl'
+                    'md:max-h-[calc(100svh-2rem)] md:max-w-[calc(100vw-2rem)] md:rounded-xl',
+                    size === 'wide'
+                        ? 'md:h-[calc(100svh-2rem)] md:w-[1120px]'
+                        : 'md:h-[700px] md:w-[840px]'
                 )}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
