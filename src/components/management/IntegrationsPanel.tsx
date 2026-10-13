@@ -446,10 +446,14 @@ export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) 
                 </SettingsBand>
                 <SettingsBand title="Em breve" last>
                     {soonList}
-                    {/* Só o responsável pela plataforma vê — é onde os
-                        aplicativos ficam registrados para todas as clínicas. */}
-                    <PlatformCredentialsPanel />
                 </SettingsBand>
+                {/* Só o responsável pela plataforma vê — é onde os aplicativos
+                    ficam registrados para todas as clínicas. Fora das faixas,
+                    porque para quase todo mundo ele não existe: `empty:hidden`
+                    apaga o fio e o respiro quando o painel não renderiza. */}
+                <div className="border-t border-border px-5 py-4 empty:hidden md:px-6">
+                    <PlatformCredentialsPanel />
+                </div>
             </BandLayout>
         )
     }
