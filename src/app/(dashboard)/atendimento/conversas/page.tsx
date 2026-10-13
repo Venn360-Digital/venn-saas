@@ -794,32 +794,46 @@ export default function ConversasPage() {
             .catch(() => { })
     }, [])
 
-    // Add tag to conversation
+    /**
+     * Marcar e desmarcar etiqueta — a tela só muda quando o servidor confirma.
+     *
+     * Antes o estado local mudava sem olhar a resposta: a etiqueta sumia da
+     * tela, o pedido voltava 404, e ao reabrir a conversa ela estava lá de
+     * novo. Falhou, diz que falhou.
+     */
     const addTagToConversation = async (tag: TagItem) => {
         if (!selectedConversation) return
         if (conversationTags.some(t => t.id === tag.id)) return
         try {
-            await fetch(`/api/conversations/${selectedConversation}/tags`, {
+            const res = await fetch(`/api/conversations/${selectedConversation}/tags`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tagId: tag.id }),
             })
+            if (!res.ok) throw new Error()
             setConversationTags(prev => [...prev, tag])
             setShowTagPicker(false)
-        } catch { }
+            // A lista da esquerda mostra as mesmas etiquetas.
+            void fetchConversations()
+        } catch {
+            toast.error('Não foi possível aplicar a etiqueta')
+        }
     }
 
-    // Remove tag from conversation
     const removeTagFromConversation = async (tagId: string) => {
         if (!selectedConversation) return
         try {
-            await fetch(`/api/conversations/${selectedConversation}/tags`, {
+            const res = await fetch(`/api/conversations/${selectedConversation}/tags`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tagId }),
             })
+            if (!res.ok) throw new Error()
             setConversationTags(prev => prev.filter(t => t.id !== tagId))
-        } catch { }
+            void fetchConversations()
+        } catch {
+            toast.error('Não foi possível remover a etiqueta')
+        }
     }
 
 

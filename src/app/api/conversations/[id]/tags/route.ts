@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
-import { isUniqueViolation } from '@/lib/prisma-errors'
+import { getWorkspaceMember } from '@/lib/auth/workspace'
 
 /**
- * Tags on a conversation.
+ * As etiquetas de uma conversa — que são também as do paciente.
  *
- * Every handler here now verifies two things the previous version checked
+ * A tela mostra a **união** dos dois vínculos (`ConversationTag` e
+ * `ContactTag`), e o executor de regras sempre gravou nos dois. Estes
+ * handlers mexiam só no da conversa: tirar uma etiqueta que viera do paciente
+ * apagava um vínculo inexistente, a resposta era 404, e ao reabrir a conversa
+ * ela voltava — "não salvou". Agora marcar grava nos dois e desmarcar apaga os
+ * dois, que é o que a pessoa vê acontecer.
+ *
+ * Every handler here also verifies two things the original version checked
  * neither of: that the conversation belongs to the caller's workspace, and that
  * the tag does too. Without the second check a tag id from another workspace could
  * be attached to a conversation, linking records across tenants.
@@ -18,12 +24,17 @@ async function authorize(conversationId: string) {
         return { error: NextResponse.json({ error: auth.error }, { status: auth.status }) }
     }
 
-    const allowed = await assertConversationAccess(conversationId, auth.member.workspaceId)
-    if (!allowed) {
+    // A conversa dentro do workspace — e de quem ela é, porque a etiqueta vale
+    // para o paciente também.
+    const conversation = await prisma.conversation.findFirst({
+        where: { id: conversationId, workspaceId: auth.member.workspaceId },
+        select: { id: true, contactId: true },
+    })
+    if (!conversation) {
         return { error: NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 }) }
     }
 
-    return { workspaceId: auth.member.workspaceId }
+    return { workspaceId: auth.member.workspaceId, contactId: conversation.contactId }
 }
 
 // GET: List tags on a conversation
@@ -73,13 +84,19 @@ export async function POST(
             return NextResponse.json({ error: 'Etiqueta não encontrada' }, { status: 404 })
         }
 
-        try {
-            await prisma.conversationTag.create({ data: { conversationId, tagId: tag.id } })
-        } catch (error) {
-            if (isUniqueViolation(error)) {
-                return NextResponse.json({ error: 'Tag já adicionada' }, { status: 409 })
-            }
-            throw error
+        // Nos dois vínculos, como o executor de regras faz: a tela mostra a
+        // união, então gravar só num lado deixa metade do gesto invisível.
+        // `skipDuplicates` em vez de capturar a violação de unicidade: repetir
+        // o que já está lá é o mesmo resultado, não um erro.
+        await prisma.conversationTag.createMany({
+            data: [{ conversationId, tagId: tag.id }],
+            skipDuplicates: true,
+        })
+        if (auth.contactId) {
+            await prisma.contactTag.createMany({
+                data: [{ contactId: auth.contactId, tagId: tag.id }],
+                skipDuplicates: true,
+            })
         }
 
         return NextResponse.json(tag, { status: 201 })
@@ -104,17 +121,30 @@ export async function DELETE(
             return NextResponse.json({ error: 'tagId obrigatório' }, { status: 400 })
         }
 
-        // deleteMany, not delete: removing a link that is not there is not an error
-        // worth a 500, and this keeps the tag scoped to the workspace.
-        const result = await prisma.conversationTag.deleteMany({
-            where: {
-                conversationId,
-                tagId,
-                tag: { workspaceId: auth.workspaceId },
-            },
-        })
+        // Os dois vínculos. A etiqueta que a conversa mostra pode ter vindo do
+        // paciente — apagar só o da conversa tirava da tela algo que voltava na
+        // releitura. `deleteMany` e não `delete`: apagar um vínculo que não
+        // existe não é erro, e mantém a etiqueta no escopo do workspace.
+        const [fromConversation, fromContact] = await Promise.all([
+            prisma.conversationTag.deleteMany({
+                where: {
+                    conversationId,
+                    tagId,
+                    tag: { workspaceId: auth.workspaceId },
+                },
+            }),
+            auth.contactId
+                ? prisma.contactTag.deleteMany({
+                      where: {
+                          contactId: auth.contactId,
+                          tagId,
+                          tag: { workspaceId: auth.workspaceId },
+                      },
+                  })
+                : Promise.resolve({ count: 0 }),
+        ])
 
-        if (result.count === 0) {
+        if (fromConversation.count === 0 && fromContact.count === 0) {
             return NextResponse.json({ error: 'Etiqueta não encontrada' }, { status: 404 })
         }
 
