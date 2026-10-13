@@ -87,12 +87,10 @@ export function AppSidebar() {
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        {/* `h-auto`: a logo da clínica é mais alta que as 48px
-                            de um item de menu, e o cabeçalho cresce com ela. */}
-                        <SidebarMenuButton size="lg" asChild className="h-auto group-data-[collapsible=icon]:size-8!">
-                            {/* A marca é da clínica quando ela enviou uma logo. */}
-                            <ClinicBrand />
-                        </SidebarMenuButton>
+                        {/* A marca é da clínica quando ela enviou uma logo, e
+                            desenha o próprio link: a altura é a da logo, não a
+                            de um item de menu. */}
+                        <ClinicBrand />
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>
