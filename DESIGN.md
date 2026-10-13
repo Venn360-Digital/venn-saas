@@ -457,7 +457,16 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    mesmo lugar. Máscara aparece ao digitar e grava limpo (`lib/masks`,
    `MaskedInput`, `PhoneInput`): o molde que falta fica em cinza por cima do
    campo; validação forte ao sair do campo, não a cada tecla.
-5. **O alerta de exclusão (`ConfirmDialog`, `destructive`).** Pela lixeira da
+   O **largo** (`size="wide"`, 1120px e altura do conteúdo) é para o que se lê
+   e se compara, não para o que se preenche: três planos lado a lado, nove
+   parágrafos de contrato. Em 840 as colunas cortavam texto.
+5. **A operação cara pede o e-mail** (`submitDisabled` + `destructive`).
+   Cancelar uma assinatura não é "tem certeza?": o quadro diz **até quando**
+   vale, o que para de funcionar depois e o que continua guardado, e a ação
+   primária só liga quando a pessoa digita o e-mail da conta em uso. O
+   servidor confere o mesmo e-mail — confirmação que só existe no navegador
+   some com um `fetch`.
+6. **O alerta de exclusão (`ConfirmDialog`, `destructive`).** Pela lixeira da
    ficha, pelo ⋮ da linha e pelo lote. Título "Excluir X" (no lote, "Excluir
    N X"), descrição que diz **o que se perde** ("será removida de todos os
    pacientes e conversas que a usam"), botão "Excluir". O lote apaga um a um,
