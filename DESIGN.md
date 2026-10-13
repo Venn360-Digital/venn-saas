@@ -579,6 +579,8 @@ não contradizê-lo, e não para ele repeti-lo.
 
 ### Tela 03 — a tela de guias
 
+**Fechada em 2026-10-13**, com as seis guias da Conta no padrão.
+
 Uma tela, várias guias: Conta (perfil, empresa, usuários, integrações,
 automações, plano) e o que vier com a mesma forma. A geometria é a da Tela 01,
 de propósito.
@@ -614,6 +616,13 @@ de propósito.
 - Uma linha de 46px com um fio de 1px embaixo tem 45 de conteúdo: deixe
   `overflow-y-hidden`, ou o navegador desenha uma barra de rolagem de 1px no
   meio do cabeçalho.
+- **A ficha de uma guia-tabela abre ao lado**, nunca embaixo: o `RecordPanel` é
+  estático a partir de `lg`, e dentro de uma coluna ele toma a largura inteira
+  e some com a tabela. O corpo da guia é `relative flex min-h-0 flex-1`.
+- **A marca da clínica manda na sidebar**: com logo gravada no workspace, ela
+  substitui o símbolo e o nome do produto (78px de altura, largura da calha
+  como teto); recolhida, volta o símbolo. Gravar na guia Clínica dispara
+  `workspace:updated` e a troca acontece sem recarregar.
 
 ---
 
