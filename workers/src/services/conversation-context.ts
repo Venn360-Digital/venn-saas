@@ -7,6 +7,14 @@ const log = createLogger('CONTEXT')
 const TZ_PADRAO = 'America/Sao_Paulo'
 
 export interface ConversationContext {
+    /**
+     * De quem é esta conversa.
+     *
+     * Não entra no prompt: é o que as ferramentas usam para saber sobre quem
+     * consultar a agenda e qual negócio mover. Sem ele cada ferramenta teria de
+     * ir ao banco de novo para descobrir o que esta função já sabe.
+     */
+    contactId?: string
     /** Como chamar a pessoa. Primeiro nome, que é como se fala no WhatsApp. */
     contactFirstName?: string
     contactFullName?: string
@@ -15,6 +23,14 @@ export interface ConversationContext {
     dealTitle?: string
     /** Os próximos compromissos desta pessoa, do mais próximo para o mais distante. */
     upcoming: { quando: string; titulo: string }[]
+    /**
+     * As fases do funil desta clínica, na ordem.
+     *
+     * Vão para o prompt porque a ferramenta `mover_negocio` só aceita o nome
+     * exato de uma delas: sem a lista à vista, o modelo chuta um nome plausível
+     * ("Qualificação") que a clínica não tem, e a ferramenta recusa.
+     */
+    stages: string[]
     /** Data e hora de agora, por extenso, no fuso da clínica. */
     agora: string
 }
@@ -74,7 +90,7 @@ export async function loadConversationContext(
             },
         })
 
-        if (!conversa?.contact) return { upcoming: [], agora }
+        if (!conversa?.contact) return { upcoming: [], stages: [], agora }
 
         const { contact, workspaceId } = conversa
 
@@ -83,7 +99,7 @@ export async function loadConversationContext(
         // modelo a tratar ninguém pelo nome.
         const nome = contact.name && !/^WhatsApp\s/i.test(contact.name) ? contact.name.trim() : undefined
 
-        const [negocio, compromissos] = await Promise.all([
+        const [negocio, compromissos, fases] = await Promise.all([
             prisma.deal.findFirst({
                 where: { workspaceId, contactId: contact.id, status: 'open' },
                 orderBy: { createdAt: 'desc' },
@@ -100,13 +116,20 @@ export async function loadConversationContext(
                 take: 3,
                 select: { title: true, dueDate: true, startTime: true },
             }),
+            prisma.pipelineStage.findMany({
+                where: { workspaceId },
+                orderBy: { order: 'asc' },
+                select: { name: true },
+            }),
         ])
 
         return {
+            contactId: contact.id,
             contactFullName: nome,
             contactFirstName: nome?.split(/\s+/)[0],
             dealTitle: negocio?.title,
             dealStage: negocio?.stage?.name,
+            stages: fases.map((f) => f.name),
             upcoming: compromissos
                 .filter((a) => a.dueDate)
                 .map((a) => ({ quando: quandoCurto(a.dueDate as Date, a.startTime, timezone), titulo: a.title })),
@@ -114,6 +137,6 @@ export async function loadConversationContext(
         }
     } catch (error) {
         log.warn(`não foi possível montar o contexto da conversa ${conversationId}`, error)
-        return { upcoming: [], agora }
+        return { upcoming: [], stages: [], agora }
     }
 }

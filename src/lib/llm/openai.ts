@@ -1,5 +1,36 @@
 import OpenAI from 'openai'
-import { LLMConfig, LLMMessage, LLMProvider, LLMResponse, LLMUsage } from '@/types/llm'
+import { LLMConfig, LLMMessage, LLMProvider, LLMResponse, LLMTool, LLMUsage } from '@/types/llm'
+
+/**
+ * Traduz as mensagens para a forma da API de chat da OpenAI.
+ *
+ * A ida e a volta de uma ferramenta têm formas próprias: o assistente carrega
+ * `tool_calls`, e o resultado volta como uma mensagem de papel `tool` amarrada
+ * pelo `tool_call_id`. Sem esse par, a rodada seguinte não fecha e a API recusa.
+ */
+function toApiMessages(messages: LLMMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
+    return messages.map((m) => {
+        if (m.role === 'tool') {
+            return {
+                role: 'tool',
+                content: m.content,
+                tool_call_id: m.toolCallId ?? '',
+            }
+        }
+        if (m.role === 'assistant' && m.toolCalls?.length) {
+            return {
+                role: 'assistant',
+                content: m.content || null,
+                tool_calls: m.toolCalls.map((c) => ({
+                    id: c.id,
+                    type: 'function' as const,
+                    function: { name: c.name, arguments: c.arguments },
+                })),
+            }
+        }
+        return { role: m.role, content: m.content } as OpenAI.Chat.ChatCompletionMessageParam
+    })
+}
 
 export class OpenAIProvider implements LLMProvider {
     private client: OpenAI
@@ -12,12 +43,24 @@ export class OpenAIProvider implements LLMProvider {
         })
     }
 
-    async generate(messages: LLMMessage[]): Promise<LLMResponse> {
+    async generate(messages: LLMMessage[], tools?: LLMTool[]): Promise<LLMResponse> {
         const response = await this.client.chat.completions.create({
             model: this.config.model,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            messages: toApiMessages(messages),
             temperature: this.config.temperature ?? 0.7,
             max_tokens: this.config.maxTokens,
+            ...(tools?.length
+                ? {
+                      tools: tools.map((t) => ({
+                          type: 'function' as const,
+                          function: {
+                              name: t.name,
+                              description: t.description,
+                              parameters: t.parameters,
+                          },
+                      })),
+                  }
+                : {}),
         })
 
         const usage: LLMUsage = {
@@ -26,16 +69,26 @@ export class OpenAIProvider implements LLMProvider {
             totalTokens: response.usage?.total_tokens ?? 0,
         }
 
+        const message = response.choices[0]?.message
+        const toolCalls = message?.tool_calls
+            ?.filter((c) => c.type === 'function')
+            .map((c) => ({
+                id: c.id,
+                name: c.function.name,
+                arguments: c.function.arguments,
+            }))
+
         return {
-            content: response.choices[0]?.message?.content ?? '',
+            content: message?.content ?? '',
             usage,
+            ...(toolCalls?.length ? { toolCalls } : {}),
         }
     }
 
     async *generateStream(messages: LLMMessage[]): AsyncGenerator<string, LLMUsage, unknown> {
         const stream = await this.client.chat.completions.create({
             model: this.config.model,
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
+            messages: toApiMessages(messages),
             temperature: this.config.temperature ?? 0.7,
             max_tokens: this.config.maxTokens,
             stream: true,

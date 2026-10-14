@@ -181,6 +181,27 @@ export function buildSystemPrompt(
         sections.push(`## Esta conversa\n${linhas.join('\n')}`)
     }
 
+    /**
+     * O que o agente pode **fazer**, e não só dizer.
+     *
+     * A seção existe porque uma ferramenta sem contexto é chamada na hora errada:
+     * sem a lista de fases, o modelo chuta um nome plausível que a clínica não
+     * tem; sem a frase sobre agenda, ele promete marcar horário, que é
+     * exatamente o que ele ainda não sabe fazer.
+     */
+    if (context && context.stages.length > 0) {
+        sections.push(
+            '## O que você pode fazer\n' +
+            'Você tem ferramentas. Use-as quando a conversa pedir, e nunca invente o ' +
+            'resultado delas.\n' +
+            `As fases do funil desta clínica são, em ordem: ${context.stages.join(' → ')}. ` +
+            'Ao mover o negócio, use o nome exato de uma delas.\n' +
+            'Você consegue **consultar** compromissos já marcados, mas **não** consegue ' +
+            'marcar, remarcar nem cancelar. Quando o paciente quiser um horário, diga que ' +
+            'vai passar para a equipe e não prometa data nenhuma.'
+        )
+    }
+
     // WhatsApp-specific shaping: long markdown answers read badly in a chat bubble.
     sections.push(
         '## Formato\n' +
