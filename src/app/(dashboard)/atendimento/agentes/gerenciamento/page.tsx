@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { HistoricoTab } from '@/components/agents/creation/tabs/HistoricoTab'
 import { AcoesTab } from '@/components/agents/creation/tabs/AcoesTab'
 import { useAgentManagement } from '@/hooks/useAgentManagement'
@@ -80,7 +81,7 @@ function GerenciamentoContent() {
 
     return (
         <AgentFrame secao="gerenciamento">
-            {renderTab()}
+            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
         </AgentFrame>
     )
 }

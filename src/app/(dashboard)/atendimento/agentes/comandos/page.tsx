@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -70,6 +71,7 @@ function ComandosContent() {
             case 'preferencias':
                 return (
                     <PreferenciasTab
+                        somenteLeitura={!canManage}
                         data={preferencias}
                         onChange={(data) => { marcarSujo(true); setPreferencias({ ...preferencias, ...data }) }}
                     />
@@ -89,7 +91,7 @@ function ComandosContent() {
 
     return (
         <AgentFrame secao="comandos">
-            {renderTab()}
+            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
 
             {canManage ? (
                 <FormActions hint="Grava as regras e as preferências desta seção.">

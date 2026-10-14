@@ -32,6 +32,12 @@ import { InstrucoesData } from '@/types/agent-creation'
 interface InstrucoesTabProps {
     data: InstrucoesData
     onChange: (data: Partial<InstrucoesData>) => void
+    /**
+     * O `fieldset` de `CamposSomenteLeitura` cobre os campos; o Slider do Radix
+     * desenha um `span[role=slider]`, que não é controle de formulário e escapa.
+     * Esta prop é só para ele.
+     */
+    somenteLeitura?: boolean
 }
 
 /** O teto do controle. O banco aceita até 2, que já não é conversa, é sorteio. */
@@ -45,7 +51,7 @@ function descreveTemperatura(valor: number): string {
     return 'Muito imprevisível. Não recomendado para atendimento de clínica.'
 }
 
-export function InstrucoesTab({ data, onChange }: InstrucoesTabProps) {
+export function InstrucoesTab({ data, onChange, somenteLeitura = false }: InstrucoesTabProps) {
     const temperatura = data.temperature ?? 0.7
 
     return (
@@ -123,6 +129,11 @@ export function InstrucoesTab({ data, onChange }: InstrucoesTabProps) {
                     </div>
 
                     <Slider
+                        // O `fieldset` de `CamposSomenteLeitura` desabilita
+                        // controles de formulário, e o Slider do Radix é um
+                        // `span[role=slider]` — escapa. Por isso o `disabled`
+                        // explícito aqui.
+                        disabled={somenteLeitura}
                         value={[temperatura]}
                         onValueChange={([temperature]) => onChange({ temperature })}
                         min={0}

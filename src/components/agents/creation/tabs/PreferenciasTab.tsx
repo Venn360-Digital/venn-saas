@@ -33,9 +33,15 @@ import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-prefere
 interface PreferenciasTabProps {
     data: AgentPreferences
     onChange: (data: Partial<AgentPreferences>) => void
+    /**
+     * O `fieldset` de `CamposSomenteLeitura` cobre os campos; o Slider do Radix
+     * desenha um `span[role=slider]`, que não é controle de formulário e escapa.
+     * Esta prop é só para ele.
+     */
+    somenteLeitura?: boolean
 }
 
-export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
+export function PreferenciasTab({ data, onChange, somenteLeitura = false }: PreferenciasTabProps) {
     return (
         <div className="flex flex-col gap-4">
             <SettingsCard
@@ -66,6 +72,8 @@ export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
                             }
                         />
                         <Slider
+                            // Ver InstrucoesTab: o fieldset não alcança o Slider.
+                            disabled={somenteLeitura}
                             className="mt-3"
                             value={[data.responseSpeed]}
                             onValueChange={([responseSpeed]) => onChange({ responseSpeed })}

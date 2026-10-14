@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -84,7 +85,7 @@ function IntegracoesContent() {
 
     return (
         <AgentFrame secao="integracoes">
-            {renderTab()}
+            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
 
             {/* Só os webhooks gravam: conectar um canal age no clique, e a API é
                 leitura. Um Salvar nessas duas guias não teria o que fazer. */}

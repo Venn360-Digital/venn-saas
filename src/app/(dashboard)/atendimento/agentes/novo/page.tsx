@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -261,6 +262,7 @@ function NovoAgenteContent() {
             case 'instrucoes':
                 return (
                     <InstrucoesTab
+                        somenteLeitura={!canManage}
                         data={instrucoes}
                         onChange={(data) => { marcarSujo(true); setInstrucoes({ ...instrucoes, ...data }) }}
                     />
@@ -287,7 +289,7 @@ function NovoAgenteContent() {
 
     return (
         <AgentFrame secao="personalidade">
-            {renderTab()}
+            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
 
             {/* O Salvar vive com o formulário, não no cabeçalho: lá em cima ele
                 parece valer para a tela inteira, e numa tela de guias vale para
