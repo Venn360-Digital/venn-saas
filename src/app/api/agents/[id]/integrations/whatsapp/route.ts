@@ -126,19 +126,22 @@ const JANELA_DE_RECONEXAO_MS = 10 * 60_000
  * o `PairSuccess` passam pela terceira pergunta mesmo com o soquete oscilando,
  * que é exatamente a janela que o incidente exige proteger.
  */
-function isReconnecting(
-    state: ConnectionState,
-    credentials: IntegrationConfig,
-    connectedAt: Date | null
-): boolean {
+function isReconnecting(state: ConnectionState, line: AgentIntegration): boolean {
     if (state.connected) return false
-    // Nunca pareou: o QR é o caminho normal, não há o que proteger.
-    if (!credentials.phoneNumber) return false
+    /**
+     * "Já pareou" é a **coluna**, não o JSON da configuração.
+     *
+     * O webhook de conexão apaga `phoneNumber` do JSON num LoggedOut, de
+     * propósito. Lendo de lá, uma linha que acabou de perder a sessão parecia
+     * nunca ter pareado — e aí nem a espera da reconexão valia. A coluna sobrevive
+     * ao LoggedOut: uma linha fora do ar continua sendo o número daquela clínica.
+     */
+    if (!line.phoneNumber) return false
     // Soquete aberto: a sessão existe e está voltando.
     if (state.socketOpen) return true
     return (
-        connectedAt !== null &&
-        Date.now() - connectedAt.getTime() < JANELA_DE_RECONEXAO_MS
+        line.connectedAt !== null &&
+        Date.now() - line.connectedAt.getTime() < JANELA_DE_RECONEXAO_MS
     )
 }
 
@@ -369,7 +372,7 @@ export async function POST(
             })
         }
 
-        if (state && isReconnecting(state, credentials, line.connectedAt)) {
+        if (state && isReconnecting(state, line)) {
             // Sessão voltando: `connect` + QR aqui recomeçaria o pareamento e
             // desconectaria o número. Ver isReconnecting.
             const pendente = await persistConfig(line.id, 'pending', credentials)
@@ -383,12 +386,17 @@ export async function POST(
         }
 
         /**
-         * Já pareou, não está voltando: a sessão morreu e só um pareamento novo
-         * a traz de volta. Ver `recycleInstance` — sem isto o QR nunca aparece,
-         * porque o provedor não emite QR enquanto a instância guarda um JID.
+         * A instância ainda guarda um JID? Então ela nunca vai emitir QR.
+         *
+         * Esta é a pergunta certa, e é ao provedor que ela se faz. A primeira
+         * versão perguntava ao nosso JSON ("tem número guardado?") e errava no
+         * caso mais comum de todos: o webhook de LoggedOut apaga esse campo, e
+         * aí uma linha derrubada caía num segundo estado travado — sem
+         * reciclagem, sem QR, e com o JID ainda lá do lado de lá.
          */
         let reparada = false
-        if (credentials.phoneNumber) {
+        const jid = await evolutionGo.getOwnerJid(credentials).catch(() => undefined)
+        if (jid) {
             credentials = await recycleInstance(line, credentials)
             await persistConfig(line.id, 'pending', credentials)
             reparada = true
@@ -524,7 +532,7 @@ export async function GET(
                 })
             }
 
-            if (isReconnecting(state, credentials, integration.connectedAt)) {
+            if (isReconnecting(state, integration)) {
                 // Reconexão: a sessão existe e está voltando. Pedir QR aqui
                 // derrubaria o número — ver isReconnecting.
                 //

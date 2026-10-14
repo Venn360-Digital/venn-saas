@@ -200,6 +200,37 @@ async function handleConnection(event: NormalizedConnection, job: WhatsAppEventJ
         },
     })
 
+    /**
+     * E o número também na coluna, que é onde ele é único no sistema inteiro.
+     *
+     * A coluna só era escrita pela rota HTTP, e o pareamento não passa por ela:
+     * este webhook chega antes. Resultado medido na linha da Ruth logo depois de
+     * parear — conectada, número no JSON, coluna nula. Com a coluna vazia a tela
+     * não sabe o número da linha, o guarda de "um número por conta" fica
+     * desligado para ela, e `isReconnecting` perde a referência de que ela já
+     * pareou.
+     *
+     * Diferente do JSON, a coluna **não** é limpa no LoggedOut: uma linha fora
+     * do ar continua sendo o número daquela clínica, à espera de reconectar.
+     * Quem a libera é remover a linha.
+     */
+    if (phoneNumber && integration.phoneNumber !== phoneNumber) {
+        try {
+            await prisma.agentIntegration.update({
+                where: { id: integration.id },
+                data: { phoneNumber },
+            })
+        } catch {
+            // O índice único recusou: este número está em outra linha, aqui ou
+            // em outra conta. Não é motivo para perder o evento de conexão — a
+            // sessão existe de fato. Fica registrado para a tela explicar.
+            log.warn(
+                `number ${phoneNumber} already belongs to another line; ` +
+                `integration ${integration.id} keeps its column empty`
+            )
+        }
+    }
+
     log.info(
         `integration ${integration.id} → ${status}${phoneNumber ? ` (${phoneNumber})` : ''}`
     )
