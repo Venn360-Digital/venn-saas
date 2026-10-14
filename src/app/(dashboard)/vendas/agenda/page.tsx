@@ -46,6 +46,10 @@ interface Activity {
     contact: { id: string; name: string | null; phone: string | null } | null
     deal: { id: string; title: string } | null
     user: { id: string; name: string | null } | null
+    /** Quem executa — distinto de `user`, que é quem cuida da tarefa. */
+    specialist: { id: string; name: string; color: string } | null
+    /** O procedimento do catálogo; é dele que vem a duração. */
+    productService: { id: string; name: string; durationMinutes: number | null } | null
     reminderMinutes: number | null
     recurrenceType: string | null
     recurrenceEnd: string | null
@@ -127,6 +131,8 @@ export default function AgendaPage() {
     const { canEdit, canSeeEveryone: canChooseOwner } = usePermissions()
     /** O editor de grade, aberto pelo botão Janelas — o mesmo de Especialistas. */
     const [janelasAbertas, setJanelasAbertas] = useState(false)
+    /** O recorte por quem atende. Vazio = todos. */
+    const [specialistFilter, setSpecialistFilter] = useState('')
     const [deletingActivity, setDeletingActivity] = useState<Activity | null>(null)
     const [activities, setActivities] = useState<Activity[]>([])
     const [loading, setLoading] = useState(true)
@@ -159,8 +165,26 @@ export default function AgendaPage() {
         title: '', type: 'meeting', description: '',
         dueDate: '', startTime: '', endTime: '',
         contactId: '', dealId: '', userId: '',
+        // Quem executa e o que é feito. `specialistId` não é o `userId`: um é o
+        // profissional que atende, o outro é quem da equipe cuida da tarefa.
+        specialistId: '', productServiceId: '',
         reminderMinutes: 0, recurrenceType: '', recurrenceEnd: '',
     })
+
+    /** Quem atende e o que se faz — carregados uma vez, para os dois seletores. */
+    const [especialistas, setEspecialistas] = useState<{ id: string; name: string }[]>([])
+    const [procedimentos, setProcedimentos] = useState<{ id: string; name: string; durationMinutes: number | null }[]>([])
+
+    useEffect(() => {
+        void fetch('/api/specialists')
+            .then((r) => (r.ok ? r.json() : []))
+            .then(setEspecialistas)
+            .catch(() => undefined)
+        void fetch('/api/products?category=procedure&limit=200')
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => setProcedimentos(d?.data ?? []))
+            .catch(() => undefined)
+    }, [])
 
     // Contact search
     const [contactSearch, setContactSearch] = useState('')
@@ -295,6 +319,8 @@ export default function AgendaPage() {
                 contactId: activity.contact?.id || '',
                 dealId: activity.deal?.id || '',
                 userId: activity.user?.id || '',
+                specialistId: activity.specialist?.id || '',
+                productServiceId: activity.productService?.id || '',
                 reminderMinutes: activity.reminderMinutes || 0,
                 recurrenceType: activity.recurrenceType || '',
                 recurrenceEnd: activity.recurrenceEnd ? activity.recurrenceEnd.split('T')[0] : '',
@@ -308,6 +334,7 @@ export default function AgendaPage() {
                 dueDate: prefilledDate || new Date().toISOString().split('T')[0],
                 startTime: '', endTime: '',
                 contactId: '', dealId: '', userId: '',
+                specialistId: '', productServiceId: '',
                 reminderMinutes: 0, recurrenceType: '', recurrenceEnd: '',
             })
             setSelectedContact(null)
@@ -450,12 +477,17 @@ export default function AgendaPage() {
     // ─── Tela 02 ─────────────────────────────────────────────────────
     /** A busca é da tela: a API já recorta por data, tipo, pessoa e situação. */
     const needle = search.trim().toLowerCase()
+    // O recorte por especialista é da tela também — a API já devolve o período
+    // inteiro, e filtrar aqui evita uma ida ao servidor a cada troca de pílula.
+    const porEspecialista = specialistFilter
+        ? activities.filter((a) => a.specialist?.id === specialistFilter)
+        : activities
     const visible = needle
-        ? activities.filter(a =>
+        ? porEspecialista.filter(a =>
             a.title.toLowerCase().includes(needle)
             || (a.contact?.name ?? '').toLowerCase().includes(needle)
             || (a.deal?.title ?? '').toLowerCase().includes(needle))
-        : activities
+        : porEspecialista
     const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
     const currentPage = Math.min(page, totalPages)
     const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -638,6 +670,22 @@ export default function AgendaPage() {
                             selected={typeFilter}
                             onSelect={setTypeFilter}
                         />
+                        {/* Por quem atende. Só aparece quando há especialista
+                            cadastrado: numa clínica que não usa, um filtro de
+                            uma opção só não filtra nada. */}
+                        {especialistas.length > 0 ? (
+                            <FilterPill
+                                label="Especialista"
+                                value={specialistFilter ? (especialistas.find((e) => e.id === specialistFilter)?.name ?? null) : null}
+                                onClear={() => setSpecialistFilter('')}
+                                options={[
+                                    { value: '', label: 'Todos' },
+                                    ...especialistas.map((e) => ({ value: e.id, label: e.name })),
+                                ]}
+                                selected={specialistFilter}
+                                onSelect={setSpecialistFilter}
+                            />
+                        ) : null}
                         {canChooseOwner ? (
                             <FilterPill
                                 label="Responsável"
@@ -907,6 +955,71 @@ export default function AgendaPage() {
                         </SelectContent>
                     </Select>
                 </FormField>
+
+                {/* Quem atende e o que se faz. Só aparecem quando a clínica
+                    cadastrou especialista — numa clínica que não usa, dois
+                    seletores vazios só ocupariam o formulário. */}
+                {especialistas.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3.5">
+                        <FormField label="Especialista" htmlFor="act-specialist">
+                            <Select
+                                value={formData.specialistId || 'none'}
+                                onValueChange={(v) => setFormData({ ...formData, specialistId: v === 'none' ? '' : v })}
+                            >
+                                <SelectTrigger id="act-specialist" className="w-full">
+                                    <SelectValue placeholder="Ninguém" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Ninguém</SelectItem>
+                                    {especialistas.map((e) => (
+                                        <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+
+                        <FormField
+                            label="Procedimento"
+                            htmlFor="act-procedure"
+                            hint={
+                                // A duração sai daqui: dizer qual é evita a
+                                // pergunta "quanto tempo isso reserva?".
+                                procedimentos.find((p) => p.id === formData.productServiceId)?.durationMinutes
+                                    ? `${procedimentos.find((p) => p.id === formData.productServiceId)?.durationMinutes} min`
+                                    : undefined
+                            }
+                        >
+                            <Select
+                                value={formData.productServiceId || 'none'}
+                                onValueChange={(v) => {
+                                    const proc = procedimentos.find((p) => p.id === v)
+                                    setFormData((f) => ({
+                                        ...f,
+                                        productServiceId: v === 'none' ? '' : v,
+                                        // O título segue o procedimento enquanto
+                                        // ninguém o tiver escrito à mão.
+                                        title: !f.title || procedimentos.some((p) => p.name === f.title)
+                                            ? proc?.name ?? f.title
+                                            : f.title,
+                                    }))
+                                }}
+                            >
+                                <SelectTrigger id="act-procedure" className="w-full">
+                                    <SelectValue placeholder="Nenhum" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Nenhum</SelectItem>
+                                    {procedimentos.map((p) => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.name}
+                                            {p.durationMinutes ? ` · ${p.durationMinutes} min` : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+                    </div>
+                ) : null}
 
                 <FormField label="Data" htmlFor="act-date" required error={errors.dueDate} hint="dd/mm/aaaa">
                     <MaskedInput id="act-date" mask={MASKS.date} value={maskDigitsFromIso(formData.dueDate)} onChange={(digits) => { setFormData({ ...formData, dueDate: dateFromMask(digits) ?? (digits.length === 8 ? '' : formData.dueDate) }); if (errors.dueDate) setErrors({}) }} aria-invalid={errors.dueDate ? true : undefined} />

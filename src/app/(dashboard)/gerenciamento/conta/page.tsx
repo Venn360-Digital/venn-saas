@@ -2,10 +2,11 @@
 
 import { Suspense, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Building2, CreditCard, Plug, Plus, User, Users, Zap } from 'lucide-react'
+import { Building2, CalendarOff, CreditCard, Plug, Plus, User, Users, Zap } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
+import { AgendaClinicaTab } from '@/components/management/AgendaClinicaTab'
 import { AutomacoesTab } from '@/components/account/AutomacoesTab'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
@@ -25,6 +26,9 @@ const TABS: FrameTab[] = [
     // O id continua "empresa": é o que está nos links de ?tab= já salvos.
     { id: 'empresa', label: 'Clínica', icon: Building2 },
     { id: 'usuarios', label: 'Usuários', icon: Users },
+    // Vale para todos os especialistas e sobrepõe as janelas deles — por isso
+    // mora na Conta, e não na ficha de um especialista.
+    { id: 'agenda', label: 'Agenda da clínica', icon: CalendarOff },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },
     { id: 'plano', label: 'Plano', icon: CreditCard },
@@ -83,6 +87,7 @@ function ContaContent() {
             {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" /> : null}
             {activeTab === 'empresa' ? <EmpresaTab formId="empresa-form" /> : null}
             {activeTab === 'usuarios' ? <UsersPanel ref={users} embedded /> : null}
+            {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel embedded /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
             {activeTab === 'plano' ? <PlanoTab /> : null}

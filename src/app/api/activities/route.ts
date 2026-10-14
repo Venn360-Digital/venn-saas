@@ -18,6 +18,10 @@ const activitySchema = z.object({
     contactId: z.string().optional(),
     dealId: z.string().optional(),
     userId: z.string().optional(),
+    /** Quem executa — o profissional, não o responsável pela tarefa. */
+    specialistId: z.string().nullable().optional(),
+    /** O procedimento do catálogo de Itens; é dele que vem a duração. */
+    productServiceId: z.string().nullable().optional(),
     reminderMinutes: z.number().nullable().optional(),
     recurrenceType: z.enum(['daily', 'weekly', 'monthly', 'yearly']).nullable().optional(),
     recurrenceEnd: z.string().nullable().optional(),
@@ -75,7 +79,9 @@ export async function GET(request: NextRequest) {
                 include: {
                     contact: { select: { id: true, name: true, phone: true } },
                     deal: { select: { id: true, title: true } },
-                    user: { select: { id: true, name: true } }
+                    user: { select: { id: true, name: true } },
+                specialist: { select: { id: true, name: true, color: true } },
+                productService: { select: { id: true, name: true, durationMinutes: true } }
                 },
                 orderBy: [{ completedAt: 'asc' }, { dueDate: 'asc' }],
                 take: 200,
@@ -130,7 +136,9 @@ export async function GET(request: NextRequest) {
             include: {
                 contact: { select: { id: true, name: true, phone: true } },
                 deal: { select: { id: true, title: true } },
-                user: { select: { id: true, name: true } }
+                user: { select: { id: true, name: true } },
+                specialist: { select: { id: true, name: true, color: true } },
+                productService: { select: { id: true, name: true, durationMinutes: true } }
             },
             orderBy: { dueDate: 'asc' },
             take: limit,
@@ -187,6 +195,8 @@ export async function POST(request: NextRequest) {
             endTime: validatedData.endTime,
             contactId: validatedData.contactId,
             dealId: validatedData.dealId,
+            specialistId: validatedData.specialistId ?? null,
+            productServiceId: validatedData.productServiceId ?? null,
             reminderMinutes: validatedData.reminderMinutes ?? null,
             recurrenceType: validatedData.recurrenceType ?? null,
             recurrenceEnd: validatedData.recurrenceEnd ? new Date(validatedData.recurrenceEnd) : null,
@@ -197,7 +207,9 @@ export async function POST(request: NextRequest) {
             include: {
                 contact: { select: { id: true, name: true, phone: true } },
                 deal: { select: { id: true, title: true } },
-                user: { select: { id: true, name: true } }
+                user: { select: { id: true, name: true } },
+                specialist: { select: { id: true, name: true, color: true } },
+                productService: { select: { id: true, name: true, durationMinutes: true } }
             }
         })
 

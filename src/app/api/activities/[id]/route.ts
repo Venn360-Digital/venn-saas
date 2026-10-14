@@ -43,7 +43,7 @@ export async function PATCH(
         }
 
         const body = await request.json()
-        const { title, type, description, dueDate, startTime, endTime, completed, reminderMinutes, recurrenceType, recurrenceEnd, contactId, dealId, userId } = body
+        const { title, type, description, dueDate, startTime, endTime, completed, reminderMinutes, recurrenceType, recurrenceEnd, contactId, dealId, userId, specialistId, productServiceId } = body
 
         const activity = await prisma.activity.update({
             where: { id },
@@ -61,6 +61,8 @@ export async function PATCH(
                 ...(contactId !== undefined && { contactId: contactId || null }),
                 ...(dealId !== undefined && { dealId: dealId || null }),
                 ...(userId !== undefined && { userId: userId || null }),
+                ...(specialistId !== undefined && { specialistId: specialistId || null }),
+                ...(productServiceId !== undefined && { productServiceId: productServiceId || null }),
             },
             include: {
                 contact: { select: { id: true, name: true, phone: true } },
