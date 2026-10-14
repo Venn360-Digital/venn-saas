@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
 import { Button } from '@/components/ui/button'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
@@ -61,14 +62,14 @@ function ComandosContent() {
                     <CondicoesTab
                         agentId={urlAgentId}
                         rules={rules}
-                        onChange={setRules}
+                        onChange={(regras) => { marcarSujo(true); setRules(regras) }}
                     />
                 )
             case 'preferencias':
                 return (
                     <PreferenciasTab
                         data={preferencias}
-                        onChange={(data) => setPreferencias({ ...preferencias, ...data })}
+                        onChange={(data) => { marcarSujo(true); setPreferencias({ ...preferencias, ...data }) }}
                     />
                 )
             default:

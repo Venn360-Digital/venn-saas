@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
 import { Button } from '@/components/ui/button'
 import { CanaisTab } from '@/components/agents/creation/tabs/CanaisTab'
@@ -85,7 +86,7 @@ function IntegracoesContent() {
                     <WebhooksTab
                         agentId={urlAgentId}
                         webhooks={webhooks}
-                        onChange={setWebhooks}
+                        onChange={(w) => { marcarSujo(true); setWebhooks(w) }}
                     />
                 )
             default:

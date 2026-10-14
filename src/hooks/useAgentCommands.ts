@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { RuleData } from '@/types/agent-creation'
 import {
     DEFAULT_AGENT_PREFERENCES,
@@ -104,6 +105,7 @@ export function useAgentCommands(agentId?: string | null) {
                 }
             }
 
+            marcarSujo(false)
             toast.success('Configurações salvas')
             return true
         } catch (error) {

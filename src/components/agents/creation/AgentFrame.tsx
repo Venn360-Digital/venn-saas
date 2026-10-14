@@ -22,6 +22,8 @@ import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
 import { cn } from '@/lib/utils'
 
 /**
@@ -116,6 +118,8 @@ export function AgentFrame({
     const tab = params.get('tab') ?? atual.tabs[0].id
 
     const [agente, setAgente] = useState<AgenteResumo | null>(null)
+    const haEdicao = useEdicaoNaoSalva()
+    const [saidaPendente, setSaidaPendente] = useState<{ rota: string; tab: string } | null>(null)
 
     /**
      * A moldura busca o próprio resumo do agente.
@@ -150,6 +154,37 @@ export function AgentFrame({
     const irPara = (rota: string, tabId: string) => {
         router.push(agentId ? `${rota}?id=${agentId}&tab=${tabId}` : `${rota}?tab=${tabId}`)
     }
+
+    /**
+     * Trocar de seção pergunta antes, quando há edição pendente.
+     *
+     * Trocar de **guia** não pergunta: as guias de uma seção são a mesma página,
+     * e o que foi digitado continua em pé — verificado na tela. O que desmonta a
+     * página, e portanto perde, é mudar de seção.
+     */
+    const irParaSecao = (rota: string, tabId: string) => {
+        if (haEdicao) {
+            setSaidaPendente({ rota, tab: tabId })
+            return
+        }
+        irPara(rota, tabId)
+    }
+
+    /**
+     * E o navegador pergunta quando a saída não passa por aqui — recarregar,
+     * fechar a aba, clicar num link da barra lateral. O texto é do navegador;
+     * o que podemos fazer é não deixar a saída ser silenciosa.
+     */
+    // Sair das telas do agente zera a marca: ela vive fora do React e seguiria
+    // ligada numa tela que não tem nada a salvar.
+    useEffect(() => () => marcarSujo(false), [])
+
+    useEffect(() => {
+        if (!haEdicao) return
+        const aoSair = (e: BeforeUnloadEvent) => e.preventDefault()
+        window.addEventListener('beforeunload', aoSair)
+        return () => window.removeEventListener('beforeunload', aoSair)
+    }, [haEdicao])
 
     const alternarEstado = async () => {
         if (!agentId || !agente) return
@@ -189,7 +224,7 @@ export function AgentFrame({
                         key={s.id}
                         type="button"
                         aria-current={ativa ? 'page' : undefined}
-                        onClick={() => irPara(s.rota, s.tabs[0].id)}
+                        onClick={() => irParaSecao(s.rota, s.tabs[0].id)}
                         className={cn(
                             'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors',
                             ativa
@@ -247,6 +282,27 @@ export function AgentFrame({
             onChange={(id) => irPara(atual.rota, id)}
         >
             {children}
+
+            <ConfirmDialog
+                open={saidaPendente !== null}
+                onOpenChange={(aberto) => {
+                    if (!aberto) setSaidaPendente(null)
+                }}
+                title="Sair sem salvar?"
+                description={
+                    `Você tem alterações não salvas em ${atual.label}. ` +
+                    'As guias desta seção guardam o que você digitou enquanto você fica nela, ' +
+                    'mas mudar de seção descarta tudo o que ainda não foi gravado.'
+                }
+                confirmLabel="Sair sem salvar"
+                cancelLabel="Continuar editando"
+                destructive
+                onConfirm={() => {
+                    if (!saidaPendente) return
+                    marcarSujo(false)
+                    irPara(saidaPendente.rota, saidaPendente.tab)
+                }}
+            />
         </TabsFrame>
     )
 }

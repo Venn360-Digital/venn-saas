@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { marcarSujo } from '@/components/agents/creation/unsaved'
 
 interface Integration {
     id?: string
@@ -112,6 +113,7 @@ export function useAgentIntegrations(agentId?: string | null) {
                     })
                 }
             }
+            marcarSujo(false)
             toast.success('Webhooks salvos')
             return true
         } catch (error) {

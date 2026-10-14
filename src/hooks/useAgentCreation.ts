@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { marcarSujo } from '@/components/agents/creation/unsaved'
 import {
     PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData,
     PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
@@ -205,6 +206,8 @@ export function useAgentCreation(workspaceId: string) {
                 await fetch(`/api/agents/${agentId}/avatar`, { method: 'DELETE' })
             }
 
+            // Gravou: não há mais o que perder ao trocar de seção.
+            marcarSujo(false)
             toast.success(`Agente ${agentId ? 'atualizado' : 'criado'}`)
 
             /**

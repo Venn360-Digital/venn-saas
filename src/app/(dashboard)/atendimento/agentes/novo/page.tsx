@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
 import { Button } from '@/components/ui/button'
 import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
@@ -236,21 +237,21 @@ function NovoAgenteContent() {
                 return (
                     <PerfilTab
                         data={perfil}
-                        onChange={(data) => setPerfil({ ...perfil, ...data })}
+                        onChange={(data) => { marcarSujo(true); setPerfil({ ...perfil, ...data }) }}
                     />
                 )
             case 'trabalho':
                 return (
                     <TrabalhoTab
                         data={trabalho}
-                        onChange={(data) => setTrabalho({ ...trabalho, ...data })}
+                        onChange={(data) => { marcarSujo(true); setTrabalho({ ...trabalho, ...data }) }}
                     />
                 )
             case 'cerebro':
                 return (
                     <CerebroTab
                         data={cerebro}
-                        onChange={(data) => setCerebro({ ...cerebro, ...data })}
+                        onChange={(data) => { marcarSujo(true); setCerebro({ ...cerebro, ...data }) }}
                         agentId={urlAgentId}
                     />
                 )
@@ -258,14 +259,14 @@ function NovoAgenteContent() {
                 return (
                     <InstrucoesTab
                         data={instrucoes}
-                        onChange={(data) => setInstrucoes({ ...instrucoes, ...data })}
+                        onChange={(data) => { marcarSujo(true); setInstrucoes({ ...instrucoes, ...data }) }}
                     />
                 )
             case 'voz':
                 return (
                     <VozTab
                         data={voz}
-                        onChange={(data) => setVoz({ ...voz, ...data })}
+                        onChange={(data) => { marcarSujo(true); setVoz({ ...voz, ...data }) }}
                     />
                 )
             default:
