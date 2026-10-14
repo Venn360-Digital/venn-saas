@@ -248,6 +248,54 @@ function daquiADias(timezone: string, dias: number): string {
 
 const DIAS_A_FRENTE = 21
 
+/**
+ * Acha pelo nome como o modelo o escreveu, não como ele está cadastrado.
+ *
+ * Exigir nome exato é frágil por construção: o modelo encurta e parafraseia. Uma
+ * clínica com "Avaliação inicial (gratuita)" via o agente procurar "avaliação" e
+ * falhar — medido numa prova contra o modelo real.
+ *
+ * Três passos, do mais estrito ao mais solto, e **para na primeira resposta
+ * única**. Ambiguidade nunca vira palpite: devolve a lista e deixa o modelo
+ * escolher, porque marcar o procedimento errado é pior que perguntar de novo.
+ */
+function acharPorNome<T extends { name: string }>(
+    itens: T[],
+    procurado: string
+): { achado: T } | { ambiguo: T[] } | { nenhum: true } {
+    const alvo = normalizeSearch(procurado)
+    if (!alvo) return { nenhum: true }
+
+    const exatos = itens.filter((i) => normalizeSearch(i.name) === alvo)
+    if (exatos.length === 1) return { achado: exatos[0] }
+
+    const contidos = itens.filter((i) => {
+        const nome = normalizeSearch(i.name)
+        return nome.includes(alvo) || alvo.includes(nome)
+    })
+    if (contidos.length === 1) return { achado: contidos[0] }
+    if (contidos.length > 1) return { ambiguo: contidos }
+
+    return { nenhum: true }
+}
+
+/** A frase que volta ao modelo quando o nome não resolveu. */
+function explicarNome(
+    r: { ambiguo: unknown[] } | { nenhum: true },
+    procurado: string,
+    todos: { name: string }[],
+    tipo: string
+): string {
+    if ('ambiguo' in r) {
+        const nomes = (r.ambiguo as { name: string }[]).map((i) => i.name).join(', ')
+        return `Erro: "${procurado}" pode ser ${nomes}. Diga qual.`
+    }
+    const lista = todos.map((i) => i.name).join(', ')
+    return lista
+        ? `Erro: não existe ${tipo} "${procurado}". Os que existem: ${lista}.`
+        : `Erro: esta clínica não tem ${tipo} cadastrado.`
+}
+
 const consultarHorarios: AgentTool = {
     definition: {
         name: 'consultar_horarios_livres',
@@ -280,28 +328,31 @@ const consultarHorarios: AgentTool = {
         const nome = typeof args.procedimento === 'string' ? args.procedimento.trim() : ''
         if (!nome) return 'Erro: diga qual procedimento.'
 
-        const procedimento = await prisma.productService.findFirst({
+        const todosProcedimentos = await prisma.productService.findMany({
             where: { workspaceId: ctx.workspaceId, category: 'procedure' },
             orderBy: { name: 'asc' },
             select: { id: true, name: true },
-        }).then(async () => {
-            const todos = await prisma.productService.findMany({
-                where: { workspaceId: ctx.workspaceId, category: 'procedure' },
-                select: { id: true, name: true },
-            })
-            return todos.find((p) => normalizeSearch(p.name) === normalizeSearch(nome)) ?? null
         })
-        if (!procedimento) return `Erro: não existe o procedimento "${nome}".`
+        const achadoProc = acharPorNome(todosProcedimentos, nome)
+        if (!('achado' in achadoProc)) {
+            return explicarNome(achadoProc, nome, todosProcedimentos, 'o procedimento')
+        }
+        const procedimento = achadoProc.achado
 
         const especialistas = await prisma.specialist.findMany({
             where: { workspaceId: ctx.workspaceId, isActive: true },
+            orderBy: { name: 'asc' },
             select: { id: true, name: true },
         })
         const pedido = typeof args.especialista === 'string' ? args.especialista.trim() : ''
-        const alvos = pedido
-            ? especialistas.filter((e) => normalizeSearch(e.name) === normalizeSearch(pedido))
-            : especialistas
-        if (alvos.length === 0) return `Erro: não existe o especialista "${pedido}".`
+        let alvos = especialistas
+        if (pedido) {
+            const achadoEsp = acharPorNome(especialistas, pedido)
+            if (!('achado' in achadoEsp)) {
+                return explicarNome(achadoEsp, pedido, especialistas, 'o especialista')
+            }
+            alvos = [achadoEsp.achado]
+        }
 
         const de = daquiADias(ctx.timezone, 0)
         const ate = daquiADias(ctx.timezone, DIAS_A_FRENTE)
@@ -375,10 +426,17 @@ const marcarConsulta: AgentTool = {
                 select: { id: true, name: true },
             }),
         ])
-        const procedimento = procedimentos.find((p) => normalizeSearch(p.name) === normalizeSearch(nome))
-        if (!procedimento) return `Erro: não existe o procedimento "${nome}".`
-        const especialista = especialistas.find((e) => normalizeSearch(e.name) === normalizeSearch(quem))
-        if (!especialista) return `Erro: não existe o especialista "${quem}".`
+        const achadoProc = acharPorNome(procedimentos, nome)
+        if (!('achado' in achadoProc)) {
+            return explicarNome(achadoProc, nome, procedimentos, 'o procedimento')
+        }
+        const procedimento = achadoProc.achado
+
+        const achadoEsp = acharPorNome(especialistas, quem)
+        if (!('achado' in achadoEsp)) {
+            return explicarNome(achadoEsp, quem, especialistas, 'o especialista')
+        }
+        const especialista = achadoEsp.achado
 
         /**
          * **O horário é conferido de novo, aqui.**
