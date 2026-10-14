@@ -23,6 +23,7 @@ const sections = [
             { id: 'perfil', label: 'Perfil', icon: '⚙️' },
             { id: 'trabalho', label: 'Trabalho', icon: '💼' },
             { id: 'cerebro', label: 'Cérebro', icon: '🧠' },
+            { id: 'instrucoes', label: 'Instruções', icon: '📝' },
             { id: 'voz', label: 'Voz', icon: '🎤' },
         ],
     },

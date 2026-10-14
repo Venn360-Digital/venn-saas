@@ -8,6 +8,7 @@ import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationL
 import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
 import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
 import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
+import { InstrucoesTab } from '@/components/agents/creation/tabs/InstrucoesTab'
 import { VozTab } from '@/components/agents/creation/tabs/VozTab'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
 import { Loader2 } from 'lucide-react'
@@ -60,6 +61,8 @@ function NovoAgenteContent() {
         setCerebro,
         voz,
         setVoz,
+        instrucoes,
+        setInstrucoes,
         handleSave: originalHandleSave,
         isSaving,
     } = useAgentCreation(workspaceId)
@@ -129,6 +132,12 @@ function NovoAgenteContent() {
                 companyWebsite: agent.companyWebsite || '',
                 companyDescription: agent.companyDescription || '',
                 companyAddress: agent.companyAddress || '',
+            })
+
+            setInstrucoes({
+                systemPrompt: agent.systemPrompt || '',
+                llmModel: agent.llmModel,
+                temperature: agent.temperature ?? 0.7,
             })
 
             setVoz({
@@ -240,6 +249,13 @@ function NovoAgenteContent() {
                         data={cerebro}
                         onChange={(data) => setCerebro({ ...cerebro, ...data })}
                         agentId={urlAgentId}
+                    />
+                )
+            case 'instrucoes':
+                return (
+                    <InstrucoesTab
+                        data={instrucoes}
+                        onChange={(data) => setInstrucoes({ ...instrucoes, ...data })}
                     />
                 )
             case 'voz':

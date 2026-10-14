@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { PerfilData, TrabalhoData, CerebroData, VozData } from '@/types/agent-creation'
+import { PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData } from '@/types/agent-creation'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
+import { SETOR_PADRAO } from '@/components/agents/creation/tabs/TrabalhoTab'
 
 /**
  * A instrução livre com que um agente novo nasce — curta de propósito.
@@ -42,6 +43,11 @@ export function useAgentCreation(workspaceId: string) {
         voiceEnabled: false,
     })
 
+    const [instrucoes, setInstrucoes] = useState<InstrucoesData>({
+        llmModel: DEFAULT_MODEL,
+        temperature: 0.7,
+    })
+
     const handleSave = async (agentId?: string | null) => {
         // Validação básica
         if (!perfil.name) {
@@ -69,7 +75,9 @@ export function useAgentCreation(workspaceId: string) {
                 // Trabalho
                 jobDescription: trabalho.jobDescription,
                 companyName: trabalho.companyName,
-                companySector: trabalho.companySector,
+                // Fixo: o produto atende clínicas odontológicas. Gravar sempre
+                // normaliza também o agente criado antes desta decisão.
+                companySector: SETOR_PADRAO,
                 companyWebsite: trabalho.companyWebsite,
                 companyDescription: trabalho.companyDescription,
                 companyAddress: trabalho.companyAddress,
@@ -80,10 +88,20 @@ export function useAgentCreation(workspaceId: string) {
                 voiceTraining: voz.voiceTraining,
 
 
-                // AI Configuration (defaults)
+                // Instruções
                 llmProvider: 'openai',
-                llmModel: DEFAULT_MODEL,
-                temperature: 0.7,
+                llmModel: instrucoes.llmModel,
+                temperature: instrucoes.temperature,
+                /**
+                 * Só vai quando tem conteúdo.
+                 *
+                 * Campo vazio não pode sobrescrever a instrução gravada — e o
+                 * schema exige 10 caracteres, então mandar vazio seria um 400
+                 * em cima de quem só queria trocar o tom de voz.
+                 */
+                ...(instrucoes.systemPrompt?.trim()
+                    ? { systemPrompt: instrucoes.systemPrompt.trim() }
+                    : {}),
                 isActive: true,
             }
 
@@ -114,7 +132,13 @@ export function useAgentCreation(workspaceId: string) {
                 response = await fetch(`/api/agents?workspaceId=${workspaceId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...payload, systemPrompt: PROMPT_INICIAL }),
+                    body: JSON.stringify({
+                        ...payload,
+                        // Agente novo sem instrução escrita nasce com a curta
+                        // padrão: o schema exige um prompt, e um texto que
+                        // repetisse empresa e tom duplicaria o que o worker monta.
+                        systemPrompt: instrucoes.systemPrompt?.trim() || PROMPT_INICIAL,
+                    }),
                 })
             }
 
@@ -283,6 +307,8 @@ export function useAgentCreation(workspaceId: string) {
         setCerebro,
         voz,
         setVoz,
+        instrucoes,
+        setInstrucoes,
         handleSave,
         isSaving,
     }

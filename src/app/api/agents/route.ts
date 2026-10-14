@@ -5,19 +5,32 @@ import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { findModel } from '@/lib/llm/models'
 import {
     DEFAULT_AGENT_PREFERENCES,
     agentPreferencesPatchSchema,
 } from '@/types/agent-preferences'
 
 // Validation Schema for creating an agent
+/**
+ * O modelo precisa existir no catálogo de preços.
+ *
+ * `z.string()` aceitava qualquer texto, e o crédito do cliente é debitado pelo
+ * preço que `findModel` encontra: um modelo fora do catálogo cai no preço de
+ * reserva, que é um palpite. Enquanto não havia tela para escolher o modelo isso
+ * era teórico; com a aba Instruções, deixou de ser.
+ */
+const modeloSchema = z
+    .string()
+    .refine((id) => findModel(id) !== undefined, 'Modelo não disponível neste plano')
+
 const createAgentSchema = z.object({
     name: z.string().min(1, "Nome é obrigatório"),
     description: z.string().optional(),
 
     // AI Configuration
     llmProvider: z.enum(['openai']),
-    llmModel: z.string(),
+    llmModel: modeloSchema,
     systemPrompt: z.string().min(10, "System prompt deve ter pelo menos 10 caracteres"),
     temperature: z.number().min(0).max(2).optional(),
 

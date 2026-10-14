@@ -27,6 +27,18 @@ export interface TrabalhoData {
     companyAddress?: string
 }
 
+/**
+ * A instrução livre, o modelo e a temperatura.
+ *
+ * Existiam no banco sem nenhuma tela que os editasse — o único editor era um
+ * diálogo inalcançável. Todo agente nascia no modelo padrão a 0,7 e ficava lá.
+ */
+export interface InstrucoesData {
+    systemPrompt?: string
+    llmModel: string
+    temperature: number
+}
+
 export interface CerebroData {
     files: KnowledgeFile[]
     websites: KnowledgeWebsite[]

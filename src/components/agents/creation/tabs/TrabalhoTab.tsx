@@ -3,13 +3,6 @@
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
 import { TrabalhoData } from '@/types/agent-creation'
 
 interface TrabalhoTabProps {
@@ -17,21 +10,15 @@ interface TrabalhoTabProps {
     onChange: (data: Partial<TrabalhoData>) => void
 }
 
-const setores = [
-    'Tecnologia',
-    'Saúde',
-    'Educação',
-    'Varejo',
-    'Serviços Financeiros',
-    'Indústria',
-    'Construção',
-    'Alimentação',
-    'Transporte',
-    'Imobiliário',
-    'Consultoria',
-    'Marketing',
-    'Outro',
-]
+/**
+ * O setor não é uma escolha: o OdontoBox360 atende clínicas odontológicas.
+ *
+ * O seletor oferecia treze setores — Tecnologia, Varejo, Transporte — herdados
+ * de um produto genérico. Escolher "Alimentação" aqui só servia para o agente
+ * de uma clínica se descrever errado no prompt. O valor é fixo e aparece na
+ * tela porque é informação que o Agente usa, não porque há o que decidir.
+ */
+export const SETOR_PADRAO = 'Clínica odontológica'
 
 export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
     return (
@@ -70,24 +57,13 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
                     />
                 </div>
 
-                {/* Setor da empresa */}
+                {/* Setor da empresa — fixo */}
                 <div className="space-y-2">
                     <Label htmlFor="companySector">Setor da empresa</Label>
-                    <Select
-                        value={data.companySector}
-                        onValueChange={(value) => onChange({ companySector: value })}
-                    >
-                        <SelectTrigger id="companySector">
-                            <SelectValue placeholder="Selecionar" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {setores.map((setor) => (
-                                <SelectItem key={setor} value={setor.toLowerCase()}>
-                                    {setor}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                        Definido pelo produto, e informado ao Agente.
+                    </p>
+                    <Input id="companySector" value={SETOR_PADRAO} readOnly disabled />
                 </div>
 
                 {/*
