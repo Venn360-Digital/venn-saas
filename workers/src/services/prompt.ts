@@ -196,10 +196,38 @@ export function buildSystemPrompt(
             'resultado delas.\n' +
             `As fases do funil desta clínica são, em ordem: ${context.stages.join(' → ')}. ` +
             'Ao mover o negócio, use o nome exato de uma delas.\n' +
-            'Você consegue **consultar** compromissos já marcados, mas **não** consegue ' +
-            'marcar, remarcar nem cancelar. Quando o paciente quiser um horário, diga que ' +
-            'vai passar para a equipe e não prometa data nenhuma.'
+            'Você consegue **consultar** compromissos já marcados.'
         )
+    }
+
+    /**
+     * O que ele pode marcar, e com quem — ou que não pode marcar nada.
+     *
+     * As duas frases existem pelo mesmo motivo: sem nenhuma, o modelo decide
+     * sozinho. Com a lista, ele oferece o que existe; sem nada liberado, ele
+     * sabe dizer que a equipe retorna, em vez de prometer um horário que não
+     * tem como marcar.
+     */
+    if (context) {
+        const { procedimentos, especialistas } = context.bookable
+        if (procedimentos.length > 0 && especialistas.length > 0) {
+            sections.push(
+                '## Agendamento\n' +
+                `Você pode marcar: ${procedimentos.join(', ')}.\n` +
+                `Com: ${especialistas.join(', ')}.\n` +
+                'Sempre consulte os horários livres antes de oferecer qualquer data, e marque ' +
+                'só depois de o paciente confirmar qual horário quer. **Nunca invente horário** ' +
+                'e nunca ofereça data que não tenha aparecido na consulta.\n' +
+                'Para qualquer outro procedimento, ou qualquer pedido de remarcar ou cancelar, ' +
+                'diga que vai passar para a equipe — você não faz isso.'
+            )
+        } else {
+            sections.push(
+                '## Agendamento\n' +
+                'Você **não** marca, remarca nem cancela horário. Quando o paciente quiser um ' +
+                'horário, diga que vai passar para a equipe e não prometa data nenhuma.'
+            )
+        }
     }
 
     // WhatsApp-specific shaping: long markdown answers read badly in a chat bubble.

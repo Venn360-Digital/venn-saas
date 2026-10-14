@@ -31,6 +31,15 @@ export interface ConversationContext {
      * ("Qualificação") que a clínica não tem, e a ferramenta recusa.
      */
     stages: string[]
+    /**
+     * Os procedimentos que o agente pode marcar, e com quem.
+     *
+     * Mesma razão das fases: `marcar_consulta` exige o nome exato. E sem saber o
+     * que existe, o modelo promete "limpeza" numa clínica que só cadastrou
+     * avaliação — que é pior que não marcar, porque o paciente já desligou
+     * achando que tinha horário.
+     */
+    bookable: { procedimentos: string[]; especialistas: string[] }
     /** Data e hora de agora, por extenso, no fuso da clínica. */
     agora: string
 }
@@ -90,7 +99,7 @@ export async function loadConversationContext(
             },
         })
 
-        if (!conversa?.contact) return { upcoming: [], stages: [], agora }
+        if (!conversa?.contact) return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
 
         const { contact, workspaceId } = conversa
 
@@ -99,7 +108,7 @@ export async function loadConversationContext(
         // modelo a tratar ninguém pelo nome.
         const nome = contact.name && !/^WhatsApp\s/i.test(contact.name) ? contact.name.trim() : undefined
 
-        const [negocio, compromissos, fases] = await Promise.all([
+        const [negocio, compromissos, fases, procedimentos, especialistas] = await Promise.all([
             prisma.deal.findFirst({
                 where: { workspaceId, contactId: contact.id, status: 'open' },
                 orderBy: { createdAt: 'desc' },
@@ -121,6 +130,33 @@ export async function loadConversationContext(
                 orderBy: { order: 'asc' },
                 select: { name: true },
             }),
+            /**
+             * Só o que o agente pode de fato marcar.
+             *
+             * Um procedimento sem duração não dá para reservar, e um que nenhuma
+             * janela liberada aceita ele não vai conseguir marcar — listar
+             * qualquer um dos dois no prompt seria convidá-lo a prometer o que
+             * não cumpre.
+             */
+            prisma.productService.findMany({
+                where: {
+                    workspaceId,
+                    category: 'procedure',
+                    durationMinutes: { not: null },
+                    windows: { some: { window: { agentCanBook: true } } },
+                },
+                orderBy: { name: 'asc' },
+                select: { name: true },
+            }),
+            prisma.specialist.findMany({
+                where: {
+                    workspaceId,
+                    isActive: true,
+                    windows: { some: { agentCanBook: true } },
+                },
+                orderBy: { name: 'asc' },
+                select: { name: true },
+            }),
         ])
 
         return {
@@ -130,6 +166,10 @@ export async function loadConversationContext(
             dealTitle: negocio?.title,
             dealStage: negocio?.stage?.name,
             stages: fases.map((f) => f.name),
+            bookable: {
+                procedimentos: procedimentos.map((p) => p.name),
+                especialistas: especialistas.map((e) => e.name),
+            },
             upcoming: compromissos
                 .filter((a) => a.dueDate)
                 .map((a) => ({ quando: quandoCurto(a.dueDate as Date, a.startTime, timezone), titulo: a.title })),
@@ -137,6 +177,6 @@ export async function loadConversationContext(
         }
     } catch (error) {
         log.warn(`não foi possível montar o contexto da conversa ${conversationId}`, error)
-        return { upcoming: [], stages: [], agora }
+        return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
     }
 }

@@ -14,7 +14,8 @@
     "worker:start": "node workers/dist/index.js",
     "lint:colors": "node scripts/lint-colors.mjs",
     "prebuild": "node scripts/lint-colors.mjs",
-    "check:period": "tsx --conditions=react-server scripts/check-period.ts"
+    "check:period": "tsx --conditions=react-server scripts/check-period.ts",
+    "test:availability": "tsx scripts/test-availability.ts"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",

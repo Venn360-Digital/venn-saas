@@ -36,6 +36,17 @@ interface AgentTool {
     run(args: Record<string, unknown>, ctx: AgentToolContext): Promise<string>
 }
 
+/** "sexta-feira, 17/10" — como alguém diria num WhatsApp. */
+function formatarData(data: string, timezone: string): string {
+    const [a, m, d] = data.split('-').map(Number)
+    return new Intl.DateTimeFormat('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: timezone,
+    }).format(new Date(Date.UTC(a, m - 1, d, 12)))
+}
+
 /** Data e hora como a clínica fala, no fuso do agente. */
 function formatar(data: Date, timezone: string): string {
     return new Intl.DateTimeFormat('pt-BR', {
@@ -210,7 +221,229 @@ const moverNegocio: AgentTool = {
     },
 }
 
-const FERRAMENTAS: AgentTool[] = [consultarAgenda, moverNegocio]
+/**
+ * "YYYY-MM-DDTHH:MM" de agora, no relógio da clínica.
+ *
+ * O cálculo de vagas trabalha em horário local e literal — ver `availability.ts`
+ * — então "agora" também precisa chegar assim, e não como instante UTC.
+ */
+function agoraLocal(timezone: string): string {
+    const p = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: timezone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date())
+    // `sv-SE` já formata como "2026-10-20 14:35".
+    return p.replace(' ', 'T')
+}
+
+/** "YYYY-MM-DD" daqui a N dias, no relógio da clínica. */
+function daquiADias(timezone: string, dias: number): string {
+    const d = new Date()
+    d.setDate(d.getDate() + dias)
+    return new Intl.DateTimeFormat('sv-SE', {
+        timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(d)
+}
+
+const DIAS_A_FRENTE = 21
+
+const consultarHorarios: AgentTool = {
+    definition: {
+        name: 'consultar_horarios_livres',
+        description:
+            'Mostra os horários livres para marcar um procedimento. Use ANTES de oferecer ' +
+            'qualquer data ao paciente — nunca invente horário. Devolve só o que a clínica ' +
+            'liberou para você, nos próximos ' + DIAS_A_FRENTE + ' dias.',
+        parameters: {
+            type: 'object',
+            properties: {
+                procedimento: {
+                    type: 'string',
+                    description:
+                        'O nome do procedimento, exatamente como aparece na lista das suas ' +
+                        'instruções.',
+                },
+                especialista: {
+                    type: 'string',
+                    description:
+                        'O nome do especialista. Omita para ver os horários de todos os que ' +
+                        'atendem este procedimento.',
+                },
+            },
+            required: ['procedimento'],
+            additionalProperties: false,
+        },
+    },
+    async run(args, ctx) {
+        const { buscarVagas } = await import('@/lib/schedule-query')
+        const nome = typeof args.procedimento === 'string' ? args.procedimento.trim() : ''
+        if (!nome) return 'Erro: diga qual procedimento.'
+
+        const procedimento = await prisma.productService.findFirst({
+            where: { workspaceId: ctx.workspaceId, category: 'procedure' },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true },
+        }).then(async () => {
+            const todos = await prisma.productService.findMany({
+                where: { workspaceId: ctx.workspaceId, category: 'procedure' },
+                select: { id: true, name: true },
+            })
+            return todos.find((p) => normalizeSearch(p.name) === normalizeSearch(nome)) ?? null
+        })
+        if (!procedimento) return `Erro: não existe o procedimento "${nome}".`
+
+        const especialistas = await prisma.specialist.findMany({
+            where: { workspaceId: ctx.workspaceId, isActive: true },
+            select: { id: true, name: true },
+        })
+        const pedido = typeof args.especialista === 'string' ? args.especialista.trim() : ''
+        const alvos = pedido
+            ? especialistas.filter((e) => normalizeSearch(e.name) === normalizeSearch(pedido))
+            : especialistas
+        if (alvos.length === 0) return `Erro: não existe o especialista "${pedido}".`
+
+        const de = daquiADias(ctx.timezone, 0)
+        const ate = daquiADias(ctx.timezone, DIAS_A_FRENTE)
+        const agora = agoraLocal(ctx.timezone)
+
+        const linhas: string[] = []
+        for (const e of alvos) {
+            const r = await buscarVagas({
+                workspaceId: ctx.workspaceId,
+                specialistId: e.id,
+                procedureId: procedimento.id,
+                de,
+                ate,
+                paraAgente: true,
+                agora,
+            })
+            if (!r.ok) continue
+            // Poucas e as mais próximas: uma lista de cinquenta horários numa
+            // bolha de WhatsApp não ajuda ninguém a escolher.
+            for (const v of r.vagas.slice(0, 6)) {
+                linhas.push(`- ${formatarData(v.date, ctx.timezone)} às ${v.startTime} com ${e.name}`)
+            }
+        }
+
+        if (linhas.length === 0) {
+            return (
+                `Não há horário livre para ${procedimento.name} nos próximos ${DIAS_A_FRENTE} dias ` +
+                'entre os que a clínica liberou. Diga que a equipe vai verificar e retornar.'
+            )
+        }
+        return `Horários livres para ${procedimento.name}:\n${linhas.join('\n')}`
+    },
+}
+
+const marcarConsulta: AgentTool = {
+    definition: {
+        name: 'marcar_consulta',
+        description:
+            'Marca de fato um horário na agenda da clínica. Use SOMENTE depois de ' +
+            '`consultar_horarios_livres` ter mostrado este horário e o paciente ter ' +
+            'confirmado que quer. Nunca chame com data que você não viu na lista.',
+        parameters: {
+            type: 'object',
+            properties: {
+                procedimento: { type: 'string', description: 'O nome do procedimento.' },
+                especialista: { type: 'string', description: 'O nome do especialista.' },
+                data: { type: 'string', description: 'A data, no formato AAAA-MM-DD.' },
+                hora: { type: 'string', description: 'A hora de início, no formato HH:MM.' },
+            },
+            required: ['procedimento', 'especialista', 'data', 'hora'],
+            additionalProperties: false,
+        },
+    },
+    async run(args, ctx) {
+        const { buscarVagas } = await import('@/lib/schedule-query')
+        const nome = String(args.procedimento ?? '').trim()
+        const quem = String(args.especialista ?? '').trim()
+        const data = String(args.data ?? '').trim()
+        const hora = String(args.hora ?? '').trim()
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return 'Erro: a data precisa ser AAAA-MM-DD.'
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return 'Erro: a hora precisa ser HH:MM.'
+
+        const [procedimentos, especialistas] = await Promise.all([
+            prisma.productService.findMany({
+                where: { workspaceId: ctx.workspaceId, category: 'procedure' },
+                select: { id: true, name: true, durationMinutes: true },
+            }),
+            prisma.specialist.findMany({
+                where: { workspaceId: ctx.workspaceId, isActive: true },
+                select: { id: true, name: true },
+            }),
+        ])
+        const procedimento = procedimentos.find((p) => normalizeSearch(p.name) === normalizeSearch(nome))
+        if (!procedimento) return `Erro: não existe o procedimento "${nome}".`
+        const especialista = especialistas.find((e) => normalizeSearch(e.name) === normalizeSearch(quem))
+        if (!especialista) return `Erro: não existe o especialista "${quem}".`
+
+        /**
+         * **O horário é conferido de novo, aqui.**
+         *
+         * O modelo pode ter lido a lista errado, inventado um horário parecido,
+         * ou demorado o bastante para outra pessoa marcar no meio. Confiar no
+         * que ele mandou colocaria um paciente num horário que não existe — e é
+         * exatamente o erro que esta funcionalidade inteira existe para evitar.
+         */
+        const r = await buscarVagas({
+            workspaceId: ctx.workspaceId,
+            specialistId: especialista.id,
+            procedureId: procedimento.id,
+            de: data,
+            ate: data,
+            paraAgente: true,
+            agora: agoraLocal(ctx.timezone),
+        })
+        if (!r.ok) return `Erro: ${r.motivo}`
+
+        const vaga = r.vagas.find((v) => v.date === data && v.startTime === hora)
+        if (!vaga) {
+            const alternativas = r.vagas.slice(0, 4).map((v) => v.startTime).join(', ')
+            return (
+                `Erro: ${hora} de ${formatarData(data, ctx.timezone)} não está livre. ` +
+                (alternativas
+                    ? `Livres nesse dia: ${alternativas}. Ofereça um destes.`
+                    : 'Não há horário livre nesse dia. Ofereça outro dia.')
+            )
+        }
+
+        const quando = new Date(`${data}T${hora}:00`)
+        const criada = await prisma.activity.create({
+            data: {
+                workspaceId: ctx.workspaceId,
+                contactId: ctx.contactId,
+                specialistId: especialista.id,
+                productServiceId: procedimento.id,
+                type: 'meeting',
+                title: `${procedimento.name} com ${especialista.name}`,
+                dueDate: quando,
+                startTime: hora,
+                endTime: vaga.endTime,
+                // Marcada por automação: a etiqueta na agenda diz à equipe que
+                // não foi a recepção que digitou isto.
+                auto: true,
+            },
+            select: { id: true },
+        })
+
+        await registrar(
+            ctx,
+            `O agente marcou ${procedimento.name} com ${especialista.name} em ` +
+            `${formatarData(data, ctx.timezone)} às ${hora}.`
+        )
+        log.info(`agent booked activity ${criada.id} for contact ${ctx.contactId}`)
+
+        return (
+            `Pronto: ${procedimento.name} com ${especialista.name}, ` +
+            `${formatarData(data, ctx.timezone)} às ${hora}. Confirme ao paciente.`
+        )
+    },
+}
+
+const FERRAMENTAS: AgentTool[] = [consultarAgenda, moverNegocio, consultarHorarios, marcarConsulta]
 
 export const AGENT_TOOL_DEFINITIONS: LLMTool[] = FERRAMENTAS.map((f) => f.definition)
 
