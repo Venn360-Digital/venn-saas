@@ -17,6 +17,7 @@ import { RecordDialog } from '@/components/shared/RecordDialog'
 import { JanelasDialog } from '@/components/specialists/JanelasDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { normalizeSearch } from '@/lib/search'
+import { PICKER_RAMP } from '@/lib/palette'
 
 /**
  * Quem executa os procedimentos da clínica.
@@ -38,7 +39,15 @@ interface Especialista {
     windowCount: number
 }
 
-const CORES = ['#06B6D4', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#3B82F6']
+/**
+ * A mesma régua de cores dos outros cadastros.
+ *
+ * `PICKER_RAMP` existe em `palette.ts` para isto, e é o único lugar do `src/`
+ * onde cor literal é permitida — o verificador de cores recusa hex solto em
+ * qualquer outro arquivo. Reusá-la também faz o especialista combinar com a
+ * etiqueta e a fase do funil, em vez de inventar uma sexta paleta.
+ */
+const CORES = PICKER_RAMP
 
 export default function EspecialistasPage() {
     const { canEdit } = usePermissions()
