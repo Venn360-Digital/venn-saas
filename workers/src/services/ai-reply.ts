@@ -103,7 +103,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     // banco em paralelo custam o tempo da mais lenta, não a soma.
     const [knowledge, context] = await Promise.all([
         retrieveKnowledge(agent.id, lastInbound?.content ?? ''),
-        loadConversationContext(conversationId),
+        loadConversationContext(conversationId, agent.timezone),
     ])
 
     const messages: LLMMessage[] = [

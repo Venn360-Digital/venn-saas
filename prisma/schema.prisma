@@ -179,6 +179,12 @@ model Agent {
   primaryColor String  @default("#3B82F6")
   voiceTone    String? // "formal", "casual", "friendly"
   language     String  @default("pt-BR")
+  /// O fuso da unidade, usado para dizer ao agente que horas são agora.
+  ///
+  /// Era fixo no código: certo para a maior parte do Brasil, errado por uma hora
+  /// em Manaus e por duas em Rio Branco — e o erro aparece justamente nas
+  /// respostas sobre horário de atendimento.
+  timezone     String  @default("America/Sao_Paulo")
 
   // VOZ (para futuro)
   voiceEnabled  Boolean @default(false)

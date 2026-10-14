@@ -189,7 +189,7 @@ export default function AgentsPage() {
                 )
             }
         >
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-6">
                 {loading ? (
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {[0, 1, 2].map((i) => (

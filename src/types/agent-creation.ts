@@ -1,7 +1,71 @@
 // Types for Agent Creation Form
 
+/**
+ * Com o que um agente novo nasce — e para o que o duplicado cai quando o
+ * original não tinha o campo preenchido.
+ *
+ * Existe para a clínica não precisar decidir seis coisas antes de ter o
+ * primeiro agente atendendo. Cada valor é a escolha certa para a maioria:
+ * SDR porque o trabalho é agendar, `gpt-4o-mini` porque dá conta da rotina por
+ * uma fração do nosso custo, e 0,6 de criatividade porque preço e regra não
+ * podem variar a cada pergunta.
+ */
+/**
+ * Os textos com que os campos longos nascem — preenchidos, não como dica.
+ *
+ * Campo em branco com uma frase cinza por trás é um pedido de redação: a clínica
+ * abre, não sabe o que escrever ali, e salva vazio. O agente então atende sem
+ * saudação e sem nenhuma regra de conduta.
+ *
+ * Preenchido, vira edição em vez de redação — e mesmo quem não mexer sai com um
+ * texto que funciona. São modelos deliberadamente genéricos de clínica, para
+ * serem ajustados: o que é específico de cada uma (preço, convênio, horário)
+ * mora no Cérebro, não aqui.
+ */
+export const MODELOS_DE_TEXTO = {
+    initialMessage:
+        'Olá! Sou o assistente virtual da clínica. 😊\n\n' +
+        'Posso tirar dúvidas sobre tratamentos, valores e convênios, e também ' +
+        'agendar sua avaliação.\n\n' +
+        'Como posso ajudar você hoje?',
+
+    jobDescription:
+        'Atender quem chega pelo WhatsApp, entender o que a pessoa precisa e ' +
+        'conduzi-la até o agendamento de uma avaliação.\n\n' +
+        '- Responder dúvidas sobre os tratamentos que a clínica oferece\n' +
+        '- Informar valores e formas de pagamento quando constarem na base de conhecimento\n' +
+        '- Confirmar se a clínica atende o convênio da pessoa\n' +
+        '- Oferecer horários e registrar o interesse em agendar\n' +
+        '- Encaminhar para a equipe quando o assunto for clínico ou uma reclamação',
+
+    companyDescription:
+        'Clínica odontológica que atende [especialidades: ortodontia, implante, ' +
+        'clínica geral]. Atendemos de [dia] a [dia], das [hora] às [hora].\n\n' +
+        'Nosso diferencial é [o que a clínica faz melhor que as outras].',
+
+    systemPrompt:
+        'Fale com acolhimento e vá direto ao ponto.\n\n' +
+        '- Nunca prometa prazo, resultado ou diagnóstico sem avaliação presencial\n' +
+        '- Não informe preço que não esteja na sua base de conhecimento; diga que ' +
+        'vai confirmar com a equipe\n' +
+        '- Se a pessoa relatar dor, acolha primeiro e ofereça encaixe no mesmo dia\n' +
+        '- Peça o nome quando ainda não souber, uma única vez\n' +
+        '- Reclamação ou assunto clínico vai para a equipe, sem tentar resolver sozinho',
+}
+
+export const PADROES_DO_AGENTE = {
+    agentFunction: 'sdr_atendimento' as const,
+    voiceTone: 'pratico',
+    language: 'pt-BR',
+    timezone: 'America/Sao_Paulo',
+    llmModel: 'gpt-4o-mini',
+    temperature: 0.6,
+}
+
 export interface PerfilData {
     name: string
+    /** O fuso da unidade, que o prompt usa para dizer que horas são agora. */
+    timezone?: string
     /**
      * A imagem do agente, que vivia numa aba Visual só dela.
      *

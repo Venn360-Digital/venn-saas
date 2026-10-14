@@ -97,9 +97,9 @@ export function AgentCreationLayout({
 
 
     return (
-        <div className="flex h-full bg-background">
+        <div className="flex h-full min-h-0 bg-background">
             {/* Sidebar */}
-            <aside className="w-64 border-r bg-card">
+            <aside className="w-64 shrink-0 overflow-y-auto overscroll-contain border-r bg-card">
                 <div className="flex h-16 items-center gap-3 border-b px-6">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                         <span className="text-lg">🤖</span>
@@ -167,9 +167,9 @@ export function AgentCreationLayout({
             </aside>
 
             {/* Main Content */}
-            <div className="flex flex-1 flex-col">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {/* Header */}
-                <header className="flex h-16 items-center justify-between border-b px-6">
+                <header className="flex h-16 shrink-0 items-center justify-between border-b px-6">
                     <div className="flex items-center gap-4">
                         <Button
                             variant="ghost"
@@ -199,7 +199,11 @@ export function AgentCreationLayout({
                 </header>
 
                 {/* Content Area */}
-                <main className="flex-1 overflow-y-auto p-6">
+                {/* `min-h-0` e `overscroll-contain`: sem o primeiro, um item flex não
+                    encolhe abaixo do conteúdo e quem rola passa a ser o shell, levando
+                    cabeçalho e barra lateral junto; sem o segundo, chegar ao fim e
+                    continuar arrastando encadeia o movimento para fora e a tela balança. */}
+                <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6">
                     {children}
                 </main>
             </div>

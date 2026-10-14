@@ -68,10 +68,12 @@ export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
  */
 export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: true,
-    responseSpeed: 0,
+    /** Cinco segundos: tempo de alguém lendo e digitando, não de um robô. */
+    responseSpeed: 5,
     keepContext: true,
-    useEmojis: false,
-    restrictTopics: false,
+    useEmojis: true,
+    /** Clínica responde de clínica: fora disso, recusa educadamente. */
+    restrictTopics: true,
     interactionLimit: 50,
 }
 

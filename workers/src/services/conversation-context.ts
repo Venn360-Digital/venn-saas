@@ -3,8 +3,8 @@ import { createLogger } from '../logger'
 
 const log = createLogger('CONTEXT')
 
-/** O fuso da clínica, como no resto do projeto (ver `src/lib/billing.ts`). */
-const TZ = 'America/Sao_Paulo'
+/** O fuso de quem nunca escolheu — o mesmo que o código usava fixo. */
+const TZ_PADRAO = 'America/Sao_Paulo'
 
 export interface ConversationContext {
     /** Como chamar a pessoa. Primeiro nome, que é como se fala no WhatsApp. */
@@ -22,9 +22,9 @@ export interface ConversationContext {
 const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
 
 /** "quinta-feira, 13 de outubro de 2026, 19:42" */
-function porExtenso(data: Date): string {
+function porExtenso(data: Date, tz: string): string {
     const partes = new Intl.DateTimeFormat('pt-BR', {
-        timeZone: TZ,
+        timeZone: tz,
         weekday: 'long',
         day: '2-digit',
         month: 'long',
@@ -36,9 +36,9 @@ function porExtenso(data: Date): string {
 }
 
 /** "sexta-feira, 17/10, às 14:30" — curto, porque vai para dentro do prompt. */
-function quandoCurto(dueDate: Date, startTime: string | null): string {
+function quandoCurto(dueDate: Date, startTime: string | null, tz: string): string {
     const dia = new Intl.DateTimeFormat('pt-BR', {
-        timeZone: TZ,
+        timeZone: tz,
         weekday: 'long',
         day: '2-digit',
         month: '2-digit',
@@ -59,8 +59,11 @@ function quandoCurto(dueDate: Date, startTime: string | null): string {
  * Falhar aqui não cala o agente: devolve o mínimo (a data) e segue, porque uma
  * resposta sem o nome do paciente é muito melhor que nenhuma resposta.
  */
-export async function loadConversationContext(conversationId: string): Promise<ConversationContext> {
-    const agora = porExtenso(new Date())
+export async function loadConversationContext(
+    conversationId: string,
+    timezone: string = TZ_PADRAO
+): Promise<ConversationContext> {
+    const agora = porExtenso(new Date(), timezone)
 
     try {
         const conversa = await prisma.conversation.findUnique({
@@ -106,7 +109,7 @@ export async function loadConversationContext(conversationId: string): Promise<C
             dealStage: negocio?.stage?.name,
             upcoming: compromissos
                 .filter((a) => a.dueDate)
-                .map((a) => ({ quando: quandoCurto(a.dueDate as Date, a.startTime), titulo: a.title })),
+                .map((a) => ({ quando: quandoCurto(a.dueDate as Date, a.startTime, timezone), titulo: a.title })),
             agora,
         }
     } catch (error) {

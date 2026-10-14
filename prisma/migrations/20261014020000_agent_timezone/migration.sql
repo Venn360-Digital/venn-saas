@@ -1,0 +1,13 @@
+-- O fuso horário da unidade que este agente atende.
+--
+-- O prompt diz ao agente que horas são agora, e até aqui isso era "America/
+-- Sao_Paulo" fixo no código. Funciona para a maioria das clínicas brasileiras e
+-- erra por uma hora em Manaus e por duas em Rio Branco — justamente nas
+-- respostas sobre horário de atendimento e encaixe, que é onde a hora importa.
+--
+-- Fica no agente e não no workspace pelo mesmo motivo do endereço: uma rede com
+-- unidades em estados diferentes usa um agente por unidade.
+--
+-- Coluna nova com valor padrão: as linhas existentes passam a ter exatamente o
+-- fuso que o código já usava, então nada muda de comportamento.
+ALTER TABLE "agents" ADD COLUMN "timezone" TEXT NOT NULL DEFAULT 'America/Sao_Paulo';

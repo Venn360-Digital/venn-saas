@@ -101,6 +101,7 @@ export async function POST(
                 primaryColor: originalAgent.primaryColor,
                 voiceTone: originalAgent.voiceTone,
                 language: originalAgent.language,
+                timezone: originalAgent.timezone,
                 voiceEnabled: originalAgent.voiceEnabled,
                 voiceModel: originalAgent.voiceModel,
                 voiceTraining: originalAgent.voiceTraining,

@@ -157,7 +157,7 @@ export function buildSystemPrompt(
      * já tem consulta marcada.
      */
     if (context) {
-        const linhas: string[] = [`Agora é ${context.agora} (horário de Brasília).`]
+        const linhas: string[] = [`Agora é ${context.agora}.`]
 
         if (context.contactFirstName) {
             linhas.push(

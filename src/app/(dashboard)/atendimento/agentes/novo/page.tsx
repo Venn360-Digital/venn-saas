@@ -123,6 +123,7 @@ function NovoAgenteContent() {
                 agentFunction: agent.agentFunction || undefined,
                 voiceTone: agent.voiceTone || '',
                 language: agent.language || 'pt-BR',
+                timezone: agent.timezone || 'America/Sao_Paulo',
             })
 
             setTrabalho({

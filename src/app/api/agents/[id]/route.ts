@@ -42,6 +42,7 @@ const updateAgentSchema = z.object({
     primaryColor: z.string().optional(),
     voiceTone: z.string().optional(),
     language: z.string().optional(),
+    timezone: z.string().optional(),
 
     // VOZ
     voiceEnabled: z.boolean().optional(),

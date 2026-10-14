@@ -30,6 +30,14 @@ function isAgentFunction(value: string): value is AgentFunction {
     return AGENT_FUNCTIONS.some((option) => option.value === value)
 }
 
+/** Os fusos do Brasil, que é onde o produto atende. */
+const FUSOS = [
+    { value: 'America/Sao_Paulo', label: 'Brasília (GMT−3)' },
+    { value: 'America/Manaus', label: 'Manaus (GMT−4)' },
+    { value: 'America/Rio_Branco', label: 'Rio Branco (GMT−5)' },
+    { value: 'America/Noronha', label: 'Fernando de Noronha (GMT−2)' },
+]
+
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 
@@ -235,26 +243,49 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                     </Select>
                 </div>
 
-                {/* Idioma */}
-                <div className="space-y-2">
-                    <Label htmlFor="language">Idioma</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Selecione o idioma do Agente para geração de resposta
-                    </p>
-                    <Select
-                        value={data.language}
-                        onValueChange={(value) => onChange({ language: value })}
-                    >
-                        <SelectTrigger id="language">
-                            <SelectValue placeholder="Português (Brasil)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
-                            <SelectItem value="en-US">Inglês (EUA)</SelectItem>
-                            <SelectItem value="es-ES">Espanhol</SelectItem>
-                            <SelectItem value="fr-FR">Francês</SelectItem>
-                        </SelectContent>
-                    </Select>
+                {/* Idioma e fuso, lado a lado: os dois dizem ao Agente como se
+                    situar — em que língua falar e que horas são agora. */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="language">Idioma</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Em que língua o Agente responde
+                        </p>
+                        <Select
+                            value={data.language}
+                            onValueChange={(value) => onChange({ language: value })}
+                        >
+                            <SelectTrigger id="language">
+                                <SelectValue placeholder="Português (Brasil)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                                <SelectItem value="en-US">Inglês (EUA)</SelectItem>
+                                <SelectItem value="es-ES">Espanhol</SelectItem>
+                                <SelectItem value="fr-FR">Francês</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="timezone">Fuso horário</Label>
+                        <p className="text-xs text-muted-foreground">
+                            O Agente usa para saber que horas são agora
+                        </p>
+                        <Select
+                            value={data.timezone ?? 'America/Sao_Paulo'}
+                            onValueChange={(timezone) => onChange({ timezone })}
+                        >
+                            <SelectTrigger id="timezone">
+                                <SelectValue placeholder="Brasília (GMT−3)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {FUSOS.map((f) => (
+                                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </div>
         </div>

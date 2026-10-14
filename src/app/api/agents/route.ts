@@ -50,6 +50,7 @@ const createAgentSchema = z.object({
     primaryColor: z.string().optional(),
     voiceTone: z.string().optional(),
     language: z.string().default('pt-BR'),
+    timezone: z.string().default('America/Sao_Paulo'),
 
     // VOZ
     voiceEnabled: z.boolean().default(false),

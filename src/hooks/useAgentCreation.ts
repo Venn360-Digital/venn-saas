@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData } from '@/types/agent-creation'
-import { DEFAULT_MODEL } from '@/lib/llm/models'
+import {
+    PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData,
+    PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
+} from '@/types/agent-creation'
 import { SETOR_PADRAO } from '@/components/agents/creation/tabs/TrabalhoTab'
 
 /**
@@ -27,10 +29,17 @@ export function useAgentCreation(workspaceId: string) {
     // Estado inicial
     const [perfil, setPerfil] = useState<PerfilData>({
         name: '',
-        language: 'pt-BR',
+        agentFunction: PADROES_DO_AGENTE.agentFunction,
+        voiceTone: PADROES_DO_AGENTE.voiceTone,
+        language: PADROES_DO_AGENTE.language,
+        timezone: PADROES_DO_AGENTE.timezone,
+        initialMessage: MODELOS_DE_TEXTO.initialMessage,
     })
 
-    const [trabalho, setTrabalho] = useState<TrabalhoData>({})
+    const [trabalho, setTrabalho] = useState<TrabalhoData>({
+        jobDescription: MODELOS_DE_TEXTO.jobDescription,
+        companyDescription: MODELOS_DE_TEXTO.companyDescription,
+    })
 
     const [cerebro, setCerebro] = useState<CerebroData>({
         files: [],
@@ -44,8 +53,9 @@ export function useAgentCreation(workspaceId: string) {
     })
 
     const [instrucoes, setInstrucoes] = useState<InstrucoesData>({
-        llmModel: DEFAULT_MODEL,
-        temperature: 0.7,
+        llmModel: PADROES_DO_AGENTE.llmModel,
+        temperature: PADROES_DO_AGENTE.temperature,
+        systemPrompt: MODELOS_DE_TEXTO.systemPrompt,
     })
 
     const handleSave = async (agentId?: string | null) => {
@@ -71,6 +81,7 @@ export function useAgentCreation(workspaceId: string) {
                 agentFunction: perfil.agentFunction,
                 voiceTone: perfil.voiceTone,
                 language: perfil.language,
+                timezone: perfil.timezone,
 
                 // Trabalho
                 jobDescription: trabalho.jobDescription,
@@ -195,7 +206,20 @@ export function useAgentCreation(workspaceId: string) {
             }
 
             toast.success(`Agente ${agentId ? 'atualizado' : 'criado'}`)
-            router.push('/atendimento/agentes')
+
+            /**
+             * Editar continua na aba onde se estava.
+             *
+             * Salvar jogava de volta para a lista, mesmo editando: quem ajustava
+             * o tom de voz e queria conferir o Cérebro em seguida tinha de abrir
+             * o agente de novo e navegar até lá. Criar é diferente — o agente
+             * passa a existir e a URL precisa ganhar o id, senão o próximo salvar
+             * criaria um segundo agente.
+             */
+            if (!agentId) {
+                const tab = new URLSearchParams(window.location.search).get('tab') ?? 'perfil'
+                router.replace(`/atendimento/agentes/novo?id=${agent.id}&tab=${tab}`)
+            }
         } catch (error) {
             console.error('[SAVE] Error saving agent:', error)
             const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
