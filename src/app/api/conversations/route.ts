@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
                     }
                 },
                 integration: {
-                    select: { id: true, label: true, phoneNumber: true, config: true },
+                    select: { id: true, label: true, phoneNumber: true, config: true, channel: true },
                 },
                 messages: {
                     orderBy: { createdAt: 'desc' },
@@ -250,6 +250,7 @@ export async function GET(request: NextRequest) {
                     ? {
                           id: conv.integration.id,
                           label: conv.integration.label,
+                          channel: conv.integration.channel,
                           phoneNumber:
                               conv.integration.phoneNumber ??
                               phoneFromConfig(conv.integration.config),
@@ -285,18 +286,8 @@ export async function GET(request: NextRequest) {
             select: { id: true, label: true, phoneNumber: true, config: true, agent: { select: { name: true } } },
         })
 
-        /**
-         * Quantos agentes a clínica tem.
-         *
-         * A lista só mostra o que **varia**: com um agente só, o nome dele é o
-         * mesmo em toda conversa e não distingue nada — ocupa a terceira linha
-         * do cartão sem dizer nada. Mesma regra já aplicada à linha.
-         */
-        const agentCount = await prisma.agent.count({ where: { workspaceId: ws } })
-
         return NextResponse.json({
             conversations: result,
-            agentCount,
             lines: lines.map((l) => ({
                 id: l.id,
                 label: l.label,

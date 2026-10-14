@@ -73,7 +73,14 @@ export async function GET(
                     }
                 },
                 integration: {
-                    select: { id: true, label: true, phoneNumber: true, config: true, status: true },
+                    select: {
+                        id: true,
+                        label: true,
+                        phoneNumber: true,
+                        config: true,
+                        status: true,
+                        channel: true,
+                    },
                 },
                 tags: {
                     include: {
@@ -220,6 +227,7 @@ export async function GET(
                     ? {
                           id: conversation.integration.id,
                           label: conversation.integration.label,
+                          channel: conversation.integration.channel,
                           phoneNumber:
                               conversation.integration.phoneNumber ??
                               phoneFromConfig(conversation.integration.config),

@@ -37,7 +37,6 @@ import {
     RotateCcw,
     Route,
     Search,
-    PlugZap,
     Smartphone,
     Send,
     Sparkles,
@@ -142,6 +141,48 @@ function nomeDaLinha(line: { label: string | null; phoneNumber: string | null })
     return line.label?.trim() || (line.phoneNumber ? formatPhone(line.phoneNumber) : 'sem número')
 }
 
+/**
+ * O primeiro nome, que é como a clínica chama o paciente.
+ *
+ * O nome inteiro cabia no cabeçalho e não cabia no cartão: "Maria Aparecida
+ * Gonçalves dos Santos" ocupava a largura toda e ainda era cortado no meio do
+ * sobrenome. Quem atende chama de Maria.
+ */
+function primeiroNome(nome: string | null, telefone: string | null): string {
+    const limpo = nome?.trim()
+    if (limpo) return limpo.split(/\s+/)[0]
+    return telefone ? formatPhone(telefone) : 'Desconhecido'
+}
+
+/**
+ * De onde a conversa veio, dito como quem atende diria.
+ *
+ * O canal e a linha são duas coisas e a tela mostra uma: "Whats · Unidade
+ * Centro" diz o meio e o número na mesma frase. Nos canais que não têm linha —
+ * Instagram, site — o nome do canal já é a resposta inteira.
+ */
+const ROTULO_DO_CANAL: Record<string, string> = {
+    whatsapp_qr: 'Whats',
+    whatsapp_business: 'Whats',
+    instagram: 'Instagram',
+    site: 'Site',
+}
+
+function origemDaConversa(conv: {
+    channel: string
+    line?: { label: string | null; phoneNumber: string | null; channel?: string } | null
+}): string | null {
+    if (conv.line) {
+        const rotulo = ROTULO_DO_CANAL[conv.line.channel ?? ''] ?? 'Whats'
+        return `${rotulo} · ${nomeDaLinha(conv.line)}`
+    }
+    // Sem linha gravada, o canal da conversa é o que sobra para dizer.
+    if (conv.channel === 'instagram') return 'Instagram'
+    if (conv.channel === 'web') return 'Site'
+    if (conv.channel === 'whatsapp') return 'Whats'
+    return null
+}
+
 interface ConversationListItem {
     id: string
     channel: string
@@ -164,6 +205,7 @@ interface ConversationListItem {
         id: string
         label: string | null
         phoneNumber: string | null
+        channel: string
     } | null
     lastMessage: {
         id: string
@@ -257,6 +299,7 @@ interface ConversationDetail {
             id: string
             label: string | null
             phoneNumber: string | null
+            channel: string
             status: string
         } | null
         tags: TagItem[]
@@ -464,8 +507,6 @@ export default function ConversasPage() {
      */
     const [lineFilter, setLineFilter] = useState('all')
     const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
-    /** Quantos agentes a clínica tem — com um só, o nome não distingue nada. */
-    const [agentCount, setAgentCount] = useState(0)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     // Incrementa para derrubar e recriar o canal do Realtime depois de um erro.
@@ -725,7 +766,6 @@ export default function ConversasPage() {
 
                 setConversations(data.conversations)
                 if (Array.isArray(data.lines)) setLines(data.lines)
-                if (typeof data.agentCount === 'number') setAgentCount(data.agentCount)
                 if (data.counts) setQueue(data.counts)
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
@@ -1939,9 +1979,11 @@ export default function ConversasPage() {
                                             />
 
                                             <div className="flex-1 min-w-0">
+                                                {/* 1. Quem é — pelo primeiro nome, que é
+                                                    como a clínica chama o paciente. */}
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-medium text-sm truncate">
-                                                        {conv.contact.name || conv.contact.phone || 'Desconhecido'}
+                                                        {primeiroNome(conv.contact.name, conv.contact.phone)}
                                                     </span>
                                                     <span className="num ml-2 flex-shrink-0 text-[10px] text-muted-foreground">
                                                         {conv.lastMessage && formatMessageTime(conv.lastMessage.createdAt)}
@@ -1960,60 +2002,39 @@ export default function ConversasPage() {
                                                     )}
                                                 </div>
 
-                                                {/* 3. Por onde chegou, com quem está, e como está
-                                                    classificada — tudo na terceira linha. As
-                                                    etiquetas quebram para uma quarta e uma quinta
-                                                    quando são muitas: antes a quarta virava "+1",
-                                                    que é o número de uma informação que a pessoa
-                                                    procurava pelo nome. O canal e o atendente não
-                                                    quebram no meio. */}
-                                                {/* A linha entra aqui, e só quando a clínica tem mais
-                                                    de uma: com um número só ela é a mesma em todas as
-                                                    conversas e não informa nada. */}
-                                                {(() => {
-                                                    /**
-                                                     * A terceira linha do cartão mostra só o que **varia**.
-                                                     *
-                                                     * A linha, quando a clínica tem mais de uma; o agente,
-                                                     * quando tem mais de um. Com um agente e uma linha, os
-                                                     * dois são idênticos em todo cartão da lista: ocupam a
-                                                     * largura de uma informação sem distinguir nada. O
-                                                     * responsável e as etiquetas variam sempre.
-                                                     */
-                                                    const mostraLinha = lines.length > 1 && Boolean(conv.line)
-                                                    const mostraAgente = agentCount > 1 && Boolean(conv.agent)
-                                                    const temEtiquetas = Boolean(conv.tags && conv.tags.length > 0)
-                                                    const temContexto = mostraLinha || mostraAgente || Boolean(conv.assignedToName)
-                                                    if (!temContexto && !temEtiquetas) return null
-                                                    return (
-                                                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                                                        {temContexto && (
-                                                            <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-muted-foreground">
-                                                                {mostraLinha && conv.line ? (
-                                                                    <span className="flex items-center gap-1">
-                                                                        <Smartphone className="size-2.5" aria-hidden="true" />
-                                                                        {nomeDaLinha(conv.line)}
-                                                                    </span>
-                                                                ) : null}
-                                                                {mostraLinha && mostraAgente ? (
-                                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
-                                                                ) : null}
-                                                                {mostraAgente && conv.agent ? <span>{conv.agent.name}</span> : null}
-                                                                {(mostraLinha || mostraAgente) && conv.assignedToName ? (
-                                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
-                                                                ) : null}
-                                                                {conv.assignedToName ? <span>{conv.assignedToName}</span> : null}
-                                                                {temEtiquetas ? (
-                                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
-                                                                ) : null}
+                                                {/* 3. Quem atende e por onde chegou — nesta ordem,
+                                                    e sempre. A tentativa anterior mostrava cada um
+                                                    só quando "variava" e espremia responsável e
+                                                    etiquetas na mesma faixa: ficava uma tira densa
+                                                    que ninguém lia. Duas informações fixas se leem
+                                                    de relance; cinco condicionais, não. */}
+                                                {(conv.agent || origemDaConversa(conv)) && (
+                                                    <div className="mt-1 flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted-foreground">
+                                                        {conv.agent ? (
+                                                            <span className="truncate">{conv.agent.name}</span>
+                                                        ) : null}
+                                                        {conv.agent && origemDaConversa(conv) ? (
+                                                            <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                        ) : null}
+                                                        {origemDaConversa(conv) ? (
+                                                            <span className="flex shrink-0 items-center gap-1">
+                                                                <Smartphone className="size-2.5" aria-hidden="true" />
+                                                                {origemDaConversa(conv)}
                                                             </span>
-                                                        )}
-                                                        {conv.tags?.map(tag => (
+                                                        ) : null}
+                                                    </div>
+                                                )}
+
+                                                {/* 4. As etiquetas, sozinhas. Dividindo a faixa com
+                                                    o texto acima, elas empurravam o agente para
+                                                    fora e quebravam no meio. */}
+                                                {conv.tags && conv.tags.length > 0 ? (
+                                                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                                                        {conv.tags.map(tag => (
                                                             <TagChip key={tag.id} name={tag.name} color={tag.color} size="sm" />
                                                         ))}
                                                     </div>
-                                                    )
-                                                })()}
+                                                ) : null}
                                             </div>
                                         </div>
                                     </button>
@@ -2070,76 +2091,73 @@ export default function ConversasPage() {
                                         name={conv.contact.name}
                                         phone={formatPhone(conv.contact.phone)}
                                     />
+                                    {/* Três linhas, nesta ordem: quem é, quem
+                                        atende e por onde, e se a linha está no
+                                        ar. A versão anterior empilhava telefone,
+                                        linha, agente e estado na mesma faixa —
+                                        quatro informações disputando a largura
+                                        viram uma tira que ninguém lê. */}
                                     <div className="min-w-0">
-                                        <h3 className="truncate text-sm font-medium">
-                                            {conv.contact.name || conv.contact.phone || 'Desconhecido'}
-                                        </h3>
-                                        {/* Por onde se fala, e com quem se fala.
-                                            Aqui os dois aparecem **sempre**, mesmo
-                                            com uma linha e um agente só: na lista
-                                            eles são filtro e só informam quando
-                                            variam, mas quem abriu a conversa está
-                                            prestes a escrever, e "você responde por
-                                            este número" é fato do momento de
-                                            digitar. */}
-                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                                            {conv.contact.phone && (
-                                                <span className="flex items-center gap-1">
-                                                    <Phone className="h-3 w-3" />
+                                        {/* 1. Quem é, e o número dele. */}
+                                        <h3 className="flex items-center gap-1.5 truncate text-sm font-medium">
+                                            {primeiroNome(conv.contact.name, conv.contact.phone)}
+                                            {conv.contact.phone ? (
+                                                <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                                                    <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
                                                     {formatPhone(conv.contact.phone)}
                                                 </span>
-                                            )}
-                                            {conv.line && (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="flex items-center gap-1 truncate">
-                                                            <Smartphone className="h-3 w-3 shrink-0" />
-                                                            {nomeDaLinha(conv.line)}
-                                                        </span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        O paciente recebe suas mensagens deste número.
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            )}
-                                            {conv.agent && (
-                                                <span className="flex items-center gap-1 truncate">
-                                                    <Bot className="h-3 w-3 shrink-0" />
-                                                    {conv.agent.name}
-                                                </span>
-                                            )}
-                                            {/* O estado só fala quando muda o destino
-                                                da próxima mensagem. Um selo verde
-                                                permanente dizendo "tudo certo" vira
-                                                enfeite e deixa de ser visto. */}
-                                            {conv.line && conv.line.status !== 'connected' ? (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="flex items-center gap-1 rounded-full bg-destructive-subtle px-1.5 py-0.5 text-[10px] font-semibold text-destructive-subtle-foreground">
-                                                            <PlugZap className="h-3 w-3 shrink-0" />
-                                                            Linha fora do ar
-                                                        </span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        Este número está desconectado: nada que você enviar daqui
-                                                        chega ao paciente, e as mensagens dele não entram. Reconecte
-                                                        em Agentes de IA → Integrações.
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            ) : conv.agent && !conv.agent.isActive ? (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
-                                                            Agente pausado
-                                                        </span>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        O agente não responde sozinho. As mensagens continuam
-                                                        chegando e o atendimento é todo da equipe.
-                                                    </TooltipContent>
-                                                </Tooltip>
                                             ) : null}
-                                        </div>
+                                        </h3>
+
+                                        {/* 2. Quem atende, e por onde ele chegou. */}
+                                        {(conv.agent || origemDaConversa(conv)) && (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                {conv.agent ? (
+                                                    <span className="flex items-center gap-1 truncate">
+                                                        <Bot className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                        {conv.agent.name}
+                                                    </span>
+                                                ) : null}
+                                                {conv.agent && origemDaConversa(conv) ? (
+                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                ) : null}
+                                                {origemDaConversa(conv) ? (
+                                                    <span className="flex shrink-0 items-center gap-1">
+                                                        <Smartphone className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                        {origemDaConversa(conv)}
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        )}
+
+                                        {/* 3. Se o que ele digitar vai sair. Aqui o
+                                            estado é dito nos dois sentidos, e não
+                                            só na falha: quem está prestes a
+                                            escrever precisa da confirmação, não só
+                                            do alarme. */}
+                                        {conv.line ? (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span
+                                                        className={cn(
+                                                            'text-[11px] font-semibold',
+                                                            conv.line.status === 'connected'
+                                                                ? 'text-success-subtle-foreground'
+                                                                : 'text-destructive-subtle-foreground'
+                                                        )}
+                                                    >
+                                                        {conv.line.status === 'connected'
+                                                            ? 'Linha no ar'
+                                                            : 'Linha fora do ar'}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    {conv.line.status === 'connected'
+                                                        ? 'O paciente recebe suas mensagens por este número.'
+                                                        : 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Reconecte em Agentes de IA → Integrações.'}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        ) : null}
                                     </div>
                                 </div>
 

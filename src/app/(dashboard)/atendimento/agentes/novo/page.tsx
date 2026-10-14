@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
 import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
 import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
@@ -41,6 +42,7 @@ function faqAnswer(content: string): string {
 }
 
 function NovoAgenteContent() {
+    const { canManage } = usePermissions()
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'perfil'
 
@@ -253,6 +255,7 @@ function NovoAgenteContent() {
                         data={cerebro}
                         onChange={(data) => { marcarSujo(true); setCerebro({ ...cerebro, ...data }) }}
                         agentId={urlAgentId}
+                        canManage={canManage}
                     />
                 )
             case 'instrucoes':
@@ -294,11 +297,16 @@ function NovoAgenteContent() {
                 faz: a gravação manda o agente inteiro, com o que as cinco guias
                 têm em mão. Chamá-lo de "Salvar perfil" seria um nome bonito
                 para algo que grava mais do que diz. */}
-            <FormActions hint="Grava o agente com o que está nas cinco guias.">
-                <Button onClick={handleSave} disabled={isSaving}>
-                    {isSaving ? 'Salvando…' : 'Salvar agente'}
-                </Button>
-            </FormActions>
+            {/* Sem Salvar para quem não administra: a API recusa, e um botão
+                que só sabe recusar é pior que a sua ausência. O aviso de leitura
+                fica no alto da seção, em `AgentFrame`. */}
+            {canManage ? (
+                <FormActions hint="Grava o agente com o que está nas cinco guias.">
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? 'Salvando…' : 'Salvar agente'}
+                    </Button>
+                </FormActions>
+            ) : null}
         </AgentFrame>
     )
 }

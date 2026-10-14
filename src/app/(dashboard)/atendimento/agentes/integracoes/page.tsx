@@ -6,6 +6,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
 import { CanaisTab } from '@/components/agents/creation/tabs/CanaisTab'
 import { ApiTab } from '@/components/agents/creation/tabs/ApiTab'
@@ -15,6 +16,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 function IntegracoesContent() {
+    const { canManage } = usePermissions()
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'canais'
 
@@ -56,7 +58,7 @@ function IntegracoesContent() {
                 // A aba busca e recarrega as próprias linhas: elas mudam por
                 // ação na própria aba (conectar, desconectar, remover), não por
                 // nada que o resto da tela saiba.
-                return <CanaisTab agentId={urlAgentId} />
+                return <CanaisTab agentId={urlAgentId} canManage={canManage} />
             case 'api':
                 return <ApiTab />
             case 'webhooks':
@@ -86,7 +88,7 @@ function IntegracoesContent() {
 
             {/* Só os webhooks gravam: conectar um canal age no clique, e a API é
                 leitura. Um Salvar nessas duas guias não teria o que fazer. */}
-            {currentTab === 'webhooks' ? (
+            {currentTab === 'webhooks' && canManage ? (
                 <FormActions hint="Grava os webhooks deste agente.">
                     <Button onClick={handleSave} disabled={isSaving}>
                         {isSaving ? 'Salvando…' : 'Salvar webhooks'}

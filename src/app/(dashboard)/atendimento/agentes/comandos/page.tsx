@@ -6,6 +6,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { FormActions } from '@/components/shared/TabsFrame'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
 import { PreferenciasTab } from '@/components/agents/creation/tabs/PreferenciasTab'
@@ -14,6 +15,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 function ComandosContent() {
+    const { canManage } = usePermissions()
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'condicoes'
 
@@ -89,11 +91,13 @@ function ComandosContent() {
         <AgentFrame secao="comandos">
             {renderTab()}
 
-            <FormActions hint="Grava as regras e as preferências desta seção.">
-                <Button onClick={handleSave} disabled={isSaving}>
-                    {isSaving ? 'Salvando…' : 'Salvar comandos'}
-                </Button>
-            </FormActions>
+            {canManage ? (
+                <FormActions hint="Grava as regras e as preferências desta seção.">
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? 'Salvando…' : 'Salvar comandos'}
+                    </Button>
+                </FormActions>
+            ) : null}
         </AgentFrame>
     )
 }

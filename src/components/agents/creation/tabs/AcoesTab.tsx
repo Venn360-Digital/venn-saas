@@ -28,6 +28,8 @@ interface AcoesTabProps {
     onDuplicate: () => Promise<void>
     onToggleActive: () => Promise<void>
     onDelete: () => Promise<void>
+    /** Se quem olha pode executar estas ações. Todas são de administrador. */
+    canManage?: boolean
 }
 
 export function AcoesTab({
@@ -37,6 +39,7 @@ export function AcoesTab({
     onDuplicate,
     onToggleActive,
     onDelete,
+    canManage = true,
 }: AcoesTabProps) {
     const [duplicando, setDuplicando] = useState(false)
     const [alternando, setAlternando] = useState(false)
@@ -53,6 +56,30 @@ export function AcoesTab({
         } finally {
             marcar(false)
         }
+    }
+
+    /**
+     * Esta guia é feita só de ações, e todas são de administrador.
+     *
+     * Em vez de desenhar três botões mortos, a guia diz o que a pessoa veio
+     * saber — se o agente está no ar — e onde ela pede o resto.
+     */
+    if (!canManage) {
+        return (
+            <SettingsCard
+                title="Ações do agente"
+                description="Duplicar, pausar e excluir são do dono ou do administrador da clínica."
+            >
+                <SettingsRow
+                    title={isActive ? 'Este agente está ativo' : 'Este agente está pausado'}
+                    description={
+                        isActive
+                            ? 'Ele responde sozinho as mensagens que chegarem pelas linhas conectadas.'
+                            : 'Ele não responde sozinho; o atendimento é todo da equipe.'
+                    }
+                />
+            </SettingsCard>
+        )
     }
 
     return (

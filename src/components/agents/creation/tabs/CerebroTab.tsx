@@ -20,6 +20,14 @@ interface CerebroTabProps {
      * a clínica acabou de tirar da lista.
      */
     agentId?: string | null
+    /**
+     * Se quem olha pode mudar o que o agente sabe.
+     *
+     * O cérebro é a parte mais destrutiva da tela: remover uma fonte apaga os
+     * vetores dela e o agente passa a responder sem aquilo. Quem não administra
+     * lê a lista de fontes e não vê nenhum controle que a altere.
+     */
+    canManage?: boolean
 }
 
 interface ExpandableSectionProps {
@@ -88,7 +96,7 @@ function findPersistedSource(
     }
 }
 
-export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
+export function CerebroTab({ data, onChange, agentId, canManage = true }: CerebroTabProps) {
     const [isUploading, setIsUploading] = useState(false)
     const [websiteUrl, setWebsiteUrl] = useState('')
     const [isReadingSite, setIsReadingSite] = useState(false)
@@ -279,6 +287,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                     defaultExpanded
                 >
                     <div className="space-y-4">
+                        {canManage ? (
                         <div className="flex items-center justify-center rounded-lg border-2 border-dashed p-8">
                             <label className="cursor-pointer text-center">
                                 <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
@@ -298,6 +307,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                 />
                             </label>
                         </div>
+                        ) : null}
 
                         {data.files.length > 0 && (
                             <div className="space-y-2">
@@ -314,14 +324,16 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                                 {file.truncated ? ' (cortado)' : ''}
                                             </span>
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={removing === file.id}
-                                            onClick={() => void handleRemoveItem('files', file.id)}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
+                                        {canManage ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={removing === file.id}
+                                                onClick={() => void handleRemoveItem('files', file.id)}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        ) : null}
                                     </div>
                                 ))}
                             </div>
@@ -336,6 +348,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                     icon={<Globe className="h-5 w-5" />}
                 >
                     <div className="space-y-4">
+                        {canManage ? (
                         <div className="space-y-2">
                             <div className="flex gap-2">
                                 <Input
@@ -359,6 +372,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                 percorrer o site inteiro. Para vários endereços, adicione um a um.
                             </p>
                         </div>
+                        ) : null}
 
                         {data.websites.length > 0 && (
                             <div className="space-y-2">
@@ -377,14 +391,16 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                                 </span>
                                             )}
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={removing === website.id}
-                                            onClick={() => void handleRemoveItem('websites', website.id)}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
+                                        {canManage ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={removing === website.id}
+                                                onClick={() => void handleRemoveItem('websites', website.id)}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        ) : null}
                                     </div>
                                 ))}
                             </div>
@@ -436,14 +452,16 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                             <Video className="h-4 w-4 shrink-0 text-muted-foreground" />
                                             <span className="truncate text-sm">{video.url}</span>
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={removing === video.id}
-                                            onClick={() => void handleRemoveItem('videos', video.id)}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
+                                        {canManage ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={removing === video.id}
+                                                onClick={() => void handleRemoveItem('videos', video.id)}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        ) : null}
                                     </div>
                                 ))}
                             </div>
@@ -458,6 +476,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                     icon={<HelpCircle className="h-5 w-5" />}
                 >
                     <div className="space-y-4">
+                        {canManage ? (
                         <div className="space-y-3">
                             <div>
                                 <Label htmlFor="question">Pergunta</Label>
@@ -482,6 +501,7 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                 Adicionar FAQ
                             </Button>
                         </div>
+                        ) : null}
 
                         {data.faqs.length > 0 && (
                             <div className="space-y-2">
@@ -494,14 +514,16 @@ export function CerebroTab({ data, onChange, agentId }: CerebroTabProps) {
                                                     {faq.answer}
                                                 </p>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                disabled={removing === faq.id}
-                                                onClick={() => void handleRemoveItem('faqs', faq.id)}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
+                                            {canManage ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={removing === faq.id}
+                                                    onClick={() => void handleRemoveItem('faqs', faq.id)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            ) : null}
                                         </div>
                                     </div>
                                 ))}

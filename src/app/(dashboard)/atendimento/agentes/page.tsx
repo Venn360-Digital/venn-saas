@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Agent } from '@prisma/client'
-import { Bot, Plus } from 'lucide-react'
+import { Bot, Eye, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { IndexFrame } from '@/components/shared/IndexFrame'
+import { usePermissions } from '@/hooks/usePermissions'
 import { AgentCard } from '@/components/agents/AgentCard'
 
 interface Limites {
@@ -36,6 +37,8 @@ interface Limites {
  */
 export default function AgentsPage() {
     const router = useRouter()
+    // Configurar agente é de dono e administrador; ver é de todo mundo.
+    const { canManage, loading: permissoesCarregando } = usePermissions()
     const [agents, setAgents] = useState<Agent[]>([])
     const [limites, setLimites] = useState<Limites | null>(null)
     const [loading, setLoading] = useState(true)
@@ -174,7 +177,10 @@ export default function AgentsPage() {
             onSearchChange={setBusca}
             searchLabel="Buscar agente por nome ou empresa"
             primary={
-                semVaga ? (
+                // Criar agente é de dono e administrador. Para os demais o botão
+                // não aparece: a API recusa, e um botão que só sabe recusar é
+                // pior que a sua ausência.
+                !canManage ? null : semVaga ? (
                     <Tooltip>
                         {/* `span`: um botão desabilitado não emite evento de
                             ponteiro, e sem o invólucro a dica nunca apareceria —
@@ -207,7 +213,7 @@ export default function AgentsPage() {
                         title="Nenhum agente criado"
                         description="Crie seu primeiro agente de IA para começar a atender pelo WhatsApp automaticamente."
                         action={
-                            semVaga ? undefined : (
+                            semVaga || !canManage ? undefined : (
                                 <Button onClick={criar}>Criar primeiro agente</Button>
                             )
                         }
@@ -230,6 +236,7 @@ export default function AgentsPage() {
                                 onDuplicate={(a) => void duplicar(a)}
                                 onDelete={setExcluindo}
                                 onToggleStatus={(id, ativo) => void alternarEstado(id, ativo)}
+                                canManage={canManage}
                             />
                         ))}
                     </div>
@@ -239,10 +246,18 @@ export default function AgentsPage() {
             {/* Rodapé preso, com a contagem — e aqui ela diz também quanto o
                 plano ainda permite, que é a pergunta seguinte de quem olha. */}
             <div className="flex h-[46px] shrink-0 items-center justify-between border-t border-border bg-card px-4 text-xs text-muted-foreground md:px-6">
-                <span className="num">
-                    {visiveis.length === agents.length
-                        ? `${agents.length} agente(s)`
-                        : `${visiveis.length} de ${agents.length} agente(s)`}
+                <span className="flex items-center gap-2">
+                    <span className="num">
+                        {visiveis.length === agents.length
+                            ? `${agents.length} agente(s)`
+                            : `${visiveis.length} de ${agents.length} agente(s)`}
+                    </span>
+                    {!canManage && !permissoesCarregando ? (
+                        <span className="flex items-center gap-1">
+                            <Eye className="size-3.5" aria-hidden="true" />
+                            Somente leitura — configurar agente é do administrador
+                        </span>
+                    ) : null}
                 </span>
                 {limites && !limites.unsubscribed ? (
                     <span className="num">

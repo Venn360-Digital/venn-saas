@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Copy, Loader2, Pencil, Trash2, Bot } from 'lucide-react'
+import { Bot, Copy, Eye, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 interface AgentCardProps {
     agent: Agent
@@ -14,6 +14,14 @@ interface AgentCardProps {
     onToggleStatus: (id: string, currentStatus: boolean) => void
     /** Enquanto a cópia é criada, para o botão não aceitar um segundo clique. */
     duplicating?: boolean
+    /**
+     * Se quem olha pode mexer no agente.
+     *
+     * Configurar agente é de dono e administrador. Sem isto, o atendente via
+     * interruptor, Duplicar e Excluir no cartão e cada clique voltava 403 — a
+     * tela oferecia o que a API recusa. Ver é liberado; mexer, não.
+     */
+    canManage?: boolean
 }
 
 /** Botão de ação do rodapé: só ícone, com dica e nome acessível (DESIGN.md §5). */
@@ -56,6 +64,7 @@ export function AgentCard({
     onDelete,
     onToggleStatus,
     duplicating,
+    canManage = true,
 }: AgentCardProps) {
     return (
         <Card className="flex flex-col transition-all hover:shadow-md">
@@ -101,7 +110,7 @@ export function AgentCard({
                             Pausado por exceder o limite do plano. Mude de plano para reativá-lo.
                         </TooltipContent>
                     </Tooltip>
-                ) : (
+                ) : canManage ? (
                     <div className="flex shrink-0 items-center gap-2">
                         <span className="text-xs text-muted-foreground">
                             {agent.isActive ? 'Ativo' : 'Pausado'}
@@ -112,6 +121,12 @@ export function AgentCard({
                             onCheckedChange={() => onToggleStatus(agent.id, agent.isActive)}
                         />
                     </div>
+                ) : (
+                    // Sem interruptor, o estado continua sendo dito — é o que
+                    // interessa a quem só lê.
+                    <Badge variant={agent.isActive ? 'success' : 'outline'} className="shrink-0">
+                        {agent.isActive ? 'Ativo' : 'Pausado'}
+                    </Badge>
                 )}
             </CardHeader>
 
@@ -139,19 +154,27 @@ export function AgentCard({
               * pessoa está quando quer uma cópia.
               */}
             <CardFooter className="flex justify-end gap-1 border-t bg-muted/10 pt-4">
-                <CardAction icon={Pencil} label="Editar agente" onClick={() => onEdit(agent)} />
                 <CardAction
-                    icon={Copy}
-                    label="Duplicar agente"
-                    busy={duplicating}
-                    onClick={() => onDuplicate(agent)}
+                    icon={canManage ? Pencil : Eye}
+                    label={canManage ? 'Editar agente' : 'Ver a configuração'}
+                    onClick={() => onEdit(agent)}
                 />
-                <CardAction
-                    icon={Trash2}
-                    label="Excluir agente"
-                    destructive
-                    onClick={() => onDelete(agent)}
-                />
+                {canManage ? (
+                    <>
+                        <CardAction
+                            icon={Copy}
+                            label="Duplicar agente"
+                            busy={duplicating}
+                            onClick={() => onDuplicate(agent)}
+                        />
+                        <CardAction
+                            icon={Trash2}
+                            label="Excluir agente"
+                            destructive
+                            onClick={() => onDelete(agent)}
+                        />
+                    </>
+                ) : null}
             </CardFooter>
         </Card>
     )

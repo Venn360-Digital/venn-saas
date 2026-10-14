@@ -63,6 +63,14 @@ interface LineLimit {
 
 interface CanaisTabProps {
     agentId?: string | null
+    /**
+     * Se quem olha pode mexer nas linhas.
+     *
+     * Conectar e desconectar um número é de administrador: um clique errado
+     * aqui derruba o WhatsApp da clínica inteira. Quem não administra lê a
+     * lista — qual número, qual fila, se está no ar — e não vê os botões.
+     */
+    canManage?: boolean
 }
 
 /** Os canais que ainda não existem, ditos como tal. */
@@ -113,7 +121,7 @@ function nomeDaLinha(line: Line): string {
     return 'Linha sem número'
 }
 
-export function CanaisTab({ agentId }: CanaisTabProps) {
+export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [lines, setLines] = useState<Line[]>([])
     const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
     const [limit, setLimit] = useState<LineLimit | null>(null)
@@ -243,17 +251,23 @@ export function CanaisTab({ agentId }: CanaisTabProps) {
                     ) : null
                 }
                 footer={
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    canManage ? (
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">
+                                {semVaga
+                                    ? 'O plano está no limite de números. Mude de plano em Gerenciamento → Conta para conectar mais.'
+                                    : 'Conectar pede a leitura de um QR Code no aparelho que tem o número.'}
+                            </p>
+                            <Button size="sm" onClick={adicionar} disabled={semVaga}>
+                                <Plus className="size-4" />
+                                Adicionar número
+                            </Button>
+                        </div>
+                    ) : (
                         <p className="text-xs text-muted-foreground">
-                            {semVaga
-                                ? 'O plano está no limite de números. Mude de plano em Gerenciamento → Conta para conectar mais.'
-                                : 'Conectar pede a leitura de um QR Code no aparelho que tem o número.'}
+                            Conectar e desconectar números é do dono ou do administrador da clínica.
                         </p>
-                        <Button size="sm" onClick={adicionar} disabled={semVaga}>
-                            <Plus className="size-4" />
-                            Adicionar número
-                        </Button>
-                    </div>
+                    )
                 }
             >
                 {loading ? (
@@ -279,7 +293,7 @@ export function CanaisTab({ agentId }: CanaisTabProps) {
                                 <div key={line.id} className="py-3 first:pt-0 last:pb-0">
                                     <SettingsRow
                                         title={
-                                            renomeando === line.id ? (
+                                            canManage && renomeando === line.id ? (
                                                 <Input
                                                     autoFocus
                                                     value={rascunho}
@@ -321,6 +335,7 @@ export function CanaisTab({ agentId }: CanaisTabProps) {
                                             )
                                         }
                                         action={
+                                            !canManage ? null : (
                                             <div className="flex items-center gap-1">
                                                 {/* De quem é a fila desta linha. Só
                                                     aparece quando a clínica tem
@@ -399,6 +414,7 @@ export function CanaisTab({ agentId }: CanaisTabProps) {
                                                     </>
                                                 )}
                                             </div>
+                                            )
                                         }
                                     />
                                 </div>

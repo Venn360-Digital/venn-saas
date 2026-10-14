@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
     Database,
+    Eye,
     FileText,
     GitBranch,
     History,
@@ -24,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
+import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
 
 /**
@@ -118,6 +120,9 @@ export function AgentFrame({
     const tab = params.get('tab') ?? atual.tabs[0].id
 
     const [agente, setAgente] = useState<AgenteResumo | null>(null)
+    // Configurar agente é de dono e administrador. Quem não administra abre a
+    // tela e lê: o interruptor e os Salvar saem, em vez de responder 403.
+    const { canManage, loading: permissoesCarregando } = usePermissions()
     const haEdicao = useEdicaoNaoSalva()
     const [saidaPendente, setSaidaPendente] = useState<{ rota: string; tab: string } | null>(null)
 
@@ -247,7 +252,16 @@ export function AgentFrame({
      * religá-lo, e um controle que só sabe recusar é pior que um aviso.
      */
     const estado = resumo ? (
-        resumo.pausedByLimit ? (
+        !canManage ? (
+            // Sem interruptor, mas o estado continua dito — é o que interessa a
+            // quem só lê, e some a promessa de um controle que a API recusa.
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Eye className="size-3.5" aria-hidden="true" />
+                <span>Somente leitura</span>
+                <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                <span>{resumo.isActive ? 'Ativo' : 'Pausado'}</span>
+            </span>
+        ) : resumo.pausedByLimit ? (
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span className="rounded-full bg-warning-subtle px-2 py-0.5 text-[11px] font-semibold text-warning-subtle-foreground">
@@ -281,6 +295,21 @@ export function AgentFrame({
             active={tab}
             onChange={(id) => irPara(atual.rota, id)}
         >
+            {/* Dito uma vez, no alto da seção, em vez de repetido em cada guia:
+                quem abriu já sabe antes de digitar que nada será gravado. */}
+            {!canManage && !permissoesCarregando ? (
+                <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+                    <Eye className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <p>
+                        Você está vendo como este agente está configurado.{' '}
+                        <strong className="font-semibold text-foreground">
+                            Alterar a configuração é do dono ou do administrador
+                        </strong>{' '}
+                        da clínica — peça a eles o que precisar mudar.
+                    </p>
+                </div>
+            ) : null}
+
             {children}
 
             <ConfirmDialog

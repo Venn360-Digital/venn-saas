@@ -7,9 +7,11 @@ import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { HistoricoTab } from '@/components/agents/creation/tabs/HistoricoTab'
 import { AcoesTab } from '@/components/agents/creation/tabs/AcoesTab'
 import { useAgentManagement } from '@/hooks/useAgentManagement'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Loader2 } from 'lucide-react'
 
 function GerenciamentoContent() {
+    const { canManage } = usePermissions()
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'historico'
 
@@ -57,6 +59,7 @@ function GerenciamentoContent() {
                         agentId={urlAgentId}
                         agentName={agentName}
                         isActive={isActive}
+                        canManage={canManage}
                         onDuplicate={duplicateAgent}
                         onToggleActive={toggleAgentActive}
                         onDelete={deleteAgent}
