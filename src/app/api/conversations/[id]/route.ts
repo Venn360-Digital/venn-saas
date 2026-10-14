@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { phoneFromConfig } from '@/lib/conversation-line'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 
@@ -66,7 +67,13 @@ export async function GET(
                         id: true,
                         name: true,
                         avatar: true,
+                        // Se o agente responde sozinho nesta conversa, ou se a
+                        // fila é só da equipe. Ver `estadoDaLinha` na tela.
+                        isActive: true,
                     }
+                },
+                integration: {
+                    select: { id: true, label: true, phoneNumber: true, config: true, status: true },
                 },
                 tags: {
                     include: {
@@ -200,6 +207,25 @@ export async function GET(
                 assignedToName,
                 contact: contactData,
                 agent: conversation.agent,
+                /**
+                 * Por qual número esta conversa fala.
+                 *
+                 * Vai sempre, mesmo com uma linha só: na lista a linha é
+                 * filtro e só informa quando varia, mas aqui o atendente está
+                 * prestes a **escrever**, e "você responde por este número" é
+                 * fato do momento de digitar. `status` vem junto porque uma
+                 * linha caída não entrega o que ele digitar.
+                 */
+                line: conversation.integration
+                    ? {
+                          id: conversation.integration.id,
+                          label: conversation.integration.label,
+                          phoneNumber:
+                              conversation.integration.phoneNumber ??
+                              phoneFromConfig(conversation.integration.config),
+                          status: conversation.integration.status,
+                      }
+                    : null,
                 tags: mergedTags,
                 createdAt: conversation.createdAt,
                 openDeal: openDeal
