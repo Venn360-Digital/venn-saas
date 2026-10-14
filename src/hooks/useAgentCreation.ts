@@ -6,6 +6,19 @@ import { toast } from 'sonner'
 import { PerfilData, TrabalhoData, CerebroData, VozData } from '@/types/agent-creation'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
 
+/**
+ * A instrução livre com que um agente novo nasce — curta de propósito.
+ *
+ * O que descreve a clínica (nome, setor, endereço, atribuições, tom, idioma) é
+ * montado pelo worker a partir dos campos estruturados. Repetir isso aqui era o
+ * que fazia o modelo receber a mesma informação duas vezes: uma em texto corrido
+ * vindo deste modelo, outra em seções vindas do worker.
+ */
+const PROMPT_INICIAL =
+    'Você é o assistente de atendimento desta clínica. Responda com base nas informações ' +
+    'da empresa e na sua base de conhecimento. Quando não souber, diga que vai verificar ' +
+    'com a equipe em vez de inventar.'
+
 export function useAgentCreation(workspaceId: string) {
     const router = useRouter()
     const [isSaving, setIsSaving] = useState(false)
@@ -70,7 +83,6 @@ export function useAgentCreation(workspaceId: string) {
                 // AI Configuration (defaults)
                 llmProvider: 'openai',
                 llmModel: DEFAULT_MODEL,
-                systemPrompt: buildSystemPrompt(),
                 temperature: 0.7,
                 isActive: true,
             }
@@ -78,7 +90,20 @@ export function useAgentCreation(workspaceId: string) {
             let response
             // Verificação robusta: agentId deve ser string não-vazia
             if (agentId && typeof agentId === 'string' && agentId.trim() !== '') {
-                // UPDATE - Editar agente existente
+                /**
+                 * Editar NÃO reescreve o `systemPrompt`.
+                 *
+                 * O payload montava um prompt a partir de um modelo e o enviava a
+                 * cada salvar. Como a lista de agentes tem um editor que deixa
+                 * escrever o prompt à mão, trocar o tom de voz numa aba apagava o
+                 * que alguém tinha escrito lá — sem aviso, e sem jeito de
+                 * recuperar.
+                 *
+                 * A persona é montada pelo worker a partir dos campos
+                 * estruturados (empresa, função, endereço, tom, idioma). O
+                 * `systemPrompt` é a instrução livre da clínica, e só muda quando
+                 * ela mesma o edita.
+                 */
                 response = await fetch(`/api/agents/${agentId}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
@@ -89,7 +114,7 @@ export function useAgentCreation(workspaceId: string) {
                 response = await fetch(`/api/agents?workspaceId=${workspaceId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
+                    body: JSON.stringify({ ...payload, systemPrompt: PROMPT_INICIAL }),
                 })
             }
 
@@ -154,32 +179,6 @@ export function useAgentCreation(workspaceId: string) {
         } finally {
             setIsSaving(false)
         }
-    }
-
-    const buildSystemPrompt = () => {
-        let prompt = 'Você é um assistente virtual inteligente.'
-
-        if (perfil.name) {
-            prompt += ` Seu nome é ${perfil.name}.`
-        }
-
-        if (trabalho.companyName) {
-            prompt += ` Você trabalha para ${trabalho.companyName}.`
-        }
-
-        if (trabalho.companyDescription) {
-            prompt += ` ${trabalho.companyDescription}`
-        }
-
-        if (trabalho.jobDescription) {
-            prompt += ` Suas funções incluem: ${trabalho.jobDescription}`
-        }
-
-        if (perfil.voiceTone) {
-            prompt += ` Mantenha um tom ${perfil.voiceTone} em suas respostas.`
-        }
-
-        return prompt
     }
 
     /**

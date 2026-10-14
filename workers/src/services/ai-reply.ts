@@ -7,6 +7,7 @@ import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '../env'
 import { createLogger } from '../logger'
 import { buildSystemPrompt, readPreferences, type KnowledgeChunk } from './prompt'
+import { loadConversationContext } from './conversation-context'
 
 const log = createLogger('AI_REPLY')
 
@@ -97,10 +98,16 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     const history = recent.reverse()
 
     const lastInbound = [...history].reverse().find((m) => m.direction === 'inbound')
-    const knowledge = await retrieveKnowledge(agent.id, lastInbound?.content ?? '')
+
+    // A busca na base e o contexto do paciente são independentes: duas idas ao
+    // banco em paralelo custam o tempo da mais lenta, não a soma.
+    const [knowledge, context] = await Promise.all([
+        retrieveKnowledge(agent.id, lastInbound?.content ?? ''),
+        loadConversationContext(conversationId),
+    ])
 
     const messages: LLMMessage[] = [
-        { role: 'system', content: buildSystemPrompt(agent, knowledge) },
+        { role: 'system', content: buildSystemPrompt(agent, knowledge, context) },
         ...toLlmHistory(history),
     ]
 
