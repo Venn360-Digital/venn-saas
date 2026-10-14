@@ -2029,8 +2029,16 @@ export default function ConversasPage() {
                                                                 </span>
                                                             ) : null}
                                                         </span>
+                                                        {/* O atendente em cor, não só em peso: na
+                                                            mesma faixa estão o agente e a linha, e
+                                                            os três em cinza se leem como uma frase
+                                                            só. O token é o teal da marca na variante
+                                                            de texto — escuro no claro, claro no
+                                                            escuro — porque num rótulo de 10px o
+                                                            `--primary` puro não teria contraste
+                                                            sobre o cartão branco. */}
                                                         {conv.assignedToName ? (
-                                                            <span className="shrink-0 font-medium text-foreground/70">
+                                                            <span className="shrink-0 font-semibold text-primary-subtle-foreground">
                                                                 {primeiroNome(conv.assignedToName, null)}
                                                             </span>
                                                         ) : null}
