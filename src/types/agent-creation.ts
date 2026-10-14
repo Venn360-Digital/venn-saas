@@ -143,21 +143,25 @@ export interface KnowledgeDocument {
 // divergiu do worker em `responseSpeed` e anulou o slider.
 
 // Menu Comandos de Intenção - Regras
-export interface RuleCondition {
-    type: 'message_contains' | 'user_intent' | 'time_elapsed' | 'custom'
-    operator: 'equals' | 'contains' | 'greater_than' | 'less_than' | 'starts_with'
-    value: string
-}
 
-export interface RuleAction {
-    type: 'send_message' | 'notify_human' | 'add_tag' | 'move_pipeline' | 'schedule_followup'
-    params: Record<string, unknown>
-}
+/**
+ * A forma de condição e ação vem de `@/types/rules`, que é a mesma que a API
+ * valida e o motor de regras executa.
+ *
+ * Havia uma segunda cópia aqui, e ela divergia no que importa: declarava
+ * `value` como `string`, enquanto o avaliador aceita lista (qualquer-uma-delas)
+ * e número (minutos). É o mesmo tipo de duplicata que, nas preferências, deixou
+ * o slider de velocidade inerte por meses.
+ */
+export type { RuleCondition, RuleAction } from '@/types/rules'
+import type { RuleCondition, RuleAction } from '@/types/rules'
 
 export interface RuleData {
     id?: string
     name: string
     isActive: boolean
+    /** Maior é avaliada primeiro. O worker ordena por ela; a tela não a expunha. */
+    priority?: number
     conditions: RuleCondition[]
     actions: RuleAction[]
 }

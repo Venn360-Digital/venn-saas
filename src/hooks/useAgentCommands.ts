@@ -31,6 +31,7 @@ export function useAgentCommands(agentId?: string | null) {
                     id: r.id,
                     name: r.name,
                     isActive: r.isActive,
+                    priority: r.priority ?? 0,
                     conditions: r.conditions,
                     actions: r.actions,
                 })))
@@ -74,6 +75,7 @@ export function useAgentCommands(agentId?: string | null) {
                         body: JSON.stringify({
                             name: rule.name,
                             isActive: rule.isActive,
+                            priority: rule.priority ?? 0,
                             conditions: rule.conditions,
                             actions: rule.actions,
                         }),
@@ -86,6 +88,7 @@ export function useAgentCommands(agentId?: string | null) {
                         body: JSON.stringify({
                             name: rule.name || 'Nova Regra',
                             isActive: rule.isActive,
+                            priority: rule.priority ?? 0,
                             conditions: rule.conditions,
                             actions: rule.actions,
                         }),
