@@ -1860,17 +1860,23 @@ export default function ConversasPage() {
                             Só minhas
                         </button>
 
-                        {/* O seletor de linha só aparece quando há mais de uma:
-                            com uma linha só, ele não decide nada e ocuparia a
-                            largura de um controle útil. */}
-                        {lines.length > 1 ? (
+                    </div>
+
+                    {/* O seletor de linha ganha a sua própria faixa, e só
+                        aparece quando há mais de uma linha: numa coluna de
+                        320px ele não cabe ao lado de "Todas / Só minhas" sem
+                        quebrar o rótulo no meio, e com uma linha só não decide
+                        nada. */}
+                    {lines.length > 1 ? (
+                        <div className="flex items-center gap-2 px-3 py-2 border-b">
+                            <span className="shrink-0 text-[11px] text-muted-foreground">Linha:</span>
                             <Select
                                 value={lineFilter}
                                 onValueChange={(v) => { setLineFilter(v); setLoading(true) }}
                             >
                                 <SelectTrigger
                                     aria-label="Filtrar por linha de WhatsApp"
-                                    className="ml-auto h-7 w-[11rem] text-[11px]"
+                                    className="h-7 flex-1 text-[11px]"
                                 >
                                     <SelectValue />
                                 </SelectTrigger>
@@ -1879,13 +1885,14 @@ export default function ConversasPage() {
                                     {lines.map((l) => (
                                         <SelectItem key={l.id} value={l.id}>
                                             {nomeDaLinha(l)}
+                                            {l.agentName ? ` · ${l.agentName}` : ''}
                                         </SelectItem>
                                     ))}
                                     <SelectItem value="none">Sem linha definida</SelectItem>
                                 </SelectContent>
                             </Select>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : null}
 
                     {/* Conversations List */}
                     <div className="flex-1 overflow-y-auto">
