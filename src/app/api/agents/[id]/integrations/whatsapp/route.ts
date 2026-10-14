@@ -90,7 +90,16 @@ const NUMBER_TAKEN =
     'Desconecte-o lá antes de conectá-lo aqui.'
 
 /**
- * A instância já pareou alguma vez e está apenas restabelecendo a sessão.
+ * Quanto tempo uma sessão pode ficar "voltando" antes de ser dada por morta.
+ *
+ * Generoso de propósito: a janela que importa proteger são os segundos logo
+ * depois do pareamento, e dez minutos cobrem também uma queda de rede e um
+ * reinício do host.
+ */
+const JANELA_DE_RECONEXAO_MS = 10 * 60_000
+
+/**
+ * A instância já pareou e está apenas restabelecendo a sessão — não mexa no QR.
  *
  * Isto existe porque pedir QR de uma instância pareada é DESTRUTIVO, e foi o que
  * desconectou o primeiro número a entrar no sistema. A sequência, medida nos logs:
@@ -104,16 +113,81 @@ const NUMBER_TAKEN =
  *   12:58:11  LoggedOut — o número é desconectado pelo próprio sistema que
  *             acabara de conectá-lo
  *
- * Na janela de reconexão `LoggedIn` é false de forma transitória, então ele não
- * basta para decidir se o QR deve ser pedido. O marcador durável de "esta
- * instância já pareou" é o número gravado na configuração: com ele presente,
- * uma sessão fora do ar é reconexão, nunca um novo pareamento.
+ * **O marcador antigo era largo demais.** Era só "há número na configuração" —
+ * que nunca deixa de ser verdade. Uma linha cuja sessão morreu de vez ficava
+ * presa: `Reconectar` nunca mostrava QR, e nada na tela dizia que o caminho era
+ * Desconectar antes. Medido na linha da Ruth, parada desde 01:26 com
+ * `disconnect_reason: Reconnecting` e `/instance/qr` respondendo "no QR code
+ * available" indefinidamente.
  *
- * Um pareamento novo de verdade só acontece por ação explícita — o botão
- * Desconectar limpa a configuração, e aí o QR volta a ser pedido.
+ * Agora são três perguntas, nesta ordem: já pareou alguma vez? o soquete ainda
+ * está aberto — ou seja, a sessão está de fato voltando? e, se não está, o
+ * pareamento é recente o bastante para merecer paciência? Os segundos logo após
+ * o `PairSuccess` passam pela terceira pergunta mesmo com o soquete oscilando,
+ * que é exatamente a janela que o incidente exige proteger.
  */
-function isReconnecting(state: ConnectionState, credentials: IntegrationConfig): boolean {
-    return !state.connected && Boolean(credentials.phoneNumber)
+function isReconnecting(
+    state: ConnectionState,
+    credentials: IntegrationConfig,
+    connectedAt: Date | null
+): boolean {
+    if (state.connected) return false
+    // Nunca pareou: o QR é o caminho normal, não há o que proteger.
+    if (!credentials.phoneNumber) return false
+    // Soquete aberto: a sessão existe e está voltando.
+    if (state.socketOpen) return true
+    return (
+        connectedAt !== null &&
+        Date.now() - connectedAt.getTime() < JANELA_DE_RECONEXAO_MS
+    )
+}
+
+/**
+ * Troca a instância morta por uma nova, para que o QR volte a ser possível.
+ *
+ * O Evolution Go **não emite QR enquanto a instância guarda um JID**: o
+ * `/instance/connect` tenta retomar a sessão antiga, o `/instance/status`
+ * responde `Connected:false, LoggedIn:false` e o `/instance/qr` responde "no QR
+ * code available" para sempre. Não há `logout` na API — medido: o endpoint não
+ * existe, e `/instance/disconnect` responde "no active session found".
+ *
+ * Então reconectar uma sessão morta é, necessariamente, parear de novo. Era o
+ * que o botão Desconectar fazia, só que escondido atrás de um passo que ninguém
+ * tinha motivo para adivinhar.
+ *
+ * Só acontece a pedido — um clique em Reconectar — e só depois de `isReconnecting`
+ * concluir que não há sessão voltando. O polling nunca chega aqui.
+ */
+async function recycleInstance(
+    line: AgentIntegration,
+    credentials: IntegrationConfig
+): Promise<IntegrationConfig> {
+    await evolutionGo.deleteInstance(credentials).catch((error) => {
+        // Uma instância que não some do provedor não pode travar o pareamento:
+        // a nova nasce com outro nome e a órfã fica para trás.
+        console.error('[WHATSAPP_INTEGRATION] could not delete dead instance:', error)
+    })
+
+    // Nome novo: reaproveitar o anterior esbarraria na instância órfã quando a
+    // remoção falha, e a recuperação por nome devolveria justamente o token
+    // morto que estamos descartando.
+    const instanceName = `${instanceNameFor(line.id)}_${Date.now().toString(36)}`
+    const created = await evolutionGo.createInstance(instanceName)
+
+    // O número sai do registro: ele é o marcador de "já pareou", e a linha
+    // acabou de voltar a zero. Sem isto `isReconnecting` bloquearia o QR da
+    // instância nova. A coluna é única no sistema inteiro, então limpá-la também
+    // devolve o número para ser reivindicado no pareamento.
+    await prisma.agentIntegration.update({
+        where: { id: line.id },
+        data: { phoneNumber: null, connectedAt: null },
+    })
+
+    return {
+        instanceName: created.instanceName,
+        instanceId: created.instanceId,
+        token: created.token,
+    }
 }
 
 /** A linha pedida, confirmada como sendo deste agente e deste workspace. */
@@ -295,9 +369,9 @@ export async function POST(
             })
         }
 
-        if (state && isReconnecting(state, credentials) && state.socketOpen) {
-            // Socket aberto, sessão voltando: `connect` + QR aqui recomeçaria o
-            // pareamento e desconectaria o número. Ver isReconnecting.
+        if (state && isReconnecting(state, credentials, line.connectedAt)) {
+            // Sessão voltando: `connect` + QR aqui recomeçaria o pareamento e
+            // desconectaria o número. Ver isReconnecting.
             const pendente = await persistConfig(line.id, 'pending', credentials)
             return NextResponse.json({
                 success: true,
@@ -306,6 +380,18 @@ export async function POST(
                 reconnecting: true,
                 phoneNumber: credentials.phoneNumber ?? null,
             })
+        }
+
+        /**
+         * Já pareou, não está voltando: a sessão morreu e só um pareamento novo
+         * a traz de volta. Ver `recycleInstance` — sem isto o QR nunca aparece,
+         * porque o provedor não emite QR enquanto a instância guarda um JID.
+         */
+        let reparada = false
+        if (credentials.phoneNumber) {
+            credentials = await recycleInstance(line, credentials)
+            await persistConfig(line.id, 'pending', credentials)
+            reparada = true
         }
 
         await evolutionGo.connect(credentials, webhookUrlFor(CHANNEL_PROVIDER[CHANNEL]))
@@ -319,6 +405,9 @@ export async function POST(
             // The socket may not have produced a QR yet; the modal polls GET.
             qrcode: qr?.base64 ?? null,
             pairingCode: qr?.code ?? null,
+            // A tela avisa que este QR vale um pareamento novo, não a volta do
+            // anterior — o aparelho precisa ler de novo.
+            repaired: reparada,
         })
     } catch (error) {
         // Uma linha criada nesta requisição que não chegou a ser provisionada não
@@ -435,9 +524,14 @@ export async function GET(
                 })
             }
 
-            if (isReconnecting(state, credentials)) {
+            if (isReconnecting(state, credentials, integration.connectedAt)) {
                 // Reconexão: a sessão existe e está voltando. Pedir QR aqui
                 // derrubaria o número — ver isReconnecting.
+                //
+                // O POST checava isto junto com `socketOpen` e o GET não, então
+                // o polling recusava o QR em casos que o POST já tinha liberado:
+                // a tela ficava esperando para sempre um código que ninguém
+                // buscava. Agora o critério é um só, nos dois lugares.
                 return NextResponse.json({
                     status: integration.status,
                     connected: false,

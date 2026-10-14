@@ -40,6 +40,14 @@ export function WhatsAppQRModal({
     const [status, setStatus] = useState<ConnectionStatus>('idle')
     const [qrCode, setQrCode] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    /**
+     * Este QR vale um pareamento novo, não a volta do anterior.
+     *
+     * Quando a sessão antiga morreu de vez, o servidor troca a instância por uma
+     * limpa — é a única forma de o provedor emitir QR. Quem pediu "Reconectar"
+     * precisa saber que vai ler o código de novo no aparelho.
+     */
+    const [repareado, setRepareado] = useState(false)
     const isOpenRef = useRef(isOpen)
     const pollingRef = useRef<NodeJS.Timeout | null>(null)
     /** A linha que esta sessão do modal está pareando, nova ou existente. */
@@ -139,6 +147,7 @@ export function WhatsAppQRModal({
             const data = await response.json()
             // O id da linha que o servidor criou é o que o polling consulta.
             if (data.integration?.id) lineRef.current = data.integration.id
+            setRepareado(Boolean(data.repaired))
 
             if (data.alreadyConnected) {
                 setStatus('connected')
@@ -177,6 +186,7 @@ export function WhatsAppQRModal({
             setStatus('idle')
             setQrCode(null)
             setError(null)
+            setRepareado(false)
             lineRef.current = integrationId
         }
     }, [isOpen, integrationId])
@@ -218,6 +228,22 @@ export function WhatsAppQRModal({
                                     Não é preciso ler o QR Code de novo.
                                 </p>
                             </div>
+                        </div>
+                    )}
+
+                    {status === 'waiting' && repareado && (
+                        <p className="mb-3 max-w-xs rounded-lg bg-warning-subtle px-3 py-2 text-center text-xs text-warning-subtle-foreground">
+                            A sessão anterior deste número não voltava mais, então ela foi
+                            encerrada. Leia o código abaixo para parear o aparelho de novo.
+                        </p>
+                    )}
+
+                    {status === 'waiting' && !qrCode && (
+                        <div className="flex flex-col items-center gap-4">
+                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                            <p className="max-w-xs text-center text-sm text-muted-foreground">
+                                Preparando o QR Code… ele aparece em alguns segundos.
+                            </p>
                         </div>
                     )}
 
