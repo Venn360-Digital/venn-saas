@@ -3,7 +3,9 @@
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
+import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { FormActions } from '@/components/shared/TabsFrame'
+import { Button } from '@/components/ui/button'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
 import { PreferenciasTab } from '@/components/agents/creation/tabs/PreferenciasTab'
 import { useAgentCommands } from '@/hooks/useAgentCommands'
@@ -83,14 +85,15 @@ function ComandosContent() {
     }
 
     return (
-        <AgentCreationLayout
-            currentSection="comandos"
-            currentTab={currentTab}
-            onSave={handleSave}
-            isSaving={isSaving}
-        >
+        <AgentFrame secao="comandos">
             {renderTab()}
-        </AgentCreationLayout>
+
+            <FormActions hint="Grava as regras e as preferências desta seção.">
+                <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? 'Salvando…' : 'Salvar comandos'}
+                </Button>
+            </FormActions>
+        </AgentFrame>
     )
 }
 

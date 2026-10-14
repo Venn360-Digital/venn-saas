@@ -2,13 +2,12 @@
 
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
+import { useEffect, useState, useRef } from 'react'
+import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { HistoricoTab } from '@/components/agents/creation/tabs/HistoricoTab'
 import { AcoesTab } from '@/components/agents/creation/tabs/AcoesTab'
 import { useAgentManagement } from '@/hooks/useAgentManagement'
 import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
 
 function GerenciamentoContent() {
     const searchParams = useSearchParams()
@@ -41,18 +40,6 @@ function GerenciamentoContent() {
             loadManagementData(urlAgentId).finally(() => setLoading(false))
         }
     }, [urlAgentId])
-
-    /**
-     * Gerenciamento não tem o que salvar.
-     *
-     * Era aqui que os campos customizados eram gravados; com a aba fora, Histórico
-     * é leitura e Ações agem na hora do clique. O botão da moldura fica, porque é
-     * o mesmo rodapé de todas as seções, e diz o que está acontecendo em vez de
-     * fingir que gravou algo.
-     */
-    const handleSave = useCallback(() => {
-        toast.info('Nada a salvar aqui: as ações desta seção valem no momento do clique')
-    }, [])
 
     const renderTab = () => {
         switch (currentTab) {
@@ -89,14 +76,9 @@ function GerenciamentoContent() {
     }
 
     return (
-        <AgentCreationLayout
-            currentSection="gerenciamento"
-            currentTab={currentTab}
-            onSave={handleSave}
-            isSaving={false}
-        >
+        <AgentFrame secao="gerenciamento">
             {renderTab()}
-        </AgentCreationLayout>
+        </AgentFrame>
     )
 }
 

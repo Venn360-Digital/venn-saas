@@ -4,7 +4,9 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
+import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { FormActions } from '@/components/shared/TabsFrame'
+import { Button } from '@/components/ui/button'
 import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
 import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
 import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
@@ -280,14 +282,23 @@ function NovoAgenteContent() {
     }
 
     return (
-        <AgentCreationLayout
-            currentSection="personalidade"
-            currentTab={currentTab}
-            onSave={handleSave}
-            isSaving={isSaving}
-        >
+        <AgentFrame secao="personalidade">
             {renderTab()}
-        </AgentCreationLayout>
+
+            {/* O Salvar vive com o formulário, não no cabeçalho: lá em cima ele
+                parece valer para a tela inteira, e numa tela de guias vale para
+                uma guia só (DESIGN.md, Tela 03).
+
+                O rótulo diz "agente" e não o nome da guia porque é o que ele
+                faz: a gravação manda o agente inteiro, com o que as cinco guias
+                têm em mão. Chamá-lo de "Salvar perfil" seria um nome bonito
+                para algo que grava mais do que diz. */}
+            <FormActions hint="Grava o agente com o que está nas cinco guias.">
+                <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? 'Salvando…' : 'Salvar agente'}
+                </Button>
+            </FormActions>
+        </AgentFrame>
     )
 }
 

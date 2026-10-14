@@ -3,7 +3,9 @@
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { AgentCreationLayout } from '@/components/agents/creation/AgentCreationLayout'
+import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { FormActions } from '@/components/shared/TabsFrame'
+import { Button } from '@/components/ui/button'
 import { CanaisTab } from '@/components/agents/creation/tabs/CanaisTab'
 import { ApiTab } from '@/components/agents/creation/tabs/ApiTab'
 import { WebhooksTab } from '@/components/agents/creation/tabs/WebhooksTab'
@@ -100,14 +102,19 @@ function IntegracoesContent() {
     }
 
     return (
-        <AgentCreationLayout
-            currentSection="integracoes"
-            currentTab={currentTab}
-            onSave={handleSave}
-            isSaving={isSaving}
-        >
+        <AgentFrame secao="integracoes">
             {renderTab()}
-        </AgentCreationLayout>
+
+            {/* Só os webhooks gravam: conectar um canal age no clique, e a API é
+                leitura. Um Salvar nessas duas guias não teria o que fazer. */}
+            {currentTab === 'webhooks' ? (
+                <FormActions hint="Grava os webhooks deste agente.">
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? 'Salvando…' : 'Salvar webhooks'}
+                    </Button>
+                </FormActions>
+            ) : null}
+        </AgentFrame>
     )
 }
 

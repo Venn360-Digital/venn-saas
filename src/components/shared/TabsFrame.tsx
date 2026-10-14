@@ -27,6 +27,7 @@ export interface FrameTab {
  */
 export function TabsFrame({
     title,
+    nav,
     tabs,
     active,
     onChange,
@@ -37,6 +38,14 @@ export function TabsFrame({
     className,
 }: {
     title: string
+    /**
+     * Navegação de um nível acima das guias, logo depois do título.
+     *
+     * A Conta não usa: ela é uma tela só. O agente tem quatro seções com guias
+     * próprias, e sem este lugar elas iam para `actions`, que é onde moram
+     * botões — navegação disfarçada de ação.
+     */
+    nav?: React.ReactNode
     tabs: FrameTab[]
     active: string
     onChange: (id: string) => void
@@ -55,6 +64,7 @@ export function TabsFrame({
             {/* Linha 1 */}
             <div className="flex h-[50px] shrink-0 items-center gap-2 bg-card px-4 md:px-6">
                 <h1 className="truncate text-[17px] font-bold tracking-tight">{title}</h1>
+                {nav}
                 <span className="flex-1" />
                 {actions}
                 {primary ? <span className="ml-1 shrink-0">{primary}</span> : null}

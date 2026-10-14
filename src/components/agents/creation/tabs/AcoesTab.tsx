@@ -1,10 +1,25 @@
 'use client'
 
 import { useState } from 'react'
+import { Copy, Loader2, Power, Trash2 } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
-import { Copy, Power, Trash2, Loader2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { cn } from '@/lib/utils'
+import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+
+/**
+ * As ações sobre o agente, na guia de ajustes da Tela 03.
+ *
+ * **O que destrói mora num cartão só dele.** Duplicar e pausar se desfazem com
+ * outro clique; excluir não. Na versão anterior os três dividiam a mesma pilha,
+ * com o excluir separado apenas por uma borda avermelhada — e a diferença entre
+ * "pausei sem querer" e "apaguei a base de conhecimento inteira" não pode
+ * depender de reparar numa borda.
+ *
+ * O excluir também deixou de confirmar com um segundo clique no mesmo botão:
+ * dois cliques por reflexo apagavam o agente. Agora é o `ConfirmDialog` do
+ * sistema, que diz o que se perde e exige o nome digitado.
+ */
 
 interface AcoesTabProps {
     agentId?: string | null
@@ -21,144 +36,108 @@ export function AcoesTab({
     isActive = true,
     onDuplicate,
     onToggleActive,
-    onDelete
+    onDelete,
 }: AcoesTabProps) {
-    const [isDuplicating, setIsDuplicating] = useState(false)
-    const [isToggling, setIsToggling] = useState(false)
-    const [isDeleting, setIsDeleting] = useState(false)
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+    const [duplicando, setDuplicando] = useState(false)
+    const [alternando, setAlternando] = useState(false)
+    const [excluindo, setExcluindo] = useState(false)
+    const [confirmar, setConfirmar] = useState(false)
 
-    const handleDuplicate = async () => {
-        setIsDuplicating(true)
+    const correr = async (
+        acao: () => Promise<void>,
+        marcar: (v: boolean) => void
+    ) => {
+        marcar(true)
         try {
-            await onDuplicate()
+            await acao()
         } finally {
-            setIsDuplicating(false)
-        }
-    }
-
-    const handleToggleActive = async () => {
-        setIsToggling(true)
-        try {
-            await onToggleActive()
-        } finally {
-            setIsToggling(false)
-        }
-    }
-
-    /**
-     * Excluir passa pelo diálogo, não por um segundo clique no mesmo botão.
-     *
-     * O botão virava "Confirmar" no primeiro clique: dois cliques no mesmo
-     * lugar apagam um agente, e quem clica duas vezes por reflexo — ou erra o
-     * alvo e acerta de novo — perde a base de conhecimento inteira sem ler
-     * nada. Agora o quadro diz o que se perde e exige o nome digitado.
-     */
-    const handleDelete = async () => {
-        setIsDeleting(true)
-        try {
-            await onDelete()
-        } finally {
-            setIsDeleting(false)
-            setShowDeleteConfirm(false)
+            marcar(false)
         }
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div>
-                <h2 className="text-2xl font-semibold">Ações de Gerenciamento</h2>
-                <p className="text-muted-foreground mt-1">
-                    Execute ações críticas no seu agente.
-                </p>
-            </div>
+        <div className="flex flex-col gap-4">
+            <SettingsCard
+                title="Ações reversíveis"
+                description="Dá para desfazer com outro clique."
+            >
+                <div className="flex flex-col gap-4">
+                    <SettingsRow
+                        title="Duplicar agente"
+                        description="Copia personalidade, base de conhecimento e regras. A cópia nasce sem canal conectado — dois agentes no mesmo WhatsApp responderiam juntos à mesma mensagem."
+                        action={
+                            <Button
+                                variant="outline"
+                                disabled={duplicando || !agentId}
+                                onClick={() => void correr(onDuplicate, setDuplicando)}
+                            >
+                                {duplicando ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                    <Copy className="size-4" />
+                                )}
+                                Duplicar
+                            </Button>
+                        }
+                    />
 
-            {/* Actions */}
-            <div className="space-y-4">
-                {/* Duplicate */}
-                <div className="flex items-center justify-between rounded-lg border bg-card p-4">
-                    <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                            <Copy className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                        <div>
-                            <h3 className="font-medium">Duplicar Agente</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Copia personalidade, base de conhecimento e regras. A cópia nasce
-                                sem canal conectado — dois agentes no mesmo WhatsApp responderiam
-                                juntos à mesma mensagem.
-                            </p>
-                        </div>
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title={isActive ? 'Pausar agente' : 'Ativar agente'}
+                            description={
+                                isActive
+                                    ? 'Para de responder novas mensagens. As conversas continuam abertas e a equipe segue atendendo normalmente.'
+                                    : 'Volta a responder as mensagens que chegarem.'
+                            }
+                            action={
+                                <Button
+                                    variant="outline"
+                                    disabled={alternando || !agentId}
+                                    onClick={() => void correr(onToggleActive, setAlternando)}
+                                >
+                                    {alternando ? (
+                                        <Loader2 className="size-4 animate-spin" />
+                                    ) : (
+                                        <Power className="size-4" />
+                                    )}
+                                    {isActive ? 'Pausar' : 'Ativar'}
+                                </Button>
+                            }
+                        />
                     </div>
-                    <Button
-                        onClick={handleDuplicate}
-                        disabled={isDuplicating || !agentId}
-                        className="bg-primary hover:bg-primary/90 min-w-[100px]"
-                    >
-                        {isDuplicating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Duplicar'}
-                    </Button>
                 </div>
+            </SettingsCard>
 
-                {/* Toggle Active */}
-                <div className="flex items-center justify-between rounded-lg border bg-card p-4">
-                    <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                            <Power className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                        <div>
-                            <h3 className="font-medium">{isActive ? 'Desativar' : 'Ativar'} Agente</h3>
-                            <p className="text-sm text-muted-foreground">
-                                {isActive
-                                    ? 'Interrompa temporariamente as respostas deste agente. Ele não responderá a novas mensagens.'
-                                    : 'Reative o agente para que ele volte a responder mensagens.'
-                                }
-                            </p>
-                        </div>
-                    </div>
-                    <Button
-                        onClick={handleToggleActive}
-                        disabled={isToggling || !agentId}
-                        variant="outline"
-                        className={cn(
-                            "min-w-[100px]",
-                            isActive
-                                ? "border-warning text-warning-subtle-foreground hover:bg-warning-subtle"
-                                : "border-success text-success-subtle-foreground hover:bg-success-subtle"
-                        )}
-                    >
-                        {isToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : (isActive ? 'Desativar' : 'Ativar')}
-                    </Button>
-                </div>
-
-                {/* Delete */}
-                <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-card p-4">
-                    <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-destructive-subtle">
-                            <Trash2 className="h-6 w-6 text-destructive-subtle-foreground" />
-                        </div>
-                        <div>
-                            <h3 className="font-medium text-destructive-subtle-foreground">Excluir agente</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Ação irreversível. Apaga a base de conhecimento, as regras, os
-                                webhooks e as conexões de canal. As conversas continuam guardadas.
-                            </p>
-                        </div>
-                    </div>
-                    <Button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        disabled={isDeleting || !agentId}
-                        variant="destructive"
-                        className="min-w-[100px]"
-                    >
-                        {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Excluir'}
-                    </Button>
-                </div>
-            </div>
+            {/* O cartão que destrói, separado — para o clique errado não
+                acontecer por vizinhança. */}
+            <SettingsCard
+                className="border-destructive/30"
+                title="Excluir agente"
+                description="Esta ação não tem volta."
+            >
+                <SettingsRow
+                    title="Apaga a base de conhecimento, as regras, os webhooks e as conexões de canal"
+                    description="O WhatsApp deste agente será desconectado. As conversas e o histórico de mensagens continuam guardados, sem o agente."
+                    action={
+                        <Button
+                            variant="destructive"
+                            disabled={excluindo || !agentId}
+                            onClick={() => setConfirmar(true)}
+                        >
+                            {excluindo ? (
+                                <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                                <Trash2 className="size-4" />
+                            )}
+                            Excluir
+                        </Button>
+                    }
+                />
+            </SettingsCard>
 
             <ConfirmDialog
-                open={showDeleteConfirm}
-                onOpenChange={setShowDeleteConfirm}
+                open={confirmar}
+                onOpenChange={setConfirmar}
                 title="Excluir agente"
                 description={
                     `Esta ação é irreversível. "${agentName ?? 'Este agente'}" para de responder ` +
@@ -170,7 +149,7 @@ export function AcoesTab({
                 destructive
                 confirmPhrase={agentName}
                 confirmPhraseLabel="Digite o nome do agente para confirmar"
-                onConfirm={handleDelete}
+                onConfirm={() => correr(onDelete, setExcluindo)}
             />
         </div>
     )

@@ -1,138 +1,152 @@
 'use client'
 
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-preferences'
 
 /**
- * A forma dos dados vem de `@/types/agent-preferences`, que é a mesma que a API
- * valida e o worker lê. Esta tela tinha a sua própria cópia da interface, e foi
- * essa cópia solta que deixou `responseSpeed` virar segundos aqui e um enum de
- * texto no worker, sem ninguém notar.
+ * As preferências da conversa, na guia de ajustes da Tela 03.
  *
- * Saiu daqui o interruptor "habilitar assumir a conversa manualmente": assumir
- * uma conversa **sempre** interrompe o agente, não é opcional, e o interruptor
- * sugeria que desligá-lo faria o agente responder por cima do atendente. O que
- * falta de verdade é devolver a conversa ao agente depois, e isso é outro
- * trabalho.
+ * Eram blocos desenhados à mão — `rounded-lg border bg-card p-4` repetido sete
+ * vezes, com a própria ideia de linha e os próprios tamanhos de texto. Agora são
+ * `SettingsCard` e `SettingsRow`, os mesmos da Conta: uma superfície só, um
+ * ritmo só, e o fio entre linhas vindo do componente em vez de ser redesenhado.
+ *
+ * A forma dos dados vem de `@/types/agent-preferences`, que é a mesma que a API
+ * valida e o worker lê. Esta tela já teve a sua própria cópia da interface, e foi
+ * ela que deixou `responseSpeed` virar segundos aqui e um enum de texto no
+ * worker — slider inerte por meses.
+ *
+ * Saiu o interruptor "assumir a conversa manualmente": assumir **sempre**
+ * interrompe o agente, e o controle sugeria que desligá-lo o faria responder por
+ * cima do atendente.
  */
+
 interface PreferenciasTabProps {
     data: AgentPreferences
     onChange: (data: Partial<AgentPreferences>) => void
 }
 
-function ToggleOption({
-    checked,
-    onCheckedChange,
-    title,
-    description,
-}: {
-    checked: boolean
-    onCheckedChange: (checked: boolean) => void
-    title: string
-    description: string
-}) {
-    return (
-        <div className="flex items-start justify-between rounded-lg border bg-card p-4">
-            <div className="space-y-1">
-                <Label className="text-base font-medium">{title}</Label>
-                <p className="text-sm text-muted-foreground">{description}</p>
-            </div>
-            <Switch checked={checked} onCheckedChange={onCheckedChange} />
-        </div>
-    )
-}
-
 export function PreferenciasTab({ data, onChange }: PreferenciasTabProps) {
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div>
-                <h2 className="text-2xl font-semibold">Preferências da conversa</h2>
-                <p className="text-muted-foreground mt-1">
-                    Configure como seu Agente interage nas conversas
-                </p>
-            </div>
+        <div className="flex flex-col gap-4">
+            <SettingsCard
+                title="Como o Agente responde"
+                description="O ritmo e o tom das respostas automáticas."
+            >
+                <div className="flex flex-col gap-4">
+                    <SettingsRow
+                        title="Exibir indicador de digitação"
+                        description='Mostra "digitando…" no WhatsApp enquanto o Agente escreve a resposta.'
+                        action={
+                            <Switch
+                                checked={data.showTypingIndicator}
+                                aria-label="Exibir indicador de digitação"
+                                onCheckedChange={(showTypingIndicator) => onChange({ showTypingIndicator })}
+                            />
+                        }
+                    />
 
-            {/* Toggle Options */}
-            <div className="space-y-4">
-                <ToggleOption
-                    checked={data.showTypingIndicator}
-                    onCheckedChange={(checked) => onChange({ showTypingIndicator: checked })}
-                    title="Exibir indicador de digitação"
-                    description='Mostre quando o Agente está "digitando" antes de enviar a resposta'
-                />
-
-                {/* Response Speed Slider */}
-                <div className="rounded-lg border bg-card p-4 space-y-4">
-                    <div>
-                        <Label className="text-base font-medium">Velocidade de resposta</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Tempo de espera antes do Agente responder, somado à pausa que
-                            ele já faz para o paciente terminar de escrever
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-4">
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title="Velocidade de resposta"
+                            description="Espera antes de responder, somada à pausa que o Agente já faz para o paciente terminar de escrever."
+                            action={
+                                <span className="num w-12 text-right text-[13px] font-semibold">
+                                    {data.responseSpeed.toFixed(1)} s
+                                </span>
+                            }
+                        />
                         <Slider
+                            className="mt-3"
                             value={[data.responseSpeed]}
-                            onValueChange={([value]) => onChange({ responseSpeed: value })}
+                            onValueChange={([responseSpeed]) => onChange({ responseSpeed })}
                             max={10}
                             step={0.5}
-                            className="flex-1"
+                            aria-label="Velocidade de resposta"
                         />
-                        <span className="w-10 text-center font-medium">{data.responseSpeed}s</span>
+                    </div>
+
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title="Usar emojis nas respostas"
+                            description="Deixa o Agente usar emojis com moderação, para a conversa soar menos automática."
+                            action={
+                                <Switch
+                                    checked={data.useEmojis}
+                                    aria-label="Usar emojis nas respostas"
+                                    onCheckedChange={(useEmojis) => onChange({ useEmojis })}
+                                />
+                            }
+                        />
                     </div>
                 </div>
+            </SettingsCard>
 
-                <ToggleOption
-                    checked={data.keepContext}
-                    onCheckedChange={(checked) => onChange({ keepContext: checked })}
-                    title="Manter contexto da conversa"
-                    description="O Agente lembrará das mensagens anteriores para respostas mais contextualizadas"
-                />
+            <SettingsCard
+                title="O que o Agente pode fazer"
+                description="Os limites do atendimento automático."
+            >
+                <div className="flex flex-col gap-4">
+                    <SettingsRow
+                        title="Manter contexto da conversa"
+                        description="Desligado, o Agente responde cada mensagem como se fosse a primeira — e consome menos créditos."
+                        action={
+                            <Switch
+                                checked={data.keepContext}
+                                aria-label="Manter contexto da conversa"
+                                onCheckedChange={(keepContext) => onChange({ keepContext })}
+                            />
+                        }
+                    />
 
-                <ToggleOption
-                    checked={data.useEmojis}
-                    onCheckedChange={(checked) => onChange({ useEmojis: checked })}
-                    title="Usar emojis nas respostas"
-                    description="Permita que o Agente utilize emojis para tornar as conversas mais amigáveis"
-                />
-
-                <ToggleOption
-                    checked={data.restrictTopics}
-                    onCheckedChange={(checked) => onChange({ restrictTopics: checked })}
-                    title="Restringir Temas Permitidos"
-                    description="Marque essa opção para que o agente não fale sobre outros assuntos."
-                />
-
-                {/* Interaction Limit */}
-                <div className="flex items-center justify-between rounded-lg border bg-card p-4">
-                    <div className="space-y-1">
-                        <Label className="text-base font-medium">Limite de interações por atendimento</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Quantas respostas o Agente dá numa conversa. Ao atingir o limite
-                            ele para, avisa o paciente e deixa a conversa para a equipe.
-                        </p>
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title="Restringir temas permitidos"
+                            description="O Agente responde só sobre a clínica e as próprias atribuições. Fora disso, recusa educadamente e retoma o atendimento."
+                            action={
+                                <Switch
+                                    checked={data.restrictTopics}
+                                    aria-label="Restringir temas permitidos"
+                                    onCheckedChange={(restrictTopics) => onChange({ restrictTopics })}
+                                />
+                            }
+                        />
                     </div>
-                    <select
-                        value={data.interactionLimit}
-                        onChange={(e) => onChange({ interactionLimit: Number(e.target.value) })}
-                        className="h-10 rounded-md border bg-muted/50 px-3 text-sm"
-                    >
-                        {INTERACTION_LIMITS.map((limit) => (
-                            <option key={limit} value={limit}>
-                                {limit} interações
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </div>
 
-            {/* Footer Note */}
-            <p className="text-sm text-muted-foreground text-center pt-4">
-                Personalize o comportamento do seu Agente durante as conversas
-            </p>
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title="Limite de interações por atendimento"
+                            description="Ao atingir o limite, o Agente para de responder, avisa o paciente e deixa a conversa para a equipe."
+                            action={
+                                <Select
+                                    value={String(data.interactionLimit)}
+                                    onValueChange={(v) => onChange({ interactionLimit: Number(v) })}
+                                >
+                                    <SelectTrigger className="w-[150px]" aria-label="Limite de interações">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {INTERACTION_LIMITS.map((limite) => (
+                                            <SelectItem key={limite} value={String(limite)}>
+                                                {limite} interações
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            }
+                        />
+                    </div>
+                </div>
+            </SettingsCard>
         </div>
     )
 }
