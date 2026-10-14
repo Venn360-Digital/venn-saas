@@ -2001,24 +2001,37 @@ export default function ConversasPage() {
                                                     )}
                                                 </div>
 
-                                                {/* 3. Quem atende e por onde chegou — nesta ordem,
-                                                    e sempre. A tentativa anterior mostrava cada um
-                                                    só quando "variava" e espremia responsável e
-                                                    etiquetas na mesma faixa: ficava uma tira densa
-                                                    que ninguém lia. Duas informações fixas se leem
-                                                    de relance; cinco condicionais, não. */}
-                                                {(conv.agent || origemDaConversa(conv)) && (
-                                                    <div className="mt-1 flex items-center gap-1.5 whitespace-nowrap text-[10px] text-muted-foreground">
-                                                        {conv.agent ? (
-                                                            <span className="truncate">{conv.agent.name}</span>
-                                                        ) : null}
-                                                        {conv.agent && origemDaConversa(conv) ? (
-                                                            <span aria-hidden="true" className="text-muted-foreground/40">|</span>
-                                                        ) : null}
-                                                        {origemDaConversa(conv) ? (
-                                                            <span className="flex shrink-0 items-center gap-1">
-                                                                <Smartphone className="size-2.5" aria-hidden="true" />
-                                                                {origemDaConversa(conv)}
+                                                {/* 3. À esquerda o que o sistema sabe — quem
+                                                    responde e por onde chegou. À direita quem
+                                                    assumiu. A divisão tem sentido, e aproveita a
+                                                    largura que já está ali: o nome do atendente
+                                                    numa linha própria custaria altura em todo
+                                                    cartão, inclusive nos da fila "Em espera", onde
+                                                    ninguém assumiu e a linha ficaria vazia — e
+                                                    cartões de alturas diferentes serrilham a lista.
+
+                                                    O tumulto de antes vinha das etiquetas dividindo
+                                                    esta faixa e quebrando no meio; elas agora têm a
+                                                    sua. */}
+                                                {(conv.agent || origemDaConversa(conv) || conv.assignedToName) && (
+                                                    <div className="mt-1 flex items-center justify-between gap-2 whitespace-nowrap text-[10px] text-muted-foreground">
+                                                        <span className="flex min-w-0 items-center gap-1.5">
+                                                            {conv.agent ? (
+                                                                <span className="truncate">{conv.agent.name}</span>
+                                                            ) : null}
+                                                            {conv.agent && origemDaConversa(conv) ? (
+                                                                <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                            ) : null}
+                                                            {origemDaConversa(conv) ? (
+                                                                <span className="flex shrink-0 items-center gap-1">
+                                                                    <Smartphone className="size-2.5" aria-hidden="true" />
+                                                                    {origemDaConversa(conv)}
+                                                                </span>
+                                                            ) : null}
+                                                        </span>
+                                                        {conv.assignedToName ? (
+                                                            <span className="shrink-0 font-medium text-foreground/70">
+                                                                {primeiroNome(conv.assignedToName, null)}
                                                             </span>
                                                         ) : null}
                                                     </div>
