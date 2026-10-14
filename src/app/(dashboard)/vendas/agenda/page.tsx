@@ -2,12 +2,7 @@
 
 import { ACTIVITY_TYPES as SHARED_ACTIVITY_TYPES } from '@/lib/activity-types'
 import { useState, useEffect, useMemo } from 'react'
-import {
-    Plus, List, Calendar, CheckCircle2, Circle, Trash2, Pencil,
-    ChevronLeft, ChevronRight,
-    User, Briefcase, X,
-    Columns3, BellRing, Repeat,
-} from 'lucide-react'
+import { BellRing, Briefcase, Calendar, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, Circle, Columns3, List, Pencil, Plus, Repeat, Trash2, User, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -35,6 +30,7 @@ import { MASKS, dateFromMask, maskDigitsFromIso } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
 import { PERIOD_PRESETS, isoDay, matchPreset, periodRange, type PeriodPresetId, type PeriodRange } from '@/lib/period'
 import { usePermissions } from '@/hooks/usePermissions'
+import { JanelasDialog } from '@/components/specialists/JanelasDialog'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Activity {
@@ -129,6 +125,8 @@ export default function AgendaPage() {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Delete controls that answer 403.
     const { canEdit, canSeeEveryone: canChooseOwner } = usePermissions()
+    /** O editor de grade, aberto pelo botão Janelas — o mesmo de Especialistas. */
+    const [janelasAbertas, setJanelasAbertas] = useState(false)
     const [deletingActivity, setDeletingActivity] = useState<Activity | null>(null)
     const [activities, setActivities] = useState<Activity[]>([])
     const [loading, setLoading] = useState(true)
@@ -595,9 +593,25 @@ export default function AgendaPage() {
                     </>
                 }
                 primary={
-                    <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
-                        <Plus className="size-3.5" /> Nova atividade
-                    </Button>
+                    <span className="flex items-center gap-2">
+                        {/* As janelas se editam daqui porque é aqui que a pergunta
+                            nasce — "por que a terça não aparece livre?". O mesmo
+                            diálogo abre pela ficha do especialista, em Vendas →
+                            Especialistas: um editor só, duas portas. */}
+                        {canEdit ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5"
+                                onClick={() => setJanelasAbertas(true)}
+                            >
+                                <CalendarClock className="size-3.5" /> Janelas
+                            </Button>
+                        ) : null}
+                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleOpenDialog()}>
+                            <Plus className="size-3.5" /> Nova atividade
+                        </Button>
+                    </span>
                 }
                 search={search}
                 onSearchChange={(v) => { setSearch(v); setPage(1) }}
@@ -1006,6 +1020,9 @@ export default function AgendaPage() {
                     }
                 }}
             />
+
+            {/* Sem especialista escolhido, o diálogo pergunta de quem é a grade. */}
+            <JanelasDialog open={janelasAbertas} onOpenChange={setJanelasAbertas} />
         </>
     )
 }

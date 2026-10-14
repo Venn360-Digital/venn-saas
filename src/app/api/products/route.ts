@@ -11,9 +11,23 @@ const productSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),
     description: z.string().optional(),
     sku: z.string().optional(),
-    category: z.enum(['product', 'service']),
+    /**
+     * `procedure` é o que a clínica **executa** na cadeira.
+     *
+     * Entrou junto com a agenda por especialista: é a categoria que faz o
+     * seletor do compromisso oferecer avaliação e limpeza, e não creme dental.
+     */
+    category: z.enum(['product', 'service', 'procedure']),
     price: z.number().optional(),
     group: z.string().optional(),
+    /**
+     * Quanto tempo o procedimento ocupa na agenda.
+     *
+     * É daqui que sai o tamanho da reserva — e é o que impede o agente de
+     * encaixar uma cirurgia de duas horas no buraco de uma consulta de trinta
+     * minutos. Só faz sentido em `procedure`.
+     */
+    durationMinutes: z.number().int().min(5).max(480).nullable().optional(),
 })
 
 // GET - List products with pagination and search
@@ -133,6 +147,12 @@ export async function POST(request: NextRequest) {
                 category: validatedData.category,
                 price: validatedData.price,
                 group: validatedData.group,
+                // Só o procedimento ocupa tempo: produto e serviço ficam nulos
+                // mesmo que alguém mande um número.
+                durationMinutes:
+                    validatedData.category === 'procedure'
+                        ? validatedData.durationMinutes ?? null
+                        : null,
             }
         })
 

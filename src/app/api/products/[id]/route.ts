@@ -47,7 +47,22 @@ export async function PATCH(
         }
 
         const body = await request.json()
-        const { name, description, sku, category, price, group } = body
+        const { name, description, sku, category, price, group, durationMinutes } = body
+
+        /**
+         * Duração só existe em procedimento.
+         *
+         * Mudar a categoria de "procedimento" para "produto" tem que zerar a
+         * duração junto — senão ela fica pendurada num creme dental, e a janela
+         * do especialista passaria a oferecer um item que ninguém executa.
+         */
+        const categoriaFinal = category ?? existingProduct.category
+        const duracao =
+            categoriaFinal === 'procedure'
+                ? durationMinutes !== undefined
+                    ? durationMinutes
+                    : undefined
+                : null
 
         const product = await prisma.productService.update({
             where: { id },
@@ -58,6 +73,7 @@ export async function PATCH(
                 ...(category !== undefined && { category }),
                 ...(price !== undefined && { price }),
                 ...(group !== undefined && { group }),
+                ...(duracao !== undefined && { durationMinutes: duracao }),
             }
         })
 

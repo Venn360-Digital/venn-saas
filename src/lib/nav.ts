@@ -72,6 +72,7 @@ export const navSections: NavSection[] = [
             { label: 'Negócios', href: '/vendas/negocios' },
             { label: 'Pacientes', href: '/vendas/pacientes' },
             { label: 'Agenda', href: '/vendas/agenda' },
+            { label: 'Especialistas', href: '/vendas/especialistas' },
             { label: 'Produtos e serviços', href: '/vendas/produtos-servicos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
         ],
@@ -123,6 +124,7 @@ const SEGMENT_LABELS: Record<string, string> = {
     // mostrar um slug cru no caminho.
     contatos: 'Pacientes',
     agenda: 'Agenda',
+    especialistas: 'Especialistas',
     'produtos-servicos': 'Produtos e serviços',
     departamentos: 'Departamentos',
 
