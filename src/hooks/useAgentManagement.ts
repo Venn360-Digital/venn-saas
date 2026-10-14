@@ -18,6 +18,7 @@ export function useAgentManagement(agentId?: string | null) {
     const router = useRouter()
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [isActive, setIsActive] = useState(true)
+    const [agentName, setAgentName] = useState('')
 
     // Carregar dados
     const loadManagementData = async (id: string) => {
@@ -27,6 +28,7 @@ export function useAgentManagement(agentId?: string | null) {
             if (agentResponse.ok) {
                 const agent = await agentResponse.json()
                 setIsActive(agent.isActive)
+                setAgentName(agent.name ?? '')
             }
 
             // O histórico do agente: a tela existia com a lista vazia por
@@ -75,7 +77,7 @@ export function useAgentManagement(agentId?: string | null) {
 
             if (response.ok) {
                 setIsActive(!isActive)
-                toast.success(isActive ? 'Agente desativado' : 'Agente ativado')
+                toast.success(isActive ? 'Agente pausado' : 'Agente ativado')
             } else {
                 toast.error('Erro ao alterar status')
             }
@@ -95,14 +97,14 @@ export function useAgentManagement(agentId?: string | null) {
             })
 
             if (response.ok) {
-                toast.success('Agente deletado')
+                toast.success('Agente excluído')
                 router.push('/atendimento/agentes')
             } else {
-                toast.error('Erro ao deletar agente')
+                toast.error('Não foi possível excluir o agente')
             }
         } catch (error) {
             console.error('Error deleting agent:', error)
-            toast.error('Erro ao deletar agente')
+            toast.error('Não foi possível excluir o agente')
         }
     }
 
@@ -146,6 +148,7 @@ export function useAgentManagement(agentId?: string | null) {
     return {
         conversations,
         isActive,
+        agentName,
         loadManagementData,
         duplicateAgent,
         toggleAgentActive,

@@ -104,9 +104,19 @@ export async function POST(
                 voiceEnabled: originalAgent.voiceEnabled,
                 voiceModel: originalAgent.voiceModel,
                 voiceTraining: originalAgent.voiceTraining,
-                visualConfig: originalAgent.visualConfig ?? undefined,
-                knowledgeBase: originalAgent.knowledgeBase ?? undefined,
                 preferences: originalAgent.preferences ?? undefined,
+                /**
+                 * A cópia nasce ativa e **sem canal nenhum**.
+                 *
+                 * `integrations` não é copiado de propósito: dois agentes
+                 * apontando para o mesmo número de WhatsApp responderiam a mesma
+                 * mensagem do paciente, em cima um do outro. A conexão é do
+                 * número, e um número pertence a um agente só — quem duplica
+                 * conecta o canal da cópia depois, em Integrações → Canais.
+                 *
+                 * O mesmo vale para `webhooks`: um webhook duplicado dispararia
+                 * o dobro de chamadas para o mesmo endereço do cliente.
+                 */
                 isActive: true,
                 rules: {
                     create: originalAgent.rules.map(rule => ({
@@ -129,6 +139,29 @@ export async function POST(
                 }
             }
         })
+
+        /**
+         * O Cérebro acompanha a cópia.
+         *
+         * Regras e campos vinham junto, a base de conhecimento não: duplicar um
+         * agente entregava uma cópia que não sabia nada da clínica, e a única
+         * pista era o Cérebro aparecer vazio na tela de edição.
+         *
+         * `INSERT … SELECT` em SQL cru por dois motivos: `embedding` é
+         * `Unsupported("vector(1536)")` e o Prisma não sabe lê-lo nem gravá-lo
+         * por cliente; e copiar o vetor que já existe evita pagar embedding de
+         * novo pelo acervo inteiro — num PDF de duzentas páginas, isso é a
+         * diferença entre instantâneo e uma conta na OpenAI.
+         */
+        const copiados = await prisma.$executeRaw`
+            INSERT INTO "knowledge_documents"
+                ("id", "agentId", "title", "content", "type", "url", "embedding", "metadata", "createdAt", "updatedAt")
+            SELECT gen_random_uuid(), ${duplicatedAgent.id}, "title", "content", "type", "url", "embedding", "metadata", NOW(), NOW()
+            FROM "knowledge_documents"
+            WHERE "agentId" = ${originalAgent.id};
+        `
+
+        console.log(`[DUPLICATE_AGENT] ${copiados} trecho(s) de conhecimento copiados`)
 
         return NextResponse.json(duplicatedAgent, { status: 201 })
     } catch (error) {

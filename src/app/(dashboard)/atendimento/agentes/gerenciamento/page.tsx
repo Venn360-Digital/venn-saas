@@ -26,6 +26,7 @@ function GerenciamentoContent() {
     const {
         conversations,
         isActive,
+        agentName,
         loadManagementData,
         duplicateAgent,
         toggleAgentActive,
@@ -67,6 +68,7 @@ function GerenciamentoContent() {
                 return (
                     <AcoesTab
                         agentId={urlAgentId}
+                        agentName={agentName}
                         isActive={isActive}
                         onDuplicate={duplicateAgent}
                         onToggleActive={toggleAgentActive}

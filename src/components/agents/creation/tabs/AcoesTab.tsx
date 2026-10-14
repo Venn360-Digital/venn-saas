@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Copy, Power, Trash2, Loader2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { cn } from '@/lib/utils'
 
 interface AcoesTabProps {
@@ -45,12 +46,15 @@ export function AcoesTab({
         }
     }
 
+    /**
+     * Excluir passa pelo diálogo, não por um segundo clique no mesmo botão.
+     *
+     * O botão virava "Confirmar" no primeiro clique: dois cliques no mesmo
+     * lugar apagam um agente, e quem clica duas vezes por reflexo — ou erra o
+     * alvo e acerta de novo — perde a base de conhecimento inteira sem ler
+     * nada. Agora o quadro diz o que se perde e exige o nome digitado.
+     */
     const handleDelete = async () => {
-        if (!showDeleteConfirm) {
-            setShowDeleteConfirm(true)
-            return
-        }
-
         setIsDeleting(true)
         try {
             await onDelete()
@@ -81,7 +85,9 @@ export function AcoesTab({
                         <div>
                             <h3 className="font-medium">Duplicar Agente</h3>
                             <p className="text-sm text-muted-foreground">
-                                Crie uma cópia exata deste agente para testar novas configurações sem perder o original.
+                                Copia personalidade, base de conhecimento e regras. A cópia nasce
+                                sem canal conectado — dois agentes no mesmo WhatsApp responderiam
+                                juntos à mesma mensagem.
                             </p>
                         </div>
                     </div>
@@ -132,28 +138,40 @@ export function AcoesTab({
                             <Trash2 className="h-6 w-6 text-destructive-subtle-foreground" />
                         </div>
                         <div>
-                            <h3 className="font-medium text-destructive-subtle-foreground">Deletar Agente</h3>
+                            <h3 className="font-medium text-destructive-subtle-foreground">Excluir agente</h3>
                             <p className="text-sm text-muted-foreground">
-                                Ação irreversível. Todos os dados, histórico e configurações serão perdidos permanentemente.
+                                Ação irreversível. Apaga a base de conhecimento, as regras, os
+                                webhooks e as conexões de canal. As conversas continuam guardadas.
                             </p>
                         </div>
                     </div>
                     <Button
-                        onClick={handleDelete}
+                        onClick={() => setShowDeleteConfirm(true)}
                         disabled={isDeleting || !agentId}
                         variant="destructive"
                         className="min-w-[100px]"
                     >
-                        {isDeleting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : showDeleteConfirm ? (
-                            'Confirmar'
-                        ) : (
-                            'Deletar'
-                        )}
+                        {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Excluir'}
                     </Button>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={showDeleteConfirm}
+                onOpenChange={setShowDeleteConfirm}
+                title="Excluir agente"
+                description={
+                    `Esta ação é irreversível. "${agentName ?? 'Este agente'}" para de responder ` +
+                    'imediatamente, e são apagados: a base de conhecimento inteira, as regras, ' +
+                    'os webhooks e as conexões de canal — o WhatsApp dele será desconectado. ' +
+                    'As conversas e o histórico de mensagens continuam guardados, sem o agente.'
+                }
+                confirmLabel="Excluir agente"
+                destructive
+                confirmPhrase={agentName}
+                confirmPhraseLabel="Digite o nome do agente para confirmar"
+                onConfirm={handleDelete}
+            />
         </div>
     )
 }

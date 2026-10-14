@@ -1,192 +1,283 @@
 'use client'
 
-import { PlanAllowance } from '@/components/shared/PlanAllowance'
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { Plus, Loader2, Bot } from 'lucide-react'
-import { AgentCard } from '@/components/agents/AgentCard'
-import { AgentEditor } from '@/components/agents/AgentEditor'
+import Link from 'next/link'
 import { Agent } from '@prisma/client'
+import { Bot, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
 
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { IndexFrame } from '@/components/shared/IndexFrame'
+import { AgentCard } from '@/components/agents/AgentCard'
+
+interface Limites {
+    planName: string | null
+    unsubscribed: boolean
+    agents: { used: number; max: number; remaining: number }
+}
+
+/**
+ * A lista de agentes, na moldura da Tela 01.
+ *
+ * Era `PageHeader` + uma grade solta: o título rolava junto com o conteúdo e o
+ * botão de criar mudava de lugar em relação às outras telas de índice. Aqui o
+ * cabeçalho e o rodapé ficam presos e só a grade rola, como em Pacientes,
+ * Produtos e Etiquetas.
+ *
+ * O corpo continua em cartões, e não em tabela: um agente tem estado ligado ou
+ * desligado e três ações de uso frequente, que o cartão mostra sem precisar de
+ * ficha lateral.
+ */
 export default function AgentsPage() {
     const router = useRouter()
     const [agents, setAgents] = useState<Agent[]>([])
+    const [limites, setLimites] = useState<Limites | null>(null)
     const [loading, setLoading] = useState(true)
-    const [isEditorOpen, setIsEditorOpen] = useState(false)
-    const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
-    const [deletingAgent, setDeletingAgent] = useState<Agent | null>(null)
+    const [erro, setErro] = useState(false)
+    const [busca, setBusca] = useState('')
+    const [duplicando, setDuplicando] = useState<string | null>(null)
+    const [excluindo, setExcluindo] = useState<Agent | null>(null)
 
-    // Temporary: In a real app we'd get this from a context or user session hook
-    const [workspaceId, setWorkspaceId] = useState<string | null>(null)
-
-    useEffect(() => {
-        fetchWorkspace()
-    }, [])
-
-    useEffect(() => {
-        if (workspaceId) {
-            fetchAgents()
-        }
-    }, [workspaceId])
-
-    const fetchWorkspace = async () => {
-        try {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (user) {
-                // Por enquanto, usar 'current' e deixar a API resolver
-                // A API já tem lógica para encontrar o workspace do usuário
-                setWorkspaceId('current')
-            }
-        } catch (error) {
-            console.error('Error fetching workspace:', error)
-            // Fallback para 'current'
-            setWorkspaceId('current')
-        }
-    }
-
-    const fetchAgents = async () => {
+    const carregar = useCallback(async () => {
         setLoading(true)
+        setErro(false)
         try {
-            // In MVP, we might need to handle workspace assignment better.
-            // For now, let's assume we pass a workspaceId if we had one.
-            // If we don't have one user-side, let's try to fetch without it and see if backend handles (it throws 400).
+            const [agentesRes, limitesRes] = await Promise.all([
+                fetch('/api/agents?workspaceId=current'),
+                fetch('/api/account/limits'),
+            ])
 
-            // Since we don't have the workspace ID on the client easily yet (Milestone 3 feature), 
-            // I will update the API to be smarter: "If no workspaceId, find the first workspace the user belongs to".
+            if (!agentesRes.ok) throw new Error('Falha ao listar agentes')
+            setAgents(await agentesRes.json())
 
-            const response = await fetch(`/api/agents?workspaceId=${workspaceId || 'current'}`)
-            if (!response.ok) { // 'current' is a flag for backend to find default
-                // If failed, maybe list empty
-                setAgents([])
-                return
+            // O limite é informativo: sem ele a tela ainda lista, só não sabe
+            // dizer se ainda cabe um agente novo.
+            if (limitesRes.ok) {
+                const dados = await limitesRes.json()
+                if (!dados.error) setLimites(dados)
             }
-            const data = await response.json()
-            setAgents(data)
         } catch (error) {
             console.error('Failed to fetch agents', error)
-            toast.error('Erro ao carregar agentes')
+            setErro(true)
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
 
-    const handleCreate = () => {
-        // Redirecionar para a nova página de criação
-        router.push('/atendimento/agentes/novo?tab=perfil')
-    }
+    useEffect(() => {
+        void carregar()
+    }, [carregar])
 
-    const handleEdit = (agent: Agent) => {
-        // Redirecionar para a mesma página, mas com ID do agente
-        router.push(`/atendimento/agentes/novo?id=${agent.id}&tab=perfil`)
-    }
+    const visiveis = useMemo(() => {
+        const termo = busca.trim().toLowerCase()
+        if (!termo) return agents
+        return agents.filter((a) =>
+            [a.name, a.description, a.companyName]
+                .filter(Boolean)
+                .some((campo) => String(campo).toLowerCase().includes(termo))
+        )
+    }, [agents, busca])
 
-    const handleDelete = async (id: string) => {
+    /**
+     * Criar só é possível enquanto couber no plano.
+     *
+     * A API já recusa com 409, mas deixar o botão aceso leva a pessoa a
+     * preencher a tela inteira de criação para ouvir "não" no fim. Enquanto o
+     * limite não carrega, o botão segue habilitado — barrar por falta de
+     * informação seria pior que deixar a API decidir.
+     */
+    const semVaga = limites !== null && limites.agents.remaining <= 0
+    const motivoDoBloqueio = limites?.unsubscribed
+        ? 'Assine um plano para criar agentes.'
+        : `Seu plano ${limites?.planName ?? ''} permite ${limites?.agents.max ?? 0} agente(s). ` +
+          'Mude de plano para criar mais.'
+
+    const criar = () => router.push('/atendimento/agentes/novo?tab=perfil')
+
+    const botaoCriar = (
+        <Button onClick={criar} disabled={semVaga} size="sm">
+            <Plus className="size-4" />
+            Novo agente
+        </Button>
+    )
+
+    const duplicar = async (agent: Agent) => {
+        setDuplicando(agent.id)
         try {
-            const response = await fetch(`/api/agents/${id}`, {
-                method: 'DELETE',
-            })
+            const res = await fetch(`/api/agents/${agent.id}/duplicate`, { method: 'POST' })
+            const corpo = await res.json().catch(() => null)
 
-            if (!response.ok) throw new Error('Falha ao deletar')
+            if (!res.ok) {
+                toast.error(corpo?.message ?? corpo?.error ?? 'Não foi possível duplicar o agente')
+                return
+            }
 
-            toast.success('Agente excluído')
-            fetchAgents()
-        } catch (error) {
-            toast.error('Erro ao excluir agente')
+            toast.success(`"${corpo.name}" criado. Conecte o canal dele em Integrações.`)
+            await carregar()
+        } catch {
+            toast.error('Não foi possível duplicar o agente')
+        } finally {
+            setDuplicando(null)
         }
     }
 
-    const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    const alternarEstado = async (id: string, ativoAgora: boolean) => {
+        // Otimista: o interruptor responde na hora e volta se a API recusar.
+        setAgents((atuais) =>
+            atuais.map((a) => (a.id === id ? { ...a, isActive: !ativoAgora } : a))
+        )
         try {
-            const response = await fetch(`/api/agents/${id}`, {
+            const res = await fetch(`/api/agents/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ isActive: !currentStatus }),
+                body: JSON.stringify({ isActive: !ativoAgora }),
             })
 
-            if (!response.ok) throw new Error('Falha ao atualizar')
+            if (!res.ok) {
+                const corpo = await res.json().catch(() => null)
+                setAgents((atuais) =>
+                    atuais.map((a) => (a.id === id ? { ...a, isActive: ativoAgora } : a))
+                )
+                toast.error(corpo?.error ?? 'Não foi possível alterar o estado do agente')
+                return
+            }
 
-            toast.success(currentStatus ? 'Agente pausado' : 'Agente ativado')
-            fetchAgents()
-        } catch (error) {
-            toast.error('Erro ao atualizar status')
+            toast.success(ativoAgora ? 'Agente pausado' : 'Agente ativado')
+        } catch {
+            setAgents((atuais) =>
+                atuais.map((a) => (a.id === id ? { ...a, isActive: ativoAgora } : a))
+            )
+            toast.error('Não foi possível alterar o estado do agente')
         }
+    }
+
+    const excluir = async (agent: Agent) => {
+        const res = await fetch(`/api/agents/${agent.id}`, { method: 'DELETE' })
+        if (!res.ok) {
+            toast.error('Não foi possível excluir o agente')
+            return
+        }
+        toast.success(`"${agent.name}" excluído`)
+        await carregar()
     }
 
     return (
-        <>
-            <PageHeader
-                title="Agentes de IA"
-                description="Gerencie seus assistentes virtuais inteligentes"
-                actions={
-                    <Button onClick={handleCreate}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Novo Agente
-                    </Button>
-                }
-            />
-            <div className="space-y-6 px-4 pb-6 md:px-6">
-
-            {loading ? (
-                <div className="flex h-32 items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-            ) : agents.length === 0 ? (
-                <div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center animate-in fade-in-50">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                        <Bot className="h-6 w-6 text-muted-foreground" />
+        <IndexFrame
+            title="Agentes de IA"
+            search={busca}
+            onSearchChange={setBusca}
+            searchLabel="Buscar agente por nome ou empresa"
+            primary={
+                semVaga ? (
+                    <Tooltip>
+                        {/* `span`: um botão desabilitado não emite evento de
+                            ponteiro, e sem o invólucro a dica nunca apareceria —
+                            que é justamente quando ela é necessária. */}
+                        <TooltipTrigger asChild>
+                            <span tabIndex={0}>{botaoCriar}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{motivoDoBloqueio}</TooltipContent>
+                    </Tooltip>
+                ) : (
+                    botaoCriar
+                )
+            }
+        >
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+                {loading ? (
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {[0, 1, 2].map((i) => (
+                            <Skeleton key={i} className="h-[220px] rounded-lg" />
+                        ))}
                     </div>
-                    <h3 className="mt-4 text-lg font-semibold">Nenhum agente criado</h3>
-                    <p className="mb-4 mt-2 text-sm text-muted-foreground max-w-sm">
-                        Crie seu primeiro agente de IA para começar a automatizar seu atendimento e vendas.
-                    </p>
-                    <Button onClick={handleCreate}>Criar Primeiro Agente</Button>
-                </div>
-            ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {agents.map((agent) => (
-                        <AgentCard
-                            key={agent.id}
-                            agent={agent}
-                            onEdit={handleEdit}
-                            onDelete={id => setDeletingAgent(agents.find(a => a.id === id) ?? null)}
-                            onToggleStatus={handleToggleStatus}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* At the foot, so every page opens the same way: trail, title, content. */}
-            <PlanAllowance resource="agents" />
+                ) : erro ? (
+                    <ErrorState
+                        title="Não foi possível carregar os agentes"
+                        onRetry={() => void carregar()}
+                    />
+                ) : agents.length === 0 ? (
+                    <EmptyState
+                        icon={Bot}
+                        title="Nenhum agente criado"
+                        description="Crie seu primeiro agente de IA para começar a atender pelo WhatsApp automaticamente."
+                        action={
+                            semVaga ? undefined : (
+                                <Button onClick={criar}>Criar primeiro agente</Button>
+                            )
+                        }
+                    />
+                ) : visiveis.length === 0 ? (
+                    <EmptyState
+                        icon={Bot}
+                        title="Nenhum agente encontrado"
+                        description={`Nada corresponde a "${busca}".`}
+                        action={<Button variant="outline" onClick={() => setBusca('')}>Limpar busca</Button>}
+                    />
+                ) : (
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {visiveis.map((agent) => (
+                            <AgentCard
+                                key={agent.id}
+                                agent={agent}
+                                duplicating={duplicando === agent.id}
+                                onEdit={(a) => router.push(`/atendimento/agentes/novo?id=${a.id}&tab=perfil`)}
+                                onDuplicate={(a) => void duplicar(a)}
+                                onDelete={setExcluindo}
+                                onToggleStatus={(id, ativo) => void alternarEstado(id, ativo)}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
 
-            <AgentEditor
-                open={isEditorOpen}
-                onOpenChange={setIsEditorOpen}
-                agent={editingAgent}
-                workspaceId={workspaceId || ''} // Will need fixing in backend
-                onSuccess={fetchAgents}
-            />
+            {/* Rodapé preso, com a contagem — e aqui ela diz também quanto o
+                plano ainda permite, que é a pergunta seguinte de quem olha. */}
+            <div className="flex h-[46px] shrink-0 items-center justify-between border-t border-border bg-card px-4 text-xs text-muted-foreground md:px-6">
+                <span className="num">
+                    {visiveis.length === agents.length
+                        ? `${agents.length} agente(s)`
+                        : `${visiveis.length} de ${agents.length} agente(s)`}
+                </span>
+                {limites && !limites.unsubscribed ? (
+                    <span className="num">
+                        {limites.agents.used} de {limites.agents.max} do plano
+                        {limites.planName ? ` ${limites.planName}` : ''}
+                        {semVaga ? ' · ' : null}
+                        {semVaga ? (
+                            <Link href="/gerenciamento/conta?tab=plano" className="underline">
+                                mudar de plano
+                            </Link>
+                        ) : null}
+                    </span>
+                ) : null}
+            </div>
 
             <ConfirmDialog
-                open={deletingAgent !== null}
-                onOpenChange={open => {
-                    if (!open) setDeletingAgent(null)
+                open={excluindo !== null}
+                onOpenChange={(open) => {
+                    if (!open) setExcluindo(null)
                 }}
                 title="Excluir agente"
-                description={`"${deletingAgent?.name ?? ''}" para de responder imediatamente, e sua configuração — tom de voz, comandos e base de conhecimento — é perdida.`}
-                confirmLabel="Excluir"
+                description={
+                    `Esta ação é irreversível. "${excluindo?.name ?? ''}" para de responder ` +
+                    'imediatamente, e são apagados: a base de conhecimento inteira, as regras, ' +
+                    'os webhooks e as conexões de canal — o WhatsApp dele será desconectado. ' +
+                    'As conversas e o histórico de mensagens continuam guardados, sem o agente.'
+                }
+                confirmLabel="Excluir agente"
                 destructive
+                confirmPhrase={excluindo?.name}
+                confirmPhraseLabel="Digite o nome do agente para confirmar"
                 onConfirm={async () => {
-                    if (deletingAgent) await handleDelete(deletingAgent.id)
+                    if (excluindo) await excluir(excluindo)
                 }}
             />
-        </>
+        </IndexFrame>
     )
 }
