@@ -32,12 +32,14 @@ import {
     PanelRight,
     Paperclip,
     Phone,
+    Plug,
     Plus,
     Reply,
     RotateCcw,
     Route,
     Search,
     Smartphone,
+    Unplug,
     Send,
     Sparkles,
     StickyNote,
@@ -2137,12 +2139,22 @@ export default function ConversasPage() {
                                                 <TooltipTrigger asChild>
                                                     <span
                                                         className={cn(
-                                                            'text-[11px] font-semibold',
+                                                            'flex items-center gap-1 text-[11px] font-semibold',
                                                             conv.line.status === 'connected'
                                                                 ? 'text-success-subtle-foreground'
                                                                 : 'text-destructive-subtle-foreground'
                                                         )}
                                                     >
+                                                        {/* Tomada ligada e tomada
+                                                            puxada: o par diz
+                                                            "conectado/desconectado"
+                                                            sem depender da cor, que
+                                                            nem todo mundo distingue. */}
+                                                        {conv.line.status === 'connected' ? (
+                                                            <Plug className="size-3 shrink-0" aria-hidden="true" />
+                                                        ) : (
+                                                            <Unplug className="size-3 shrink-0" aria-hidden="true" />
+                                                        )}
                                                         {conv.line.status === 'connected'
                                                             ? 'Linha no ar'
                                                             : 'Linha fora do ar'}
