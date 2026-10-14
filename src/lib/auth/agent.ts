@@ -6,6 +6,7 @@ import {
     getWorkspaceMember,
     requireRole,
     type WorkspaceMember,
+    type WorkspaceRole,
 } from './workspace'
 
 /**
@@ -27,8 +28,8 @@ import {
 
 export type AgentAuth = { ok: true; member: WorkspaceMember } | { ok: false; response: NextResponse }
 
-async function check(agentId: string, roles: readonly string[] | null): Promise<AgentAuth> {
-    const auth = roles ? await requireRole([...roles] as WorkspaceMember['role'][]) : await getWorkspaceMember()
+async function check(agentId: string, roles: WorkspaceRole[] | null): Promise<AgentAuth> {
+    const auth = roles ? await requireRole(roles) : await getWorkspaceMember()
     if (!auth.ok) {
         return {
             ok: false,
