@@ -42,6 +42,7 @@ model User {
   deals      Deal[]
 
   @@map("users")
+  specialists Specialist[]
 }
 
 model Workspace {
@@ -95,6 +96,8 @@ model Workspace {
   automations Json?
 
   @@map("workspaces")
+  specialists        Specialist[]
+  scheduleExceptions ScheduleException[]
 }
 
 model WorkspaceUser {
@@ -621,6 +624,18 @@ model Activity {
   contactId   String?
   dealId      String?
 
+  /// Quem executa — o profissional, não o responsável pela tarefa.
+  ///
+  /// `userId` acima continua sendo "Responsável": quem da equipe cuida disto.
+  /// Esta coluna é quem atende o paciente, e é por ela que a agenda filtra.
+  specialistId String?
+
+  /// O que vai ser feito, do catálogo de Itens.
+  ///
+  /// É de onde sai a duração do compromisso — e é o que permite ao agente
+  /// reservar o tempo certo em vez de chutar.
+  productServiceId String?
+
   type        String // "call", "meeting", "email", "task", "note", "videocall", "followup"
   title       String
   description String? @db.Text
@@ -666,6 +681,10 @@ model Activity {
   @@index([dueDate])
   @@index([recurrenceParentId])
   @@map("activities")
+  specialist     Specialist?     @relation(fields: [specialistId], references: [id], onDelete: SetNull)
+  productService ProductService? @relation(fields: [productServiceId], references: [id], onDelete: SetNull)
+
+  @@index([specialistId])
 }
 
 // ============================================
@@ -972,6 +991,141 @@ model UsageLog {
 // 7. ORGANIZATION (Departments, Tags, Products)
 // ============================================
 
+// ============================================
+// AGENDA: QUEM ATENDE, QUANDO, E QUANDO A CLÍNICA FECHA
+// ============================================
+
+/// Quem executa o procedimento.
+///
+/// **Não é um usuário do sistema.** `Activity.userId` já existe e significa
+/// "Responsável" — quem da equipe cuida da tarefa, escolhido entre os membros
+/// que fazem login. O cirurgião normalmente não faz login: quem marca é a
+/// recepção. São duas perguntas diferentes sobre o mesmo compromisso, e por isso
+/// duas colunas.
+///
+/// `userId` liga os dois quando a mesma pessoa faz as duas coisas.
+model Specialist {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String
+  /// "Implantodontia", "Ortodontia" — texto livre, porque cada clínica nomeia
+  /// as suas do seu jeito.
+  specialty   String?
+  /// Para distinguir as agendas na visão por especialista.
+  color       String  @default("#06B6D4")
+  isActive    Boolean @default(true)
+  /// O membro do workspace que é esta pessoa, quando ela também usa o sistema.
+  userId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  windows    SpecialistWindow[]
+  activities Activity[]
+
+  @@index([workspaceId])
+  @@map("specialists")
+}
+
+/// Uma faixa de horário recorrente em que o especialista atende.
+///
+/// **Uma lista só, não duas.** A tentação era separar "horário de trabalho" de
+/// "janela liberada para o agente" — e aí os dois divergem: alguém muda o
+/// expediente, esquece a janela, e o agente marca num horário em que a doutora
+/// não está. Aqui a permissão é um campo da própria faixa.
+model SpecialistWindow {
+  id           String @id @default(cuid())
+  specialistId String
+
+  /// 0 = domingo, 6 = sábado, como `Date.getDay()`.
+  weekday   Int
+  /// "14:00". Mesma forma de `Activity.startTime`, que a agenda já desenha.
+  startTime String
+  endTime   String
+
+  /// Se o agente de IA pode marcar sozinho aqui.
+  ///
+  /// Desligado por padrão: liberar a agenda para uma IA é decisão explícita da
+  /// clínica, nunca o que acontece por omissão.
+  agentCanBook Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specialist Specialist                  @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+  procedures SpecialistWindowProcedure[]
+
+  @@index([specialistId])
+  @@map("specialist_windows")
+}
+
+/// Quais procedimentos cabem nesta janela.
+///
+/// Sem esta lista, o agente encaixaria um implante de duas horas numa janela de
+/// duas horas e tomaria a tarde inteira da doutora a partir de uma conversa de
+/// WhatsApp. Com ela, a clínica diz "aqui o agente marca avaliação, e só".
+///
+/// Vazia significa **nenhum** procedimento liberado, não todos: o padrão de uma
+/// permissão é não ter permissão.
+model SpecialistWindowProcedure {
+  windowId         String
+  productServiceId String
+
+  window  SpecialistWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  product ProductService   @relation(fields: [productServiceId], references: [id], onDelete: Cascade)
+
+  @@id([windowId, productServiceId])
+  @@index([productServiceId])
+  @@map("specialist_window_procedures")
+}
+
+/// O que sobrepõe as janelas de **todos** os especialistas.
+///
+/// Feriado, recesso, dedetização. Vale para a clínica inteira e ganha das
+/// janelas — é o "sobrepõe a agenda".
+///
+/// **Duas formas na mesma tabela**, e a diferença é `holidayKey`:
+///
+///   - Com `holidayKey`: é a decisão da clínica sobre um feriado nacional. A
+///     data **não** mora aqui, porque Carnaval, Sexta-feira Santa e Corpus
+///     Christi se movem com a Páscoa — gravá-los como "anual em data fixa"
+///     estaria errado já no ano seguinte. A lista nacional é calculada em
+///     `src/lib/holidays.ts`; esta linha diz só se aquele feriado bloqueia aqui.
+///     Sem linha nenhuma, bloqueia — que é o certo para a maioria.
+///   - Sem `holidayKey`: é entrada própria da clínica, e aí as datas são estas.
+model ScheduleException {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  /// A chave do feriado nacional que esta linha decide. Null = entrada própria.
+  holidayKey String?
+  name       String
+
+  /// Nulas quando `holidayKey` manda: o feriado sabe a própria data.
+  startsOn DateTime? @db.Date
+  endsOn   DateTime? @db.Date
+
+  /// Dia inteiro, ou só um pedaço dele.
+  allDay    Boolean @default(true)
+  startTime String?
+  endTime   String?
+
+  /// Bloqueia a agenda, ou é só informativo ("atendemos neste feriado").
+  blocks Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  /// Um feriado nacional tem no máximo uma decisão por clínica.
+  @@unique([workspaceId, holidayKey])
+  @@index([workspaceId])
+  @@map("schedule_exceptions")
+}
+
 model Department {
   id          String  @id @default(cuid())
   workspaceId String
@@ -1044,8 +1198,19 @@ model ProductService {
   name        String
   description String? @db.Text
   sku         String? // Código do produto
-  category    String  @default("product") // "product" or "service"
+  category    String  @default("product") // "product" | "service" | "procedure"
   price       Float?
+
+  /// Quanto tempo este procedimento ocupa na agenda.
+  ///
+  /// Só faz sentido em `category = "procedure"`: avaliação são 30 minutos,
+  /// implante são 120. É daqui que a agenda tira o tamanho do compromisso, e é
+  /// o que impede o agente de encaixar uma cirurgia no buraco de uma consulta.
+  ///
+  /// Mora no Item, e não numa tabela à parte, porque é aqui que a clínica já
+  /// pensa no procedimento — com nome e preço. Mudar de 30 para 40 minutos
+  /// passa a ser um lugar só.
+  durationMinutes Int?
   currency    String  @default("BRL")
   group       String? // Grupo/categoria do produto
 
@@ -1060,7 +1225,9 @@ model ProductService {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace  Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  windows    SpecialistWindowProcedure[]
+  activities Activity[]
 
   @@index([workspaceId])
   @@index([name])
