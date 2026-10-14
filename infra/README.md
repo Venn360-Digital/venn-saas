@@ -319,6 +319,36 @@ docker compose logs --tail=200 traefik     # TLS and routing
 
 Worker log verbosity is `LOG_LEVEL` (`debug` | `info` | `warn` | `error`).
 
+### Os dois vigias do Evolution Go
+
+A imagem `evoapicloud/evolution-go` tem dois defeitos que não são nossos e que
+nenhum código da aplicação consegue contornar de dentro. Os dois são tratados
+por serviços do host, instalados a partir de `infra/scripts/`:
+
+| Serviço | Script | O que vigia |
+|---|---|---|
+| `odontobox-wa-guard` | `wa-guard.sh` | Desliga o número ~105 s depois de parear. Reinicia o contêiner assim que `LoggedIn=true`. |
+| `odontobox-wa-pool` | `wa-pool-guard.sh` | Vaza conexões Postgres até esgotar `max_connections` — e aí **nenhum QR Code é gerado**, em silêncio. Reinicia quando passa de 60 conexões ociosas. |
+
+O segundo foi medido em 2026-10-14: 100 de 100 conexões abertas pelo Evolution
+Go, todas ociosas, acumuladas desde a véspera. O sintoma que chega ao cliente é
+"o QR não aparece"; a causa só se vê em `docker logs odontobox360-evolution-go-1`:
+
+```
+Failed to create container: failed to upgrade database:
+pq: sorry, too many clients already
+```
+
+Reiniciar devolve as conexões (100 → 6) e **as sessões voltam sozinhas** pelo JID
+guardado, porque `CONNECT_ON_STARTUP=true`. Nenhum número precisa ser pareado de
+novo.
+
+```bash
+scp infra/scripts/wa-pool-guard.sh root@HOST:/usr/local/bin/odontobox-wa-pool.sh
+ssh root@HOST 'chmod +x /usr/local/bin/odontobox-wa-pool.sh && systemctl enable --now odontobox-wa-pool'
+journalctl -u odontobox-wa-pool -f
+```
+
 ---
 
 ## How requests flow
