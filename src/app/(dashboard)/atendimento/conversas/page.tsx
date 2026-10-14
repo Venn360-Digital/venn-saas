@@ -155,15 +155,14 @@ function primeiroNome(nome: string | null, telefone: string | null): string {
 }
 
 /**
- * De onde a conversa veio, dito como quem atende diria.
+ * De onde a conversa veio.
  *
- * O canal e a linha são duas coisas e a tela mostra uma: "Whats · Unidade
- * Centro" diz o meio e o número na mesma frase. Nos canais que não têm linha —
- * Instagram, site — o nome do canal já é a resposta inteira.
+ * No WhatsApp é **o apelido da linha e nada mais**: "Unidade Centro" já diz
+ * tudo, e o rótulo do canal ao lado ("Whats · Unidade Centro") repetia em toda
+ * conversa a informação que o ícone ao lado já dá. Instagram e site não têm
+ * linha nem apelido — ali o nome do canal é a resposta inteira.
  */
-const ROTULO_DO_CANAL: Record<string, string> = {
-    whatsapp_qr: 'Whats',
-    whatsapp_business: 'Whats',
+const CANAIS_SEM_LINHA: Record<string, string> = {
     instagram: 'Instagram',
     site: 'Site',
 }
@@ -173,13 +172,11 @@ function origemDaConversa(conv: {
     line?: { label: string | null; phoneNumber: string | null; channel?: string } | null
 }): string | null {
     if (conv.line) {
-        const rotulo = ROTULO_DO_CANAL[conv.line.channel ?? ''] ?? 'Whats'
-        return `${rotulo} · ${nomeDaLinha(conv.line)}`
+        return CANAIS_SEM_LINHA[conv.line.channel ?? ''] ?? nomeDaLinha(conv.line)
     }
     // Sem linha gravada, o canal da conversa é o que sobra para dizer.
     if (conv.channel === 'instagram') return 'Instagram'
     if (conv.channel === 'web') return 'Site'
-    if (conv.channel === 'whatsapp') return 'Whats'
     return null
 }
 
