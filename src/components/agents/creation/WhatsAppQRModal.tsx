@@ -14,19 +14,36 @@ import { Loader2, RefreshCw, CheckCircle, XCircle, Smartphone } from 'lucide-rea
 
 interface WhatsAppQRModalProps {
     agentId: string
+    /**
+     * A linha sendo conectada — `null` para uma linha nova.
+     *
+     * O POST sem `integrationId` cria a linha no servidor e devolve o id dela;
+     * é esse id que o polling passa a consultar. Sem isto, com duas linhas no
+     * mesmo agente o modal perguntaria "e aí?" para o agente e receberia o
+     * estado de qualquer uma das duas.
+     */
+    integrationId?: string | null
     isOpen: boolean
     onClose: () => void
     onConnected: () => void
 }
 
-type ConnectionStatus = 'idle' | 'generating' | 'waiting' | 'connected' | 'error'
+type ConnectionStatus = 'idle' | 'generating' | 'waiting' | 'reconnecting' | 'connected' | 'error'
 
-export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: WhatsAppQRModalProps) {
+export function WhatsAppQRModal({
+    agentId,
+    integrationId = null,
+    isOpen,
+    onClose,
+    onConnected,
+}: WhatsAppQRModalProps) {
     const [status, setStatus] = useState<ConnectionStatus>('idle')
     const [qrCode, setQrCode] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const isOpenRef = useRef(isOpen)
     const pollingRef = useRef<NodeJS.Timeout | null>(null)
+    /** A linha que esta sessão do modal está pareando, nova ou existente. */
+    const lineRef = useRef<string | null>(integrationId)
 
     // Keep ref in sync
     useEffect(() => {
@@ -52,19 +69,26 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
         const maxAttempts = 60
 
         const checkStatus = async () => {
-            if (!isOpenRef.current || attempts >= maxAttempts) {
-                console.log('[WhatsApp] Polling stopped:', { isOpen: isOpenRef.current, attempts })
+            const lineId = lineRef.current
+            if (!isOpenRef.current || attempts >= maxAttempts || !lineId) {
                 return
             }
 
             try {
-                const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`)
+                const response = await fetch(
+                    `/api/agents/${agentId}/integrations/whatsapp?integrationId=${lineId}`
+                )
                 const data = await response.json()
-                console.log('[WhatsApp] Poll response:', data)
 
                 if (data.status === 'connected') {
                     setStatus('connected')
                     onConnected()
+                    return
+                }
+
+                if (data.errorMessage && data.status === 'error') {
+                    setError(data.errorMessage)
+                    setStatus('error')
                     return
                 }
 
@@ -102,6 +126,9 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
         try {
             const response = await fetch(`/api/agents/${agentId}/integrations/whatsapp`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Com id, reconecta aquela linha; sem, o servidor cria uma.
+                body: JSON.stringify(lineRef.current ? { integrationId: lineRef.current } : {}),
             })
 
             if (!response.ok) {
@@ -110,11 +137,22 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             }
 
             const data = await response.json()
-            console.log('[WhatsApp] Create response:', { hasQR: !!data.qrcode, status: data.integration?.status })
+            // O id da linha que o servidor criou é o que o polling consulta.
+            if (data.integration?.id) lineRef.current = data.integration.id
 
             if (data.alreadyConnected) {
                 setStatus('connected')
                 onConnected()
+            } else if (data.reconnecting) {
+                /**
+                 * A sessão está voltando sozinha: não há QR a mostrar.
+                 *
+                 * Pedir QR aqui derrubaria o número — foi o que desconectou o
+                 * primeiro número a entrar no sistema. O modal espera e o
+                 * polling avisa quando subir.
+                 */
+                setStatus('reconnecting')
+                startPolling()
             } else {
                 // A missing QR here is not a failure: the socket may not have
                 // emitted one yet. Wait for the poll to deliver it.
@@ -139,8 +177,9 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
             setStatus('idle')
             setQrCode(null)
             setError(null)
+            lineRef.current = integrationId
         }
-    }, [isOpen])
+    }, [isOpen, integrationId])
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -166,6 +205,19 @@ export function WhatsAppQRModal({ agentId, isOpen, onClose, onConnected }: Whats
                             <p className="text-sm text-muted-foreground">
                                 Gerando QR Code...
                             </p>
+                        </div>
+                    )}
+
+                    {status === 'reconnecting' && (
+                        <div className="flex flex-col items-center gap-4">
+                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                            <div className="text-center">
+                                <p className="font-medium">Restabelecendo a sessão</p>
+                                <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+                                    Este número já está pareado e a sessão está voltando sozinha.
+                                    Não é preciso ler o QR Code de novo.
+                                </p>
+                            </div>
                         </div>
                     )}
 

@@ -104,14 +104,17 @@ export async function GET(request: NextRequest) {
             workspaceId = firstWorkspace.workspaceId
         }
 
-        // Verify user access to workspace (already implicit if we fetched it above, but good for security)
-        const hasAccess = await prisma.workspaceUser.findUnique({
-            where: {
-                workspaceId_userId: {
-                    workspaceId,
-                    userId: user.id
-                }
-            }
+        /**
+         * O usuário é membro **ativo** deste workspace?
+         *
+         * `findFirst` com `isActive` em vez de `findUnique` pela chave composta:
+         * sem o filtro, desativar alguém em Gerenciamento → Usuários não lhe
+         * tirava a lista de agentes da clínica — e o `?workspaceId=` da URL é um
+         * campo de texto como qualquer outro.
+         */
+        const hasAccess = await prisma.workspaceUser.findFirst({
+            where: { workspaceId, userId: user.id, isActive: true },
+            select: { id: true },
         })
 
         if (!hasAccess) {

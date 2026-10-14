@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { resolveConversationLine } from '@/lib/conversation-line'
+import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { resolveIntegration } from '@/lib/whatsapp'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -25,18 +26,8 @@ export async function POST(
         // outbound action against a real phone number — and broadcast on their
         // Realtime channel.
         const conversation = await prisma.conversation.findFirst({
-            where: { id: conversationId, workspaceId: auth.member.workspaceId },
-            include: {
-                contact: { select: { phone: true } },
-                agent: {
-                    include: {
-                        integrations: {
-                            where: { channel: 'whatsapp_qr', status: 'connected' },
-                            take: 1,
-                        }
-                    }
-                }
-            }
+            where: { id: conversationId, workspaceId: auth.member.workspaceId, ...conversationScope(auth.member) },
+            include: { contact: { select: { phone: true } } },
         })
 
         if (!conversation) {
@@ -45,10 +36,12 @@ export async function POST(
 
         // Send typing presence via WhatsApp
         if (conversation.channel === 'whatsapp' && conversation.contact.phone) {
-            const whatsappIntegration = conversation.agent?.integrations?.[0]
-            if (whatsappIntegration) {
+            // Pela linha deste fio: "digitando" vindo do outro número apareceria
+            // numa conversa que o paciente não tem aberta.
+            const line = await resolveConversationLine(conversation)
+            if (line.ok) {
                 try {
-                    const { provider, credentials } = resolveIntegration(whatsappIntegration)
+                    const { provider, credentials } = resolveIntegration(line.integration)
                     await provider.sendPresence(
                         credentials,
                         conversation.contact.phone,

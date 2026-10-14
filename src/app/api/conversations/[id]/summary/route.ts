@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 
@@ -38,7 +38,7 @@ export async function GET(
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const conversation = await prisma.conversation.findFirst({
-        where: { id, workspaceId: auth.member.workspaceId },
+        where: { id, workspaceId: auth.member.workspaceId, ...conversationScope(auth.member) },
         select: { contactId: true, summaryText: true, summaryAt: true, summaryUntilId: true },
     })
     if (!conversation) return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
@@ -60,7 +60,7 @@ export async function POST(
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const conversation = await prisma.conversation.findFirst({
-        where: { id, workspaceId: auth.member.workspaceId },
+        where: { id, workspaceId: auth.member.workspaceId, ...conversationScope(auth.member) },
         select: { contactId: true },
     })
     if (!conversation) {

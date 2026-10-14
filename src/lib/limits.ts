@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { TRIAL, planFor } from '@/lib/plans'
 
@@ -21,17 +22,32 @@ export interface WorkspaceLimits {
     unsubscribed: boolean
 }
 
+/**
+ * Quando uma linha de WhatsApp ocupa uma vaga do plano.
+ *
+ * Antes era "existe uma linha": qualquer registro contava, inclusive um que
+ * nunca pareou. Com um número por agente isso quase não aparecia — o registro
+ * era a vaga do agente. Com N linhas por agente virou armadilha: adicionar uma
+ * linha, errar o QR e desistir queimava uma vaga do plano para sempre.
+ *
+ * Ocupa vaga a linha que está no ar, a que está pareando agora, e a que já
+ * pareou alguma vez e hoje está fora do ar — essa última continua sendo um
+ * número da clínica, à espera de reconectar. A que nunca pareou não ocupa
+ * nada, e pode ser removida da tela para não poluir a lista.
+ */
+const HOLDS_A_SLOT: Prisma.AgentIntegrationWhereInput = {
+    channel: { in: ['whatsapp_qr', 'whatsapp_business'] },
+    OR: [{ status: { not: 'disconnected' } }, { phoneNumber: { not: null } }],
+}
+
 export async function getWorkspaceLimits(workspaceId: string): Promise<WorkspaceLimits> {
     const [subscription, agentCount, whatsappCount] = await Promise.all([
         prisma.subscription.findUnique({ where: { workspaceId } }),
         prisma.agent.count({ where: { workspaceId } }),
-        // One connected number per WhatsApp integration, across every agent in
-        // the workspace — the limit is the clinic's, not the agent's.
+        // Linhas que ocupam vaga, em todos os agentes do workspace — o teto é da
+        // clínica, não do agente. Ver `HOLDS_A_SLOT`.
         prisma.agentIntegration.count({
-            where: {
-                agent: { workspaceId },
-                channel: { in: ['whatsapp_qr', 'whatsapp_business'] },
-            },
+            where: { agent: { workspaceId }, ...HOLDS_A_SLOT },
         }),
     ])
 
@@ -111,19 +127,21 @@ export async function canCreateAgent(workspaceId: string): Promise<LimitCheck> {
 export async function canConnectWhatsApp(
     workspaceId: string,
     /**
-     * The agent being connected. If it already holds a WhatsApp integration this
-     * is a reconnection, not a new number, and the limit does not apply — the
-     * endpoint upserts, so refusing here would lock an agent out of recovering
-     * its own session once the plan was full.
+     * A linha sendo reconectada, quando é uma.
+     *
+     * Reconectar uma linha que já existe não consome vaga nova — ela já conta.
+     * Recusar aqui trancaria do lado de fora justamente a clínica que está no
+     * teto do plano e só quer sua própria sessão de volta.
+     *
+     * Antes este parâmetro era o **agente**, e a isenção valia para qualquer
+     * linha que ele tivesse: com N linhas por agente, isso liberaria números
+     * sem limite para quem já tivesse um.
      */
-    agentId?: string
+    integrationId?: string
 ): Promise<LimitCheck> {
-    if (agentId) {
+    if (integrationId) {
         const existing = await prisma.agentIntegration.findFirst({
-            where: {
-                agentId,
-                channel: { in: ['whatsapp_qr', 'whatsapp_business'] },
-            },
+            where: { id: integrationId, agent: { workspaceId } },
             select: { id: true },
         })
         if (existing) return { ok: true }
@@ -198,10 +216,7 @@ export async function applyPlanLimits(
     // a deletion — the instance and its history stay, so reconnecting does not
     // start from zero.
     const integrations = await prisma.agentIntegration.findMany({
-        where: {
-            agent: { workspaceId },
-            channel: { in: ['whatsapp_qr', 'whatsapp_business'] },
-        },
+        where: { agent: { workspaceId }, ...HOLDS_A_SLOT },
         orderBy: { createdAt: 'asc' },
         select: { id: true },
     })

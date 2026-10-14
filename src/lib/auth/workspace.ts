@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 
@@ -126,19 +127,62 @@ export async function requireRole(roles: WorkspaceRole[]): Promise<AuthResult> {
 }
 
 /**
- * Confirm a conversation belongs to the caller's workspace.
+ * Quais conversas este membro pode ver, por departamento.
+ *
+ * O recorte é a **linha** por onde a conversa entrou: ela pertence a um
+ * departamento, e quem não é gestão vê a fila do departamento dele. Fica sempre
+ * dentro do recorte o que não é de ninguém em particular — conversa sem linha e
+ * linha sem departamento são a fila geral da clínica.
+ *
+ * Devolve `null` para "sem recorte", que é o caso da gestão e também o de um
+ * atendente sem departamento: numa clínica que não usa departamentos, nada muda.
+ *
+ * Mora aqui, e não na rota da lista, porque esconder uma conversa da lista não é
+ * autorização: o id dela na URL abre a conversa inteira.
+ */
+export function conversationScope(
+    member: Pick<WorkspaceMember, 'role' | 'departmentId'>
+): Prisma.ConversationWhereInput {
+    if (canSeeEveryone(member.role) || !member.departmentId) return {}
+    return {
+        // Em `AND` para poder ser espalhado sobre um `where` que já tenha `OR`
+        // — a busca por texto usa `OR`, e as duas condições têm que valer
+        // juntas: "da minha fila" **e** "que casa com a busca".
+        AND: [
+            {
+                OR: [
+                    { integration: { departmentId: member.departmentId } },
+                    { integration: { departmentId: null } },
+                    { integrationId: null },
+                ],
+            },
+        ],
+    }
+}
+
+/**
+ * Confirm a conversation belongs to the caller's workspace — e à fila dele.
  *
  * Several conversation sub-routes took the id straight from the URL and acted on
  * it — which let any authenticated user mark another tenant's conversation as
  * read, read and edit its tags, and trigger a WhatsApp typing indicator against
  * their contact's real number.
+ *
+ * Passando o membro em vez do workspace, a mesma checagem também aplica o
+ * recorte por departamento. A forma antiga (só o id do workspace) continua
+ * aceita para as rotas que não têm o membro em mãos.
  */
 export async function assertConversationAccess(
     conversationId: string,
-    workspaceId: string
+    scope: string | WorkspaceMember
 ): Promise<boolean> {
+    const workspaceId = typeof scope === 'string' ? scope : scope.workspaceId
     const conversation = await prisma.conversation.findFirst({
-        where: { id: conversationId, workspaceId },
+        where: {
+            id: conversationId,
+            workspaceId,
+            ...(typeof scope === 'string' ? {} : conversationScope(scope)),
+        },
         select: { id: true },
     })
     return conversation !== null

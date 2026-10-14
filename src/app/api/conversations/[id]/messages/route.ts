@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
+import { resolveConversationLine } from '@/lib/conversation-line'
+import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -25,7 +27,7 @@ export async function POST(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true, departmentId: true }
         })
 
         if (!workspaceUser) {
@@ -145,17 +147,13 @@ export async function POST(
             where: {
                 id: conversationId,
                 workspaceId: workspaceUser.workspaceId,
+                // Escrever na conversa de outra fila é pior que lê-la.
+                ...conversationScope({
+                    role: workspaceUser.role as WorkspaceRole,
+                    departmentId: workspaceUser.departmentId,
+                }),
             },
-            include: {
-                contact: true,
-                agent: {
-                    include: {
-                        integrations: {
-                            where: { channel: 'whatsapp_qr', status: 'connected' }
-                        }
-                    }
-                }
-            }
+            include: { contact: true },
         })
 
         if (!conversation) {
@@ -186,9 +184,26 @@ export async function POST(
         })
 
         // Send via WhatsApp if channel is whatsapp (skip for internal notes)
+        let lineWarning: string | null = null
         if (!isInternal && conversation.channel === 'whatsapp' && conversation.contact.phone) {
-            const whatsappIntegration = conversation.agent?.integrations?.[0]
-            if (whatsappIntegration) {
+            // Pela linha deste fio, não por `integrations[0]`: com dois números
+            // na clínica, responder pela outra linha manda a mensagem de um
+            // número que o paciente não reconhece. Ver resolveConversationLine.
+            const line = await resolveConversationLine(conversation)
+            if (!line.ok) {
+                // A mensagem fica gravada e visível — o que falha é a entrega, e
+                // a tela precisa dizer isso em vez de mostrar um envio que não
+                // aconteceu. Antes este caminho era um `if` sem `else`: a
+                // mensagem aparecia na conversa e nunca saía.
+                lineWarning =
+                    line.reason === 'line_offline'
+                        ? `A mensagem foi gravada, mas ${line.label} está desconectada e nada foi enviado.`
+                        : 'A mensagem foi gravada, mas nenhum número de WhatsApp está conectado.'
+                await prisma.message.update({
+                    where: { id: message.id },
+                    data: { status: 'failed' },
+                })
+            } else {
                 // Queued rather than sent inline: the operator's message gets the
                 // same retry and provider-resolution the agent's replies get, and a
                 // flaky provider call no longer loses the text. The row is already
@@ -225,7 +240,7 @@ export async function POST(
                         'send-operator-message',
                         {
                             messageId: message.id,
-                            integrationId: whatsappIntegration.id,
+                            integrationId: line.integration.id,
                             to: conversation.contact.phone,
                             kind,
                             mediaKind,
@@ -277,6 +292,8 @@ export async function POST(
         return NextResponse.json({
             ...fullMessage,
             senderName: senderUser?.name || 'Atendente',
+            // Presente só quando a mensagem foi gravada e não saiu.
+            ...(lineWarning ? { warning: lineWarning } : {}),
         })
     } catch (error) {
         console.error('[SEND_MESSAGE] Error:', error)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { createClient } from '@/lib/supabase/server'
+import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
 
 export const runtime = 'nodejs'
 
@@ -71,9 +71,10 @@ async function extractText(file: File): Promise<string> {
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return new NextResponse('Unauthorized', { status: 401 })
+        // Gestão, como o resto do cérebro do agente: quem não pode gravar uma
+        // fonte também não precisa extrair texto no servidor da clínica.
+        const auth = await requireRole(MANAGER_ROLES)
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
         const form = await request.formData()
         const file = form.get('file')

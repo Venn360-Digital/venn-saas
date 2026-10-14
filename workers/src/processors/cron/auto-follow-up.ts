@@ -3,6 +3,7 @@ import { laneWhere } from '@/lib/deal-lanes'
 import { readAutomations } from '@/lib/automations'
 import { buildFollowUpSuggestion } from '@/lib/follow-up-suggestion'
 import { connectedWhatsApp, hasWhatsApp } from '@/lib/intake'
+import { resolveConversationLine } from '@/lib/conversation-line'
 import { QUEUE, getQueue } from '@/lib/queue'
 import { createLogger } from '../../logger'
 
@@ -105,7 +106,7 @@ export async function runAutoFollowUp(): Promise<void> {
             const conversation = await prisma.conversation.findFirst({
                 where: { workspaceId: stage.workspaceId, contactId: contact.id },
                 orderBy: [{ status: 'asc' }, { lastMessageAt: 'desc' }],
-                select: { id: true, assignedTo: true, agentId: true },
+                select: { id: true, assignedTo: true, agentId: true, integrationId: true },
             })
 
             if (conversation?.assignedTo) continue
@@ -171,11 +172,31 @@ export async function runAutoFollowUp(): Promise<void> {
                         workspaceId: stage.workspaceId,
                         contactId: contact.id,
                         agentId: channel.agentId,
+                        integrationId: channel.integration.id,
                         channel: 'whatsapp',
                         status: 'active',
                     },
-                    select: { id: true, assignedTo: true, agentId: true },
+                    select: { id: true, assignedTo: true, agentId: true, integrationId: true },
                 }))
+
+            /**
+             * Pela linha do fio, não pela primeira linha conectada da clínica.
+             *
+             * `connectedWhatsApp` devolve a linha mais recente do workspace, que
+             * com dois números pode ser a outra unidade — o paciente receberia a
+             * cobrança de uma clínica que, para ele, é outra. A linha do fio é a
+             * que ele conhece; a da clínica só entra quando o fio não tem uma.
+             */
+            const line = await resolveConversationLine({
+                id: thread.id,
+                integrationId: thread.integrationId,
+                agentId: thread.agentId,
+                workspaceId: stage.workspaceId,
+            })
+            if (!line.ok) {
+                log.info(`conversation ${thread.id} has no line available; skipping follow-up`)
+                continue
+            }
 
             const message = await prisma.message.create({
                 data: {
@@ -194,7 +215,7 @@ export async function runAutoFollowUp(): Promise<void> {
                 'send-auto-follow-up',
                 {
                     messageId: message.id,
-                    integrationId: channel.integration.id,
+                    integrationId: line.integration.id,
                     to: contact.phone,
                     kind: 'text' as const,
                     content: text,

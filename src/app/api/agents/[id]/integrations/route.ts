@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { manageAgent, readAgent } from '@/lib/auth/agent'
 import { z } from 'zod'
 
 const createIntegrationSchema = z.object({
@@ -15,28 +15,10 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId } = await Promise.resolve(params)
 
-        // Verify user has access
-        const agent = await prisma.agent.findFirst({
-            where: {
-                id: agentId,
-                workspace: {
-                    users: { some: { userId: user.id } }
-                }
-            }
-        })
-
-        if (!agent) {
-            return new NextResponse('Agent not found', { status: 404 })
-        }
+        const auth = await readAgent(agentId)
+        if (!auth.ok) return auth.response
 
         const integrations = await prisma.agentIntegration.findMany({
             where: { agentId },
@@ -56,39 +38,26 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId } = await Promise.resolve(params)
         const body = await request.json()
         const validatedData = createIntegrationSchema.parse(body)
 
-        // Verify user has access
-        const agent = await prisma.agent.findFirst({
-            where: {
-                id: agentId,
-                workspace: {
-                    users: { some: { userId: user.id } }
-                }
-            }
-        })
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
 
-        if (!agent) {
-            return new NextResponse('Agent not found', { status: 404 })
-        }
-
-        // Check if integration already exists
-        const existing = await prisma.agentIntegration.findUnique({
-            where: {
-                agentId_channel: {
-                    agentId,
-                    channel: validatedData.channel
-                }
-            }
+        /**
+         * Já existe uma integração deste canal?
+         *
+         * `findFirst` e não `findUnique`: a restrição `@@unique([agentId,
+         * channel])` caiu quando o agente passou a poder atender por N números.
+         * Esta rota serve os canais que não são WhatsApp — site, Instagram,
+         * Messenger —, onde um por agente continua sendo o certo; as linhas de
+         * WhatsApp são criadas pela rota `/integrations/whatsapp`, que endereça
+         * cada uma pelo id.
+         */
+        const existing = await prisma.agentIntegration.findFirst({
+            where: { agentId, channel: validatedData.channel },
+            orderBy: { createdAt: 'asc' },
         })
 
         if (existing) {

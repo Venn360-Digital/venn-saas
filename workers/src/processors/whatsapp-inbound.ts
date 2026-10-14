@@ -60,6 +60,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
     const { contact, conversation } = await resolveInboundContext({
         workspaceId: workspace.id,
         agentId: agent.id,
+        integrationId: integration.id,
         phone,
         pushName: inbound.pushName,
         profilePicUrl: inbound.profilePicUrl,

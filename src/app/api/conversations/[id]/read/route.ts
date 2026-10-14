@@ -17,7 +17,7 @@ export async function POST(
 
         // Previously the update ran on the id straight from the URL, so any
         // authenticated user could mark any workspace's conversation as read.
-        const allowed = await assertConversationAccess(conversationId, auth.member.workspaceId)
+        const allowed = await assertConversationAccess(conversationId, auth.member)
         if (!allowed) {
             return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }

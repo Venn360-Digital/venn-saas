@@ -37,6 +37,7 @@ import {
     RotateCcw,
     Route,
     Search,
+    Smartphone,
     Send,
     Sparkles,
     StickyNote,
@@ -135,6 +136,11 @@ interface TagItem {
     color: string
 }
 
+/** Como uma linha se chama na tela: o apelido, senão o número formatado. */
+function nomeDaLinha(line: { label: string | null; phoneNumber: string | null }): string {
+    return line.label?.trim() || (line.phoneNumber ? formatPhone(line.phoneNumber) : 'sem número')
+}
+
 interface ConversationListItem {
     id: string
     channel: string
@@ -151,6 +157,12 @@ interface ConversationListItem {
     agent: {
         id: string
         name: string
+    } | null
+    /** Por qual número da clínica esta conversa entrou. */
+    line: {
+        id: string
+        label: string | null
+        phoneNumber: string | null
     } | null
     lastMessage: {
         id: string
@@ -434,6 +446,15 @@ export default function ConversasPage() {
     const [loading, setLoading] = useState(true)
     const [canTransfer, setCanTransfer] = useState(false)
     const [onlyMine, setOnlyMine] = useState(false)
+    /**
+     * Qual linha a lista mostra — "all" para todas.
+     *
+     * Existe porque uma clínica pode atender por dois números, e as duas filas
+     * chegavam misturadas na mesma lista: quem cuida de uma unidade lia o tempo
+     * todo as conversas da outra.
+     */
+    const [lineFilter, setLineFilter] = useState('all')
+    const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     // Incrementa para derrubar e recriar o canal do Realtime depois de um erro.
@@ -680,6 +701,7 @@ export default function ConversasPage() {
             const params = new URLSearchParams({ tab: activeTab })
             if (searchQuery) params.set('search', searchQuery)
             if (onlyMine) params.set('onlyMine', 'true')
+            if (lineFilter !== 'all') params.set('line', lineFilter)
             const res = await fetch(`/api/conversations?${params}`)
             const data = await res.json()
             if (data.conversations && Array.isArray(data.conversations)) {
@@ -691,6 +713,7 @@ export default function ConversasPage() {
                 prevTotalUnreadRef.current = newTotalUnread
 
                 setConversations(data.conversations)
+                if (Array.isArray(data.lines)) setLines(data.lines)
                 if (data.counts) setQueue(data.counts)
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
@@ -703,7 +726,7 @@ export default function ConversasPage() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab, searchQuery, onlyMine, playNotificationSound])
+    }, [activeTab, searchQuery, onlyMine, lineFilter, playNotificationSound])
 
     // Fetch conversation messages (initial load, limited to 30)
     const fetchMessages = useCallback(async (convId: string) => {
@@ -1238,6 +1261,15 @@ export default function ConversasPage() {
             }
             if (res.ok) {
                 const newMsg = await res.json()
+                /**
+                 * Gravada, mas não enviada.
+                 *
+                 * Acontece quando a linha por onde esta conversa fala está
+                 * desconectada, ou quando a clínica não tem nenhuma no ar. Antes
+                 * disto a mensagem aparecia na conversa como qualquer outra e
+                 * nunca saía — a atendente só descobria pela falta de resposta.
+                 */
+                if (newMsg.warning) toast.error(newMsg.warning)
                 setMessages(prev => [...prev, newMsg])
                 setMessageInput('')
                 setAttachment(null)
@@ -1827,6 +1859,32 @@ export default function ConversasPage() {
                         >
                             Só minhas
                         </button>
+
+                        {/* O seletor de linha só aparece quando há mais de uma:
+                            com uma linha só, ele não decide nada e ocuparia a
+                            largura de um controle útil. */}
+                        {lines.length > 1 ? (
+                            <Select
+                                value={lineFilter}
+                                onValueChange={(v) => { setLineFilter(v); setLoading(true) }}
+                            >
+                                <SelectTrigger
+                                    aria-label="Filtrar por linha de WhatsApp"
+                                    className="ml-auto h-7 w-[11rem] text-[11px]"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todas as linhas</SelectItem>
+                                    {lines.map((l) => (
+                                        <SelectItem key={l.id} value={l.id}>
+                                            {nomeDaLinha(l)}
+                                        </SelectItem>
+                                    ))}
+                                    <SelectItem value="none">Sem linha definida</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        ) : null}
                     </div>
 
                     {/* Conversations List */}
@@ -1890,12 +1948,24 @@ export default function ConversasPage() {
                                                     que é o número de uma informação que a pessoa
                                                     procurava pelo nome. O canal e o atendente não
                                                     quebram no meio. */}
-                                                {(conv.agent || conv.assignedToName || (conv.tags && conv.tags.length > 0)) && (
+                                                {/* A linha entra aqui, e só quando a clínica tem mais
+                                                    de uma: com um número só ela é a mesma em todas as
+                                                    conversas e não informa nada. */}
+                                                {(conv.agent || conv.assignedToName || (lines.length > 1 && conv.line) || (conv.tags && conv.tags.length > 0)) && (
                                                     <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                                                        {(conv.agent || conv.assignedToName) && (
+                                                        {(conv.agent || conv.assignedToName || (lines.length > 1 && conv.line)) && (
                                                             <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] text-muted-foreground">
+                                                                {lines.length > 1 && conv.line ? (
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Smartphone className="size-2.5" aria-hidden="true" />
+                                                                        {nomeDaLinha(conv.line)}
+                                                                    </span>
+                                                                ) : null}
+                                                                {lines.length > 1 && conv.line && conv.agent ? (
+                                                                    <span aria-hidden="true" className="text-muted-foreground/40">|</span>
+                                                                ) : null}
                                                                 {conv.agent ? <span>{conv.agent.name}</span> : null}
-                                                                {conv.agent && conv.assignedToName ? (
+                                                                {(conv.agent || (lines.length > 1 && conv.line)) && conv.assignedToName ? (
                                                                     <span aria-hidden="true" className="text-muted-foreground/40">|</span>
                                                                 ) : null}
                                                                 {conv.assignedToName ? <span>{conv.assignedToName}</span> : null}

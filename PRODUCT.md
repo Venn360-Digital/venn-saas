@@ -103,9 +103,31 @@ Assinar um plano restaura tudo imediatamente, sem reconectar nada.
 
 Canais em todos: WhatsApp QR-Code, WhatsApp API Oficial, Instagram, Facebook.
 
+**Os dois tetos são independentes.** Um agente atende por **N números**, nunca o
+contrário: a clínica com duas unidades pode usar um agente só, com uma linha em
+cada unidade, ou dois agentes com personalidades diferentes dividindo três
+linhas. O que o plano conta é o total de agentes e o total de linhas, cada um
+contra o seu teto.
+
+**Cada conversa pertence à linha por onde entrou**, e responde por ela. Duas
+unidades não compartilham fio: o mesmo paciente escrevendo para os dois números
+tem duas conversas, cada uma respondendo pelo número que ele conhece.
+
+**Uma linha ocupa vaga** quando está no ar, quando está pareando, e quando já
+pareou alguma vez e hoje está fora do ar — essa última continua sendo um número
+da clínica, à espera de reconectar. A que nunca pareou não ocupa nada, e pode
+ser removida da lista; remover é também como se devolve a vaga de uma linha que
+não se vai mais usar.
+
 **Downgrade:** os excedentes são **pausados por ordem decrescente de cadastro** —
 o mais antigo sobrevive. Um agente pausado por limite **não pode ser reativado**
 enquanto o plano não comportá-lo. Vale igual para números de WhatsApp.
+
+**A fila da linha.** Cada linha pode pertencer a um **departamento**, e é isso
+que recorta a caixa de entrada: o atendente daquele departamento vê a fila dele,
+a gestão (dono, administrador, gestor) vê tudo. Linha sem departamento e conversa
+sem linha são a fila geral da clínica, visível a todos — que é o estado de quem
+não usa departamentos, para quem nada disso muda.
 
 ---
 

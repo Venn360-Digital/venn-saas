@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 
 /**
  * As etiquetas de uma conversa — que são também as do paciente.
@@ -27,7 +27,7 @@ async function authorize(conversationId: string) {
     // A conversa dentro do workspace — e de quem ela é, porque a etiqueta vale
     // para o paciente também.
     const conversation = await prisma.conversation.findFirst({
-        where: { id: conversationId, workspaceId: auth.member.workspaceId },
+        where: { id: conversationId, workspaceId: auth.member.workspaceId, ...conversationScope(auth.member) },
         select: { id: true, contactId: true },
     })
     if (!conversation) {

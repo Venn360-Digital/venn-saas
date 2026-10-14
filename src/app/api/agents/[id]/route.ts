@@ -92,14 +92,11 @@ export async function GET(
             return new NextResponse('Agent not found', { status: 404 })
         }
 
-        // Verify workspace access
-        const hasAccess = await prisma.workspaceUser.findUnique({
-            where: {
-                workspaceId_userId: {
-                    workspaceId: agent.workspaceId,
-                    userId: user.id
-                }
-            }
+        // Membro **ativo**: sem `isActive`, desativar alguém não lhe tirava o
+        // acesso de leitura ao agente.
+        const hasAccess = await prisma.workspaceUser.findFirst({
+            where: { workspaceId: agent.workspaceId, userId: user.id, isActive: true },
+            select: { id: true },
         })
 
         if (!hasAccess) {
@@ -142,6 +139,7 @@ export async function PATCH(
             where: {
                 workspaceId: existingAgent.workspaceId,
                 userId: user.id,
+                isActive: true,
                 role: { in: ['OWNER', 'ADMIN'] }
             }
         })
@@ -225,6 +223,7 @@ export async function DELETE(
             where: {
                 workspaceId: existingAgent.workspaceId,
                 userId: user.id,
+                isActive: true,
                 role: { in: ['OWNER', 'ADMIN'] }
             }
         })

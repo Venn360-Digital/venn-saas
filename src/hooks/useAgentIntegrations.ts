@@ -4,13 +4,16 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 
-interface Integration {
-    id?: string
-    channel: string
-    status: 'connected' | 'disconnected' | 'pending' | 'error'
-    /** Blob por canal vindo do banco; a forma varia e ninguém lê daqui. */
-    config?: Record<string, unknown>
-}
+/**
+ * Os webhooks do agente.
+ *
+ * O hook também carregava as integrações e tinha `connectChannel` /
+ * `disconnectChannel`. Os dois saíram junto com o cartão-por-canal: as linhas de
+ * WhatsApp são criadas e derrubadas pela rota `/integrations/whatsapp`, uma a
+ * uma, e a aba Canais fala com ela direto. O que restava aqui era um
+ * `connectChannel` genérico que gravava uma integração "conectada" para canais
+ * que não atendem ninguém, e um `disconnectChannel` que só dava um toast.
+ */
 
 interface Webhook {
     id?: string
@@ -21,22 +24,12 @@ interface Webhook {
     healthScore: number
 }
 
-export function useAgentIntegrations(agentId?: string | null) {
+export function useAgentIntegrations() {
     const [isSaving, setIsSaving] = useState(false)
-    const [integrations, setIntegrations] = useState<Integration[]>([])
     const [webhooks, setWebhooks] = useState<Webhook[]>([])
 
-    // Carregar integrações e webhooks
     const loadIntegrations = async (id: string) => {
         try {
-            // Carregar integrações
-            const integrationsResponse = await fetch(`/api/agents/${id}/integrations`)
-            if (integrationsResponse.ok) {
-                const data = await integrationsResponse.json()
-                setIntegrations(data)
-            }
-
-            // Carregar webhooks
             const webhooksResponse = await fetch(`/api/agents/${id}/webhooks`)
             if (webhooksResponse.ok) {
                 const data: Webhook[] = await webhooksResponse.json()
@@ -50,58 +43,15 @@ export function useAgentIntegrations(agentId?: string | null) {
                 })))
             }
         } catch (error) {
-            console.error('Error loading integrations:', error)
+            console.error('Error loading webhooks:', error)
         }
     }
 
-    // Conectar canal
-    const connectChannel = async (channel: string) => {
-        if (!agentId) {
-            toast.error('É necessário criar o agente primeiro')
-            return
-        }
-
-        try {
-            const response = await fetch(`/api/agents/${agentId}/integrations`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ channel }),
-            })
-
-            if (response.ok) {
-                const integration = await response.json()
-                setIntegrations(prev => [...prev.filter(i => i.channel !== channel), integration])
-                toast.success(`Canal ${channel} conectado`)
-            } else {
-                toast.error('Erro ao conectar canal')
-            }
-        } catch (error) {
-            console.error('Error connecting channel:', error)
-            toast.error('Erro ao conectar canal')
-        }
-    }
-
-    // Desconectar canal
-    /**
-     * Desconexão dos canais que ainda não têm implementação de servidor.
-     *
-     * O WhatsApp por QR-Code não passa por aqui — o CanaisTab chama a rota dele
-     * diretamente. Este caminho cobre Instagram, Facebook e a API Oficial, que
-     * não têm rota de desconexão, e antes ele mudava o estado local e dava um
-     * toast de sucesso: a tela dizia "desconectado" enquanto no servidor nada
-     * havia acontecido. Avisar é pior que mentir só na primeira vez.
-     */
-    const disconnectChannel = async (channel: string) => {
-        toast.error(`Desconexão de ${channel} ainda não está disponível.`)
-    }
-
-    // Salvar webhooks
     const saveWebhooks = async (id: string) => {
         setIsSaving(true)
         try {
             for (const webhook of webhooks) {
                 if (!webhook.id && webhook.name && webhook.url) {
-                    // Criar novo webhook
                     await fetch(`/api/agents/${id}/webhooks`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -126,13 +76,9 @@ export function useAgentIntegrations(agentId?: string | null) {
     }
 
     return {
-        integrations,
-        setIntegrations,
         webhooks,
         setWebhooks,
         loadIntegrations,
-        connectChannel,
-        disconnectChannel,
         saveWebhooks,
         isSaving,
     }

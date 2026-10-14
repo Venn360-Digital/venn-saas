@@ -135,8 +135,20 @@ export async function POST(request: NextRequest) {
     const previous = await prisma.conversation.findFirst({
         where: { workspaceId, contactId: contact.id },
         orderBy: [{ status: 'asc' }, { lastMessageAt: 'desc' }],
-        select: { id: true, status: true },
+        select: { id: true, status: true, integrationId: true, agentId: true },
     })
+
+    /**
+     * A linha do fio que o paciente já tem, quando ele tem um.
+     *
+     * A clínica pode atender por dois números, e `connectedWhatsApp` devolve
+     * sempre o mais recentemente conectado. Reaproveitar o fio do paciente mas
+     * responder pelo outro número faria a conversa continuar vindo de um
+     * remetente novo, do nada. Só um paciente sem fio nenhum recebe a linha
+     * padrão da clínica.
+     */
+    const line = previous?.integrationId ?? channel.integration.id
+    const lineAgentId = previous?.integrationId ? (previous.agentId ?? channel.agentId) : channel.agentId
 
     const conversation = previous
         ? await prisma.conversation.update({
@@ -146,7 +158,8 @@ export async function POST(request: NextRequest) {
                 // Atribuída a quem registrou: sem isso a conversa cairia na
                 // fila de espera, e ninguém está esperando resposta nela.
                 assignedTo: userId,
-                agentId: channel.agentId,
+                agentId: lineAgentId,
+                integrationId: line,
             },
             select: { id: true },
         })
@@ -155,6 +168,7 @@ export async function POST(request: NextRequest) {
                 workspaceId,
                 contactId: contact.id,
                 agentId: channel.agentId,
+                integrationId: channel.integration.id,
                 channel: 'whatsapp',
                 status: 'active',
                 assignedTo: userId,

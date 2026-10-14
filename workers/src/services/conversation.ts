@@ -115,24 +115,58 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
 }
 
 /**
- * Get the conversation to append to: the open one, the most recent closed one
- * reopened, or a brand new one.
+ * Get the conversation to append to: the open one on this line, the most recent
+ * closed one reopened, or a brand new one.
  *
- * Scoped by workspace + contact rather than by agent, so a contact never ends up
- * with one thread per agent.
+ * **Scoped by line, not only by patient.** Antes era workspace + paciente e mais
+ * nada: um paciente que escrevesse para dois números da mesma clínica — duas
+ * unidades, dois consultórios — caía num fio só, e a resposta saía pela linha
+ * que o `findFirst` devolvesse primeiro, que podia ser a outra. O paciente
+ * recebia da unidade errada, e o histórico das duas unidades virava um só.
+ *
+ * Um fio por linha é também o que permite a tela filtrar por linha e a resposta
+ * manual sair pelo número certo.
  */
 async function resolveConversation(
     workspaceId: string,
     contactId: string,
-    agentId: string
+    agentId: string,
+    integrationId: string
 ): Promise<Conversation> {
     const open = await prisma.conversation.findFirst({
-        where: { workspaceId, contactId, status: { not: 'closed' } },
+        where: { workspaceId, contactId, integrationId, status: { not: 'closed' } },
     })
     if (open) return open
 
+    /**
+     * Um fio aberto e sem linha é adotado por esta.
+     *
+     * É o caso da recepção: "Novo atendimento" abre a conversa antes de o
+     * paciente escrever, e aí ainda não há linha nenhuma. Quando ele responde, o
+     * fio que a atendente está olhando é este — criar um segundo ao lado
+     * dividiria a mesma conversa em duas. O mesmo vale para o histórico cuja
+     * linha a migração não conseguiu deduzir.
+     */
+    const unlinked = await prisma.conversation.findFirst({
+        where: { workspaceId, contactId, integrationId: null, status: { not: 'closed' } },
+        orderBy: { lastMessageAt: 'desc' },
+    })
+    if (unlinked) {
+        const adopted = await prisma.conversation.update({
+            where: { id: unlinked.id },
+            data: { integrationId, agentId },
+        })
+        log.info(`conversation ${adopted.id} adopted by line ${integrationId}`)
+        return adopted
+    }
+
     const closed = await prisma.conversation.findFirst({
-        where: { workspaceId, contactId, status: 'closed' },
+        where: {
+            workspaceId,
+            contactId,
+            status: 'closed',
+            OR: [{ integrationId }, { integrationId: null }],
+        },
         orderBy: { updatedAt: 'desc' },
     })
 
@@ -141,14 +175,21 @@ async function resolveConversation(
         // so the agent — not the previous operator — picks it up.
         const reopened = await prisma.conversation.update({
             where: { id: closed.id },
-            data: { status: 'active', agentId, assignedTo: null },
+            data: { status: 'active', agentId, integrationId, assignedTo: null },
         })
         log.info(`reopened conversation ${reopened.id}`)
         return reopened
     }
 
     return prisma.conversation.create({
-        data: { workspaceId, agentId, contactId, channel: 'whatsapp', status: 'active' },
+        data: {
+            workspaceId,
+            agentId,
+            integrationId,
+            contactId,
+            channel: 'whatsapp',
+            status: 'active',
+        },
     })
 }
 
@@ -168,11 +209,13 @@ export interface InboundContext {
 export async function resolveInboundContext(input: {
     workspaceId: string
     agentId: string
+    /** A linha por onde a mensagem chegou — é o que separa os fios. */
+    integrationId: string
     phone: string
     pushName?: string | null
     profilePicUrl?: string | null
 }): Promise<InboundContext> {
-    const { workspaceId, agentId, phone, pushName, profilePicUrl } = input
+    const { workspaceId, agentId, integrationId, phone, pushName, profilePicUrl } = input
 
     return withLock(
         `contact:${workspaceId}:${phone}`,
@@ -186,7 +229,12 @@ export async function resolveInboundContext(input: {
                 log.error(`failed to auto-create deal for contact ${contact.id}`, error)
             }
 
-            const conversation = await resolveConversation(workspaceId, contact.id, agentId)
+            const conversation = await resolveConversation(
+                workspaceId,
+                contact.id,
+                agentId,
+                integrationId
+            )
             return { contact, conversation }
         },
         { ttlMs: 20_000, waitMs: 15_000 }

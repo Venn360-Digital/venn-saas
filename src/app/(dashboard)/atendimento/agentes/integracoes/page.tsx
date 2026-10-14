@@ -27,16 +27,8 @@ function IntegracoesContent() {
 
     const [loading, setLoading] = useState(!!urlAgentId)
 
-    const {
-        integrations,
-        webhooks,
-        setWebhooks,
-        loadIntegrations,
-        connectChannel,
-        disconnectChannel,
-        saveWebhooks,
-        isSaving,
-    } = useAgentIntegrations(urlAgentId)
+    const { webhooks, setWebhooks, loadIntegrations, saveWebhooks, isSaving } =
+        useAgentIntegrations()
 
     // Carregar dados quando em modo edição
     useEffect(() => {
@@ -46,11 +38,6 @@ function IntegracoesContent() {
             loadIntegrations(urlAgentId).finally(() => setLoading(false))
         }
     }, [urlAgentId])
-
-    const refreshIntegrations = useCallback(() => {
-        const id = agentIdRef.current
-        if (id) void loadIntegrations(id)
-    }, [loadIntegrations])
 
     const handleSave = useCallback(async () => {
         const currentAgentId = agentIdRef.current
@@ -66,19 +53,10 @@ function IntegracoesContent() {
     const renderTab = () => {
         switch (currentTab) {
             case 'canais':
-                return (
-                    <CanaisTab
-                        agentId={urlAgentId}
-                        integrations={integrations}
-                        onConnect={connectChannel}
-                        onDisconnect={disconnectChannel}
-                        // Sem isto, conectar e desconectar funcionavam no servidor
-                        // e a tela continuava mostrando o estado anterior: o
-                        // CanaisTab chama `onIntegrationChange` depois de cada um,
-                        // e a prop nunca era passada.
-                        onIntegrationChange={refreshIntegrations}
-                    />
-                )
+                // A aba busca e recarrega as próprias linhas: elas mudam por
+                // ação na própria aba (conectar, desconectar, remover), não por
+                // nada que o resto da tela saiba.
+                return <CanaisTab agentId={urlAgentId} />
             case 'api':
                 return <ApiTab />
             case 'webhooks':

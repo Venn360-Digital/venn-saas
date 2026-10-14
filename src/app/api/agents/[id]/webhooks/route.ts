@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { manageAgent, readAgent } from '@/lib/auth/agent'
 import { z } from 'zod'
 
 const createWebhookSchema = z.object({
@@ -22,28 +22,10 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId } = await Promise.resolve(params)
 
-        // Verify user has access
-        const agent = await prisma.agent.findFirst({
-            where: {
-                id: agentId,
-                workspace: {
-                    users: { some: { userId: user.id } }
-                }
-            }
-        })
-
-        if (!agent) {
-            return new NextResponse('Agent not found', { status: 404 })
-        }
+        const auth = await readAgent(agentId)
+        if (!auth.ok) return auth.response
 
         const webhooks = await prisma.agentWebhook.findMany({
             where: { agentId },
@@ -63,30 +45,12 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId } = await Promise.resolve(params)
         const body = await request.json()
         const validatedData = createWebhookSchema.parse(body)
 
-        // Verify user has access
-        const agent = await prisma.agent.findFirst({
-            where: {
-                id: agentId,
-                workspace: {
-                    users: { some: { userId: user.id } }
-                }
-            }
-        })
-
-        if (!agent) {
-            return new NextResponse('Agent not found', { status: 404 })
-        }
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
 
         const webhook = await prisma.agentWebhook.create({
             data: {

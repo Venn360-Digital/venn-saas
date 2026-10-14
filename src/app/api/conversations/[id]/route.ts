@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 
@@ -23,7 +24,7 @@ export async function GET(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true, departmentId: true }
         })
 
         if (!workspaceUser) {
@@ -38,6 +39,12 @@ export async function GET(
             where: {
                 id,
                 workspaceId: workspaceUser.workspaceId,
+                // O recorte por fila também aqui: esconder a conversa da lista
+                // não é autorização — o id na URL abre a conversa inteira.
+                ...conversationScope({
+                    role: workspaceUser.role as WorkspaceRole,
+                    departmentId: workspaceUser.departmentId,
+                }),
             },
             include: {
                 contact: {
@@ -265,7 +272,7 @@ export async function PATCH(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, canTransfer: true }
+            select: { workspaceId: true, canTransfer: true, role: true, departmentId: true }
         })
 
         if (!workspaceUser) {
@@ -276,7 +283,14 @@ export async function PATCH(
         const { action, targetUserId } = body
 
         const conversation = await prisma.conversation.findFirst({
-            where: { id, workspaceId: workspaceUser.workspaceId }
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+                ...conversationScope({
+                    role: workspaceUser.role as WorkspaceRole,
+                    departmentId: workspaceUser.departmentId,
+                }),
+            },
         })
 
         if (!conversation) {
@@ -368,7 +382,7 @@ export async function DELETE(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
+            select: { workspaceId: true, role: true, departmentId: true }
         })
 
         if (!workspaceUser) {
@@ -377,7 +391,14 @@ export async function DELETE(
 
         // Verify conversation belongs to this workspace
         const conversation = await prisma.conversation.findFirst({
-            where: { id, workspaceId: workspaceUser.workspaceId },
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+                ...conversationScope({
+                    role: workspaceUser.role as WorkspaceRole,
+                    departmentId: workspaceUser.departmentId,
+                }),
+            },
             select: { id: true }
         })
 

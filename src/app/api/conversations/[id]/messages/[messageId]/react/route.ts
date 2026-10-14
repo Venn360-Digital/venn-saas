@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { resolveConversationLine } from '@/lib/conversation-line'
+import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { resolveIntegration } from '@/lib/whatsapp'
 
@@ -23,6 +25,7 @@ export async function POST(
         const workspaceUser = await prisma.workspaceUser.findFirst({
             where: { userId: user.id, isActive: true },
             orderBy: { createdAt: 'asc' },
+            select: { workspaceId: true, role: true, departmentId: true },
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
 
@@ -33,15 +36,16 @@ export async function POST(
             where: {
                 id: messageId,
                 conversationId,
-                conversation: { workspaceId: workspaceUser.workspaceId },
+                conversation: {
+                    workspaceId: workspaceUser.workspaceId,
+                    ...conversationScope({
+                        role: workspaceUser.role as WorkspaceRole,
+                        departmentId: workspaceUser.departmentId,
+                    }),
+                },
             },
             include: {
-                conversation: {
-                    include: {
-                        contact: { select: { phone: true } },
-                        agent: { include: { integrations: { where: { channel: 'whatsapp_qr' }, take: 1 } } },
-                    },
-                },
+                conversation: { include: { contact: { select: { phone: true } } } },
             },
         })
         if (!message) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 })
@@ -49,13 +53,26 @@ export async function POST(
             return NextResponse.json({ error: 'Só é possível reagir a mensagens recebidas' }, { status: 400 })
         }
 
-        const integration = message.conversation.agent?.integrations?.[0]
         const phone = message.conversation.contact?.phone
-        if (!integration || !phone) {
-            return NextResponse.json({ error: 'Conversa sem canal de WhatsApp ativo' }, { status: 400 })
+        // Pela linha deste fio: a reação sai do mesmo número que recebeu a
+        // mensagem, ou o WhatsApp a recusa por não conhecer o remetente.
+        const line = await resolveConversationLine(message.conversation)
+        if (!line.ok || !phone) {
+            return NextResponse.json(
+                {
+                    error: !phone
+                        ? 'Conversa sem telefone'
+                        : line.ok
+                          ? 'Conversa sem canal de WhatsApp ativo'
+                          : line.reason === 'line_offline'
+                            ? `${line.label} está desconectada`
+                            : 'Nenhum número de WhatsApp conectado',
+                },
+                { status: 400 }
+            )
         }
 
-        const { provider, credentials } = resolveIntegration(integration)
+        const { provider, credentials } = resolveIntegration(line.integration)
         if (!provider.react) {
             return NextResponse.json({ error: 'O canal desta conversa não suporta reações' }, { status: 400 })
         }

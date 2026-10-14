@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { readAgent } from '@/lib/auth/agent'
 
 /** Teto de linhas: a tela é um histórico de leitura, não um relatório. */
 const LIMIT = 200
@@ -23,15 +23,8 @@ export async function GET(
 ) {
     try {
         const { id: agentId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return new NextResponse('Unauthorized', { status: 401 })
-
-        const agent = await prisma.agent.findFirst({
-            where: { id: agentId, workspace: { users: { some: { userId: user.id } } } },
-            select: { id: true },
-        })
-        if (!agent) return new NextResponse('Forbidden', { status: 403 })
+        const auth = await readAgent(agentId)
+        if (!auth.ok) return auth.response
 
         const conversations = await prisma.conversation.findMany({
             where: { agentId },

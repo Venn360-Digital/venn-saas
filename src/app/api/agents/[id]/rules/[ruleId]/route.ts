@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { manageAgent, readAgent } from '@/lib/auth/agent'
 import { z } from 'zod'
 
 const updateRuleSchema = z.object({
@@ -25,26 +25,15 @@ export async function GET(
     { params }: { params: Promise<{ id: string; ruleId: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId, ruleId } = await Promise.resolve(params)
+
+        const auth = await readAgent(agentId)
+        if (!auth.ok) return auth.response
 
         const rule = await prisma.agentRule.findFirst({
             where: {
                 id: ruleId,
                 agentId,
-                agent: {
-                    workspace: {
-                        users: {
-                            some: { userId: user.id }
-                        }
-                    }
-                }
             }
         })
 
@@ -65,14 +54,10 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string; ruleId: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId, ruleId } = await Promise.resolve(params)
+
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
         const body = await request.json()
 
         const validatedData = updateRuleSchema.parse(body)
@@ -82,13 +67,6 @@ export async function PATCH(
             where: {
                 id: ruleId,
                 agentId,
-                agent: {
-                    workspace: {
-                        users: {
-                            some: { userId: user.id }
-                        }
-                    }
-                }
             }
         })
 
@@ -117,27 +95,16 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string; ruleId: string }> }
 ) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const { id: agentId, ruleId } = await Promise.resolve(params)
+
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
 
         // Verify user has access
         const existingRule = await prisma.agentRule.findFirst({
             where: {
                 id: ruleId,
                 agentId,
-                agent: {
-                    workspace: {
-                        users: {
-                            some: { userId: user.id }
-                        }
-                    }
-                }
             }
         })
 

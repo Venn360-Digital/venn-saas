@@ -1,7 +1,9 @@
-import { canConnectWhatsApp } from '@/lib/limits'
+import { canConnectWhatsApp, getWorkspaceLimits } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { randomUUID } from 'node:crypto'
 import prisma from '@/lib/prisma'
+import { manageAgent } from '@/lib/auth/agent'
+import { lineName, phoneFromConfig } from '@/lib/conversation-line'
 import type { AgentIntegration } from '@prisma/client'
 import {
     CHANNEL_PROVIDER,
@@ -16,7 +18,12 @@ import {
 import type { ConnectionState } from '@/lib/whatsapp/types'
 
 /**
- * WhatsApp QR channel, served by Evolution Go (whatsmeow).
+ * As linhas de WhatsApp de um agente, servidas por Evolution Go (whatsmeow).
+ *
+ * **Endereçada por linha, não por agente.** Um agente atende por N números — duas
+ * unidades da clínica, dois consultórios — então o parâmetro que identifica o
+ * que se está conectando é `integrationId`, e não mais só o id do agente. Sem
+ * ele, a rota cria uma linha nova; com ele, reconecta aquela.
  *
  * Evolution Go splits what Evolution API v2 did in one call: creation is an
  * admin-key operation that mints the per-instance token, and connecting is a
@@ -27,31 +34,61 @@ import type { ConnectionState } from '@/lib/whatsapp/types'
 
 const CHANNEL = 'whatsapp_qr'
 
-async function resolveWorkspace(userId: string): Promise<string | null> {
-    const workspaceUser = await prisma.workspaceUser.findFirst({
-        where: { userId },
-        select: { workspaceId: true },
-    })
-    return workspaceUser?.workspaceId ?? null
-}
-
-function instanceNameFor(workspaceId: string, agentId: string): string {
-    return `odontobox_${workspaceId}_${agentId}`.substring(0, 50)
+/**
+ * O nome da instância no provedor é o id da linha.
+ *
+ * Era `odontobox_<workspace>_<agente>`, cortado em 50 caracteres — e o corte
+ * caía **dentro** do id do agente, que são 25 caracteres: dois agentes do mesmo
+ * workspace com prefixo igual colidiriam, e duas linhas do mesmo agente
+ * colidiriam sempre. O id da linha é único por construção e cabe inteiro.
+ *
+ * As linhas antigas guardam o nome em `config` e continuam com ele; esta função
+ * só nomeia linha nova.
+ */
+function instanceNameFor(integrationId: string): string {
+    return `odontobox_${integrationId}`
 }
 
 async function persistConfig(
-    agentId: string,
+    integrationId: string,
     status: string,
     config: IntegrationConfig
 ): Promise<AgentIntegration> {
-    return prisma.agentIntegration.upsert({
-        where: { agentId_channel: { agentId, channel: CHANNEL } },
-        create: { agentId, channel: CHANNEL, status, config: toJsonConfig(config) },
-        update: { status, config: toJsonConfig(config), errorMessage: null },
+    return prisma.agentIntegration.update({
+        where: { id: integrationId },
+        data: { status, config: toJsonConfig(config), errorMessage: null },
     })
 }
 
-// POST: create (or recover) the instance, connect it, and return a QR code
+/**
+ * Grava o número na coluna, que é onde ele é único no sistema inteiro.
+ *
+ * A coluna e seu índice único parcial existem desde 20261007120000 e nunca
+ * foram escritos: o guarda que impede o mesmo número em duas contas estava
+ * desligado, e o número só vivia dentro do JSON de `config`. Com N linhas por
+ * agente ele passa a ser a identidade da linha na tela, então sai do JSON.
+ *
+ * Devolve `false` quando o índice recusa — o número está em outra linha, aqui ou
+ * em outra conta. Isso **não** é um erro do sistema: é a resposta certa, e quem
+ * chama transforma em recusa visível em vez de deixar o pareamento concluir
+ * sobre um número que não é desta clínica.
+ */
+async function claimPhoneNumber(integrationId: string, phone: string): Promise<boolean> {
+    try {
+        await prisma.agentIntegration.update({
+            where: { id: integrationId },
+            data: { phoneNumber: phone },
+        })
+        return true
+    } catch {
+        return false
+    }
+}
+
+const NUMBER_TAKEN =
+    'Este número de WhatsApp já está conectado em outra linha. ' +
+    'Desconecte-o lá antes de conectá-lo aqui.'
+
 /**
  * A instância já pareou alguma vez e está apenas restabelecendo a sessão.
  *
@@ -79,53 +116,117 @@ function isReconnecting(state: ConnectionState, credentials: IntegrationConfig):
     return !state.connected && Boolean(credentials.phoneNumber)
 }
 
+/** A linha pedida, confirmada como sendo deste agente e deste workspace. */
+async function findLine(
+    integrationId: string,
+    agentId: string,
+    workspaceId: string
+): Promise<AgentIntegration | null> {
+    return prisma.agentIntegration.findFirst({
+        where: {
+            id: integrationId,
+            agentId,
+            channel: CHANNEL,
+            agent: { workspaceId },
+        },
+    })
+}
+
+/** O que a tela mostra de cada linha, sem bater no provedor. */
+function toListItem(line: AgentIntegration) {
+    return {
+        id: line.id,
+        label: line.label,
+        departmentId: line.departmentId,
+        phoneNumber: line.phoneNumber ?? phoneFromConfig(line.config),
+        status: line.status,
+        connectedAt: line.connectedAt,
+        lastActiveAt: line.lastActiveAt,
+        errorMessage: line.errorMessage,
+        /** Se já pareou alguma vez: separa "reconectar" de "parear do zero". */
+        paired: Boolean(line.phoneNumber ?? phoneFromConfig(line.config)),
+    }
+}
+
+/**
+ * POST — conecta.
+ *
+ * Com `integrationId` no corpo, reconecta aquela linha. Sem, cria uma linha nova
+ * (contra o teto do plano) e começa o pareamento.
+ */
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    let criada: string | null = null
     try {
         const { id: agentId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
+        const { workspaceId } = auth.member
 
-        if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-
-        const workspaceId = await resolveWorkspace(user.id)
-        if (!workspaceId) {
-            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        const body = (await request.json().catch(() => ({}))) as {
+            integrationId?: string
+            label?: string
         }
 
-        const agent = await prisma.agent.findFirst({
-            where: { id: agentId, workspaceId },
-            select: { id: true },
-        })
-        if (!agent) return NextResponse.json({ error: 'Agente não encontrado' }, { status: 404 })
+        let line: AgentIntegration | null = null
 
-        // How many numbers the plan allows. Reconnecting an agent that already
-        // holds one is exempt — the check knows the difference.
-        const allowed = await canConnectWhatsApp(workspaceId, agentId)
+        if (body.integrationId) {
+            line = await findLine(body.integrationId, agentId, workspaceId)
+            if (!line) {
+                return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 })
+            }
+            if (line.status === 'connected') {
+                return NextResponse.json(
+                    { error: 'Esta linha já está conectada', status: 'connected' },
+                    { status: 400 }
+                )
+            }
+        }
+
+        // Quantos números o plano permite. Reconectar uma linha existente é
+        // isento — ela já ocupa a vaga dela.
+        const allowed = await canConnectWhatsApp(workspaceId, line?.id)
         if (!allowed.ok) {
             return NextResponse.json({ error: allowed.error }, { status: allowed.status })
         }
 
-        const existing = await prisma.agentIntegration.findUnique({
-            where: { agentId_channel: { agentId, channel: CHANNEL } },
-        })
-
-        if (existing?.status === 'connected') {
-            return NextResponse.json(
-                { error: 'WhatsApp já está conectado', status: 'connected' },
-                { status: 400 }
-            )
+        if (!line) {
+            /**
+             * A linha nasce no banco antes de existir no provedor.
+             *
+             * O id vem daqui e não do banco porque o **nome da instância é o
+             * id**: gerando-o antes, o registro nasce já com a configuração
+             * certa, numa escrita só. Deixando o banco gerar, haveria um
+             * instante com `instanceName` vazio — e `readIntegrationConfig`
+             * recusa configuração sem nome.
+             *
+             * Se o provisionamento falhar, o registro é apagado no `catch`: uma
+             * linha fantasma na lista é pior que um erro na tela.
+             */
+            const id = `wa${randomUUID().replace(/-/g, '')}`
+            line = await prisma.agentIntegration.create({
+                data: {
+                    id,
+                    agentId,
+                    channel: CHANNEL,
+                    status: 'pending',
+                    label: body.label?.trim() || null,
+                    config: toJsonConfig({ instanceName: instanceNameFor(id) }),
+                },
+            })
+            criada = line.id
         }
 
-        const instanceName = instanceNameFor(workspaceId, agentId)
-        const stored = (existing?.config ?? {}) as Partial<IntegrationConfig>
+        const stored = (line.config ?? {}) as Partial<IntegrationConfig>
+        const instanceName = stored.instanceName || instanceNameFor(line.id)
 
         let credentials: IntegrationConfig = {
             instanceName,
             instanceId: stored.instanceId,
             token: stored.token,
+            phoneNumber: stored.phoneNumber,
         }
 
         // Provision only when we have no usable token; re-creating would orphan
@@ -134,6 +235,7 @@ export async function POST(
             try {
                 const created = await evolutionGo.createInstance(instanceName)
                 credentials = {
+                    ...credentials,
                     instanceName: created.instanceName,
                     instanceId: created.instanceId,
                     token: created.token,
@@ -154,25 +256,34 @@ export async function POST(
                         { status: 409 }
                     )
                 }
-                credentials = recovered
+                credentials = { ...credentials, ...recovered }
             }
         }
 
         // Persist before connecting: if /instance/connect fails we must not lose
         // the token, or the instance becomes unreachable.
-        await persistConfig(agentId, 'pending', credentials)
+        await persistConfig(line.id, 'pending', credentials)
+        criada = null
 
         const state = await evolutionGo.getConnectionState(credentials).catch(() => null)
 
         if (state?.connected) {
+            const phone = state.phoneNumber ?? credentials.phoneNumber ?? null
+            if (phone && !(await claimPhoneNumber(line.id, phone))) {
+                await prisma.agentIntegration.update({
+                    where: { id: line.id },
+                    data: { status: 'error', errorMessage: NUMBER_TAKEN },
+                })
+                return NextResponse.json({ error: NUMBER_TAKEN }, { status: 409 })
+            }
             const integration = await prisma.agentIntegration.update({
-                where: { agentId_channel: { agentId, channel: CHANNEL } },
+                where: { id: line.id },
                 data: {
                     status: 'connected',
                     connectedAt: new Date(),
                     lastActiveAt: new Date(),
                     errorMessage: null,
-                    config: toJsonConfig({ ...credentials, phoneNumber: state.phoneNumber ?? credentials.phoneNumber }),
+                    config: toJsonConfig({ ...credentials, phoneNumber: phone ?? undefined }),
                 },
             })
 
@@ -187,9 +298,10 @@ export async function POST(
         if (state && isReconnecting(state, credentials) && state.socketOpen) {
             // Socket aberto, sessão voltando: `connect` + QR aqui recomeçaria o
             // pareamento e desconectaria o número. Ver isReconnecting.
+            const pendente = await persistConfig(line.id, 'pending', credentials)
             return NextResponse.json({
                 success: true,
-                integration: { id: (await persistConfig(agentId, 'pending', credentials)).id, status: 'pending' },
+                integration: { id: pendente.id, status: 'pending' },
                 qrcode: null,
                 reconnecting: true,
                 phoneNumber: credentials.phoneNumber ?? null,
@@ -199,7 +311,7 @@ export async function POST(
         await evolutionGo.connect(credentials, webhookUrlFor(CHANNEL_PROVIDER[CHANNEL]))
 
         const qr = await evolutionGo.getQrCode(credentials).catch(() => null)
-        const integration = await persistConfig(agentId, 'pending', credentials)
+        const integration = await persistConfig(line.id, 'pending', credentials)
 
         return NextResponse.json({
             success: true,
@@ -209,35 +321,64 @@ export async function POST(
             pairingCode: qr?.code ?? null,
         })
     } catch (error) {
+        // Uma linha criada nesta requisição que não chegou a ser provisionada não
+        // pode sobrar na lista nem ocupar vaga do plano.
+        if (criada) {
+            await prisma.agentIntegration
+                .delete({ where: { id: criada } })
+                .catch(() => undefined)
+        }
         const message = error instanceof Error ? error.message : 'Erro desconhecido'
         console.error('[WHATSAPP_INTEGRATION] Error:', message, error)
         return NextResponse.json({ error: `Erro ao conectar WhatsApp: ${message}` }, { status: 500 })
     }
 }
 
-// GET: connection status, plus a fresh QR while still pairing
+/**
+ * GET — as linhas do agente, ou o estado ao vivo de uma delas.
+ *
+ * Sem `integrationId`, devolve a lista como está no banco, sem chamar o provedor:
+ * é o que a aba Canais desenha, e uma chamada por linha a um provedor que já
+ * pendurou 75 s deixaria a aba inteira em branco. Com `integrationId`, consulta o
+ * provedor e devolve o QR — é o que o modal de pareamento busca a cada 2 s.
+ */
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id: agentId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
+        const { workspaceId } = auth.member
 
-        if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        const integrationId = new URL(request.url).searchParams.get('integrationId')
 
-        const workspaceId = await resolveWorkspace(user.id)
-        if (!workspaceId) {
-            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        if (!integrationId) {
+            const [lines, limits, departments] = await Promise.all([
+                prisma.agentIntegration.findMany({
+                    where: { agentId, channel: CHANNEL },
+                    orderBy: { createdAt: 'asc' },
+                }),
+                getWorkspaceLimits(workspaceId),
+                // Junto com as linhas, para o seletor de fila não precisar de uma
+                // segunda chamada que pode discordar desta.
+                prisma.department.findMany({
+                    where: { workspaceId },
+                    orderBy: { name: 'asc' },
+                    select: { id: true, name: true },
+                }),
+            ])
+            return NextResponse.json({
+                lines: lines.map(toListItem),
+                limit: limits.whatsapp,
+                departments,
+            })
         }
 
-        const integration = await prisma.agentIntegration.findFirst({
-            where: { agentId, channel: CHANNEL, agent: { workspaceId } },
-        })
-
+        const integration = await findLine(integrationId, agentId, workspaceId)
         if (!integration) {
-            return NextResponse.json({ status: 'disconnected', connected: false })
+            return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 })
         }
 
         let credentials: IntegrationConfig
@@ -259,6 +400,20 @@ export async function GET(
             const phoneNumber = state.phoneNumber ?? credentials.phoneNumber ?? null
 
             if (state.connected) {
+                if (phoneNumber && integration.phoneNumber !== phoneNumber) {
+                    if (!(await claimPhoneNumber(integration.id, phoneNumber))) {
+                        await prisma.agentIntegration.update({
+                            where: { id: integration.id },
+                            data: { status: 'error', errorMessage: NUMBER_TAKEN },
+                        })
+                        return NextResponse.json({
+                            status: 'error',
+                            connected: false,
+                            errorMessage: NUMBER_TAKEN,
+                            phoneNumber,
+                        })
+                    }
+                }
                 if (integration.status !== 'connected' || phoneNumber !== credentials.phoneNumber) {
                     await prisma.agentIntegration.update({
                         where: { id: integration.id },
@@ -320,33 +475,130 @@ export async function GET(
     }
 }
 
-// DELETE: disconnect and remove the provider-side instance
+/**
+ * PATCH — o apelido da linha e de quem é a fila dela.
+ *
+ * Os dois campos são independentes: o corpo pode trazer um, o outro, ou os dois,
+ * e o que não vier fica como está. `departmentId: null` tira a linha do
+ * departamento e devolve a fila dela para a geral da clínica.
+ */
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id: agentId } = await params
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
+        const { workspaceId } = auth.member
+
+        const body = (await request.json().catch(() => ({}))) as {
+            integrationId?: string
+            label?: string
+            departmentId?: string | null
+        }
+        if (!body.integrationId) {
+            return NextResponse.json({ error: 'Linha não informada' }, { status: 400 })
+        }
+
+        const line = await findLine(body.integrationId, agentId, workspaceId)
+        if (!line) return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 })
+
+        const data: { label?: string | null; departmentId?: string | null } = {}
+
+        if (typeof body.label === 'string') {
+            data.label = body.label.trim().slice(0, 60) || null
+        }
+
+        if ('departmentId' in body) {
+            const wanted = body.departmentId || null
+            if (wanted) {
+                // Do mesmo workspace: `departmentId` é um campo de texto como
+                // qualquer outro, e sem esta checagem a linha poderia apontar
+                // para o departamento de outra clínica.
+                const department = await prisma.department.findFirst({
+                    where: { id: wanted, workspaceId },
+                    select: { id: true },
+                })
+                if (!department) {
+                    return NextResponse.json(
+                        { error: 'Departamento não encontrado' },
+                        { status: 404 }
+                    )
+                }
+            }
+            data.departmentId = wanted
+        }
+
+        if (Object.keys(data).length === 0) {
+            return NextResponse.json(toListItem(line))
+        }
+
+        const updated = await prisma.agentIntegration.update({
+            where: { id: line.id },
+            data,
+        })
+        return NextResponse.json(toListItem(updated))
+    } catch (error) {
+        console.error('[WHATSAPP_INTEGRATION] Update failed:', error)
+        return NextResponse.json({ error: 'Erro ao atualizar a linha' }, { status: 500 })
+    }
+}
+
+/**
+ * DELETE — desconecta a linha, ou remove a linha inteira.
+ *
+ * `?integrationId=x` desconecta: a sessão no provedor morre, o registro fica, e o
+ * número continua sendo desta clínica à espera de reconectar. As conversas que
+ * entraram por ela seguem apontando para ela.
+ *
+ * `?integrationId=x&remove=true` apaga o registro — é como se devolve a vaga do
+ * plano de uma linha que não se vai usar mais. Só funciona com a linha
+ * desconectada, para que "remover" nunca seja o caminho acidental de derrubar um
+ * número no ar. As conversas não vão com ela: `integrationId` volta a nulo e o
+ * histórico fica.
+ */
 export async function DELETE(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id: agentId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const auth = await manageAgent(agentId)
+        if (!auth.ok) return auth.response
 
-        if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        const url = new URL(request.url)
+        const integrationId = url.searchParams.get('integrationId')
+        const remove = url.searchParams.get('remove') === 'true'
 
-        const workspaceId = await resolveWorkspace(user.id)
-        if (!workspaceId) {
-            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        const line = integrationId
+            ? await findLine(integrationId, agentId, auth.member.workspaceId)
+            : // Sem id, a única linha do agente — compatibilidade com quem ainda
+              // chama a rota sem parâmetro.
+              await prisma.agentIntegration.findFirst({
+                  where: { agentId, channel: CHANNEL, agent: { workspaceId: auth.member.workspaceId } },
+                  orderBy: { createdAt: 'asc' },
+              })
+
+        if (!line) {
+            return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 })
         }
 
-        const integration = await prisma.agentIntegration.findFirst({
-            where: { agentId, channel: CHANNEL, agent: { workspaceId } },
-        })
-
-        if (!integration) {
-            return NextResponse.json({ error: 'Integração não encontrada' }, { status: 404 })
+        if (remove) {
+            if (line.status === 'connected') {
+                return NextResponse.json(
+                    {
+                        error: `${lineName(line)} está conectada. Desconecte-a antes de removê-la.`,
+                    },
+                    { status: 409 }
+                )
+            }
+            await prisma.agentIntegration.delete({ where: { id: line.id } })
+            return NextResponse.json({ success: true, removed: true })
         }
 
         try {
-            const { provider, credentials } = resolveIntegration(integration)
+            const { provider, credentials } = resolveIntegration(line)
             await provider.deleteInstance(credentials)
         } catch (error) {
             // A provider-side instance we cannot delete must not block the local
@@ -354,14 +606,18 @@ export async function DELETE(
             console.error('[WHATSAPP_INTEGRATION] Error deleting instance:', error)
         }
 
+        const stored = (line.config ?? {}) as Partial<IntegrationConfig>
         await prisma.agentIntegration.update({
-            where: { id: integration.id },
+            where: { id: line.id },
             data: {
                 status: 'disconnected',
                 connectedAt: null,
                 // Drop the token: a deleted instance's token is dead, and keeping it
-                // would make the next connect skip provisioning.
-                config: toJsonConfig({ instanceName: instanceNameFor(workspaceId, agentId) }),
+                // would make the next connect skip provisioning. O nome fica, para
+                // o próximo connect reclamar a mesma instância.
+                config: toJsonConfig({
+                    instanceName: stored.instanceName || instanceNameFor(line.id),
+                }),
             },
         })
 

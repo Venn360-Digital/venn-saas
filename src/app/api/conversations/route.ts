@@ -3,6 +3,8 @@ import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
+import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
+import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -20,7 +22,13 @@ export async function GET(request: NextRequest) {
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, userId: true, canTransfer: true, role: true }
+            select: {
+                workspaceId: true,
+                userId: true,
+                canTransfer: true,
+                role: true,
+                departmentId: true,
+            }
         })
 
         if (!workspaceUser) {
@@ -31,8 +39,35 @@ export async function GET(request: NextRequest) {
         const tab = searchParams.get('tab') || 'waiting' // waiting | active | closed
         const search = searchParams.get('search') || ''
         const onlyMine = searchParams.get('onlyMine') === 'true'
+        /** Por qual linha de WhatsApp — vazio ou "all" para todas. */
+        const line = searchParams.get('line') || ''
 
         const isAtendente = workspaceUser.role === 'ATENDENTE'
+
+        /**
+         * O que este perfil pode ver, por departamento.
+         *
+         * A guia "Em espera" mostrava **toda** conversa sem responsável a todo
+         * mundo. Numa clínica com duas unidades, quem atende o Centro lia a fila
+         * da Barra inteira e podia puxar para si uma conversa que não é sua —
+         * nas outras duas guias o atendente já via só o que era dele, mas a fila
+         * de entrada, que é justamente de onde se puxa trabalho, não tinha
+         * recorte nenhum.
+         *
+         * O recorte é a linha: ela pertence a um departamento, e o atendente vê
+         * a fila do departamento dele. Fica de fora do recorte o que não é de
+         * ninguém em particular — conversa sem linha e linha sem departamento
+         * são a fila geral da clínica, e some do mapa se forem escondidas.
+         *
+         * Gestão (dono, administrador, gestor) vê tudo: é o mesmo critério de
+         * `OVERSIGHT_ROLES` no resto do sistema. E atendente **sem**
+         * departamento também vê tudo — numa clínica que não usa departamentos,
+         * nada aqui muda.
+         */
+        const departmentScope = conversationScope({
+            role: workspaceUser.role as WorkspaceRole,
+            departmentId: workspaceUser.departmentId,
+        })
 
         // Build filter based on tab
         // Em espera: status=active AND assignedTo IS NULL
@@ -63,6 +98,22 @@ export async function GET(request: NextRequest) {
             default:
                 where.status = { not: 'closed' }
         }
+
+        /**
+         * O recorte por linha.
+         *
+         * Uma clínica com duas unidades no mesmo workspace tinha as duas filas
+         * misturadas na mesma lista, e quem atende uma delas lia o tempo todo
+         * conversas que não são suas. A linha é por onde a conversa entrou, não
+         * quem a atende — então o filtro vale nas três guias.
+         */
+        if (line && line !== 'all') {
+            where.integrationId = line === 'none' ? null : line
+        }
+
+        // Espalhado e não atribuído: o recorte vem como `AND`, e a busca abaixo
+        // usa `OR` — as duas condições têm que valer juntas.
+        Object.assign(where, departmentScope)
 
         // Search filter — search by contact OR message content
         if (search) {
@@ -104,6 +155,9 @@ export async function GET(request: NextRequest) {
                         name: true,
                     }
                 },
+                integration: {
+                    select: { id: true, label: true, phoneNumber: true, config: true },
+                },
                 messages: {
                     orderBy: { createdAt: 'desc' },
                     take: 1,
@@ -134,12 +188,16 @@ export async function GET(request: NextRequest) {
         const startOfToday = new Date()
         startOfToday.setHours(0, 0, 0, 0)
         const ws = workspaceUser.workspaceId
+        // O medidor conta dentro do mesmo recorte da lista. Sem isto ele diria
+        // "8 esperando" numa tela que mostra 3, e a diferença não teria
+        // explicação em lugar nenhum.
+        const escopo = departmentScope
         const [waiting, active, closedToday, oldestWaiting] = await Promise.all([
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: null } }),
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: { not: null } } }),
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'closed', updatedAt: { gte: startOfToday } } }),
+            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: null, ...escopo } }),
+            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: { not: null }, ...escopo } }),
+            prisma.conversation.count({ where: { workspaceId: ws, status: 'closed', updatedAt: { gte: startOfToday }, ...escopo } }),
             prisma.conversation.findFirst({
-                where: { workspaceId: ws, status: 'active', assignedTo: null, lastMessageAt: { not: null } },
+                where: { workspaceId: ws, status: 'active', assignedTo: null, lastMessageAt: { not: null }, ...escopo },
                 orderBy: { lastMessageAt: 'asc' },
                 select: { lastMessageAt: true },
             }),
@@ -187,6 +245,16 @@ export async function GET(request: NextRequest) {
                 assignedToAvatar: conv.assignedTo ? assigneeMap.get(conv.assignedTo)?.avatar || null : null,
                 contact: contactData,
                 agent: conv.agent,
+                /** Por onde entrou — o que a lista mostra ao lado do agente. */
+                line: conv.integration
+                    ? {
+                          id: conv.integration.id,
+                          label: conv.integration.label,
+                          phoneNumber:
+                              conv.integration.phoneNumber ??
+                              phoneFromConfig(conv.integration.config),
+                      }
+                    : null,
                 lastMessage: conv.messages[0] || null,
                 unreadCount: unreadCounts[idx],
                 tags: Array.from(tagMap.values()),
@@ -195,8 +263,36 @@ export async function GET(request: NextRequest) {
             }
         })
 
+        /**
+         * As linhas que a clínica tem, para o seletor.
+         *
+         * Vêm com a lista e não de uma rota própria: as opções do filtro têm que
+         * ser exatamente as linhas que existem, e uma segunda chamada abriria a
+         * janela em que o filtro oferece uma linha que acabou de ser removida.
+         * Só aparecem quando há mais de uma — com uma linha, o seletor não
+         * decide nada.
+         */
+        const lines = await prisma.agentIntegration.findMany({
+            where: {
+                agent: { workspaceId: ws },
+                channel: { in: WHATSAPP_CHANNELS },
+                // O seletor só oferece as linhas que esta pessoa pode ver.
+                ...(workspaceUser.departmentId && departmentScope.AND
+                    ? { OR: [{ departmentId: workspaceUser.departmentId }, { departmentId: null }] }
+                    : {}),
+            },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, label: true, phoneNumber: true, config: true, agent: { select: { name: true } } },
+        })
+
         return NextResponse.json({
             conversations: result,
+            lines: lines.map((l) => ({
+                id: l.id,
+                label: l.label,
+                phoneNumber: l.phoneNumber ?? phoneFromConfig(l.config),
+                agentName: l.agent.name,
+            })),
             counts: {
                 waiting,
                 active,
