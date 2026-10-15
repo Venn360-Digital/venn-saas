@@ -114,10 +114,14 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        {/* `flex-wrap` e `shrink-0`: na coluna de 300px os dois
+                            botões não cabem ao lado da foto, e sem isso quem
+                            cedia era a foto — ela ficava com largura zero e o
+                            agente parecia não ter imagem. */}
+                        <div className="flex flex-wrap items-center gap-3">
                             <div
                                 className={cn(
-                                    'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
+                                    'flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
                                     preview ? 'border-transparent' : 'border-muted-foreground/25'
                                 )}
                             >
@@ -137,8 +141,8 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button variant="outline" size="sm" className="h-8" onClick={() => fileInputRef.current?.click()}>
                                     <Upload className="mr-2 h-4 w-4" />
                                     {preview ? 'Alterar imagem' : 'Enviar imagem'}
                                 </Button>
@@ -146,6 +150,8 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                                 {preview && (
                                     <Button
                                         variant="ghost"
+                                        size="sm"
+                                        className="h-8"
                                         onClick={() => onChange({ avatarFile: null, avatar: '' })}
                                     >
                                         <X className="mr-2 h-4 w-4" />
