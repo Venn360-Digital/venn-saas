@@ -13,9 +13,10 @@
     "worker:build": "tsup --config workers/tsup.config.ts",
     "worker:start": "node workers/dist/index.js",
     "lint:colors": "node scripts/lint-colors.mjs",
-    "prebuild": "node scripts/lint-colors.mjs",
+    "prebuild": "node scripts/lint-colors.mjs && node scripts/check-widget.mjs",
     "check:period": "tsx --conditions=react-server scripts/check-period.ts",
-    "test:availability": "tsx scripts/test-availability.ts"
+    "test:availability": "tsx scripts/test-availability.ts",
+    "check:widget": "node scripts/check-widget.mjs"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",

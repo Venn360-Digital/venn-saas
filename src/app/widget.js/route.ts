@@ -199,10 +199,27 @@ const SCRIPT = (origem: string) => `(function () {
 
   botao.addEventListener('click', alterna)
 
+  /**
+   * O widget só aparece depois de a clínica confirmar que está ligado.
+   *
+   * A bolha nasce escondida e só se mostra quando esta busca responde. Se o
+   * canal estiver desligado — ou a chave não existir mais — ela some da página,
+   * em vez de oferecer uma conversa que não vai a lugar nenhum: a tag do script
+   * continua colada no site da clínica mesmo depois de ela desligar o widget, e
+   * o visitante não tem como saber que está falando com o vazio.
+   *
+   * Medido: antes disto, com o canal desligado, o painel abria dizendo
+   * "Atendimento", aceitava texto e engolia tudo em silêncio.
+   */
+  caixa.style.display = 'none'
   fetch(API)
     .then(function (r) { return r.ok ? r.json() : null })
-    .then(function (d) { info = d })
-    .catch(function () {})
+    .then(function (d) {
+      if (!d) { host.remove(); return }
+      info = d
+      caixa.style.display = ''
+    })
+    .catch(function () { host.remove() })
 })()`
 
 /**
