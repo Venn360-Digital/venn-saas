@@ -620,7 +620,7 @@ de propósito.
   estático a partir de `lg`, e dentro de uma coluna ele toma a largura inteira
   e some com a tabela. O corpo da guia é `relative flex min-h-0 flex-1`.
 - **Guia com índice** (`BandLayout aside=`): quando uma seção tem assuntos — as
-  cinco guias da Personalidade do agente —, eles vivem num índice de 196px
+  cinco guias da Personalidade do agente —, eles vivem num índice de 208px
   **dentro** do corpo, não numa terceira linha de cabeçalho. Fica preso, como o
   cabeçalho e o rodapé; rola só o formulário. Dois níveis no cabeçalho, com
   desenhos diferentes, não mostram quem manda em quem — o índice mostra, porque
@@ -628,6 +628,26 @@ de propósito.
 - **O que é do objeto anda com o nome** (`titleAside`): o interruptor de ativo
   do agente encosta no título, não no canto direito. Ali ele é propriedade;
   no canto, pareceria comando da tela.
+- **A guia não repete o próprio nome.** A linha 2 já diz a seção e o índice já
+  diz o assunto; um título dentro do conteúdo é a mesma palavra uma terceira
+  vez — em Webhooks eram três iguais. Fica só a frase que explica o que ali se
+  faz. Custava 54px de altura por guia, em doze guias.
+- **Rótulo do índice é curto, o conteúdo é que se explica.** "Condições da
+  conversa" pedia 143px num índice de 137 e saía cortado; virou "Regras de
+  ação", com o resto dito na frase de apoio. Meça o rótulo antes de escolhê-lo.
+- **Campo curto divide a linha.** Resposta de uma linha não ocupa uma faixa
+  inteira: dois ou três campos curtos entram na mesma linha (`sm:grid-cols-2`,
+  `lg:grid-cols-3`) e só o que precisa de espaço — caixa de texto, editor —
+  fica inteiro. Alinhe o par **pelo campo** (`items-end`) quando um tem legenda
+  e o outro não, e pelo topo (`items-start`) quando um campo curto encosta numa
+  caixa de texto. Numa coluna estreita, o que não pode encolher leva `shrink-0`
+  e a linha leva `flex-wrap`: sem isso quem cede é a foto, que fica com largura
+  zero e some.
+- **Carregar não apaga a tela.** O retorno antecipado que troca tudo por um
+  disco girando leva junto o cabeçalho, o índice e o rodapé, e quem olha jura
+  que a tela se apagou. A moldura fica de pé e só o miolo espera, num esqueleto
+  com a forma do que vem depois; o gravar fica travado enquanto não se sabe o
+  que gravar.
 - **A marca da clínica manda na sidebar**: com logo gravada no workspace, ela
   substitui o símbolo e o nome do produto (78px de altura, largura da calha
   como teto); recolhida, volta o símbolo. Gravar na guia Clínica dispara
