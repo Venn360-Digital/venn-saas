@@ -742,6 +742,18 @@ model Conversation {
   status     String  @default("active") // "active", "closed", "snoozed"
   assignedTo String? // User ID
 
+  /// Quando esta conversa foi finalizada pela última vez.
+  ///
+  /// Marca o fim de um atendimento, e é por isso que ela existe: o limite de
+  /// respostas do agente conta **por atendimento**, e finalizar a conversa
+  /// recomeça a contagem. Sem esta coluna a contagem era vitalícia — a conversa
+  /// de um paciente que volta é reaberta, não recriada —, e o agente acabava
+  /// mudo para sempre com quem fala muito com a clínica.
+  ///
+  /// Nula em conversa que nunca foi finalizada. Não é limpa ao reabrir: o que
+  /// interessa é a última vez que terminou.
+  closedAt DateTime?
+
   lastMessageAt DateTime?
   lastReadAt    DateTime? // When conversation was last read by any operator
 

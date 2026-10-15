@@ -28,7 +28,9 @@ export async function runConversationAutoclose(): Promise<void> {
             assignedTo: null,
             lastMessageAt: { lt: cutoff },
         },
-        data: { status: 'closed' },
+        // `closedAt` junto, como no fechamento pelo atendente: é o fim do
+        // atendimento, e o limite de respostas do agente conta a partir dele.
+        data: { status: 'closed', closedAt: new Date() },
     })
 
     if (result.count > 0) {

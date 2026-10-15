@@ -341,7 +341,10 @@ export async function PATCH(
                 updateData = { assignedTo: null }
                 break
             case 'close':
-                updateData = { status: 'closed' }
+                // `closedAt` marca o fim do atendimento, e é o que faz o
+                // limite de respostas do agente recomeçar na próxima vez que
+                // este paciente escrever.
+                updateData = { status: 'closed', closedAt: new Date() }
                 break
             case 'reopen':
                 updateData = { status: 'active', assignedTo: null }
