@@ -27,6 +27,16 @@ export interface Channel {
 }
 
 /** Every plan connects the same channels; what differs is how many numbers. */
+/**
+ * Os canais que o plano promete mas o produto ainda não atende.
+ *
+ * A tela nunca diz "não configurado" para eles: não é falta de configurar, é
+ * falta de existir — e um aviso desses manda a clínica procurar um botão que
+ * não está lá. A mesma verdade aparece em `OUTROS_CANAIS`, na guia Canais do
+ * agente, que lista estes dois como "em desenvolvimento".
+ */
+export const CANAIS_EM_DESENVOLVIMENTO = new Set(['whatsapp_api', 'instagram', 'facebook'])
+
 export const PLAN_CHANNELS: Channel[] = [
     { id: 'whatsapp_qr', label: 'WhatsApp QR-Code', icon: QrCode },
     { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: BadgeCheck },

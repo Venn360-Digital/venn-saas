@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
 import prisma from '@/lib/prisma'
-import { PLAN_CHANNELS } from '@/lib/plans'
+import { CANAIS_EM_DESENVOLVIMENTO, PLAN_CHANNELS } from '@/lib/plans'
 import { cn } from '@/lib/utils'
 
 /**
@@ -24,6 +24,8 @@ interface Linha {
     nome: string
     rotulo: string
     tom: Tom
+    /** Canal que ainda vai nascer: não conta no "x de y no ar". */
+    futuro?: boolean
 }
 
 interface Operacao {
@@ -66,6 +68,12 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
         const doCanal = integracoes.filter((i) => i.channel === CANAL_NO_BANCO[canal.id])
         const conectadas = doCanal.filter((i) => i.status === 'connected').length
 
+        // Canal que o produto ainda não atende não é "não configurado": é
+        // "em breve". Dizer o contrário manda a clínica procurar um botão de
+        // ligar que não existe.
+        if (doCanal.length === 0 && CANAIS_EM_DESENVOLVIMENTO.has(canal.id)) {
+            return { nome: canal.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }
+        }
         // Sem nenhum registro o canal nunca foi ligado. Dizer "fora do ar" aí
         // seria alarme falso: não caiu, ainda não existe.
         if (doCanal.length === 0) {
@@ -99,7 +107,9 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
         agentesNoAr: linhasDeAgente.filter((l) => l.tom === 'ok').length,
         agentesTotal: linhasDeAgente.length,
         canaisNoAr: canais.filter((l) => l.tom === 'ok').length,
-        canaisTotal: canais.length,
+        // O que ainda não existe não entra na conta: "1 de 5" com três canais
+        // por nascer faz a clínica achar que perdeu três.
+        canaisTotal: canais.filter((l) => !l.futuro).length,
     }
 }
 
