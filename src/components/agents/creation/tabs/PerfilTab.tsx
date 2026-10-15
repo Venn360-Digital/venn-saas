@@ -166,8 +166,10 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                 </div>
 
                 {/* Como o agente se chama e para que serve: duas respostas
-                    curtas, lado a lado. */}
-                <div className="grid gap-4 sm:grid-cols-2">
+                    curtas, lado a lado. `items-end` porque um dos dois tem
+                    legenda e o outro não — alinhados pelo rótulo, os campos
+                    ficavam em alturas diferentes. */}
+                <div className="grid items-end gap-4 sm:grid-cols-2">
                     {/* Nome do agente */}
                     <div className="space-y-2">
                         <Label htmlFor="name">Nome do agente</Label>

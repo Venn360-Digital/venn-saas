@@ -118,8 +118,9 @@ export function VozTab({ data, onChange }: VozTabProps) {
                     />
                 </div>
 
-                {/* A voz e o tom dela: duas escolhas curtas, lado a lado. */}
-                <div className="grid items-start gap-4 sm:grid-cols-2">
+                {/* A voz e o tom dela: duas escolhas curtas, lado a lado,
+                    alinhadas pelo campo e não pelo rótulo. */}
+                <div className="grid items-end gap-4 sm:grid-cols-2">
                     {/* Modelo de voz */}
                     <div className="space-y-2">
                         <Label htmlFor="voiceModel">
