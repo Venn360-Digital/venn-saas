@@ -19,7 +19,7 @@ import { z } from 'zod'
 const MAX_RESPONSE_DELAY_SECONDS = 10
 
 /** Quantas interações o agente aceita por atendimento, conforme a tela oferece. */
-export const INTERACTION_LIMITS = [10, 25, 50, 100] as const
+export const INTERACTION_LIMITS = [12, 25, 50, 100] as const
 
 /**
  * Os nomes antigos do `responseSpeed`, para o caso de um agente ter sido gravado
@@ -63,8 +63,19 @@ export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
  * O que um agente **novo** recebe gravado ao ser criado.
  *
  * `keepContext` nasce ligado porque um agente sem histórico responde cada
- * mensagem como se fosse a primeira. O limite de 50 é a trava que impede um fio
- * em loop de queimar crédito indefinidamente.
+ * mensagem como se fosse a primeira.
+ *
+ * O limite de interações é a trava que impede um fio em loop de queimar crédito
+ * indefinidamente, e nasce em **12** desde 2026-10-15. Era 50, por duas razões
+ * que não se sustentaram quando as contas foram feitas:
+ *
+ * - **Produto:** uma conversa que precisou de cinquenta respostas do robô já
+ *   fracassou. Devia ter ido para uma pessoa muito antes, e o limite é o único
+ *   mecanismo que faz isso acontecer.
+ * - **Custo:** a cinquenta respostas por atendimento, a franquia de qualquer
+ *   plano consome 40% da mensalidade — contra os 10% que são o alvo. A doze,
+ *   os três planos ficam dentro do alvo mesmo se a conversa média for quatro
+ *   vezes maior do que a estimativa.
  */
 export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: true,
@@ -74,7 +85,7 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     useEmojis: true,
     /** Clínica responde de clínica: fora disso, recusa educadamente. */
     restrictTopics: true,
-    interactionLimit: 50,
+    interactionLimit: 12,
 }
 
 /**

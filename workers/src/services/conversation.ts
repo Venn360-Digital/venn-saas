@@ -175,7 +175,24 @@ async function resolveConversation(
         // so the agent — not the previous operator — picks it up.
         const reopened = await prisma.conversation.update({
             where: { id: closed.id },
-            data: { status: 'active', agentId, integrationId, assignedTo: null },
+            data: {
+                status: 'active',
+                agentId,
+                integrationId,
+                assignedTo: null,
+                /**
+                 * Reabrir limpa o aviso automático, porque é outro atendimento.
+                 *
+                 * `claimAutoNotice` recusa repetir o mesmo aviso na mesma
+                 * conversa, para sempre. Sem limpar aqui, um paciente que já
+                 * esgotou o limite de interações uma vez teria a segunda entrega
+                 * à equipe feita **em silêncio** — a conversa pararia de ser
+                 * respondida sem que ninguém lhe dissesse que uma pessoa ia
+                 * continuar. Idem para o aviso de crédito.
+                 */
+                autoNoticeAt: null,
+                autoNoticeKind: null,
+            },
         })
         log.info(`reopened conversation ${reopened.id}`)
         return reopened

@@ -12,6 +12,9 @@ import { spendAiCredits, trackSpeechUsage } from '@/lib/llm/usage-tracker'
 
 const log = createLogger('AI_REPLY_JOB')
 
+/** Em quanto tempo a contagem de respostas do agente recomeça. Ver o uso. */
+const JANELA_DO_LIMITE_MS = 30 * 24 * 60 * 60 * 1000
+
 /**
  * Generate and send the agent's answer for one conversation.
  *
@@ -90,6 +93,19 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
                   direction: 'outbound',
                   sentBy: 'agent',
                   isInternal: false,
+                  // Recorte de tempo, e aqui está o porquê: a conversa de um
+                  // paciente que volta é **reaberta**, não recriada, então a
+                  // contagem sem recorte era vitalícia. Com o limite em 50 isso
+                  // demorava anos e ninguém viu; com 12, um paciente que fala
+                  // com a clínica todo mês esgotaria o limite em poucos meses e
+                  // o agente ficaria mudo com ele para sempre.
+                  //
+                  // Trinta dias porque o limite existe para duas coisas — passar
+                  // a conversa para uma pessoa quando o robô não resolve, e
+                  // cortar o fio em laço — e as duas acontecem em horas, não em
+                  // meses. Fio que atravessa trinta dias ativo já é caso de
+                  // equipe por outros motivos.
+                  createdAt: { gte: new Date(Date.now() - JANELA_DO_LIMITE_MS) },
               },
           })
         : 0
