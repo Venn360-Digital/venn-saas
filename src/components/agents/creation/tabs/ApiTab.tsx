@@ -7,8 +7,7 @@ export function ApiTab() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h2 className="text-[15px] font-bold">Acesso API</h2>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-[12.5px] text-muted-foreground">
                     Acesse seu Agente programaticamente via API
                 </p>
             </div>

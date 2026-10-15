@@ -57,8 +57,7 @@ export function InstrucoesTab({ data, onChange, somenteLeitura = false }: Instru
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-[15px] font-bold">Instruções do Agente</h2>
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                <p className="text-[12.5px] text-muted-foreground">
                     O que ele deve seguir além do que já está nas outras abas
                 </p>
             </div>

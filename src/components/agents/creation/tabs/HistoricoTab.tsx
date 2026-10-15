@@ -24,8 +24,7 @@ export function HistoricoTab({ agentId, conversations, onExportCSV }: HistoricoT
             {/* Header with Export Button */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-[15px] font-bold">Histórico de Conversas</h2>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="text-[12.5px] text-muted-foreground">
                         Visualize o histórico de alterações
                     </p>
                 </div>

@@ -189,8 +189,7 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-[15px] font-bold">Regras de ação</h2>
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                <p className="text-[12.5px] text-muted-foreground">
                     Regras que rodam antes do Agente responder. A primeira que responder
                     ou transferir encerra a vez dele nesta mensagem.
                 </p>

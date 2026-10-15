@@ -158,8 +158,7 @@ export function WebhooksTab({ agentId, webhooks, onChange }: WebhooksTabProps) {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h2 className="text-[15px] font-bold">Webhooks</h2>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-[12.5px] text-muted-foreground">
                     Configure webhooks para receber e enviar dados do seu Agente
                 </p>
             </div>

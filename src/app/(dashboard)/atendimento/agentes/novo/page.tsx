@@ -6,6 +6,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
+import { EsqueletoDoFormulario } from '@/components/agents/creation/EsqueletoDoFormulario'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
@@ -278,13 +279,6 @@ function NovoAgenteContent() {
         }
     }
 
-    if (loading) {
-        return (
-            <div className="flex h-full min-h-[60vh] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-        )
-    }
 
     return (
         <AgentFrame
@@ -293,12 +287,14 @@ function NovoAgenteContent() {
             /* Sem Salvar para quem não administra: a API recusa, e um botão
                que só sabe recusar é pior que a sua ausência. */
             acoes={canManage ? (
-                <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving}>
+                <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving || loading}>
                     {isSaving ? 'Salvando…' : 'Salvar agente'}
                 </Button>
             ) : null}
         >
-            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
+            {loading ? <EsqueletoDoFormulario /> : (
+                <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
+            )}
 
             {/* O Salvar vive com o formulário, não no cabeçalho: lá em cima ele
                 parece valer para a tela inteira, e numa tela de guias vale para

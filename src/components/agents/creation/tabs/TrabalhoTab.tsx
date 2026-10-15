@@ -24,8 +24,7 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-[15px] font-bold">Funções e atribuições no trabalho</h2>
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                <p className="text-[12.5px] text-muted-foreground">
                     Essas instruções serão seguidas em todas as interações do agente de IA
                 </p>
             </div>

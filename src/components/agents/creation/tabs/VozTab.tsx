@@ -90,8 +90,7 @@ export function VozTab({ data, onChange }: VozTabProps) {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-[15px] font-bold">Configuração de Voz</h2>
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                <p className="text-[12.5px] text-muted-foreground">
                     Configure como seu agente se comunicará por áudio
                 </p>
             </div>
