@@ -34,11 +34,20 @@ export async function DataView({
     from,
     to,
     userId,
+    vigia,
 }: {
     workspaceId: string
     from: string
     to: string
     userId: string | null
+    /**
+     * A coluna da direita: o que se **vigia**, não o que se analisa.
+     *
+     * Ler o mês e olhar se o atendimento está de pé são tarefas diferentes, e
+     * empilhadas uma empurrava a outra para baixo da dobra. Em duas colunas,
+     * nenhuma atrapalha a outra — desenho B, aprovado em 2026-10-15.
+     */
+    vigia?: React.ReactNode
 }) {
     const { kpis, snapshot, byStage, recentActivities } = await getDashboardSummary(
         workspaceId,
@@ -47,7 +56,8 @@ export async function DataView({
     const totalInStages = byStage.reduce((sum, s) => sum + s.count, 0)
 
     return (
-        <>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0 space-y-4">
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiCard
                     label="Pacientes novos"
@@ -110,7 +120,6 @@ export async function DataView({
                 />
             </section>
 
-            <div className="grid gap-4 lg:grid-cols-2">
                 <section className="rounded-lg border border-border bg-card">
                     <header className="border-b border-border px-5 py-4">
                         <h2 className="text-h3">Negócios por etapa</h2>
@@ -177,6 +186,11 @@ export async function DataView({
                         )}
                     </div>
                 </section>
+
+            </div>
+
+            <div className="space-y-4">
+                {vigia}
 
                 <section className="rounded-lg border border-border bg-card">
                     <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
@@ -250,6 +264,6 @@ export async function DataView({
                     </div>
                 </section>
             </div>
-        </>
+        </div>
     )
 }

@@ -7,7 +7,8 @@ import {
     resolveOwnerScope,
 } from '@/lib/auth/workspace'
 import { resolvePeriodParams } from '@/lib/period'
-import { PageHeader } from '@/components/shared/PageHeader'
+import { IndexFrame } from '@/components/shared/IndexFrame'
+import { OperacaoCard } from '@/components/dashboard/OperacaoCard'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { DataView } from '@/components/dashboard/DataView'
 import { GraphView } from '@/components/dashboard/GraphView'
@@ -61,26 +62,27 @@ export default async function DashboardPage({
         : []
 
     return (
-        <>
-            <PageHeader
-                title="Dashboard"
-                titleAfter={<ViewSwitch view={view} hrefFor={hrefFor} />}
-                actions={
-                    <DashboardFilters
-                        from={range.from}
-                        to={range.to}
-                        userId={params.userId && canChoose ? params.userId : ''}
-                        canChoose={canChoose}
-                        presetHint={range.preset}
-                        members={members.map((m) => ({
-                            userId: m.userId,
-                            name: [m.user.name, m.user.lastName].filter(Boolean).join(' '),
-                        }))}
-                    />
-                }
-            />
-
-            <div className="space-y-6 px-4 pb-8 md:px-6">
+        /* O painel é a Tela 04, e o cabeçalho é o das outras telas: nome e
+           visão na linha 1, recorte na linha 2 — o mesmo lugar onde as telas
+           de índice põem os filtros. */
+        <IndexFrame
+            title="Dashboard"
+            actions={<ViewSwitch view={view} hrefFor={hrefFor} />}
+            filters={
+                <DashboardFilters
+                    from={range.from}
+                    to={range.to}
+                    userId={params.userId && canChoose ? params.userId : ''}
+                    canChoose={canChoose}
+                    presetHint={range.preset}
+                    members={members.map((m) => ({
+                        userId: m.userId,
+                        name: [m.user.name, m.user.lastName].filter(Boolean).join(' '),
+                    }))}
+                />
+            }
+        >
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-6">
                 {view === 'grafico' ? (
                     <GraphView
                         workspaceId={auth.member.workspaceId}
@@ -94,9 +96,10 @@ export default async function DashboardPage({
                         from={range.from}
                         to={range.to}
                         userId={owner}
+                        vigia={<OperacaoCard workspaceId={auth.member.workspaceId} />}
                     />
                 )}
             </div>
-        </>
+        </IndexFrame>
     )
 }
