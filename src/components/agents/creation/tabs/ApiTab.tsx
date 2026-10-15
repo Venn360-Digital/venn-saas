@@ -7,7 +7,7 @@ export function ApiTab() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h2 className="text-2xl font-semibold">Acesso API</h2>
+                <h2 className="text-[15px] font-bold">Acesso API</h2>
                 <p className="text-muted-foreground mt-1">
                     Acesse seu Agente programaticamente via API
                 </p>
@@ -30,21 +30,21 @@ export function ApiTab() {
                 <div className="rounded-lg border bg-card p-4">
                     <Key className="h-6 w-6 text-primary mb-3" />
                     <h4 className="font-medium mb-1">API Keys</h4>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-[12.5px] text-muted-foreground">
                         Gere chaves de acesso seguras para suas aplicações
                     </p>
                 </div>
                 <div className="rounded-lg border bg-card p-4">
                     <Code className="h-6 w-6 text-primary mb-3" />
                     <h4 className="font-medium mb-1">REST API</h4>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-[12.5px] text-muted-foreground">
                         Envie mensagens e receba respostas via endpoints REST
                     </p>
                 </div>
                 <div className="rounded-lg border bg-card p-4">
                     <Lock className="h-6 w-6 text-primary mb-3" />
                     <h4 className="font-medium mb-1">Autenticação</h4>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-[12.5px] text-muted-foreground">
                         Controle de acesso com tokens JWT e rate limiting
                     </p>
                 </div>

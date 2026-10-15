@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+    Briefcase,
+    Code2,
     Database,
     Eye,
     FileText,
@@ -71,7 +73,7 @@ export const SECOES: Secao[] = [
         rota: '/atendimento/agentes/novo',
         tabs: [
             { id: 'perfil', label: 'Perfil', icon: UserRound },
-            { id: 'trabalho', label: 'Trabalho', icon: Settings2 },
+            { id: 'trabalho', label: 'Trabalho', icon: Briefcase },
             { id: 'cerebro', label: 'Cérebro', icon: Database },
             { id: 'instrucoes', label: 'Instruções', icon: FileText },
             { id: 'voz', label: 'Voz', icon: Mic },
@@ -79,12 +81,14 @@ export const SECOES: Secao[] = [
     },
     {
         id: 'comandos',
-        label: 'Comandos',
+        // O id e a rota continuam "comandos": é o que está nos links já
+        // guardados. O que muda é o nome que a clínica lê.
+        label: 'Parametrização',
         icon: Workflow,
         rota: '/atendimento/agentes/comandos',
         tabs: [
-            { id: 'condicoes', label: 'Condições da conversa', icon: GitBranch },
-            { id: 'preferencias', label: 'Preferências da conversa', icon: SlidersHorizontal },
+            { id: 'condicoes', label: 'Regras de ação', icon: GitBranch },
+            { id: 'preferencias', label: 'Parâmetros do agente', icon: SlidersHorizontal },
         ],
     },
     {
@@ -94,7 +98,7 @@ export const SECOES: Secao[] = [
         rota: '/atendimento/agentes/integracoes',
         tabs: [
             { id: 'canais', label: 'Canais', icon: Plug },
-            { id: 'api', label: 'API', icon: Settings2 },
+            { id: 'api', label: 'API', icon: Code2 },
             { id: 'webhooks', label: 'Webhooks', icon: Webhook },
         ],
     },

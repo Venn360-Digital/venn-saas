@@ -57,8 +57,8 @@ export function InstrucoesTab({ data, onChange, somenteLeitura = false }: Instru
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold">Instruções do Agente</h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <h2 className="text-[15px] font-bold">Instruções do Agente</h2>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                     O que ele deve seguir além do que já está nas outras abas
                 </p>
             </div>
@@ -121,7 +121,7 @@ export function InstrucoesTab({ data, onChange, somenteLeitura = false }: Instru
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <Label className="text-base font-medium">Criatividade das respostas</Label>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-[12.5px] text-muted-foreground">
                                     Quanto o Agente pode variar a forma de responder
                                 </p>
                             </div>

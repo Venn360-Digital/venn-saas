@@ -189,8 +189,8 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold">Condições da conversa</h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <h2 className="text-[15px] font-bold">Regras de ação</h2>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                     Regras que rodam antes do Agente responder. A primeira que responder
                     ou transferir encerra a vez dele nesta mensagem.
                 </p>
@@ -198,7 +198,7 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
 
             {rules.length === 0 && (
                 <div className="rounded-lg border border-dashed p-8 text-center">
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-[12.5px] text-muted-foreground">
                         Nenhuma regra ainda. O Agente responde todas as mensagens sozinho.
                     </p>
                 </div>
@@ -234,7 +234,7 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
                                     checked={rule.isActive}
                                     onCheckedChange={(v) => atualizarRegra(ri, { isActive: v })}
                                 />
-                                <span className="text-sm text-muted-foreground">Ativa</span>
+                                <span className="text-[12.5px] text-muted-foreground">Ativa</span>
                             </div>
 
                             <Button

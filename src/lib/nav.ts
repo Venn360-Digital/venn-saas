@@ -129,7 +129,8 @@ const SEGMENT_LABELS: Record<string, string> = {
     agentes: 'Agentes de IA',
     etiquetas: 'Etiquetas',
     'respostas-rapidas': 'Respostas rápidas',
-    comandos: 'Comandos',
+    // A rota continua `comandos`; o nome que se lê é outro desde 2026-10-15.
+    comandos: 'Parametrização',
     gerenciamento: 'Gerenciamento',
     integracoes: 'Integrações',
     novo: 'Novo',

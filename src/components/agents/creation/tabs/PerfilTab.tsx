@@ -92,8 +92,8 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold">Personalize o seu Agente</h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <h2 className="text-[15px] font-bold">Personalize o seu Agente</h2>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                     O estilo personalizado será aplicado ao compartilhar seu Agente IA
                 </p>
             </div>

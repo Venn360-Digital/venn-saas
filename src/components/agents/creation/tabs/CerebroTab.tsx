@@ -51,7 +51,7 @@ function ExpandableSection({ title, description, icon, children, defaultExpanded
                     <div className="text-muted-foreground">{icon}</div>
                     <div>
                         <h3 className="font-medium">{title}</h3>
-                        <p className="text-sm text-muted-foreground">{description}</p>
+                        <p className="text-[12.5px] text-muted-foreground">{description}</p>
                     </div>
                 </div>
                 <ChevronDown
@@ -272,8 +272,8 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold">Base de Conhecimento</h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <h2 className="text-[15px] font-bold">Base de Conhecimento</h2>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                     Adicione informações que seu agente deve conhecer
                 </p>
             </div>
@@ -510,7 +510,7 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <p className="font-medium text-sm">{faq.question}</p>
-                                                <p className="text-sm text-muted-foreground mt-1">
+                                                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                                                     {faq.answer}
                                                 </p>
                                             </div>

@@ -24,7 +24,7 @@ export function HistoricoTab({ agentId, conversations, onExportCSV }: HistoricoT
             {/* Header with Export Button */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-semibold">Histórico de Conversas</h2>
+                    <h2 className="text-[15px] font-bold">Histórico de Conversas</h2>
                     <p className="text-muted-foreground mt-1">
                         Visualize o histórico de alterações
                     </p>
@@ -59,12 +59,12 @@ export function HistoricoTab({ agentId, conversations, onExportCSV }: HistoricoT
                             <div key={conv.id} className="p-4 flex items-center justify-between">
                                 <div>
                                     <p className="font-medium">{conv.contactName || 'Visitante'}</p>
-                                    <p className="text-sm text-muted-foreground">
+                                    <p className="text-[12.5px] text-muted-foreground">
                                         <span className="num">{conv.messageCount}</span>{' '}
                                         {conv.messageCount === 1 ? 'mensagem' : 'mensagens'} · {conv.channel}
                                     </p>
                                 </div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="text-[12.5px] text-muted-foreground">
                                     {new Date(conv.lastMessageAt).toLocaleDateString('pt-BR')}
                                 </div>
                             </div>

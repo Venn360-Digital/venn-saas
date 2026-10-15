@@ -91,12 +91,12 @@ function ComandosContent() {
     return (
         <AgentFrame
             secao="comandos"
-            dica="Grava as condições e as preferências da conversa."
+            dica="Grava as regras de ação e os parâmetros do agente."
             /* Sem Salvar para quem não administra: a API recusa, e um botão
                que só sabe recusar é pior que a sua ausência. */
             acoes={canManage ? (
                 <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving}>
-                    {isSaving ? 'Salvando…' : 'Salvar comandos'}
+                    {isSaving ? 'Salvando…' : 'Salvar parametrização'}
                 </Button>
             ) : null}
         >

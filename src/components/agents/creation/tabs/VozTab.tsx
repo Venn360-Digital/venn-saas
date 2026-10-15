@@ -90,8 +90,8 @@ export function VozTab({ data, onChange }: VozTabProps) {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold">Configuração de Voz</h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <h2 className="text-[15px] font-bold">Configuração de Voz</h2>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                     Configure como seu agente se comunicará por áudio
                 </p>
             </div>
@@ -108,7 +108,7 @@ export function VozTab({ data, onChange }: VozTabProps) {
                                 Clique para desativar
                             </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-[12.5px] text-muted-foreground">
                             Habilite as respostas de seu Agente por áudio no WhatsApp
                         </p>
                     </div>
