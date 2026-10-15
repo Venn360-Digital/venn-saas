@@ -14,6 +14,13 @@ import { NextRequest, NextResponse } from 'next/server'
  * E tudo dentro de um Shadow DOM: o CSS do site da clínica não entra, o nosso
  * não vaza. Sem isso, um `* { box-sizing }` qualquer no site dela desmonta o
  * nosso balão, e o nosso `button {}` mexeria nos botões dela.
+ *
+ * **Sempre claro, nunca seguindo o tema do sistema.** Havia aqui um bloco de
+ * `prefers-color-scheme: dark`, e numa página clara da clínica ele desenhava um
+ * painel escuro destoando de tudo em volta — visto numa prova. Quem dá o
+ * contexto visual é o site onde o widget está colado, não o sistema operacional
+ * de quem visita; é também o que Intercom e Crisp fazem. O painel tem fundo e
+ * borda próprios, então se sustenta sobre página clara ou escura.
  */
 
 const SCRIPT = (origem: string) => `(function () {
@@ -77,13 +84,6 @@ const SCRIPT = (origem: string) => `(function () {
     '.campo:focus { outline: 2px solid #06B6D4; outline-offset: -1px; }',
     '.enviar { border: 0; background: #06B6D4; color: #fff; border-radius: 9px; padding: 0 15px; cursor: pointer; font-weight: 600; }',
     '.enviar:disabled { opacity: .45; cursor: default; }',
-    '@media (prefers-color-scheme: dark) {',
-    '  .painel { background: #0F1B26; color: #E8EFF4; }',
-    '  .corpo { background: #0B1620; }',
-    '  .deles { background: #16242F; border-color: #24323D; }',
-    '  .pe { background: #0F1B26; border-color: #24323D; }',
-    '  .campo { background: #16242F; border-color: #2B3946; color: inherit; }',
-    '}',
   ].join('\\n')
   raiz.appendChild(estilo)
 
