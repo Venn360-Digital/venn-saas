@@ -262,7 +262,7 @@ export function AgentFrame({
             aria-label={`Assuntos de ${atual.label}`}
             /* `overscroll-contain`: com cinco assuntos o índice não tem o que rolar, e
                a roda do mouse ia parar na página, que respondia com o repique. */
-            className="flex w-[168px] shrink-0 flex-col gap-0.5 overflow-y-auto overscroll-contain border-r border-border p-2 md:w-[196px]"
+            className="flex w-[176px] shrink-0 flex-col gap-0.5 overflow-y-auto overscroll-contain border-r border-border p-2 md:w-[208px]"
         >
             {atual.tabs.map(({ id, label, icon: Icone }) => {
                 const aberta = id === tab
