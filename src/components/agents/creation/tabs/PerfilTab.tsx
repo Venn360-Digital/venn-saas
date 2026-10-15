@@ -103,7 +103,7 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                 {/* A identidade do agente numa linha: a foto à esquerda, o
                     nome e a função à direita. Empilhados, os três comiam meia
                     tela antes do primeiro campo de texto. */}
-                <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+                <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
                     <div className="space-y-3">
                         <div>
                             <Label>Imagem do Agente</Label>
