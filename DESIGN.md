@@ -653,6 +653,32 @@ de propósito.
   como teto); recolhida, volta o símbolo. Gravar na guia Clínica dispara
   `workspace:updated` e a troca acontece sem recarregar.
 
+### Tela 04 — o painel
+
+**Fechada em 2026-10-15**, no desenho B dos três apresentados.
+
+O painel é a tela que se lê todo dia, e por isso herda a geometria das outras:
+**linha 1 (50px)** com o nome e a troca de visão (dados ou gráfico), **linha 2
+(46px)** com o recorte — período e responsável — no mesmo lugar onde os índices
+põem os filtros. Quem aprendeu a filtrar em Pacientes já sabe filtrar aqui.
+
+- **Duas colunas, duas tarefas.** À esquerda o que se **analisa** (indicadores e
+  funil); à direita, numa coluna de 320px, o que se **vigia** (a operação e as
+  atividades recentes). Empilhados, um empurrava o outro para baixo da dobra —
+  e o estado do atendimento é justamente o que não pode esperar rolagem.
+- **Operação agora** responde à pergunta que o painel não respondia: o
+  atendimento está de pé? Lista cada agente e cada canal com o estado **lido do
+  banco a cada abertura** — nunca de texto guardado.
+- **Três estados, três verdades diferentes.** "Fora do ar" é o que caiu; "Não
+  configurado" é o que nunca foi ligado; "Em breve" é o que o produto ainda não
+  atende. Chamar o terceiro de não configurado manda a clínica procurar um
+  botão que não existe, e o que ainda vai nascer não entra na conta do "x de y
+  no ar".
+- **O estado vem em palavra, não só em cor** — quem não distingue verde de
+  vermelho lê "No ar" e "Fora do ar" do mesmo jeito.
+- O recorte vive na **URL** e o painel é componente de servidor: os números já
+  chegam no HTML, sem busca no cliente nem piscada de carregamento.
+
 ---
 
 ## 6. O shell
