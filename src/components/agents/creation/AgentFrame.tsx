@@ -176,9 +176,16 @@ export function AgentFrame({
     }
 
     /**
-     * E o navegador pergunta quando a saída não passa por aqui — recarregar,
-     * fechar a aba, clicar num link da barra lateral. O texto é do navegador;
-     * o que podemos fazer é não deixar a saída ser silenciosa.
+     * E o navegador pergunta quando a página é **descarregada** — recarregar ou
+     * fechar a aba. O texto é do navegador; o que podemos fazer é não deixar a
+     * saída ser silenciosa.
+     *
+     * Sair pela barra lateral (ou pela trilha, ou pela logo) **não** cai aqui:
+     * `<Link>` do Next é navegação no cliente, a página não é descarregada, e
+     * portanto `beforeunload` não dispara. A edição é descartada em silêncio —
+     * e isso é **decisão do Andre, de 2026-10-14**, não pendência: sair do
+     * agente sem salvar é não salvar. Não instalar interceptação de clique
+     * para perguntar; ele foi consultado e disse para manter.
      */
     // Sair das telas do agente zera a marca: ela vive fora do React e seguiria
     // ligada numa tela que não tem nada a salvar.
