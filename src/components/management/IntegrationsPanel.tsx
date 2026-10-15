@@ -414,13 +414,15 @@ function ComingSoonRow({ def }: { def: IntegrationDef }) {
 }
 
 /**
- * Ferramentas externas, como painel.
+ * Ferramentas externas, na guia de Gerenciar conta.
  *
- * Renderizado em dois lugares: na rota `/gerenciamento/integracoes`, para onde
- * o callback do OAuth do Google redireciona com `?success=` e `?error=`, e como
- * guia dentro de Gerenciar conta, que é por onde se chega navegando.
+ * Havia uma segunda forma, com o cabeçalho antigo, para a rota
+ * `/gerenciamento/integracoes`. Em 2026-10-15 essa rota virou atalho para a
+ * guia — levando junto o `?success=` do OAuth — e a forma solta morreu com
+ * ela: duas portas para a mesma tela, cada uma com uma cara, é o que a
+ * padronização veio desfazer.
  */
-export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) {
+export function IntegrationsPanel() {
     const live = INTEGRATIONS.filter((def) => def.provider === 'google_calendar')
     const soon = INTEGRATIONS.filter((def) => def.provider !== 'google_calendar')
 
@@ -435,40 +437,24 @@ export function IntegrationsPanel({ embedded = false }: { embedded?: boolean }) 
         </div>
     )
 
-    if (embedded) {
-        return (
-            <BandLayout>
-                <SettingsBand
-                    title="Ferramentas"
-                    description="O que a clínica liga ao OdontoBox360. O cartão diz se está conectado e por qual conta."
-                >
-                    {grid}
-                </SettingsBand>
-                <SettingsBand title="Em breve" last>
-                    {soonList}
-                </SettingsBand>
-                {/* Só o responsável pela plataforma vê — é onde os aplicativos
-                    ficam registrados para todas as clínicas. Fora das faixas,
-                    porque para quase todo mundo ele não existe: `empty:hidden`
-                    apaga o fio e o respiro quando o painel não renderiza. */}
-                <div className="border-t border-border px-5 py-4 empty:hidden md:px-6">
-                    <PlatformCredentialsPanel />
-                </div>
-            </BandLayout>
-        )
-    }
-
     return (
-        <>
-            <PageHeader
-                title="Integrações"
-                description="Conecte ferramentas externas para potencializar sua aplicação."
-            />
-            <div className="space-y-4 px-4 pb-6 md:px-6">
+        <BandLayout>
+            <SettingsBand
+                title="Ferramentas"
+                description="O que a clínica liga ao OdontoBox360. O cartão diz se está conectado e por qual conta."
+            >
                 {grid}
+            </SettingsBand>
+            <SettingsBand title="Em breve" last>
                 {soonList}
+            </SettingsBand>
+            {/* Só o responsável pela plataforma vê — é onde os aplicativos
+                ficam registrados para todas as clínicas. Fora das faixas,
+                porque para quase todo mundo ele não existe: `empty:hidden`
+                apaga o fio e o respiro quando o painel não renderiza. */}
+            <div className="border-t border-border px-5 py-4 empty:hidden md:px-6">
                 <PlatformCredentialsPanel />
             </div>
-        </>
+        </BandLayout>
     )
 }

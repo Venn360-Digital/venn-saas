@@ -86,9 +86,9 @@ function ContaContent() {
                 responsável por três requisições que ninguém pediu. */}
             {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" /> : null}
             {activeTab === 'empresa' ? <EmpresaTab formId="empresa-form" /> : null}
-            {activeTab === 'usuarios' ? <UsersPanel ref={users} embedded /> : null}
+            {activeTab === 'usuarios' ? <UsersPanel ref={users} /> : null}
             {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
-            {activeTab === 'integracoes' ? <IntegrationsPanel embedded /> : null}
+            {activeTab === 'integracoes' ? <IntegrationsPanel /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
             {activeTab === 'plano' ? <PlanoTab /> : null}
         </TabsFrame>

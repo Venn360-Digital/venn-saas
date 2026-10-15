@@ -19,13 +19,13 @@ export async function GET(request: NextRequest) {
 
         if (error) {
             return NextResponse.redirect(
-                new URL(`/gerenciamento/integracoes?error=${encodeURIComponent(error)}`, url.origin)
+                new URL(`/gerenciamento/conta?tab=integracoes&error=${encodeURIComponent(error)}`, url.origin)
             )
         }
 
         if (!code || !state) {
             return NextResponse.redirect(
-                new URL('/gerenciamento/integracoes?error=missing_params', url.origin)
+                new URL('/gerenciamento/conta?tab=integracoes&error=missing_params', url.origin)
             )
         }
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
             stateData = JSON.parse(Buffer.from(state, 'base64url').toString())
         } catch {
             return NextResponse.redirect(
-                new URL('/gerenciamento/integracoes?error=invalid_state', url.origin)
+                new URL('/gerenciamento/conta?tab=integracoes&error=invalid_state', url.origin)
             )
         }
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         const resolved = await resolveGoogleOAuthClient(stateData.workspaceId)
         if (!resolved) {
             return NextResponse.redirect(
-                new URL('/gerenciamento/integracoes?error=client_not_configured', url.origin)
+                new URL('/gerenciamento/conta?tab=integracoes&error=client_not_configured', url.origin)
             )
         }
 
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
             const err = await tokenRes.text()
             console.error('[GOOGLE_CALLBACK] Token exchange failed:', err)
             return NextResponse.redirect(
-                new URL('/gerenciamento/integracoes?error=token_exchange_failed', url.origin)
+                new URL('/gerenciamento/conta?tab=integracoes&error=token_exchange_failed', url.origin)
             )
         }
 
@@ -130,13 +130,13 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.redirect(
-            new URL('/gerenciamento/integracoes?success=google_calendar', url.origin)
+            new URL('/gerenciamento/conta?tab=integracoes&success=google_calendar', url.origin)
         )
     } catch (error) {
         console.error('[GOOGLE_CALLBACK]', error)
         const url = new URL(request.url)
         return NextResponse.redirect(
-            new URL('/gerenciamento/integracoes?error=internal_error', url.origin)
+            new URL('/gerenciamento/conta?tab=integracoes&error=internal_error', url.origin)
         )
     }
 }

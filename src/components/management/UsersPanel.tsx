@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -50,7 +49,7 @@ function initials(name: string, lastName: string | null) {
  * Quem acessa a clínica, como painel.
  *
  * Vive fora de `app/` porque é renderizado em dois lugares: na própria rota
- * `/gerenciamento/usuarios`, que outras partes do sistema linkam, e como guia
+ * `/gerenciamento/usuarios` — que virou atalho em 2026-10-15 — e como guia
  * dentro de Gerenciar conta, que é onde a navegação leva. Um componente, dois
  * enquadramentos — não duas cópias que divergem.
  */
@@ -59,15 +58,10 @@ export interface UsersPanelHandle {
     openNew: () => void
 }
 
-export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(function UsersPanel(
-    { embedded = false },
-    ref
-) {
+export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPanel(_props, ref) {
     const [users, setUsers] = useState<WorkspaceUser[]>([])
     const [departments, setDepartments] = useState<Department[]>([])
     const [loading, setLoading] = useState(true)
-    const [search, setSearch] = useState('')
-    const [query, setQuery] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
 
     useImperativeHandle(ref, () => ({
@@ -93,15 +87,10 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
     const currentPage = Math.min(page, totalPages)
     const pageRows = users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-    useEffect(() => {
-        const timer = setTimeout(() => setQuery(search), 300)
-        return () => clearTimeout(timer)
-    }, [search])
-
     const fetchUsers = useCallback(async () => {
         setLoading(true)
         try {
-            const response = await fetch(`/api/users?search=${encodeURIComponent(query)}`)
+            const response = await fetch('/api/users')
             if (response.ok) {
                 const data = await response.json()
                 setUsers(data.data ?? data)
@@ -112,7 +101,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
         } finally {
             setLoading(false)
         }
-    }, [query])
+    }, [])
 
     useEffect(() => {
         fetchUsers()
@@ -211,26 +200,13 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
         },
     ]
 
-    const newUserButton = (
-        <Button
-            onClick={() => {
-                setEditingUser(null)
-                setIsModalOpen(true)
-            }}
-        >
-            <Plus />
-            Novo usuário
-        </Button>
-    )
-
     return (
         <>
-            {embedded ? (
-                /* A ficha abre **ao lado** da tabela, como nas telas de
-                   índice: numa coluna ela entrava embaixo, ocupava a largura
-                   inteira e a tabela desaparecia. `relative` é o que segura a
-                   ficha sobreposta abaixo de `lg`. */
-                <div className="relative flex min-h-0 flex-1">
+            {/* A ficha abre **ao lado** da tabela, como nas telas de índice:
+                numa coluna ela entrava embaixo, ocupava a largura inteira e a
+                tabela desaparecia. `relative` é o que segura a ficha
+                sobreposta abaixo de `lg`. */}
+            <div className="relative flex min-h-0 flex-1">
                     {/* Sem linha de busca: a equipe de uma clínica cabe numa
                         tela, e procurar vinte nomes custa mais que lê-los. */}
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -275,19 +251,13 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
                                 <EmptyState
                                     variant="inline"
                                     icon={Users}
-                                    title={query ? 'Nenhum usuário encontrado' : 'Nenhum usuário ainda'}
-                                    description={
-                                        query
-                                            ? 'Tente outro nome ou e-mail.'
-                                            : 'Convide a equipe para dar acesso ao atendimento.'
-                                    }
+                                    title="Nenhum usuário ainda"
+                                    description="Convide a equipe para dar acesso ao atendimento."
                                     action={
-                                        !query ? (
-                                            <Button onClick={() => { setEditingUser(null); setIsModalOpen(true) }}>
-                                                <Plus />
-                                                Novo usuário
-                                            </Button>
-                                        ) : null
+                                        <Button onClick={() => { setEditingUser(null); setIsModalOpen(true) }}>
+                                            <Plus />
+                                            Novo usuário
+                                        </Button>
                                     }
                                 />
                             }
@@ -319,97 +289,6 @@ export const UsersPanel = forwardRef<UsersPanelHandle, { embedded?: boolean }>(f
                         />
                     ) : null}
                 </div>
-            ) : (
-                <IndexFrame
-                    aside={openItem ? (
-                        <UserPanel
-                            key={openItem.id}
-                            item={openItem}
-                            departments={departments}
-                            canEdit
-                            onClose={() => setOpenId(null)}
-                            {...panelNeighbours(openId, rowIds, setOpenId)}
-                            onChanged={() => void fetchUsers()}
-                            onEditFull={(id) => { const u = users.find((x) => x.id === id); if (u) { setEditingUser(u); setIsModalOpen(true) } }}
-                            onDelete={(id) => { const u = users.find((x) => x.id === id); if (u) setDeleting(u) }}
-                        />
-                    ) : null}
-                    title="Usuários"
-                    primary={newUserButton}
-                    search={search}
-                    onSearchChange={setSearch}
-                    searchLabel="Buscar por nome ou e-mail"
-                >
-                <DataTable
-                    frame
-                    selectable
-                    selected={selectedIds}
-                    onSelectedChange={setSelectedIds}
-                    bulkActions={(ids) => (
-                        <BulkBar count={ids.length} noun={['usuário', 'usuários']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
-                    )}
-                    columns={columns}
-                    rows={users}
-                    getRowId={(u) => u.id}
-                    loading={loading}
-                    onRowClick={(u) => setOpenId(u.id)}
-                    rowActions={(u) => (
-                        <RowActions label={`Ações de ${u.name}`}>
-                            <RowActionItem
-                                icon={Pencil}
-                                onClick={() => setOpenId(u.id)}
-                            >
-                                Abrir ficha
-                            </RowActionItem>
-                            <RowActionItem
-                                icon={Trash2}
-                                destructive
-                                onClick={() => {
-                                    // The workspace must keep an owner, and the
-                                    // API refuses this anyway — saying so here
-                                    // avoids a round trip that only returns an
-                                    // error.
-                                    if (u.isFirstAdmin) {
-                                        toast.error(
-                                            'O administrador principal não pode ser excluído'
-                                        )
-                                        return
-                                    }
-                                    setDeleting(u)
-                                }}
-                            >
-                                Excluir
-                            </RowActionItem>
-                        </RowActions>
-                    )}
-                    empty={
-                        <EmptyState
-                            variant="inline"
-                            icon={Users}
-                            title={query ? 'Nenhum usuário encontrado' : 'Nenhum usuário ainda'}
-                            description={
-                                query
-                                    ? 'Tente outro nome ou e-mail.'
-                                    : 'Convide a equipe para dar acesso ao atendimento.'
-                            }
-                            action={
-                                !query ? (
-                                    <Button
-                                        onClick={() => {
-                                            setEditingUser(null)
-                                            setIsModalOpen(true)
-                                        }}
-                                    >
-                                        <Plus />
-                                        Novo usuário
-                                    </Button>
-                                ) : null
-                            }
-                        />
-                    }
-                />
-                </IndexFrame>
-            )}
 
             <UserFormModal
                 isOpen={isModalOpen}
