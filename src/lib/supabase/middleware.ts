@@ -51,6 +51,20 @@ export async function updateSession(request: NextRequest) {
         pathname.startsWith('/auth') ||
         // Providers post here with their own API key; they carry no session.
         pathname.startsWith('/api/webhooks/') ||
+        /**
+         * O widget do site, que roda no navegador de um visitante anônimo.
+         *
+         * O script e a API dele são públicos por construção — quem os chama é
+         * alguém que entrou no site da clínica, nunca um usuário logado. Sem
+         * isto o middleware devolvia 307 no `widget.js` e 401 na API, e o
+         * atendimento pelo site não funcionava em lugar nenhum.
+         *
+         * O que protege estas rotas não é sessão: é a chave pública não
+         * autorizar nada além de iniciar uma conversa, e a chave do visitante
+         * só devolver a conversa dele. Ver `src/lib/widget.ts`.
+         */
+        pathname === '/widget.js' ||
+        pathname.startsWith('/api/widget/') ||
         // Container probe.
         pathname === '/api/health'
 
