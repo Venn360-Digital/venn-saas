@@ -4,8 +4,23 @@
     {
       "name": "odontobox360-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "prova-widget",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "--directory",
+        "/private/tmp/claude-501/-Users-andre-Desktop-Projects-venn-odontobox360/a1b7f02c-61db-41bc-af9e-50e82cb9ea0b/scratchpad"
+      ],
+      "port": 4173
     }
   ]
 }

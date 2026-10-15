@@ -188,8 +188,33 @@ const SCRIPT = (origem: string) => `(function () {
     .catch(function () {})
 })()`
 
+/**
+ * A origem pública da aplicação, como o navegador do visitante a enxerga.
+ *
+ * **`new URL(request.url).origin` não serve aqui.** Atrás do Traefik ele devolve
+ * o endereço interno em que o contêiner escuta — medido em produção:
+ * `https://0.0.0.0:3000`. O script saía com esse endereço embutido, e o widget
+ * no site da clínica tentava falar com uma máquina que não existe para ele:
+ * `ERR_CONNECTION_REFUSED`, sem nenhuma outra pista.
+ *
+ * A ordem é: o que a aplicação declara ser; depois o que o proxy diz que o
+ * cliente pediu; e só então a requisição, para o caso de rodar sem proxy nenhum.
+ */
+function origemPublica(request: NextRequest): string {
+    const declarada = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    if (declarada) return declarada
+
+    const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
+    if (host) {
+        const protocolo = request.headers.get('x-forwarded-proto') ?? 'https'
+        return `${protocolo}://${host}`
+    }
+
+    return new URL(request.url).origin
+}
+
 export async function GET(request: NextRequest) {
-    const origem = new URL(request.url).origin
+    const origem = origemPublica(request)
     return new NextResponse(SCRIPT(origem), {
         headers: {
             'Content-Type': 'application/javascript; charset=utf-8',
