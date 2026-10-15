@@ -101,19 +101,30 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
         loadStatus()
     }, [])
 
-    // Check URL params for success/error after OAuth callback
+    /**
+     * A resposta do OAuth vem na URL, é dita uma vez e sai da URL.
+     *
+     * A limpeza apagava a busca inteira (`window.location.pathname`), e isso
+     * passou a custar caro quando a rota virou a guia: junto com o `?success=`
+     * ia o `?tab=integracoes`, e a tela pulava de volta para o Perfil no mesmo
+     * instante em que dizia "conectado". Agora saem só os dois parâmetros que
+     * já foram lidos.
+     */
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('success') === 'google_calendar') {
+        const url = new URL(window.location.href)
+        const sucesso = url.searchParams.get('success')
+        const erro = url.searchParams.get('error')
+        if (!sucesso && !erro) return
+
+        if (sucesso === 'google_calendar') {
             toast.success('Google Calendar conectado')
             loadStatus()
-            // Clean URL
-            window.history.replaceState({}, '', window.location.pathname)
         }
-        if (params.get('error')) {
-            toast.error(`Erro na conexão: ${params.get('error')}`)
-            window.history.replaceState({}, '', window.location.pathname)
-        }
+        if (erro) toast.error(`Erro na conexão: ${erro}`)
+
+        url.searchParams.delete('success')
+        url.searchParams.delete('error')
+        window.history.replaceState({}, '', `${url.pathname}${url.search}`)
     }, [])
 
     const loadStatus = async () => {
