@@ -100,110 +100,112 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
 
             <div className="space-y-4">
                 {/* Imagem do agente */}
-                <div className="space-y-3">
-                    <div>
-                        <Label>Imagem do Agente</Label>
-                        <p className="text-xs text-muted-foreground">
-                            Aparece na lista de agentes e nas conversas, para quem atende.
-                            Nos canais conectados o paciente continua vendo a foto da conta
-                            de WhatsApp, Instagram ou Facebook da clínica — essa imagem não
-                            substitui a do canal.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <div
-                            className={cn(
-                                'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
-                                preview ? 'border-transparent' : 'border-muted-foreground/25'
-                            )}
-                        >
-                            {preview ? (
-                                // Origem variável (Storage ou blob local), fora do alcance
-                                // do next/image sem configurar remotePatterns.
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={preview}
-                                    alt="Imagem do agente"
-                                    className="h-full w-full object-cover"
-                                />
-                            ) : (
-                                <span className="text-3xl text-muted-foreground">
-                                    {data.name?.trim()?.[0]?.toUpperCase() ?? 'A'}
-                                </span>
-                            )}
+                {/* A identidade do agente numa linha: a foto à esquerda, o
+                    nome e a função à direita. Empilhados, os três comiam meia
+                    tela antes do primeiro campo de texto. */}
+                <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+                    <div className="space-y-3">
+                        <div>
+                            <Label>Imagem do Agente</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Aparece na lista de agentes e nas conversas, para quem atende.
+                                Nos canais conectados o paciente continua vendo a foto da conta
+                                de WhatsApp, Instagram ou Facebook da clínica — essa imagem não
+                                substitui a do canal.
+                            </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                                <Upload className="mr-2 h-4 w-4" />
-                                {preview ? 'Alterar imagem' : 'Enviar imagem'}
-                            </Button>
+                        <div className="flex items-center gap-4">
+                            <div
+                                className={cn(
+                                    'flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
+                                    preview ? 'border-transparent' : 'border-muted-foreground/25'
+                                )}
+                            >
+                                {preview ? (
+                                    // Origem variável (Storage ou blob local), fora do alcance
+                                    // do next/image sem configurar remotePatterns.
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={preview}
+                                        alt="Imagem do agente"
+                                        className="h-full w-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="text-3xl text-muted-foreground">
+                                        {data.name?.trim()?.[0]?.toUpperCase() ?? 'A'}
+                                    </span>
+                                )}
+                            </div>
 
-                            {preview && (
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => onChange({ avatarFile: null, avatar: '' })}
-                                >
-                                    <X className="mr-2 h-4 w-4" />
-                                    Remover
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    {preview ? 'Alterar imagem' : 'Enviar imagem'}
                                 </Button>
-                            )}
+
+                                {preview && (
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => onChange({ avatarFile: null, avatar: '' })}
+                                    >
+                                        <X className="mr-2 h-4 w-4" />
+                                        Remover
+                                    </Button>
+                                )}
+                            </div>
+
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={AVATAR_TYPES.join(',')}
+                                className="hidden"
+                                onChange={handleAvatarSelect}
+                            />
                         </div>
 
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept={AVATAR_TYPES.join(',')}
-                            className="hidden"
-                            onChange={handleAvatarSelect}
-                        />
-                    </div>
-
-                    <p className="text-xs text-muted-foreground">
-                        PNG, JPG ou WEBP, até 2 MB. A imagem é enviada quando você salva o Agente.
-                    </p>
-                </div>
-
-                {/* Como o agente se chama e para que serve: duas respostas
-                    curtas, lado a lado. `items-end` porque um dos dois tem
-                    legenda e o outro não — alinhados pelo rótulo, os campos
-                    ficavam em alturas diferentes. */}
-                <div className="grid items-end gap-4 sm:grid-cols-2">
-                    {/* Nome do agente */}
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Nome do agente</Label>
-                        <Input
-                            id="name"
-                            placeholder="Ex: Ferroaco"
-                            value={data.name}
-                            onChange={(e) => onChange({ name: e.target.value })}
-                        />
-                    </div>
-
-                    {/* Função do agente */}
-                    <div className="space-y-2">
-                        <Label htmlFor="agentFunction">Função do agente</Label>
                         <p className="text-xs text-muted-foreground">
-                            Defina a principal função deste agente
+                            PNG, JPG ou WEBP, até 2 MB. A imagem é enviada quando você salva o Agente.
                         </p>
-                        <Select
-                            value={data.agentFunction}
-                            onValueChange={(value) => {
-                                if (isAgentFunction(value)) onChange({ agentFunction: value })
-                            }}
-                        >
-                            <SelectTrigger id="agentFunction">
-                                <SelectValue placeholder="SDR Atendimento" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {AGENT_FUNCTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* Nome do agente */}
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Nome do agente</Label>
+                            <Input
+                                id="name"
+                                placeholder="Ex: Ferroaco"
+                                value={data.name}
+                                onChange={(e) => onChange({ name: e.target.value })}
+                            />
+                        </div>
+
+                        {/* Função do agente */}
+                        <div className="space-y-2">
+                            <Label htmlFor="agentFunction">Função do agente</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Defina a principal função deste agente
+                            </p>
+                            <Select
+                                value={data.agentFunction}
+                                onValueChange={(value) => {
+                                    if (isAgentFunction(value)) onChange({ agentFunction: value })
+                                }}
+                            >
+                                <SelectTrigger id="agentFunction">
+                                    <SelectValue placeholder="SDR Atendimento" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {AGENT_FUNCTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                
                     </div>
                 </div>
 

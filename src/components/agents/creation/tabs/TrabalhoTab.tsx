@@ -31,16 +31,31 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
             </div>
 
             <div className="space-y-4">
-                {/* Funções e atribuições */}
-                <div className="space-y-2">
-                    <Label htmlFor="jobDescription">Funções e atribuições</Label>
-                    <Textarea
-                        id="jobDescription"
-                        placeholder="Digite as funções principais..."
-                        value={data.jobDescription || ''}
-                        onChange={(e) => onChange({ jobDescription: e.target.value })}
-                        className="min-h-[120px]"
-                    />
+                {/* Os dois textos longos lado a lado: o que o Agente faz e o
+                    que a clínica é. Empilhados, só eles valiam 280px de altura. */}
+                <div className="grid items-start gap-4 lg:grid-cols-2">
+                    {/* Funções e atribuições */}
+                    <div className="space-y-2">
+                        <Label htmlFor="jobDescription">Funções e atribuições</Label>
+                        <Textarea
+                            id="jobDescription"
+                            placeholder="Digite as funções principais..."
+                            value={data.jobDescription || ''}
+                            onChange={(e) => onChange({ jobDescription: e.target.value })}
+                            className="min-h-[120px]"
+                        />
+                    </div>
+                    {/* Descrição da empresa */}
+                    <div className="space-y-2">
+                        <Label htmlFor="companyDescription">Fale sobre a sua empresa</Label>
+                        <Textarea
+                            id="companyDescription"
+                            placeholder="Brevemente, fale sobre o que você vende, descreva seus serviços, destaque os principais benefícios e informe quem é seu público-alvo de forma simples e direta."
+                            value={data.companyDescription || ''}
+                            onChange={(e) => onChange({ companyDescription: e.target.value })}
+                            className="min-h-[120px]"
+                        />
+                    </div>
                 </div>
 
                 {/* Quem é a empresa: nome e setor são respostas de uma linha. */}
@@ -116,17 +131,6 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
                     </div>
                 </div>
 
-                {/* Descrição da empresa */}
-                <div className="space-y-2">
-                    <Label htmlFor="companyDescription">Fale sobre a sua empresa</Label>
-                    <Textarea
-                        id="companyDescription"
-                        placeholder="Brevemente, fale sobre o que você vende, descreva seus serviços, destaque os principais benefícios e informe quem é seu público-alvo de forma simples e direta."
-                        value={data.companyDescription || ''}
-                        onChange={(e) => onChange({ companyDescription: e.target.value })}
-                        className="min-h-[120px]"
-                    />
-                </div>
             </div>
         </div>
     )
