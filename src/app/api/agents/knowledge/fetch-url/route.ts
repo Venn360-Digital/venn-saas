@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
 import { htmlToText, isPrivateHost, pageTitle } from '@/lib/rag/page-text'
 
 export const runtime = 'nodejs'
@@ -32,7 +32,9 @@ const TIMEOUT_MS = 15_000
 
 export async function POST(request: NextRequest) {
     try {
-        const auth = await getWorkspaceMember()
+        // Só gestão: quem monta a base de conhecimento é quem administra, e
+        // esta rota faz o servidor buscar uma URL escolhida por quem chama.
+        const auth = await requireRole(MANAGER_ROLES)
         if (!auth.ok) {
             return NextResponse.json({ error: auth.error }, { status: auth.status })
         }
