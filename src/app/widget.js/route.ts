@@ -31,9 +31,19 @@ const SCRIPT = (origem: string) => `(function () {
 
   var visitante = leChave()
   var aberto = false
-  var ultimoId = null
   var buscando = null
   var info = null
+  /** Os ids que já estão na tela, para a busca não repetir o que já desenhou. */
+  var vistos = Object.create(null)
+  /**
+   * As bolhas desenhadas antes de o servidor confirmar.
+   *
+   * A mensagem do visitante aparece na hora — esperar o ida-e-volta para ver o
+   * que se acabou de digitar parece travamento. Quando a mesma mensagem volta do
+   * servidor, ela **adota** a bolha que já está lá em vez de desenhar outra;
+   * sem isso o texto aparecia duas vezes.
+   */
+  var pendentes = []
 
   var host = document.createElement('div')
   host.setAttribute('data-ob360', '')
@@ -126,6 +136,7 @@ const SCRIPT = (origem: string) => `(function () {
     el.textContent = texto
     corpo.appendChild(el)
     corpo.scrollTop = corpo.scrollHeight
+    return el
   }
 
   function alterna() {
@@ -143,16 +154,21 @@ const SCRIPT = (origem: string) => `(function () {
   }
 
   function busca() {
-    if (!visitante) return
+    if (!visitante || !corpo) return
     fetch(API + '/messages?visitor=' + encodeURIComponent(visitante))
       .then(function (r) { return r.ok ? r.json() : null })
       .then(function (d) {
         if (!d || !d.messages) return
-        var novas = ultimoId
-          ? d.messages.slice(d.messages.findIndex(function (m) { return m.id === ultimoId }) + 1)
-          : d.messages
-        for (var i = 0; i < novas.length; i++) poe(novas[i].from, novas[i].content)
-        if (d.messages.length) ultimoId = d.messages[d.messages.length - 1].id
+        for (var i = 0; i < d.messages.length; i++) {
+          var m = d.messages[i]
+          if (vistos[m.id]) continue
+          vistos[m.id] = true
+          // A própria mensagem do visitante já está na tela: a bolha otimista
+          // assume o id do servidor em vez de nascer uma segunda igual.
+          var j = m.from === 'visitor' ? pendentes.indexOf(m.content) : -1
+          if (j !== -1) { pendentes.splice(j, 1); continue }
+          poe(m.from, m.content)
+        }
       })
       .catch(function () {})
   }
@@ -163,6 +179,7 @@ const SCRIPT = (origem: string) => `(function () {
     campo.value = ''
     enviar.disabled = true
     poe('visitor', texto)
+    pendentes.push(texto)
     fetch(API + '/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

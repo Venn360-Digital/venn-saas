@@ -106,15 +106,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!conversa) {
         /**
-         * Um visitante do site não tem telefone, e isso é o normal.
+         * Um visitante do site não tem telefone nem nome, e isso é o normal.
          *
-         * A ficha nasce sem contato para ligar — é o que a clínica tem até ele
-         * se identificar. O nome vem do que ele digitou, se digitou.
+         * **Nome fica nulo de propósito.** Batizá-lo de "Visitante do site" fazia
+         * o agente responder "Oi, Visitante!" — medido numa conversa de prova,
+         * e soa como formulário falando. Nulo, o prompt diz ao agente que ele
+         * ainda não sabe o nome e que pergunte com naturalidade, que é o que
+         * uma recepção faria.
          */
         const contato = await prisma.contact.create({
             data: {
                 workspaceId,
-                name: body.name?.trim().slice(0, 80) || 'Visitante do site',
+                name: body.name?.trim().slice(0, 80) || null,
                 source: 'site',
             },
         })

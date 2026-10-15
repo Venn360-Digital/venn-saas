@@ -150,10 +150,19 @@ function nomeDaLinha(line: { label: string | null; phoneNumber: string | null })
  * Gonçalves dos Santos" ocupava a largura toda e ainda era cortado no meio do
  * sobrenome. Quem atende chama de Maria.
  */
-function primeiroNome(nome: string | null, telefone: string | null): string {
+function primeiroNome(nome: string | null, telefone: string | null, canal?: string): string {
     const limpo = nome?.trim()
     if (limpo) return limpo.split(/\s+/)[0]
-    return telefone ? formatPhone(telefone) : 'Desconhecido'
+    if (telefone) return formatPhone(telefone)
+    /**
+     * Quem chega pelo site não tem nome nem telefone, e isso é o esperado.
+     *
+     * A ficha dele fica sem nome de propósito — é o que faz o agente perguntar
+     * em vez de chamar a pessoa de "Visitante". Mas a equipe precisa de um
+     * rótulo na lista, e "Desconhecido" soa como defeito.
+     */
+    if (canal === 'web') return 'Visitante do site'
+    return 'Desconhecido'
 }
 
 /**
@@ -1982,7 +1991,7 @@ export default function ConversasPage() {
                                                     como a clínica chama o paciente. */}
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-medium text-sm truncate">
-                                                        {primeiroNome(conv.contact.name, conv.contact.phone)}
+                                                        {primeiroNome(conv.contact.name, conv.contact.phone, conv.channel)}
                                                     </span>
                                                     <span className="num ml-2 flex-shrink-0 text-[10px] text-muted-foreground">
                                                         {conv.lastMessage && formatMessageTime(conv.lastMessage.createdAt)}
@@ -2120,7 +2129,7 @@ export default function ConversasPage() {
                                     <div className="min-w-0">
                                         {/* 1. Quem é, e o número dele. */}
                                         <h3 className="flex items-center gap-1.5 truncate text-sm font-medium">
-                                            {primeiroNome(conv.contact.name, conv.contact.phone)}
+                                            {primeiroNome(conv.contact.name, conv.contact.phone, conv.channel)}
                                             {conv.contact.phone ? (
                                                 <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
                                                     <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
