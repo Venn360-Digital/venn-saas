@@ -43,70 +43,77 @@ export function TrabalhoTab({ data, onChange }: TrabalhoTabProps) {
                     />
                 </div>
 
-                {/* Nome da empresa */}
-                <div className="space-y-2">
-                    <Label htmlFor="companyName">Nome da empresa</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Para qual empresa o Agente irá trabalhar?
-                    </p>
-                    <Input
-                        id="companyName"
-                        placeholder="Ex: Bot de Atendimento"
-                        value={data.companyName || ''}
-                        onChange={(e) => onChange({ companyName: e.target.value })}
-                    />
+                {/* Quem é a empresa: nome e setor são respostas de uma linha. */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Nome da empresa */}
+                    <div className="space-y-2">
+                        <Label htmlFor="companyName">Nome da empresa</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Para qual empresa o Agente irá trabalhar?
+                        </p>
+                        <Input
+                            id="companyName"
+                            placeholder="Ex: Bot de Atendimento"
+                            value={data.companyName || ''}
+                            onChange={(e) => onChange({ companyName: e.target.value })}
+                        />
+                    </div>
+
+                    {/* Setor da empresa — fixo */}
+                    <div className="space-y-2">
+                        <Label htmlFor="companySector">Setor da empresa</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Definido pelo produto, e informado ao Agente.
+                        </p>
+                        <Input id="companySector" value={SETOR_PADRAO} readOnly disabled />
+                    </div>
                 </div>
 
-                {/* Setor da empresa — fixo */}
-                <div className="space-y-2">
-                    <Label htmlFor="companySector">Setor da empresa</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Definido pelo produto, e informado ao Agente.
-                    </p>
-                    <Input id="companySector" value={SETOR_PADRAO} readOnly disabled />
-                </div>
-
-                {/*
-                  * O endereço do site, não o conteúdo dele.
-                  *
-                  * Este campo entra no prompt como um dado de identidade da
-                  * clínica — do mesmo naipe de "nome" e "setor" —, para o agente
-                  * poder informar o endereço a quem perguntar. A página **não** é
-                  * lida aqui. Quem ensina o conteúdo ao agente é a seção
-                  * Websites do Cérebro, que baixa a página e a indexa. Sem dizer
-                  * isto na tela, ter "site" em dois lugares faz a clínica supor
-                  * que preencher aqui já treina o agente.
-                  */}
-                <div className="space-y-2">
-                    <Label htmlFor="companyWebsite">Site da empresa (se houver)</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Só o endereço, para o Agente saber informá-lo. Para que ele
-                        aprenda o conteúdo das páginas, adicione-as em Cérebro → Websites.
-                    </p>
-                    <Input
-                        id="companyWebsite"
-                        type="url"
-                        placeholder="Ex: https://suaclinica.com.br"
-                        value={data.companyWebsite || ''}
-                        onChange={(e) => onChange({ companyWebsite: e.target.value })}
-                    />
-                </div>
-
-                {/* Endereço da unidade */}
-                <div className="space-y-2">
-                    <Label htmlFor="companyAddress">Endereço completo</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Logradouro, número, complemento, bairro, cidade, estado e CEP da
-                        unidade que este Agente atende. É o que ele responde a quem
-                        pergunta onde vocês ficam.
-                    </p>
-                    <Textarea
-                        id="companyAddress"
-                        placeholder="Ex: Av. Afonso Pena, 1500, sala 302 — Centro, Belo Horizonte/MG, 30130-005"
-                        value={data.companyAddress || ''}
-                        onChange={(e) => onChange({ companyAddress: e.target.value })}
-                        className="min-h-[80px] resize-none"
-                    />
+                {/* Onde a clínica fica, nas duas formas em que perguntam:
+                    o endereço na rua e o endereço na web. `items-start` para o
+                    campo curto não esticar na altura do longo. */}
+                <div className="grid items-start gap-4 sm:grid-cols-2">
+                    {/*
+                      * O endereço do site, não o conteúdo dele.
+                      *
+                      * Este campo entra no prompt como um dado de identidade da
+                      * clínica — do mesmo naipe de "nome" e "setor" —, para o agente
+                      * poder informar o endereço a quem perguntar. A página **não** é
+                      * lida aqui. Quem ensina o conteúdo ao agente é a seção
+                      * Websites do Cérebro, que baixa a página e a indexa. Sem dizer
+                      * isto na tela, ter "site" em dois lugares faz a clínica supor
+                      * que preencher aqui já treina o agente.
+                      */}
+                    <div className="space-y-2">
+                        <Label htmlFor="companyWebsite">Site da empresa (se houver)</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Só o endereço, para o Agente saber informá-lo. Para que ele
+                            aprenda o conteúdo das páginas, adicione-as em Cérebro → Websites.
+                        </p>
+                        <Input
+                            id="companyWebsite"
+                            type="url"
+                            placeholder="Ex: https://suaclinica.com.br"
+                            value={data.companyWebsite || ''}
+                            onChange={(e) => onChange({ companyWebsite: e.target.value })}
+                        />
+                    </div>
+                    {/* Endereço da unidade */}
+                    <div className="space-y-2">
+                        <Label htmlFor="companyAddress">Endereço completo</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Logradouro, número, complemento, bairro, cidade, estado e CEP da
+                            unidade que este Agente atende. É o que ele responde a quem
+                            pergunta onde vocês ficam.
+                        </p>
+                        <Textarea
+                            id="companyAddress"
+                            placeholder="Ex: Av. Afonso Pena, 1500, sala 302 — Centro, Belo Horizonte/MG, 30130-005"
+                            value={data.companyAddress || ''}
+                            onChange={(e) => onChange({ companyAddress: e.target.value })}
+                            className="min-h-[80px] resize-none"
+                        />
+                    </div>
                 </div>
 
                 {/* Descrição da empresa */}

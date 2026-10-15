@@ -165,15 +165,44 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                     </p>
                 </div>
 
-                {/* Nome do agente */}
-                <div className="space-y-2">
-                    <Label htmlFor="name">Nome do agente</Label>
-                    <Input
-                        id="name"
-                        placeholder="Ex: Ferroaco"
-                        value={data.name}
-                        onChange={(e) => onChange({ name: e.target.value })}
-                    />
+                {/* Como o agente se chama e para que serve: duas respostas
+                    curtas, lado a lado. */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Nome do agente */}
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nome do agente</Label>
+                        <Input
+                            id="name"
+                            placeholder="Ex: Ferroaco"
+                            value={data.name}
+                            onChange={(e) => onChange({ name: e.target.value })}
+                        />
+                    </div>
+
+                    {/* Função do agente */}
+                    <div className="space-y-2">
+                        <Label htmlFor="agentFunction">Função do agente</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Defina a principal função deste agente
+                        </p>
+                        <Select
+                            value={data.agentFunction}
+                            onValueChange={(value) => {
+                                if (isAgentFunction(value)) onChange({ agentFunction: value })
+                            }}
+                        >
+                            <SelectTrigger id="agentFunction">
+                                <SelectValue placeholder="SDR Atendimento" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {AGENT_FUNCTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Mensagem Inicial */}
@@ -195,57 +224,32 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                     </p>
                 </div>
 
-                {/* Função do agente */}
-                <div className="space-y-2">
-                    <Label htmlFor="agentFunction">Função do agente</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Defina a principal função deste agente
-                    </p>
-                    <Select
-                        value={data.agentFunction}
-                        onValueChange={(value) => {
-                            if (isAgentFunction(value)) onChange({ agentFunction: value })
-                        }}
-                    >
-                        <SelectTrigger id="agentFunction">
-                            <SelectValue placeholder="SDR Atendimento" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {AGENT_FUNCTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                {/* Como o Agente fala e como se situa: tom, língua e relógio
+                    são três escolhas curtas e cabem na mesma linha. */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {/* Tom de Voz */}
+                    <div className="space-y-2">
+                        <Label htmlFor="voiceTone">Tom de Voz</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Escolha o tom de voz que o seu Agente irá utilizar durante as conversas
+                        </p>
+                        <Select
+                            value={data.voiceTone}
+                            onValueChange={(value) => onChange({ voiceTone: value })}
+                        >
+                            <SelectTrigger id="voiceTone">
+                                <SelectValue placeholder="Prático" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="pratico">Prático</SelectItem>
+                                <SelectItem value="formal">Formal</SelectItem>
+                                <SelectItem value="casual">Casual</SelectItem>
+                                <SelectItem value="amigavel">Amigável</SelectItem>
+                                <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                {/* Tom de Voz */}
-                <div className="space-y-2">
-                    <Label htmlFor="voiceTone">Tom de Voz</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Escolha o tom de voz que o seu Agente irá utilizar durante as conversas
-                    </p>
-                    <Select
-                        value={data.voiceTone}
-                        onValueChange={(value) => onChange({ voiceTone: value })}
-                    >
-                        <SelectTrigger id="voiceTone">
-                            <SelectValue placeholder="Prático" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="pratico">Prático</SelectItem>
-                            <SelectItem value="formal">Formal</SelectItem>
-                            <SelectItem value="casual">Casual</SelectItem>
-                            <SelectItem value="amigavel">Amigável</SelectItem>
-                            <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* Idioma e fuso, lado a lado: os dois dizem ao Agente como se
-                    situar — em que língua falar e que horas são agora. */}
-                <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <Label htmlFor="language">Idioma</Label>
                         <p className="text-xs text-muted-foreground">

@@ -118,63 +118,66 @@ export function VozTab({ data, onChange }: VozTabProps) {
                     />
                 </div>
 
-                {/* Modelo de voz */}
-                <div className="space-y-2">
-                    <Label htmlFor="voiceModel">
-                        Escolha o modelo de voz a ser utilizado pelo seu Agente
-                    </Label>
-                    <div className="flex gap-2">
+                {/* A voz e o tom dela: duas escolhas curtas, lado a lado. */}
+                <div className="grid items-start gap-4 sm:grid-cols-2">
+                    {/* Modelo de voz */}
+                    <div className="space-y-2">
+                        <Label htmlFor="voiceModel">
+                            Escolha o modelo de voz a ser utilizado pelo seu Agente
+                        </Label>
+                        <div className="flex gap-2">
+                            <Select
+                                value={data.voiceModel}
+                                onValueChange={(value) => onChange({ voiceModel: value })}
+                                disabled={!data.voiceEnabled}
+                            >
+                                <SelectTrigger id="voiceModel" className="flex-1">
+                                    <SelectValue placeholder="Nova" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {voiceModels.map((model) => (
+                                        <SelectItem key={model.value} value={model.value}>
+                                            {model.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => void handlePlayVoice()}
+                                disabled={!data.voiceEnabled}
+                                aria-label={isPlaying ? 'Parar amostra' : 'Ouvir amostra da voz'}
+                            >
+                                {isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Tom de Voz */}
+                    <div className="space-y-2">
+                        <Label htmlFor="voiceTone">Tom de Voz</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Ao mudar o tom de voz no áudio, a personalidade do Agente será atualizada para manter a consistência
+                        </p>
                         <Select
-                            value={data.voiceModel}
-                            onValueChange={(value) => onChange({ voiceModel: value })}
+                            // Era `voiceModel` nos dois campos: escolher o tom
+                            // reescrevia a voz e o play passava a tocar "formal".
+                            value={data.voiceTone}
+                            onValueChange={(value) => onChange({ voiceTone: value })}
                             disabled={!data.voiceEnabled}
                         >
-                            <SelectTrigger id="voiceModel" className="flex-1">
-                                <SelectValue placeholder="Nova" />
+                            <SelectTrigger id="voiceTone">
+                                <SelectValue placeholder="Prático" />
                             </SelectTrigger>
                             <SelectContent>
-                                {voiceModels.map((model) => (
-                                    <SelectItem key={model.value} value={model.value}>
-                                        {model.label}
-                                    </SelectItem>
-                                ))}
+                                <SelectItem value="pratico">Prático</SelectItem>
+                                <SelectItem value="formal">Formal</SelectItem>
+                                <SelectItem value="casual">Casual</SelectItem>
+                                <SelectItem value="amigavel">Amigável</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => void handlePlayVoice()}
-                            disabled={!data.voiceEnabled}
-                            aria-label={isPlaying ? 'Parar amostra' : 'Ouvir amostra da voz'}
-                        >
-                            {isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                        </Button>
                     </div>
-                </div>
-
-                {/* Tom de Voz */}
-                <div className="space-y-2">
-                    <Label htmlFor="voiceTone">Tom de Voz</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Ao mudar o tom de voz no áudio, a personalidade do Agente será atualizada para manter a consistência
-                    </p>
-                    <Select
-                        // Era `voiceModel` nos dois campos: escolher o tom
-                        // reescrevia a voz e o play passava a tocar "formal".
-                        value={data.voiceTone}
-                        onValueChange={(value) => onChange({ voiceTone: value })}
-                        disabled={!data.voiceEnabled}
-                    >
-                        <SelectTrigger id="voiceTone">
-                            <SelectValue placeholder="Prático" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="pratico">Prático</SelectItem>
-                            <SelectItem value="formal">Formal</SelectItem>
-                            <SelectItem value="casual">Casual</SelectItem>
-                            <SelectItem value="amigavel">Amigável</SelectItem>
-                        </SelectContent>
-                    </Select>
                 </div>
 
                 {/* Treinamento */}

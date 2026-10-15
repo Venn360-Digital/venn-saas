@@ -88,61 +88,64 @@ export function InstrucoesTab({ data, onChange, somenteLeitura = false }: Instru
                     </p>
                 </div>
 
-                {/* Modelo */}
-                <div className="space-y-2">
-                    <Label htmlFor="llmModel">Modelo</Label>
-                    <p className="text-xs text-muted-foreground">
-                        O mais capaz entende melhor pedido confuso e mensagem desencontrada; o
-                        mais barato dá conta da pergunta de rotina. Em resposta curta os dois
-                        consomem 1 crédito — a economia aparece em conversa longa e em base de
-                        conhecimento grande.
-                    </p>
-                    <Select
-                        value={data.llmModel}
-                        onValueChange={(llmModel) => onChange({ llmModel })}
-                    >
-                        <SelectTrigger id="llmModel">
-                            <SelectValue placeholder="Escolher modelo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {OPENAI_MODELS.map((modelo) => (
-                                <SelectItem key={modelo.id} value={modelo.id}>
-                                    {modelo.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* Temperatura */}
-                <div className="space-y-3 rounded-lg border bg-card p-4">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <Label className="text-base font-medium">Criatividade das respostas</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Quanto o Agente pode variar a forma de responder
-                            </p>
-                        </div>
-                        <span className="num shrink-0 text-sm font-medium">
-                            {temperatura.toFixed(1)}
-                        </span>
+                {/* Qual modelo responde e quanta liberdade ele tem: os dois
+                    ajustes são do mesmo assunto e cabem na mesma linha. */}
+                <div className="grid items-start gap-4 sm:grid-cols-2">
+                    {/* Modelo */}
+                    <div className="space-y-2">
+                        <Label htmlFor="llmModel">Modelo</Label>
+                        <p className="text-xs text-muted-foreground">
+                            O mais capaz entende melhor pedido confuso e mensagem desencontrada; o
+                            mais barato dá conta da pergunta de rotina. Em resposta curta os dois
+                            consomem 1 crédito — a economia aparece em conversa longa e em base de
+                            conhecimento grande.
+                        </p>
+                        <Select
+                            value={data.llmModel}
+                            onValueChange={(llmModel) => onChange({ llmModel })}
+                        >
+                            <SelectTrigger id="llmModel">
+                                <SelectValue placeholder="Escolher modelo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {OPENAI_MODELS.map((modelo) => (
+                                    <SelectItem key={modelo.id} value={modelo.id}>
+                                        {modelo.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
+                    {/* Temperatura */}
+                    <div className="space-y-3 rounded-lg border bg-card p-4">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <Label className="text-base font-medium">Criatividade das respostas</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Quanto o Agente pode variar a forma de responder
+                                </p>
+                            </div>
+                            <span className="num shrink-0 text-sm font-medium">
+                                {temperatura.toFixed(1)}
+                            </span>
+                        </div>
 
-                    <Slider
-                        // O `fieldset` de `CamposSomenteLeitura` desabilita
-                        // controles de formulário, e o Slider do Radix é um
-                        // `span[role=slider]` — escapa. Por isso o `disabled`
-                        // explícito aqui.
-                        disabled={somenteLeitura}
-                        value={[temperatura]}
-                        onValueChange={([temperature]) => onChange({ temperature })}
-                        min={0}
-                        max={TEMPERATURA_MAX}
-                        step={0.1}
-                        aria-label="Criatividade das respostas"
-                    />
+                        <Slider
+                            // O `fieldset` de `CamposSomenteLeitura` desabilita
+                            // controles de formulário, e o Slider do Radix é um
+                            // `span[role=slider]` — escapa. Por isso o `disabled`
+                            // explícito aqui.
+                            disabled={somenteLeitura}
+                            value={[temperatura]}
+                            onValueChange={([temperature]) => onChange({ temperature })}
+                            min={0}
+                            max={TEMPERATURA_MAX}
+                            step={0.1}
+                            aria-label="Criatividade das respostas"
+                        />
 
-                    <p className="text-xs text-muted-foreground">{descreveTemperatura(temperatura)}</p>
+                        <p className="text-xs text-muted-foreground">{descreveTemperatura(temperatura)}</p>
+                    </div>
                 </div>
             </div>
         </div>
