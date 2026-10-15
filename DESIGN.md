@@ -619,6 +619,15 @@ de propósito.
 - **A ficha de uma guia-tabela abre ao lado**, nunca embaixo: o `RecordPanel` é
   estático a partir de `lg`, e dentro de uma coluna ele toma a largura inteira
   e some com a tabela. O corpo da guia é `relative flex min-h-0 flex-1`.
+- **Guia com índice** (`BandLayout aside=`): quando uma seção tem assuntos — as
+  cinco guias da Personalidade do agente —, eles vivem num índice de 196px
+  **dentro** do corpo, não numa terceira linha de cabeçalho. Fica preso, como o
+  cabeçalho e o rodapé; rola só o formulário. Dois níveis no cabeçalho, com
+  desenhos diferentes, não mostram quem manda em quem — o índice mostra, porque
+  está dentro do que ele governa. Desenho aprovado em 2026-10-15 (opção B).
+- **O que é do objeto anda com o nome** (`titleAside`): o interruptor de ativo
+  do agente encosta no título, não no canto direito. Ali ele é propriedade;
+  no canto, pareceria comando da tela.
 - **A marca da clínica manda na sidebar**: com logo gravada no workspace, ela
   substitui o símbolo e o nome do produto (78px de altura, largura da calha
   como teto); recolhida, volta o símbolo. Gravar na guia Clínica dispara
