@@ -403,6 +403,16 @@
     @apply border-border outline-ring/50;
   }
 
+  /* O shell é fixo e não rola, mas sem isto o navegador ainda dá o repique
+     elástico quando a roda do mouse cai sobre uma área que não tem o que
+     rolar — um menu curto, por exemplo. O quadro inteiro desliza e volta, e
+     cabeçalho, índice e rodapé parecem soltos. `overscroll-behavior: none`
+     tira o repique e impede que a rolagem de um painel vaze para a página. */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;

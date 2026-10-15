@@ -256,7 +256,9 @@ export function AgentFrame({
     const indice = (
         <nav
             aria-label={`Assuntos de ${atual.label}`}
-            className="flex w-[168px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2 md:w-[196px]"
+            /* `overscroll-contain`: com cinco assuntos o índice não tem o que rolar, e
+               a roda do mouse ia parar na página, que respondia com o repique. */
+            className="flex w-[168px] shrink-0 flex-col gap-0.5 overflow-y-auto overscroll-contain border-r border-border p-2 md:w-[196px]"
         >
             {atual.tabs.map(({ id, label, icon: Icone }) => {
                 const aberta = id === tab
