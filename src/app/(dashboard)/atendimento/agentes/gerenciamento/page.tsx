@@ -80,7 +80,12 @@ function GerenciamentoContent() {
     }
 
     return (
-        <AgentFrame secao="gerenciamento">
+        <AgentFrame
+            secao="gerenciamento"
+            /* Sem botão, mas com rodapé: a moldura não muda de altura ao trocar
+               de seção, e a frase explica por que não há o que gravar. */
+            dica="Histórico e ações são leitura: cada ação vale no clique."
+        >
             <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
         </AgentFrame>
     )

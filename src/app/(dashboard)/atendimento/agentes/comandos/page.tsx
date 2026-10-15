@@ -6,7 +6,6 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
-import { FormActions } from '@/components/shared/TabsFrame'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
@@ -90,16 +89,18 @@ function ComandosContent() {
     }
 
     return (
-        <AgentFrame secao="comandos">
-            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
-
-            {canManage ? (
-                <FormActions hint="Grava as regras e as preferências desta seção.">
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? 'Salvando…' : 'Salvar comandos'}
-                    </Button>
-                </FormActions>
+        <AgentFrame
+            secao="comandos"
+            dica="Grava as condições e as preferências da conversa."
+            /* Sem Salvar para quem não administra: a API recusa, e um botão
+               que só sabe recusar é pior que a sua ausência. */
+            acoes={canManage ? (
+                <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving}>
+                    {isSaving ? 'Salvando…' : 'Salvar comandos'}
+                </Button>
             ) : null}
+        >
+            <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
         </AgentFrame>
     )
 }

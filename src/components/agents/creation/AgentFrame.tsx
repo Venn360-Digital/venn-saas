@@ -22,7 +22,7 @@ import { toast } from 'sonner'
 
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
+import { BandLayout, TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -37,9 +37,20 @@ import { cn } from '@/lib/utils'
  * Tela 03 pede 50, marcava as seções com emoji, e punha o Salvar no topo, onde
  * ele parece valer para a tela inteira quando vale só para uma guia.
  *
- * Aqui a geometria é a da Conta: linha 1 de 50px com o nome do agente, as quatro
- * seções e o estado; linha 2 de 46px com as guias da seção aberta; e o corpo
- * rolando por dentro. O Salvar desce para o fim do formulário, com ele.
+ * A geometria é a da Conta, no desenho que ele aprovou em 2026-10-15 (opção B):
+ * linha 1 de 50px com o nome do agente e o **interruptor colado nele** — ativo é
+ * propriedade do agente, não comando da tela; linha 2 de 46px com as **quatro
+ * seções** como guias sublinhadas; e, dentro do corpo, um **índice preso** à
+ * esquerda com os assuntos da seção aberta.
+ *
+ * Os dois níveis antes dividiam o cabeçalho: seções em pílula na linha do nome,
+ * assuntos em guia sublinhada na linha 2 — dois desenhos sem parentesco visível,
+ * e o olho não sabia qual mandava em qual. Agora o segundo nível vive **dentro**
+ * do conteúdo que ele governa.
+ *
+ * Preso: cabeçalho, índice e rodapé. Rola só o formulário. O Salvar ficava no fim
+ * do corpo, a 992px do topo numa janela de 779 — existia apenas para quem
+ * rolasse até o fim.
  */
 
 export type SecaoId = 'personalidade' | 'comandos' | 'integracoes' | 'gerenciamento'
@@ -108,9 +119,15 @@ interface AgenteResumo {
 
 export function AgentFrame({
     secao,
+    acoes,
+    dica,
     children,
 }: {
     secao: SecaoId
+    /** O que o rodapé preso guarda — o botão de gravar desta seção. */
+    acoes?: React.ReactNode
+    /** A frase do rodapé, à esquerda: o que o botão faz, ou por que não há um. */
+    dica?: string
     children: React.ReactNode
 }) {
     const router = useRouter()
@@ -223,29 +240,41 @@ export function AgentFrame({
         ? [resumo.name, resumo.companyName].filter(Boolean).join(' · ')
         : 'Novo agente'
 
-    const navegacao = (
+    /** As quatro seções são as guias da linha 2 — a navegação de primeiro nível. */
+    const guiasDeSecao: FrameTab[] = SECOES.map((sec) => ({
+        id: sec.id,
+        label: sec.label,
+        icon: sec.icon,
+    }))
+
+    /**
+     * Os assuntos da seção, no índice preso à esquerda do formulário.
+     *
+     * Trocar de assunto é trocar de guia da mesma página: não pergunta nada,
+     * porque o que foi digitado continua em pé.
+     */
+    const indice = (
         <nav
-            aria-label="Seções do agente"
-            className="ml-2 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-background p-0.5"
+            aria-label={`Assuntos de ${atual.label}`}
+            className="flex w-[168px] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-2 md:w-[196px]"
         >
-            {SECOES.map((s) => {
-                const Icone = s.icon
-                const ativa = s.id === secao
+            {atual.tabs.map(({ id, label, icon: Icone }) => {
+                const aberta = id === tab
                 return (
                     <button
-                        key={s.id}
+                        key={id}
                         type="button"
-                        aria-current={ativa ? 'page' : undefined}
-                        onClick={() => irParaSecao(s.rota, s.tabs[0].id)}
+                        aria-current={aberta ? 'page' : undefined}
+                        onClick={() => irPara(atual.rota, id)}
                         className={cn(
-                            'flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-xs transition-colors',
-                            ativa
-                                ? 'bg-card font-semibold text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                            'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                            aberta
+                                ? 'bg-primary-subtle font-semibold text-primary-subtle-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                         )}
                     >
-                        <Icone className="size-3.5" aria-hidden="true" />
-                        <span className="hidden sm:inline">{s.label}</span>
+                        <Icone className="size-3.5 shrink-0" aria-hidden="true" />
+                        <span className="truncate">{label}</span>
                     </button>
                 )
             })}
@@ -258,7 +287,7 @@ export function AgentFrame({
      * Agente pausado por exceder o plano não ganha interruptor: a API recusa
      * religá-lo, e um controle que só sabe recusar é pior que um aviso.
      */
-    const estado = resumo ? (
+    const estadoJuntoDoNome = resumo ? (
         !canManage ? (
             // Sem interruptor, mas o estado continua dito — é o que interessa a
             // quem só lê, e some a promessa de um controle que a API recusa.
@@ -296,28 +325,44 @@ export function AgentFrame({
     return (
         <TabsFrame
             title={titulo}
-            nav={navegacao}
-            primary={estado}
-            tabs={atual.tabs}
-            active={tab}
-            onChange={(id) => irPara(atual.rota, id)}
+            titleAside={estadoJuntoDoNome ? <span className="ml-1 shrink-0">{estadoJuntoDoNome}</span> : null}
+            tabs={guiasDeSecao}
+            active={secao}
+            onChange={(id) => {
+                const alvo = SECOES.find((sec) => sec.id === id)
+                if (alvo) irParaSecao(alvo.rota, alvo.tabs[0].id)
+            }}
+            fill
         >
-            {/* Dito uma vez, no alto da seção, em vez de repetido em cada guia:
-                quem abriu já sabe antes de digitar que nada será gravado. */}
-            {!canManage && !permissoesCarregando ? (
-                <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-                    <Eye className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                    <p>
-                        Você está vendo como este agente está configurado.{' '}
-                        <strong className="font-semibold text-foreground">
-                            Alterar a configuração é do dono ou do administrador
-                        </strong>{' '}
-                        da clínica — peça a eles o que precisar mudar.
-                    </p>
-                </div>
-            ) : null}
+            <BandLayout
+                aside={indice}
+                footer={
+                    <>
+                        {dica ? <p className="mr-auto text-xs text-muted-foreground">{dica}</p> : null}
+                        {acoes}
+                    </>
+                }
+            >
+                <div className="px-4 py-4 md:px-6 md:py-5">
+                    {/* Dito uma vez, no alto da seção, em vez de repetido em cada
+                        guia: quem abriu já sabe antes de digitar que nada será
+                        gravado. */}
+                    {!canManage && !permissoesCarregando ? (
+                        <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+                            <Eye className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                            <p>
+                                Você está vendo como este agente está configurado.{' '}
+                                <strong className="font-semibold text-foreground">
+                                    Alterar a configuração é do dono ou do administrador
+                                </strong>{' '}
+                                da clínica — peça a eles o que precisar mudar.
+                            </p>
+                        </div>
+                    ) : null}
 
-            {children}
+                    {children}
+                </div>
+            </BandLayout>
 
             <ConfirmDialog
                 open={saidaPendente !== null}

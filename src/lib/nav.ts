@@ -128,7 +128,6 @@ const SEGMENT_LABELS: Record<string, string> = {
     conversas: 'Conversas',
     agentes: 'Agentes de IA',
     etiquetas: 'Etiquetas',
-    modelos: 'Modelos',
     'respostas-rapidas': 'Respostas rápidas',
     comandos: 'Comandos',
     gerenciamento: 'Gerenciamento',

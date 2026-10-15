@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
-import { FormActions } from '@/components/shared/TabsFrame'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
 import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
@@ -288,7 +287,17 @@ function NovoAgenteContent() {
     }
 
     return (
-        <AgentFrame secao="personalidade">
+        <AgentFrame
+            secao="personalidade"
+            dica="Grava o agente com o que está nas cinco guias."
+            /* Sem Salvar para quem não administra: a API recusa, e um botão
+               que só sabe recusar é pior que a sua ausência. */
+            acoes={canManage ? (
+                <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving}>
+                    {isSaving ? 'Salvando…' : 'Salvar agente'}
+                </Button>
+            ) : null}
+        >
             <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
 
             {/* O Salvar vive com o formulário, não no cabeçalho: lá em cima ele
@@ -299,16 +308,6 @@ function NovoAgenteContent() {
                 faz: a gravação manda o agente inteiro, com o que as cinco guias
                 têm em mão. Chamá-lo de "Salvar perfil" seria um nome bonito
                 para algo que grava mais do que diz. */}
-            {/* Sem Salvar para quem não administra: a API recusa, e um botão
-                que só sabe recusar é pior que a sua ausência. O aviso de leitura
-                fica no alto da seção, em `AgentFrame`. */}
-            {canManage ? (
-                <FormActions hint="Grava o agente com o que está nas cinco guias.">
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? 'Salvando…' : 'Salvar agente'}
-                    </Button>
-                </FormActions>
-            ) : null}
         </AgentFrame>
     )
 }

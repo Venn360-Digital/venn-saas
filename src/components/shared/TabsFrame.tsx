@@ -27,7 +27,7 @@ export interface FrameTab {
  */
 export function TabsFrame({
     title,
-    nav,
+    titleAside,
     tabs,
     active,
     onChange,
@@ -39,13 +39,11 @@ export function TabsFrame({
 }: {
     title: string
     /**
-     * Navegação de um nível acima das guias, logo depois do título.
-     *
-     * A Conta não usa: ela é uma tela só. O agente tem quatro seções com guias
-     * próprias, e sem este lugar elas iam para `actions`, que é onde moram
-     * botões — navegação disfarçada de ação.
+     * O que pertence ao **objeto** da tela e anda colado ao nome dele — o
+     * interruptor de ativo do agente, por exemplo. Ação da tela vai em
+     * `primary`, no canto; isto aqui é propriedade, não comando.
      */
-    nav?: React.ReactNode
+    titleAside?: React.ReactNode
     tabs: FrameTab[]
     active: string
     onChange: (id: string) => void
@@ -64,7 +62,7 @@ export function TabsFrame({
             {/* Linha 1 */}
             <div className="flex h-[50px] shrink-0 items-center gap-2 bg-card px-4 md:px-6">
                 <h1 className="truncate text-[17px] font-bold tracking-tight">{title}</h1>
-                {nav}
+                {titleAside}
                 <span className="flex-1" />
                 {actions}
                 {primary ? <span className="ml-1 shrink-0">{primary}</span> : null}
@@ -160,10 +158,26 @@ export function SettingsBand({
  * O quadro de uma guia sangrada: as faixas rolam, o rodapé com a ação fica
  * preso no pé — o Salvar nunca sai da vista.
  */
-export function BandLayout({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
+export function BandLayout({
+    children,
+    footer,
+    aside,
+}: {
+    children: React.ReactNode
+    footer?: React.ReactNode
+    /**
+     * Um índice preso à esquerda do conteúdo — os assuntos de uma seção. Fica
+     * **dentro** do corpo, e não no cabeçalho, para que o parentesco apareça:
+     * o índice é da seção aberta, não da tela. Não rola com o formulário.
+     */
+    aside?: React.ReactNode
+}) {
     return (
         <div className="flex min-h-0 flex-1 flex-col bg-card">
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+            <div className="flex min-h-0 flex-1">
+                {aside}
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+            </div>
             {footer ? (
                 <div className="flex h-[52px] shrink-0 items-center justify-end gap-3 border-t border-border px-5 md:px-6">
                     {footer}
