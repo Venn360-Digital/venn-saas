@@ -3,7 +3,7 @@ import { getBillingState, spendCredits } from '@/lib/billing'
 import { LLMProviderName } from '@/types/llm'
 import { Decimal } from '@prisma/client/runtime/library'
 import { Prisma } from '@prisma/client'
-import { findModel } from './models'
+import { findModel, findTtsModel } from './models'
 
 
 export interface UsageData {
@@ -131,6 +131,71 @@ export async function trackUsage(
     }
 
     console.log(`[USAGE_TRACKER] Logged: ${usage.totalTokens} tokens, $${costUsd.toFixed(6)} USD, ${creditsConsumed} credits`)
+}
+
+/**
+ * Contabiliza a fala do agente e debita o crédito dela.
+ *
+ * Caminho separado do `trackUsage` porque a unidade é outra: a rota de fala não
+ * devolve relatório de uso, então o custo sai do **tamanho do texto** e da
+ * tabela de `TTS_MODELS`. Ver o comentário de lá sobre isso ser estimativa.
+ *
+ * Os três campos de token vão a **zero**, de propósito: somar caractere na
+ * coluna de token faria o relatório de tokens mentir para sempre, e quem olha
+ * consumo por modelo veria a fala inflando o número do GPT. A linha fica com
+ * custo real, token zero, e `metadata.characters` guardando o que foi medido.
+ */
+export async function trackSpeechUsage(
+    model: string,
+    characters: number,
+    context: TrackingContext
+): Promise<void> {
+    const info = findTtsModel(model)
+
+    if (!info) {
+        // Mesma regra do `calculateCost`: modelo sem preço aparece no log em vez
+        // de ser cobrado por palpite silencioso.
+        console.error(
+            `[TTS_USAGE] modelo "${model}" não está em TTS_MODELS — ` +
+                'cobrando pelo fallback. Acrescente-o ao catálogo com o preço real.'
+        )
+    }
+
+    const usdPerMillion = info?.usdPerMillionChars ?? 15.0
+    const costUsd = (characters / 1_000_000) * usdPerMillion
+
+    await prisma.usageLog.create({
+        data: {
+            workspaceId: context.workspaceId,
+            agentId: context.agentId,
+            provider: 'openai',
+            model,
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            costUsd: new Decimal(costUsd),
+            metadata: {
+                ...(context.metadata ?? {}),
+                kind: 'tts',
+                characters,
+            } as Prisma.InputJsonValue,
+        },
+    })
+
+    const creditsConsumed = Math.ceil(costUsd * 100)
+    const { spent, shortfall } = await spendCredits(context.workspaceId, creditsConsumed)
+
+    if (shortfall > 0) {
+        console.warn(
+            `[TTS_USAGE] workspace ${context.workspaceId} consumiu ${creditsConsumed} ` +
+                `crédito(s) de fala e só tinha ${spent}: ${shortfall} além do saldo.`
+        )
+    }
+
+    console.log(
+        `[TTS_USAGE] ${characters} caractere(s) em ${model}, ` +
+            `$${costUsd.toFixed(6)} USD, ${creditsConsumed} crédito(s)`
+    )
 }
 
 /**

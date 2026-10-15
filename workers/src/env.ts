@@ -40,6 +40,17 @@ const schema = z.object({
     // LLM providers — optional individually; the factory validates the one in use
     OPENAI_API_KEY: z.string().optional(),
 
+    /**
+     * Teto do texto que o agente fala, em caracteres.
+     *
+     * Acima dele a resposta vai como texto. Duas razões: nota de voz de dois
+     * minutos ninguém ouve até o fim, e a fala é cobrada pelo tamanho do texto
+     * — um parágrafo longo custa caro para ser ignorado. 900 caracteres são
+     * cerca de um minuto de fala, e cobrem a resposta de uma a quatro frases
+     * que o agente dá no caso comum.
+     */
+    AGENT_SPEECH_MAX_CHARS: z.coerce.number().int().positive().default(900),
+
     // Billing notices. Optional on purpose: a worker must not refuse to start
     // because it cannot send a warning e-mail — sendEmail logs and skips when
     // the key is absent.

@@ -80,3 +80,81 @@ export async function enqueueOutboundText(
 
     return { messageId: message.id }
 }
+
+export interface EnqueueOutboundAudioInput {
+    conversationId: string
+    /** O que foi dito. Fica na linha para a equipe ler o que o agente falou. */
+    content: string
+    /** URL pública da nota de voz, já no Storage. */
+    mediaUrl: string
+    mimetype: string
+    /**
+     * Obrigatório aqui, ao contrário do texto.
+     *
+     * Nota de voz só existe quando há provedor para entregá-la. A conversa do
+     * site não tem canal de saída e a tela do visitante desenha texto, então
+     * aquele caminho nunca passa por esta função — o tipo é que garante.
+     */
+    integrationId: string
+    to: string
+    sentBy: string
+    agentId?: string
+}
+
+/**
+ * Grava a nota de voz do agente e entrega o envio à fila.
+ *
+ * A linha guarda as duas coisas: `mediaUrl` para o paciente ouvir e `content`
+ * com o texto falado, porque a caixa de entrada da clínica precisa poder **ler**
+ * o que o agente disse. Uma conversa em que as respostas do agente aparecem como
+ * um player sem transcrição é uma conversa que o atendente não consegue assumir.
+ */
+export async function enqueueOutboundAudio(
+    input: EnqueueOutboundAudioInput
+): Promise<{ messageId: string }> {
+    const { conversationId, content, mediaUrl, mimetype, integrationId, to, sentBy, agentId } =
+        input
+
+    const message = await prisma.message.create({
+        data: {
+            conversationId,
+            direction: 'outbound',
+            content,
+            contentType: 'audio',
+            mediaUrl,
+            sentBy,
+            status: 'pending',
+        },
+    })
+
+    await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { lastMessageAt: new Date() },
+    })
+
+    await getQueue(QUEUE.WHATSAPP_OUTBOUND).add(
+        'send-audio',
+        {
+            messageId: message.id,
+            integrationId,
+            to,
+            kind: 'audio',
+            mediaKind: 'audio',
+            content,
+            mediaUrl,
+            mimetype,
+        },
+        { jobId: `send-${message.id}` }
+    )
+
+    if (agentId) {
+        await emitAgentEvent(agentId, 'message.sent', {
+            conversationId,
+            messageId: message.id,
+            to,
+            content,
+        })
+    }
+
+    return { messageId: message.id }
+}

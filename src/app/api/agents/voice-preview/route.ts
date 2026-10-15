@@ -3,28 +3,40 @@ import { z } from 'zod'
 
 import { requireWritable } from '@/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
+import { TTS_MODELS } from '@/lib/llm/models'
 
 /** As vozes que a tela oferece — a lista fechada evita gastar com palpite. */
 const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
 
 const schema = z.object({
     voice: z.enum(VOICES),
-    /** Frase de amostra; a tela manda a saudação do agente quando existe. */
-    text: z.string().trim().max(200).optional(),
+    /**
+     * Entonação — o campo `instructions` do modelo de fala.
+     *
+     * Era `text`, a frase a ser lida, e a tela mandava nele o que a clínica
+     * escrevia no campo de entonação: quem pedia "fale devagar" ouvia a voz
+     * dizendo "fale devagar". A amostra agora fala sempre a mesma frase, com a
+     * entonação pedida — que é o que o paciente vai ouvir.
+     */
+    instructions: z.string().trim().max(500).optional(),
 })
 
 const FALLBACK = 'Olá! Sou o assistente da clínica. Como posso ajudar você hoje?'
 
 /**
- * Modelos de fala, em ordem de tentativa.
+ * Os modelos vêm do catálogo, em ordem de tentativa.
  *
  * Projeto da OpenAI traz permissão por modelo, e um projeto criado só para
  * conversa e embedding responde **403 `model_not_found`** no `tts-1` — foi
  * exatamente o que aconteceu na primeira homologação. Tentar os dois cobre as
  * duas liberações possíveis; se nenhum passar, quem clicou precisa saber que o
  * problema é permissão, não a tela.
+ *
+ * A lista era uma cópia local. Agora é a mesma que o worker usa para falar com
+ * o paciente, e o mesmo campo `acceptsInstructions` decide quem recebe a
+ * entonação — amostra e resposta de verdade não podem divergir, senão a clínica
+ * escolhe ouvindo uma coisa e entrega outra.
  */
-const MODELS = ['gpt-4o-mini-tts', 'tts-1'] as const
 
 /**
  * Ouvir a voz antes de escolher.
@@ -73,20 +85,33 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const { voice, text } = schema.parse(await request.json())
+        const { voice, instructions } = schema.parse(await request.json())
 
-        const input = text?.trim() || FALLBACK
+        const input = FALLBACK
         let lastStatus = 0
         let lastDetail = ''
 
-        for (const model of MODELS) {
+        for (const model of TTS_MODELS) {
+            const body: Record<string, unknown> = {
+                model: model.id,
+                voice,
+                input,
+                // mp3 aqui, e não o opus que vai ao WhatsApp: isto toca num
+                // `<audio>` do navegador, onde mp3 é o que todo navegador lê.
+                response_format: 'mp3',
+            }
+
+            // Mandar `instructions` para quem não aceita é 400 num modelo que
+            // funcionaria sem ele.
+            if (instructions && model.acceptsInstructions) body.instructions = instructions
+
             const response = await fetch('https://api.openai.com/v1/audio/speech', {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ model, voice, input, response_format: 'mp3' }),
+                body: JSON.stringify(body),
             })
 
             if (response.ok) {
@@ -101,7 +126,7 @@ export async function POST(request: NextRequest) {
 
             lastStatus = response.status
             lastDetail = await response.text().catch(() => '')
-            console.error('[VOICE_PREVIEW]', model, response.status, lastDetail.slice(0, 300))
+            console.error('[VOICE_PREVIEW]', model.id, response.status, lastDetail.slice(0, 300))
         }
 
         /**

@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Play, Square } from 'lucide-react'
 import { VozData } from '@/types/agent-creation'
+import { cn } from '@/lib/utils'
 
 interface VozTabProps {
     data: VozData
@@ -54,12 +55,18 @@ export function VozTab({ data, onChange }: VozTabProps) {
             const res = await fetch('/api/agents/voice-preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                // Lê o que a pessoa escreveu, não uma frase pronta: quem
-                // digitou o treinamento espera ouvir aquilo. O teto de 200
-                // caracteres é da rota — amostra, não locução.
+                /**
+                 * O campo de entonação vai como **entonação**, não como texto.
+                 *
+                 * Antes ele era lido em voz alta: quem escrevia "fale devagar e
+                 * com calma" ouvia a voz dizendo "fale devagar e com calma", e
+                 * concluía que era isso que o paciente ia receber. A amostra
+                 * agora fala a frase padrão da rota, com a entonação aplicada —
+                 * que é exatamente o que o paciente vai ouvir.
+                 */
                 body: JSON.stringify({
                     voice: data.voiceModel || 'nova',
-                    text: data.voiceTraining?.trim().slice(0, 200) || undefined,
+                    instructions: data.voiceTraining?.trim() || undefined,
                 }),
             })
             if (!res.ok) {
@@ -99,12 +106,31 @@ export function VozTab({ data, onChange }: VozTabProps) {
                 {/* Toggle de voz */}
                 <div className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
+                        {/* O selo e a frase saíam fixos em "INATIVO" e "Clique
+                            para desativar", independentes do interruptor ao
+                            lado: ligado, a tela dizia que estava desligado. */}
                         <div className="flex items-center gap-2">
-                            <div className="rounded-md bg-primary/10 px-2 py-1">
-                                <span className="text-xs font-medium text-primary">INATIVO</span>
+                            <div
+                                className={cn(
+                                    'rounded-md px-2 py-1',
+                                    data.voiceEnabled ? 'bg-success-subtle' : 'bg-muted'
+                                )}
+                            >
+                                <span
+                                    className={cn(
+                                        'text-xs font-medium',
+                                        data.voiceEnabled
+                                            ? 'text-success-subtle-foreground'
+                                            : 'text-muted-foreground'
+                                    )}
+                                >
+                                    {data.voiceEnabled ? 'ATIVO' : 'INATIVO'}
+                                </span>
                             </div>
                             <span className="text-sm font-medium">
-                                Clique para desativar
+                                {data.voiceEnabled
+                                    ? 'O agente responde em áudio'
+                                    : 'O agente responde por escrito'}
                             </span>
                         </div>
                         <p className="text-[12.5px] text-muted-foreground">
@@ -180,15 +206,22 @@ export function VozTab({ data, onChange }: VozTabProps) {
                     </div>
                 </div>
 
-                {/* Treinamento */}
+                {/* Entonação. Não é treino: é o campo `instructions` do modelo
+                    de fala, que descreve **como** falar, e é a única coisa que
+                    ele pode ser. Chamá-lo de treinamento fazia a clínica
+                    escrever ali o que o agente deveria saber. */}
                 <div className="space-y-2">
-                    <Label htmlFor="voiceTraining">
-                        Edite as informações para treinar o seu Agente IA
-                    </Label>
+                    <Label htmlFor="voiceTraining">Como o agente deve falar</Label>
+                    <p className="text-xs text-muted-foreground">
+                        Descreva o jeito da fala — ritmo, calor, pausas. Não escreva aqui o
+                        que o agente deve saber nem o que ele deve responder: isto muda só a
+                        entonação do áudio.
+                    </p>
                     <Textarea
                         id="voiceTraining"
                         value={data.voiceTraining || ''}
                         onChange={(e) => onChange({ voiceTraining: e.target.value })}
+                        placeholder="Ex.: fale devagar, com simpatia e pausas curtas entre as frases."
                         className="min-h-[120px]"
                         disabled={!data.voiceEnabled}
                     />
@@ -197,7 +230,10 @@ export function VozTab({ data, onChange }: VozTabProps) {
                 {data.voiceEnabled && (
                     <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4">
                         <p className="text-sm text-warning-subtle-foreground">
-                            💡 <strong>Nota:</strong> A funcionalidade de voz será implementada após o MVP. A interface está pronta para uso futuro.
+                            💡 <strong>Nota:</strong> o áudio é cobrado pelo tamanho do texto
+                            falado, e desconta do mesmo crédito das respostas. Resposta longa
+                            vai como texto, porque nota de voz de minutos ninguém ouve até o
+                            fim.
                         </p>
                     </div>
                 )}

@@ -6,7 +6,9 @@ import { createLogger } from '../logger'
 import type { AiReplyJob } from '../queues'
 import { OutOfCreditsError, generateReply } from '../services/ai-reply'
 import { readPreferences } from '../services/prompt'
-import { enqueueOutboundText } from '../services/outbound'
+import { enqueueOutboundAudio, enqueueOutboundText } from '../services/outbound'
+import { MIMETYPE_DA_FALA, falar } from '../services/speech'
+import { trackSpeechUsage } from '@/lib/llm/usage-tracker'
 
 const log = createLogger('AI_REPLY_JOB')
 
@@ -182,7 +184,58 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         return
     }
 
-    await enqueueOutboundText({ conversationId, content, integrationId, to, sentBy: 'agent', agentId })
+    /**
+     * Com a voz ligada, o agente fala — e se não der, escreve.
+     *
+     * Três condições, todas necessárias. `voiceEnabled`, porque é a clínica que
+     * escolhe. Uma linha de verdade (`integration`), porque nota de voz precisa
+     * de provedor que a entregue: a conversa do site não tem, e lá a resposta
+     * segue como texto. E a fala tem que ter sido gerada — `falar` devolve nulo
+     * em toda falha, de propósito, para que modelo sem permissão, OpenAI fora do
+     * ar ou Storage recusando custem o áudio, nunca a resposta.
+     *
+     * O crédito é debitado **depois** de a fala existir, e pelo caminho próprio
+     * da fala: ela não tem relatório de uso, então o custo sai do tamanho do
+     * texto (ver `TTS_MODELS`). Falhar a contabilidade não engole a resposta,
+     * pela mesma razão que valia na conversa.
+     */
+    const fala =
+        agent.voiceEnabled && integration
+            ? await falar({
+                  texto: content,
+                  voz: agent.voiceModel || 'nova',
+                  instrucoes: agent.voiceTraining,
+                  workspaceId,
+                  conversationId,
+              })
+            : null
+
+    // `&& integration` repetido para o compilador estreitar o tipo: ele não
+    // carrega a condição de cima através do ternário.
+    if (fala && integration) {
+        try {
+            await trackSpeechUsage(fala.model, fala.characters, {
+                workspaceId,
+                agentId: agent.id,
+                metadata: { conversationId, channel: 'whatsapp' },
+            })
+        } catch (error) {
+            log.error(`speech usage tracking failed for workspace ${workspaceId}`, error)
+        }
+
+        await enqueueOutboundAudio({
+            conversationId,
+            content,
+            mediaUrl: fala.url,
+            mimetype: MIMETYPE_DA_FALA,
+            integrationId: integration.id,
+            to,
+            sentBy: 'agent',
+            agentId,
+        })
+    } else {
+        await enqueueOutboundText({ conversationId, content, integrationId, to, sentBy: 'agent', agentId })
+    }
 
     if (prefs.showTypingIndicator && integration) {
         try {
