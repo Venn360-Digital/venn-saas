@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { formatPhone } from '@/lib/phone'
 import { prettyPhone } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
+import { usePermissions } from '@/hooks/usePermissions'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
@@ -470,6 +471,9 @@ function mediaIcon(contentType: string) {
 }
 
 export default function ConversasPage() {
+    // Só dono e administrador reconectam uma linha; o aviso de linha fora do ar
+    // muda de destinatário por isso.
+    const { canManage } = usePermissions()
     const [activeTab, setActiveTab] = useState<Tab>('waiting')
     const [searchQuery, setSearchQuery] = useState('')
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
@@ -2193,7 +2197,9 @@ export default function ConversasPage() {
                                                 <TooltipContent>
                                                     {conv.line.status === 'connected'
                                                         ? 'O paciente recebe suas mensagens por este número.'
-                                                        : 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Reconecte em Agentes de IA → Integrações.'}
+                                                        : canManage
+                                                          ? 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Reconecte em Agentes de IA → Integrações.'
+                                                          : 'Este número está desconectado: nada que você enviar daqui chega ao paciente, e as mensagens dele não entram. Avise um administrador para reconectá-lo.'}
                                                 </TooltipContent>
                                             </Tooltip>
                                         ) : null}

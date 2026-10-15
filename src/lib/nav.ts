@@ -23,6 +23,14 @@ export interface NavItem {
     href: string
     badge?: string
     /**
+     * Quem vê este item. Vazio ou ausente: todo perfil vê.
+     *
+     * Existe no item, e não só na seção, por causa de "Agentes de IA": ele sai
+     * do menu do atendente, e a seção que o contém tem de ficar, porque é onde
+     * mora Conversas — o trabalho dele.
+     */
+    allowedRoles?: string[]
+    /**
      * A planned destination with no page behind it. Rendering it as a link
      * sends the user to a hard 404 — which is what Campanhas and Templates did.
      */
@@ -59,7 +67,18 @@ export const navSections: NavSection[] = [
         label: 'Atendimento e IA',
         icon: Bot,
         items: [
-            { label: 'Agentes de IA', href: '/atendimento/agentes' },
+            {
+                label: 'Agentes de IA',
+                href: '/atendimento/agentes',
+                // Fora do menu do atendente, por decisão do Andre em 2026-10-14:
+                // configurar agente não é trabalho dele, e o que ele precisa
+                // saber da linha (no ar ou fora do ar, qual apelido) já está no
+                // cabeçalho da conversa. O gestor continua vendo — e a tela é
+                // somente leitura para ele, porque administrar agente é de dono
+                // e administrador. Esconder menu não é permissão: quem recusa é
+                // o servidor, em `src/lib/auth/agent.ts`.
+                allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
+            },
             { label: 'Conversas', href: '/atendimento/conversas' },
             { label: 'Etiquetas', href: '/atendimento/etiquetas' },
             { label: 'Respostas rápidas', href: '/atendimento/respostas-rapidas' },

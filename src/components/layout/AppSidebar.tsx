@@ -41,13 +41,32 @@ export function AppSidebar() {
     // ATENDENTE before the answer arrives.
     const { role, loading } = usePermissions()
 
+    /**
+     * O menu, recortado pelo perfil — por seção e por item.
+     *
+     * O recorte por item existe por causa de "Agentes de IA", que sai do menu
+     * do atendente sem levar a seção: ao lado dele, na mesma seção, está
+     * Conversas. Uma seção que perde todos os itens desaparece, para não sobrar
+     * cabeçalho que abre no vazio.
+     */
     const sections = useMemo(
         () =>
-            navSections.filter((section) => {
-                if (!section.allowedRoles?.length) return true
-                if (loading || !role) return false
-                return section.allowedRoles.includes(role)
-            }),
+            navSections
+                .filter((section) => {
+                    if (!section.allowedRoles?.length) return true
+                    if (loading || !role) return false
+                    return section.allowedRoles.includes(role)
+                })
+                .map((section) => {
+                    if (!section.items) return section
+                    const items = section.items.filter((item) => {
+                        if (!item.allowedRoles?.length) return true
+                        if (loading || !role) return false
+                        return item.allowedRoles.includes(role)
+                    })
+                    return items.length === section.items.length ? section : { ...section, items }
+                })
+                .filter((section) => !section.items || section.items.length > 0),
         [role, loading]
     )
 

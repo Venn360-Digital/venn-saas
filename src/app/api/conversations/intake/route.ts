@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
 import { requireWritable } from '@/lib/billing'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
 import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
 
 type Mode = 'active' | 'call'
@@ -44,8 +44,15 @@ export async function POST(request: NextRequest) {
 
     const channel = await connectedWhatsApp(workspaceId)
     if (!channel) {
+        // Quem não administra não tem essa tela no menu: mandá-lo conectar o
+        // canal é mandá-lo a uma porta que ele não tem.
+        const podeConectar = MANAGER_ROLES.includes(auth.member.role)
         return NextResponse.json(
-            { error: 'Nenhum WhatsApp conectado. Conecte um canal em Agentes de IA antes de abrir uma conversa.' },
+            {
+                error: podeConectar
+                    ? 'Nenhum WhatsApp conectado. Conecte um canal em Agentes de IA antes de abrir uma conversa.'
+                    : 'Nenhum WhatsApp conectado. Avise um administrador para conectar um canal antes de abrir uma conversa.',
+            },
             { status: 409 }
         )
     }
