@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
     BadgeCheck,
-    Globe,
     Instagram,
     Loader2,
     Pencil,
@@ -76,12 +75,6 @@ interface CanaisTabProps {
 /** Os canais que ainda não existem, ditos como tal. */
 const OUTROS_CANAIS = [
     {
-        id: 'site',
-        name: 'Site',
-        description: 'Widget de atendimento nas páginas da clínica',
-        icon: Globe,
-    },
-    {
         id: 'whatsapp_business',
         name: 'WhatsApp API Oficial',
         description: 'Número verificado pela Meta, sem leitura de QR Code',
@@ -133,6 +126,11 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [aRemover, setARemover] = useState<Line | null>(null)
     const [aDesconectar, setADesconectar] = useState<Line | null>(null)
 
+    /** O canal do site: chave pública e o trecho que a clínica cola. */
+    const [site, setSite] = useState<{ connected: boolean; snippet?: string } | null>(null)
+    const [ligandoSite, setLigandoSite] = useState(false)
+    const [copiado, setCopiado] = useState(false)
+
     const carregar = useCallback(async () => {
         if (!agentId) return
         try {
@@ -150,6 +148,34 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     useEffect(() => {
         void carregar()
     }, [carregar])
+
+    const carregarSite = useCallback(async () => {
+        if (!agentId) return
+        const res = await fetch(`/api/agents/${agentId}/integrations/site`)
+        if (res.ok) setSite(await res.json())
+    }, [agentId])
+
+    useEffect(() => {
+        void carregarSite()
+    }, [carregarSite])
+
+    const alternarSite = async (ligar: boolean) => {
+        setLigandoSite(true)
+        try {
+            const res = await fetch(`/api/agents/${agentId}/integrations/site`, {
+                method: ligar ? 'POST' : 'DELETE',
+            })
+            if (!res.ok) {
+                const corpo = await res.json().catch(() => ({}))
+                toast.error(corpo.error ?? 'Não foi possível alterar o canal do site')
+                return
+            }
+            toast.success(ligar ? 'Widget do site ligado' : 'Widget do site desligado')
+            await carregarSite()
+        } finally {
+            setLigandoSite(false)
+        }
+    }
 
     /**
      * Adicionar uma linha é abrir o pareamento, não gravar um registro.
@@ -421,6 +447,64 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                             )
                         })}
                     </div>
+                )}
+            </SettingsCard>
+
+            <SettingsCard
+                title="Site da clínica"
+                description="Uma bolha de conversa nas páginas do site. Diferente do WhatsApp, não ocupa número do plano — o que ele consome é crédito de IA, por mensagem."
+                aside={
+                    <span
+                        className={cn(
+                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                            site?.connected
+                                ? 'bg-success-subtle text-success-subtle-foreground'
+                                : 'bg-muted text-muted-foreground'
+                        )}
+                    >
+                        {site?.connected ? 'No ar' : 'Desligado'}
+                    </span>
+                }
+                footer={
+                    canManage ? (
+                        <Button
+                            variant={site?.connected ? 'outline' : 'default'}
+                            size="sm"
+                            disabled={ligandoSite}
+                            onClick={() => void alternarSite(!site?.connected)}
+                        >
+                            {site?.connected ? 'Desligar o widget' : 'Ligar o widget'}
+                        </Button>
+                    ) : null
+                }
+            >
+                {site?.connected && site.snippet ? (
+                    <div className="flex flex-col gap-2">
+                        <p className="text-xs text-muted-foreground">
+                            Cole este trecho no site, antes de <code>&lt;/body&gt;</code>. Uma vez
+                            só — desligar e religar aqui não muda o código.
+                        </p>
+                        <div className="flex items-start gap-2">
+                            <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-muted/50 p-2.5 text-[11px] leading-relaxed">
+                                {site.snippet}
+                            </code>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    void navigator.clipboard.writeText(site.snippet ?? '')
+                                    setCopiado(true)
+                                    setTimeout(() => setCopiado(false), 2000)
+                                }}
+                            >
+                                {copiado ? 'Copiado' : 'Copiar'}
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-xs text-muted-foreground">
+                        Ligue para gerar o código que vai no site.
+                    </p>
                 )}
             </SettingsCard>
 

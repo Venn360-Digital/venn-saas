@@ -47,8 +47,16 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         return
     }
 
-    const integration = await findIntegrationById(integrationId)
-    if (!integration) {
+    /**
+     * A conversa do site não tem canal de saída, e isso é normal.
+     *
+     * `integrationId` nulo significa "a resposta fica na conversa e o navegador
+     * do visitante vem buscá-la". Tudo o que depende de provedor — indicador de
+     * digitação, envio — é pulado; o resto do fluxo é idêntico, inclusive
+     * crédito, limite de interações e as ferramentas.
+     */
+    const integration = integrationId ? await findIntegrationById(integrationId) : null
+    if (integrationId && !integration) {
         log.warn(`integration ${integrationId} not found; cannot answer`)
         return
     }
@@ -119,7 +127,7 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
     }
 
     // Typing indicator while the model works. Cosmetic, never fatal.
-    if (prefs.showTypingIndicator) {
+    if (prefs.showTypingIndicator && integration) {
         try {
             const { provider, credentials } = providerFor(integration)
             await provider.sendPresence(credentials, to, 'composing')
@@ -176,7 +184,7 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
 
     await enqueueOutboundText({ conversationId, content, integrationId, to, sentBy: 'agent', agentId })
 
-    if (prefs.showTypingIndicator) {
+    if (prefs.showTypingIndicator && integration) {
         try {
             const { provider, credentials } = providerFor(integration)
             await provider.sendPresence(credentials, to, 'paused')

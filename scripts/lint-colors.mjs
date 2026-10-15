@@ -40,6 +40,12 @@ const ALLOWED = [
     // E-mail HTML. CSS variables do not exist in a mail client, so the brand
     // has to be inlined; the values come from the same palette.
     'src/lib/email/',
+    // O widget do site, que é renderizado dentro de um Shadow DOM na página de
+    // outra empresa: ali as nossas variáveis de CSS não existem, e usar um
+    // token seria pedir uma cor que ninguém definiu. Passava sem estar aqui
+    // só porque os hex estão soltos dentro de um template, e não entre aspas —
+    // isenção por acidente do padrão. Agora é por decisão.
+    'src/app/widget.js/',
 ]
 
 const PREFIX =

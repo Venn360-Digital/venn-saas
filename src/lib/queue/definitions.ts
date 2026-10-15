@@ -102,8 +102,15 @@ export interface AiReplyJob {
     conversationId: string
     agentId: string
     workspaceId: string
-    integrationId: string
-    /** Contact MSISDN to reply to. */
+    /**
+     * Por onde a resposta sai — nulo quando não sai por lugar nenhum.
+     *
+     * O widget do site é esse caso: a resposta fica na conversa e o navegador do
+     * visitante vem buscá-la. Sem isto, o worker tentaria resolver um provedor
+     * para uma conversa que não tem canal.
+     */
+    integrationId: string | null
+    /** Contact MSISDN to reply to. Vazio no site, onde não se endereça ninguém. */
     to: string
 }
 

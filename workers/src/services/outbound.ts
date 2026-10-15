@@ -5,8 +5,15 @@ import { emitAgentEvent } from './webhook-events'
 export interface EnqueueOutboundTextInput {
     conversationId: string
     content: string
-    /** The worker resolves provider and credentials from this. */
-    integrationId: string
+    /**
+     * De onde o worker tira provedor e credenciais.
+     *
+     * **Nulo quando não há para onde enviar**, que é o caso do widget do site: a
+     * resposta só precisa existir na conversa, e o navegador do visitante vai
+     * buscá-la. Enfileirar um envio ali faria o job falhar cinco vezes contra um
+     * provedor que não tem nada a ver com aquela conversa.
+     */
+    integrationId: string | null
     to: string
     /** "agent" for AI/rule messages, a user id for operator messages. */
     sentBy: string
@@ -42,12 +49,25 @@ export async function enqueueOutboundText(
         data: { lastMessageAt: new Date() },
     })
 
-    await getQueue(QUEUE.WHATSAPP_OUTBOUND).add(
-        'send-text',
-        { messageId: message.id, integrationId, to, kind: 'text', content },
-        // One send per message row, so a retried enqueue cannot double-send.
-        { jobId: `send-${message.id}` }
-    )
+    if (integrationId) {
+        await getQueue(QUEUE.WHATSAPP_OUTBOUND).add(
+            'send-text',
+            { messageId: message.id, integrationId, to, kind: 'text', content },
+            // One send per message row, so a retried enqueue cannot double-send.
+            { jobId: `send-${message.id}` }
+        )
+    } else {
+        /**
+         * Sem canal de saída, a mensagem já está no seu destino.
+         *
+         * `sent` e não `pending`: pendente é o que espera um envio acontecer, e
+         * aqui não há envio. A tela do visitante lê a linha na próxima busca.
+         */
+        await prisma.message.update({
+            where: { id: message.id },
+            data: { status: 'sent' },
+        })
+    }
 
     if (agentId) {
         await emitAgentEvent(agentId, 'message.sent', {

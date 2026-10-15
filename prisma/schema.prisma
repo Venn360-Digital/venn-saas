@@ -259,6 +259,17 @@ model AgentIntegration {
   /// dizer por qual deles a conversa chegou. Vazio, o número faz esse papel.
   label String?
 
+  /// A chave pública do widget do site.
+  ///
+  /// Vai dentro da página da clínica, à vista de qualquer visitante — então ela
+  /// identifica, e **não autoriza nada além de iniciar uma conversa**. Tudo o
+  /// que ela permite é o que um visitante pode fazer: abrir um atendimento e
+  /// falar nele. Ler conversa de outra pessoa depende do id de sessão, que é
+  /// sorteado por visitante e nunca sai do navegador dele.
+  ///
+  /// Só existe em `channel = "site"`.
+  publicKey String?
+
   /// De quem é a fila desta linha.
   ///
   /// É o que dá escopo à caixa de entrada: a guia "Em espera" mostrava toda
@@ -299,6 +310,7 @@ model AgentIntegration {
   @@index([agentId])
   @@index([agentId, channel])
   @@index([departmentId])
+  @@index([publicKey])
   @@map("agent_integrations")
 }
 
@@ -705,6 +717,15 @@ model Conversation {
   channel   String // "whatsapp", "instagram", "web"
   channelId String? // External ID (WhatsApp conversation ID)
 
+  /// Quem é o visitante, do lado do navegador dele.
+  ///
+  /// Sorteado quando o widget abre e guardado no `localStorage` do visitante. É
+  /// o que permite devolver a conversa dele — e só a dele — sem login: a chave
+  /// pública da página identifica a clínica, esta identifica a pessoa.
+  ///
+  /// Só existe em conversa de `channel = "web"`.
+  visitorKey String?
+
   /// Por qual linha esta conversa entrou.
   ///
   /// O fio era identificado por workspace + paciente, e só: um paciente que
@@ -746,6 +767,7 @@ model Conversation {
   @@index([workspaceId])
   @@index([contactId])
   @@index([integrationId])
+  @@index([visitorKey])
   @@index([status])
   @@map("conversations")
 }
