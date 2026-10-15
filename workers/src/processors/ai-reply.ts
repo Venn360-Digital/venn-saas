@@ -8,7 +8,7 @@ import { OutOfCreditsError, generateReply } from '../services/ai-reply'
 import { readPreferences } from '../services/prompt'
 import { enqueueOutboundAudio, enqueueOutboundText } from '../services/outbound'
 import { MIMETYPE_DA_FALA, falar } from '../services/speech'
-import { trackSpeechUsage } from '@/lib/llm/usage-tracker'
+import { spendAiCredits, trackSpeechUsage } from '@/lib/llm/usage-tracker'
 
 const log = createLogger('AI_REPLY_JOB')
 
@@ -235,6 +235,24 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         })
     } else {
         await enqueueOutboundText({ conversationId, content, integrationId, to, sentBy: 'agent', agentId })
+    }
+
+    /**
+     * O crédito é debitado **aqui**, uma vez, depois de a resposta existir.
+     *
+     * Não por chamada ao modelo: a resposta que consulta a agenda usa de 4 a 6
+     * chamadas e vale para a clínica o mesmo que a resposta simples. E não antes
+     * de entregar: resposta que o modelo devolveu vazia não chega ao paciente e
+     * não custa crédito a ele — o nosso custo fica em `usage_logs`, que é onde
+     * ele deve ficar.
+     *
+     * Contabilizar não pode engolir uma resposta pronta, pela mesma razão que
+     * vale no medidor de uso.
+     */
+    try {
+        await spendAiCredits(workspaceId, fala ? 2 : 1, fala ? 'resposta falada' : 'resposta')
+    } catch (error) {
+        log.error(`credit debit failed for workspace ${workspaceId}`, error)
     }
 
     if (prefs.showTypingIndicator && integration) {

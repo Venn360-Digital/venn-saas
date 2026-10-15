@@ -100,8 +100,47 @@ export async function trackUsage(
         }
     })
 
-    // 1 credit = $0.01 USD
-    const creditsConsumed = Math.ceil(costUsd * 100) // Convert USD to credits (cents)
+    // **Não debita crédito.** Esta função mede o nosso custo em dólar; quem
+    // debita a carteira do cliente é `spendAiCredits`, uma vez por ação de IA
+    // entregue. Ver o comentário dela para o porquê.
+    console.log(`[USAGE_TRACKER] Logged: ${usage.totalTokens} tokens, $${costUsd.toFixed(6)} USD`)
+}
+
+/**
+ * Debita a carteira do cliente: **uma ação de IA, um crédito**.
+ *
+ * Antes o débito saía de `trackUsage`, que roda a cada ida ao modelo, com
+ * `Math.ceil(custo * 100)`. Duas consequências medidas em produção:
+ *
+ * 1. **A ferramenta era punida.** Uma resposta que consulta a agenda e marca a
+ *    consulta usa de 4 a 6 chamadas (medido), então custava 4 a 6 créditos,
+ *    contra 1 de uma resposta simples. Mesmo valor para a clínica, seis vezes o
+ *    preço — cobrávamos mais caro justamente a função que fecha a venda.
+ * 2. **O arredondamento era o preço.** Uma chamada custa $0,00014 em média
+ *    (26 medições em `gpt-4o-mini`); o `ceil` cobrava $0,01. O crédito "valia"
+ *    73x o que consumia, e a conta do cliente não tinha relação com a nossa.
+ *
+ * Agora o crédito é unidade de **valor entregue**, não de custo de chamada:
+ * uma resposta do agente, uma sugestão de follow-up, um resumo de conversa.
+ * "10.000 créditos = 10.000 respostas do seu agente" é uma frase que dona de
+ * clínica entende; "10.000 créditos = número variável de chamadas a um modelo"
+ * não é.
+ *
+ * O nosso custo real não se perde: continua em `usage_logs`, em dólar, por
+ * chamada — que é onde margem se olha, não na carteira do cliente.
+ *
+ * **Áudio conta 2.** Resposta falada custa cerca de 34x uma escrita
+ * (R$ 0,024 contra R$ 0,0007 nas medições de 2026-10-15). Cobrar 34 seria
+ * absurdo comercialmente e cobrar 1 deixaria a margem exposta numa clínica que
+ * adote áudio em tudo; 2 é legível e segura o custo.
+ */
+export async function spendAiCredits(
+    workspaceId: string,
+    units: number,
+    /** Só para o log, quando é preciso saber qual ação gastou. */
+    label: string
+): Promise<void> {
+    if (units <= 0) return
 
     /**
      * O débito passa pelos dois baldes, plano e avulso.
@@ -109,28 +148,27 @@ export async function trackUsage(
      * Aqui havia um `subscription.updateMany` que só incrementava
      * `creditsUsed` — o balde do plano. Mas `checkCredits` libera a resposta
      * olhando `plano + avulso`, e `CreditPurchase.used` não era incrementado por
-     * ninguém: `spendCredits` existia em `lib/billing.ts` e nenhum caminho do
-     * sistema a chamava. O efeito era um workspace com um lote avulso vivo
-     * responder para sempre depois de estourar o plano, porque o saldo avulso
-     * nunca descia.
+     * ninguém. O efeito era um workspace com um lote avulso vivo responder para
+     * sempre depois de estourar o plano, porque o saldo avulso nunca descia.
      *
      * `spendCredits` gasta o plano primeiro (que é descartado na renovação de
      * todo modo) e depois os lotes avulsos, do que expira mais cedo para o mais
      * tarde.
      */
-    const { spent, shortfall } = await spendCredits(context.workspaceId, creditsConsumed)
+    const { spent, shortfall } = await spendCredits(workspaceId, units)
 
     if (shortfall > 0) {
-        // A resposta já foi gerada e entregue: cobrar o que não havia é
-        // impossível, e esconder isso deixaria o prejuízo invisível. A próxima
-        // chamada é barrada pelo `checkCredits`, que vê saldo zero.
+        // A ação já foi entregue: cobrar o que não havia é impossível, e
+        // esconder isso deixaria o prejuízo invisível. A próxima é barrada pelo
+        // `checkCredits`, que vê saldo zero.
         console.warn(
-            `[USAGE_TRACKER] workspace ${context.workspaceId} consumiu ${creditsConsumed} ` +
-                `crédito(s) e só tinha ${spent}: ${shortfall} além do saldo.`
+            `[AI_CREDITS] workspace ${workspaceId} consumiu ${units} crédito(s) ` +
+                `em "${label}" e só tinha ${spent}: ${shortfall} além do saldo.`
         )
+        return
     }
 
-    console.log(`[USAGE_TRACKER] Logged: ${usage.totalTokens} tokens, $${costUsd.toFixed(6)} USD, ${creditsConsumed} credits`)
+    console.log(`[AI_CREDITS] ${workspaceId}: ${units} crédito(s) em "${label}"`)
 }
 
 /**
@@ -182,20 +220,9 @@ export async function trackSpeechUsage(
         },
     })
 
-    const creditsConsumed = Math.ceil(costUsd * 100)
-    const { spent, shortfall } = await spendCredits(context.workspaceId, creditsConsumed)
-
-    if (shortfall > 0) {
-        console.warn(
-            `[TTS_USAGE] workspace ${context.workspaceId} consumiu ${creditsConsumed} ` +
-                `crédito(s) de fala e só tinha ${spent}: ${shortfall} além do saldo.`
-        )
-    }
-
-    console.log(
-        `[TTS_USAGE] ${characters} caractere(s) em ${model}, ` +
-            `$${costUsd.toFixed(6)} USD, ${creditsConsumed} crédito(s)`
-    )
+    // Também não debita: a fala é parte de **uma** resposta, e é a resposta que
+    // custa crédito (2 quando falada). Ver `spendAiCredits`.
+    console.log(`[TTS_USAGE] ${characters} caractere(s) em ${model}, $${costUsd.toFixed(6)} USD`)
 }
 
 /**

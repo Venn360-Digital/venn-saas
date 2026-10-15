@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
-import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
+import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
 
 /** Barato de propósito: resumir não precisa do modelo caro. */
 const SUMMARY_MODEL = 'gpt-4o-mini'
@@ -120,6 +120,12 @@ export async function POST(
             workspaceId: auth.member.workspaceId,
             metadata: { kind: 'conversation_summary', conversationId: id },
         })
+
+        // Uma ação de IA entregue, um crédito — ver `spendAiCredits`. O resumo
+        // conta como ação porque a carteira não pode ter consumidor invisível:
+        // ele passa pelo `checkCredits` lá acima e tem de passar pelo débito
+        // também, senão o saldo que barra o agente nunca desce por causa dele.
+        await spendAiCredits(auth.member.workspaceId, 1, 'resumo de conversa')
 
         const lastId = chronological[chronological.length - 1].id
         const generatedAt = new Date()

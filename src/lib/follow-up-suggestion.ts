@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { LLMFactory } from '@/lib/llm/factory'
-import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
+import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
 
 /** Resumir e escrever follow-up não precisam do modelo caro. */
 const MODEL = 'gpt-4o-mini'
@@ -221,6 +221,11 @@ async function generate(
 
         const parsed = parseSuggestion(result.content)
         if (!parsed) return { ok: false, reason: 'bad_format' }
+
+        // Depois do parse, não antes: sugestão que voltou ilegível não é
+        // sugestão, e o cliente não paga por ela. Uma ação de IA entregue, um
+        // crédito — ver `spendAiCredits`.
+        await spendAiCredits(workspaceId, 1, 'sugestão de follow-up')
 
         return { ok: true, suggestion: { ...parsed, withoutHistory } }
     } catch (error) {
