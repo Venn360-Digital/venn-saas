@@ -1,6 +1,6 @@
 'use client'
 
-import { CANAIS_EM_DESENVOLVIMENTO, PLAN_CHANNELS } from '@/lib/plans'
+import { REDES_DO_PLANO } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -426,7 +426,7 @@ export function PlanoTab() {
                                     key={planKey}
                                     onClick={() => setSelectedPlan(planKey)}
                                     className={cn(
-                                        'relative flex flex-col rounded-xl border p-3.5 transition-colors',
+                                        'relative flex flex-col rounded-xl border p-4 transition-colors',
                                         isSelected
                                             ? 'border-primary bg-primary-subtle/40'
                                             : 'border-border bg-card hover:border-border-strong',
@@ -465,36 +465,42 @@ export function PlanoTab() {
                                     </p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">{plan.description}</p>
 
-                                    {/* Só os ícones. Com rótulo, os quatro canais
-                                        quebravam em duas linhas em cada cartão e
-                                        empurravam a lista de itens para fora da
-                                        tela. O nome fica no `title` e num rótulo
-                                        só para leitor de tela — ícone sem nome
-                                        acessível não é informação para quem não
-                                        vê. O canal que ainda não existe fica
-                                        esmaecido, para o cartão não prometer o que
-                                        o produto não atende. */}
-                                    <div className="mt-2.5 flex items-center gap-1.5 border-t border-border pt-2.5">
-                                        {PLAN_CHANNELS.map((channel) => {
-                                            const ChannelIcon = channel.icon
-                                            const emBreve = CANAIS_EM_DESENVOLVIMENTO.has(channel.id)
-                                            return (
-                                                <span
-                                                    key={channel.id}
-                                                    title={emBreve ? `${channel.label} — em breve` : channel.label}
-                                                    className={cn(
-                                                        'flex size-7 items-center justify-center rounded-md bg-muted',
-                                                        emBreve ? 'opacity-40' : 'text-muted-foreground'
-                                                    )}
-                                                >
-                                                    <ChannelIcon className="size-3.5" aria-hidden="true" />
-                                                    <span className="sr-only">
-                                                        {channel.label}
-                                                        {emBreve ? ' (em breve)' : ''}
+                                    {/* "Conexões disponíveis", com o glifo real
+                                        de cada rede. Antes eram quatro ícones
+                                        genéricos do Lucide — um QR Code e um selo
+                                        de verificação para as duas formas de
+                                        conectar o WhatsApp —, e ninguém entendia
+                                        o que eram. A lista aqui é comercial: as
+                                        duas formas de conectar o WhatsApp são o
+                                        WhatsApp. A técnica, com as duas
+                                        separadas, continua no painel. */}
+                                    <div className="mt-2.5 border-t border-border pt-2.5">
+                                        <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Conexões disponíveis
+                                        </p>
+                                        <div className="mt-1.5 flex items-center gap-1.5">
+                                            {REDES_DO_PLANO.map((rede) => {
+                                                const RedeIcon = rede.icon
+                                                return (
+                                                    <span
+                                                        key={rede.id}
+                                                        title={rede.emBreve ? `${rede.label} — em breve` : rede.label}
+                                                        className={cn(
+                                                            'flex size-7 items-center justify-center rounded-md bg-muted',
+                                                            rede.emBreve
+                                                                ? 'text-muted-foreground opacity-40'
+                                                                : 'text-foreground'
+                                                        )}
+                                                    >
+                                                        <RedeIcon className="size-4" />
+                                                        <span className="sr-only">
+                                                            {rede.label}
+                                                            {rede.emBreve ? ' (em breve)' : ''}
+                                                        </span>
                                                     </span>
-                                                </span>
-                                            )
-                                        })}
+                                                )
+                                            })}
+                                        </div>
                                     </div>
 
                                     <ul className="mt-2.5 space-y-1 border-t border-border pt-2.5">
@@ -511,18 +517,33 @@ export function PlanoTab() {
                                     {/* `mt-auto`: o botão fica no pé do cartão, na
                                         mesma linha nos três, mesmo com listas de
                                         tamanhos diferentes. */}
-                                    <Button
-                                        className="mt-auto w-full"
-                                        variant={isPopular && !isCurrent ? 'default' : 'outline'}
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setSelectedPlan(planKey)
-                                            handleChangePlan()
-                                        }}
-                                        disabled={isCurrent || processing}
-                                    >
-                                        {isCurrent ? 'Plano atual' : 'Contratar'}
-                                    </Button>
+                                    {/* `pt-3.5` junto do `mt-auto`: o `mt-auto`
+                                        empurra o botão para o pé do cartão, mas
+                                        no cartão mais cheio não sobra nada para
+                                        empurrar e o botão encostava no último
+                                        item. O padding garante o respiro nos
+                                        três, cheios ou não. */}
+                                    {/* O respiro é do invólucro, não do botão:
+                                        `pt` no próprio botão engordaria o botão
+                                        por dentro em vez de afastá-lo da lista.
+                                        `mt-auto` leva o invólucro ao pé do
+                                        cartão, e o `pt-4` garante o espaço nos
+                                        três — inclusive no mais cheio, onde não
+                                        sobra folga para o `mt-auto` distribuir. */}
+                                    <div className="mt-auto pt-4">
+                                        <Button
+                                            className="w-full"
+                                            variant={isPopular && !isCurrent ? 'default' : 'outline'}
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setSelectedPlan(planKey)
+                                                handleChangePlan()
+                                            }}
+                                            disabled={isCurrent || processing}
+                                        >
+                                            {isCurrent ? 'Plano atual' : 'Contratar'}
+                                        </Button>
+                                    </div>
                                 </div>
                             )
                         })}

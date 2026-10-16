@@ -4,13 +4,7 @@ import { Check, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-    CANAIS_EM_DESENVOLVIMENTO,
-    PLAN_CHANNELS,
-    PLAN_LIST,
-    TRIAL,
-    formatPrice,
-} from '@/lib/plans'
+import { PLAN_LIST, REDES_DO_PLANO, TRIAL, formatPrice } from '@/lib/plans'
 import { cn } from '@/lib/utils'
 
 interface Step2PlanProps {
@@ -77,32 +71,37 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                                 <span className="text-sm text-muted-foreground"> /mês</span>
                             </p>
 
-                            {/* Só os ícones, como na tela de alterar plano: o
-                                rótulo quebrava os quatro canais em duas linhas e
-                                empurrava a lista para fora. O nome fica no
-                                `title` e num rótulo para leitor de tela, e o
-                                canal que ainda não existe fica esmaecido. */}
-                            <div className="mt-3 flex items-center gap-1.5 border-t border-border pt-3">
-                                {PLAN_CHANNELS.map((channel) => {
-                                    const Icon = channel.icon
-                                    const emBreve = CANAIS_EM_DESENVOLVIMENTO.has(channel.id)
-                                    return (
-                                        <span
-                                            key={channel.id}
-                                            title={emBreve ? `${channel.label} — em breve` : channel.label}
-                                            className={cn(
-                                                'flex size-7 items-center justify-center rounded-md bg-muted',
-                                                emBreve ? 'opacity-40' : 'text-muted-foreground'
-                                            )}
-                                        >
-                                            <Icon className="size-3.5" aria-hidden="true" />
-                                            <span className="sr-only">
-                                                {channel.label}
-                                                {emBreve ? ' (em breve)' : ''}
+                            {/* "Conexões disponíveis", com o glifo real de cada
+                                rede — a mesma lista comercial da tela de alterar
+                                plano. Os ícones genéricos de antes (QR Code, selo
+                                de verificação) não diziam nada a quem olhava. */}
+                            <div className="mt-3 border-t border-border pt-3">
+                                <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Conexões disponíveis
+                                </p>
+                                <div className="mt-2 flex items-center gap-1.5">
+                                    {REDES_DO_PLANO.map((rede) => {
+                                        const RedeIcon = rede.icon
+                                        return (
+                                            <span
+                                                key={rede.id}
+                                                title={rede.emBreve ? `${rede.label} — em breve` : rede.label}
+                                                className={cn(
+                                                    'flex size-7 items-center justify-center rounded-md bg-muted',
+                                                    rede.emBreve
+                                                        ? 'text-muted-foreground opacity-40'
+                                                        : 'text-foreground'
+                                                )}
+                                            >
+                                                <RedeIcon className="size-4" />
+                                                <span className="sr-only">
+                                                    {rede.label}
+                                                    {rede.emBreve ? ' (em breve)' : ''}
+                                                </span>
                                             </span>
-                                        </span>
-                                    )
-                                })}
+                                        )
+                                    })}
+                                </div>
                             </div>
 
                             <ul className="mt-3 space-y-1.5 border-t border-border pt-3">

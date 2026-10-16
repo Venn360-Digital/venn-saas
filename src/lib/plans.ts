@@ -21,6 +21,11 @@ import {
  */
 
 import { PLAN_LIMITS, type PlanId, type PlanLimits } from '@/lib/plan-limits'
+import {
+    InstagramIcon,
+    MessengerIcon,
+    WhatsAppIcon,
+} from '@/components/shared/BrandIcons'
 
 // Reexportados para quem já importava daqui — a definição mora em
 // `plan-limits.ts`, que o worker também lê.
@@ -55,6 +60,31 @@ export interface PlanFeature {
     /** Em negrito no cartão. Para o item que vende o plano. */
     strong?: boolean
 }
+
+/**
+ * As redes que o cartão de plano anuncia — lista **comercial**, não operacional.
+ *
+ * Separada de `PLAN_CHANNELS` porque as duas respondem perguntas diferentes.
+ * `PLAN_CHANNELS` é técnica: tem `whatsapp_qr` e `whatsapp_business` separados,
+ * e o painel precisa disso, porque são duas integrações com status
+ * independentes. O cartão de plano responde "com quais redes eu falo com o
+ * paciente", e para essa pergunta as duas formas de conectar o WhatsApp são **o
+ * WhatsApp** — foi por isso que um QR Code e um selo de verificação na fileira
+ * de ícones não quiseram dizer nada para ninguém.
+ */
+export interface RedeDoPlano {
+    id: string
+    label: string
+    icon: (props: React.SVGProps<SVGSVGElement>) => React.ReactElement
+    /** O produto ainda não atende. O cartão não pode prometer o que não existe. */
+    emBreve?: boolean
+}
+
+export const REDES_DO_PLANO: RedeDoPlano[] = [
+    { id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
+    { id: 'instagram', label: 'Instagram Direct', icon: InstagramIcon, emBreve: true },
+    { id: 'messenger', label: 'Messenger', icon: MessengerIcon, emBreve: true },
+]
 
 export interface Plan {
     id: PlanId
