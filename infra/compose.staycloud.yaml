@@ -208,6 +208,17 @@ services:
       # misturaria os eventos de todas numa URL só.
       WEBHOOK_GLOBAL_ENABLED: "false"
 
+      # O token do aperto de mão da Meta, em `GET /webhook/meta`.
+      #
+      # O padrão da imagem é a palavra **"evolution"** — qualquer um que soubesse
+      # disso registraria um webhook apontando para esta instalação. Achado lendo
+      # o `main.js` do contêiner: `TOKEN_WEBHOOK: process.env
+      # .WA_BUSINESS_TOKEN_WEBHOOK || "evolution"`.
+      #
+      # É o mesmo token que já estava no Vault, agora também aqui porque quem
+      # confere é o contêiner, e contêiner lê ambiente.
+      WA_BUSINESS_TOKEN_WEBHOOK: ${META_VERIFY_TOKEN}
+
       LOG_LEVEL: ERROR,WARN,INFO
       LOG_COLOR: "false"
       DEL_INSTANCE: "false"
