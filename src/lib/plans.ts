@@ -50,6 +50,12 @@ export const PLAN_CHANNELS: Channel[] = [
     { id: 'facebook', label: 'Facebook', icon: Facebook },
 ]
 
+export interface PlanFeature {
+    text: string
+    /** Em negrito no cartão. Para o item que vende o plano. */
+    strong?: boolean
+}
+
 export interface Plan {
     id: PlanId
     name: string
@@ -58,49 +64,72 @@ export interface Plan {
     badge?: string
     /** Vêm de `plan-limits.ts`, que é a fonte da verdade. */
     limits: PlanLimits
-    /** Shown as the plan's bullet list, beneath the channel row. */
-    features: string[]
+    /**
+     * A lista de itens do cartão, embaixo da fileira de canais.
+     *
+     * Objeto e não texto puro porque um item precisa de destaque — o Diagnóstico
+     * de LGPD, no Multiclínica. Marcador dentro da string exigiria um
+     * interpretador nos dois lugares que desenham o cartão.
+     */
+    features: PlanFeature[]
 }
 
 export const PLANS: Record<PlanId, Plan> = {
     flow: {
         id: 'flow',
-        name: 'Plano Essencial',
-        description: 'Para a clínica que está começando a atender por WhatsApp',
-        price: 490,
+        name: 'Plano Digital',
+        description:
+            'Para clínicas que precisam conectar pacientes, WhatsApp e atendimento em um só lugar.',
+        price: 390,
         limits: PLAN_LIMITS.flow,
         features: [
-            '1 agente de atendimento IA',
-            '1 número de WhatsApp',
-            'CRM para clínicas com funil de vendas',
-            'Usuários ilimitados',
+            { text: '1 agente de atendimento IA' },
+            { text: '1 número de WhatsApp' },
+            { text: 'CRM para clínicas com funil de vendas' },
+            { text: 'Usuários ilimitados' },
+            { text: 'Dashboard inteligente' },
+            { text: 'Agenda integrada com Google Calendar' },
+            { text: '10.000 créditos de IA por mês' },
         ],
     },
     pro: {
         id: 'pro',
-        name: 'Plano Evolução',
-        description: 'Para quem já tem volume e precisa dividir o atendimento',
-        price: 690,
+        name: 'Plano Prime',
+        description:
+            'Para clínicas que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.',
+        price: 590,
         badge: 'Mais escolhido',
         limits: PLAN_LIMITS.pro,
         features: [
-            '2 agentes de atendimento IA',
-            '4 números de WhatsApp',
-            'CRM para clínicas com funil de vendas',
-            'Usuários ilimitados',
+            { text: '2 agentes de atendimento IA' },
+            { text: '4 números de WhatsApp' },
+            { text: 'CRM para clínicas com funil de vendas' },
+            { text: 'Usuários ilimitados' },
+            { text: 'Dashboard inteligente' },
+            { text: 'Agente de IA no site da clínica' },
+            { text: 'Agenda integrada com Google Calendar' },
+            { text: 'Integração com CliniCorp' },
+            { text: '20.000 créditos de IA por mês' },
         ],
     },
     advanced: {
         id: 'advanced',
-        name: 'Plano Clínica 360',
-        description: 'Para operações com várias unidades ou especialidades',
-        price: 1290,
+        name: 'Plano Multiclínica',
+        description:
+            'Para clínicas com operações maiores, múltiplas unidades e maior fluxo de pacientes.',
+        price: 890,
         limits: PLAN_LIMITS.advanced,
         features: [
-            '3 agentes de atendimento IA',
-            '6 números de WhatsApp',
-            'CRM para clínicas com funil de vendas',
-            'Usuários ilimitados',
+            { text: '3 agentes de atendimento IA' },
+            { text: '6 números de WhatsApp' },
+            { text: 'CRM para clínicas com funil de vendas' },
+            { text: 'Usuários ilimitados' },
+            { text: 'Dashboard inteligente' },
+            { text: 'Agente de IA no site da clínica' },
+            { text: 'Agenda integrada com Google Calendar' },
+            { text: 'Integração com CliniCorp' },
+            { text: 'Diagnóstico de LGPD (proteção de dados)', strong: true },
+            { text: '30.000 créditos de IA por mês' },
         ],
     },
 }

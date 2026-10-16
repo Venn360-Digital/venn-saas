@@ -1,6 +1,6 @@
 'use client'
 
-import { PLAN_CHANNELS } from '@/lib/plans'
+import { CANAIS_EM_DESENVOLVIMENTO, PLAN_CHANNELS } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -50,7 +50,7 @@ interface PlanConfig {
     description: string
     price: number
     badge: string | null
-    features: string[]
+    features: { text: string; strong?: boolean }[]
     maxAgents: number
     maxMessages: number
     maxWhatsAppNumbers: number
@@ -395,7 +395,7 @@ export function PlanoTab() {
                 description="A troca vale a partir do próximo ciclo; o que já foi pago continua valendo."
                 size="wide"
             >
-                <div className="col-span-2 flex min-h-full flex-col gap-4">
+                <div className="col-span-2 flex min-h-full flex-col gap-3">
 
                     {/* O aviso de avaliação em uma linha: a versão longa é a da
                         guia, e repetida aqui empurrava os planos para fora. */}
@@ -411,7 +411,7 @@ export function PlanoTab() {
                     )}
 
                     {/* Plan Cards */}
-                    <div className="grid flex-1 grid-cols-1 items-stretch gap-4 md:grid-cols-3">
+                    <div className="grid flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-3">
                         {(['flow', 'pro', 'advanced'] as const).map((planKey) => {
                             const plan = subscription?.plans[planKey]
                             if (!plan) return null
@@ -426,7 +426,7 @@ export function PlanoTab() {
                                     key={planKey}
                                     onClick={() => setSelectedPlan(planKey)}
                                     className={cn(
-                                        'relative flex flex-col rounded-xl border p-4 transition-colors',
+                                        'relative flex flex-col rounded-xl border p-3.5 transition-colors',
                                         isSelected
                                             ? 'border-primary bg-primary-subtle/40'
                                             : 'border-border bg-card hover:border-border-strong',
@@ -457,7 +457,7 @@ export function PlanoTab() {
                                         <h3 className="text-[15px] font-bold">{plan.name}</h3>
                                     </div>
 
-                                    <p className="mt-3">
+                                    <p className="mt-2">
                                         <span className="num text-2xl font-bold">
                                             R$ {plan.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
@@ -465,30 +465,45 @@ export function PlanoTab() {
                                     </p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">{plan.description}</p>
 
-                                    <div className="mt-3 border-t border-border pt-3">
-                                        <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">Conexões</p>
-                                        <div className="mt-1.5 flex flex-wrap gap-1">
-                                            {PLAN_CHANNELS.map((channel) => {
-                                                const ChannelIcon = channel.icon
-                                                return (
-                                                    <span
-                                                        key={channel.id}
-                                                        title={channel.label}
-                                                        className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-1 text-[11px] text-muted-foreground"
-                                                    >
-                                                        <ChannelIcon className="size-3" aria-hidden="true" />
+                                    {/* Só os ícones. Com rótulo, os quatro canais
+                                        quebravam em duas linhas em cada cartão e
+                                        empurravam a lista de itens para fora da
+                                        tela. O nome fica no `title` e num rótulo
+                                        só para leitor de tela — ícone sem nome
+                                        acessível não é informação para quem não
+                                        vê. O canal que ainda não existe fica
+                                        esmaecido, para o cartão não prometer o que
+                                        o produto não atende. */}
+                                    <div className="mt-2.5 flex items-center gap-1.5 border-t border-border pt-2.5">
+                                        {PLAN_CHANNELS.map((channel) => {
+                                            const ChannelIcon = channel.icon
+                                            const emBreve = CANAIS_EM_DESENVOLVIMENTO.has(channel.id)
+                                            return (
+                                                <span
+                                                    key={channel.id}
+                                                    title={emBreve ? `${channel.label} — em breve` : channel.label}
+                                                    className={cn(
+                                                        'flex size-7 items-center justify-center rounded-md bg-muted',
+                                                        emBreve ? 'opacity-40' : 'text-muted-foreground'
+                                                    )}
+                                                >
+                                                    <ChannelIcon className="size-3.5" aria-hidden="true" />
+                                                    <span className="sr-only">
                                                         {channel.label}
+                                                        {emBreve ? ' (em breve)' : ''}
                                                     </span>
-                                                )
-                                            })}
-                                        </div>
+                                                </span>
+                                            )
+                                        })}
                                     </div>
 
-                                    <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
-                                        {plan.features.map((feature: string, idx: number) => (
-                                            <li key={idx} className="flex items-start gap-2 text-[12.5px] leading-snug">
+                                    <ul className="mt-2.5 space-y-1 border-t border-border pt-2.5">
+                                        {plan.features.map((feature, idx: number) => (
+                                            <li key={idx} className="flex items-start gap-1.5 text-[12.5px] leading-snug">
                                                 <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                                                <span>{feature}</span>
+                                                <span className={feature.strong ? 'font-semibold' : undefined}>
+                                                    {feature.text}
+                                                </span>
                                             </li>
                                         ))}
                                     </ul>
