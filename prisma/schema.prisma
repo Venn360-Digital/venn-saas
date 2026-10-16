@@ -886,6 +886,15 @@ model Subscription {
   // Limits
   maxAgents          Int @default(1)
   maxMessages        Int @default(100)
+
+  /// Quantas respostas o agente pode **falar** no mês, pelo plano.
+  ///
+  /// Teto, e não peso no crédito: a fala custa cerca de dez vezes o texto, e
+  /// cobrar 2 créditos por resposta falada tornava a carteira imprevisível para
+  /// quem olha. É este teto que fecha o pior caso dentro dos 10% da mensalidade
+  /// destinados a custo de IA. Zero significa sem fala — é o que vale para a
+  /// assinatura criada antes desta coluna existir, até o plano ser reaplicado.
+  maxSpokenReplies   Int @default(0)
   // How many WhatsApp numbers the plan allows to be connected at once.
   maxWhatsAppNumbers Int @default(1)
 

@@ -9,8 +9,25 @@ import { readPreferences } from '../services/prompt'
 import { enqueueOutboundAudio, enqueueOutboundText } from '../services/outbound'
 import { MIMETYPE_DA_FALA, falar } from '../services/speech'
 import { spendAiCredits, trackSpeechUsage } from '@/lib/llm/usage-tracker'
+import { getBillingState, spokenRepliesLeft } from '@/lib/billing'
 
 const log = createLogger('AI_REPLY_JOB')
+
+/**
+ * Abaixo de quantos créditos o agente entra em modo econômico.
+ *
+ * **Degradar antes de calar.** Emudecer é o pior desfecho possível no pior
+ * momento possível: o paciente está escrevendo e a clínica não sabe. Com a
+ * carteira no fim, cai primeiro o áudio (custa cerca de dez vezes o texto) e
+ * depois a ferramenta (multiplica as idas ao modelo por duas a três). O que
+ * resta — responder por escrito, pelo que o agente sabe — custa um décimo e
+ * estica o saldo dez vezes.
+ *
+ * Número absoluto, e não percentual da franquia: um workspace que vive de
+ * crédito avulso não tem franquia de que ser percentual. Duzentos é cerca de um
+ * dia de uso do plano menor.
+ */
+const MODO_ECONOMIA_ABAIXO_DE = 200
 
 /**
  * Rede de segurança embaixo do recorte por atendimento. Ver `desdeQuandoContar`.
@@ -165,9 +182,31 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
         }
     }
 
+    /**
+     * Quanto resta na carteira decide o quanto o agente se permite gastar.
+     *
+     * Lido uma vez, antes de gerar: `checkCredits` lá dentro só responde "pode
+     * ou não pode", e aqui é preciso o número para escolher entre responder
+     * completo, responder econômico, ou não responder.
+     */
+    const billing = await getBillingState(workspaceId)
+    const economia = billing.credits.available <= MODO_ECONOMIA_ABAIXO_DE
+
+    if (economia) {
+        log.info(
+            `workspace ${workspaceId} com ${billing.credits.available} crédito(s): ` +
+            'modo econômico — sem áudio e sem ferramenta'
+        )
+    }
+
     let content: string
     try {
-        const reply = await generateReply({ agent, workspaceId, conversationId })
+        const reply = await generateReply({
+            agent,
+            workspaceId,
+            conversationId,
+            semFerramentas: economia,
+        })
         content = reply.content.trim()
     } catch (error) {
         if (error instanceof OutOfCreditsError) {
@@ -226,8 +265,10 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
      * texto (ver `TTS_MODELS`). Falhar a contabilidade não engole a resposta,
      * pela mesma razão que valia na conversa.
      */
-    const fala =
-        agent.voiceEnabled && integration
+    const podeFalar =
+        agent.voiceEnabled && integration !== null && !economia && (await spokenRepliesLeft(workspaceId)) > 0
+
+    const fala = podeFalar
             ? await falar({
                   texto: content,
                   voz: agent.voiceModel || 'nova',
@@ -277,7 +318,10 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
      * vale no medidor de uso.
      */
     try {
-        await spendAiCredits(workspaceId, fala ? 2 : 1, fala ? 'resposta falada' : 'resposta')
+        // Um crédito, falada ou escrita. A fala é controlada por **teto**
+        // (`maxSpokenReplies`), não por peso: com crédito abstrato, peso
+        // variável deixa a carteira imprevisível para quem olha a tela.
+        await spendAiCredits(workspaceId, 1, fala ? 'resposta falada' : 'resposta')
     } catch (error) {
         log.error(`credit debit failed for workspace ${workspaceId}`, error)
     }

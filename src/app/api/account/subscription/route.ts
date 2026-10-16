@@ -1,5 +1,11 @@
 import { PLAN_LIST, TRIAL, planFor } from '@/lib/plans'
-import { canBuyCredits, getBillingState, purchaseExpiry, renewalDate } from '@/lib/billing'
+import {
+    canBuyCredits,
+    getBillingState,
+    purchaseExpiry,
+    renewalDate,
+    spokenRepliesLeft,
+} from '@/lib/billing'
 import { applyPlanLimits } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
@@ -71,6 +77,8 @@ export async function GET() {
                 maxWhatsAppNumbers: 0,
                 credits: 0,
                 creditsUsed: 0,
+                maxSpokenReplies: 0,
+                spokenRepliesUsed: 0,
                 paymentMethod: null,
                 trialEndsAt: null,
                 plans: PLANS,
@@ -92,6 +100,12 @@ export async function GET() {
             maxMessages: subscription.maxMessages,
             credits: subscription.credits,
             creditsUsed: subscription.creditsUsed,
+            maxSpokenReplies: subscription.maxSpokenReplies,
+            // Medido em `usage_logs`, não contado numa coluna: é a mesma fonte
+            // que o teto usa no worker, então a tela e a decisão não divergem.
+            spokenRepliesUsed:
+                subscription.maxSpokenReplies -
+                (await spokenRepliesLeft(workspaceUser.workspaceId)),
             paymentMethod: subscription.paymentMethod,
             trialEndsAt: subscription.trialEndsAt,
             currentPeriodStart: subscription.currentPeriodStart,
@@ -148,6 +162,7 @@ export async function POST(request: NextRequest) {
                         maxAgents: planConfig.maxAgents,
                         maxMessages: planConfig.maxMessages,
                         maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
+                        maxSpokenReplies: planConfig.maxSpokenReplies,
                         credits: planConfig.credits,
                         currentPeriodStart: new Date(),
                         currentPeriodEnd: renewalDate(),
@@ -158,6 +173,10 @@ export async function POST(request: NextRequest) {
                         maxAgents: planConfig.maxAgents,
                         maxMessages: planConfig.maxMessages,
                         maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
+                        maxSpokenReplies: planConfig.maxSpokenReplies,
+                        // `credits` fica fora do update de propósito: trocar de
+                        // plano no meio do período não zera o que já foi usado
+                        // nem recarrega a franquia — isso é da renovação.
                         trialEndsAt: null,
                     }
                 })

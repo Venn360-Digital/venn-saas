@@ -241,6 +241,45 @@ export function canBuyCredits(state: BillingState): { ok: true } | { ok: false; 
 }
 
 /** The date avulso credits bought now would expire. */
+/**
+ * Quantas respostas faladas o plano ainda permite neste período.
+ *
+ * Teto, e não peso no crédito: a fala custa cerca de dez vezes o texto, e
+ * cobrar 2 créditos por resposta falada tornava a carteira imprevisível para
+ * quem olha a tela — ninguém entende por que caiu 2 em vez de 1. Com o teto, o
+ * crédito fica uniforme (uma resposta, um crédito) e a margem fica protegida
+ * igual, porque é ele que fecha o pior caso dentro dos 10% da mensalidade
+ * destinados a custo de IA.
+ *
+ * A contagem sai de `usage_logs`, que é a tabela de medição: linha com
+ * `metadata.kind = 'tts'` é uma resposta falada. Não há coluna de contador a
+ * manter em sincronia, e o período é o da assinatura.
+ */
+export async function spokenRepliesLeft(workspaceId: string): Promise<number> {
+    const subscription = await prisma.subscription.findUnique({
+        where: { workspaceId },
+        select: { maxSpokenReplies: true, currentPeriodStart: true },
+    })
+
+    if (!subscription || subscription.maxSpokenReplies <= 0) return 0
+
+    const used = await prisma.usageLog.count({
+        where: {
+            workspaceId,
+            // Sem período gravado, conta o mês corrido: melhor um recorte
+            // aproximado que um teto que nunca fecha.
+            createdAt: {
+                gte:
+                    subscription.currentPeriodStart ??
+                    new Date(Date.now() - RENEWAL_DAYS * 86_400_000),
+            },
+            metadata: { path: ['kind'], equals: 'tts' },
+        },
+    })
+
+    return Math.max(0, subscription.maxSpokenReplies - used)
+}
+
 export function purchaseExpiry(from: Date = new Date()): Date {
     return new Date(from.getTime() + PURCHASE_VALIDITY_DAYS * 86_400_000)
 }

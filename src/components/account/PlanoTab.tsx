@@ -28,6 +28,8 @@ interface SubscriptionData {
     maxMessages: number
     credits: number
     creditsUsed: number
+    maxSpokenReplies: number
+    spokenRepliesUsed: number
     paymentMethod: {
         type: string
         last4: string
@@ -219,6 +221,28 @@ export function PlanoTab() {
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0
 
+    /**
+     * Quanto da franquia já foi gasto, em percentual.
+     *
+     * É o número grande do medidor, e é de propósito que o percentual venha
+     * antes da contagem: a pergunta de quem abre esta tela é "estou perto do
+     * fim?", não "quantos créditos exatamente". Franquia zero — assinatura que
+     * nunca foi criada — mostra 0 em vez de dividir por zero.
+     */
+    const percentualUsado =
+        subscription && subscription.credits > 0
+            ? Math.min(100, Math.round((subscription.creditsUsed / subscription.credits) * 100))
+            : 0
+
+    const renovaEmDias = subscription?.currentPeriodEnd
+        ? Math.max(
+              0,
+              Math.ceil(
+                  (new Date(subscription.currentPeriodEnd).getTime() - Date.now()) / 86_400_000
+              )
+          )
+        : null
+
     /** "Plano Evolução" vira "Evolução": o rótulo ao lado já diz "Plano". */
     const planLabel = (subscription?.planName ?? '').replace(/^Plano\s+/i, '')
 
@@ -279,16 +303,64 @@ export function PlanoTab() {
                         }
                     />
                 </div>
-                <div className="px-5 py-4">
-                    <SettingsRow
-                        title="Créditos de IA"
-                        description="Cada lote custa R$ 49,90 por mês enquanto estiver ativo."
-                        action={
-                            <Button size="sm" className="h-8" onClick={() => setShowCreditsModal(true)}>
-                                Comprar créditos
-                            </Button>
-                        }
-                    />
+                {/* O medidor: percentual grande, número pequeno, dinheiro
+                    nenhum. A clínica precisa saber se está perto do fim, não
+                    quanto custa uma resposta — e a conversão de crédito para
+                    resposta não vai para a tela de propósito: publicá-la convida
+                    a dividir a mensalidade por ela. */}
+                <div className="space-y-3 px-5 py-4">
+                    <div className="flex items-end justify-between gap-4">
+                        <div>
+                            <p className="text-sm font-medium">Créditos de IA</p>
+                            <p className="text-2xl font-semibold num">
+                                {percentualUsado}%{' '}
+                                <span className="text-sm font-normal text-muted-foreground">
+                                    usado
+                                </span>
+                            </p>
+                        </div>
+                        <Button size="sm" className="h-8" onClick={() => setShowCreditsModal(true)}>
+                            Comprar créditos
+                        </Button>
+                    </div>
+
+                    <div
+                        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                        role="progressbar"
+                        aria-valuenow={percentualUsado}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label="Créditos de IA usados no período"
+                    >
+                        <div
+                            className={cn(
+                                'h-full rounded-full transition-all',
+                                percentualUsado >= 90
+                                    ? 'bg-destructive'
+                                    : percentualUsado >= 80
+                                      ? 'bg-warning'
+                                      : 'bg-primary'
+                            )}
+                            style={{ width: `${Math.min(100, percentualUsado)}%` }}
+                        />
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                        <span className="num">
+                            {(subscription?.creditsUsed ?? 0).toLocaleString('pt-BR')} de{' '}
+                            {(subscription?.credits ?? 0).toLocaleString('pt-BR')}
+                        </span>
+                        {renovaEmDias !== null ? ` · renova em ${renovaEmDias} dia(s)` : null}
+                        {(subscription?.maxSpokenReplies ?? 0) > 0 ? (
+                            <>
+                                {' · '}
+                                <span className="num">
+                                    áudio: {(subscription?.spokenRepliesUsed ?? 0).toLocaleString('pt-BR')} de{' '}
+                                    {(subscription?.maxSpokenReplies ?? 0).toLocaleString('pt-BR')}
+                                </span>
+                            </>
+                        ) : null}
+                    </p>
                 </div>
                 <div className="px-5 py-4">
                     <SettingsRow

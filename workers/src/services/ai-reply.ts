@@ -59,6 +59,15 @@ export interface GenerateReplyInput {
     agent: Agent
     workspaceId: string
     conversationId: string
+    /**
+     * Responder sem ferramenta, para esticar o crédito que resta.
+     *
+     * Ferramenta multiplica as idas ao modelo por duas a três — é o que torna a
+     * resposta boa e é o que custa mais. Com a carteira no fim, é a primeira
+     * coisa a cair depois do áudio: o agente volta a responder só pelo que sabe,
+     * em vez de emudecer. Ver a degradação em `processors/ai-reply.ts`.
+     */
+    semFerramentas?: boolean
 }
 
 export interface GeneratedReply {
@@ -171,7 +180,8 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
               timezone: agent.timezone,
           }
         : null
-    const ferramentas = toolContext ? AGENT_TOOL_DEFINITIONS : undefined
+    const ferramentas =
+        toolContext && !input.semFerramentas ? AGENT_TOOL_DEFINITIONS : undefined
 
     let response = await llm.generate(messages, ferramentas)
     await cobrar(response.usage, 0)
