@@ -295,8 +295,9 @@ export function PlanoTab() {
                     <SettingsRow
                         title={
                             <>
-                                Plano
-                                <span className="font-normal text-muted-foreground"> · Plano atual: </span>
+                                {/* "Plano · Plano atual: Evolução" dizia Plano
+                                    duas vezes. Fica só a informação. */}
+                                <span className="font-normal text-muted-foreground">Plano atual: </span>
                                 <span className="text-primary-subtle-foreground">{planLabel || '—'}</span>
                             </>
                         }
