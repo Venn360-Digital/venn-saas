@@ -420,3 +420,25 @@ not public. WhatsApp's own URLs are encrypted and never render directly.
 
 **`prisma migrate deploy` fails on boot.** Read `docker compose logs migrate`.
 `app` and `worker` are held back deliberately until it succeeds.
+
+## O token da Meta não cabia no Evolution v2
+
+Medido em 2026-10-16, criando a primeira instância `WHATSAPP-BUSINESS`: o v2
+recusa com `P2000 — The provided value for the column is too long`, vindo de
+`saveInstance`. A causa é a coluna `Instance.token`, declarada
+`character varying(255)` no schema do v2, e o token de acesso da Meta passa
+disso com folga.
+
+Corrigido alargando a coluna no banco dele:
+
+```sql
+ALTER TABLE "Instance" ALTER COLUMN token TYPE text;
+```
+
+É mudança no schema de software de terceiro, feita de propósito e registrada
+aqui. Alargar não perde dado nem quebra restrição, e o Prisma do v2 não confere
+comprimento do lado do cliente — quem recusava era o Postgres.
+
+**Se o Evolution v2 for atualizado**, confira se uma migração dele estreita a
+coluna de volta: o sintoma é a criação de instância voltar a falhar com P2000, e
+o erro vem afogado em centenas de linhas de código compilado no log.
