@@ -1,4 +1,4 @@
-import { PLAN_LIST, TRIAL, planFor } from '@/lib/plans'
+import { CREDIT_PACKS, PLAN_LIST, TRIAL, creditPackFor, planFor } from '@/lib/plans'
 import {
     canBuyCredits,
     getBillingState,
@@ -11,8 +11,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 
-// Plan configuration
-const CREDIT_PRICE = 49.90 // per 1000 credits
 
 /**
  * The plans as JSON. The shared definition carries Lucide components for the
@@ -83,7 +81,7 @@ export async function GET() {
                 trialEndsAt: null,
                 plans: PLANS,
                 trial: TRIAL,
-                creditPrice: CREDIT_PRICE,
+                creditPacks: CREDIT_PACKS,
             })
         }
 
@@ -111,7 +109,7 @@ export async function GET() {
             currentPeriodStart: subscription.currentPeriodStart,
             currentPeriodEnd: subscription.currentPeriodEnd,
             plans: PLANS,
-            creditPrice: CREDIT_PRICE,
+            creditPacks: CREDIT_PACKS,
         })
     } catch (error) {
         console.error('[API] Error fetching subscription:', error)
@@ -228,10 +226,25 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ error: permitted.reason }, { status: 402 })
                 }
 
-                const { quantity } = data
-                const lots = Math.max(1, Math.ceil(quantity / 1000))
-                const creditsToAdd = lots * 1000
-                const totalPrice = lots * CREDIT_PRICE
+                /**
+                 * A lista de pacotes é fechada, e o preço vem dela.
+                 *
+                 * Antes a rota aceitava qualquer quantidade e multiplicava por
+                 * um preço unitário — quem postasse `quantity: 1000000` levava um
+                 * milhão de créditos ao preço de tabela, sem nenhum desconto de
+                 * volume ter sido decidido para aquele tamanho. Agora só os três
+                 * pacotes existem, e o preço é o deles.
+                 */
+                const pack = creditPackFor(data.quantity)
+                if (!pack) {
+                    return NextResponse.json(
+                        { error: 'Pacote de créditos inválido.' },
+                        { status: 400 }
+                    )
+                }
+
+                const creditsToAdd = pack.credits
+                const totalPrice = pack.price
 
                 // A purchase is its own lot with its own expiry, not an increment
                 // of the plan's allowance — the plan balance is discarded at

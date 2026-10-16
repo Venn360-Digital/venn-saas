@@ -42,7 +42,7 @@ interface SubscriptionData {
         pro: PlanConfig
         advanced: PlanConfig
     }
-    creditPrice: number
+    creditPacks: { credits: number; price: number; discount: number; pitch: string }[]
 }
 
 interface PlanConfig {
@@ -78,7 +78,14 @@ export function PlanoTab() {
 
     // Action states
     const [selectedPlan, setSelectedPlan] = useState('')
-    const [creditQuantity, setCreditQuantity] = useState(1000)
+    /**
+     * Qual pacote está escolhido, pela quantidade de créditos.
+     *
+     * Era uma quantidade livre em lotes de mil, e a rota multiplicava por um
+     * preço unitário — sem desconto de volume e aceitando qualquer número. Agora
+     * a lista é fechada nos três pacotes, e o preço vem de lá.
+     */
+    const [pacoteEscolhido, setPacoteEscolhido] = useState(10_000)
     const [processing, setProcessing] = useState(false)
 
     useEffect(() => {
@@ -137,7 +144,7 @@ export function PlanoTab() {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'buy-credits', quantity: creditQuantity })
+                body: JSON.stringify({ action: 'buy-credits', quantity: pacoteEscolhido })
             })
 
             if (res.ok) {
@@ -194,10 +201,8 @@ export function PlanoTab() {
         }
     }
 
-    const calculateCreditPrice = () => {
-        const lots = Math.ceil(creditQuantity / 1000)
-        return (lots * (subscription?.creditPrice || 49.90)).toFixed(2)
-    }
+    const pacotes = subscription?.creditPacks ?? []
+    const pacote = pacotes.find((p) => p.credits === pacoteEscolhido) ?? pacotes[0]
 
     if (loading) {
         return (
@@ -514,7 +519,7 @@ export function PlanoTab() {
                 open={showCreditsModal}
                 onOpenChange={setShowCreditsModal}
                 title="Comprar créditos"
-                description={`Cada lote de 1000 créditos custa R$ ${subscription?.creditPrice?.toFixed(2) || '49,90'} por mês enquanto estiver ativo.`}
+                description="Compra única, válida por 90 dias. Não é assinatura e não renova."
                 submitLabel="Comprar créditos"
                 hideAgain
                 onSubmit={handleBuyCredits}
@@ -522,8 +527,12 @@ export function PlanoTab() {
                 summary={
                     <>
                         <SummaryCard className="flex-col items-start gap-1">
-                            <span className="num text-lg font-bold">R$ {calculateCreditPrice()}</span>
-                            <span className="text-[11px] text-muted-foreground">por mês, enquanto os créditos estiverem ativos</span>
+                            <span className="num text-lg font-bold">
+                                R$ {(pacote?.price ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                            <span className="num text-[11px] text-muted-foreground">
+                                {(pacote?.credits ?? 0).toLocaleString('pt-BR')} créditos · uma vez
+                            </span>
                         </SummaryCard>
                         {subscription?.paymentMethod ? (
                             <p className="num flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -540,21 +549,80 @@ export function PlanoTab() {
                     </>
                 }
             >
-                <FormField label="Quantidade de créditos" htmlFor="credit-qty" required hint="Em lotes de 1000.">
-                    <Input
-                        id="credit-qty"
-                        type="number"
-                        className="num"
-                        value={creditQuantity}
-                        onChange={(e) => setCreditQuantity(Math.max(1000, parseInt(e.target.value) || 1000))}
-                        step={1000}
-                        min={1000}
-                    />
-                </FormField>
+                {/* Três cartões, na mesma linguagem visual dos cartões de plano
+                    logo acima: preço grande, papel do pacote em uma linha, o que
+                    vem embaixo, e o estado de escolhido na borda. Três e não
+                    cinco porque cinco espalham a decisão — cada um destes tem um
+                    papel, e o maior é também o sinal de que está na hora de
+                    trocar de plano. */}
+                <div
+                    className="col-span-2 grid gap-3 sm:grid-cols-3"
+                    role="radiogroup"
+                    aria-label="Pacote de créditos"
+                >
+                    {pacotes.map((p) => {
+                        const escolhido = p.credits === pacoteEscolhido
+                        return (
+                            <button
+                                key={p.credits}
+                                type="button"
+                                role="radio"
+                                aria-checked={escolhido}
+                                onClick={() => setPacoteEscolhido(p.credits)}
+                                className={cn(
+                                    'group relative flex flex-col rounded-lg border p-4 text-left transition-all',
+                                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                    escolhido
+                                        ? 'border-primary bg-primary-subtle shadow-sm'
+                                        : 'border-border bg-card hover:border-primary/40 hover:shadow-sm'
+                                )}
+                            >
+                                {p.discount > 0 ? (
+                                    <span className="absolute -top-2 right-3 rounded-full bg-success-subtle px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-success-subtle-foreground">
+                                        −{Math.round(p.discount * 100)}%
+                                    </span>
+                                ) : null}
 
-                <FormField label="Valor total" htmlFor="credit-total">
-                    <Input id="credit-total" className="num" value={`R$ ${calculateCreditPrice()}`} disabled />
-                </FormField>
+                                <span className="num text-2xl font-bold leading-none">
+                                    {(p.credits / 1000).toLocaleString('pt-BR')} mil
+                                </span>
+                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                                    créditos
+                                </span>
+
+                                <span className="num mt-3 text-lg font-semibold">
+                                    R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+
+                                <span className="mt-2 border-t border-border pt-2 text-[12px] leading-snug text-muted-foreground">
+                                    {p.pitch}
+                                </span>
+
+                                {/* `mt-auto`: a marca de escolhido fica no pé nos
+                                    três cartões, mesmo com frases de alturas
+                                    diferentes. */}
+                                <span
+                                    className={cn(
+                                        'mt-auto flex items-center gap-1.5 pt-3 text-[12px] font-semibold',
+                                        escolhido ? 'text-primary-subtle-foreground' : 'text-muted-foreground'
+                                    )}
+                                >
+                                    <Check
+                                        className={cn('size-3.5', escolhido ? 'opacity-100' : 'opacity-0')}
+                                        aria-hidden="true"
+                                    />
+                                    {escolhido ? 'Escolhido' : 'Escolher'}
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+
+                <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
+                    Os créditos comprados entram num lote próprio, com validade de 90 dias, e são
+                    gastos <strong>depois</strong> da franquia do plano — que essa sim é descartada a
+                    cada renovação. Nada é cobrado de novo quando o lote vence.
+                </p>
             </RecordDialog>
 
 

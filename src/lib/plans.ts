@@ -107,6 +107,52 @@ export const PLANS: Record<PlanId, Plan> = {
 
 export const PLAN_LIST: Plan[] = [PLANS.flow, PLANS.pro, PLANS.advanced]
 
+/**
+ * Os pacotes de recarga de crédito.
+ *
+ * **Compra única**, não assinatura: o texto da tela dizia "R$ 49,90 por mês
+ * enquanto estiver ativo" enquanto o banco guardava compra única com validade —
+ * dois produtos diferentes na mesma tela, e quem comprasse leria um e receberia
+ * o outro. Recarga que se repete todo mês é upgrade de plano com outro nome.
+ *
+ * **O preço por crédito é o mesmo que o plano entrega**, e isso é deliberado: na
+ * conta do Andre, 10% da mensalidade é o orçamento de IA, e 10% de R$ 490 são os
+ * R$ 49 que compram 10.000 créditos no Essencial. Logo não há arbitragem entre
+ * comprar recarga e subir de plano — quem sobe de plano sobe por **estrutura**
+ * (números, agentes), não por combustível. É o que mantém a escada de planos
+ * honesta.
+ *
+ * **Três pacotes, não cinco.** Cinco opções espalham a decisão e quase todo o
+ * volume cai nas duas primeiras. Cada um destes tem papel: o pico pequeno, o mês
+ * de campanha, e a clínica que cresceu. O último também é sinal de que está na
+ * hora de trocar de plano — R$ 184 de recarga contra os R$ 200 que separam
+ * Essencial de Evolução, que vêm com três números a mais.
+ *
+ * A validade é a de `PURCHASE_VALIDITY_DAYS` (90 dias). Trinta foi considerado e
+ * descartado: 50.000 créditos em 30 dias exigiriam 180 atendimentos por dia
+ * contra os 20 de uma clínica de um agente — a clínica queimaria 90% do que
+ * pagou, e isso não é desconto, é pegadinha.
+ */
+export interface CreditPack {
+    credits: number
+    price: number
+    /** Desconto por crédito contra o pacote base, para a tela mostrar. */
+    discount: number
+    /** O papel do pacote, em uma linha, na voz de quem compra. */
+    pitch: string
+}
+
+export const CREDIT_PACKS: CreditPack[] = [
+    { credits: 10_000, price: 49, discount: 0, pitch: 'Para o mês que passou um pouco do normal.' },
+    { credits: 30_000, price: 125, discount: 0.15, pitch: 'Para o mês de campanha, quando o movimento triplica.' },
+    { credits: 50_000, price: 184, discount: 0.25, pitch: 'Para a clínica que cresceu e ainda não quer trocar de plano.' },
+]
+
+/** O pacote com exatamente esta quantidade, ou nada — a lista é fechada. */
+export function creditPackFor(credits: unknown): CreditPack | undefined {
+    return CREDIT_PACKS.find((pack) => pack.credits === credits)
+}
+
 export const TRIAL = {
     days: 7,
     credits: 1000,
