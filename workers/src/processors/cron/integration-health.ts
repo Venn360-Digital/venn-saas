@@ -23,9 +23,10 @@ const log = createLogger('CRON:HEALTH')
  *   volta era exatamente um `connect`, que reata pelo JID guardado em segundos,
  *   e ninguém o chamava — foi preciso alguém fazer à mão.
  *
- * Agora ela cura. A tentativa só acontece quando o provedor ainda guarda o JID:
- * sem ele o pareamento acabou de verdade, e um `connect` abriria ciclo de QR em
- * vez de retomar sessão.
+ * Agora ela cura. A tarefa roda a cada dez minutos, então esse é o teto do tempo
+ * que uma linha fica fora sem ninguém perceber. A tentativa só acontece quando o
+ * provedor ainda guarda o JID: sem ele o pareamento acabou de verdade, e um
+ * `connect` abriria ciclo de QR em vez de retomar sessão.
  */
 export async function runIntegrationHealth(): Promise<void> {
     /**
