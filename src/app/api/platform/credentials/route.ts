@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import {
-    PLATFORM_PROVIDERS,
-    getPlatformAdmin,
-    setPlatformCredentials,
-} from '@/lib/platform-credentials'
+import { PLATFORM_PROVIDERS, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials } from '@/lib/platform-credentials'
 
 import { platformSecretName, vaultSecretExists } from '@/lib/vault'
 
@@ -22,6 +18,25 @@ const KNOWN = new Set<string>(PLATFORM_PROVIDERS.map((p) => p.provider))
  */
 export async function GET() {
     const admin = await getPlatformAdmin()
+
+    /**
+     * Abrir a tela adota o que estiver esperando no ambiente.
+     *
+     * `getPlatformCredentials` semeia do `.env` para o Vault na primeira leitura
+     * em que nada está guardado — mas, enquanto nenhum fluxo da Meta existir,
+     * ninguém chama esse getter, e a tela mostraria "não configurado" com as
+     * chaves já no arquivo. Aqui ela chama, e o administrador vê ficar verde.
+     *
+     * Idempotente e só para quem administra a plataforma: a segunda abertura não
+     * faz nada, porque já há o que ler.
+     */
+    if (admin) {
+        await Promise.all(
+            PLATFORM_PROVIDERS.map((p) =>
+                getPlatformCredentials(p.provider).catch(() => null)
+            )
+        )
+    }
 
     const rows = await prisma.platformCredential.findMany({
         select: { provider: true, credentials: true, updatedAt: true },
