@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+import { MetaEmbeddedSignup } from '@/components/agents/creation/MetaEmbeddedSignup'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { WhatsAppQRModal } from '../WhatsAppQRModal'
@@ -73,13 +74,12 @@ interface CanaisTabProps {
 }
 
 /** Os canais que ainda não existem, ditos como tal. */
+/**
+ * O WhatsApp oficial saiu desta lista em 2026-10-16: ele deixou de ser "em
+ * breve" e passou a ter botão. O Instagram continua aqui porque ainda depende
+ * da revisão da Meta.
+ */
 const OUTROS_CANAIS = [
-    {
-        id: 'whatsapp_business',
-        name: 'WhatsApp API Oficial',
-        description: 'Número verificado pela Meta, sem leitura de QR Code',
-        icon: BadgeCheck,
-    },
     {
         id: 'instagram',
         name: 'Instagram e Messenger',
@@ -506,6 +506,32 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                         Ligue para gerar o código que vai no site.
                     </p>
                 )}
+            </SettingsCard>
+
+            {/* O WhatsApp oficial ganhou cartão próprio: ele conecta de verdade
+                agora, e deixá-lo entre os "em breve" seria esconder o botão. */}
+            <SettingsCard
+                title="WhatsApp API Oficial"
+                description="Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado."
+            >
+                <SettingsRow
+                    title={
+                        <span className="flex items-center gap-2">
+                            <BadgeCheck className="size-4 text-muted-foreground" aria-hidden="true" />
+                            Conectar pela Meta
+                        </span>
+                    }
+                    description="A clínica escolhe o próprio número numa janela da Meta. Nenhuma credencial passa por aqui."
+                    action={
+                        canManage ? (
+                            <MetaEmbeddedSignup agentId={agentId} onConectado={() => void carregar()} />
+                        ) : (
+                            <span className="text-[11px] text-muted-foreground">
+                                Só o administrador conecta
+                            </span>
+                        )
+                    }
+                />
             </SettingsCard>
 
             <SettingsCard

@@ -130,6 +130,31 @@ export async function setPlatformCredentials(
     })
 }
 
+/**
+ * O que do aplicativo da Meta pode ir ao navegador.
+ *
+ * Os dois são públicos por natureza: o id do aplicativo vai no SDK do Facebook,
+ * e o id da configuração diz ao SDK **qual fluxo abrir** — qual conjunto de
+ * permissões pedir e quais ativos oferecer à clínica. Nenhum dos dois autoriza
+ * nada sozinho; quem autoriza é a chave secreta, que fica no Vault e não sai do
+ * servidor.
+ *
+ * O id da configuração mora em `metadata` e não em `credentials` porque não é
+ * credencial: guardá-lo junto do segredo faria parecer que é.
+ */
+export async function getMetaPublicConfig(): Promise<{ appId: string; configId: string } | null> {
+    const row = await prisma.platformCredential.findUnique({
+        where: { provider: 'meta_messaging' },
+        select: { credentials: true, metadata: true },
+    })
+
+    const appId = (row?.credentials as { clientId?: string } | null)?.clientId
+    const configId = (row?.metadata as { configId?: string } | null)?.configId
+
+    if (!appId || !configId) return null
+    return { appId, configId }
+}
+
 export interface PlatformAdmin {
     userId: string
     workspaceId: string
