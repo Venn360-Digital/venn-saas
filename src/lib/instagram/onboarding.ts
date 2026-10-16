@@ -186,14 +186,34 @@ export async function contasDisponiveis(tokenDeUsuario: string): Promise<ContaDe
 
     return paginas.flatMap((pagina) => {
         const ig = pagina.instagram_business_account
-        if (!ig?.id || !pagina.id || !pagina.access_token) return []
+        if (!ig?.id || !pagina.id) return []
+
+        /**
+         * Nem toda configuração devolve um token por Página — e isso é uma
+         * escolha no painel da Meta, não um defeito.
+         *
+         * Com *token de acesso do usuário*, `/me/accounts` devolve o token de
+         * cada Página, e é ele que usamos: derivado de um token de usuário de
+         * longa duração, **não tem data de validade**.
+         *
+         * Com *token de usuário do sistema*, o token que já está em mãos vale
+         * pelas Páginas concedidas — a Meta documenta que esse token suporta
+         * `pages_messaging` e `instagram_manage_messages` e, por padrão, não
+         * expira. Ali o campo `access_token` por Página pode simplesmente não
+         * vir.
+         *
+         * Exigir o token da Página, como a primeira versão fazia, descartaria
+         * silenciosamente toda conta nesse segundo caso — e a clínica leria
+         * "nenhuma conta ligada a uma Página" tendo acabado de escolher a conta
+         * dela na janela da Meta. O erro mandaria procurar defeito onde não há.
+         */
         return [
             {
                 igAccountId: ig.id,
                 username: ig.username,
                 pageId: pagina.id,
                 pageName: pagina.name ?? 'Página sem nome',
-                accessToken: pagina.access_token,
+                accessToken: pagina.access_token ?? tokenDeUsuario,
             },
         ]
     })
