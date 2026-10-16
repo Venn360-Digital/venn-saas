@@ -1,6 +1,6 @@
 'use client'
 
-import { REDES_DO_PLANO } from '@/lib/plans'
+import { redesDoPlano } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -479,20 +479,30 @@ export function PlanoTab() {
                                             Conexões disponíveis
                                         </p>
                                         <div className="mt-1.5 flex items-center gap-1.5">
-                                            {REDES_DO_PLANO.map((rede) => {
+                                            {redesDoPlano(planKey).map((rede) => {
                                                 const RedeIcon = rede.icon
                                                 return (
                                                     <span
                                                         key={rede.id}
                                                         title={rede.emBreve ? `${rede.label} — em breve` : rede.label}
-                                                        className={cn(
-                                                            'flex size-7 items-center justify-center rounded-md bg-muted',
-                                                            rede.emBreve
-                                                                ? 'text-muted-foreground opacity-40'
-                                                                : 'text-foreground'
-                                                        )}
+                                                        /* Todos na mesma cor: o esmaecido do "em
+                                                           breve" sujava a fileira. Que o canal ainda
+                                                           não existe segue dito no `title` e no rótulo
+                                                           de leitor de tela — e a lista de itens logo
+                                                           abaixo é quem promete de verdade. */
+                                                        className="relative flex size-8 items-center justify-center rounded-md bg-muted text-foreground"
                                                     >
                                                         <RedeIcon className="size-4" />
+                                                        {/* A marca no canto distingue as duas conexões da mesma rede: o
+                                                            WhatsApp entra por QR Code ou pela API oficial, e são produtos
+                                                            diferentes para a clínica. Sem ela, dois ícones idênticos lado a
+                                                            lado — pior que não mostrar. O nome inteiro está no `title` e no
+                                                            rótulo de leitor de tela; a marca é só a pista visual. */}
+                                                        {rede.marca ? (
+                                                            <span className="absolute -bottom-0.5 -right-1 rounded-sm bg-foreground px-[3px] text-[7px] font-bold leading-[1.35] tracking-tight text-background">
+                                                                {rede.marca}
+                                                            </span>
+                                                        ) : null}
                                                         <span className="sr-only">
                                                             {rede.label}
                                                             {rede.emBreve ? ' (em breve)' : ''}

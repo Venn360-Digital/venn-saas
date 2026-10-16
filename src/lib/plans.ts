@@ -26,6 +26,7 @@ import {
     MessengerIcon,
     WhatsAppIcon,
 } from '@/components/shared/BrandIcons'
+import { Globe } from 'lucide-react'
 
 // Reexportados para quem já importava daqui — a definição mora em
 // `plan-limits.ts`, que o worker também lê.
@@ -75,16 +76,44 @@ export interface PlanFeature {
 export interface RedeDoPlano {
     id: string
     label: string
-    icon: (props: React.SVGProps<SVGSVGElement>) => React.ReactElement
+    /**
+     * Aceita tanto os glifos de marca daqui quanto um ícone do Lucide — o do
+     * site não é marca nenhuma, é um globo.
+     */
+    icon: React.ComponentType<{ className?: string }>
+    /**
+     * Marca no canto do ícone, para distinguir duas conexões da mesma rede.
+     *
+     * Só o WhatsApp tem: a mesma rede entra por leitura de QR Code ou pela API
+     * oficial da Meta, e são produtos diferentes para a clínica — a oficial não
+     * depende de um celular ligado. Sem a marca, seriam dois ícones idênticos
+     * lado a lado, que é pior que não mostrar.
+     */
+    marca?: string
     /** O produto ainda não atende. O cartão não pode prometer o que não existe. */
     emBreve?: boolean
+    /**
+     * Em quais planos esta conexão entra. Ausente: em todos.
+     *
+     * O agente no site é item do Prime para cima, e sem este recorte o cartão do
+     * Digital mostraria o ícone do site na fileira enquanto a lista de itens
+     * logo abaixo não o traz — a mesma tela dizendo duas coisas.
+     */
+    planos?: PlanId[]
 }
 
 export const REDES_DO_PLANO: RedeDoPlano[] = [
+    { id: 'site', label: 'Site da clínica', icon: Globe, planos: ['pro', 'advanced'] },
     { id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
+    { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: WhatsAppIcon, marca: 'API', emBreve: true },
     { id: 'instagram', label: 'Instagram Direct', icon: InstagramIcon, emBreve: true },
     { id: 'messenger', label: 'Messenger', icon: MessengerIcon, emBreve: true },
 ]
+
+/** As conexões que este plano anuncia, na ordem da fileira. */
+export function redesDoPlano(planId: PlanId): RedeDoPlano[] {
+    return REDES_DO_PLANO.filter((rede) => !rede.planos || rede.planos.includes(planId))
+}
 
 export interface Plan {
     id: PlanId

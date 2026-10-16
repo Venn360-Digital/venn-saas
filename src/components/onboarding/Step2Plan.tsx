@@ -4,7 +4,7 @@ import { Check, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { PLAN_LIST, REDES_DO_PLANO, TRIAL, formatPrice } from '@/lib/plans'
+import { PLAN_LIST, TRIAL, formatPrice, redesDoPlano } from '@/lib/plans'
 import { cn } from '@/lib/utils'
 
 interface Step2PlanProps {
@@ -80,20 +80,28 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                                     Conexões disponíveis
                                 </p>
                                 <div className="mt-2 flex items-center gap-1.5">
-                                    {REDES_DO_PLANO.map((rede) => {
+                                    {redesDoPlano(plan.id).map((rede) => {
                                         const RedeIcon = rede.icon
                                         return (
                                             <span
                                                 key={rede.id}
                                                 title={rede.emBreve ? `${rede.label} — em breve` : rede.label}
-                                                className={cn(
-                                                    'flex size-7 items-center justify-center rounded-md bg-muted',
-                                                    rede.emBreve
-                                                        ? 'text-muted-foreground opacity-40'
-                                                        : 'text-foreground'
-                                                )}
+                                                /* Todos na mesma cor: o esmaecido sujava a
+                                                   fileira. O "em breve" segue no `title` e no
+                                                   rótulo de leitor de tela. */
+                                                className="relative flex size-8 items-center justify-center rounded-md bg-muted text-foreground"
                                             >
                                                 <RedeIcon className="size-4" />
+                                                {/* A marca no canto distingue as duas conexões da mesma rede: o
+                                                    WhatsApp entra por QR Code ou pela API oficial, e são produtos
+                                                    diferentes para a clínica. Sem ela, dois ícones idênticos lado a
+                                                    lado — pior que não mostrar. O nome inteiro está no `title` e no
+                                                    rótulo de leitor de tela; a marca é só a pista visual. */}
+                                                {rede.marca ? (
+                                                    <span className="absolute -bottom-0.5 -right-1 rounded-sm bg-foreground px-[3px] text-[7px] font-bold leading-[1.35] tracking-tight text-background">
+                                                        {rede.marca}
+                                                    </span>
+                                                ) : null}
                                                 <span className="sr-only">
                                                     {rede.label}
                                                     {rede.emBreve ? ' (em breve)' : ''}
