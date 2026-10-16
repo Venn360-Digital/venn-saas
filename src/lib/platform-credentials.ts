@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+import { platformSecretName, readVaultSecret, writeVaultSecret } from '@/lib/vault'
 
 /**
  * The OAuth application's own credentials, registered once for every clinic.
@@ -37,32 +38,95 @@ export const PLATFORM_PROVIDERS = [
 
 export type PlatformProvider = (typeof PLATFORM_PROVIDERS)[number]['provider']
 
+/**
+ * De onde cada metade vem, e por quê.
+ *
+ * O **clientId** fica na coluna, em claro: ele é público — vai para o navegador
+ * dentro do SDK de qualquer jeito — e guardar valor público num cofre só faria
+ * parecer que ele é secreto.
+ *
+ * O **clientSecret** vem do Vault, cifrado. Ver `lib/vault.ts` para o porquê de
+ * não ser nem o `.env` nem a coluna em texto puro.
+ */
 export async function getPlatformCredentials(provider: string): Promise<OAuthAppCredentials | null> {
     const row = await prisma.platformCredential.findUnique({
         where: { provider },
         select: { credentials: true },
     })
     const creds = (row?.credentials ?? {}) as Partial<OAuthAppCredentials>
-    if (!creds.clientId || !creds.clientSecret) return null
-    return { clientId: creds.clientId, clientSecret: creds.clientSecret }
+
+    const clientId = creds.clientId ?? null
+    const clientSecret = await readVaultSecret(platformSecretName(provider))
+
+    if (clientId && clientSecret) return { clientId, clientSecret }
+
+    // Nada guardado ainda: tenta o ambiente, que é o canal por onde o
+    // responsável pela plataforma injeta a primeira vez. Ver `semearDoAmbiente`.
+    return semearDoAmbiente(provider)
 }
 
+/**
+ * O `.env` como **canal de entrada**, não como lugar de morada.
+ *
+ * O Andre pediu para colar as chaves no `.env`, e o `.env` chega aos contêineres
+ * por `env_file` — não exige mexer no compose. Mas o arquivo é texto puro no
+ * mesmo disco do banco: serve para **injetar**, não para guardar.
+ *
+ * Então, na primeira vez que o provedor é lido e nada está guardado, o valor do
+ * ambiente é copiado para o Vault e para a coluna, e o log diz que já dá para
+ * apagar do arquivo. Quem não apagar não fica pior do que estaria com o segredo
+ * só no `.env`; quem apagar ganha o cofre inteiro.
+ *
+ * Só semeia quando não há nada guardado: assim o que foi gravado pela tela de
+ * administração nunca é sobrescrito por um `.env` esquecido.
+ */
+const SEMENTES: Record<string, { id?: string; secret?: string }> = {
+    meta_messaging: { id: 'META_APP_ID', secret: 'META_APP_SECRET' },
+}
+
+async function semearDoAmbiente(provider: string): Promise<OAuthAppCredentials | null> {
+    const nomes = SEMENTES[provider]
+    if (!nomes?.id || !nomes.secret) return null
+
+    const clientId = process.env[nomes.id]?.trim()
+    const clientSecret = process.env[nomes.secret]?.trim()
+    if (!clientId || !clientSecret) return null
+
+    await setPlatformCredentials(provider, { clientId, clientSecret }, 'env')
+
+    console.warn(
+        `[PLATFORM_CREDENTIALS] ${provider} veio de ${nomes.id}/${nomes.secret} e foi ` +
+            'guardado cifrado no Vault. Pode apagar as duas linhas do .env — o ' +
+            'arquivo é texto puro no mesmo disco do banco.'
+    )
+
+    return { clientId, clientSecret }
+}
+
+/**
+ * Grava as duas metades nos seus lugares: o id na coluna, o segredo no Vault.
+ *
+ * A coluna guarda **só** o `clientId` — a forma antiga guardava os dois em
+ * claro, e é dela que o segredo saiu. A linha continua existindo porque é ela
+ * que carrega quem alterou e quando, que a tela mostra.
+ */
 export async function setPlatformCredentials(
     provider: string,
     credentials: OAuthAppCredentials,
     updatedBy: string
 ) {
+    await writeVaultSecret(
+        platformSecretName(provider),
+        credentials.clientSecret,
+        `Client secret do app de plataforma "${provider}" do OdontoBox360.`
+    )
+
+    const apenasId = { clientId: credentials.clientId } as unknown as Prisma.InputJsonObject
+
     await prisma.platformCredential.upsert({
         where: { provider },
-        create: {
-            provider,
-            credentials: credentials as unknown as Prisma.InputJsonObject,
-            updatedBy,
-        },
-        update: {
-            credentials: credentials as unknown as Prisma.InputJsonObject,
-            updatedBy,
-        },
+        create: { provider, credentials: apenasId, updatedBy },
+        update: { credentials: apenasId, updatedBy },
     })
 }
 

@@ -7,6 +7,8 @@ import {
     setPlatformCredentials,
 } from '@/lib/platform-credentials'
 
+import { platformSecretName, vaultSecretExists } from '@/lib/vault'
+
 const KNOWN = new Set<string>(PLATFORM_PROVIDERS.map((p) => p.provider))
 
 /**
@@ -26,20 +28,30 @@ export async function GET() {
     })
     const byProvider = new Map(rows.map((r) => [r.provider, r]))
 
-    return NextResponse.json({
-        isPlatformAdmin: Boolean(admin),
-        providers: PLATFORM_PROVIDERS.map((p) => {
+    /**
+     * "Configurado" passa a ser id na coluna **e** segredo no Vault.
+     *
+     * O segredo saiu da coluna — ver `lib/vault.ts` —, então a conta antiga
+     * (`creds.clientId && creds.clientSecret`) daria "não configurado" para
+     * sempre. A conferência no Vault é por existência, sem decifrar: a tela não
+     * precisa do valor, só da resposta.
+     */
+    const providers = await Promise.all(
+        PLATFORM_PROVIDERS.map(async (p) => {
             const row = byProvider.get(p.provider)
-            const creds = (row?.credentials ?? {}) as { clientId?: string; clientSecret?: string }
-            const configured = Boolean(creds.clientId && creds.clientSecret)
+            const creds = (row?.credentials ?? {}) as { clientId?: string }
+            const temSegredo = await vaultSecretExists(platformSecretName(p.provider))
+            const configured = Boolean(creds.clientId && temSegredo)
             return {
                 ...p,
                 configured,
-                clientId: admin && configured ? creds.clientId : null,
+                clientId: admin && creds.clientId ? creds.clientId : null,
                 updatedAt: row?.updatedAt ?? null,
             }
-        }),
-    })
+        })
+    )
+
+    return NextResponse.json({ isPlatformAdmin: Boolean(admin), providers })
 }
 
 /** PUT — register or replace one provider's application credentials. */
