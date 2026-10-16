@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { RENEWAL_DAYS } from '@/lib/billing'
+import { limitsFor } from '@/lib/plan-limits'
 import { createLogger } from '../../logger'
 
 const log = createLogger('CRON:CREDITS')
@@ -30,6 +31,23 @@ const PERIOD_MS = RENEWAL_DAYS * 86_400_000
  * This is a local clock-based roll. No payment webhook exists yet, so there is no
  * authoritative billing event to key off; once one lands, `invoice.paid` should
  * drive this and the job becomes the fallback.
+ *
+ * **E relê a tabela do plano**, desde 2026-10-15. A assinatura guarda uma cópia
+ * dos limites, escrita quando o plano é escolhido, e antes disto a cópia valia
+ * para sempre: a renovação zerava o consumo e nunca atualizava a franquia. O
+ * efeito era que mudar o número em `plan-limits.ts` só alcançava cliente novo —
+ * toda clínica já assinada ficava congelada no valor do dia em que assinou.
+ *
+ * A sincronia tem duas velocidades, de propósito:
+ *
+ * - **Franquias** (`credits`, `maxMessages`, `maxSpokenReplies`) seguem a tabela
+ *   em qualquer direção. São do período, e renovar é exatamente o momento de
+ *   reescrevê-las.
+ * - **Limites estruturais** (`maxAgents`, `maxWhatsAppNumbers`) só **sobem**.
+ *   Baixá-los tiraria da clínica um número que ela está usando agora, no meio da
+ *   madrugada, sem ninguém ter decidido isso — redução tem de ser ação
+ *   deliberada e visível, pela tela de plano, que é onde `applyPlanLimits` roda
+ *   e pausa o que excede. Aqui, redução virou log.
  */
 export async function runCreditsReset(): Promise<void> {
     const now = new Date()
@@ -42,9 +60,14 @@ export async function runCreditsReset(): Promise<void> {
         select: {
             id: true,
             workspaceId: true,
+            plan: true,
             currentPeriodEnd: true,
             creditsUsed: true,
             credits: true,
+            maxMessages: true,
+            maxSpokenReplies: true,
+            maxAgents: true,
+            maxWhatsAppNumbers: true,
         },
     })
 
@@ -65,19 +88,45 @@ export async function runCreditsReset(): Promise<void> {
             periodEnd = new Date(periodEnd.getTime() + PERIOD_MS)
         }
 
+        const tabela = limitsFor(subscription.plan)
+
+        // Estrutural só sobe. Redução fica no log para alguém decidir à mão.
+        if (
+            tabela.maxAgents < subscription.maxAgents ||
+            tabela.maxWhatsAppNumbers < subscription.maxWhatsAppNumbers
+        ) {
+            log.warn(
+                `workspace ${subscription.workspaceId}: a tabela do plano ` +
+                    `${subscription.plan} reduz limite estrutural ` +
+                    `(agentes ${subscription.maxAgents}→${tabela.maxAgents}, ` +
+                    `números ${subscription.maxWhatsAppNumbers}→${tabela.maxWhatsAppNumbers}). ` +
+                    'Mantido o atual: reduzir é ação da tela de plano, não desta tarefa.'
+            )
+        }
+
         await prisma.subscription.update({
             where: { id: subscription.id },
             data: {
                 creditsUsed: 0,
                 currentPeriodStart: periodStart,
                 currentPeriodEnd: periodEnd,
+                credits: tabela.credits,
+                maxMessages: tabela.maxMessages,
+                maxSpokenReplies: tabela.maxSpokenReplies,
+                maxAgents: Math.max(subscription.maxAgents, tabela.maxAgents),
+                maxWhatsAppNumbers: Math.max(
+                    subscription.maxWhatsAppNumbers,
+                    tabela.maxWhatsAppNumbers
+                ),
             },
         })
 
+        const mudouFranquia = subscription.credits !== tabela.credits
         log.info(
             `renewed workspace ${subscription.workspaceId}: ` +
-                `${subscription.creditsUsed}/${subscription.credits} used → 0, ` +
-                `next period ends ${periodEnd.toISOString()}`
+                `${subscription.creditsUsed}/${subscription.credits} used → 0` +
+                (mudouFranquia ? `, franquia ${subscription.credits}→${tabela.credits}` : '') +
+                `, next period ends ${periodEnd.toISOString()}`
         )
     }
 }
