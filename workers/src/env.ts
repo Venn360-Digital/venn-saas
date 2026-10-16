@@ -84,9 +84,10 @@ const schema = z.object({
     // How far ahead the recurrence job materialises repeating activities.
     RECURRENCE_HORIZON_DAYS: z.coerce.number().int().positive().default(60),
 
-    // Auto-close conversations idle for this many hours. 0 disables the job,
-    // which is the default: silently closing a thread is a product decision.
-    CONVERSATION_AUTOCLOSE_HOURS: z.coerce.number().int().min(0).default(0),
+    // O prazo para finalizar atendimento em silêncio saiu daqui em 2026-10-15 e
+    // virou `autoCloseDays`, parâmetro do agente: era um número só para toda a
+    // instalação, e fechar conversa é decisão de cada clínica. Ver
+    // `processors/cron/conversation-autoclose.ts`.
 
     // Set false on replicas so only one process owns the repeatable cron jobs.
     ENABLE_SCHEDULER: z

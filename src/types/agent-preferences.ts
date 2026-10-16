@@ -55,6 +55,20 @@ export const agentPreferencesSchema = z.object({
      * existe para o agente que nunca configurou preferência nenhuma.
      */
     interactionLimit: z.number().int().min(0).max(1000),
+    /**
+     * Dias de silêncio até a conversa ser finalizada sozinha. Zero é nunca.
+     *
+     * Era `CONVERSATION_AUTOCLOSE_HOURS`, do ambiente, igual para toda clínica
+     * da instalação — e desligado, porque finalizar um fio ao qual o paciente
+     * pode voltar é decisão de produto, não padrão de infraestrutura. Decisão de
+     * produto é exatamente o que a clínica deve poder tomar, então virou
+     * parâmetro do agente.
+     *
+     * Finalizar **recomeça o limite de respostas** do atendimento (ver
+     * `closedAt`), então este campo é também o que garante que o limite se
+     * renove numa clínica que não fecha conversa à mão.
+     */
+    autoCloseDays: z.number().int().min(0).max(365),
 })
 
 export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
@@ -86,6 +100,8 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     /** Clínica responde de clínica: fora disso, recusa educadamente. */
     restrictTopics: true,
     interactionLimit: 12,
+    /** Trinta dias de silêncio e o atendimento se encerra sozinho. */
+    autoCloseDays: 30,
 }
 
 /**
@@ -113,6 +129,14 @@ export const UNCONFIGURED_AGENT_PREFERENCES: AgentPreferences = {
     restrictTopics: false,
     /** Sem limite, como antes. */
     interactionLimit: 0,
+    /**
+     * Zero, e não 30: `CONVERSATION_AUTOCLOSE_HOURS` está desligado em
+     * produção, então finalizar sozinho é comportamento que nenhum agente no
+     * ar tem hoje. Ligá-lo no deploy começaria a encerrar conversa de
+     * paciente sem a clínica ter escolhido isso. Passa a valer 30 quando ela
+     * abrir Parâmetros do agente e salvar.
+     */
+    autoCloseDays: 0,
 }
 
 /** Se a clínica chegou a gravar preferência alguma para este agente. */

@@ -9,6 +9,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-preferences'
 
@@ -126,6 +127,40 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
                                     aria-label="Restringir temas permitidos"
                                     onCheckedChange={(restrictTopics) => onChange({ restrictTopics })}
                                 />
+                            }
+                        />
+                    </div>
+
+                    {/* Campo livre, e não lista: trinta dias é o que a clínica
+                        recebe, não o que ela tem de aceitar. Fechar conversa é
+                        decisão de operação — quem atende só por indicação quer
+                        um prazo longo, quem vive de tráfego pago quer curto. */}
+                    <div className="border-t border-border pt-4">
+                        <SettingsRow
+                            title="Finalizar atendimento sem resposta"
+                            description="Dias de silêncio até o atendimento ser encerrado sozinho. O paciente que voltar reabre a conversa, e o limite de interações recomeça. Zero mantém tudo aberto."
+                            action={
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        max={365}
+                                        className="num w-[90px]"
+                                        aria-label="Dias até finalizar o atendimento"
+                                        value={String(data.autoCloseDays)}
+                                        onChange={(e) => {
+                                            // Campo vazio vira 0 em vez de NaN: digitar
+                                            // apagando o número não pode gravar lixo.
+                                            const n = parseInt(e.target.value, 10)
+                                            onChange({
+                                                autoCloseDays: Number.isNaN(n)
+                                                    ? 0
+                                                    : Math.min(365, Math.max(0, n)),
+                                            })
+                                        }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">dias</span>
+                                </div>
                             }
                         />
                     </div>
