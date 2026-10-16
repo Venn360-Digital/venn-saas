@@ -55,8 +55,19 @@ export function Step2Plan({ data, updateData, onNext, onBack }: Step2PlanProps) 
                                     : 'border-border bg-card hover:border-border-strong'
                             )}
                         >
+                            {/* O mesmo ícone da tela de alterar plano, para as
+                                duas telas apresentarem o mesmo produto. */}
                             <div className="flex items-start justify-between gap-2">
-                                <h3 className="text-h4">{plan.name}</h3>
+                                <div className="flex items-center gap-2">
+                                    <img
+                                        src={plan.icon}
+                                        alt=""
+                                        width={36}
+                                        height={36}
+                                        className="size-9 shrink-0"
+                                    />
+                                    <h3 className="text-h4">{plan.name}</h3>
+                                </div>
                                 {plan.badge ? (
                                     <Badge variant="info">{plan.badge}</Badge>
                                 ) : null}

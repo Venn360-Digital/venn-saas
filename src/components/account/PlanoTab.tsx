@@ -10,9 +10,6 @@ import { FormField } from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
 import {
     Gift,
-    Zap,
-    Star,
-    Crown,
     Check,
     CreditCard,
     X
@@ -47,6 +44,7 @@ interface SubscriptionData {
 
 interface PlanConfig {
     name: string
+    icon: string
     description: string
     price: number
     badge: string | null
@@ -55,12 +53,6 @@ interface PlanConfig {
     maxMessages: number
     maxWhatsAppNumbers: number
     credits: number
-}
-
-const planIcons: Record<string, React.ElementType> = {
-    flow: Zap,
-    pro: Star,
-    advanced: Crown,
 }
 
 export function PlanoTab() {
@@ -416,7 +408,6 @@ export function PlanoTab() {
                             const plan = subscription?.plans[planKey]
                             if (!plan) return null
 
-                            const Icon = planIcons[planKey]
                             const isSelected = selectedPlan === planKey
                             const isCurrent = subscription?.plan === planKey
                             const isPopular = planKey === 'pro'
@@ -444,16 +435,18 @@ export function PlanoTab() {
                                         </span>
                                     )}
 
+                                    {/* Sem a plaquinha colorida atrás: ela existia
+                                        para dar corpo a um glifo monocromático do
+                                        Lucide, e por baixo de um ícone que já tem
+                                        degradê próprio ela só brigava. */}
                                     <div className="flex items-center gap-2">
-                                        <span className={cn(
-                                            'flex size-8 shrink-0 items-center justify-center rounded-lg',
-                                            planKey === 'flow' ? 'bg-warning-subtle' : planKey === 'pro' ? 'bg-primary-subtle' : 'bg-muted'
-                                        )}>
-                                            <Icon className={cn(
-                                                'size-4',
-                                                planKey === 'flow' ? 'text-warning-subtle-foreground' : planKey === 'pro' ? 'text-primary' : 'text-muted-foreground'
-                                            )} />
-                                        </span>
+                                        <img
+                                            src={plan.icon}
+                                            alt=""
+                                            width={32}
+                                            height={32}
+                                            className="size-8 shrink-0"
+                                        />
                                         <h3 className="text-[15px] font-bold">{plan.name}</h3>
                                     </div>
 

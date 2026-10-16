@@ -117,6 +117,21 @@ export function redesDoPlano(planId: PlanId): RedeDoPlano[] {
 
 export interface Plan {
     id: PlanId
+    /**
+     * O ícone do plano, em `public/planos`.
+     *
+     * Eram glifos genéricos do Lucide — raio, estrela e coroa —, que não diziam
+     * nada sobre o produto e não eram da marca. Estes são desenhados para o
+     * sistema: um, dois e três balões de conversa, com o degradê do ciano da
+     * marca. A contagem de balões é o degrau do plano, e conversa é o que o
+     * produto faz.
+     *
+     * A ponta escura do degradê para no azul médio, e não no marinho da marca,
+     * porque o cartão no tema escuro é marinho (#0e2440) e os balões escuros
+     * sumiam dentro dele — medido compondo o ícone sobre os dois fundos. Um
+     * arquivo serve aos dois temas.
+     */
+    icon: string
     name: string
     description: string
     price: number
@@ -136,6 +151,7 @@ export interface Plan {
 export const PLANS: Record<PlanId, Plan> = {
     flow: {
         id: 'flow',
+        icon: '/planos/digital.png',
         name: 'Plano Digital',
         description:
             'Para clínicas que precisam conectar pacientes, WhatsApp e atendimento em um só lugar.',
@@ -153,6 +169,7 @@ export const PLANS: Record<PlanId, Plan> = {
     },
     pro: {
         id: 'pro',
+        icon: '/planos/prime.png',
         name: 'Plano Prime',
         description:
             'Para clínicas que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.',
@@ -173,6 +190,7 @@ export const PLANS: Record<PlanId, Plan> = {
     },
     advanced: {
         id: 'advanced',
+        icon: '/planos/multiclinica.png',
         name: 'Plano Multiclínica',
         description:
             'Para clínicas com operações maiores, múltiplas unidades e maior fluxo de pacientes.',
