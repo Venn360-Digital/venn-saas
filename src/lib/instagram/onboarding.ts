@@ -241,6 +241,78 @@ export async function assinarPaginaAoApp(
 }
 
 /**
+ * As permissões sem as quais este fluxo não funciona, e o que cada uma faz.
+ *
+ * A lista é curta de propósito. Pedir permissão que não se usa é o que trava
+ * revisão de aplicativo e o que faz a clínica desistir na janela de
+ * consentimento — e a própria Meta, no guia de início do Instagram Messaging,
+ * cita só as três primeiras. `pages_show_list` entra porque **nós** listamos as
+ * Páginas da clínica para descobrir qual tem Instagram ligado.
+ *
+ * Fora da lista de propósito: `pages_messaging` é do Messenger, que não está no
+ * escopo; `pages_read_engagement` serve para ler conteúdo da Página, e não
+ * lemos nenhum.
+ */
+export const PERMISSOES_NECESSARIAS: Record<string, string> = {
+    instagram_basic: 'descobrir qual conta de Instagram está ligada à Página',
+    instagram_manage_messages: 'receber e responder o Direct',
+    pages_manage_metadata: 'assinar a Página ao aplicativo, que é o que faz o evento chegar',
+    pages_show_list: 'listar as Páginas da clínica para achar a certa',
+}
+
+/**
+ * Quais das permissões necessárias **não** foram concedidas.
+ *
+ * Só é chamada no caminho da falha, e existe para desfazer uma ambiguidade
+ * cara: `/me/accounts` devolve lista vazia tanto quando a conta não está ligada
+ * a uma Página quanto quando falta permissão para enxergá-la. São problemas
+ * opostos — um é da clínica, outro é da configuração no painel da Meta — e
+ * mandar a pessoa errada procurar o defeito custa uma tarde.
+ */
+async function permissoesFaltando(tokenDeUsuario: string): Promise<string[]> {
+    try {
+        const corpo = await graph('permissões', `${GRAPH}/me/permissions`, {
+            headers: { Authorization: `Bearer ${tokenDeUsuario}` },
+        })
+        const lista = Array.isArray(corpo.data)
+            ? (corpo.data as { permission?: string; status?: string }[])
+            : []
+
+        const concedidas = new Set(
+            lista.filter((p) => p.status === 'granted').map((p) => p.permission)
+        )
+        return Object.keys(PERMISSOES_NECESSARIAS).filter((p) => !concedidas.has(p))
+    } catch {
+        // A consulta é diagnóstico: falhar aqui não pode trocar a mensagem da
+        // clínica por um erro sobre a consulta em si.
+        return []
+    }
+}
+
+/**
+ * Por que não há conta para ligar — dizendo qual dos dois motivos é o seu.
+ *
+ * A lista vazia da Meta vem sem erro e sem pista. Esta função transforma o
+ * silêncio dela em uma das duas frases que levam a pessoa certa ao lugar certo.
+ */
+export async function explicarListaVazia(tokenDeUsuario: string): Promise<string> {
+    const faltando = await permissoesFaltando(tokenDeUsuario)
+
+    if (faltando.length > 0) {
+        const detalhe = faltando
+            .map((p) => `${p} (${PERMISSOES_NECESSARIAS[p]})`)
+            .join('; ')
+        return (
+            'A conexão foi autorizada, mas sem as permissões necessárias: ' +
+            `${detalhe}. Isto é configuração do aplicativo na Meta, não da clínica — ` +
+            'acrescente-as à configuração do Login do Facebook para Empresas e tente de novo.'
+        )
+    }
+
+    return SEM_CONTA_LIGADA
+}
+
+/**
  * A mensagem que a clínica lê quando não há conta para ligar.
  *
  * Separada porque é a falha mais comum deste fluxo e a que a Meta explica pior:

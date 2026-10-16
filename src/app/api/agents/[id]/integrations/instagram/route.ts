@@ -5,9 +5,9 @@ import prisma from '@/lib/prisma'
 import { manageAgent, readAgent } from '@/lib/auth/agent'
 import {
     PERMITIR_ACESSO_A_MENSAGENS,
-    SEM_CONTA_LIGADA,
     assinarPaginaAoApp,
     contasDisponiveis,
+    explicarListaVazia,
     tokenDeLongaDuracao,
     trocarCodigoPorTokenDeUsuario,
 } from '@/lib/instagram/onboarding'
@@ -103,7 +103,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const contas = await contasDisponiveis(tokenDeUsuario)
 
         if (contas.length === 0) {
-            return NextResponse.json({ error: SEM_CONTA_LIGADA }, { status: 400 })
+            // Lista vazia tem dois motivos opostos — falta de permissão no
+            // aplicativo, ou conta sem Página. Aqui se descobre qual é.
+            return NextResponse.json(
+                { error: await explicarListaVazia(tokenDeUsuario) },
+                { status: 400 }
+            )
         }
 
         const escolhida = dados.pageId
