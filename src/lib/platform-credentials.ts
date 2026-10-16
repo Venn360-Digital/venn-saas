@@ -27,6 +27,11 @@ export const PLATFORM_PROVIDERS = [
     { provider: 'google_calendar', label: 'Google Calendar', help: 'Projeto no Google Cloud com a Calendar API ativa.' },
     { provider: 'google_ads', label: 'Google Ads', help: 'Mesmo projeto do Google, com a Ads API ativa.' },
     { provider: 'meta_ads', label: 'Meta Ads', help: 'App no Meta for Developers.' },
+    {
+        provider: 'meta_messaging',
+        label: 'WhatsApp e Instagram (Meta)',
+        help: 'App OdontoBox360 no portfólio Venn360. O Client ID é o ID do aplicativo; o Client Secret é a chave secreta, em Configurações → Básico.',
+    },
     { provider: 'clinicorp', label: 'Clinicorp', help: 'Token de integração fornecido pelo Clinicorp.' },
 ] as const
 
