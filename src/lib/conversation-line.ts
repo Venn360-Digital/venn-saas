@@ -19,6 +19,19 @@ import prisma from '@/lib/prisma'
 
 export const WHATSAPP_CHANNELS = ['whatsapp_qr', 'whatsapp_business']
 
+/**
+ * As linhas que podem atender uma conversa, pelo canal dela.
+ *
+ * Um fio de Instagram só é atendido por uma conta de Instagram, e um de
+ * WhatsApp por um número. Sem esta separação, uma conversa do Direct sem linha
+ * gravada adotaria o WhatsApp da clínica — e a resposta sairia por um número
+ * para um paciente que escreveu pelo Instagram, ou seja, não sairia de jeito
+ * nenhum, com o erro aparecendo longe da causa.
+ */
+function canaisQueAtendem(channel: string | null | undefined): string[] {
+    return channel === 'instagram' ? ['instagram'] : WHATSAPP_CHANNELS
+}
+
 export type LineResolution =
     | { ok: true; integration: AgentIntegration; adopted: boolean }
     /** A linha do fio existe e está fora do ar: não se envia por outra. */
@@ -45,7 +58,10 @@ export async function resolveConversationLine(conversation: {
     integrationId: string | null
     agentId: string | null
     workspaceId: string
+    /** O canal do fio. Ausente é tratado como WhatsApp, que é o histórico. */
+    channel?: string | null
 }): Promise<LineResolution> {
+    const canais = canaisQueAtendem(conversation.channel)
     if (conversation.integrationId) {
         const line = await prisma.agentIntegration.findUnique({
             where: { id: conversation.integrationId },
@@ -72,7 +88,7 @@ export async function resolveConversationLine(conversation: {
             ? await prisma.agentIntegration.findFirst({
                   where: {
                       agentId: conversation.agentId,
-                      channel: { in: WHATSAPP_CHANNELS },
+                      channel: { in: canais },
                       status: 'connected',
                   },
                   orderBy: { connectedAt: 'desc' },
@@ -81,7 +97,7 @@ export async function resolveConversationLine(conversation: {
         (await prisma.agentIntegration.findFirst({
             where: {
                 agent: { workspaceId: conversation.workspaceId },
-                channel: { in: WHATSAPP_CHANNELS },
+                channel: { in: canais },
                 status: 'connected',
             },
             orderBy: { connectedAt: 'desc' },

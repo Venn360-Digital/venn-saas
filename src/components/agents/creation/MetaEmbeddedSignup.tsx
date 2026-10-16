@@ -5,6 +5,7 @@ import { BadgeCheck, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { useFacebookSdk } from '@/components/agents/creation/useFacebookSdk'
 
 /**
  * O botão que liga o WhatsApp oficial da clínica, sem ninguém tocar em token.
@@ -25,20 +26,6 @@ import { Button } from '@/components/ui/button'
  * integração — e os trinta segundos do código não perdoam uma segunda tentativa.
  */
 
-declare global {
-    interface Window {
-        FB?: {
-            init: (options: Record<string, unknown>) => void
-            login: (
-                callback: (resposta: { authResponse?: { code?: string } }) => void,
-                options: Record<string, unknown>
-            ) => void
-        }
-    }
-}
-
-const SDK_ID = 'facebook-jssdk'
-
 interface Props {
     agentId: string
     onConectado: () => void
@@ -47,7 +34,15 @@ interface Props {
 export function MetaEmbeddedSignup({ agentId, onConectado }: Props) {
     const [config, setConfig] = useState<{ appId: string; configId: string } | null>(null)
     const [carregando, setCarregando] = useState(false)
-    const [sdkPronto, setSdkPronto] = useState(false)
+
+    /**
+     * O SDK vem do carregador compartilhado.
+     *
+     * Antes cada botão carregava o script por conta própria e, achando a tag já
+     * no documento, desistia sem se marcar como pronto — o que deixava o segundo
+     * botão da tela desabilitado para sempre. Ver `useFacebookSdk`.
+     */
+    const sdkPronto = useFacebookSdk(config?.appId)
 
     /**
      * Os dois pedaços da resposta, guardados fora do estado do React.
@@ -62,32 +57,13 @@ export function MetaEmbeddedSignup({ agentId, onConectado }: Props) {
         fetch('/api/integrations/meta/config')
             .then((r) => r.json())
             .then((d) => {
-                if (d.configured) setConfig({ appId: d.appId, configId: d.configId })
+                // `configId` nulo é o caso de o aplicativo existir e a
+                // configuração do WhatsApp ainda não — o botão então diz "não
+                // configurado" em vez de abrir uma janela que falha.
+                if (d.configured && d.configId) setConfig({ appId: d.appId, configId: d.configId })
             })
             .catch(() => undefined)
     }, [])
-
-    // O SDK do Facebook, carregado só quando há configuração — e uma vez só.
-    useEffect(() => {
-        if (!config) return
-        if (window.FB) {
-            window.FB.init({ appId: config.appId, cookie: true, xfbml: false, version: 'v23.0' })
-            setSdkPronto(true)
-            return
-        }
-        if (document.getElementById(SDK_ID)) return
-
-        const script = document.createElement('script')
-        script.id = SDK_ID
-        script.src = 'https://connect.facebook.net/pt_BR/sdk.js'
-        script.async = true
-        script.crossOrigin = 'anonymous'
-        script.onload = () => {
-            window.FB?.init({ appId: config.appId, cookie: true, xfbml: false, version: 'v23.0' })
-            setSdkPronto(true)
-        }
-        document.body.appendChild(script)
-    }, [config])
 
     const enviarQuandoCompleto = useCallback(async () => {
         const { code, wabaId, phoneNumberId } = pedacos.current

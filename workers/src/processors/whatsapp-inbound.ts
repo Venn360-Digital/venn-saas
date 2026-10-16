@@ -8,11 +8,16 @@ import type { RuleContext } from '@/types/rules'
 import { env } from '../env'
 import { createLogger } from '../logger'
 import type { WhatsAppInboundJob } from '../queues'
-import { syncContactAvatar } from '../services/avatar'
+import { syncContactProfile } from '../services/avatar'
 import { archiveInboundMedia } from '../services/media'
 import { delayForSpeed, scheduleAiReply } from '../services/ai-reply-schedule'
 import { transcribeAudio } from '../services/transcribe'
-import { isHumanHandled, resolveInboundContext } from '../services/conversation'
+import {
+    NOME_PROVISORIO_INSTAGRAM,
+    type ContactIdentity,
+    isHumanHandled,
+    resolveInboundContext,
+} from '../services/conversation'
 import { isOptOut } from './cron/auto-follow-up'
 import { findIntegrationByRef, providerFor, touchIntegration } from '../services/integration'
 import { readPreferences } from '../services/prompt'
@@ -22,11 +27,14 @@ import { emitAgentEvent } from '../services/webhook-events'
 const log = createLogger('INBOUND')
 
 /**
- * Persist one inbound WhatsApp message and decide what happens next.
+ * Persist one inbound message and decide what happens next.
  *
- * Provider-agnostic: the webhook route already normalised Evolution Go's
- * whatsmeow envelope or Evolution v2's into the same `NormalizedInbound`, and the
- * inner WhatsApp protobuf object is identical for both.
+ * Provider-agnostic: a rota de webhook já normalizou o envelope — o do
+ * whatsmeow (Evolution Go), o do Evolution v2 ou o do Instagram Direct — no
+ * mesmo `NormalizedInbound`, e o objeto de mensagem lá dentro é o mesmo para os
+ * três. **Daqui para frente não há canal**: contato, conversa, mídia, regras,
+ * agente e crédito são um caminho só, e é isso que mantém este arquivo sem um
+ * `if` por canal.
  *
  * This is the body of what used to run inside the webhook request. Moving it here
  * is what buys retries, per-contact ordering, and a webhook that answers in
@@ -46,14 +54,29 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
     const workspace = agent.workspace
 
     const decoded = decodeMessage(inbound.message, {})
-    const phone = toMsisdn(inbound.chatJid)
 
-    if (!phone) {
+    /**
+     * Quem escreveu, no vocabulário do canal.
+     *
+     * No WhatsApp é o MSISDN, tirado do JID. No Instagram é o IGSID, que chega
+     * cru — `toMsisdn` o atravessa sem mexer, porque não há `@` para cortar.
+     */
+    const senderId = toMsisdn(inbound.chatJid)
+
+    if (!senderId) {
         log.warn('message without a resolvable sender; dropping')
         return
     }
 
-    log.info(`message from ${phone} [${decoded.contentType}]: ${decoded.content.slice(0, 60)}`)
+    const isInstagram = integration.channel === 'instagram'
+    const identity: ContactIdentity = isInstagram
+        ? { kind: 'instagram', value: senderId }
+        : { kind: 'phone', value: senderId }
+
+    log.info(
+        `${isInstagram ? 'instagram' : 'whatsapp'} message from ${senderId} ` +
+            `[${decoded.contentType}]: ${decoded.content.slice(0, 60)}`
+    )
 
     await touchIntegration(integration.id)
 
@@ -61,28 +84,34 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         workspaceId: workspace.id,
         agentId: agent.id,
         integrationId: integration.id,
-        phone,
+        identity,
+        channel: isInstagram ? 'instagram' : 'whatsapp',
         pushName: inbound.pushName,
         profilePicUrl: inbound.profilePicUrl,
     })
 
     /**
-     * A foto de perfil, em segundo plano e sem pressa.
+     * O perfil, em segundo plano e sem pressa.
      *
      * Sem `await` de propósito: a consulta de foto já pendurou 75 s contra a
      * instância de produção, e a mensagem do paciente não pode esperar por um
-     * enfeite. Cada contato é tentado uma vez por processo, só quando ainda não
-     * tem foto — o restante da regra vive no serviço.
+     * enfeite. Cada contato é tentado uma vez por processo — o restante da
+     * regra vive no serviço.
+     *
+     * No Instagram isto deixa de ser enfeite: o webhook não manda nome nenhum,
+     * e é esta chamada que troca o nome provisório pelo @ da conta. Por isso a
+     * condição inclui o nome, e não só a foto.
      */
-    if (!contact.avatar) {
+    if (!contact.avatar || contact.name === NOME_PROVISORIO_INSTAGRAM) {
         const { provider, credentials } = providerFor(integration)
-        void syncContactAvatar({
+        void syncContactProfile({
             contactId: contact.id,
             workspaceId: workspace.id,
-            phone: contact.phone,
+            externalId: senderId,
             provider,
             credentials,
-        }).catch((error) => log.warn(`avatar sync failed: ${(error as Error).message}`))
+            currentName: contact.name,
+        }).catch((error) => log.warn(`profile sync failed: ${(error as Error).message}`))
     }
 
     /**
@@ -102,7 +131,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
             data: {
                 conversationId: conversation.id,
                 direction: 'internal',
-                content: `${contact.name || phone} pediu para parar de receber mensagens automáticas.`,
+                content: `${contact.name || senderId} pediu para parar de receber mensagens automáticas.`,
                 contentType: 'text',
                 isInternal: true,
                 status: 'sent',
@@ -204,7 +233,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         await emitAgentEvent(agent.id, 'conversation.started', {
             conversationId: conversation.id,
             contactId: contact.id,
-            contactPhone: phone,
+            contactPhone: senderId,
             contactName: contact.name,
         })
     }
@@ -213,7 +242,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         conversationId: conversation.id,
         messageId: stored.id,
         contactId: contact.id,
-        contactPhone: phone,
+        contactPhone: senderId,
         content: decoded.content,
         contentType: decoded.contentType,
         mediaUrl: mediaUrl ?? null,
@@ -258,7 +287,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
         dealId: openDeal?.id ?? null,
         message: decoded.content,
         minutesSinceLastMessage,
-        channel: { integrationId: integration.id, to: phone },
+        channel: { integrationId: integration.id, to: senderId },
     }
 
     // A lapsed trial does not stop messages arriving — they are stored above and
@@ -273,7 +302,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
                 conversationId: conversation.id,
                 content: notice,
                 integrationId: integration.id,
-                to: phone,
+                to: senderId,
                 sentBy: 'system',
                 agentId: agent.id,
             })
@@ -295,7 +324,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
             conversationId: conversation.id,
             content: greeting,
             integrationId: integration.id,
-            to: phone,
+            to: senderId,
             sentBy: 'agent',
             agentId: agent.id,
         })
@@ -324,7 +353,7 @@ export async function processWhatsAppInbound(job: Job<WhatsAppInboundJob>): Prom
             agentId: agent.id,
             workspaceId: workspace.id,
             integrationId: integration.id,
-            to: phone,
+            to: senderId,
         },
         delayForSpeed(prefs.responseSpeed, env.INBOUND_DEBOUNCE_SECONDS)
     )

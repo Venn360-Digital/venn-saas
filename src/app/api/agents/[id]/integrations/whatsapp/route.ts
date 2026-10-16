@@ -7,7 +7,7 @@ import { lineName, phoneFromConfig } from '@/lib/conversation-line'
 import type { AgentIntegration } from '@prisma/client'
 import {
     CHANNEL_PROVIDER,
-    WhatsAppProviderError,
+    ChannelProviderError,
     evolutionGo,
     type IntegrationConfig,
     readIntegrationConfig,
@@ -318,7 +318,7 @@ export async function POST(
                     token: created.token,
                 }
             } catch (error) {
-                if (!(error instanceof WhatsAppProviderError) || !error.isConflict) throw error
+                if (!(error instanceof ChannelProviderError) || !error.isConflict) throw error
 
                 // The name is taken by an instance whose token we lost. /instance/all
                 // is the only place the token is exposed, so recover it there.

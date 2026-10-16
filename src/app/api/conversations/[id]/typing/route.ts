@@ -27,15 +27,23 @@ export async function POST(
         // Realtime channel.
         const conversation = await prisma.conversation.findFirst({
             where: { id: conversationId, workspaceId: auth.member.workspaceId, ...conversationScope(auth.member) },
-            include: { contact: { select: { phone: true } } },
+            include: { contact: { select: { phone: true, instagramId: true } } },
         })
 
         if (!conversation) {
             return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }
 
-        // Send typing presence via WhatsApp
-        if (conversation.channel === 'whatsapp' && conversation.contact.phone) {
+        // "Digitando…" sai pelo canal do fio: telefone no WhatsApp, IGSID no
+        // Direct. O Instagram tem `sender_action`, então os dois funcionam.
+        const destino =
+            conversation.channel === 'instagram'
+                ? conversation.contact.instagramId
+                : conversation.channel === 'whatsapp'
+                  ? conversation.contact.phone
+                  : null
+
+        if (destino) {
             // Pela linha deste fio: "digitando" vindo do outro número apareceria
             // numa conversa que o paciente não tem aberta.
             const line = await resolveConversationLine(conversation)
@@ -44,12 +52,12 @@ export async function POST(
                     const { provider, credentials } = resolveIntegration(line.integration)
                     await provider.sendPresence(
                         credentials,
-                        conversation.contact.phone,
+                        destino,
                         isTyping ? 'composing' : 'paused'
                     )
                 } catch (e) {
                     // Non-critical, don't fail the request
-                    console.error('[TYPING] Failed to send WhatsApp presence:', e)
+                    console.error('[TYPING] Failed to send presence:', e)
                 }
             }
         }

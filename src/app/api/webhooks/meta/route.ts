@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { readInstagramEvent } from '@/lib/instagram/webhook'
 import {
+    ehEventoDeInstagram,
     metaAppSecret,
     metaSignatureValid,
     metaVerifyToken,
     normalizarEventoMeta,
 } from '@/lib/meta/webhook'
+import { MissingRedisUrlError } from '@/lib/queue'
+import { enqueueNormalizedEvents } from '@/lib/queue/enqueue-whatsapp'
 
 export const runtime = 'nodejs'
 /** Nada aqui pode ser servido de cache: cada evento é um evento. */
@@ -104,22 +108,53 @@ export async function POST(request: NextRequest) {
 
     const evento = normalizarEventoMeta(corpo)
 
-    /**
-     * Ainda não há para onde rotear, e isto é verdade e não lacuna.
-     *
-     * O que liga o id da conta da Meta a um workspace nasce quando a clínica
-     * conecta, pelo Embedded Signup — que ainda não existe. Até lá o único
-     * emissor possível é o número de teste da própria Venn360, e o valor deste
-     * caminho é provar que a corrente chega inteira: assinatura conferida,
-     * corpo entendido, resposta dentro do tempo.
-     *
-     * O log abaixo é essa prova. Quando a tabela de ligação existir, ela entra
-     * aqui, e o enfileiramento com ela.
-     */
     console.log(
         `[META_WEBHOOK] ${evento.canal} · conta=${evento.contaId ?? '—'} ` +
             `numero=${evento.numeroId ?? '—'} campo=${evento.campo ?? '—'}`
     )
 
+    /**
+     * O Instagram entra na mesma fila do WhatsApp, de propósito.
+     *
+     * Daqui para frente não há diferença entre os canais: contato, conversa,
+     * mídia, agente, crédito e caixa de entrada são os mesmos. Normalizar na
+     * borda — como já é feito com os dois envelopes do Evolution — é o que
+     * mantém o worker sem um `if` por canal.
+     *
+     * O nome da fila continua "whatsapp-inbound" porque é o nome dela no Redis:
+     * renomeá-la para ficar bonita descartaria o que estivesse em voo.
+     */
+    if (ehEventoDeInstagram(corpo)) {
+        try {
+            const eventos = readInstagramEvent(corpo)
+            const resultado = await enqueueNormalizedEvents('meta-instagram', eventos)
+            return NextResponse.json({ received: true, ...resultado })
+        } catch (error) {
+            if (error instanceof MissingRedisUrlError) {
+                console.error('[META_WEBHOOK] REDIS_URL não está configurada')
+                return NextResponse.json({ error: 'Queue unavailable' }, { status: 503 })
+            }
+
+            /**
+             * Falhar alto aqui é o certo: a Meta reenvia.
+             *
+             * Ao contrário do corpo inválido, que não melhora sendo reenviado,
+             * uma fila fora do ar é transitória — e responder 200 faria a
+             * mensagem do paciente ser descartada em silêncio.
+             */
+            console.error('[META_WEBHOOK] falha ao enfileirar evento do Instagram', error)
+            return NextResponse.json({ error: 'Enqueue failed' }, { status: 500 })
+        }
+    }
+
+    /**
+     * WhatsApp aqui é só prova de vida.
+     *
+     * O canal oficial do WhatsApp não entra por esta porta: no painel da Meta a
+     * URL do produto WhatsApp aponta para o Evolution v2, que traduz e nos
+     * entrega em `/api/webhooks/evolution`. O que sobra neste caminho é o evento
+     * de teste do painel e o `account_update` da conta — úteis no log, sem nada
+     * para enfileirar.
+     */
     return NextResponse.json({ received: true })
 }

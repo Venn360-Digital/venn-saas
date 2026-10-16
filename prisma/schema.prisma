@@ -398,6 +398,23 @@ model Contact {
   phone  String?
   avatar String?
 
+  /// Quem é este paciente no Instagram — o IGSID.
+  ///
+  /// Coluna própria, e **não** o `phone`: o id que o Direct manda é um número
+  /// de dezessete dígitos escopado ao nosso aplicativo, não um telefone.
+  /// Guardá-lo em `phone` o faria aparecer formatado como celular na ficha,
+  /// entrar na busca por telefone e passar por `phoneVariants`, que inventa
+  /// variação de nono dígito em cima dele.
+  ///
+  /// Nulo para quem nunca escreveu pelo Instagram, que é a maioria. O índice
+  /// único ignora nulos no Postgres, então conviver com milhares deles é
+  /// exatamente o que já acontece com `phone`.
+  ///
+  /// Uma ficha pode ter os dois: o mesmo paciente que escreveu pelo WhatsApp e
+  /// depois pelo Direct. Unificar as duas é decisão da clínica, não nossa — não
+  /// há como saber que são a mesma pessoa sem ela dizer.
+  instagramId String?
+
   notes String? @db.Text // Observações
 
   // Custom Fields
@@ -424,8 +441,10 @@ model Contact {
   tags          ContactTag[]
 
   @@unique([workspaceId, phone])
+  @@unique([workspaceId, instagramId])
   @@index([workspaceId])
   @@index([phone])
+  @@index([instagramId])
   @@index([email])
   @@map("contacts")
 }

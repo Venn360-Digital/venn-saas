@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
 import prisma from '@/lib/prisma'
-import type { MediaKind } from '@/lib/whatsapp'
+import { decidirEnvioNoInstagram } from '@/lib/instagram/window'
+import type { MediaKind, SendOptions } from '@/lib/whatsapp'
 import { createLogger } from '../logger'
 import type { WhatsAppOutboundJob } from '../queues'
 import { findIntegrationById, providerFor } from '../services/integration'
@@ -28,7 +29,14 @@ export async function processWhatsAppOutbound(job: Job<WhatsAppOutboundJob>): Pr
 
     const message = await prisma.message.findUnique({
         where: { id: messageId },
-        select: { id: true, status: true, externalId: true },
+        select: {
+            id: true,
+            status: true,
+            externalId: true,
+            // Para a regra da janela do Instagram: quem escreveu e em que fio.
+            sentBy: true,
+            conversationId: true,
+        },
     })
 
     if (!message) {
@@ -50,19 +58,71 @@ export async function processWhatsAppOutbound(job: Job<WhatsAppOutboundJob>): Pr
         return
     }
 
+    /**
+     * A janela de 24 horas do Instagram, conferida **antes** de chamar a Meta.
+     *
+     * Este é o único ponto por onde todo envio passa — resposta da IA, regra,
+     * follow-up, aviso automático e mensagem digitada por atendente. Pôr a
+     * regra aqui é o que garante que nenhum caminho futuro a contorne sem
+     * querer; conferir no provedor seria tarde, e conferir em cada chamador
+     * seria esperar que ninguém esqueça.
+     *
+     * Recusar grava um recado **dentro da conversa**: a equipe precisa saber
+     * que a mensagem não saiu e por quê, e um `status: failed` silencioso só
+     * conta a primeira metade.
+     */
+    let options: SendOptions | undefined
+    if (integration.channel === 'instagram') {
+        const ultima = await prisma.message.findFirst({
+            where: { conversationId: message.conversationId, direction: 'inbound' },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true },
+        })
+
+        const decisao = decidirEnvioNoInstagram({
+            sentBy: message.sentBy,
+            ultimaEntrada: ultima?.createdAt ?? null,
+        })
+
+        if (decisao.tipo === 'recusar') {
+            await prisma.message.update({ where: { id: messageId }, data: { status: 'failed' } })
+            await prisma.message.create({
+                data: {
+                    conversationId: message.conversationId,
+                    direction: 'internal',
+                    content: `A mensagem não foi enviada. ${decisao.motivo}`,
+                    contentType: 'text',
+                    isInternal: true,
+                    status: 'sent',
+                },
+            })
+            log.info(`message ${messageId} blocked by the Instagram window: ${decisao.motivo}`)
+            // Sem `throw`: a janela não muda com retentativa, e tentar de novo
+            // cinco vezes só encheria o log com a mesma recusa.
+            return
+        }
+
+        options = { humanAgent: decisao.tipo === 'enviarComoHumano' }
+    }
+
     try {
         const { provider, credentials } = providerFor(integration)
 
         const result =
             kind === 'text' || !mediaUrl
-                ? await provider.sendText(credentials, to, content)
-                : await provider.sendMedia(credentials, to, {
-                      url: mediaUrl,
-                      kind: mediaKind ?? mediaKindFor(mimetype, kind),
-                      caption: content || undefined,
-                      fileName,
-                      mimetype,
-                  })
+                ? await provider.sendText(credentials, to, content, options)
+                : await provider.sendMedia(
+                      credentials,
+                      to,
+                      {
+                          url: mediaUrl,
+                          kind: mediaKind ?? mediaKindFor(mimetype, kind),
+                          caption: content || undefined,
+                          fileName,
+                          mimetype,
+                      },
+                      options
+                  )
 
         await prisma.message.update({
             where: { id: messageId },

@@ -68,6 +68,11 @@ export interface MetaEventoNormalizado {
     campo: string | null
 }
 
+/** `true` quando o corpo é do Instagram, que tem forma própria. */
+export function ehEventoDeInstagram(corpo: unknown): boolean {
+    return (corpo as { object?: string } | null)?.object === 'instagram'
+}
+
 /**
  * Reduz o corpo da Meta ao que nos interessa para rotear.
  *
@@ -77,6 +82,14 @@ export interface MetaEventoNormalizado {
  * Instagram —, e é por ele que a tabela de ligação vai funcionar quando o fluxo
  * de conectar existir.
  *
+ * **Dois formatos, não um.** O WhatsApp Cloud API manda
+ * `entry[].changes[].value`; o Instagram Direct manda no formato do Messenger,
+ * `entry[].messaging[]`, com `sender`, `recipient` e `message`. A primeira
+ * versão disto lia só `changes` — e por isso toda mensagem de Instagram
+ * resumia-se a campos nulos, sem erro e sem log útil, o que é o pior jeito de
+ * falhar. Quem traduz o Direct de verdade é `lib/instagram/webhook.ts`; aqui
+ * fica o resumo que vai para o log e serve aos dois.
+ *
  * Tolerante de propósito: formato que não reconhecemos vira campos nulos e um
  * log, nunca uma exceção. Webhook que estoura é webhook que a Meta reenvia por
  * sete dias.
@@ -84,6 +97,26 @@ export interface MetaEventoNormalizado {
 export function normalizarEventoMeta(corpo: unknown): MetaEventoNormalizado {
     const raiz = (corpo ?? {}) as Record<string, unknown>
     const entrada = Array.isArray(raiz.entry) ? (raiz.entry[0] as Record<string, unknown>) : undefined
+
+    const canal = typeof raiz.object === 'string' ? raiz.object : 'desconhecido'
+    const contaId = typeof entrada?.id === 'string' ? entrada.id : null
+
+    // Instagram: a entrada traz `messaging`, e o "campo" é o tipo do item.
+    if (Array.isArray(entrada?.messaging)) {
+        const item = (entrada!.messaging[0] ?? {}) as Record<string, unknown>
+        const campo = item.message
+            ? 'message'
+            : item.reaction
+              ? 'reaction'
+              : item.read
+                ? 'read'
+                : item.postback
+                  ? 'postback'
+                  : null
+
+        return { canal, contaId, numeroId: null, campo }
+    }
+
     const mudanca = Array.isArray(entrada?.changes)
         ? (entrada!.changes[0] as Record<string, unknown>)
         : undefined
@@ -91,8 +124,8 @@ export function normalizarEventoMeta(corpo: unknown): MetaEventoNormalizado {
     const metadata = (valor.metadata ?? {}) as Record<string, unknown>
 
     return {
-        canal: typeof raiz.object === 'string' ? raiz.object : 'desconhecido',
-        contaId: typeof entrada?.id === 'string' ? entrada.id : null,
+        canal,
+        contaId,
         numeroId: typeof metadata.phone_number_id === 'string' ? metadata.phone_number_id : null,
         campo: typeof mudanca?.field === 'string' ? mudanca.field : null,
     }

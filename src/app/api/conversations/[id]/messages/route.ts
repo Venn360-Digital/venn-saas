@@ -183,9 +183,25 @@ export async function POST(
             }
         })
 
-        // Send via WhatsApp if channel is whatsapp (skip for internal notes)
+        /**
+         * Para onde a resposta do atendente vai, pelo canal do fio.
+         *
+         * O WhatsApp endereça por telefone; o Instagram, pelo IGSID. Antes isto
+         * era só `contact.phone`, e um fio de Direct caía fora do `if` em
+         * silêncio: a mensagem ficava gravada na conversa, com cara de enviada,
+         * e nunca saía.
+         *
+         * Nota interna não sai por canal nenhum, por definição.
+         */
+        const destino =
+            conversation.channel === 'instagram'
+                ? conversation.contact.instagramId
+                : conversation.channel === 'whatsapp'
+                  ? conversation.contact.phone
+                  : null
+
         let lineWarning: string | null = null
-        if (!isInternal && conversation.channel === 'whatsapp' && conversation.contact.phone) {
+        if (!isInternal && destino) {
             // Pela linha deste fio, não por `integrations[0]`: com dois números
             // na clínica, responder pela outra linha manda a mensagem de um
             // número que o paciente não reconhece. Ver resolveConversationLine.
@@ -198,7 +214,9 @@ export async function POST(
                 lineWarning =
                     line.reason === 'line_offline'
                         ? `A mensagem foi gravada, mas ${line.label} está desconectada e nada foi enviado.`
-                        : 'A mensagem foi gravada, mas nenhum número de WhatsApp está conectado.'
+                        : conversation.channel === 'instagram'
+                          ? 'A mensagem foi gravada, mas nenhuma conta de Instagram está conectada.'
+                          : 'A mensagem foi gravada, mas nenhum número de WhatsApp está conectado.'
                 await prisma.message.update({
                     where: { id: message.id },
                     data: { status: 'failed' },
@@ -241,7 +259,7 @@ export async function POST(
                         {
                             messageId: message.id,
                             integrationId: line.integration.id,
-                            to: conversation.contact.phone,
+                            to: destino,
                             kind,
                             mediaKind,
                             content: captionIsPlaceholder && kind !== 'text' ? '' : textContent,

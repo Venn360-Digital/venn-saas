@@ -12,20 +12,42 @@
  * to the implementations; callers only see this interface.
  */
 
-export type WhatsAppProviderName = 'evolution-go' | 'evolution-v2'
+export type ChannelProviderName = 'evolution-go' | 'evolution-v2' | 'meta-instagram'
 
 /** `AgentIntegration.channel` values that carry WhatsApp. */
 export type WhatsAppChannel = 'whatsapp_qr' | 'whatsapp_business'
+
+/** Todo canal de mensagem que tem provedor — WhatsApp e Instagram. */
+export type MessagingChannel = WhatsAppChannel | 'instagram'
+
+/**
+ * Os canais de WhatsApp, e só eles.
+ *
+ * Separado de `CHANNEL_PROVIDER` porque várias regras são de WhatsApp e não de
+ * canal: a vaga do plano é contada em números, o cron de saúde reconecta sessão
+ * (o Instagram não tem sessão para cair) e a linha da conversa se resolve entre
+ * números da clínica. Misturar o Instagram nessas três faria o cron tentar
+ * reconectar uma conta que nunca esteve fora do ar.
+ */
+export const WHATSAPP_PROVIDER: Record<WhatsAppChannel, ChannelProviderName> = {
+    whatsapp_qr: 'evolution-go',
+    whatsapp_business: 'evolution-v2',
+}
 
 /**
  * Which implementation serves which channel.
  *
  * The QR channel moved from Evolution API v2 (Baileys) to Evolution Go
  * (whatsmeow); v2 is kept only for the official Business Cloud API.
+ *
+ * O Instagram vai **direto à Meta**, sem intermediário: o Evolution não tem
+ * canal de Instagram (medido em 2026-10-16: `grep -ri instagram` no repositório
+ * dele não devolve nada), e não teria o que fazer ali — ele existe para
+ * contornar a API oficial do WhatsApp, e a de Instagram é aberta e gratuita.
  */
-export const CHANNEL_PROVIDER: Record<WhatsAppChannel, WhatsAppProviderName> = {
-    whatsapp_qr: 'evolution-go',
-    whatsapp_business: 'evolution-v2',
+export const CHANNEL_PROVIDER: Record<MessagingChannel, ChannelProviderName> = {
+    ...WHATSAPP_PROVIDER,
+    instagram: 'meta-instagram',
 }
 
 /**
@@ -39,10 +61,45 @@ export interface InstanceCredentials {
     token?: string
     /** Provider-side instance id. Evolution Go webhooks identify by this. */
     instanceId?: string
-    /** Our instance name. evolution-v2 puts it in the URL path. */
+    /**
+     * Como o provedor chama esta linha. evolution-v2 a põe no caminho da URL.
+     *
+     * No Instagram não há instância para nomear — quem identifica a linha é a
+     * própria conta, e é o id dela que fica aqui. O campo continua querendo
+     * dizer a mesma coisa (o identificador da linha no provedor), e é isso que
+     * aparece no log quando algo dá errado.
+     */
     instanceName: string
     /** Cached owner MSISDN, once known. */
     phoneNumber?: string
+    /** Presente só nas linhas de Instagram. Ver `InstagramCredentials`. */
+    instagram?: InstagramCredentials
+}
+
+/**
+ * O que guardamos para falar por uma conta de Instagram.
+ *
+ * Duas contas, não uma: a **conta profissional do Instagram** é quem recebe (é
+ * o `entry[].id` de todo evento do webhook) e a **Página do Facebook** ligada a
+ * ela é por onde se envia — a Send API é `POST /{PAGE_ID}/messages`. Guardar só
+ * uma das duas deixa metade do canal funcionando, que é o pior resultado
+ * possível.
+ */
+export interface InstagramCredentials {
+    /** A conta profissional. É por ela que o evento acha o workspace. */
+    igAccountId: string
+    /** A Página a que ela está ligada. É o destino do envio. */
+    pageId: string
+    /**
+     * Token da Página, pela rota do Facebook Login.
+     *
+     * **Não expira** — ver `lib/instagram/onboarding.ts`. É o que dispensa a
+     * esteira de renovação de 60 dias que a rota do Instagram Login obrigaria,
+     * e com ela o risco de a conta da clínica cair em silêncio meses depois.
+     */
+    accessToken: string
+    /** O @ da conta, para a tela dizer qual Instagram está no ar. */
+    username?: string
 }
 
 export interface CreatedInstance extends InstanceCredentials {
@@ -90,13 +147,30 @@ export interface SendMediaInput {
 
 export type PresenceState = 'composing' | 'paused' | 'recording'
 
+/**
+ * O que um envio precisa dizer sobre si além do conteúdo.
+ *
+ * Existe por causa do Instagram, onde a Meta impõe uma **janela de 24 horas**
+ * contada da última mensagem do paciente. Dentro dela qualquer um escreve; fora
+ * dela só uma pessoa, e o envio tem de ir marcado como tal — é o que estende o
+ * prazo para 7 dias. Marcar uma resposta automática assim é uso indevido da
+ * etiqueta e caminho conhecido para perder o acesso à API, então quem decide
+ * isto é o worker, pelo autor da mensagem, e não quem escreve a chamada.
+ *
+ * Os dois provedores de WhatsApp ignoram: lá a janela não existe desta forma.
+ */
+export interface SendOptions {
+    /** O envio é de um atendente humano, fora da janela de 24 horas. */
+    humanAgent?: boolean
+}
+
 export interface DownloadedMedia {
     base64: string
     mimetype: string
 }
 
-export interface WhatsAppProvider {
-    readonly name: WhatsAppProviderName
+export interface ChannelProvider {
+    readonly name: ChannelProviderName
 
     /**
      * Provision an instance. For `evolution-go` this is an admin-key call that
@@ -159,12 +233,35 @@ export interface WhatsAppProvider {
      */
     getProfilePictureUrl?(credentials: InstanceCredentials, number: string): Promise<string | undefined>
 
-    sendText(credentials: InstanceCredentials, to: string, text: string): Promise<SendResult>
+    /**
+     * Quem é o contato, pelo id dele no canal. Opcional.
+     *
+     * Existe porque o webhook do Instagram **não manda o nome de quem
+     * escreveu** — só o IGSID. Sem esta consulta, a ficha nasceria chamada
+     * "Instagram 17841…" e ficaria assim para sempre, e a caixa de entrada
+     * ficaria cheia de números que ninguém reconhece. O WhatsApp não precisa:
+     * lá o nome de exibição vem no próprio evento.
+     *
+     * Nulo é resposta legítima: perfil que não deixa ver, ou consulta que não
+     * respondeu. A ficha sem nome mostra o id e está correta.
+     */
+    getContactProfile?(
+        credentials: InstanceCredentials,
+        externalId: string
+    ): Promise<{ name?: string; profilePicUrl?: string } | null>
+
+    sendText(
+        credentials: InstanceCredentials,
+        to: string,
+        text: string,
+        options?: SendOptions
+    ): Promise<SendResult>
 
     sendMedia(
         credentials: InstanceCredentials,
         to: string,
-        input: SendMediaInput
+        input: SendMediaInput,
+        options?: SendOptions
     ): Promise<SendResult>
 
     sendPresence(
@@ -186,15 +283,15 @@ export interface WhatsAppProvider {
 }
 
 /** Thrown for a non-2xx provider response, so callers can read the status. */
-export class WhatsAppProviderError extends Error {
+export class ChannelProviderError extends Error {
     constructor(
-        readonly provider: WhatsAppProviderName,
+        readonly provider: ChannelProviderName,
         readonly status: number,
         readonly body: string,
         endpoint: string
     ) {
         super(`${provider} ${status} on ${endpoint}: ${body.slice(0, 300)}`)
-        this.name = 'WhatsAppProviderError'
+        this.name = 'ChannelProviderError'
     }
 
     /** The provider already has an instance under this name. */

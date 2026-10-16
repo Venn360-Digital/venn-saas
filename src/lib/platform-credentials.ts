@@ -141,18 +141,35 @@ export async function setPlatformCredentials(
  *
  * O id da configuração mora em `metadata` e não em `credentials` porque não é
  * credencial: guardá-lo junto do segredo faria parecer que é.
+ *
+ * **São duas configurações, não uma.** O WhatsApp e o Instagram pedem conjuntos
+ * de permissões diferentes, e no Login do Facebook para Empresas cada conjunto é
+ * uma configuração própria no painel da Meta. Usar a do WhatsApp para ligar o
+ * Instagram abriria a janela pedindo permissão de WhatsApp — e o fluxo
+ * terminaria sem a conta que precisávamos.
  */
-export async function getMetaPublicConfig(): Promise<{ appId: string; configId: string } | null> {
+export async function getMetaPublicConfig(): Promise<{
+    appId: string
+    configId: string | null
+    instagramConfigId: string | null
+} | null> {
     const row = await prisma.platformCredential.findUnique({
         where: { provider: 'meta_messaging' },
         select: { credentials: true, metadata: true },
     })
 
     const appId = (row?.credentials as { clientId?: string } | null)?.clientId
-    const configId = (row?.metadata as { configId?: string } | null)?.configId
+    const metadata = (row?.metadata ?? {}) as {
+        configId?: string
+        instagramConfigId?: string
+    }
 
-    if (!appId || !configId) return null
-    return { appId, configId }
+    if (!appId) return null
+    return {
+        appId,
+        configId: metadata.configId ?? null,
+        instagramConfigId: metadata.instagramConfigId ?? null,
+    }
 }
 
 export interface PlatformAdmin {

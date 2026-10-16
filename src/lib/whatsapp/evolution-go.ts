@@ -7,8 +7,8 @@ import {
     type QrCode,
     type SendMediaInput,
     type SendResult,
-    type WhatsAppProvider,
-    WhatsAppProviderError,
+    type ChannelProvider,
+    ChannelProviderError,
     normalizeNumber,
     phoneVariants,
     toMsisdn,
@@ -109,7 +109,7 @@ interface DownloadMediaData {
     Mimetype?: string
 }
 
-export class EvolutionGoProvider implements WhatsAppProvider {
+export class EvolutionGoProvider implements ChannelProvider {
     readonly name = 'evolution-go' as const
 
     private readonly baseUrl: string
@@ -155,7 +155,7 @@ export class EvolutionGoProvider implements WhatsAppProvider {
             })
 
             if (!response.ok) {
-                throw new WhatsAppProviderError(
+                throw new ChannelProviderError(
                     this.name,
                     response.status,
                     await response.text().catch(() => ''),

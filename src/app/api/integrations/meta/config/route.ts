@@ -12,6 +12,12 @@ import { getMetaPublicConfig } from '@/lib/platform-credentials'
  *
  * O que **não** sai daqui é a chave secreta do aplicativo. Ela fica no Vault e é
  * usada só no servidor, na troca do código pelo token da clínica.
+ *
+ * `configured` responde "o aplicativo da Meta está registrado", e não "este
+ * canal está pronto": são duas configurações diferentes no painel da Meta — uma
+ * para o WhatsApp, outra para o Instagram —, e cada botão confere a sua. Um
+ * `configured` único faria o botão do Instagram aparecer habilitado só porque o
+ * do WhatsApp estava.
  */
 export async function GET() {
     const auth = await getWorkspaceMember()

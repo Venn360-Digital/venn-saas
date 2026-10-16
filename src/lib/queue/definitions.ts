@@ -15,7 +15,7 @@ import type {
     NormalizedPicture,
     NormalizedRecycle,
 } from '@/lib/whatsapp/envelopes'
-import type { WhatsAppProviderName } from '@/lib/whatsapp/types'
+import type { ChannelProviderName } from '@/lib/whatsapp/types'
 
 /**
  * Queue registry.
@@ -61,14 +61,14 @@ export const ALL_QUEUES: QueueName[] = Object.values(QUEUE)
  * buys is a worker that never branches on provider.
  */
 export interface WhatsAppInboundJob {
-    provider: WhatsAppProviderName
+    provider: ChannelProviderName
     inbound: NormalizedInbound
     receivedAt: string
 }
 
 /** The cheap events: delivery receipts, connection state, typing. */
 export interface WhatsAppEventJob {
-    provider: WhatsAppProviderName
+    provider: ChannelProviderName
     event:
         | NormalizedAck
         | NormalizedConnection

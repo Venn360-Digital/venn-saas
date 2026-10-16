@@ -276,7 +276,10 @@ export async function GET(request: NextRequest) {
         const lines = await prisma.agentIntegration.findMany({
             where: {
                 agent: { workspaceId: ws },
-                channel: { in: WHATSAPP_CHANNELS },
+                // O Instagram entra junto: desde que ele atende, a caixa tem
+                // fios dele, e um seletor que não os oferece esconde metade
+                // da operação de quem quer filtrar por linha.
+                channel: { in: [...WHATSAPP_CHANNELS, 'instagram'] },
                 // O seletor só oferece as linhas que esta pessoa pode ver.
                 ...(workspaceUser.departmentId && departmentScope.AND
                     ? { OR: [{ departmentId: workspaceUser.departmentId }, { departmentId: null }] }

@@ -3,7 +3,7 @@ import { MissingRedisUrlError } from './connection'
 import { QUEUE } from './definitions'
 import { getQueue } from './index'
 import type { AnyNormalizedEvent } from '@/lib/whatsapp/envelopes'
-import type { WhatsAppProviderName } from '@/lib/whatsapp/types'
+import type { ChannelProviderName } from '@/lib/whatsapp/types'
 
 /**
  * Hand normalised provider events to the right queue.
@@ -27,7 +27,7 @@ export interface EnqueueResult {
 }
 
 export async function enqueueNormalizedEvents(
-    provider: WhatsAppProviderName,
+    provider: ChannelProviderName,
     events: AnyNormalizedEvent[]
 ): Promise<EnqueueResult> {
     const receivedAt = new Date().toISOString()
@@ -91,7 +91,7 @@ export async function enqueueNormalizedEvents(
  * a resposta do agente nunca chegou a ser agendada, e a retentativa foi
  * descartada como duplicada.
  */
-function jobIdFor(provider: WhatsAppProviderName, externalId: string | undefined): string | undefined {
+function jobIdFor(provider: ChannelProviderName, externalId: string | undefined): string | undefined {
     // Without an id, BullMQ generates one and the worker's own externalId check
     // catches duplicates.
     return externalId ? `wa-${provider}-${externalId}` : undefined

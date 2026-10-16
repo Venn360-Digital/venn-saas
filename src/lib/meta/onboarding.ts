@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { getPlatformCredentials } from '@/lib/platform-credentials'
+import { GRAPH } from '@/lib/meta/graph'
 import { META_PROVIDER } from '@/lib/meta/webhook'
 
 /**
@@ -19,13 +20,6 @@ import { META_PROVIDER } from '@/lib/meta/webhook'
  * nem esperar interação. Por isso a troca é a primeira coisa que a rota faz.
  */
 
-/**
- * A versão da Graph API, num lugar só.
- *
- * Fixada em vez de "mais recente": a Meta descontinua versão por data, e uma
- * chamada que muda de comportamento sozinha num sábado é o pior tipo de defeito.
- */
-const GRAPH = 'https://graph.facebook.com/v23.0'
 
 export class MetaOnboardingError extends Error {
     constructor(

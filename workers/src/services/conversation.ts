@@ -6,21 +6,58 @@ import { createLogger } from '../logger'
 
 const log = createLogger('CONVERSATION')
 
+/**
+ * Quem é o paciente no canal por onde ele escreveu.
+ *
+ * O WhatsApp identifica por telefone; o Instagram, por um **IGSID** — um id de
+ * dezessete dígitos escopado ao nosso aplicativo da Meta, que não é telefone
+ * nem se parece com um. Antes disto, `phone` era a identidade única do inbound,
+ * e um IGSID ali entraria na busca por telefone, apareceria formatado como
+ * celular na ficha e passaria pela regra do nono dígito.
+ */
+export type ContactIdentity =
+    | { kind: 'phone'; value: string }
+    | { kind: 'instagram'; value: string }
+
+/**
+ * O nome que a ficha do Instagram recebe até o perfil ser consultado.
+ *
+ * Exportado porque `syncContactProfile` precisa reconhecê-lo para saber que
+ * pode substituí-lo — e um literal repetido nos dois arquivos deixaria de
+ * casar na primeira vez que alguém reescrevesse um dos dois.
+ */
+export const NOME_PROVISORIO_INSTAGRAM = 'Instagram (sem nome ainda)'
+
+/** A chave do bloqueio por paciente. */
+function lockKeyFor(workspaceId: string, identity: ContactIdentity): string {
+    // O WhatsApp mantém a chave antiga: trocá-la faria, durante um deploy, dois
+    // processos usarem chaves diferentes para o mesmo paciente.
+    return identity.kind === 'phone'
+        ? `contact:${workspaceId}:${identity.value}`
+        : `contact:${workspaceId}:ig:${identity.value}`
+}
+
 export interface ResolveContactInput {
     workspaceId: string
-    phone: string
+    identity: ContactIdentity
     pushName?: string | null
     profilePicUrl?: string | null
 }
 
 /**
- * Find or create the contact for an inbound WhatsApp number, keeping the
- * display name and avatar fresh.
+ * Find or create the contact for an inbound message, keeping the display name
+ * and avatar fresh.
  *
  * Callers must already hold the per-contact lock (see `resolveInboundContext`).
  */
 async function resolveContact(input: ResolveContactInput): Promise<Contact> {
-    const { workspaceId, phone, pushName, profilePicUrl } = input
+    const { workspaceId, identity, pushName, profilePicUrl } = input
+
+    if (identity.kind === 'instagram') {
+        return resolveInstagramContact(workspaceId, identity.value, pushName, profilePicUrl)
+    }
+
+    const phone = identity.value
 
     /**
      * As duas formas do celular brasileiro, porque uma ficha pode ter nascido
@@ -67,8 +104,52 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
 }
 
 /**
- * Drop every new WhatsApp contact into the first pipeline stage, so inbound
+ * A ficha de quem escreveu pelo Direct.
+ *
+ * Sem variação a procurar: o IGSID é exato, ou é outro paciente. E **sem
+ * telefone** — o Direct não dá o número de ninguém, e inventar um valor ali
+ * para preencher a coluna criaria uma ficha que a busca por telefone acharia
+ * por engano.
+ *
+ * O nome nasce provisório: o webhook do Instagram não manda o nome de quem
+ * escreveu, só o id. Quem o troca pelo @ da conta é a busca de perfil, logo
+ * depois, em segundo plano — ver `syncContactProfile`.
+ */
+async function resolveInstagramContact(
+    workspaceId: string,
+    instagramId: string,
+    pushName?: string | null,
+    profilePicUrl?: string | null
+): Promise<Contact> {
+    const existing = await prisma.contact.findFirst({ where: { workspaceId, instagramId } })
+
+    if (!existing) {
+        return prisma.contact.create({
+            data: {
+                workspaceId,
+                instagramId,
+                name: pushName || NOME_PROVISORIO_INSTAGRAM,
+                avatar: profilePicUrl ?? null,
+                source: 'instagram',
+            },
+        })
+    }
+
+    const patch: { name?: string; avatar?: string } = {}
+    if (pushName && existing.name !== pushName) patch.name = pushName
+    if (profilePicUrl && existing.avatar !== profilePicUrl) patch.avatar = profilePicUrl
+
+    if (Object.keys(patch).length === 0) return existing
+    return prisma.contact.update({ where: { id: existing.id }, data: patch })
+}
+
+/**
+ * Drop every new inbound contact into the first pipeline stage, so inbound
  * new patients show up on the Negócios board without manual entry.
+ *
+ * A origem do negócio segue o canal por onde o paciente chegou — o funil
+ * precisa poder dizer de onde vem cada paciente, e gravar "whatsapp" num que
+ * veio do Direct tiraria essa resposta do relatório.
  *
  * Non-fatal: a workspace with no pipeline stages yet simply gets no deal.
  */
@@ -102,9 +183,11 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
         data: {
             workspaceId,
             contactId: contact.id,
-            title: `Novo paciente - ${contact.name || contact.phone}`,
+            // Sem o `instagramId` no fim, um paciente do Direct viraria
+            // "Novo paciente - null": lá o telefone não existe.
+            title: `Novo paciente - ${contact.name || contact.phone || contact.instagramId}`,
             stageId: firstStage.id,
-            source: 'whatsapp',
+            source: contact.source ?? 'whatsapp',
             status: 'open',
             // `userId` nulo: não foi pessoa nenhuma que moveu, foi a mensagem
             // do paciente chegando.
@@ -131,7 +214,8 @@ async function resolveConversation(
     workspaceId: string,
     contactId: string,
     agentId: string,
-    integrationId: string
+    integrationId: string,
+    channel: string
 ): Promise<Conversation> {
     const open = await prisma.conversation.findFirst({
         where: { workspaceId, contactId, integrationId, status: { not: 'closed' } },
@@ -204,7 +288,7 @@ async function resolveConversation(
             agentId,
             integrationId,
             contactId,
-            channel: 'whatsapp',
+            channel,
             status: 'active',
         },
     })
@@ -219,8 +303,8 @@ export interface InboundContext {
  * Resolve contact, deal and conversation for an inbound message as one
  * serialised unit.
  *
- * The lock is keyed on workspace + phone, which is exactly the uniqueness scope
- * that concurrent webhooks used to violate. Deal creation runs inside the lock
+ * The lock is keyed on workspace + a identidade do paciente no canal, que é
+ * exatamente o escopo de unicidade que webhooks concorrentes violavam. Deal creation runs inside the lock
  * too, because two parallel jobs would otherwise both see "no open deal".
  */
 export async function resolveInboundContext(input: {
@@ -228,16 +312,20 @@ export async function resolveInboundContext(input: {
     agentId: string
     /** A linha por onde a mensagem chegou — é o que separa os fios. */
     integrationId: string
-    phone: string
+    /** Quem escreveu, no vocabulário do canal. Ver `ContactIdentity`. */
+    identity: ContactIdentity
+    /** O canal da conversa: "whatsapp" ou "instagram". */
+    channel: string
     pushName?: string | null
     profilePicUrl?: string | null
 }): Promise<InboundContext> {
-    const { workspaceId, agentId, integrationId, phone, pushName, profilePicUrl } = input
+    const { workspaceId, agentId, integrationId, identity, channel, pushName, profilePicUrl } =
+        input
 
     return withLock(
-        `contact:${workspaceId}:${phone}`,
+        lockKeyFor(workspaceId, identity),
         async () => {
-            const contact = await resolveContact({ workspaceId, phone, pushName, profilePicUrl })
+            const contact = await resolveContact({ workspaceId, identity, pushName, profilePicUrl })
 
             try {
                 await ensureOpenDeal(workspaceId, contact)
@@ -250,7 +338,8 @@ export async function resolveInboundContext(input: {
                 workspaceId,
                 contact.id,
                 agentId,
-                integrationId
+                integrationId,
+                channel
             )
             return { contact, conversation }
         },

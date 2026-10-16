@@ -45,7 +45,9 @@ export async function POST(
                 },
             },
             include: {
-                conversation: { include: { contact: { select: { phone: true } } } },
+                conversation: {
+                    include: { contact: { select: { phone: true, instagramId: true } } },
+                },
             },
         })
         if (!message) return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 })
@@ -53,20 +55,31 @@ export async function POST(
             return NextResponse.json({ error: 'Só é possível reagir a mensagens recebidas' }, { status: 400 })
         }
 
-        const phone = message.conversation.contact?.phone
+        /**
+         * Para quem a reação vai, pelo canal do fio.
+         *
+         * No Instagram o provedor não implementa `react` — a Send API recebe
+         * reação do paciente, mas não deixa a clínica reagir —, e a recusa logo
+         * abaixo é o que diz isso em vez de falhar na Meta.
+         */
+        const destino =
+            message.conversation.channel === 'instagram'
+                ? message.conversation.contact?.instagramId
+                : message.conversation.contact?.phone
+
         // Pela linha deste fio: a reação sai do mesmo número que recebeu a
         // mensagem, ou o WhatsApp a recusa por não conhecer o remetente.
         const line = await resolveConversationLine(message.conversation)
-        if (!line.ok || !phone) {
+        if (!line.ok || !destino) {
             return NextResponse.json(
                 {
-                    error: !phone
-                        ? 'Conversa sem telefone'
+                    error: !destino
+                        ? 'Conversa sem destinatário'
                         : line.ok
-                          ? 'Conversa sem canal de WhatsApp ativo'
+                          ? 'Conversa sem canal ativo'
                           : line.reason === 'line_offline'
                             ? `${line.label} está desconectada`
-                            : 'Nenhum número de WhatsApp conectado',
+                            : 'Nenhuma linha conectada',
                 },
                 { status: 400 }
             )
@@ -77,7 +90,7 @@ export async function POST(
             return NextResponse.json({ error: 'O canal desta conversa não suporta reações' }, { status: 400 })
         }
 
-        await provider.react(credentials, phone, message.externalId, emoji)
+        await provider.react(credentials, destino, message.externalId, emoji)
 
         const updated = await prisma.message.update({
             where: { id: message.id },

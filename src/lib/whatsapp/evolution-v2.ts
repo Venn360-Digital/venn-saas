@@ -7,8 +7,8 @@ import {
     type QrCode,
     type SendMediaInput,
     type SendResult,
-    type WhatsAppProvider,
-    WhatsAppProviderError,
+    type ChannelProvider,
+    ChannelProviderError,
     normalizeNumber,
     toMsisdn,
 } from './types'
@@ -70,7 +70,7 @@ interface InstanceInfo {
     ownerJid?: string
 }
 
-export class EvolutionV2Provider implements WhatsAppProvider {
+export class EvolutionV2Provider implements ChannelProvider {
     readonly name = 'evolution-v2' as const
 
     private readonly baseUrl: string
@@ -99,7 +99,7 @@ export class EvolutionV2Provider implements WhatsAppProvider {
             })
 
             if (!response.ok) {
-                throw new WhatsAppProviderError(
+                throw new ChannelProviderError(
                     this.name,
                     response.status,
                     await response.text().catch(() => ''),

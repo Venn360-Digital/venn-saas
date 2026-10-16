@@ -40,10 +40,14 @@ export interface Channel {
  *
  * A tela nunca diz "não configurado" para eles: não é falta de configurar, é
  * falta de existir — e um aviso desses manda a clínica procurar um botão que
- * não está lá. A mesma verdade aparece em `OUTROS_CANAIS`, na guia Canais do
- * agente, que lista estes dois como "em desenvolvimento".
+ * não está lá.
+ *
+ * Sobrou **só o Facebook**. O WhatsApp oficial saiu quando ganhou botão, em
+ * 2026-10-16, e o Instagram saiu quando ganhou o dele — a partir daí o certo é
+ * dizer "não configurado", porque há exatamente onde clicar. Deixá-los aqui
+ * faria o painel anunciar como futuro um canal que a clínica pode ligar agora.
  */
-export const CANAIS_EM_DESENVOLVIMENTO = new Set(['whatsapp_api', 'instagram', 'facebook'])
+export const CANAIS_EM_DESENVOLVIMENTO = new Set(['facebook'])
 
 export const PLAN_CHANNELS: Channel[] = [
     { id: 'whatsapp_qr', label: 'WhatsApp QR-Code', icon: QrCode },

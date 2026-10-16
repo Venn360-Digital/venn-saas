@@ -1,5 +1,5 @@
 import type { WhatsAppMessagePayload } from './payload'
-import { type WhatsAppProviderName, toMsisdn } from './types'
+import { type ChannelProviderName, toMsisdn } from './types'
 
 /**
  * Translation of each provider's webhook envelope into one canonical event.
@@ -23,6 +23,16 @@ export interface InstanceRef {
     instanceToken?: string
     /** Evolution v2: the instance name. */
     instanceName?: string
+    /**
+     * Instagram: o id da conta profissional, que é `entry[].id` no webhook.
+     *
+     * Campo próprio e não `instanceName`: a Meta dá **uma URL de webhook por
+     * produto**, então todo evento de Instagram de todas as clínicas entra pela
+     * mesma porta, e o que separa uma da outra é este id. Procurá-lo pelo mesmo
+     * caminho de um nome de instância do Evolution deixaria duas coisas
+     * diferentes se achando pela mesma chave.
+     */
+    igAccountId?: string
 }
 
 /** The provider-neutral event kinds the worker handles. */
@@ -36,7 +46,7 @@ export type CanonicalEvent =
     | 'unknown' | 'recycle'
 
 export interface NormalizedEvent {
-    provider: WhatsAppProviderName
+    provider: ChannelProviderName
     kind: CanonicalEvent
     instance: InstanceRef
     /** Original provider event name, for logging. */

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
     BadgeCheck,
+    Facebook,
     Instagram,
     Loader2,
     Pencil,
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+import { InstagramConnect } from '@/components/agents/creation/InstagramConnect'
 import { MetaEmbeddedSignup } from '@/components/agents/creation/MetaEmbeddedSignup'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
@@ -73,18 +75,19 @@ interface CanaisTabProps {
     canManage?: boolean
 }
 
-/** Os canais que ainda não existem, ditos como tal. */
 /**
- * O WhatsApp oficial saiu desta lista em 2026-10-16: ele deixou de ser "em
- * breve" e passou a ter botão. O Instagram continua aqui porque ainda depende
- * da revisão da Meta.
+ * Os canais que ainda não existem, ditos como tal.
+ *
+ * Dois saíram daqui ao ganhar botão: o WhatsApp oficial e, depois dele, o
+ * Instagram — que passou a ter cartão próprio, logo abaixo. Sobrou o Facebook,
+ * que é de verdade o único ainda por fazer.
  */
 const OUTROS_CANAIS = [
     {
-        id: 'instagram',
-        name: 'Instagram e Messenger',
-        description: 'Direct do Instagram e mensagens da página no Facebook',
-        icon: Instagram,
+        id: 'facebook',
+        name: 'Messenger',
+        description: 'Mensagens da página da clínica no Facebook',
+        icon: Facebook,
     },
 ]
 
@@ -528,6 +531,33 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                         ) : (
                             <span className="text-[11px] text-muted-foreground">
                                 Só o administrador conecta
+                            </span>
+                        )
+                    }
+                />
+            </SettingsCard>
+
+            {/* O Instagram vai direto à Meta: não há Evolution no caminho,
+                porque ele não tem canal de Instagram — e também não teria o que
+                fazer ali, já que a API de Direct é aberta e gratuita. */}
+            <SettingsCard
+                title="Instagram"
+                description="O Direct da conta profissional da clínica. Não ocupa número do plano — o que ele consome é crédito de IA, por mensagem."
+            >
+                <SettingsRow
+                    title={
+                        <span className="flex items-center gap-2">
+                            <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
+                            Conectar pela Meta
+                        </span>
+                    }
+                    description="A conta precisa ser profissional e estar ligada a uma Página do Facebook. Nenhuma credencial passa por aqui."
+                    action={
+                        agentId ? (
+                            <InstagramConnect agentId={agentId} canManage={canManage} />
+                        ) : (
+                            <span className="text-[11px] text-muted-foreground">
+                                Salve o agente primeiro
                             </span>
                         )
                     }

@@ -13,7 +13,7 @@ import { webhookUrlFor } from '@/lib/whatsapp'
 import { env } from '../env'
 import { createLogger } from '../logger'
 import { QUEUE, getQueue, type WhatsAppEventJob } from '../queues'
-import { findContactByJid, syncContactAvatar } from '../services/avatar'
+import { findContactByJid, syncContactProfile } from '../services/avatar'
 import { findIntegrationByRef, providerFor } from '../services/integration'
 
 /** Measured: the forced logout lands ~105 s after PairSuccess; sync is done by ~15 s. */
@@ -67,10 +67,10 @@ async function handlePicture(event: NormalizedPicture): Promise<void> {
     if (!contact) return
 
     const { provider, credentials } = providerFor(integration)
-    await syncContactAvatar({
+    await syncContactProfile({
         contactId: contact.id,
         workspaceId,
-        phone: contact.phone,
+        externalId: contact.phone,
         provider,
         credentials,
         removed: event.removed,

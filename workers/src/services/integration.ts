@@ -2,7 +2,7 @@ import type { Agent, AgentIntegration, Subscription, Workspace } from '@prisma/c
 import prisma from '@/lib/prisma'
 import {
     type IntegrationConfig,
-    type WhatsAppProvider,
+    type ChannelProvider,
     readIntegrationConfig,
     resolveIntegration,
 } from '@/lib/whatsapp'
@@ -27,6 +27,10 @@ const AGENT_INCLUDE = {
  * and `instanceToken` (no name at all), while Evolution v2 sends only the instance
  * name. Both end up in the same `config` JSON, so each key is tried in order of how
  * strongly it identifies the row.
+ *
+ * O Instagram entra por um quarto caminho, o id da conta profissional: a Meta dá
+ * **uma URL de webhook por produto**, então os eventos de todas as clínicas
+ * chegam pela mesma porta e é esse id que diz de quem é cada um.
  */
 export async function findIntegrationByRef(
     ref: InstanceRef
@@ -36,6 +40,9 @@ export async function findIntegrationByRef(
     if (ref.instanceId) candidates.push({ path: ['instanceId'], value: ref.instanceId })
     if (ref.instanceToken) candidates.push({ path: ['token'], value: ref.instanceToken })
     if (ref.instanceName) candidates.push({ path: ['instanceName'], value: ref.instanceName })
+    if (ref.igAccountId) {
+        candidates.push({ path: ['instagram', 'igAccountId'], value: ref.igAccountId })
+    }
 
     for (const { path, value } of candidates) {
         const integration = await prisma.agentIntegration.findFirst({
@@ -61,7 +68,7 @@ export async function findIntegrationById(id: string): Promise<ResolvedIntegrati
 
 /** Provider implementation plus credentials for an integration. */
 export function providerFor(integration: AgentIntegration): {
-    provider: WhatsAppProvider
+    provider: ChannelProvider
     credentials: IntegrationConfig
 } {
     return resolveIntegration(integration)

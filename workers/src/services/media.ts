@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { WhatsAppProvider } from '@/lib/whatsapp'
+import type { ChannelProvider } from '@/lib/whatsapp'
 import type { IntegrationConfig } from '@/lib/whatsapp'
 import { env } from '../env'
 import { createLogger } from '../logger'
@@ -31,7 +31,7 @@ export interface ArchiveMediaInput {
     base64?: string
     mimetype?: string
     /** Fallback: fetch from the provider when the bytes were not inlined. */
-    provider?: WhatsAppProvider
+    provider?: ChannelProvider
     credentials?: IntegrationConfig
     downloadPayload?: Record<string, unknown>
 }

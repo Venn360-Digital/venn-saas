@@ -1,7 +1,8 @@
 import prisma from '@/lib/prisma'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { toMsisdn } from '@/lib/whatsapp'
-import type { IntegrationConfig, WhatsAppProvider } from '@/lib/whatsapp'
+import type { IntegrationConfig, ChannelProvider } from '@/lib/whatsapp'
+import { NOME_PROVISORIO_INSTAGRAM } from './conversation'
 
 import { env } from '../env'
 import { createLogger } from '../logger'
@@ -41,26 +42,39 @@ const MAX_CONSECUTIVE_FAILURES = 3
 let consecutiveFailures = 0
 
 /**
- * A foto do paciente, dos bytes até a ficha.
+ * O perfil do paciente — foto e, quando o canal não o manda, o nome.
  *
  * **Os bytes, não a URL.** O que o WhatsApp devolve é um endereço assinado que
  * expira; guardá-lo deixaria a ficha com uma foto que funciona hoje e quebra na
  * semana que vem. O mesmo caminho da mídia das mensagens: baixa, sobe para o
  * Storage, grava o endereço nosso.
  *
+ * **O nome só existe aqui por causa do Instagram.** O webhook do Direct manda o
+ * IGSID e nada mais: nem nome, nem @. Sem esta consulta a ficha nasceria
+ * chamada "Instagram (sem nome ainda)" e ficaria assim para sempre, e a caixa
+ * de entrada viraria uma lista de desconhecidos. No WhatsApp o nome de exibição
+ * vem no próprio evento, e este caminho não mexe nele.
+ *
+ * E só substitui o **nome provisório**: um nome que a clínica digitou na ficha
+ * não é sobrescrito pelo @ da conta a cada reinício do worker.
+ *
  * Nada aqui é fatal. Falhar em achar a foto é o estado normal de quem não tem
  * foto pública — a ficha mostra as iniciais e está correta.
  */
-export async function syncContactAvatar(input: {
+export async function syncContactProfile(input: {
     contactId: string
     workspaceId: string
-    phone: string | null
-    provider: WhatsAppProvider
+    /** O id do paciente no canal: MSISDN no WhatsApp, IGSID no Instagram. */
+    externalId: string | null
+    provider: ChannelProvider
     credentials: IntegrationConfig
+    /** O nome que está na ficha agora, para só trocar o provisório. */
+    currentName?: string | null
     /** `true` quando o evento disse que a foto foi removida. */
     removed?: boolean
 }): Promise<void> {
-    const { contactId, workspaceId, phone, provider, credentials, removed } = input
+    const { contactId, workspaceId, externalId, provider, credentials, currentName, removed } =
+        input
 
     if (removed) {
         await prisma.contact.update({ where: { id: contactId }, data: { avatar: null } }).catch(() => null)
@@ -68,12 +82,33 @@ export async function syncContactAvatar(input: {
         return
     }
 
-    if (!provider.getProfilePictureUrl || !phone) return
+    if (!externalId) return
+    if (!provider.getContactProfile && !provider.getProfilePictureUrl) return
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return
     if (tried.has(contactId)) return
     tried.add(contactId)
 
-    const url = await provider.getProfilePictureUrl(credentials, phone)
+    /**
+     * Uma consulta, duas respostas.
+     *
+     * Onde o provedor sabe dizer nome e foto de uma vez (Instagram), é uma
+     * chamada só. Onde ele só sabe a foto (WhatsApp), é o caminho de antes.
+     */
+    let url: string | undefined
+    if (provider.getContactProfile) {
+        const perfil = await provider.getContactProfile(credentials, externalId)
+        url = perfil?.profilePicUrl
+
+        if (perfil?.name && ehNomeProvisorio(currentName)) {
+            await prisma.contact
+                .update({ where: { id: contactId }, data: { name: perfil.name } })
+                .then(() => log.info(`contact ${contactId} named ${perfil.name}`))
+                .catch((error) => log.warn(`could not name contact ${contactId}`, error))
+        }
+    } else if (provider.getProfilePictureUrl) {
+        url = await provider.getProfilePictureUrl(credentials, externalId)
+    }
+
     if (!url) {
         consecutiveFailures += 1
         // "Não consegui saber", e não "não tem foto": são estados diferentes e
@@ -136,6 +171,19 @@ export async function syncContactAvatar(input: {
     } catch (error) {
         log.warn(`avatar sync failed for ${contactId}: ${(error as Error).message}`)
     }
+}
+
+/**
+ * Se o nome da ficha é o que nós mesmos pusemos por falta de outro.
+ *
+ * Só estes são trocáveis: o provisório do Instagram, o "WhatsApp <número>" que
+ * nasce quando o evento não trouxe nome de exibição, e o vazio. Qualquer outro
+ * foi escolhido por alguém, e sobrescrevê-lo seria desfazer trabalho da clínica.
+ */
+function ehNomeProvisorio(nome: string | null | undefined): boolean {
+    const limpo = nome?.trim()
+    if (!limpo) return true
+    return limpo === NOME_PROVISORIO_INSTAGRAM || /^WhatsApp \d+$/.test(limpo)
 }
 
 /** O contato daquele JID dentro do workspace, ou nada. */
