@@ -151,6 +151,97 @@ services:
       start_period: 40s
     networks: [shared]
 
+  # ---------------------------------------------------------------------------
+  # Evolution API v2 — o canal oficial da Meta, e só ele
+  # ---------------------------------------------------------------------------
+  # Ao contrário do Evolution Go, este é **roteado**: a Meta precisa alcançá-lo
+  # para entregar os eventos. Isso põe a API de gestão dele na internet,
+  # protegida por `AUTHENTICATION_API_KEY` e só. É o preço do canal oficial, e
+  # está registrado aqui para ninguém descobrir depois.
+  #
+  # Banco no `postgres`, não no `supabase-db`, pela mesma razão do Go: credencial
+  # de WhatsApp é o alvo mais valioso deste host e não tem o que fazer no mesmo
+  # servidor que o dado clínico.
+  #
+  # Redis reusa o `REDIS_URL` que o app já tem, só trocando de banco lógico — o
+  # BullMQ vive no 0, este no 1 — para não haver uma segunda cópia da senha.
+  evolution-v2:
+    image: atendai/evolution-api:v2.2.3
+    restart: unless-stopped
+    depends_on:
+      evolution-v2-db-init:
+        condition: service_completed_successfully
+    environment:
+      SERVER_URL: https://${EVO_V2_HOST}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://postgres:${EVO_DB_PASSWORD}@postgres:5432/evolution_v2
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_v2
+
+      # Guardamos mensagem no nosso banco; uma segunda cópia aqui só cresceria
+      # sem fim. O mesmo raciocínio do Evolution Go.
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: ${REDIS_URL}/1
+      CACHE_REDIS_PREFIX_KEY: evolution_v2
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+
+      # Webhook por instância, não global: cada clínica terá a sua, e o global
+      # misturaria os eventos de todas numa URL só.
+      WEBHOOK_GLOBAL_ENABLED: "false"
+
+      LOG_LEVEL: ERROR,WARN,INFO
+      LOG_COLOR: "false"
+      DEL_INSTANCE: "false"
+      LANGUAGE: pt-BR
+      TZ: ${TZ:-America/Sao_Paulo}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.evov2.rule=Host(`${EVO_V2_HOST}`)
+      - traefik.http.routers.evov2.entrypoints=web,websecure
+      - traefik.http.routers.evov2.tls=true
+      - traefik.http.routers.evov2.tls.certresolver=le
+      - traefik.http.services.evov2.loadbalancer.server.port=8080
+    logging: *logs
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    volumes:
+      - evolution-v2-instances:/evolution/instances
+    networks: [shared]
+
+  # Cria o banco do v2 se ele ainda não existir. Molde copiado do init do
+  # Evolution Go, que faz o mesmo para os dois bancos dele.
+  evolution-v2-db-init:
+    image: postgres:15-alpine
+    restart: "no"
+    environment:
+      PGPASSWORD: ${EVO_DB_PASSWORD}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        if psql -h postgres -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='evolution_v2'" | grep -q 1; then
+          echo "database 'evolution_v2' already exists"
+        else
+          echo "creating database 'evolution_v2'"
+          psql -h postgres -U postgres -c "CREATE DATABASE evolution_v2"
+        fi
+    networks: [shared]
+
 networks:
   shared:
     # Created by the stack in /opt/app/compose. Joining it rather than making our
@@ -158,3 +249,7 @@ networks:
     # what lets their Traefik see our labels.
     name: compose_default
     external: true
+
+volumes:
+  # As sessões do v2. Perder isto obriga cada clínica a reconectar.
+  evolution-v2-instances:
