@@ -19,7 +19,7 @@ import { z } from 'zod'
 const MAX_RESPONSE_DELAY_SECONDS = 10
 
 /** Quantas interações o agente aceita por atendimento, conforme a tela oferece. */
-export const INTERACTION_LIMITS = [12, 25, 50, 100] as const
+export const INTERACTION_LIMITS = [20, 25, 50, 100] as const
 
 /**
  * Os nomes antigos do `responseSpeed`, para o caso de um agente ter sido gravado
@@ -79,17 +79,26 @@ export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
  * `keepContext` nasce ligado porque um agente sem histórico responde cada
  * mensagem como se fosse a primeira.
  *
- * O limite de interações é a trava que impede um fio em loop de queimar crédito
- * indefinidamente, e nasce em **12** desde 2026-10-15. Era 50, por duas razões
- * que não se sustentaram quando as contas foram feitas:
+ * O limite de interações nasce em **20** desde 2026-10-15. Era 50, e passou por
+ * 12 no mesmo dia — o caminho até 20 vale registrar, porque os dois extremos
+ * estavam errados por motivos opostos.
  *
- * - **Produto:** uma conversa que precisou de cinquenta respostas do robô já
- *   fracassou. Devia ter ido para uma pessoa muito antes, e o limite é o único
- *   mecanismo que faz isso acontecer.
- * - **Custo:** a cinquenta respostas por atendimento, a franquia de qualquer
- *   plano consome 40% da mensalidade — contra os 10% que são o alvo. A doze,
- *   os três planos ficam dentro do alvo mesmo se a conversa média for quatro
- *   vezes maior do que a estimativa.
+ * **Cinquenta era alto demais.** Uma conversa que precisou de cinquenta
+ * respostas do robô já fracassou, e nessa escala a franquia de qualquer plano
+ * consome 40% da mensalidade, contra os 10% que são o alvo.
+ *
+ * **Doze era baixo demais**, e o erro foi meu: eu dimensionei a válvula de
+ * segurança com o número de um handoff que é de outra natureza. **São dois
+ * handoffs diferentes.** O do AI SDR é sucesso — o lead foi qualificado e passa
+ * para quem fecha, em torno de 18,5 mensagens trocadas (≈9,25 respostas do
+ * agente, referência de mercado). Este limite aqui é válvula: existe para pegar
+ * o fio **travado**, não o fio normal. Posto em 12, ficaria a 1,3x da média e
+ * entregaria à equipe boa parte das conversas que estavam indo bem — o agente
+ * viraria triador.
+ *
+ * Vinte fica a **2,2x** da média: pega o que de fato travou e deixa o resto
+ * trabalhar. E o custo continua dentro do alvo mesmo no absurdo de *toda*
+ * conversa ir até o limite — 5,4% a 7,5% da mensalidade nos três planos.
  */
 export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: true,
@@ -99,7 +108,7 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     useEmojis: true,
     /** Clínica responde de clínica: fora disso, recusa educadamente. */
     restrictTopics: true,
-    interactionLimit: 12,
+    interactionLimit: 20,
     /** Trinta dias de silêncio e o atendimento se encerra sozinho. */
     autoCloseDays: 30,
 }
