@@ -21,11 +21,7 @@ import {
  */
 
 import { PLAN_LIMITS, type PlanId, type PlanLimits } from '@/lib/plan-limits'
-import {
-    InstagramIcon,
-    MessengerIcon,
-    WhatsAppIcon,
-} from '@/components/shared/BrandIcons'
+import { InstagramIcon, WhatsAppIcon } from '@/components/shared/BrandIcons'
 import { Globe } from 'lucide-react'
 
 // Reexportados para quem já importava daqui — a definição mora em
@@ -102,12 +98,22 @@ export interface RedeDoPlano {
     planos?: PlanId[]
 }
 
+/**
+ * **O Messenger saiu em 2026-10-16**, por decisão do Andre: o caso de uso foi
+ * retirado do aplicativo na Meta porque acrescentava cinco permissões à revisão,
+ * cada uma com o seu próprio vídeo, e exigia publicar uma página do Facebook. DM
+ * de Facebook não é argumento de venda para clínica odontológica.
+ *
+ * Com todos os ícones na mesma cor — pedido dele, e a fileira melhorou —, não há
+ * nada que distinga "existe" de "vai existir". Deixá-lo aqui seria prometer o
+ * que ninguém está construindo. O glifo continua em `BrandIcons` para quando
+ * voltar.
+ */
 export const REDES_DO_PLANO: RedeDoPlano[] = [
     { id: 'site', label: 'Site da clínica', icon: Globe, planos: ['pro', 'advanced'] },
     { id: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon },
     { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: WhatsAppIcon, marca: 'API', emBreve: true },
     { id: 'instagram', label: 'Instagram Direct', icon: InstagramIcon, emBreve: true },
-    { id: 'messenger', label: 'Messenger', icon: MessengerIcon, emBreve: true },
 ]
 
 /** As conexões que este plano anuncia, na ordem da fileira. */
