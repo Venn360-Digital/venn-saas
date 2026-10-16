@@ -45,6 +45,7 @@ interface SubscriptionData {
 interface PlanConfig {
     name: string
     icon: string
+    iconDark: string
     description: string
     price: number
     badge: string | null
@@ -440,13 +441,15 @@ export function PlanoTab() {
                                         Lucide, e por baixo de um ícone que já tem
                                         degradê próprio ela só brigava. */}
                                     <div className="flex items-center gap-2">
-                                        <img
-                                            src={plan.icon}
-                                            alt=""
-                                            width={32}
-                                            height={32}
-                                            className="size-8 shrink-0"
-                                        />
+                                        {/* Dois arquivos, um por tema: o degradê rico da marca some no
+                                            cartão escuro, que é marinho. Trocados por CSS e não por
+                                            estado, para não piscar o ícone errado antes de o tema ser
+                                            conhecido — `next-themes` só resolve depois de montar. O
+                                            `alt` vazio nos dois porque o nome do plano está escrito ao
+                                            lado: um leitor de tela que anunciasse o ícone diria o nome
+                                            duas vezes. */}
+                                        <img src={plan.icon} alt="" width={32} height={32} className="size-8 shrink-0 dark:hidden" />
+                                        <img src={plan.iconDark} alt="" width={32} height={32} className="hidden size-8 shrink-0 dark:block" />
                                         <h3 className="text-[15px] font-bold">{plan.name}</h3>
                                     </div>
 

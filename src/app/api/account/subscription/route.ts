@@ -23,6 +23,7 @@ const PLANS = Object.fromEntries(
         {
             name: p.name,
             icon: p.icon,
+            iconDark: p.iconDark,
             description: p.description,
             price: p.price,
             badge: p.badge ?? null,

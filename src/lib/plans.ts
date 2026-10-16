@@ -126,12 +126,20 @@ export interface Plan {
      * marca. A contagem de balões é o degrau do plano, e conversa é o que o
      * produto faz.
      *
-     * A ponta escura do degradê para no azul médio, e não no marinho da marca,
-     * porque o cartão no tema escuro é marinho (#0e2440) e os balões escuros
-     * sumiam dentro dele — medido compondo o ícone sobre os dois fundos. Um
-     * arquivo serve aos dois temas.
+     * **São dois jogos, um por tema.** O degradê rico da marca, ciano para
+     * marinho, fica lindo no cartão branco e some no cartão do tema escuro, que
+     * é marinho (#0e2440): os balões escuros desapareciam dentro do fundo, o
+     * Prime virava um balão só e o Multiclínica perdia a estrutura. Medido
+     * compondo os ícones sobre os dois fundos antes de instalar.
+     *
+     * O jogo escuro é o **mesmo desenho recolorido**, não um desenho novo —
+     * gerado por edição a partir do arquivo claro. Um segundo desenho mudaria a
+     * geometria ao trocar de tema, e forma que muda sozinha lê como defeito, não
+     * como tema.
      */
     icon: string
+    /** O mesmo desenho, em degradê luminoso, para o cartão do tema escuro. */
+    iconDark: string
     name: string
     description: string
     price: number
@@ -152,6 +160,7 @@ export const PLANS: Record<PlanId, Plan> = {
     flow: {
         id: 'flow',
         icon: '/planos/digital.png',
+        iconDark: '/planos/digital-escuro.png',
         name: 'Plano Digital',
         description:
             'Para clínicas que precisam conectar pacientes, WhatsApp e atendimento em um só lugar.',
@@ -170,6 +179,7 @@ export const PLANS: Record<PlanId, Plan> = {
     pro: {
         id: 'pro',
         icon: '/planos/prime.png',
+        iconDark: '/planos/prime-escuro.png',
         name: 'Plano Prime',
         description:
             'Para clínicas que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.',
@@ -191,6 +201,7 @@ export const PLANS: Record<PlanId, Plan> = {
     advanced: {
         id: 'advanced',
         icon: '/planos/multiclinica.png',
+        iconDark: '/planos/multiclinica-escuro.png',
         name: 'Plano Multiclínica',
         description:
             'Para clínicas com operações maiores, múltiplas unidades e maior fluxo de pacientes.',
