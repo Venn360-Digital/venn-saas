@@ -166,7 +166,14 @@ services:
   # Redis reusa o `REDIS_URL` que o app já tem, só trocando de banco lógico — o
   # BullMQ vive no 0, este no 1 — para não haver uma segunda cópia da senha.
   evolution-v2:
-    image: atendai/evolution-api:v2.2.3
+    # `evoapicloud`, não `atendai`: o repositório antigo não existe mais, e este é
+    # o mesmo da imagem do Evolution Go que já roda aqui.
+    #
+    # Fixada na **v2.3.7**, e não em `latest`: conferido no Docker Hub em
+    # 2026-10-16, o `latest` deles aponta para 06/05/2026 — mesma data do
+    # `2.4.0-rc1`. O "mais recente" é candidato a lançamento, e isto atende a
+    # clínica.
+    image: evoapicloud/evolution-api:v2.3.7
     restart: unless-stopped
     depends_on:
       evolution-v2-db-init:
