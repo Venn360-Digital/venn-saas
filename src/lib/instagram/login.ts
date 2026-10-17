@@ -59,6 +59,13 @@ export interface TokenDeInstagram {
     expiraEm: Date
     /** A conta profissional a que o token pertence. */
     igAccountId: string
+    /**
+     * O que a Meta **de fato** concedeu, quando ela diz.
+     *
+     * Nem sempre vem. Vazio significa "não deu para saber", e não "nada foi
+     * concedido" — confundir os dois recusaria conexões boas.
+     */
+    permissoes: string[]
 }
 
 async function credenciais(): Promise<{ clientId: string; clientSecret: string }> {
@@ -166,6 +173,19 @@ export async function trocarCodigoPorToken(
      */
     const idEscopadoAoApp = curto.user_id
 
+    /**
+     * O que foi concedido, quando a Meta conta.
+     *
+     * Existe por um silêncio de três horas: a permissão de mensagens não
+     * estava marcada no caso de uso, o Instagram mostrou o consentimento, a
+     * clínica aprovou, e ele concedeu **só o que existia** — sem erro em lugar
+     * nenhum. A linha ficou verde, `/me` respondia, e a caixa de mensagens
+     * simplesmente não existia para o aplicativo.
+     */
+    const permissoes = Array.isArray(curto.permissions)
+        ? (curto.permissions as unknown[]).map(String)
+        : []
+
     if (typeof tokenCurto !== 'string' || !tokenCurto) {
         throw new MetaOnboardingError('troca do código', 'a Meta não devolveu token')
     }
@@ -186,7 +206,22 @@ export async function trocarCodigoPorToken(
         accessToken,
         expiraEm: vencimento(longo.expires_in),
         igAccountId: String(idEscopadoAoApp ?? ''),
+        permissoes,
     }
+}
+
+/** A permissão sem a qual o canal existe no papel e não atende. */
+export const PERMISSAO_DE_MENSAGENS = 'instagram_business_manage_messages'
+
+/**
+ * Se a Meta disse o que concedeu, e a de mensagens não está lá.
+ *
+ * **Lista vazia não acusa**: ela quer dizer "a Meta não contou", e recusar aí
+ * derrubaria conexões boas por falta de informação. Só acusa quando há lista e
+ * a permissão não está nela — que é o caso real e silencioso.
+ */
+export function faltaPermissaoDeMensagens(permissoes: string[]): boolean {
+    return permissoes.length > 0 && !permissoes.includes(PERMISSAO_DE_MENSAGENS)
 }
 
 /**

@@ -2,7 +2,13 @@ import 'server-only'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceLimits } from '@/lib/limits'
-import { assinarConta, perfilDaConta, trocarCodigoPorToken } from '@/lib/instagram/login'
+import {
+    PERMISSAO_DE_MENSAGENS,
+    assinarConta,
+    faltaPermissaoDeMensagens,
+    perfilDaConta,
+    trocarCodigoPorToken,
+} from '@/lib/instagram/login'
 import { MetaOnboardingError } from '@/lib/meta/onboarding'
 
 /**
@@ -69,6 +75,31 @@ export async function conectarInstagram(input: {
 
     try {
         const token = await trocarCodigoPorToken(code, redirectUri)
+
+        console.log(
+            `[INSTAGRAM_OAUTH] concedido: ${token.permissoes.join(', ') || '(a Meta não disse)'}`
+        )
+
+        /**
+         * Autorizado não é o mesmo que podendo atender.
+         *
+         * Sem a permissão de mensagens, `/me` responde, a assinatura é aceita e
+         * a linha fica verde — e a caixa de Direct **não existe** para o
+         * aplicativo. Foi exatamente assim que três horas se foram: a permissão
+         * não estava marcada no caso de uso, o Instagram concedeu só o que
+         * havia, e nada no caminho reclamou. Recusar aqui é o que transforma um
+         * silêncio em uma frase.
+         */
+        if (faltaPermissaoDeMensagens(token.permissoes)) {
+            return {
+                ok: false,
+                erro:
+                    `A conta foi autorizada, mas sem a permissão ${PERMISSAO_DE_MENSAGENS}, ` +
+                    'que é a que dá acesso ao Direct. Isto é configuração do aplicativo na ' +
+                    'Meta — acrescente-a em Permissões e recursos do caso de uso do Instagram ' +
+                    'e conecte de novo.',
+            }
+        }
 
         /**
          * O id da conta vem de `/me`, não da troca do código.
