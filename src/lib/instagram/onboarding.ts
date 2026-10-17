@@ -297,6 +297,23 @@ async function permissoesFaltando(tokenDeUsuario: string): Promise<string[]> {
             ? (corpo.data as { permission?: string; status?: string }[])
             : []
 
+        /**
+         * A lista inteira vai para o log, com o estado de cada uma.
+         *
+         * **Ausente e `declined` são causas diferentes com o mesmo sintoma.**
+         * Ausente quer dizer que a configuração nem pediu a permissão; recusada
+         * quer dizer que pediu e não obteve — e aí o problema costuma ser o
+         * ativo, não a lista de permissões. Sem esta linha, as duas viram a
+         * mesma frase e o conserto é tentativa e erro.
+         */
+        console.log(
+            `[INSTAGRAM_OAUTH] permissões: ${
+                lista.map((p) => `${p.permission}=${p.status}`).join(' ') || '(nenhuma)'
+            }`
+        )
+
+        await registrarAtivos(tokenDeUsuario)
+
         const concedidas = new Set(
             lista.filter((p) => p.status === 'granted').map((p) => p.permission)
         )
@@ -305,6 +322,37 @@ async function permissoesFaltando(tokenDeUsuario: string): Promise<string[]> {
         // A consulta é diagnóstico: falhar aqui não pode trocar a mensagem da
         // clínica por um erro sobre a consulta em si.
         return []
+    }
+}
+
+/**
+ * Sobre **quais contas** cada permissão foi concedida.
+ *
+ * `granular_scopes` é a parte que responde a pergunta que a lista de permissões
+ * não responde: a clínica pode ter concedido `instagram_manage_messages` e não
+ * ter escolhido conta nenhuma na janela — aí o escopo vem sem `target_ids`, e
+ * nada funciona apesar de tudo parecer concedido. Só log; nunca atrapalha o
+ * fluxo.
+ */
+async function registrarAtivos(tokenDeUsuario: string): Promise<void> {
+    try {
+        const app = await credenciaisDoApp()
+        const url = new URL(`${GRAPH}/debug_token`)
+        url.searchParams.set('input_token', tokenDeUsuario)
+        url.searchParams.set('access_token', `${app.clientId}|${app.clientSecret}`)
+
+        const corpo = await graph('ativos do token', url.toString())
+        const dados = (corpo.data ?? {}) as {
+            granular_scopes?: { scope?: string; target_ids?: string[] }[]
+        }
+
+        const resumo = (dados.granular_scopes ?? [])
+            .map((g) => `${g.scope}:[${(g.target_ids ?? []).join(',') || 'sem ativo'}]`)
+            .join(' ')
+
+        console.log(`[INSTAGRAM_OAUTH] ativos concedidos: ${resumo || '(nenhum)'}`)
+    } catch {
+        // Diagnóstico não pode derrubar diagnóstico.
     }
 }
 
