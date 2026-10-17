@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { manageAgent } from '@/lib/auth/agent'
 import { conectarInstagram } from '@/lib/instagram/connect'
-import { lerEstado, redirectUriFor, voltaCom } from '@/lib/instagram/oauth'
+import { basePublica, lerEstado, redirectUriFor, voltaCom } from '@/lib/instagram/oauth'
 
 export const runtime = 'nodejs'
 
@@ -23,10 +23,19 @@ export const runtime = 'nodejs'
 export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams
     const estado = lerEstado(params.get('state'))
-    const origem = request.nextUrl.origin
+
+    /**
+     * O endereço de volta vem da configuração, não da requisição.
+     *
+     * `request.nextUrl.origin` resolveu `https://0.0.0.0:3000` atrás do
+     * Traefik, e a clínica — com a conexão já autorizada na Meta — foi parar
+     * numa URL morta. O fluxo tinha funcionado; o que falhou foi dizer isso a
+     * ela.
+     */
+    const base = basePublica(request.nextUrl.origin)
 
     const voltar = (chave: 'instagram_ok' | 'instagram_erro', valor: string) =>
-        NextResponse.redirect(new URL(voltaCom(estado, chave, valor), origem))
+        NextResponse.redirect(new URL(voltaCom(estado, chave, valor), base))
 
     /**
      * A clínica desistiu na janela da Meta.
@@ -60,8 +69,9 @@ export async function GET(request: NextRequest) {
         agentId: estado.agentId,
         workspaceId: auth.member.workspaceId,
         code,
-        // O mesmo endereço que abriu o diálogo, derivado da mesma origem.
-        redirectUri: redirectUriFor(origem),
+        // O mesmo endereço que abriu o diálogo: as duas pontas leem o valor
+        // configurado, então são idênticas por construção.
+        redirectUri: redirectUriFor(request.nextUrl.origin),
     })
 
     if (!resultado.ok) return voltar('instagram_erro', resultado.erro)

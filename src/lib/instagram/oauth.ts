@@ -36,8 +36,24 @@ import 'server-only'
  * idênticas por construção — que é tudo o que a Meta exige.
  */
 export function redirectUriFor(origemDaRequisicao: string): string {
+    return `${basePublica(origemDaRequisicao)}/api/integrations/instagram/callback`
+}
+
+/**
+ * O endereço público da aplicação.
+ *
+ * `request.nextUrl.origin` **não serve** aqui: atrás do Traefik ele resolveu
+ * `https://0.0.0.0:3000` — o endereço com que o contêiner escuta —, e a volta
+ * do OAuth jogou a clínica numa URL morta. Medido em 2026-10-16, com a conexão
+ * já autorizada do lado da Meta: o fluxo tinha dado certo e a pessoa foi parar
+ * no nada.
+ *
+ * Por isso o valor configurado manda, e o da requisição é só reserva para
+ * desenvolvimento, onde não há proxy no caminho.
+ */
+export function basePublica(origemDaRequisicao: string): string {
     const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim().replace(/\/$/, '')
-    return `${base || origemDaRequisicao}/api/integrations/instagram/callback`
+    return base || origemDaRequisicao
 }
 
 export interface EstadoDoFluxo {
