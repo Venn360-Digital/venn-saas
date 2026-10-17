@@ -33,6 +33,11 @@ export const PLATFORM_PROVIDERS = [
         label: 'WhatsApp e Instagram (Meta)',
         help: 'App OdontoBox360 no portfólio Venn360. O Client ID é o ID do aplicativo; o Client Secret é a chave secreta, em Configurações → Básico.',
     },
+    {
+        provider: 'instagram_login',
+        label: 'Instagram (login da própria conta)',
+        help: 'App OdontoBox360 → produto Instagram → Configuração da API com login do Instagram. O Client ID é o **Instagram App ID** e o Client Secret é o **Instagram App Secret** — não são os do aplicativo do Facebook.',
+    },
     { provider: 'clinicorp', label: 'Clinicorp', help: 'Token de integração fornecido pelo Clinicorp.' },
 ] as const
 
@@ -82,6 +87,7 @@ export async function getPlatformCredentials(provider: string): Promise<OAuthApp
  */
 const SEMENTES: Record<string, { id?: string; secret?: string }> = {
     meta_messaging: { id: 'META_APP_ID', secret: 'META_APP_SECRET' },
+    instagram_login: { id: 'INSTAGRAM_APP_ID', secret: 'INSTAGRAM_APP_SECRET' },
 }
 
 async function semearDoAmbiente(provider: string): Promise<OAuthAppCredentials | null> {
