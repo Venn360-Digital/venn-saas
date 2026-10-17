@@ -34,8 +34,18 @@ export async function GET(request: NextRequest) {
      */
     const base = basePublica(request.nextUrl.origin)
 
-    const voltar = (chave: 'instagram_ok' | 'instagram_erro', valor: string) =>
-        NextResponse.redirect(new URL(voltaCom(estado, chave, valor), base))
+    /**
+     * Toda saída deixa rastro — inclusive as que não são erro de rede.
+     *
+     * Sessão expirada, agente que já tem conta, workspace sem plano e desistência
+     * na janela saíam daqui **sem uma linha de log**, e do lado de fora todas se
+     * parecem: "cliquei e não aconteceu nada". Hoje isso já custou mais de uma
+     * rodada de perguntas para descobrir que a tentativa sequer tinha voltado.
+     */
+    const voltar = (chave: 'instagram_ok' | 'instagram_erro', valor: string) => {
+        console.log(`[INSTAGRAM_OAUTH] ${chave === 'instagram_ok' ? 'ok' : 'erro'}: ${valor}`)
+        return NextResponse.redirect(new URL(voltaCom(estado, chave, valor), base))
+    }
 
     /**
      * A clínica desistiu na janela da Meta.
