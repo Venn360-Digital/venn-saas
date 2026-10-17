@@ -104,13 +104,27 @@ async function credenciaisDoApp(): Promise<{ clientId: string; clientSecret: str
     return app
 }
 
-/** Troca o código que o navegador trouxe pelo token do usuário. */
-export async function trocarCodigoPorTokenDeUsuario(code: string): Promise<string> {
+/**
+ * Troca o código que voltou do diálogo pelo token do usuário.
+ *
+ * O `redirectUri` **não é decorativo**: a Meta exige que seja idêntico ao usado
+ * para abrir o diálogo, e recusa a troca com
+ * *"Error validating verification code"* quando falta ou difere. Foi
+ * exatamente o que derrubou a primeira versão, que tentava trocar um código
+ * nascido no SDK do Facebook — onde esse endereço é escolhido pelo SDK e não
+ * temos como repeti-lo. Por isso o fluxo passou a ser por redirecionamento, com
+ * um endereço nosso. Ver `lib/instagram/oauth.ts`.
+ */
+export async function trocarCodigoPorTokenDeUsuario(
+    code: string,
+    redirectUri: string
+): Promise<string> {
     const app = await credenciaisDoApp()
 
     const url = new URL(`${GRAPH}/oauth/access_token`)
     url.searchParams.set('client_id', app.clientId)
     url.searchParams.set('client_secret', app.clientSecret)
+    url.searchParams.set('redirect_uri', redirectUri)
     url.searchParams.set('code', code)
 
     const corpo = await graph('troca do código', url.toString())
@@ -340,3 +354,27 @@ export const SEM_CONTA_LIGADA =
  * InstagramConnect.tsx`. Esta nota existe para quem mexer neste arquivo não
  * concluir que a armadilha não está tratada.
  */
+
+/**
+ * O endereço do diálogo de consentimento da Meta.
+ *
+ * Sem `scope`: com `config_id`, quem define as permissões é a configuração do
+ * *Login do Facebook para Empresas* no painel — mandar escopo junto é pedir
+ * duas coisas diferentes e deixar a janela decidir qual vale.
+ */
+export async function urlDoDialogo(input: {
+    configId: string
+    redirectUri: string
+    state: string
+}): Promise<string> {
+    const app = await credenciaisDoApp()
+
+    const url = new URL('https://www.facebook.com/v23.0/dialog/oauth')
+    url.searchParams.set('client_id', app.clientId)
+    url.searchParams.set('config_id', input.configId)
+    url.searchParams.set('redirect_uri', input.redirectUri)
+    url.searchParams.set('response_type', 'code')
+    url.searchParams.set('state', input.state)
+
+    return url.toString()
+}
