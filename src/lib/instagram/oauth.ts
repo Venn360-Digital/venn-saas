@@ -21,9 +21,23 @@ import 'server-only'
  * ver `lib/google-oauth-client.ts`.
  */
 
-/** O caminho de volta. Tem de bater, caractere a caractere, nas duas pontas. */
-export function redirectUriFor(origin: string): string {
-    return `${origin}/api/integrations/instagram/callback`
+/**
+ * O caminho de volta. Tem de bater, caractere a caractere, nas duas pontas.
+ *
+ * **O endereço público manda, e o da requisição é só reserva.** Derivá-lo do
+ * `origin` da requisição parecia mais honesto — é o endereço que o navegador
+ * de fato visitou —, mas atrás do Traefik isso depende de o Next confiar no
+ * cabeçalho de protocolo do proxy. Resolvendo `http://`, a Meta recusa com
+ * *"URL bloqueada"*, e a mensagem não diz que o problema é o esquema: manda
+ * conferir a lista de URIs, que está certa. Horas perdidas procurando no lugar
+ * errado.
+ *
+ * Com o valor configurado, as duas pontas leem a mesma constante e são
+ * idênticas por construção — que é tudo o que a Meta exige.
+ */
+export function redirectUriFor(origemDaRequisicao: string): string {
+    const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim().replace(/\/$/, '')
+    return `${base || origemDaRequisicao}/api/integrations/instagram/callback`
 }
 
 export interface EstadoDoFluxo {

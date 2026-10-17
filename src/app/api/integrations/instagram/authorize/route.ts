@@ -39,16 +39,16 @@ export async function GET(request: NextRequest) {
         )
     }
 
+    const redirectUri = redirectUriFor(request.nextUrl.origin)
+
     /**
-     * A origem vem da requisição, não de variável de ambiente.
+     * O endereço construído vai para o log, uma linha por tentativa.
      *
-     * O `redirect_uri` precisa ser idêntico nas duas pontas, e a ponta que a
-     * Meta vê é a que o navegador visitou. Derivá-lo de `NEXT_PUBLIC_APP_URL`
-     * abriria a chance de um valor divergir do outro — e a recusa da Meta nesse
-     * caso não diz qual dos dois está errado.
+     * Quando a Meta responde "URL bloqueada", ela não diz **qual** endereço
+     * recusou — e as duas causas (não está na lista, ou veio como `http`) têm
+     * a mesma mensagem. Com esta linha, a próxima tentativa responde sozinha.
      */
-    const origem = request.nextUrl.origin
-    const redirectUri = redirectUriFor(origem)
+    console.log(`[INSTAGRAM_OAUTH] redirect_uri=${redirectUri}`)
 
     const state = codificarEstado({
         agentId,
