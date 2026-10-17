@@ -3,9 +3,13 @@ import 'server-only'
 import prisma from '@/lib/prisma'
 import { getWorkspaceLimits } from '@/lib/limits'
 import {
+    PERMISSAO_DE_MENSAGENS,
+    assinarContaDeInstagram,
     assinarPaginaAoApp,
     contasDisponiveis,
+    escoposDoToken,
     explicarListaVazia,
+    faltaPermissaoDeMensagens,
     tokenDeLongaDuracao,
     trocarCodigoPorTokenDeUsuario,
 } from '@/lib/instagram/onboarding'
@@ -26,9 +30,11 @@ import { MetaOnboardingError } from '@/lib/meta/onboarding'
  *    nascer sem prazo;
  * 3. **achar a Página e a conta**, onde se descobre que a clínica nunca ligou
  *    as duas — a falha mais comum deste fluxo;
- * 4. **assinar a Página ao aplicativo**, sem o que a Meta aceita tudo e não
+ * 4. **conferir que o token pode mesmo atender** — achar a conta não é o
+ *    mesmo que poder ler um Direct dela;
+ * 5. **assinar a conta ao aplicativo**, sem o que a Meta aceita tudo e não
  *    manda evento nenhum;
- * 5. **gravar a integração**, que é a ponte entre o evento e o workspace.
+ * 6. **gravar a integração**, que é a ponte entre o evento e o workspace.
  *
  * O limite do plano e a unicidade são conferidos **antes** de assinar: recusar
  * depois deixaria assinatura pendurada do lado de fora, que ninguém limpa.
@@ -114,7 +120,46 @@ export async function conectarInstagram(input: {
             return { ok: false, erro: 'Esta conta de Instagram já está conectada a um agente.' }
         }
 
-        await assinarPaginaAoApp(escolhida.pageId, escolhida.accessToken)
+        /**
+         * Pode mesmo atender, ou só encontrar?
+         *
+         * Com `instagram_basic` sozinha a busca de contas funciona e a Página
+         * aceita ser assinada — tudo parece ter dado certo, e o canal não lê
+         * nem envia nada. Aconteceu em 2026-10-17: a linha foi gravada como "no
+         * ar" com um token que não podia ler um Direct, e só se descobriu
+         * porque nenhuma mensagem chegava. Recusar aqui é muito melhor que
+         * descobrir quando um paciente não for respondido.
+         */
+        const escopos = await escoposDoToken(escolhida.accessToken)
+        if (faltaPermissaoDeMensagens(escopos)) {
+            return {
+                ok: false,
+                erro:
+                    `A conta foi autorizada, mas sem a permissão ${PERMISSAO_DE_MENSAGENS}, ` +
+                    'que é a que permite receber e responder o Direct. Isto é configuração do ' +
+                    'aplicativo na Meta: acrescente-a à configuração do Login do Facebook para ' +
+                    'Empresas e conecte de novo.',
+            }
+        }
+
+        /**
+         * A conta primeiro, que é quem entrega o Direct.
+         *
+         * Assinar só a Página não assina a conta — medido: a Página ficava com
+         * os quatro campos e `GET /{conta}/subscribed_apps` devolvia vazio,
+         * sem um evento sequer chegar.
+         */
+        await assinarContaDeInstagram(escolhida.igAccountId, escolhida.accessToken)
+
+        /**
+         * A Página vai junto, sem poder derrubar a conexão.
+         *
+         * Ela não é o que entrega o Direct, então falhar aqui não justifica
+         * recusar uma conexão que já funciona — fica o log.
+         */
+        await assinarPaginaAoApp(escolhida.pageId, escolhida.accessToken).catch((erro) =>
+            console.warn('[INSTAGRAM_ONBOARDING] a página não foi assinada', erro)
+        )
 
         const integracao = await prisma.agentIntegration.create({
             data: {

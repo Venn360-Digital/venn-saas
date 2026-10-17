@@ -262,6 +262,78 @@ export async function assinarPaginaAoApp(
 }
 
 /**
+ * Os campos no vocabulário da **conta de Instagram**.
+ *
+ * Diferente do da Página: aqui o "visto" é `messaging_seen`. Ver
+ * `CAMPOS_ASSINADOS` para o porquê de existirem duas listas.
+ */
+const CAMPOS_DA_CONTA = [
+    'messages',
+    'messaging_seen',
+    'message_reactions',
+    'messaging_postbacks',
+] as const
+
+/**
+ * Assina a **conta de Instagram** ao aplicativo. É esta que entrega o Direct.
+ *
+ * Medido em 2026-10-17, com a conexão já feita: a Página estava assinada com os
+ * quatro campos dela e **nenhum evento chegava**. `GET /{conta}/subscribed_apps`
+ * devolvia lista vazia — ou seja, assinar a Página não assina a conta, apesar
+ * de a documentação dizer que `/me/subscribed_apps` aceita "o id da conta
+ * profissional **ou** o id da Página". Para o Direct, quem vale é a conta.
+ *
+ * Exige `instagram_manage_messages` no token; sem ela a Meta responde
+ * `(#200) Requires instagram_manage_messages permission to manage the object`.
+ */
+export async function assinarContaDeInstagram(
+    igAccountId: string,
+    token: string
+): Promise<void> {
+    const url = new URL(`${GRAPH}/${igAccountId}/subscribed_apps`)
+    url.searchParams.set('subscribed_fields', CAMPOS_DA_CONTA.join(','))
+
+    await graph('assinatura da conta', url.toString(), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+    })
+}
+
+/**
+ * Os escopos que o token realmente carrega, segundo a própria Meta.
+ *
+ * Existe porque "achamos a conta" não é o mesmo que "podemos atender". Com
+ * `instagram_basic` sozinha, a busca de contas funciona, a Página aceita ser
+ * assinada e tudo **parece** ter dado certo — mas o canal não recebe nem envia
+ * mensagem nenhuma. Foi exatamente o que aconteceu: uma conexão gravada como
+ * "no ar" com um token que não podia ler um Direct.
+ */
+export async function escoposDoToken(token: string): Promise<string[]> {
+    const app = await credenciaisDoApp()
+
+    const url = new URL(`${GRAPH}/debug_token`)
+    url.searchParams.set('input_token', token)
+    url.searchParams.set('access_token', `${app.clientId}|${app.clientSecret}`)
+
+    const corpo = await graph('escopos do token', url.toString())
+    const dados = (corpo.data ?? {}) as { scopes?: string[] }
+    return Array.isArray(dados.scopes) ? dados.scopes : []
+}
+
+/**
+ * A permissão sem a qual o canal existe no papel e não atende.
+ *
+ * Conferida **antes** de gravar a linha: uma integração "conectada" que não
+ * recebe mensagem é pior que uma conexão recusada, porque a clínica só descobre
+ * quando um paciente não é respondido.
+ */
+export const PERMISSAO_DE_MENSAGENS = 'instagram_manage_messages'
+
+export function faltaPermissaoDeMensagens(escopos: string[]): boolean {
+    return !escopos.includes(PERMISSAO_DE_MENSAGENS)
+}
+
+/**
  * As permissões sem as quais este fluxo não funciona, e o que cada uma faz.
  *
  * A lista é curta de propósito: pedir permissão que não se usa trava revisão de
