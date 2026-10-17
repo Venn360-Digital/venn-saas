@@ -4,7 +4,6 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { manageAgent, readAgent } from '@/lib/auth/agent'
 import {
-    PERMITIR_ACESSO_A_MENSAGENS,
     assinarPaginaAoApp,
     contasDisponiveis,
     explicarListaVazia,
@@ -181,15 +180,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             integrationId: integracao.id,
             label: integracao.label,
             username: escolhida.username ?? null,
-            /**
-             * O aviso do botão invisível vai junto com o sucesso.
-             *
-             * É a única hora em que a clínica está olhando e pode resolver: a
-             * chave "Permitir acesso a mensagens" fica no aplicativo do
-             * Instagram, não aparece em painel nenhum, e com ela desligada a
-             * conexão fica verde e os envios falham calados.
-             */
-            aviso: PERMITIR_ACESSO_A_MENSAGENS,
         })
     } catch (error) {
         if (error instanceof MetaOnboardingError) {

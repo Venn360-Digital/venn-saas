@@ -325,18 +325,18 @@ export const SEM_CONTA_LIGADA =
     'profissional e ligue-a a uma Página; depois tente conectar de novo.'
 
 /**
- * O aviso do botão invisível, que não dá erro nenhum e quebra tudo.
+ * Sobre o botão invisível, que não dá erro nenhum e quebra tudo.
  *
- * A clínica precisa ligar, **no aplicativo do Instagram**, em Configurações →
- * Mensagens e respostas de story → Controles de mensagens → Ferramentas
- * conectadas → *Permitir acesso a mensagens*. Conceder a permissão no OAuth
- * **não** liga essa chave, ela não aparece em painel nenhum de desenvolvedor, e
- * com ela desligada a conexão fica verde e os envios falham calados.
+ * A clínica precisa ligar, **no aplicativo do Instagram**, em Configurações e
+ * atividade → Mensagens e respostas de story → Controles de mensagens →
+ * Ferramentas conectadas → *Permitir acesso a mensagens*. Conceder a permissão
+ * no OAuth **não** liga essa chave, ela não aparece em painel nenhum de
+ * desenvolvedor, e com ela desligada a conexão fica verde e os envios falham
+ * calados. É o equivalente, no Instagram, da assinatura de conta que nos custou
+ * uma tarde no WhatsApp.
  *
- * É o equivalente, no Instagram, da assinatura da conta que nos custou uma
- * tarde no WhatsApp — e por isso está na tela, não só neste comentário.
+ * O texto que a clínica lê **não mora aqui**: ele é passo de preparo, mostrado
+ * antes do clique e lembrado depois, em `components/agents/creation/
+ * InstagramConnect.tsx`. Esta nota existe para quem mexer neste arquivo não
+ * concluir que a armadilha não está tratada.
  */
-export const PERMITIR_ACESSO_A_MENSAGENS =
-    'No aplicativo do Instagram, confirme que está ligado: Configurações → Mensagens e ' +
-    'respostas de story → Controles de mensagens → Ferramentas conectadas → Permitir ' +
-    'acesso a mensagens. Sem essa chave a conexão fica verde e nenhuma mensagem sai.'

@@ -544,24 +544,27 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                 title="Instagram"
                 description="O Direct da conta profissional da clínica. Não ocupa número do plano — o que ele consome é crédito de IA, por mensagem."
             >
-                <SettingsRow
-                    title={
-                        <span className="flex items-center gap-2">
-                            <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
-                            Conectar pela Meta
-                        </span>
-                    }
-                    description="A conta precisa ser profissional e estar ligada a uma Página do Facebook. Nenhuma credencial passa por aqui."
-                    action={
-                        agentId ? (
-                            <InstagramConnect agentId={agentId} canManage={canManage} />
-                        ) : (
+                {/* O componente desenha a linha inteira, e não só o botão: a
+                    orientação de preparo depende de já estar conectado ou não,
+                    e esse estado mora lá dentro. */}
+                {agentId ? (
+                    <InstagramConnect agentId={agentId} canManage={canManage} />
+                ) : (
+                    <SettingsRow
+                        title={
+                            <span className="flex items-center gap-2">
+                                <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
+                                Conectar pela Meta
+                            </span>
+                        }
+                        description="A clínica escolhe a própria conta numa janela da Meta. Nenhuma credencial passa por aqui."
+                        action={
                             <span className="text-[11px] text-muted-foreground">
                                 Salve o agente primeiro
                             </span>
-                        )
-                    }
-                />
+                        }
+                    />
+                )}
             </SettingsCard>
 
             <SettingsCard
