@@ -13,6 +13,9 @@ interface ProviderRow {
     provider: string
     label: string
     help: string
+    /** Como o provedor chama suas credenciais. "Client ID" é só o padrão. */
+    idLabel?: string
+    secretLabel?: string
     configured: boolean
     clientId: string | null
     updatedAt: string | null
@@ -49,7 +52,7 @@ export function PlatformCredentialsPanel() {
 
     const save = async (provider: string) => {
         if (!clientId.trim() || !clientSecret.trim()) {
-            toast.error('Informe o Client ID e o Client Secret')
+            toast.error('Preencha os dois campos')
             return
         }
         setSaving(true)
@@ -105,7 +108,18 @@ export function PlatformCredentialsPanel() {
                                         </span>
                                     )}
                                 </p>
-                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                {/* O id registrado cabe numa linha; a ajuda é
+                                    um caminho de menu e precisa quebrar, ou o
+                                    "…" come justamente o fim, que é onde está
+                                    a tela certa. */}
+                                <p
+                                    className={cn(
+                                        'mt-0.5 text-xs text-muted-foreground',
+                                        row.configured && row.clientId
+                                            ? 'truncate'
+                                            : 'leading-relaxed'
+                                    )}
+                                >
                                     {row.configured && row.clientId ? row.clientId : row.help}
                                 </p>
                             </div>
@@ -125,7 +139,9 @@ export function PlatformCredentialsPanel() {
                         {open === row.provider ? (
                             <div className={cn('mt-3 space-y-3 rounded-lg bg-muted/40 p-3')}>
                                 <div className="space-y-1">
-                                    <Label htmlFor={`${row.provider}-id`} className="text-xs">Client ID</Label>
+                                    <Label htmlFor={`${row.provider}-id`} className="text-xs">
+                                        {row.idLabel ?? 'Client ID'}
+                                    </Label>
                                     <Input
                                         id={`${row.provider}-id`}
                                         value={clientId}
@@ -135,7 +151,9 @@ export function PlatformCredentialsPanel() {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor={`${row.provider}-secret`} className="text-xs">Client Secret</Label>
+                                    <Label htmlFor={`${row.provider}-secret`} className="text-xs">
+                                        {row.secretLabel ?? 'Client Secret'}
+                                    </Label>
                                     <Input
                                         id={`${row.provider}-secret`}
                                         type="password"

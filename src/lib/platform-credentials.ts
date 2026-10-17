@@ -30,13 +30,34 @@ export const PLATFORM_PROVIDERS = [
     { provider: 'meta_ads', label: 'Meta Ads', help: 'App no Meta for Developers.' },
     {
         provider: 'meta_messaging',
-        label: 'WhatsApp e Instagram (Meta)',
-        help: 'App OdontoBox360 no portfólio Venn360. O Client ID é o ID do aplicativo; o Client Secret é a chave secreta, em Configurações → Básico.',
+        label: 'WhatsApp API Oficial (Meta)',
+        help: 'App OdontoBox360 no portfólio Venn360, em Configurações → Básico.',
+        idLabel: 'ID do aplicativo',
+        secretLabel: 'Chave secreta do aplicativo',
     },
     {
         provider: 'instagram_login',
-        label: 'Instagram (login da própria conta)',
-        help: 'App OdontoBox360 → produto Instagram → Configuração da API com login do Instagram. O Client ID é o **Instagram App ID** e o Client Secret é o **Instagram App Secret** — não são os do aplicativo do Facebook.',
+        label: 'Instagram Direct',
+        /**
+         * O caminho inteiro, porque esta tela some do painel se você piscar.
+         *
+         * No modelo novo da Meta os produtos não ficam no menu lateral: moram
+         * dentro do caso de uso. E lá existem duas entradas quase idênticas,
+         * truncadas na tela — a do login do Facebook e a do login do Instagram.
+         * Queremos a segunda.
+         */
+        help: 'Casos de uso → API do Instagram → Configuração da API com login do Instagram → Configurar o login empresarial. Atenção: há duas entradas parecidas no menu; a do login do Facebook não serve.',
+        /**
+         * Rótulos no vocabulário da Meta, e não "Client ID".
+         *
+         * São credenciais próprias do produto Instagram, **diferentes** das do
+         * aplicativo do Facebook que está logo acima nesta mesma lista. Com
+         * dois campos genéricos chamados "Client ID", colar o par errado é o
+         * desfecho provável — e o erro que isso produz não diz qual dos dois
+         * está errado.
+         */
+        idLabel: 'ID do aplicativo do Instagram',
+        secretLabel: 'Chave secreta do aplicativo do Instagram',
     },
     { provider: 'clinicorp', label: 'Clinicorp', help: 'Token de integração fornecido pelo Clinicorp.' },
 ] as const
