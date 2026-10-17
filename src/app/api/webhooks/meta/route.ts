@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readInstagramEvent } from '@/lib/instagram/webhook'
 import {
     ehEventoDeInstagram,
-    metaAppSecret,
+    metaAppSecrets,
     metaSignatureValid,
     metaVerifyToken,
     normalizarEventoMeta,
@@ -86,14 +86,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const rawBody = await request.text()
 
-    const appSecret = await metaAppSecret()
-    if (!appSecret) {
-        console.error('[META_WEBHOOK] evento recusado: app da Meta sem credencial registrada')
+    /**
+     * Duas chaves, porque são dois aplicativos.
+     *
+     * O WhatsApp oficial assina com a chave do app do Facebook; o Instagram
+     * Direct, com a do produto Instagram, que é outra. Conferir só uma
+     * rejeitaria metade do tráfego como "assinatura inválida" — mensagem que
+     * faz procurar ataque onde há configuração.
+     */
+    const segredos = await metaAppSecrets()
+    if (segredos.length === 0) {
+        console.error('[META_WEBHOOK] evento recusado: nenhum app da Meta com credencial registrada')
         return new NextResponse('app not configured', { status: 503 })
     }
 
     const assinatura = request.headers.get('x-hub-signature-256')
-    if (!metaSignatureValid(rawBody, assinatura, appSecret)) {
+    if (!segredos.some((segredo) => metaSignatureValid(rawBody, assinatura, segredo))) {
         console.warn('[META_WEBHOOK] evento recusado: assinatura inválida')
         return new NextResponse('invalid signature', { status: 401 })
     }

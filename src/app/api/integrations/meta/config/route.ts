@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { getMetaPublicConfig } from '@/lib/platform-credentials'
+import { getMetaPublicConfig, getPlatformCredentials } from '@/lib/platform-credentials'
+import { INSTAGRAM_LOGIN_PROVIDER } from '@/lib/instagram/login'
 
 /**
  * Os dois ids públicos de que o navegador precisa para abrir o Embedded Signup.
@@ -23,13 +24,29 @@ export async function GET() {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+    /**
+     * O Instagram responde por aqui, mas é outro aplicativo.
+     *
+     * Só um booleano: diferente do WhatsApp, esta rota não tem nada público
+     * para entregar ao navegador — o fluxo é por redirecionamento, e o
+     * `client_id` é montado no servidor. A tela só precisa saber se o botão
+     * deve estar vivo.
+     */
+    const instagramLogin = Boolean(
+        await getPlatformCredentials(INSTAGRAM_LOGIN_PROVIDER).catch(() => null)
+    )
+
     const config = await getMetaPublicConfig()
     if (!config) {
         return NextResponse.json(
-            { configured: false, error: 'O aplicativo da Meta ainda não foi registrado.' },
+            {
+                configured: false,
+                instagramLogin,
+                error: 'O aplicativo da Meta ainda não foi registrado.',
+            },
             { status: 200 }
         )
     }
 
-    return NextResponse.json({ configured: true, ...config })
+    return NextResponse.json({ configured: true, instagramLogin, ...config })
 }

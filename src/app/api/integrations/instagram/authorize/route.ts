@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { manageAgent } from '@/lib/auth/agent'
-import { urlDoDialogo } from '@/lib/instagram/onboarding'
+import { INSTAGRAM_LOGIN_PROVIDER, urlDeAutorizacao } from '@/lib/instagram/login'
 import { codificarEstado, redirectUriFor } from '@/lib/instagram/oauth'
-import { getMetaPublicConfig } from '@/lib/platform-credentials'
+import { getPlatformCredentials } from '@/lib/platform-credentials'
 
 export const runtime = 'nodejs'
 
 /**
- * GET — o endereço do diálogo de consentimento da Meta, pronto para visitar.
+ * GET — o endereço do consentimento do Instagram, pronto para visitar.
  *
  * Devolve a URL em vez de redirecionar: quem navega é o navegador, e assim a
  * tela pode tratar os erros de configuração (aplicativo não registrado, agente
@@ -27,13 +27,20 @@ export async function GET(request: NextRequest) {
     const auth = await manageAgent(agentId)
     if (!auth.ok) return auth.response
 
-    const config = await getMetaPublicConfig()
-    if (!config?.instagramConfigId) {
+    /**
+     * As credenciais do produto Instagram, que não são as do app do Facebook.
+     *
+     * Conferidas aqui e não lá na frente: sem elas o diálogo abriria com um
+     * `client_id` inválido e a clínica leria um erro do Instagram em inglês,
+     * em vez de uma frase que diz o que falta configurar.
+     */
+    const app = await getPlatformCredentials(INSTAGRAM_LOGIN_PROVIDER)
+    if (!app) {
         return NextResponse.json(
             {
                 error:
-                    'O aplicativo da Meta ainda não tem a configuração de login do Instagram ' +
-                    'registrada.',
+                    'O Instagram ainda não foi registrado em Gerenciamento → Conta → ' +
+                    'Aplicativos da plataforma.',
             },
             { status: 400 }
         )
@@ -57,11 +64,7 @@ export async function GET(request: NextRequest) {
         voltarPara: `/atendimento/agentes/integracoes?id=${agentId}&tab=canais`,
     })
 
-    const authUrl = await urlDoDialogo({
-        configId: config.instagramConfigId,
-        redirectUri,
-        state,
-    })
+    const authUrl = await urlDeAutorizacao({ redirectUri, state })
 
     return NextResponse.json({ authUrl })
 }

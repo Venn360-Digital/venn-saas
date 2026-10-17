@@ -43,6 +43,12 @@ const SCHEDULES: Schedule[] = [
     // De hora em hora porque precisa respeitar horário comercial, e às :35
     // para não disputar o banco com o boletim.
     { task: 'auto-follow-up', pattern: '35 * * * *' },
+    // O token do Instagram dura 60 dias e, vencido, não se renova — a clínica
+    // teria de refazer o consentimento. De hora em hora, renovando a partir de
+    // 15 dias do vencimento: só se perde uma linha depois de 15 dias seguidos
+    // falhando, que é tempo de sobra para alguém ver o alerta. Às :48 para não
+    // disputar o banco com as outras rotinas da hora cheia.
+    { task: 'instagram-token-refresh', pattern: '48 * * * *' },
 ]
 
 /**

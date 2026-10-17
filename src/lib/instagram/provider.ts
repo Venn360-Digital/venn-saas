@@ -1,4 +1,3 @@
-import { GRAPH } from '@/lib/meta/graph'
 import {
     type ChannelProvider,
     ChannelProviderError,
@@ -23,10 +22,11 @@ import {
  * qualquer conta profissional. Verificado em 2026-10-16 no repositório dele:
  * `grep -ri instagram src/` não devolve nada, e não há nem pedido aberto.
  *
- * **Duas contas, dois papéis.** A conta profissional do Instagram é quem
- * recebe; a Página do Facebook ligada a ela é por onde se envia. A Send API é
- * `POST /{PAGE_ID}/messages` com o token da Página, e o destinatário é o IGSID
- * — o id do paciente, escopado ao nosso aplicativo.
+ * **Uma conta, um host.** Tudo acontece em `graph.instagram.com`, contra a
+ * própria conta profissional: `POST /{IG_ID}/messages`, com o token dela e o
+ * IGSID do paciente como destinatário. Não há Página do Facebook no caminho —
+ * a rota que exigia uma foi abandonada porque pedia da clínica um portfólio
+ * empresarial que consultório pequeno não tem.
  *
  * O que **não** existe deste lado: instância para criar, sessão para abrir, QR
  * para ler, número para registrar. Os métodos do contrato que pressupõem isso
@@ -35,6 +35,12 @@ import {
  */
 
 const DEFAULT_TIMEOUT_MS = 20_000
+
+/**
+ * O host do Instagram tem a própria linha de versões, separada da Graph do
+ * Facebook. Fixada: chamada que muda de comportamento sozinha é o pior defeito.
+ */
+const GRAPH_IG = 'https://graph.instagram.com/v25.0'
 
 /** Mídia de entrada acima disto não é arquivada: ver `downloadMedia`. */
 const MAX_INBOUND_MEDIA_BYTES = 25 * 1024 * 1024
@@ -70,15 +76,15 @@ export class InstagramProvider implements ChannelProvider {
     /**
      * As credenciais da conta, ou um erro que diz o que falta.
      *
-     * Falhar aqui é falha de configuração, não de rede: uma linha de Instagram
-     * sem `pageId` foi gravada errada no momento de conectar, e tentar enviar
-     * cinco vezes contra ela só atrasa a descoberta.
+     * Falhar aqui é falha de configuração, não de rede: uma linha gravada sem
+     * conta ou sem token nasceu errada, e tentar enviar cinco vezes contra ela
+     * só atrasa a descoberta.
      */
     private creds(credentials: InstanceCredentials): InstagramCredentials {
         const ig = credentials.instagram
-        if (!ig?.accessToken || !ig.pageId || !ig.igAccountId) {
+        if (!ig?.accessToken || !ig.igAccountId) {
             throw new Error(
-                'Esta linha de Instagram está sem credencial completa (conta, página e token). Reconecte-a.'
+                'Esta linha de Instagram está sem credencial completa (conta e token). Reconecte-a.'
             )
         }
         return ig
@@ -93,7 +99,7 @@ export class InstagramProvider implements ChannelProvider {
         const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
 
         try {
-            const response = await fetch(`${GRAPH}${endpoint}`, {
+            const response = await fetch(`${GRAPH_IG}${endpoint}`, {
                 ...init,
                 headers: {
                     'Content-Type': 'application/json',
@@ -144,9 +150,9 @@ export class InstagramProvider implements ChannelProvider {
         text: string,
         options?: SendOptions
     ): Promise<SendResult> {
-        const { pageId, accessToken } = this.creds(credentials)
+        const { igAccountId, accessToken } = this.creds(credentials)
 
-        const resposta = await this.request<SendResponse>(`/${pageId}/messages`, accessToken, {
+        const resposta = await this.request<SendResponse>(`/${igAccountId}/messages`, accessToken, {
             method: 'POST',
             body: JSON.stringify(this.envelope(to, { text }, options)),
         })
@@ -160,7 +166,7 @@ export class InstagramProvider implements ChannelProvider {
         input: SendMediaInput,
         options?: SendOptions
     ): Promise<SendResult> {
-        const { pageId, accessToken } = this.creds(credentials)
+        const { igAccountId, accessToken } = this.creds(credentials)
 
         /**
          * Legenda não acompanha anexo no Instagram.
@@ -170,7 +176,7 @@ export class InstagramProvider implements ChannelProvider {
          * que é como o paciente a leria de todo modo. Mandar só o anexo e
          * perder o texto seria pior, e é o que aconteceria em silêncio.
          */
-        const resposta = await this.request<SendResponse>(`/${pageId}/messages`, accessToken, {
+        const resposta = await this.request<SendResponse>(`/${igAccountId}/messages`, accessToken, {
             method: 'POST',
             body: JSON.stringify(
                 this.envelope(
@@ -202,9 +208,9 @@ export class InstagramProvider implements ChannelProvider {
         to: string,
         presence: PresenceState
     ): Promise<void> {
-        const { pageId, accessToken } = this.creds(credentials)
+        const { igAccountId, accessToken } = this.creds(credentials)
 
-        await this.request(`/${pageId}/messages`, accessToken, {
+        await this.request(`/${igAccountId}/messages`, accessToken, {
             method: 'POST',
             body: JSON.stringify({
                 recipient: { id: to },
@@ -305,13 +311,13 @@ export class InstagramProvider implements ChannelProvider {
     /**
      * Está no ar enquanto a credencial existir.
      *
-     * Não há sessão para cair: o token da Página pela rota do Facebook Login não
-     * expira, e não há socket nem aparelho no caminho. Dizer "conectado" aqui é
-     * a verdade — o que pode falhar é uma chamada, e isso aparece no envio.
+     * Não há sessão para cair: não há socket nem aparelho no caminho. O que
+     * pode acabar é o prazo do token, e quem cuida disso é o cron de renovação
+     * — não esta função, que seria consultada tarde demais.
      */
     async getConnectionState(credentials: InstanceCredentials): Promise<ConnectionState> {
         const ig = credentials.instagram
-        return { connected: Boolean(ig?.accessToken && ig.pageId), loggedIn: true }
+        return { connected: Boolean(ig?.accessToken && ig.igAccountId), loggedIn: true }
     }
 
     /**
@@ -323,8 +329,8 @@ export class InstagramProvider implements ChannelProvider {
      * fomos convidados.
      */
     async deleteInstance(credentials: InstanceCredentials): Promise<void> {
-        const { pageId, accessToken } = this.creds(credentials)
-        await this.request(`/${pageId}/subscribed_apps`, accessToken, { method: 'DELETE' })
+        const { igAccountId, accessToken } = this.creds(credentials)
+        await this.request(`/${igAccountId}/subscribed_apps`, accessToken, { method: 'DELETE' })
     }
 
     // -----------------------------------------------------------------------

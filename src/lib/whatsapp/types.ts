@@ -79,25 +79,34 @@ export interface InstanceCredentials {
 /**
  * O que guardamos para falar por uma conta de Instagram.
  *
- * Duas contas, não uma: a **conta profissional do Instagram** é quem recebe (é
- * o `entry[].id` de todo evento do webhook) e a **Página do Facebook** ligada a
- * ela é por onde se envia — a Send API é `POST /{PAGE_ID}/messages`. Guardar só
- * uma das duas deixa metade do canal funcionando, que é o pior resultado
- * possível.
+ * Uma conta só: ela é quem recebe (é o `entry[].id` de todo evento do webhook)
+ * e por quem se envia (`POST /{IG_ID}/messages` em `graph.instagram.com`).
  */
 export interface InstagramCredentials {
     /** A conta profissional. É por ela que o evento acha o workspace. */
     igAccountId: string
-    /** A Página a que ela está ligada. É o destino do envio. */
-    pageId: string
     /**
-     * Token da Página, pela rota do Facebook Login.
+     * Token da conta, pela rota de login do próprio Instagram.
      *
-     * **Não expira** — ver `lib/instagram/onboarding.ts`. É o que dispensa a
-     * esteira de renovação de 60 dias que a rota do Instagram Login obrigaria,
-     * e com ela o risco de a conta da clínica cair em silêncio meses depois.
+     * **Dura 60 dias** e é renovado pelo cron `instagram-token-refresh`. A
+     * alternativa — token de Página, que não expira — exigia da clínica Página
+     * do Facebook e portfólio empresarial, e consultório pequeno tem só o
+     * Instagram. Trocamos um custo do cliente por um custo nosso.
      */
     accessToken: string
+    /**
+     * Quando o token vence, em ISO. É o que o cron lê para renovar a tempo.
+     *
+     * Ausente nas linhas criadas pela rota antiga, que não tinham prazo.
+     */
+    expiresAt?: string
+    /**
+     * A Página do Facebook, só nas linhas da rota antiga.
+     *
+     * Não existe mais no fluxo de hoje: a conexão pelo login do Instagram não
+     * passa por Página nenhuma.
+     */
+    pageId?: string
     /** O @ da conta, para a tela dizer qual Instagram está no ar. */
     username?: string
 }

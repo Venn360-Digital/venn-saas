@@ -51,10 +51,27 @@ export function metaSignatureValid(rawBody: string, header: string | null, appSe
     return crypto.timingSafeEqual(Buffer.from(recebido, 'utf8'), Buffer.from(esperado, 'utf8'))
 }
 
-/** A chave secreta do aplicativo, do Vault. Nula quando ainda não foi registrada. */
-export async function metaAppSecret(): Promise<string | null> {
-    const creds = await getPlatformCredentials(META_PROVIDER)
-    return creds?.clientSecret ?? null
+/**
+ * As chaves que podem ter assinado um evento desta porta — são duas.
+ *
+ * O WhatsApp oficial vive sob o aplicativo do Facebook; o Instagram Direct, sob
+ * o produto Instagram, que tem **credenciais próprias**. A Meta assina cada
+ * evento com a chave do aplicativo que o originou, então conferir só uma
+ * rejeitaria metade do tráfego como "assinatura inválida" — o erro mais
+ * enganoso possível, porque sugere ataque onde há só configuração.
+ *
+ * Tentar as duas não enfraquece nada: continua sendo preciso possuir uma chave
+ * nossa para forjar um evento, e as duas são nossas.
+ */
+export async function metaAppSecrets(): Promise<string[]> {
+    const [meta, instagram] = await Promise.all([
+        getPlatformCredentials(META_PROVIDER).catch(() => null),
+        getPlatformCredentials('instagram_login').catch(() => null),
+    ])
+
+    return [meta?.clientSecret, instagram?.clientSecret].filter(
+        (s): s is string => typeof s === 'string' && s.length > 0
+    )
 }
 
 export interface MetaEventoNormalizado {

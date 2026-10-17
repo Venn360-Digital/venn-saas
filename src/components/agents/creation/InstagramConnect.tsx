@@ -64,13 +64,14 @@ function Preparos() {
             </p>
 
             <ol className="mt-3 flex flex-col gap-3.5">
-                <Passo numero={1} titulo="Deixe a conta profissional e ligada a uma Página do Facebook.">
+                <Passo numero={1} titulo="Deixe a conta como profissional.">
                     <Caminho>
                         Configurações e atividade → Tipo de conta e ferramentas → Mudar para
                         conta profissional
                     </Caminho>
-                    No mesmo lugar, vincule a conta a uma Página. É esse vínculo que mantém a
-                    conexão válida sem precisar refazer de tempos em tempos.
+                    Serve Comercial ou Criador de conteúdo. Não é preciso Página do Facebook,
+                    nem gerenciador de negócios: a clínica entra com a própria conta do
+                    Instagram.
                 </Passo>
 
                 <Passo numero={2} titulo="Permita o acesso às mensagens.">
@@ -164,7 +165,9 @@ export function InstagramConnect({ agentId, canManage }: Props) {
     useEffect(() => {
         fetch('/api/integrations/meta/config')
             .then((r) => r.json())
-            .then((d) => setConfigurado(Boolean(d.configured && d.instagramConfigId)))
+            // O Instagram tem aplicativo próprio: o que vale aqui é ele, não o
+            // do WhatsApp que divide esta rota.
+            .then((d) => setConfigurado(Boolean(d.instagramLogin)))
             .catch(() => setConfigurado(false))
     }, [])
 
