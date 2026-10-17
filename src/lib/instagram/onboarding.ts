@@ -257,21 +257,26 @@ export async function assinarPaginaAoApp(
 /**
  * As permissões sem as quais este fluxo não funciona, e o que cada uma faz.
  *
- * A lista é curta de propósito. Pedir permissão que não se usa é o que trava
- * revisão de aplicativo e o que faz a clínica desistir na janela de
- * consentimento — e a própria Meta, no guia de início do Instagram Messaging,
- * cita só as três primeiras. `pages_show_list` entra porque **nós** listamos as
- * Páginas da clínica para descobrir qual tem Instagram ligado.
+ * A lista é curta de propósito: pedir permissão que não se usa trava revisão de
+ * aplicativo e faz a clínica desistir na janela de consentimento. As quatro
+ * primeiras são o que este código chama — `pages_show_list` entra porque somos
+ * nós que listamos as Páginas para descobrir qual tem Instagram ligado.
  *
- * Fora da lista de propósito: `pages_messaging` é do Messenger, que não está no
- * escopo; `pages_read_engagement` serve para ler conteúdo da Página, e não
- * lemos nenhum.
+ * `pages_read_engagement` é o caso que me enganou: nós não lemos conteúdo de
+ * Página nenhuma, então pela lógica do uso ela sobraria. Mas a referência da
+ * Meta a declara **dependência de `instagram_manage_messages`**, junto com
+ * `instagram_basic` e `pages_show_list` — e dependência não se discute, se
+ * concede. Sem ela a concessão falha e o motivo aparece longe daqui.
+ *
+ * Fora da lista: `pages_messaging` é do Messenger, que não está no escopo, e
+ * `instagram_manage_comments` é do produto de conteúdo, não do atendimento.
  */
 export const PERMISSOES_NECESSARIAS: Record<string, string> = {
     instagram_basic: 'descobrir qual conta de Instagram está ligada à Página',
     instagram_manage_messages: 'receber e responder o Direct',
     pages_manage_metadata: 'assinar a Página ao aplicativo, que é o que faz o evento chegar',
     pages_show_list: 'listar as Páginas da clínica para achar a certa',
+    pages_read_engagement: 'dependência declarada de instagram_manage_messages',
 }
 
 /**
