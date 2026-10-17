@@ -39,18 +39,25 @@ import { META_PROVIDER } from '@/lib/meta/webhook'
  */
 
 /**
- * Os eventos que pedimos à Meta.
+ * Os eventos que pedimos à Meta, **no vocabulário da Página**.
  *
- * `messages` é o canal; `messaging_seen` dá o "visto" na caixa de entrada;
+ * São duas listas de nomes e elas não são a mesma — foi o que me pegou. A
+ * assinatura no painel é do objeto `instagram`, onde o "visto" se chama
+ * `messaging_seen`. Esta chamada assina a **Página**, e lá o mesmo evento se
+ * chama `message_reads`. Mandar o nome do outro vocabulário devolve um
+ * `(#100)` com a lista inteira de campos válidos de Página, que é longa o
+ * bastante para esconder a diferença de uma palavra.
+ *
+ * `messages` é o canal; `message_reads` dá o "visto" na caixa de entrada;
  * `message_reactions` traz o coraçãozinho, que é metade da conversa no Direct;
  * `messaging_postbacks` traz os botões de início de conversa.
  *
  * Fora da lista de propósito: `message_echoes` duplicaria toda resposta nossa,
- * e `comments`/`mentions` são do produto de conteúdo, não do atendimento.
+ * e `feed`/`mention` são do produto de conteúdo, não do atendimento.
  */
 const CAMPOS_ASSINADOS = [
     'messages',
-    'messaging_seen',
+    'message_reads',
     'message_reactions',
     'messaging_postbacks',
 ] as const
