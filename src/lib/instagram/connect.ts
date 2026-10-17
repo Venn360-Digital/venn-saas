@@ -19,7 +19,8 @@ import { MetaOnboardingError } from '@/lib/meta/onboarding'
  *
  * 1. **trocar o código** pelo token de 60 dias — são duas trocas encadeadas, e
  *    parar na primeira guardaria um token que morre em uma hora;
- * 2. **descobrir o @**, que é como a clínica reconhece a própria conta na tela;
+ * 2. **descobrir quem é a conta** — o id da conta profissional, que **não** é
+ *    o `user_id` da troca do código, e o @ que a clínica reconhece;
  * 3. **assinar a conta ao aplicativo**, sem o que a Meta aceita tudo e não
  *    manda evento nenhum — foi o que custou a tarde de ontem;
  * 4. **gravar a linha**, com o vencimento junto: é ele que o cron de renovação
@@ -69,7 +70,21 @@ export async function conectarInstagram(input: {
     try {
         const token = await trocarCodigoPorToken(code, redirectUri)
 
-        if (!token.igAccountId) {
+        /**
+         * O id da conta vem de `/me`, não da troca do código.
+         *
+         * O `user_id` da troca é escopado ao aplicativo — outro número. É o de
+         * `/me?fields=user_id` que aparece no `entry[].id` do webhook, e
+         * portanto o único por onde a mensagem que chega encontra o workspace.
+         * Guardar o outro deixaria a conexão verde e todo evento órfão.
+         *
+         * O perfil deixou de ser enfeite por causa disso: sem ele não há o que
+         * gravar, e falhar aqui é falhar a conexão.
+         */
+        const perfil = await perfilDaConta(token.accessToken)
+        const igAccountId = perfil.igAccountId ?? token.igAccountId
+
+        if (!igAccountId) {
             return {
                 ok: false,
                 erro: 'A Meta autorizou mas não disse qual conta é. Tente conectar de novo.',
@@ -85,7 +100,7 @@ export async function conectarInstagram(input: {
          */
         const jaConectada = await prisma.agentIntegration.findFirst({
             where: {
-                config: { path: ['instagram', 'igAccountId'], equals: token.igAccountId },
+                config: { path: ['instagram', 'igAccountId'], equals: igAccountId },
             },
             select: { id: true },
         })
@@ -93,16 +108,8 @@ export async function conectarInstagram(input: {
             return { ok: false, erro: 'Esta conta de Instagram já está conectada a um agente.' }
         }
 
-        /**
-         * O @ é enfeite útil, não requisito.
-         *
-         * Falhar aqui não justifica recusar uma conexão que funciona: a linha
-         * nasce chamada "Instagram" e a clínica pode renomeá-la.
-         */
-        const perfil = await perfilDaConta(token.igAccountId, token.accessToken).catch(() => null)
-
         // Sem isto a Meta responde sucesso em tudo e não manda evento nenhum.
-        await assinarConta(token.igAccountId, token.accessToken)
+        await assinarConta(token.accessToken)
 
         const integracao = await prisma.agentIntegration.create({
             data: {
@@ -113,7 +120,7 @@ export async function conectarInstagram(input: {
                 connectedAt: new Date(),
                 config: {
                     instagram: {
-                        igAccountId: token.igAccountId,
+                        igAccountId,
                         accessToken: token.accessToken,
                         expiresAt: token.expiraEm.toISOString(),
                         username: perfil?.username,

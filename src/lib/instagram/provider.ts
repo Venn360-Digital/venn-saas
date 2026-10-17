@@ -23,10 +23,17 @@ import {
  * `grep -ri instagram src/` não devolve nada, e não há nem pedido aberto.
  *
  * **Uma conta, um host.** Tudo acontece em `graph.instagram.com`, contra a
- * própria conta profissional: `POST /{IG_ID}/messages`, com o token dela e o
- * IGSID do paciente como destinatário. Não há Página do Facebook no caminho —
- * a rota que exigia uma foi abandonada porque pedia da clínica um portfólio
- * empresarial que consultório pequeno não tem.
+ * própria conta profissional, com o IGSID do paciente como destinatário. Não há
+ * Página do Facebook no caminho — a rota que exigia uma foi abandonada porque
+ * pedia da clínica um portfólio empresarial que consultório pequeno não tem.
+ *
+ * **Tudo endereçado por `/me`, nunca pelo id.** Esta rota tem dois ids em
+ * circulação: o escopado ao aplicativo, que volta na troca do código, e o da
+ * conta profissional. Usar o errado devolve *"Object with ID '…' does not
+ * exist, cannot be loaded due to missing permissions, or does not support this
+ * operation"* — três causas numa frase, nenhuma delas a verdadeira. O token já
+ * diz de quem é; `/me` não tem como errar. O id guardado serve para outra
+ * coisa: casar o evento que chega com o workspace.
  *
  * O que **não** existe deste lado: instância para criar, sessão para abrir, QR
  * para ler, número para registrar. Os métodos do contrato que pressupõem isso
@@ -150,9 +157,9 @@ export class InstagramProvider implements ChannelProvider {
         text: string,
         options?: SendOptions
     ): Promise<SendResult> {
-        const { igAccountId, accessToken } = this.creds(credentials)
+        const { accessToken } = this.creds(credentials)
 
-        const resposta = await this.request<SendResponse>(`/${igAccountId}/messages`, accessToken, {
+        const resposta = await this.request<SendResponse>('/me/messages', accessToken, {
             method: 'POST',
             body: JSON.stringify(this.envelope(to, { text }, options)),
         })
@@ -166,7 +173,7 @@ export class InstagramProvider implements ChannelProvider {
         input: SendMediaInput,
         options?: SendOptions
     ): Promise<SendResult> {
-        const { igAccountId, accessToken } = this.creds(credentials)
+        const { accessToken } = this.creds(credentials)
 
         /**
          * Legenda não acompanha anexo no Instagram.
@@ -176,7 +183,7 @@ export class InstagramProvider implements ChannelProvider {
          * que é como o paciente a leria de todo modo. Mandar só o anexo e
          * perder o texto seria pior, e é o que aconteceria em silêncio.
          */
-        const resposta = await this.request<SendResponse>(`/${igAccountId}/messages`, accessToken, {
+        const resposta = await this.request<SendResponse>('/me/messages', accessToken, {
             method: 'POST',
             body: JSON.stringify(
                 this.envelope(
@@ -208,9 +215,9 @@ export class InstagramProvider implements ChannelProvider {
         to: string,
         presence: PresenceState
     ): Promise<void> {
-        const { igAccountId, accessToken } = this.creds(credentials)
+        const { accessToken } = this.creds(credentials)
 
-        await this.request(`/${igAccountId}/messages`, accessToken, {
+        await this.request('/me/messages', accessToken, {
             method: 'POST',
             body: JSON.stringify({
                 recipient: { id: to },
@@ -329,8 +336,8 @@ export class InstagramProvider implements ChannelProvider {
      * fomos convidados.
      */
     async deleteInstance(credentials: InstanceCredentials): Promise<void> {
-        const { igAccountId, accessToken } = this.creds(credentials)
-        await this.request(`/${igAccountId}/subscribed_apps`, accessToken, { method: 'DELETE' })
+        const { accessToken } = this.creds(credentials)
+        await this.request('/me/subscribed_apps', accessToken, { method: 'DELETE' })
     }
 
     // -----------------------------------------------------------------------

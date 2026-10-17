@@ -150,12 +150,21 @@ export async function trocarCodigoPorToken(
     })
 
     const tokenCurto = curto.access_token
+
     /**
-     * O id da conta vem **aqui**, na troca do código, e em nenhum outro lugar
-     * óbvio depois. Perdê-lo obriga a uma consulta a mais para descobrir de
-     * quem é o token que acabamos de receber.
+     * O `user_id` daqui **não** é o id da conta profissional.
+     *
+     * Ele é escopado ao aplicativo — outro número, parecido o bastante para
+     * enganar. Usá-lo para assinar devolve "Object with ID '…' does not exist,
+     * cannot be loaded due to missing permissions, or does not support this
+     * operation", que descreve três causas e não diz qual é. O id de verdade
+     * vem de `/me?fields=user_id`, e é também o que aparece no `entry[].id` de
+     * cada evento do webhook — ou seja, é por ele que o evento acha o
+     * workspace. Guardar o errado quebraria as duas pontas.
+     *
+     * Fica aqui só como reserva, para o caso de `/me` não responder.
      */
-    const igAccountId = curto.user_id
+    const idEscopadoAoApp = curto.user_id
 
     if (typeof tokenCurto !== 'string' || !tokenCurto) {
         throw new MetaOnboardingError('troca do código', 'a Meta não devolveu token')
@@ -176,7 +185,7 @@ export async function trocarCodigoPorToken(
     return {
         accessToken,
         expiraEm: vencimento(longo.expires_in),
-        igAccountId: String(igAccountId ?? ''),
+        igAccountId: String(idEscopadoAoApp ?? ''),
     }
 }
 
@@ -209,8 +218,16 @@ export async function renovarToken(token: string): Promise<{ accessToken: string
  * Aqui é a **conta**, e não há Página nenhuma no caminho — o que, nesta rota,
  * deixa de ser uma escolha e passa a ser a única possibilidade.
  */
-export async function assinarConta(igAccountId: string, token: string): Promise<void> {
-    const url = new URL(`${GRAPH_IG}/${igAccountId}/subscribed_apps`)
+export async function assinarConta(token: string): Promise<void> {
+    /**
+     * `/me` e não `/{id}`: o token já diz de quem é.
+     *
+     * Esta rota tem **dois** ids em circulação — o escopado ao aplicativo, que
+     * volta na troca do código, e o da conta profissional. Endereçar pelo
+     * errado devolve um erro que lista três causas possíveis e não diz qual.
+     * `/me` não tem como errar: resolve para a conta do próprio token.
+     */
+    const url = new URL(`${GRAPH_IG}/me/subscribed_apps`)
     url.searchParams.set(
         'subscribed_fields',
         ['messages', 'messaging_seen', 'message_reactions', 'messaging_postbacks'].join(',')
@@ -222,17 +239,25 @@ export async function assinarConta(igAccountId: string, token: string): Promise<
     })
 }
 
-/** Quem é a conta: o @ que a clínica reconhece. */
+/**
+ * Quem é a conta — o id que importa e o @ que a clínica reconhece.
+ *
+ * **O `user_id` daqui é o id da conta profissional**, que é outro número que o
+ * `id` (escopado ao aplicativo) devolvido ao lado. É o da conta que aparece no
+ * `entry[].id` de cada evento do webhook, então é ele que precisa ser gravado:
+ * é por ele que a mensagem que chega encontra o workspace.
+ */
 export async function perfilDaConta(
-    igAccountId: string,
     token: string
-): Promise<{ username?: string; name?: string }> {
-    const corpo = await chamar(
-        'perfil da conta',
-        `${GRAPH_IG}/${igAccountId}?fields=user_id,username,name`,
-        { headers: { Authorization: `Bearer ${token}` } }
-    )
+): Promise<{ igAccountId?: string; username?: string; name?: string }> {
+    const corpo = await chamar('perfil da conta', `${GRAPH_IG}/me?fields=user_id,username,name`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+
+    const userId = corpo.user_id
     return {
+        igAccountId:
+            typeof userId === 'string' || typeof userId === 'number' ? String(userId) : undefined,
         username: typeof corpo.username === 'string' ? corpo.username : undefined,
         name: typeof corpo.name === 'string' ? corpo.name : undefined,
     }
