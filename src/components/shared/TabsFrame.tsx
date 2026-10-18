@@ -131,6 +131,7 @@ export function SettingsBand({
     description,
     aside,
     last = false,
+    className,
     children,
 }: {
     title: string
@@ -138,10 +139,16 @@ export function SettingsBand({
     aside?: React.ReactNode
     /** A última não leva fio: o rodapé já fecha a coluna. */
     last?: boolean
+    /**
+     * Para a faixa que divide a altura com as irmãs em vez de crescer com o
+     * conteúdo — `flex min-h-0 flex-1 flex-col`, com o conteúdo rolando por
+     * dentro. É o que equilibra duas listas longas na mesma guia.
+     */
+    className?: string
     children: React.ReactNode
 }) {
     return (
-        <section className={cn('px-5 py-4 md:px-6', !last && 'border-b border-border')}>
+        <section className={cn('px-5 py-4 md:px-6', !last && 'border-b border-border', className)}>
             <div className="mb-3 flex items-baseline justify-between gap-3">
                 <div className="min-w-0">
                     <h2 className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">{title}</h2>

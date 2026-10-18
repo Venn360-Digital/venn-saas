@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+import { BandLayout, SettingsBand, SettingsRow } from '@/components/shared/TabsFrame'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
@@ -163,8 +163,31 @@ export function AgendaClinicaTab() {
     }
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-            <SettingsCard
+        /*
+         * Guia sangrada com rodapé preso, como manda o DESIGN.md §5 (Tela 03):
+         * "na Conta, todas as guias são sangradas — a tela de guias não rola".
+         * Estava no molde de "guia de ajustes", que é o padrão de **fora** da
+         * Conta: cartões brancos sobre fundo tingido num contêiner que rola.
+         *
+         * As duas faixas dividem a altura em partes iguais e cada lista rola
+         * por dentro. Equilibra a tela com qualquer quantidade de datas — são
+         * treze feriados nacionais e os fechamentos crescem sem teto — e não
+         * depende de contar linhas: janela baixa mostra menos em cada metade,
+         * janela alta mostra mais, e nenhuma das duas some.
+         */
+        <BandLayout
+            footer={
+                canEdit ? (
+                    <Button onClick={() => { setForm(VAZIO); setErro(null); setDialogo(true) }}>
+                        <Plus className="size-4" />
+                        Novo fechamento
+                    </Button>
+                ) : undefined
+            }
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <SettingsBand
+                className="flex min-h-0 flex-1 flex-col"
                 title="Feriados nacionais"
                 description="Já vêm prontos e bloqueiam a agenda de todos os especialistas. Desligue os que a clínica atende."
                 aside={
@@ -184,7 +207,8 @@ export function AgendaClinicaTab() {
                         <Loader2 className="size-4 animate-spin" /> Carregando…
                     </div>
                 ) : (
-                    <div className="flex flex-col divide-y divide-border">
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                      <div className="flex flex-col divide-y divide-border">
                         {feriados.map((f) => (
                             <div key={f.key} className="py-2.5 first:pt-0 last:pb-0">
                                 <SettingsRow
@@ -213,20 +237,16 @@ export function AgendaClinicaTab() {
                                 />
                             </div>
                         ))}
+                      </div>
                     </div>
                 )}
-            </SettingsCard>
+            </SettingsBand>
 
-            <SettingsCard
+            <SettingsBand
+                className="flex min-h-0 flex-1 flex-col"
+                last
                 title="Fechamentos da clínica"
                 description="Recesso, congresso, dedetização — o que fecha a agenda e não é feriado nacional."
-                footer={
-                    canEdit ? (
-                        <Button size="sm" onClick={() => { setForm(VAZIO); setErro(null); setDialogo(true) }}>
-                            <Plus className="size-4" /> Novo fechamento
-                        </Button>
-                    ) : null
-                }
             >
                 {fechamentos.length === 0 ? (
                     /*
@@ -237,22 +257,20 @@ export function AgendaClinicaTab() {
                      * a oferecia, e a tela lia como se não houvesse como
                      * cadastrar.
                      */
+                    /*
+                     * Sem ação aqui: ela é do rodapé preso, visível o tempo
+                     * todo 52px abaixo. Repeti-la seria a segunda ação primária
+                     * do mesmo assunto, e a Tela 03 pede uma só por faixa.
+                     */
                     <EmptyState
                         variant="inline"
                         icon={CalendarOff}
                         title="Nenhum fechamento cadastrado"
                         description="Recesso de fim de ano, congresso, dedetização — o que fecha a agenda e não é feriado nacional."
-                        action={
-                            canEdit ? (
-                                <Button onClick={() => { setForm(VAZIO); setErro(null); setDialogo(true) }}>
-                                    <Plus className="size-4" />
-                                    Novo fechamento
-                                </Button>
-                            ) : undefined
-                        }
                     />
                 ) : (
-                    <div className="flex flex-col divide-y divide-border">
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                      <div className="flex flex-col divide-y divide-border">
                         {fechamentos.map((f) => (
                             <div key={f.id} className="py-2.5 first:pt-0 last:pb-0">
                                 <SettingsRow
@@ -280,9 +298,11 @@ export function AgendaClinicaTab() {
                                 />
                             </div>
                         ))}
+                      </div>
                     </div>
                 )}
-            </SettingsCard>
+            </SettingsBand>
+          </div>
 
             <RecordDialog
                 open={dialogo}
@@ -363,6 +383,6 @@ export function AgendaClinicaTab() {
                 destructive
                 onConfirm={excluir}
             />
-        </div>
+        </BandLayout>
     )
 }
