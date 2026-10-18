@@ -262,7 +262,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'buy-unit' }),
+                body: JSON.stringify({ action: 'buy-addons', units: 1 }),
             })
             const corpo = await res.json().catch(() => ({}))
             if (!res.ok) {

@@ -1,8 +1,7 @@
 'use client'
 
-import { redesDoPlano } from '@/lib/plans'
+import { UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
 import { useState, useEffect } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { BandLayout, SettingsBand, SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
@@ -15,7 +14,7 @@ import {
     Check,
     CreditCard,
     Gift,
-    Hospital,
+    Minus,
     Plus,
     X
 } from 'lucide-react'
@@ -64,10 +63,6 @@ interface PlanConfig {
 }
 
 export function PlanoTab() {
-    // A guia de unidades é vizinha desta: trocar de guia é trocar o `?tab=`,
-    // que é onde a Conta guarda a guia aberta (DESIGN.md §5, Tela 03).
-    const router = useRouter()
-    const pathname = usePathname()
     const [loading, setLoading] = useState(true)
     const [subscription, setSubscription] = useState<SubscriptionData | null>(null)
 
@@ -89,7 +84,16 @@ export function PlanoTab() {
      * preço unitário — sem desconto de volume e aceitando qualquer número. Agora
      * a lista é fechada nos três pacotes, e o preço vem de lá.
      */
-    const [pacoteEscolhido, setPacoteEscolhido] = useState(10_000)
+    /**
+     * `null` = nenhum pacote escolhido.
+     *
+     * Antes vinha com 10.000 pré-selecionado, porque crédito era a única coisa
+     * que o diálogo vendia. Com unidade na mesma tela, quem só quer unidade
+     * levaria crédito junto sem ter pedido.
+     */
+    const [pacoteEscolhido, setPacoteEscolhido] = useState<number | null>(null)
+    /** Quantas unidades adicionais nesta compra. R$ 290 por mês cada. */
+    const [unidadesEscolhidas, setUnidadesEscolhidas] = useState(0)
     const [processing, setProcessing] = useState(false)
     /**
      * O aviso de avaliação, dispensado nesta sessão.
@@ -169,27 +173,39 @@ export function PlanoTab() {
         }
     }
 
-    const handleBuyCredits = async () => {
+    /**
+     * Compra os adicionais escolhidos — crédito, unidades, ou os dois.
+     *
+     * Uma chamada só, e o servidor grava numa transação: o cliente clicou uma
+     * vez, e metade comprada é pior que nada comprado.
+     */
+    const handleBuyAddons = async () => {
         setProcessing(true)
         try {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'buy-credits', quantity: pacoteEscolhido })
+                body: JSON.stringify({
+                    action: 'buy-addons',
+                    credits: pacoteEscolhido ?? undefined,
+                    units: unidadesEscolhidas,
+                }),
             })
 
             if (res.ok) {
                 const data = await res.json()
                 toast.success(data.message)
                 setShowCreditsModal(false)
+                setPacoteEscolhido(null)
+                setUnidadesEscolhidas(0)
                 await loadSubscription()
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
                 const error = await res.json()
-                toast.error(error.error || 'Erro ao comprar créditos')
+                toast.error(error.error || 'Erro ao comprar adicionais')
             }
-        } catch (error) {
-            toast.error('Erro ao comprar créditos')
+        } catch {
+            toast.error('Erro ao comprar adicionais')
         } finally {
             setProcessing(false)
         }
@@ -234,7 +250,35 @@ export function PlanoTab() {
     }
 
     const pacotes = subscription?.creditPacks ?? []
-    const pacote = pacotes.find((p) => p.credits === pacoteEscolhido) ?? pacotes[0]
+    const pacote = pacoteEscolhido ? pacotes.find((p) => p.credits === pacoteEscolhido) : undefined
+
+    const u = subscription?.unidades
+
+    /**
+     * O que o plano dá em unidades, em uma linha, na voz de quem paga.
+     *
+     * Montada aqui e não no JSX porque são três casos e cada um pede uma frase
+     * diferente: sem adicional, com adicional, e o plano que ainda não existe.
+     * Um ternário aninhado dentro do atributo esconderia justamente a parte que
+     * alguém vai querer reler.
+     */
+    const descricaoDoPlano = (() => {
+        const fim = 'Subir ou descer de plano vale a partir do próximo ciclo.'
+        if (!u || u.max === 0) return fim
+        const plural = (n: number) => `${n} unidade${n === 1 ? '' : 's'}`
+        const base =
+            u.adicionais > 0
+                ? `Inclui ${plural(u.doPlano)}, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'} — ${plural(u.max)} no total, ${u.used} em uso.`
+                : `Inclui ${plural(u.doPlano)}, ${u.used} em uso.`
+        return `${base} Os agentes e números do plano são divididos entre elas. ${fim}`
+    })()
+
+    /** Quanto os adicionais de unidade somam por mês. */
+    const mensalDosAdicionais = (u?.adicionais ?? 0) * UNIDADE_ADICIONAL.price
+
+    /** O que a compra em aberto custa, separado por natureza. */
+    const aPagarAgora = pacote?.price ?? 0
+    const aPagarPorMes = unidadesEscolhidas * UNIDADE_ADICIONAL.price
 
     if (loading) {
         return (
@@ -256,15 +300,15 @@ export function PlanoTab() {
     const isTrialing = subscription?.status === 'trialing'
 
     /**
-     * Se dá para comprar crédito avulso agora — as mesmas duas condições que o
-     * servidor cobra em `canBuyCredits`: plano ativo **e** fora da avaliação.
+     * Se dá para comprar adicional agora — as mesmas duas condições que o
+     * servidor cobra em `canBuyAddons`: plano ativo **e** fora da avaliação.
      *
      * Repetidas aqui porque a tela estava oferecendo o que o servidor recusa: o
      * botão ficava clicável durante a avaliação, abria o modal, deixava
-     * escolher o pacote e só então devolvia 402. Quem decide continua sendo o
+     * escolher o adicional e só então devolvia 402. Quem decide continua sendo o
      * servidor; isto é para não convidar para uma porta fechada.
      */
-    const podeComprarCreditos = subscription?.status === 'active'
+    const podeComprarAdicionais = subscription?.status === 'active'
     const trialDaysLeft = subscription?.trialEndsAt
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0
@@ -347,7 +391,15 @@ export function PlanoTab() {
                                 <span className="text-primary-subtle-foreground">{planLabel || '—'}</span>
                             </>
                         }
-                        description="Subir ou descer de plano vale a partir do próximo ciclo."
+                        /**
+                         * As unidades viraram parte da descrição do plano — eram
+                         * uma linha própria com um botão "Ver unidades", que o
+                         * Andre tirou com um argumento certo: o número de
+                         * unidades **é** uma propriedade do plano contratado e
+                         * dos adicionais, então falar dele aqui é falar de uma
+                         * coisa só, no lugar onde ela já está sendo falada.
+                         */
+                        description={descricaoDoPlano}
                         action={
                             <Button variant="outline" onClick={() => setShowPlanModal(true)}>
                                 <ArrowUpDown className="size-4" />
@@ -356,34 +408,13 @@ export function PlanoTab() {
                         }
                     />
                 </div>
-                {/* Unidade é a quarta coisa que o plano dá, junto de agentes,
-                    números e crédito — e a única que não aparecia em lugar
-                    nenhum. A linha informa; gerenciar é na guia ao lado, que é
-                    onde a lista cabe. */}
-                <div className="px-5 py-4">
-                    <SettingsRow
-                        title={
-                            <>
-                                <span className="font-normal text-muted-foreground">Unidades: </span>
-                                <span className="num text-primary-subtle-foreground">
-                                    {subscription?.unidades?.used ?? 1} de {subscription?.unidades?.max ?? 1}
-                                </span>
-                            </>
-                        }
-                        description={
-                            (subscription?.unidades?.adicionais ?? 0) > 0
-                                ? `O plano inclui ${subscription?.unidades?.doPlano}, e você contratou ${subscription?.unidades?.adicionais} adicional${subscription?.unidades?.adicionais === 1 ? '' : 'is'}. Os agentes e números do plano são divididos entre elas.`
-                                : `O plano inclui ${subscription?.unidades?.doPlano ?? 1}. Os agentes e números do plano são divididos entre as unidades.`
-                        }
-                        action={
-                            <Button variant="outline" onClick={() => router.replace(`${pathname}?tab=empresa`, { scroll: false })}>
-                                <Hospital className="size-4" />
-                                Ver unidades
-                            </Button>
-                        }
-                    />
-                </div>
-                {/* O medidor: percentual grande, número pequeno, dinheiro
+                {/* "Adicionais do plano" e não "Créditos de IA": desde
+                    2026-10-18 há dois adicionais, crédito e unidade, e um botão
+                    só os vende. O medidor continua sendo de crédito, porque
+                    crédito é o único que tem nível — unidade se tem ou não se
+                    tem, e o quanto delas já está dito na linha do plano, acima.
+
+                    O medidor: percentual grande, número pequeno, dinheiro
                     nenhum. A clínica precisa saber se está perto do fim, não
                     quanto custa uma resposta — e a conversão de crédito para
                     resposta não vai para a tela de propósito: publicá-la convida
@@ -391,21 +422,25 @@ export function PlanoTab() {
                 <div className="space-y-3 px-5 py-4">
                     <div className="flex items-end justify-between gap-4">
                         <div>
-                            <p className="text-sm font-medium">Créditos de IA</p>
+                            <p className="text-sm font-medium">Adicionais do plano</p>
                             <p className="text-2xl font-semibold num">
                                 {percentualUsado}%{' '}
                                 <span className="text-sm font-normal text-muted-foreground">
-                                    usado
+                                    dos créditos usado
                                 </span>
                             </p>
                         </div>
                         <Button
                             variant="outline"
-                            disabled={!podeComprarCreditos}
-                            onClick={() => setShowCreditsModal(true)}
+                            disabled={!podeComprarAdicionais}
+                            onClick={() => {
+                                setPacoteEscolhido(null)
+                                setUnidadesEscolhidas(0)
+                                setShowCreditsModal(true)
+                            }}
                         >
                             <Plus className="size-4" />
-                            Comprar créditos
+                            Comprar adicionais
                         </Button>
                     </div>
 
@@ -430,10 +465,10 @@ export function PlanoTab() {
                         />
                     </div>
 
-                    {!podeComprarCreditos ? (
+                    {!podeComprarAdicionais ? (
                         <p className="text-xs text-muted-foreground">
-                            Crédito avulso exige plano ativo. Na avaliação, a franquia é a do
-                            plano que você escolher.
+                            Adicional exige plano ativo. Na avaliação, a franquia é a do plano
+                            que você escolher.
                         </p>
                     ) : null}
 
@@ -453,6 +488,18 @@ export function PlanoTab() {
                             </>
                         ) : null}
                     </p>
+
+                    {/* O outro adicional, que não tem medidor: o que as unidades
+                        contratadas somam à mensalidade. Fica aqui porque é
+                        dinheiro recorrente, e dinheiro recorrente é a informação
+                        que a pessoa procura nesta faixa. */}
+                    {mensalDosAdicionais > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                            <span className="num">{formatPrice(mensalDosAdicionais)}</span> por mês em{' '}
+                            {u?.adicionais} unidade{u?.adicionais === 1 ? '' : 's'} adicional
+                            {u?.adicionais === 1 ? '' : 'is'}.
+                        </p>
+                    ) : null}
                 </div>
               </div>
             </SettingsBand>
@@ -685,24 +732,45 @@ export function PlanoTab() {
                 </div>
             </RecordDialog>
 
-            {/* Buy Credits Modal */}
+            {/* Comprar adicionais: crédito e unidade na mesma tela */}
             <RecordDialog
                 open={showCreditsModal}
                 onOpenChange={setShowCreditsModal}
-                title="Comprar créditos"
-                description="Compra única, válida por 90 dias. Não é assinatura e não renova."
-                submitLabel="Comprar créditos"
+                title="Comprar adicionais"
+                description="Dois adicionais, de naturezas diferentes: crédito é compra única, válida por 90 dias; unidade soma à mensalidade enquanto existir. Pode levar um, o outro, ou os dois."
+                submitLabel="Comprar adicionais"
+                submitDisabled={!pacote && unidadesEscolhidas === 0}
                 hideAgain
-                onSubmit={handleBuyCredits}
+                onSubmit={handleBuyAddons}
                 submitting={processing}
                 summary={
                     <>
+                        {/* Dois subtotais, nunca uma soma.
+                            "R$ 184 uma vez" e "R$ 290 por mês" não são
+                            parcelas da mesma coisa — somá-las num número
+                            daria a conta que o cliente vai contestar na
+                            fatura. Decisão do Andre, e é a certa. */}
                         <SummaryCard className="flex-col items-start gap-1">
-                            <span className="num text-lg font-bold">
-                                R$ {(pacote?.price ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Agora, uma vez
                             </span>
+                            <span className="num text-lg font-bold">{formatPrice(aPagarAgora)}</span>
                             <span className="num text-[11px] text-muted-foreground">
-                                {(pacote?.credits ?? 0).toLocaleString('pt-BR')} créditos · uma vez
+                                {pacote
+                                    ? `${pacote.credits.toLocaleString('pt-BR')} créditos · 90 dias`
+                                    : 'nenhum crédito escolhido'}
+                            </span>
+                        </SummaryCard>
+
+                        <SummaryCard className="flex-col items-start gap-1">
+                            <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                                A mais, por mês
+                            </span>
+                            <span className="num text-lg font-bold">{formatPrice(aPagarPorMes)}</span>
+                            <span className="num text-[11px] text-muted-foreground">
+                                {unidadesEscolhidas > 0
+                                    ? `${unidadesEscolhidas} unidade${unidadesEscolhidas === 1 ? '' : 's'} · enquanto existir${unidadesEscolhidas === 1 ? '' : 'em'}`
+                                    : 'nenhuma unidade escolhida'}
                             </span>
                         </SummaryCard>
                         {subscription?.paymentMethod ? (
@@ -726,6 +794,10 @@ export function PlanoTab() {
                     cinco porque cinco espalham a decisão — cada um destes tem um
                     papel, e o maior é também o sinal de que está na hora de
                     trocar de plano. */}
+                <p className="col-span-2 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Créditos de IA — compra única
+                </p>
+
                 <div
                     className="col-span-2 grid gap-3 sm:grid-cols-3"
                     role="radiogroup"
@@ -739,7 +811,11 @@ export function PlanoTab() {
                                 type="button"
                                 role="radio"
                                 aria-checked={escolhido}
-                                onClick={() => setPacoteEscolhido(p.credits)}
+                                /* Clicar no escolhido desmarca: quem só quer
+                                   unidade precisa poder sair do crédito, e um
+                                   radiogroup sem saída obrigaria a fechar o
+                                   diálogo e reabrir. */
+                                onClick={() => setPacoteEscolhido(escolhido ? null : p.credits)}
                                 className={cn(
                                     'group relative flex flex-col rounded-lg border p-4 text-left transition-all',
                                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -793,6 +869,72 @@ export function PlanoTab() {
                     Os créditos comprados entram num lote próprio, com validade de 90 dias, e são
                     gastos <strong>depois</strong> da franquia do plano — que essa sim é descartada a
                     cada renovação. Nada é cobrado de novo quando o lote vence.
+                </p>
+
+                <p className="col-span-2 mt-2 border-t border-border pt-4 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Unidades adicionais — por mês
+                </p>
+
+                {/* Um cartão só, com contador — e não três cartões de "1, 2, 3
+                    unidades". Unidade não tem faixa de desconto (decisão do
+                    Andre): o preço é linear, R$ 290 cada, então o que varia é
+                    uma quantidade, e quantidade se digita num contador. Três
+                    cartões com o mesmo preço por unidade seriam três formas de
+                    dizer a mesma coisa. */}
+                <div className="col-span-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+                    <div className="min-w-[14rem] flex-1">
+                        <p className="flex items-baseline gap-2">
+                            <span className="num text-2xl font-bold leading-none">
+                                {formatPrice(UNIDADE_ADICIONAL.price)}
+                            </span>
+                            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                                por unidade, por mês
+                            </span>
+                        </p>
+                        <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
+                            {UNIDADE_ADICIONAL.pitch} Os agentes, números e créditos do plano
+                            continuam sendo os mesmos, divididos entre as clínicas.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Menos uma unidade"
+                            disabled={unidadesEscolhidas === 0}
+                            onClick={() => setUnidadesEscolhidas((n) => Math.max(0, n - 1))}
+                        >
+                            <Minus className="size-4" />
+                        </Button>
+                        {/* `aria-live`: quem usa leitor de tela precisa ouvir o
+                            número novo sem sair do botão que acabou de apertar. */}
+                        <span
+                            className="num w-10 text-center text-xl font-bold"
+                            aria-live="polite"
+                            aria-label={`${unidadesEscolhidas} unidades adicionais`}
+                        >
+                            {unidadesEscolhidas}
+                        </span>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Mais uma unidade"
+                            disabled={unidadesEscolhidas >= 10}
+                            onClick={() => setUnidadesEscolhidas((n) => Math.min(10, n + 1))}
+                        >
+                            <Plus className="size-4" />
+                        </Button>
+                    </div>
+                </div>
+
+                <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
+                    A unidade é uma clínica a mais na mesma conta, com pacientes, agenda e conversas
+                    próprios — e <strong>soma à mensalidade enquanto existir</strong>, diferente do
+                    crédito, que é uma vez. Depois de contratar, dê nome à clínica em{' '}
+                    <strong>Conta da Clínica</strong>. Até 10 por compra.
                 </p>
             </RecordDialog>
 

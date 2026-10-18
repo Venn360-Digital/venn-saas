@@ -1,7 +1,7 @@
 import { CREDIT_PACKS, PLAN_LIST, TRIAL, UNIDADE_ADICIONAL, creditPackFor, planFor } from '@/lib/plans'
 import { currentMembership } from '@/lib/auth/workspace'
 import {
-    canBuyCredits,
+    canBuyAddons,
     getBillingState,
     purchaseExpiry,
     renewalDate,
@@ -289,75 +289,25 @@ export async function POST(request: NextRequest) {
                 })
             }
 
-            case 'buy-credits': {
-                // Requires an active plan AND being outside the trial. Without
-                // both, a workspace could run indefinitely on bought credits and
-                // never hold a subscription — which is the whole point of the
-                // rule. See PRODUCT.md.
-                const state = await getBillingState(workspaceUser.workspaceId)
-                const permitted = canBuyCredits(state)
-                if (!permitted.ok) {
-                    return NextResponse.json({ error: permitted.reason }, { status: 402 })
-                }
-
-                /**
-                 * A lista de pacotes é fechada, e o preço vem dela.
-                 *
-                 * Antes a rota aceitava qualquer quantidade e multiplicava por
-                 * um preço unitário — quem postasse `quantity: 1000000` levava um
-                 * milhão de créditos ao preço de tabela, sem nenhum desconto de
-                 * volume ter sido decidido para aquele tamanho. Agora só os três
-                 * pacotes existem, e o preço é o deles.
-                 */
-                const pack = creditPackFor(data.quantity)
-                if (!pack) {
-                    return NextResponse.json(
-                        { error: 'Pacote de créditos inválido.' },
-                        { status: 400 }
-                    )
-                }
-
-                const creditsToAdd = pack.credits
-                const totalPrice = pack.price
-
-                // A purchase is its own lot with its own expiry, not an increment
-                // of the plan's allowance — the plan balance is discarded at
-                // renewal, and credits the clinic paid for separately must not go
-                // with it.
-                const expiresAt = purchaseExpiry()
-                await prisma.creditPurchase.create({
-                    data: {
-                        workspaceId: workspaceUser.workspaceId,
-                        amount: creditsToAdd,
-                        priceCents: Math.round(totalPrice * 100),
-                        expiresAt,
-                    },
-                })
-
-                const after = await getBillingState(workspaceUser.workspaceId)
-
-                return NextResponse.json({
-                    success: true,
-                    message: `${creditsToAdd.toLocaleString('pt-BR')} créditos adicionados por R$ ${totalPrice.toFixed(2)}. Válidos até ${expiresAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`,
-                    creditsAdded: creditsToAdd,
-                    expiresAt,
-                    newTotal: after.credits.available,
-                })
-            }
-
             /**
-             * Compra uma unidade adicional: R$ 290, qualquer plano.
+             * Compra adicionais: crédito avulso, unidades, ou os dois juntos.
              *
-             * Só **sobe o teto** — não cria a unidade. Criar é um ato com nome,
-             * endereço e responsável, e mora em `POST /api/account/workspaces`.
-             * Juntar os dois faria a compra inventar uma clínica chamada "Nova
-             * unidade" que alguém teria de ir renomear depois.
+             * Um caso para os dois porque a tela virou uma: o cliente escolhe o
+             * pacote de crédito **e** quantas unidades no mesmo diálogo, e
+             * clicar em "Comprar adicionais" não pode gravar metade.
              *
-             * Mesmo portão do crédito avulso: plano ativo e fora da avaliação.
-             * Vender unidade para quem está avaliando seria vender adicional de
-             * uma assinatura que ainda não existe.
+             * AS DUAS NATUREZAS NÃO SE MISTURAM
+             *
+             * Crédito é **cobrança única** com 90 dias de validade — recarga que
+             * se repete todo mês é upgrade de plano com outro nome. Unidade é
+             * **recorrente**: soma R$ 290 à mensalidade enquanto existir, que é
+             * o que mantém a escada honesta (R$ 890 do Multiclínica são 3 × R$
+             * 297). Decisão do Andre em 2026-10-18.
+             *
+             * Por isso a resposta devolve os dois valores separados, e a tela
+             * mostra dois subtotais em vez de uma soma que não existe.
              */
-            case 'buy-unit': {
+            case 'buy-addons': {
                 const accountId = await accountIdOf(workspaceUser.workspaceId)
                 if (!accountId) {
                     return NextResponse.json(
@@ -366,38 +316,127 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                // O portão é o mesmo do crédito avulso (plano ativo, fora da
-                // avaliação), mas a frase é escrita para unidade: reaproveitar
-                // a do crédito exigiria remendar o texto, e texto remendado é
-                // o que leva a clínica a procurar um botão de crédito.
+                /**
+                 * Mesmo portão do crédito avulso desde sempre: plano ativo e
+                 * fora da avaliação. Sem os dois, a clínica rodaria
+                 * indefinidamente de adicional em adicional sem nunca assinar —
+                 * que é a regra inteira.
+                 */
                 const state = await getBillingState(workspaceUser.workspaceId)
-                if (state.phase === 'trial') {
-                    return NextResponse.json(
-                        { error: 'Durante a avaliação não é possível contratar unidades. Assine um plano primeiro.' },
-                        { status: 402 }
-                    )
+                const permitido = canBuyAddons(state)
+                if (!permitido.ok) {
+                    return NextResponse.json({ error: permitido.reason }, { status: 402 })
                 }
-                if (state.phase !== 'active') {
+
+                /**
+                 * O pacote de crédito vem da lista fechada, e o preço vem dela.
+                 *
+                 * A rota aceitava qualquer quantidade e multiplicava por um
+                 * preço unitário: quem postasse `quantity: 1000000` levava um
+                 * milhão de créditos ao preço de tabela, sem que nenhum desconto
+                 * de volume tivesse sido decidido para aquele tamanho.
+                 */
+                const pack = data.credits ? creditPackFor(data.credits) : null
+                if (data.credits && !pack) {
                     return NextResponse.json(
-                        { error: 'Contratar uma unidade exige um plano ativo. Escolha um plano em Gerenciamento → Conta.' },
-                        { status: 402 }
+                        { error: 'Pacote de créditos inválido.' },
+                        { status: 400 }
                     )
                 }
 
-                await prisma.unitAddon.create({
-                    data: {
-                        accountId,
-                        priceCents: Math.round(UNIDADE_ADICIONAL.price * 100),
-                    },
+                /**
+                 * O teto de 10 unidades por compra não é regra de negócio — é
+                 * guarda contra o dedo escorregando no contador. Dez unidades
+                 * são R$ 2.900 por mês somados à mensalidade de uma vez, e quem
+                 * precisa de mais que isso está numa conversa comercial, não num
+                 * contador de tela.
+                 */
+                const unidadesPedidas = Number(data.units) || 0
+                if (!Number.isInteger(unidadesPedidas) || unidadesPedidas < 0 || unidadesPedidas > 10) {
+                    return NextResponse.json(
+                        { error: 'Escolha de 1 a 10 unidades adicionais por compra.' },
+                        { status: 400 }
+                    )
+                }
+
+                if (!pack && unidadesPedidas === 0) {
+                    return NextResponse.json(
+                        { error: 'Escolha um pacote de créditos ou pelo menos uma unidade.' },
+                        { status: 400 }
+                    )
+                }
+
+                const expiresAt = purchaseExpiry()
+
+                // Numa transação: metade comprada é pior que nada comprado, e o
+                // cliente clicou uma vez.
+                await prisma.$transaction(async (tx) => {
+                    if (pack) {
+                        /**
+                         * Lote próprio, com validade própria — não incremento da
+                         * franquia do plano. A franquia é descartada na
+                         * renovação, e crédito que a clínica pagou à parte não
+                         * pode ir com ela.
+                         */
+                        await tx.creditPurchase.create({
+                            data: {
+                                workspaceId: workspaceUser.workspaceId,
+                                amount: pack.credits,
+                                priceCents: Math.round(pack.price * 100),
+                                expiresAt,
+                            },
+                        })
+                    }
+
+                    /**
+                     * Uma linha por unidade, e não uma linha com quantidade.
+                     *
+                     * O teto é derivado da contagem de linhas (ver
+                     * `unidadesDaConta`), e cada linha guarda o preço cobrado
+                     * naquele dia: se os R$ 290 mudarem, o que cada cliente paga
+                     * continua escrito. Uma coluna de quantidade obrigaria a
+                     * escolher entre um preço só para o lote ou um contador que
+                     * divergiria das linhas.
+                     */
+                    if (unidadesPedidas > 0) {
+                        await tx.unitAddon.createMany({
+                            data: Array.from({ length: unidadesPedidas }, () => ({
+                                accountId,
+                                priceCents: Math.round(UNIDADE_ADICIONAL.price * 100),
+                            })),
+                        })
+                    }
                 })
 
-                const unidades = await unidadesDaConta(accountId)
+                const [depois, unidades] = await Promise.all([
+                    getBillingState(workspaceUser.workspaceId),
+                    unidadesDaConta(accountId),
+                ])
+
+                const partes: string[] = []
+                if (pack) {
+                    partes.push(
+                        `${pack.credits.toLocaleString('pt-BR')} créditos por R$ ${pack.price.toFixed(2)}, ` +
+                            `válidos até ${expiresAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+                    )
+                }
+                if (unidadesPedidas > 0) {
+                    const mensal = unidadesPedidas * UNIDADE_ADICIONAL.price
+                    partes.push(
+                        `${unidadesPedidas} unidade${unidadesPedidas === 1 ? '' : 's'} adicional${unidadesPedidas === 1 ? '' : 'is'} ` +
+                            `por R$ ${mensal.toFixed(2)} por mês — você pode ter ${unidades.max} no total`
+                    )
+                }
 
                 return NextResponse.json({
                     success: true,
-                    message:
-                        `Unidade adicional contratada por R$ ${UNIDADE_ADICIONAL.price.toFixed(2)}. ` +
-                        `Você pode ter ${unidades.max} unidade${unidades.max === 1 ? '' : 's'} e tem ${unidades.used}.`,
+                    message: `Contratado: ${partes.join('; ')}.`,
+                    /** Separados de propósito: um é uma vez, o outro é por mês. */
+                    cobradoAgoraCents: pack ? Math.round(pack.price * 100) : 0,
+                    mensalidadeAdicionadaCents: Math.round(unidadesPedidas * UNIDADE_ADICIONAL.price * 100),
+                    creditsAdded: pack?.credits ?? 0,
+                    unidadesAdicionadas: unidadesPedidas,
+                    newTotal: depois.credits.available,
                     unidades,
                 })
             }

@@ -471,6 +471,17 @@ cabe três unidades.
 **Qualquer plano, a qualquer momento, pode adquirir uma unidade por R$ 290,00.**
 Não é privilégio do Multiclínica.
 
+**A unidade é recorrente; o crédito é uma vez.** Decidido em 2026-10-18. A
+unidade soma R$ 290 à mensalidade enquanto existir — é o que mantém a escada
+honesta, porque cobrança única faria um Digital a R$ 390/mês com dois adicionais
+pagos uma vez ficar com três unidades para sempre, contra R$ 890/mês do
+Multiclínica. Crédito avulso continua compra única com 90 dias de validade:
+recarga que se repete todo mês é upgrade de plano com outro nome.
+
+Por isso a tela de compra mostra **dois subtotais e nunca uma soma**: "R$ 184
+agora" e "R$ 290 por mês" não são parcelas da mesma coisa, e somá-las dá
+exatamente a conta que o cliente contesta na fatura.
+
 **O adicional não traz capacidade.** Nenhum agente, nenhum número, nenhum
 crédito: compra separação — CRM, agenda e conversas próprios da outra clínica.
 É o que mantém a escada de planos honesta, do mesmo jeito que a recarga de

@@ -228,22 +228,27 @@ export async function spendCredits(
 }
 
 /**
- * Whether avulso credits may be bought: an active plan AND outside the trial.
+ * Whether add-ons may be bought: an active plan AND outside the trial.
  *
- * Without both, a workspace could run indefinitely on bought credits alone and
- * never hold a subscription.
+ * Without both, a workspace could run indefinitely from add-on to add-on and
+ * never hold a subscription — que é a regra inteira.
+ *
+ * Vale para os dois adicionais, crédito e unidade, porque a razão é a mesma:
+ * adicional é o que se soma a um plano, e sem plano não há a que somar. Era
+ * `canBuyCredits`, de quando crédito era o único; o texto passou a falar de
+ * adicionais quando a unidade entrou na mesma tela, em 2026-10-18.
  */
-export function canBuyCredits(state: BillingState): { ok: true } | { ok: false; reason: string } {
+export function canBuyAddons(state: BillingState): { ok: true } | { ok: false; reason: string } {
     if (state.phase === 'trial') {
         return {
             ok: false,
-            reason: 'Durante a avaliação não é possível comprar créditos. Assine um plano primeiro.',
+            reason: 'Durante a avaliação não é possível comprar adicionais. Assine um plano primeiro.',
         }
     }
     if (state.phase !== 'active') {
         return {
             ok: false,
-            reason: 'A compra de créditos exige um plano ativo. Escolha um plano em Gerenciamento → Conta.',
+            reason: 'Comprar adicionais exige um plano ativo. Escolha um plano em Gerenciamento → Conta.',
         }
     }
     return { ok: true }
