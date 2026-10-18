@@ -183,6 +183,20 @@ export async function POST(request: NextRequest) {
                     maxAgents: chosen.limits.maxAgents,
                     maxMessages: chosen.limits.maxMessages,
                     maxWhatsAppNumbers: chosen.limits.maxWhatsAppNumbers,
+                    /**
+                     * O teto de fala, que faltava.
+                     *
+                     * A coluna fica em `0` por padrão, e zero quer dizer **sem
+                     * fala nenhuma** — então toda clínica criada pelo
+                     * onboarding nascia com a nota de voz morta, e o único jeito
+                     * de destravar era reaplicar o plano. Passou despercebido
+                     * porque a voz sai desligada em todo agente de propósito.
+                     *
+                     * É o teto do plano, não uma fração dele: quem limita a
+                     * avaliação é o crédito (1.000, abaixo), e ele acaba muito
+                     * antes de alguém falar 400 vezes.
+                     */
+                    maxSpokenReplies: chosen.limits.maxSpokenReplies,
                     // The trial grants its own credit balance; the plan's monthly
                     // allowance takes over when the subscription is activated.
                     credits: TRIAL_CREDITS,

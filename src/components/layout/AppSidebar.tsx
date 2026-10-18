@@ -223,6 +223,19 @@ export function AppSidebar() {
     )
 }
 
+/**
+ * Avisa o rodapé de que plano ou crédito mudaram.
+ *
+ * O rodapé lia a assinatura uma vez, ao montar, e nunca mais: trocar de plano
+ * na guia Plano deixava o nome do plano e o saldo velhos na tela até alguém
+ * recarregar a página — e aí o usuário via a mensagem de sucesso e, logo
+ * abaixo, o plano antigo. Parecia que a troca não pegou.
+ *
+ * Mesma forma de `WORKSPACE_UPDATED`: a guia que escreve dispara, quem desenha
+ * escuta. Sem estado global para duas telas.
+ */
+export const BILLING_UPDATED = 'billing:updated'
+
 interface FooterState {
     planName: string | null
     workspaceName: string | null
@@ -237,6 +250,14 @@ interface FooterState {
 function PlanSummary() {
     const [state, setState] = useState<FooterState | null>(null)
     const [loading, setLoading] = useState(true)
+    /** Sobe a cada `billing:updated` e refaz a leitura. */
+    const [token, setToken] = useState(0)
+
+    useEffect(() => {
+        const refazer = () => setToken((t) => t + 1)
+        window.addEventListener(BILLING_UPDATED, refazer)
+        return () => window.removeEventListener(BILLING_UPDATED, refazer)
+    }, [])
 
     useEffect(() => {
         let cancelled = false
@@ -272,7 +293,7 @@ function PlanSummary() {
         return () => {
             cancelled = true
         }
-    }, [])
+    }, [token])
 
     // Hidden when the rail is collapsed to icons — there is no room to read it.
     if (loading) {

@@ -48,8 +48,15 @@ queimado antes do que já ia expirar.
 renovação sobravam 500 créditos de plano, eles são descartados e o saldo volta ao
 valor do plano. Avulsos não são tocados.
 
-**Troca de plano durante a avaliação:** os 1.000 créditos de teste são
-**substituídos** pelos do plano, não somados.
+**Troca de plano:** a franquia passa a ser a do plano novo **na hora**, e o
+consumo do mês fica. Durante a avaliação, isso é o que substitui os 1.000
+créditos de teste pelos do plano — eles não se somam. Fora da avaliação, vale a
+mesma regra: subir de plano dá a franquia de hoje, não na renovação.
+
+`creditsUsed` **não** é zerado na troca — é o que impede alternar de plano para
+recarregar. O saldo é `credits - creditsUsed` com piso em zero, então descer de
+plano depois de gastar muito mostra zero, não número negativo. E o período não
+reinicia: a renovação continua contada da assinatura.
 
 **Quando o crédito acaba:**
 

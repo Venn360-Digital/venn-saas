@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { TermsCard } from '@/components/account/TermsCard'
 import { toast } from 'sonner'
+import { BILLING_UPDATED } from '@/components/layout/AppSidebar'
 
 interface SubscriptionData {
     plan: string
@@ -101,8 +102,20 @@ export function PlanoTab() {
         }
     }
 
-    const handleChangePlan = async () => {
-        if (selectedPlan === subscription?.plan) {
+    /**
+     * Contrata um plano. **O plano vem por parâmetro**, não do estado.
+     *
+     * Era lido de `selectedPlan`, e o botão do cartão fazia
+     * `setSelectedPlan(planKey); handleChangePlan()` — duas linhas no mesmo
+     * tick. `setState` não tem efeito até o próximo render, então a função lia
+     * o plano **anterior**: clicar em Contratar no Multiclínica mandava o que
+     * estava selecionado antes. E como `selectedPlan` nasce igual ao plano
+     * atual, o primeiro clique em qualquer cartão mandava o plano atual e caía
+     * no "este já é o seu plano" — nada acontecia, e a tela parecia travada.
+     */
+    const handleChangePlan = async (plano: string) => {
+        if (!plano) return
+        if (plano === subscription?.plan) {
             toast.error('Este já é o seu plano atual')
             return
         }
@@ -112,19 +125,24 @@ export function PlanoTab() {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'change-plan', plan: selectedPlan })
+                body: JSON.stringify({ action: 'change-plan', plan: plano })
             })
 
             if (res.ok) {
                 const data = await res.json()
                 toast.success(data.message)
                 setShowPlanModal(false)
-                loadSubscription()
+                // Esperado antes de liberar o botão: sem o `await`, o modal
+                // fechava e a tela repintava com os números velhos por um
+                // instante — o "delay" que parecia bug.
+                await loadSubscription()
+                // E o rodapé da sidebar, que lê a assinatura por conta própria.
+                window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
                 const error = await res.json()
                 toast.error(error.error || 'Erro ao alterar plano')
             }
-        } catch (error) {
+        } catch {
             toast.error('Erro ao alterar plano')
         } finally {
             setProcessing(false)
@@ -144,7 +162,8 @@ export function PlanoTab() {
                 const data = await res.json()
                 toast.success(data.message)
                 setShowCreditsModal(false)
-                loadSubscription()
+                await loadSubscription()
+                window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
                 const error = await res.json()
                 toast.error(error.error || 'Erro ao comprar créditos')
@@ -543,7 +562,7 @@ export function PlanoTab() {
                                             onClick={(e) => {
                                                 e.stopPropagation()
                                                 setSelectedPlan(planKey)
-                                                handleChangePlan()
+                                                void handleChangePlan(planKey)
                                             }}
                                             disabled={isCurrent || processing}
                                         >

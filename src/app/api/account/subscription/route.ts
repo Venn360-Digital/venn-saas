@@ -174,9 +174,32 @@ export async function POST(request: NextRequest) {
                         maxMessages: planConfig.maxMessages,
                         maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
                         maxSpokenReplies: planConfig.maxSpokenReplies,
-                        // `credits` fica fora do update de propósito: trocar de
-                        // plano no meio do período não zera o que já foi usado
-                        // nem recarrega a franquia — isso é da renovação.
+                        /**
+                         * A franquia passa a ser a do plano novo, e o consumo
+                         * do mês **fica**.
+                         *
+                         * `credits` ficava fora do update, e o resultado era o
+                         * que PRODUCT.md §2 proíbe em letra: "troca de plano
+                         * durante a avaliação: os 1.000 créditos de teste são
+                         * substituídos pelos do plano". Contratar encerrava a
+                         * avaliação (`trialEndsAt: null`, logo abaixo) e deixava
+                         * o saldo de teste no lugar — a clínica pagava o plano e
+                         * continuava com os créditos da avaliação.
+                         *
+                         * Fora da avaliação a regra é a mesma, e é o que faz
+                         * sentido para quem paga: subir de plano hoje dá a
+                         * franquia de hoje, não na renovação.
+                         *
+                         * `creditsUsed` **não** é zerado — é o que impede
+                         * alternar de plano para recarregar. O saldo é
+                         * `credits - creditsUsed`, com piso em zero
+                         * (`getBillingState`), então descer de plano depois de
+                         * gastar muito mostra zero, não número negativo.
+                         *
+                         * O período não é reiniciado: a renovação continua
+                         * contada da assinatura, como diz PRODUCT.md §2.
+                         */
+                        credits: planConfig.credits,
                         trialEndsAt: null,
                     }
                 })
