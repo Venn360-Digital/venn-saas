@@ -159,9 +159,19 @@ export interface Plan {
     /**
      * A lista de itens do cartão, embaixo da fileira de canais.
      *
-     * Objeto e não texto puro porque um item precisa de destaque — o Diagnóstico
-     * de LGPD, no Multiclínica. Marcador dentro da string exigiria um
-     * interpretador nos dois lugares que desenham o cartão.
+     * **A ordem é hierarquia**, decidida pelo Andre em 2026-10-18: unidades,
+     * agentes, números — do continente para o conteúdo —, depois o que não muda
+     * entre planos, e crédito por último. Quem compara três cartões lê as três
+     * primeiras linhas de cada um; é lá que mora o que diferencia.
+     *
+     * **Negrito em unidades e crédito, nos três planos.** São as duas pontas do
+     * que o cliente dimensiona: quantas clínicas cabem e quanto o agente pode
+     * trabalhar. O terceiro negrito, o Diagnóstico de LGPD, existe só no
+     * Multiclínica e faz outro trabalho — não é número que se compara, é item
+     * que os outros planos não têm.
+     *
+     * Objeto e não texto puro por causa desse destaque: marcador dentro da
+     * string exigiria um interpretador nos dois lugares que desenham o cartão.
      */
     features: PlanFeature[]
 }
@@ -177,14 +187,14 @@ export const PLANS: Record<PlanId, Plan> = {
         price: 390,
         limits: PLAN_LIMITS.flow,
         features: [
+            { text: '1 unidade (clínica)', strong: true },
             { text: '1 agente de atendimento IA' },
             { text: '1 número de WhatsApp' },
-            { text: '1 unidade (clínica)' },
             { text: 'CRM para clínicas com funil de vendas' },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
             { text: 'Agenda integrada com Google Calendar' },
-            { text: '10.000 créditos de IA por mês' },
+            { text: '10.000 créditos de IA por mês', strong: true },
         ],
     },
     pro: {
@@ -198,16 +208,16 @@ export const PLANS: Record<PlanId, Plan> = {
         badge: 'Mais escolhido',
         limits: PLAN_LIMITS.pro,
         features: [
+            { text: '1 unidade (clínica)', strong: true },
             { text: '2 agentes de atendimento IA' },
             { text: '4 números de WhatsApp' },
-            { text: '1 unidade (clínica)' },
             { text: 'CRM para clínicas com funil de vendas' },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
             { text: 'Agente de IA no site da clínica' },
             { text: 'Agenda integrada com Google Calendar' },
             { text: 'Integração com CliniCorp' },
-            { text: '20.000 créditos de IA por mês' },
+            { text: '20.000 créditos de IA por mês', strong: true },
         ],
     },
     advanced: {
@@ -220,9 +230,9 @@ export const PLANS: Record<PlanId, Plan> = {
         price: 890,
         limits: PLAN_LIMITS.advanced,
         features: [
+            { text: '3 unidades (clínicas)', strong: true },
             { text: '3 agentes de atendimento IA' },
             { text: '6 números de WhatsApp' },
-            { text: '3 unidades (clínicas)' },
             { text: 'CRM para clínicas com funil de vendas' },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
@@ -230,7 +240,7 @@ export const PLANS: Record<PlanId, Plan> = {
             { text: 'Agenda integrada com Google Calendar' },
             { text: 'Integração com CliniCorp' },
             { text: 'Diagnóstico de LGPD (proteção de dados)', strong: true },
-            { text: '30.000 créditos de IA por mês' },
+            { text: '30.000 créditos de IA por mês', strong: true },
         ],
     },
 }
