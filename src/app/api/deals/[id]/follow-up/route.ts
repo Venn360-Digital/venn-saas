@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import prisma from '@/lib/prisma'
+import { dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { buildFollowUpSuggestion } from '@/lib/follow-up-suggestion'
 
 /** As falhas da geração, traduzidas para quem está olhando a tela. */
@@ -28,6 +29,20 @@ export async function POST(
     const { id } = await params
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    /**
+     * O mesmo buraco da rota de conversa, achado na mesma varredura: o
+     * construtor confere o workspace e não o dono. Sem isto, um atendente
+     * gerava sugestão para negócio de outra pessoa pelo id — "atendente vê só o
+     * que é dele" é decisão registrada, e vale aqui também.
+     */
+    const visivel = await prisma.deal.findFirst({
+        where: { id, workspaceId: auth.member.workspaceId, ...dealScope(auth.member) },
+        select: { id: true },
+    })
+    if (!visivel) {
+        return NextResponse.json({ error: MESSAGES.not_found.error }, { status: 404 })
+    }
 
     const result = await buildFollowUpSuggestion({ dealId: id, workspaceId: auth.member.workspaceId })
     if (!result.ok) {

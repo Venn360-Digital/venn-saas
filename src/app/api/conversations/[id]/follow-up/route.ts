@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
 import { buildFollowUpSuggestion } from '@/lib/follow-up-suggestion'
 
 const MESSAGES: Record<string, { error: string; status: number }> = {
@@ -31,6 +31,19 @@ export async function POST(
     const { id } = await params
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    /**
+     * O construtor confere o workspace, mas não o **departamento**.
+     *
+     * Sem esta linha, um atendente de um departamento gerava sugestão para
+     * conversa da fila de outro, bastando o id — a conversa não aparecia na
+     * lista dele nem abria na tela, mas o texto saía, com nome do paciente e o
+     * que foi conversado. É a mesma conferência que `media`, `notes` e `read`
+     * fazem, pelo mesmo helper.
+     */
+    if (!(await assertConversationAccess(id, auth.member))) {
+        return NextResponse.json({ error: MESSAGES.not_found.error }, { status: 404 })
+    }
 
     const result = await buildFollowUpSuggestion({
         conversationId: id,
