@@ -725,10 +725,11 @@ de propósito.
   que a tela se apagou. A moldura fica de pé e só o miolo espera, num esqueleto
   com a forma do que vem depois; o gravar fica travado enquanto não se sabe o
   que gravar.
-- **A marca da clínica manda na sidebar**: com logo gravada no workspace, ela
+- **A marca da clínica manda na sidebar**: com logo gravada **na conta**, ela
   substitui o símbolo e o nome do produto (78px de altura, largura da calha
-  como teto); recolhida, volta o símbolo. Gravar na guia Clínica dispara
-  `workspace:updated` e a troca acontece sem recarregar.
+  como teto); recolhida, volta o símbolo. Gravar na guia Conta da Clínica
+  dispara `workspace:updated` e a troca acontece sem recarregar. A marca não
+  seleciona unidade — isso é do Topbar, ver §6.
 
 ### Tela 04 — o painel
 
@@ -809,6 +810,18 @@ text-muted-foreground`, no Topbar) e como se chama (`h1` em `text-h1`, no
 duplicação é o Topbar repetir o nome que o cabeçalho já mostra, e isso saiu.
 Vantagem de estar no shell: as telas de viewport inteiro (chat, kanban), que não
 renderizam `PageHeader`, continuam orientadas.
+
+**Em que clínica estou fica no Topbar**, à esquerda do som e separado por um
+fio. Com uma unidade é só o nome com o ícone de clínica — não é botão, não abre
+nada, não tem seta: um menu de um item só ensina que não há escolha. Com duas ou
+mais, o mesmo lugar vira o seletor (`UnitSwitcher`).
+
+Não fica na marca da sidebar, onde viveu meio dia: a calha recolhe para 32px e
+levava o seletor embora, a marca já é o link para o início (um elemento que é
+link **e** menu não anuncia o que faz), e "em que clínica estou" é estado de
+sessão — ao lado do som, dos avisos e do tema. **Um seletor para a mesma coisa
+em dois lugares é o que um dia discorda de si mesmo.** A marca ficou com a
+identidade (logo da conta), o Topbar com o contexto (nome da unidade).
 
 **Um `h1` por tela.** Sempre no `PageHeader`, sempre `text-h1`. Título dentro de
 coluna — o "Conversas" da lista do chat, o "Novo agente" do assistente — é

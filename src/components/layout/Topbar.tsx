@@ -25,6 +25,7 @@ import { createClient } from '@/lib/supabase/client'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { UnitSwitcher } from '@/components/layout/UnitSwitcher'
 import { useSoundEnabled } from '@/hooks/useSoundEnabled'
 
 interface AppNotification {
@@ -173,9 +174,14 @@ export function Topbar() {
                 <BreadcrumbTrail />
             </div>
 
-            {/* Som e sino juntos — os dois são avisos; o tema fica à parte,
-                separado por um fio, porque é outra natureza de ajuste. */}
+            {/* Três naturezas, separadas por fios: em que clínica estou, os
+                avisos (som e sino), e o tema. O seletor de clínica vem primeiro
+                porque é o que diz **onde** o resto da tela está acontecendo —
+                ler o cabeçalho da direita para a esquerda daria o ajuste antes
+                do contexto. */}
             <div className="flex items-center gap-0.5">
+                <UnitSwitcher />
+
                 {/* Sound Toggle */}
                 <Button
                     variant="ghost"
