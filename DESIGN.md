@@ -744,13 +744,26 @@ põem os filtros. Quem aprendeu a filtrar em Pacientes já sabe filtrar aqui.
 
 ---
 
-### Tela 05 — a página de conteúdo
+### Tela 05 — a base de conhecimento
 
 **Aberta em 2026-10-18**, com a central de ajuda (`/suporte`).
 
-Não é índice, não é tela de trabalho, não tem guias: é texto para ler, com um
-caminho para agir. A primeira é a ajuda; se vierem outras (novidades da versão,
-tutoriais), nascem aqui.
+Conceito novo, e **de propósito fora dos outros quatro padrões**: não é índice,
+não é tela de trabalho, não tem guias. É conteúdo que se navega e se busca, com
+um caminho para agir quando o conteúdo não resolve. A primeira é a ajuda; se
+vierem outras (novidades da versão, treinamento), nascem aqui.
+
+- **A busca é o elemento principal**, não um filtro no canto: campo grande e
+  centralizado na capa. É o que distingue base de conhecimento de página de
+  perguntas frequentes. Ela varre título **e** corpo — quem não sabe o termo
+  certo descreve o sintoma — e **ignora o tópico escolhido**: procurar é querer
+  achar em qualquer lugar, e não encontrar por causa de um filtro que a pessoa
+  esqueceu que estava ligado é o pior tipo de resultado vazio.
+- **Tópicos à esquerda, conteúdo à direita**, com contagem por tópico e o
+  índice preso ao rolar. Quem não sabe o que procurar navega; quem sabe, busca.
+  Abaixo de `lg` a coluna vira uma fileira rolável.
+- **Guia some durante a busca.** Quem procura algo específico não quer um
+  tutorial no caminho.
 
 - **Coluna centralizada de 1024px** (`max-w-5xl mx-auto`), com respiro de 32px
   em cima e 64px embaixo. Centralizar é o oposto do que a Tela 01 manda — e é

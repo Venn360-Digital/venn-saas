@@ -220,6 +220,7 @@ const TOTAL_FAQ = FAQ.reduce((n, g) => n + g.itens.length, 0)
 
 export default function SuportePage() {
     const [busca, setBusca] = useState('')
+    const [topico, setTopico] = useState<string>('todos')
     const [contexto, setContexto] = useState('')
 
     /**
@@ -252,222 +253,240 @@ export default function SuportePage() {
     const linkWhatsApp = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(mensagem)}`
     const linkEmail = `mailto:${EMAIL}?subject=${encodeURIComponent('Ajuda — OdontoBox360')}&body=${encodeURIComponent(mensagem)}`
 
-    /** A busca varre pergunta e resposta: quem não sabe o termo certo descreve o sintoma. */
+    /**
+     * A busca varre pergunta **e** resposta: quem não sabe o termo certo
+     * descreve o sintoma — "parou de responder" não está em nenhum título.
+     *
+     * Buscar ignora o tópico escolhido de propósito: procurar é querer achar em
+     * qualquer lugar, e um resultado vazio por causa de um filtro que a pessoa
+     * esqueceu que estava ligado é o pior tipo de nada encontrado.
+     */
     const resultado = useMemo(() => {
         const termo = busca.trim().toLowerCase()
-        if (!termo) return FAQ
-        return FAQ.map((g) => ({
-            ...g,
-            itens: g.itens.filter(
-                (i) => i.p.toLowerCase().includes(termo) || i.r.toLowerCase().includes(termo)
-            ),
-        })).filter((g) => g.itens.length > 0)
-    }, [busca])
+        const base = termo
+            ? FAQ
+            : topico === 'todos'
+              ? FAQ
+              : FAQ.filter((g) => g.grupo === topico)
+        if (!termo) return base
+        return base
+            .map((g) => ({
+                ...g,
+                itens: g.itens.filter(
+                    (i) => i.p.toLowerCase().includes(termo) || i.r.toLowerCase().includes(termo)
+                ),
+            }))
+            .filter((g) => g.itens.length > 0)
+    }, [busca, topico])
 
     const achados = resultado.reduce((n, g) => n + g.itens.length, 0)
+    const buscando = busca.trim().length > 0
 
     return (
-        <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-8 md:px-8">
-            {/* ─── Abertura ───────────────────────────────────────────── */}
-            <header className="flex flex-col items-center text-center">
-                <Logo variant="wordmark" height={34} priority />
-                <h1 className="mt-6 text-[28px] font-bold tracking-tight md:text-[34px]">
-                    Como podemos ajudar?
-                </h1>
-                <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
-                    Respostas para o que mais perguntam, o passo a passo do que a clínica
-                    faz todo dia, e um caminho direto para falar com gente de verdade.
-                </p>
-            </header>
+        <div className="pb-16">
+            {/* ─── Capa: a busca é o elemento principal de uma base de
+                conhecimento; os canais ficam logo abaixo, à vista, sem tomar
+                o lugar dela. ──────────────────────────────────────────── */}
+            <header className="border-b border-border bg-card">
+                <div className="mx-auto w-full max-w-4xl px-4 py-10 text-center md:px-8 md:py-14">
+                    <Logo variant="wordmark" height={30} priority />
+                    <h1 className="mt-5 text-[26px] font-bold tracking-tight md:text-[32px]">
+                        Central de ajuda
+                    </h1>
+                    <p className="mx-auto mt-1.5 max-w-[48ch] text-sm text-muted-foreground">
+                        {TOTAL_FAQ} respostas e {PASSOS.length} guias sobre o que a clínica faz todo dia.
+                    </p>
 
-            {/* ─── Canais ─────────────────────────────────────────────── */}
-            <section className="mt-8 grid gap-3 md:grid-cols-2">
-                {WHATSAPP ? (
-                    <a
-                        href={linkWhatsApp}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-start gap-4 rounded-xl border border-primary/30 bg-primary-subtle/40 p-5 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                            <MessageCircle className="size-5" />
-                        </span>
-                        <span className="min-w-0">
-                            <span className="block text-[15px] font-bold">WhatsApp</span>
-                            <span className="num block text-sm text-muted-foreground">
-                                {telefoneLegivel(WHATSAPP)}
-                            </span>
-                            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                                O caminho mais rápido. A mensagem já vai com o nome da clínica e
-                                o plano, para a conversa começar do assunto.
-                            </span>
-                        </span>
-                    </a>
-                ) : null}
-
-                {EMAIL ? (
-                    <a
-                        href={linkEmail}
-                        className="group flex items-start gap-4 rounded-xl border border-border bg-card p-5 transition-colors hover:border-border-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                            <Mail className="size-5" />
-                        </span>
-                        <span className="min-w-0">
-                            <span className="block text-[15px] font-bold">E-mail</span>
-                            <span className="block truncate text-sm text-muted-foreground">{EMAIL}</span>
-                            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                                Para o que precisa de anexo — print, planilha, nota fiscal — ou
-                                de rastro escrito.
-                            </span>
-                        </span>
-                    </a>
-                ) : null}
-
-                {!WHATSAPP && !EMAIL ? (
-                    <div className="md:col-span-2">
-                        <EmptyState
-                            variant="inline"
-                            icon={LifeBuoy}
-                            title="Canais de suporte ainda não configurados"
-                            description="Defina NEXT_PUBLIC_SUPPORT_WHATSAPP e NEXT_PUBLIC_SUPPORT_EMAIL no ambiente."
-                        />
-                    </div>
-                ) : null}
-            </section>
-
-            <p className="mt-3 text-center text-xs text-muted-foreground">
-                De segunda a sexta, das 9h às 18h. Fora desse horário a mensagem fica
-                registrada e é respondida na abertura.
-            </p>
-
-            {/* ─── Primeiros passos ───────────────────────────────────── */}
-            <section className="mt-12">
-                <h2 className="text-[19px] font-bold tracking-tight">Primeiros passos</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    O que toda clínica faz na primeira semana.
-                </p>
-
-                <div className="mt-5 flex flex-col gap-4">
-                    {PASSOS.map((t) => (
-                        <article
-                            key={t.id}
-                            className="overflow-hidden rounded-xl border border-border bg-card"
-                        >
-                            <div className="flex items-start gap-3 border-b border-border px-5 py-4">
-                                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
-                                    <t.icone className="size-4.5" />
-                                </span>
-                                <div className="min-w-0">
-                                    <h3 className="text-[15px] font-bold">{t.titulo}</h3>
-                                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                                        {t.resumo}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="grid gap-6 p-5 md:grid-cols-[1fr_320px]">
-                                <ol className="flex flex-col gap-3">
-                                    {t.passos.map((passo, i) => (
-                                        <li key={passo} className="flex gap-3 text-sm leading-relaxed">
-                                            <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-border-strong text-[11px] font-semibold text-primary-subtle-foreground">
-                                                {i + 1}
-                                            </span>
-                                            <span>{passo}</span>
-                                        </li>
-                                    ))}
-                                    <li className="mt-1 rounded-lg bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                                        {t.nota}
-                                    </li>
-                                </ol>
-
-                                <div className="hidden md:block">
-                                    <Maquete titulo={`Ilustração: ${t.titulo}`}>
-                                        {ILUSTRACOES[t.id]}
-                                    </Maquete>
-                                </div>
-                            </div>
-                        </article>
-                    ))}
-                </div>
-            </section>
-
-            {/* ─── Perguntas frequentes ───────────────────────────────── */}
-            <section className="mt-12">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                        <h2 className="text-[19px] font-bold tracking-tight">Perguntas frequentes</h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {TOTAL_FAQ} respostas. Se resolver aqui, você não espera ninguém.
-                        </p>
-                    </div>
-                    <div className="relative w-full sm:w-72">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <div className="relative mx-auto mt-6 max-w-xl">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={busca}
                             onChange={(e) => setBusca(e.target.value)}
-                            placeholder="Buscar"
-                            aria-label="Buscar nas perguntas frequentes"
-                            className="pl-9"
+                            placeholder="Buscar — por exemplo: parou de responder, QR Code, crédito"
+                            aria-label="Buscar na central de ajuda"
+                            className="h-12 rounded-full pl-12 pr-4 text-[15px] shadow-sm"
                         />
                     </div>
+
+                    {WHATSAPP || EMAIL ? (
+                        <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
+                            <span className="text-muted-foreground">Prefere falar com alguém?</span>
+                            {WHATSAPP ? (
+                                <a
+                                    href={linkWhatsApp}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                >
+                                    <MessageCircle className="size-4" />
+                                    <span className="num">{telefoneLegivel(WHATSAPP)}</span>
+                                </a>
+                            ) : null}
+                            {EMAIL ? (
+                                <a
+                                    href={linkEmail}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-[13px] font-medium transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                >
+                                    <Mail className="size-4" />
+                                    {EMAIL}
+                                </a>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <div className="mx-auto mt-6 max-w-md">
+                            <EmptyState
+                                variant="inline"
+                                icon={LifeBuoy}
+                                title="Canais de suporte ainda não configurados"
+                                description="Defina NEXT_PUBLIC_SUPPORT_WHATSAPP e NEXT_PUBLIC_SUPPORT_EMAIL no ambiente."
+                            />
+                        </div>
+                    )}
                 </div>
+            </header>
 
-                {achados === 0 ? (
-                    <div className="mt-5">
-                        <EmptyState
-                            variant="inline"
-                            icon={Search}
-                            title="Nada encontrado"
-                            description="Tente outra palavra — ou mande a dúvida no WhatsApp, que a gente responde e ela vira uma resposta aqui."
-                        />
-                    </div>
-                ) : (
-                    <div className="mt-5 flex flex-col gap-6">
-                        {resultado.map((g) => (
-                            <div key={g.grupo}>
-                                <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
-                                    {g.grupo}
-                                </h3>
-                                <div className="overflow-hidden rounded-xl border border-border bg-card">
-                                    {g.itens.map((item, i) => (
-                                        <Collapsible
-                                            key={item.p}
-                                            className={cn(i > 0 && 'border-t border-border')}
-                                        >
-                                            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[13.5px] font-semibold hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
-                                                {item.p}
-                                                <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                                            </CollapsibleTrigger>
-                                            <CollapsibleContent className="px-5 pb-4 text-[13px] leading-relaxed text-muted-foreground">
-                                                {item.r}
-                                            </CollapsibleContent>
-                                        </Collapsible>
-                                    ))}
-                                </div>
+            <div className="mx-auto w-full max-w-6xl px-4 md:px-8">
+                {/* ─── Guias: só fora da busca. Quem está procurando algo
+                    específico não quer um tutorial no caminho. ─────────── */}
+                {!buscando ? (
+                    <section className="pt-10">
+                        <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Guias
+                        </h2>
+                        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+                            {PASSOS.map((t) => (
+                                <article
+                                    key={t.id}
+                                    className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
+                                >
+                                    <div className="border-b border-border p-4">
+                                        <span className="flex size-9 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
+                                            <t.icone className="size-[18px]" />
+                                        </span>
+                                        <h3 className="mt-3 text-[15px] font-bold leading-snug">{t.titulo}</h3>
+                                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                            {t.resumo}
+                                        </p>
+                                    </div>
+
+                                    <div className="hidden px-4 pt-4 lg:block">
+                                        <Maquete titulo={`Ilustração: ${t.titulo}`}>
+                                            {ILUSTRACOES[t.id]}
+                                        </Maquete>
+                                    </div>
+
+                                    <ol className="flex flex-col gap-2.5 p-4">
+                                        {t.passos.map((passo, i) => (
+                                            <li key={passo} className="flex gap-2.5 text-[13px] leading-relaxed">
+                                                <span className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full border border-border-strong text-[11px] font-semibold text-primary-subtle-foreground">
+                                                    {i + 1}
+                                                </span>
+                                                <span>{passo}</span>
+                                            </li>
+                                        ))}
+                                    </ol>
+
+                                    <p className="mt-auto border-t border-border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                                        {t.nota}
+                                    </p>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+                ) : null}
+
+                {/* ─── Tópicos à esquerda, respostas à direita: é assim que se
+                    navega uma base de conhecimento — browsing, não só busca.
+                    Abaixo de `lg` a coluna vira uma fileira rolável. ────── */}
+                <section className="grid gap-8 py-10 lg:grid-cols-[216px_1fr]">
+                    <nav aria-label="Tópicos" className="lg:sticky lg:top-6 lg:self-start">
+                        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Tópicos
+                        </h2>
+                        <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+                            {[{ grupo: 'todos', n: TOTAL_FAQ }, ...FAQ.map((g) => ({ grupo: g.grupo, n: g.itens.length }))].map((t) => (
+                                <li key={t.grupo} className="shrink-0 lg:shrink">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setTopico(t.grupo); setBusca('') }}
+                                        aria-pressed={!buscando && topico === t.grupo}
+                                        className={cn(
+                                            'flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                            !buscando && topico === t.grupo
+                                                ? 'bg-primary-subtle font-semibold text-primary-subtle-foreground'
+                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                        )}
+                                    >
+                                        {t.grupo === 'todos' ? 'Todas as respostas' : t.grupo}
+                                        <span className="num text-[11px] opacity-70">{t.n}</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </nav>
+
+                    <div className="min-w-0">
+                        {buscando ? (
+                            <p className="mb-3 text-sm text-muted-foreground">
+                                {achados === 0
+                                    ? 'Nada encontrado para '
+                                    : `${achados} ${achados === 1 ? 'resposta' : 'respostas'} para `}
+                                <strong className="text-foreground">“{busca.trim()}”</strong>
+                            </p>
+                        ) : null}
+
+                        {achados === 0 ? (
+                            <EmptyState
+                                variant="inline"
+                                icon={Search}
+                                title="Nada encontrado"
+                                description="Tente outra palavra — ou mande a dúvida no WhatsApp. Toda pergunta que chega três vezes vira uma resposta aqui."
+                            />
+                        ) : (
+                            <div className="flex flex-col gap-7">
+                                {resultado.map((g) => (
+                                    <div key={g.grupo}>
+                                        <h3 className="mb-2.5 text-[15px] font-bold">{g.grupo}</h3>
+                                        <div className="overflow-hidden rounded-xl border border-border bg-card">
+                                            {g.itens.map((item, i) => (
+                                                <Collapsible
+                                                    key={item.p}
+                                                    className={cn(i > 0 && 'border-t border-border')}
+                                                >
+                                                    <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[13.5px] font-semibold hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+                                                        {item.p}
+                                                        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                                    </CollapsibleTrigger>
+                                                    <CollapsibleContent className="px-5 pb-4 text-[13px] leading-relaxed text-muted-foreground">
+                                                        {item.r}
+                                                    </CollapsibleContent>
+                                                </Collapsible>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
-            </section>
+                        )}
 
-            {/* ─── Pé ─────────────────────────────────────────────────── */}
-            {WHATSAPP ? (
-                <section className="mt-12 flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-6 py-8 text-center">
-                    <LifeBuoy className="size-6 text-muted-foreground" />
-                    <p className="text-[15px] font-bold">Não achou o que precisava?</p>
-                    <p className="max-w-[46ch] text-sm text-muted-foreground">
-                        Toda pergunta que chega três vezes vira uma resposta nesta página.
-                        Mandar a sua ajuda quem vier depois.
-                    </p>
-                    <Button asChild className="mt-1">
-                        <a href={linkWhatsApp} target="_blank" rel="noopener noreferrer">
-                            <MessageCircle className="size-4" />
-                            Falar no WhatsApp
-                        </a>
-                    </Button>
+                        {WHATSAPP ? (
+                            <div className="mt-8 flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border px-6 py-7 text-center">
+                                <LifeBuoy className="size-5 text-muted-foreground" />
+                                <p className="text-sm font-bold">Não achou o que precisava?</p>
+                                <p className="max-w-[44ch] text-xs leading-relaxed text-muted-foreground">
+                                    Toda pergunta que chega três vezes vira uma resposta nesta
+                                    página. Mandar a sua ajuda quem vier depois.
+                                </p>
+                                <Button asChild size="sm" className="mt-1">
+                                    <a href={linkWhatsApp} target="_blank" rel="noopener noreferrer">
+                                        <MessageCircle className="size-4" />
+                                        Falar no WhatsApp
+                                    </a>
+                                </Button>
+                            </div>
+                        ) : null}
+                    </div>
                 </section>
-            ) : null}
+            </div>
         </div>
     )
 }
