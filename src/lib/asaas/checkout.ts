@@ -7,7 +7,7 @@ import { UNIDADE_ADICIONAL } from '@/lib/plans'
  * O checkout hospedado do Asaas: a página onde o cliente paga.
  *
  * Nós não desenhamos tela de pagamento e não tocamos no número do cartão. O
- * pagador vai para uma página do Asaas, paga por Pix ou cartão, e volta. A
+ * pagador vai para uma página do Asaas, paga, e volta. A
  * alternativa — tokenizar o cartão no nosso servidor — levaria o PAN pelo nosso
  * código e pelos nossos logs, e o escopo de PCI sairia de SAQ A para SAQ A-EP.
  * Ver PRODUCT.md §13.
@@ -45,8 +45,8 @@ export interface DadosDoPagador {
  * sobraria um checkout pago no Asaas que o nosso webhook não saberia a quem
  * atribuir, e isso é dinheiro recebido sem dono.
  *
- * `minutesToExpire` em 24 horas: Pix de assinatura que fica aberto por uma
- * semana é cobrança que o cliente esqueceu que fez. Expirado, a tela oferece
+ * `minutesToExpire` em 24 horas: checkout que fica aberto por uma semana é
+ * cobrança que o cliente esqueceu que começou. Expirado, a tela oferece
  * contratar de novo.
  */
 export async function criarCheckoutDePlano(opcoes: {
@@ -88,7 +88,21 @@ export async function criarCheckoutDePlano(opcoes: {
         const resposta = await asaas<RespostaCheckout>('/checkouts', {
             method: 'POST',
             body: {
-                billingTypes: ['PIX', 'CREDIT_CARD'],
+                /**
+                 * Recorrente no Checkout é **cartão e só cartão**.
+                 *
+                 * Mandar `['PIX','CREDIT_CARD']` com `RECURRENT` é recusado em
+                 * letra pelo Asaas: "O método de pagamento CREDIT_CARD é o único
+                 * método de pagamento permitido para operações RECURRENT; O tipo
+                 * de cobrança DETACHED é obrigatório para o método de pagamento
+                 * PIX".
+                 *
+                 * Faz sentido quando se olha o que recorrência significa: cobrar
+                 * sozinho todo mês exige credencial guardada, e Pix não tem
+                 * isso. "Assinatura no Pix" no Brasil é outra coisa — é fatura
+                 * mensal que o cliente paga à mão —, e ela não passa por aqui.
+                 */
+                billingTypes: ['CREDIT_CARD'],
                 chargeTypes: ['RECURRENT'],
                 minutesToExpire: 1440,
                 /** Como o webhook descobre qual conta e qual plano foram pagos. */
