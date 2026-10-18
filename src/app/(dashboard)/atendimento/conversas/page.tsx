@@ -945,6 +945,15 @@ export default function ConversasPage() {
     const fetchMessagesRef = useRef(fetchMessages)
     const markAsReadRef = useRef(markAsRead)
     const playNotificationSoundRef = useRef(playNotificationSound)
+    /**
+     * A lista como ela está agora, para o manipulador do Realtime consultar.
+     *
+     * Pelo mesmo motivo dos outros: a assinatura não pode depender do estado,
+     * ou cada mensagem recebida a derrubaria e reabriria. E a lista é a prova de
+     * que uma conversa é desta clínica — ela vem escopada do servidor.
+     */
+    const conversationsRef = useRef(conversations)
+    useEffect(() => { conversationsRef.current = conversations }, [conversations])
     useEffect(() => { fetchMessagesRef.current = fetchMessages }, [fetchMessages])
     useEffect(() => { markAsReadRef.current = markAsRead }, [markAsRead])
     useEffect(() => { playNotificationSoundRef.current = playNotificationSound }, [playNotificationSound])
@@ -1030,7 +1039,18 @@ export default function ConversasPage() {
                 // zera na hora. Ou seja: o aviso nunca tocava exatamente no
                 // caso mais comum, com a atendente olhando o chat. O evento de
                 // mensagem recebida é o gatilho correto.
-                if (newMsg?.direction === 'inbound' && soundEnabledRef.current) {
+                //
+                // **E tem de ser mensagem desta clínica.** A assinatura do
+                // Realtime não filtra por workspace, e a RLS libera as linhas de
+                // **toda** unidade de que a pessoa participa — não só a da
+                // sessão. Quem atende em duas clínicas ouvia o aviso da outra
+                // sem nada aparecer na tela, porque a lista é recarregada pelo
+                // servidor e vem escopada. A lista carregada é justamente a
+                // prova de que a conversa é daqui.
+                const daquiMesmo = conversationsRef.current.some(
+                    (c) => c.id === newMsg?.conversationId
+                )
+                if (newMsg?.direction === 'inbound' && daquiMesmo && soundEnabledRef.current) {
                     playNotificationSoundRef.current()
                 }
 
