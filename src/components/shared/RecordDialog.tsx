@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Check, Loader2, Plus, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -166,7 +166,7 @@ export function RecordDialog({
                         )}
                         {submitLabel && !hideAgain ? (
                             <Button type="button" variant="outline" onClick={() => submit(true)} disabled={submitting}>
-                                {submitting && again ? <Loader2 className="animate-spin" /> : null}
+                                {submitting && again ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
                                 Criar e novo
                             </Button>
                         ) : null}
@@ -177,7 +177,14 @@ export function RecordDialog({
                                 variant={destructive ? 'destructive' : 'default'}
                                 disabled={submitting || submitDisabled}
                             >
-                                {submitting && !again ? <Loader2 className="animate-spin" /> : null}
+                                {/* `Check` em vez de um ícone por verbo: este
+                                    rótulo é "Criar paciente" ou "Salvar
+                                    paciente" conforme a tela, e um disquete em
+                                    cima de "Criar" estaria errado metade das
+                                    vezes. Confirmar o formulário é o que o
+                                    botão faz nos dois casos — inclusive no
+                                    destrutivo, onde confirmar é destruir. */}
+                                {submitting && !again ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                                 {submitLabel}
                             </Button>
                         ) : null}

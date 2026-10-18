@@ -303,6 +303,13 @@ planos; `FileText` para ler um documento; `CreditCard` para a forma de
 pagamento. Enquanto salva, o ícone dá lugar ao `Loader2` girando — não some,
 senão o botão muda de largura no meio do clique.
 
+**O envio de diálogo é sempre `Check`**, em `RecordDialog` e em `ConfirmDialog`.
+Não é o ícone do verbo: o rótulo ali é "Criar paciente" numa tela e "Salvar
+paciente" na outra, e um disquete em cima de "Criar" erraria metade das vezes.
+`Check` quer dizer "confirmar este formulário", que é o que o botão faz nos dois
+casos — inclusive no destrutivo, onde confirmar é destruir. O "Criar e novo" ao
+lado leva `Plus`, porque esse sempre cria.
+
 **Tamanho: deixe o sistema decidir.** `<Button variant="outline">` e pronto.
 `size="sm"` com `className="h-8"` por cima é o sintoma de uma briga com o
 primitivo — e foi o que deixou a guia Plano com quatro botões de três alturas

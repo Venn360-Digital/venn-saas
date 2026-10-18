@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 
 import {
     AlertDialog,
@@ -119,7 +119,7 @@ export function ConfirmDialog({
                                 buttonVariants({ variant: 'destructive' })
                         )}
                     >
-                        {pending ? <Loader2 className="animate-spin" /> : null}
+                        {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                         {confirmLabel}
                     </AlertDialogAction>
                 </AlertDialogFooter>
