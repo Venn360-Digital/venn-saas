@@ -240,6 +240,16 @@ model AsaasCheckout {
   updatedAt DateTime  @updatedAt
   paidAt    DateTime?
 
+  /// Quando o **plano foi aplicado** por causa deste checkout.
+  ///
+  /// Separado de `status`/`paidAt` porque eles são espelho do Asaas e este é
+  /// registro do nosso trabalho — e confundir os dois já custou uma ativação.
+  /// O processador marcava `PAID` **antes** de aplicar o plano e usava esse
+  /// mesmo `PAID` como trava de idempotência: quando a aplicação falhou, a
+  /// retentativa viu "já está paga" e desistiu em silêncio. Cliente pagou,
+  /// Asaas confirmou, plano não mudou, nenhum erro registrado.
+  appliedAt DateTime?
+
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, createdAt])

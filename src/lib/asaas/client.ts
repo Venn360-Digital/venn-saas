@@ -95,8 +95,12 @@ export async function asaas<T>(
             access_token: cfg.chave,
         },
         body: init.body === undefined ? undefined : JSON.stringify(init.body),
-        // Cobrança nunca vem de cache.
-        cache: 'no-store',
+        /**
+         * Sem `cache: 'no-store'`: o worker também chama isto, e o `RequestInit`
+         * do Node não conhece a opção — ela é extensão do Next. Não faz falta:
+         * desde o Next 15 o `fetch` não é cacheado por padrão, e aqui estamos em
+         * rota e em worker, nunca em render de página.
+         */
     })
 
     const texto = await res.text()

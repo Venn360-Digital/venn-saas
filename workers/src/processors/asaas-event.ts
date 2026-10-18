@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 
 import prisma from '@/lib/prisma'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
+import { vincularContaAoAsaas } from '@/lib/asaas/vincular'
 import { isPlanId } from '@/lib/plan-limits'
 import { createLogger } from '../logger'
 import type { AsaasEventJob } from '../queues'
@@ -141,14 +142,54 @@ async function espelharCobranca(
         return
     }
 
-    const conta = p.customer
-        ? await prisma.account.findUnique({
-            where: { asaasCustomerId: p.customer },
-            select: { id: true },
-        })
-        : null
+    /**
+     * Pelo cliente **ou** pela assinatura.
+     *
+     * Os dois caminhos existem porque nenhum sozinho dá conta: o primeiro
+     * pagamento de um checkout chega **antes** do `CHECKOUT_PAID` (medido:
+     * 23:07:40 contra 23:07:41), e é só no `CHECKOUT_PAID` que descobrimos o
+     * cliente. Depois disso o cliente resolve tudo; e a assinatura resolve o
+     * caso de uma conta cujo cliente mudou.
+     */
+    const conta =
+        (p.customer
+            ? await prisma.account.findUnique({
+                where: { asaasCustomerId: p.customer },
+                select: { id: true },
+            })
+            : null) ??
+        (p.subscription
+            ? await prisma.account.findFirst({
+                where: { subscription: { asaasSubscriptionId: p.subscription } },
+                select: { id: true },
+            })
+            : null)
 
     if (!conta) {
+        /**
+         * Não conhecemos — mas pode ser só questão de segundos.
+         *
+         * Cobrança **recente** de cliente desconhecido é quase sempre o primeiro
+         * pagamento chegando antes do `CHECKOUT_PAID`. Relançar faz o BullMQ
+         * retentar com espera crescente, e na segunda ou terceira o vínculo já
+         * existe.
+         *
+         * Cobrança **velha** de cliente desconhecido é outra coisa: é cobrança
+         * de outro cliente do Andre na mesma conta Asaas, criada pelo painel e
+         * sem nada a ver com o OdontoBox360. Essa é ignorada, senão oito
+         * retentativas por cobrança encheriam a fila de falhas com o que não é
+         * falha.
+         */
+        const idade = Date.now() - receivedAt.getTime()
+        const recente = idade < 15 * 60_000
+
+        if (recente) {
+            throw new Error(
+                `${event}: cliente ${p.customer ?? '(sem)'} ainda não vinculado a nenhuma conta; ` +
+                    'retentando — provável corrida com o CHECKOUT_PAID'
+            )
+        }
+
         log.info(`${event} do cliente ${p.customer ?? '(sem cliente)'} não é de nenhuma conta nossa; ignorado`)
         return
     }
@@ -241,7 +282,7 @@ async function tratarCheckout(
 
     const tentativa = await prisma.asaasCheckout.findUnique({
         where: { id: ref },
-        select: { id: true, accountId: true, plan: true, status: true },
+        select: { id: true, accountId: true, plan: true, status: true, appliedAt: true },
     })
 
     if (!tentativa) {
@@ -271,15 +312,21 @@ async function tratarCheckout(
     }
 
     /**
-     * Já pago antes? Sai sem fazer nada.
+     * A trava é `appliedAt`, **não** `status`.
      *
-     * A entrega é at-least-once e `CHECKOUT_PAID` chega duas vezes com
-     * naturalidade. `aplicarPlano` é idempotente, mas ela também **reinicia a
-     * franquia** no `create` — e processar de novo depois de um mês de consumo
-     * seria presentear o cliente com crédito que ele já gastou.
+     * `status = PAID` é espelho do Asaas e é gravado logo acima, antes de
+     * aplicar qualquer coisa. Usá-lo como trava foi o defeito que custou a
+     * primeira ativação de verdade: a aplicação falhou por um erro de tipo, o
+     * BullMQ retentou, a retentativa viu "já está paga" e desistiu em silêncio
+     * — cliente pago, Asaas confirmado, plano inalterado, nenhum erro
+     * registrado, porque a segunda passada "teve sucesso".
+     *
+     * `appliedAt` só é gravado depois que o plano foi de fato aplicado. Enquanto
+     * não for, toda retentativa tenta de novo — que é o comportamento que uma
+     * trava de idempotência deve ter.
      */
-    if (tentativa.status === 'PAID') {
-        log.info(`tentativa ${tentativa.id} já estava paga; nada a fazer`)
+    if (tentativa.appliedAt) {
+        log.info(`tentativa ${tentativa.id} já aplicada em ${tentativa.appliedAt.toISOString()}`)
         return
     }
 
@@ -305,40 +352,54 @@ async function tratarCheckout(
     }
 
     /**
-     * Guarda o cliente do Asaas na conta, se ainda não estava.
+     * O plano primeiro, os ponteiros depois.
      *
-     * É a primeira vez que sabemos o id: o checkout recebe `customerData` e o
-     * Asaas resolve o cliente do lado dele. Divergência com o que já estava
-     * guardado vira aviso e **não** sobrescreve — pode ser sinal de cliente
-     * duplicado lá, e trocar o ponteiro calado esconderia isso.
+     * A ordem importa: quem pagou tem de ser atendido mesmo que a descoberta do
+     * cliente e da assinatura no Asaas falhe. Ponteiro nulo é pendência de
+     * conciliação; plano não aplicado é cliente pagando e sem acesso.
+     *
+     * **`checkout.subscription` não é o id da assinatura** — é a especificação
+     * que nós mandamos (`{cycle, nextDueDate, endDate}`). Passá-la para a coluna
+     * foi o erro de tipo que derrubou a primeira ativação. O id de verdade sai
+     * da busca em `vincularContaAoAsaas`.
      */
-    if (c?.customer) {
-        const conta = await prisma.account.findUnique({
-            where: { id: tentativa.accountId },
-            select: { asaasCustomerId: true },
-        })
-        if (!conta?.asaasCustomerId) {
-            await prisma.account.update({
-                where: { id: tentativa.accountId },
-                data: { asaasCustomerId: c.customer },
-            })
-        } else if (conta.asaasCustomerId !== c.customer) {
-            log.warn(
-                `conta ${tentativa.accountId} aponta para ${conta.asaasCustomerId} mas o ` +
-                    `checkout pagou como ${c.customer}; possível cliente duplicado no Asaas`
-            )
-        }
-    }
-
     const { notas } = await aplicarPlano({
         accountId: tentativa.accountId,
         workspaceId: unidade.id,
         plan: tentativa.plan,
-        asaasSubscriptionId: c?.subscription ?? null,
+    })
+
+    await prisma.asaasCheckout.update({
+        where: { id: tentativa.id },
+        data: { appliedAt: new Date() },
     })
 
     log.info(
         `CHECKOUT_PAID: conta ${tentativa.accountId} ativada no plano ${tentativa.plan}` +
             (notas.length ? ` — ${notas.join('; ')}` : '')
     )
+
+    /**
+     * Agora os ponteiros, por fora da ativação.
+     *
+     * Falha aqui não desfaz nada e não relança: o plano já vale. Fica o aviso no
+     * log e os ponteiros nulos, que a conciliação da fase 5 pega.
+     */
+    try {
+        const conta = await prisma.account.findUnique({
+            where: { id: tentativa.accountId },
+            select: { cpfCnpj: true },
+        })
+        if (conta?.cpfCnpj) {
+            const { customerId, subscriptionId } = await vincularContaAoAsaas({
+                accountId: tentativa.accountId,
+                cpfCnpj: conta.cpfCnpj,
+            })
+            log.info(`vinculado: cliente ${customerId ?? '(nenhum)'}, assinatura ${subscriptionId ?? '(nenhuma)'}`)
+        } else {
+            log.warn(`conta ${tentativa.accountId} sem documento; não dá para achar o cliente no Asaas`)
+        }
+    } catch (erro) {
+        log.error(`falha ao vincular conta ${tentativa.accountId} ao Asaas: ${String(erro)}`)
+    }
 }

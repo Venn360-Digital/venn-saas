@@ -1,0 +1,11 @@
+-- Separa "o Asaas disse que foi pago" de "nós aplicamos o plano".
+--
+-- O processador marcava `status = PAID` antes de aplicar o plano e usava esse
+-- mesmo PAID como trava de idempotência. Quando a aplicação falhou — por um
+-- erro de tipo meu —, a retentativa do BullMQ viu "já está paga" e desistiu em
+-- silêncio: cliente pagou, Asaas confirmou, plano não mudou, e nenhum erro
+-- ficou registrado porque a segunda passada "teve sucesso".
+--
+-- `status` e `paidAt` continuam espelho do Asaas. `appliedAt` é registro do
+-- nosso trabalho, e é ele que a trava passa a olhar.
+ALTER TABLE "asaas_checkouts" ADD COLUMN IF NOT EXISTS "appliedAt" TIMESTAMP(3);
