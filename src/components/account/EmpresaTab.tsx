@@ -34,6 +34,7 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
     const [saving, setSaving] = useState(false)
     const [workspace, setWorkspace] = useState<WorkspaceData | null>(null)
     const [formData, setFormData] = useState({
+        name: '',
         cnpj: '',
         address: '',
         phone: '',
@@ -52,6 +53,7 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                 const data = await res.json()
                 setWorkspace(data)
                 setFormData({
+                    name: data.name || '',
                     // Guardado como dígitos; a pontuação é da tela.
                     cnpj: onlyDigits(data.cnpj),
                     address: data.address || '',
@@ -68,6 +70,10 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
     }
 
     const handleSave = async () => {
+        if (formData.name.trim().length < 2) {
+            toast.error('Dê um nome à clínica.')
+            return
+        }
         const phoneProblem = phoneIssue(formData.phone)
         if (phoneProblem) {
             toast.error(phoneProblem)
@@ -154,9 +160,15 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
                         <FormField
                             label="Nome da clínica"
                             htmlFor="company-name"
-                            hint="É o identificador do workspace e não muda por aqui."
+                            required
+                            hint="É como esta unidade aparece no seletor de clínicas."
                         >
-                            <Input id="company-name" value={workspace?.name || ''} disabled />
+                            <Input
+                                id="company-name"
+                                value={formData.name}
+                                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                maxLength={80}
+                            />
                         </FormField>
 
                         <FormField label="CNPJ" htmlFor="cnpj">

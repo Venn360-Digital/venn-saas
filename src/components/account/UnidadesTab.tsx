@@ -162,6 +162,33 @@ export function UnidadesTab() {
                 ) : undefined
             }
         >
+            {/* As duas faixas dividem a altura: a da conta tem o tamanho do
+                conteúdo, a das unidades fica com o resto e rola por dentro.
+                Sem este contêiner o `flex-1` da segunda não tem contra o que
+                crescer, e quem rola é a guia inteira — que é o que o DESIGN.md
+                §5 (Tela 03) não quer na Conta. */}
+          <div className="flex h-full min-h-0 flex-col">
+            {/* A conta, que existia e não aparecia em tela nenhuma — mostrada
+                porque é quem paga, e **só** mostrada: o nome dela fica fechado
+                na tela por decisão do Andre em 2026-10-18. Nasce com o nome do
+                primeiro workspace (o cadastro pergunta um nome só) e, se tiver
+                de mudar, muda no banco — como "Venn" virou "Venn360". O que
+                importava editar era o nome da unidade, que é o que distingue
+                uma clínica da outra no seletor. */}
+            <SettingsBand
+                title="Conta"
+                description="A assinatura, a fatura e o teto de unidades são da conta. As clínicas abaixo pertencem a ela."
+            >
+                <SettingsRow
+                    title={dados?.conta ?? '—'}
+                    description={
+                        dados?.souMaster
+                            ? 'Você é o responsável por esta conta.'
+                            : 'O responsável pela conta é quem contrata e paga.'
+                    }
+                />
+            </SettingsBand>
+
             <SettingsBand
                 className="flex min-h-0 flex-1 flex-col"
                 title="Unidades da conta"
@@ -235,6 +262,7 @@ export function UnidadesTab() {
                     </div>
                 )}
             </SettingsBand>
+          </div>
 
             <RecordDialog
                 open={criando}

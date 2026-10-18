@@ -84,11 +84,35 @@ export async function PATCH(request: NextRequest) {
         }
 
         const body = await request.json()
-        const { cnpj, address, phone, logo } = body
+        const { name, cnpj, address, phone, logo } = body
+
+        /**
+         * O nome da unidade passou a ser editável em 2026-10-18.
+         *
+         * Era um campo desabilitado com a dica "é o identificador do workspace
+         * e não muda por aqui" — verdade enquanto havia uma clínica por conta,
+         * porque ninguém lia aquele nome em lugar nenhum. Com várias unidades o
+         * nome é **como se distingue uma clínica da outra** no seletor da marca
+         * e na lista de unidades, e a unidade criada pela tela ganha o nome
+         * digitado na hora: sem isto, um erro de digitação ficava para sempre.
+         *
+         * O `slug` não acompanha, de propósito. Ele não aparece em rota nenhuma
+         * (é promessa de subdomínio do cadastro, e nada mais lê), e mexer nele
+         * trocaria a única chave estável da unidade por uma derivada de texto
+         * que a clínica edita.
+         */
+        const nome = typeof name === 'string' ? name.trim() : undefined
+        if (nome !== undefined && (nome.length < 2 || nome.length > 80)) {
+            return NextResponse.json(
+                { error: 'O nome da unidade precisa ter de 2 a 80 caracteres.' },
+                { status: 400 }
+            )
+        }
 
         const workspace = await prisma.workspace.update({
             where: { id: workspaceUser.workspaceId },
             data: {
+                name: nome,
                 cnpj: cnpj !== undefined ? cnpj : undefined,
                 address: address !== undefined ? address : undefined,
                 phone: phone !== undefined ? phone : undefined,
