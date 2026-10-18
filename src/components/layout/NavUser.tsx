@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ChevronsUpDown, CreditCard, LogOut, Plug, User, Users } from 'lucide-react'
+import { ChevronsUpDown, CreditCard, LifeBuoy, LogOut, Plug, User, Users } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -150,6 +150,12 @@ export function NavUser() {
                                 <Link href="/gerenciamento/conta?tab=usuarios">
                                     <Users />
                                     Usuários
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                                <Link href="/gerenciamento/conta?tab=suporte">
+                                    <LifeBuoy />
+                                    Dúvidas e suporte
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>

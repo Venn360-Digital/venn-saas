@@ -2,11 +2,12 @@
 
 import { Suspense, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Building2, CalendarOff, CreditCard, Plug, Plus, User, Users, Zap } from 'lucide-react'
+import { Building2, CalendarOff, CreditCard, LifeBuoy, Plug, Plus, User, Users, Zap } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
 import { AgendaClinicaTab } from '@/components/management/AgendaClinicaTab'
+import { SuporteTab } from '@/components/account/SuporteTab'
 import { AutomacoesTab } from '@/components/account/AutomacoesTab'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
@@ -31,6 +32,7 @@ const TABS: FrameTab[] = [
     { id: 'agenda', label: 'Agenda da clínica', icon: CalendarOff },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },
+    { id: 'suporte', label: 'Dúvidas e suporte', icon: LifeBuoy },
     { id: 'plano', label: 'Plano', icon: CreditCard },
 ]
 
@@ -90,6 +92,7 @@ function ContaContent() {
             {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
+            {activeTab === 'suporte' ? <SuporteTab /> : null}
             {activeTab === 'plano' ? <PlanoTab /> : null}
         </TabsFrame>
     )
