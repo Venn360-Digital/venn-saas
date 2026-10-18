@@ -13,16 +13,6 @@ import { WORKSPACE_UPDATED } from '@/components/layout/ClinicBrand'
 import { MASKS, onlyDigits } from '@/lib/masks'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 
-interface WorkspaceData {
-    id: string
-    name: string
-    slug: string
-    cnpj: string | null
-    address: string | null
-    phone: string | null
-    logo: string | null
-}
-
 interface EmpresaTabProps {
     /** O id que liga o botão do fim do formulário ao `<form>`. */
     formId: string
@@ -32,7 +22,6 @@ interface EmpresaTabProps {
 export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [workspace, setWorkspace] = useState<WorkspaceData | null>(null)
     const [formData, setFormData] = useState({
         name: '',
         cnpj: '',
@@ -51,7 +40,6 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
             const res = await fetch('/api/account/workspace')
             if (res.ok) {
                 const data = await res.json()
-                setWorkspace(data)
                 setFormData({
                     name: data.name || '',
                     // Guardado como dígitos; a pontuação é da tela.
@@ -89,10 +77,10 @@ export function EmpresaTab({ formId, onSavingChange }: EmpresaTabProps) {
             })
 
             if (res.ok) {
-                const data = await res.json()
-                setWorkspace(data)
-                // A sidebar desenha a logo da clínica: avisada aqui, ela troca
-                // na hora, sem esperar a próxima navegação.
+                // A sidebar desenha a logo **e o nome** da clínica: avisada
+                // aqui, ela troca na hora, sem esperar a próxima navegação.
+                // Com várias unidades isso passou a importar mais — é por esse
+                // nome que se sabe em qual clínica se está.
                 window.dispatchEvent(new Event(WORKSPACE_UPDATED))
                 toast.success('Dados da clínica atualizados')
             } else {
