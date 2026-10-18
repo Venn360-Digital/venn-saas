@@ -1,6 +1,8 @@
 import type { Job } from 'bullmq'
 
 import prisma from '@/lib/prisma'
+import { aplicarPlano } from '@/lib/billing/aplicar-plano'
+import { isPlanId } from '@/lib/plan-limits'
 import { createLogger } from '../logger'
 import type { AsaasEventJob } from '../queues'
 
@@ -14,13 +16,11 @@ const log = createLogger('ASAAS_EVENT')
  * fila depois de 15 falhas consecutivas, então nenhuma decisão nossa pode
  * acontecer no caminho que eles medem.
  *
- * FASE 1 ESPELHA E NÃO DECIDE
+ * O QUE ELE DECIDE HOJE
  *
- * Nesta fase o processador faz duas coisas: marca o evento como processado e
- * atualiza o espelho de faturas quando o evento fala de cobrança. **Nada ativa
- * plano, credita compra ou corta inadimplente** — isso é das fases 2 a 4, e
- * fazer agora seria mexer em dinheiro antes de o espelho ter sido provado
- * contra o sandbox.
+ * Espelha cobrança (`PAYMENT_*`) e **ativa plano** quando o checkout é pago
+ * (`CHECKOUT_PAID`). Cortar inadimplente, creditar compra de crédito e tratar
+ * estorno são as fases 3 e 4.
  *
  * Evento de tipo que ainda não sabemos tratar é marcado como processado com uma
  * linha no log. Deixá-lo pendente para sempre encheria a fila de reprocessamento
@@ -52,6 +52,15 @@ interface PagamentoDoAsaas {
 /** Eventos que falam de uma cobrança e portanto mexem no espelho. */
 const DE_COBRANCA = /^PAYMENT_/
 
+/** O que o Asaas manda dentro de `checkout`, do que nos interessa. */
+interface CheckoutDoAsaas {
+    id?: string
+    externalReference?: string
+    status?: string
+    customer?: string
+    subscription?: string
+}
+
 export async function processAsaasEvent(job: Job<AsaasEventJob>): Promise<void> {
     const { eventRowId } = job.data
 
@@ -82,6 +91,11 @@ export async function processAsaasEvent(job: Job<AsaasEventJob>): Promise<void> 
                 linha.event,
                 linha.payload as { payment?: PagamentoDoAsaas },
                 linha.receivedAt
+            )
+        } else if (linha.event.startsWith('CHECKOUT_')) {
+            await tratarCheckout(
+                linha.event,
+                linha.payload as { checkout?: CheckoutDoAsaas }
             )
         } else {
             log.info(`evento ${linha.event} sem tratamento nesta fase; apenas registrado`)
@@ -199,4 +213,132 @@ async function espelharCobranca(
     })
 
     log.info(`${event} espelhado: cobrança ${p.id}, conta ${conta.id}, status ${dados.status}`)
+}
+
+/**
+ * O checkout mudou de estado: pago, cancelado ou expirado.
+ *
+ * **É aqui que o plano passa a valer.** Não na volta do pagador para a nossa
+ * tela: aquilo é o navegador dele, que pode fechar, perder a rede ou ser
+ * adulterado — e a própria documentação do Asaas diz que as URLs de callback
+ * "não substituem a confirmação assíncrona por Webhook".
+ *
+ * O `externalReference` é o id da nossa linha de tentativa. É por ele que se sabe
+ * **qual conta e qual plano** foram pagos; sem ele, um pagamento confirmado seria
+ * dinheiro recebido sem dono.
+ */
+async function tratarCheckout(
+    event: string,
+    payload: { checkout?: CheckoutDoAsaas }
+): Promise<void> {
+    const c = payload.checkout
+    const ref = c?.externalReference
+
+    if (!ref) {
+        log.warn(`${event} sem externalReference; não dá para saber de quem é`)
+        return
+    }
+
+    const tentativa = await prisma.asaasCheckout.findUnique({
+        where: { id: ref },
+        select: { id: true, accountId: true, plan: true, status: true },
+    })
+
+    if (!tentativa) {
+        log.warn(`${event} aponta para a tentativa ${ref}, que não existe aqui`)
+        return
+    }
+
+    const novoStatus = event === 'CHECKOUT_PAID'
+        ? 'PAID'
+        : event === 'CHECKOUT_CANCELED'
+          ? 'CANCELED'
+          : event === 'CHECKOUT_EXPIRED'
+            ? 'EXPIRED'
+            : tentativa.status
+
+    await prisma.asaasCheckout.update({
+        where: { id: tentativa.id },
+        data: {
+            status: novoStatus,
+            ...(event === 'CHECKOUT_PAID' ? { paidAt: new Date() } : {}),
+        },
+    })
+
+    if (event !== 'CHECKOUT_PAID') {
+        log.info(`${event} da tentativa ${tentativa.id}: marcada como ${novoStatus}`)
+        return
+    }
+
+    /**
+     * Já pago antes? Sai sem fazer nada.
+     *
+     * A entrega é at-least-once e `CHECKOUT_PAID` chega duas vezes com
+     * naturalidade. `aplicarPlano` é idempotente, mas ela também **reinicia a
+     * franquia** no `create` — e processar de novo depois de um mês de consumo
+     * seria presentear o cliente com crédito que ele já gastou.
+     */
+    if (tentativa.status === 'PAID') {
+        log.info(`tentativa ${tentativa.id} já estava paga; nada a fazer`)
+        return
+    }
+
+    if (!isPlanId(tentativa.plan)) {
+        log.error(`tentativa ${tentativa.id} guarda plano desconhecido "${tentativa.plan}"`)
+        return
+    }
+
+    /**
+     * O ajuste de limites precisa de **uma** unidade da conta para entrar; a
+     * contagem atravessa todas de qualquer forma (ver `limits.ts`). A mais
+     * antiga é a clínica original, e é a escolha estável.
+     */
+    const unidade = await prisma.workspace.findFirst({
+        where: { accountId: tentativa.accountId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+    })
+
+    if (!unidade) {
+        log.error(`conta ${tentativa.accountId} não tem nenhuma unidade; plano não aplicado`)
+        return
+    }
+
+    /**
+     * Guarda o cliente do Asaas na conta, se ainda não estava.
+     *
+     * É a primeira vez que sabemos o id: o checkout recebe `customerData` e o
+     * Asaas resolve o cliente do lado dele. Divergência com o que já estava
+     * guardado vira aviso e **não** sobrescreve — pode ser sinal de cliente
+     * duplicado lá, e trocar o ponteiro calado esconderia isso.
+     */
+    if (c?.customer) {
+        const conta = await prisma.account.findUnique({
+            where: { id: tentativa.accountId },
+            select: { asaasCustomerId: true },
+        })
+        if (!conta?.asaasCustomerId) {
+            await prisma.account.update({
+                where: { id: tentativa.accountId },
+                data: { asaasCustomerId: c.customer },
+            })
+        } else if (conta.asaasCustomerId !== c.customer) {
+            log.warn(
+                `conta ${tentativa.accountId} aponta para ${conta.asaasCustomerId} mas o ` +
+                    `checkout pagou como ${c.customer}; possível cliente duplicado no Asaas`
+            )
+        }
+    }
+
+    const { notas } = await aplicarPlano({
+        accountId: tentativa.accountId,
+        workspaceId: unidade.id,
+        plan: tentativa.plan,
+        asaasSubscriptionId: c?.subscription ?? null,
+    })
+
+    log.info(
+        `CHECKOUT_PAID: conta ${tentativa.accountId} ativada no plano ${tentativa.plan}` +
+            (notas.length ? ` — ${notas.join('; ')}` : '')
+    )
 }

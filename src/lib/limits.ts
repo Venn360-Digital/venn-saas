@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { accountIdOf, assinaturaDaUnidade, unidadesDaConta, type Unidades } from '@/lib/account'
-import { TRIAL, planFor } from '@/lib/plans'
+import { planNameFor } from '@/lib/plan-limits'
 
 /**
  * What the workspace's plan actually allows, and how much of it is used.
@@ -104,13 +104,12 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
         }
     }
 
-    const plan = planFor(subscription.plan)
     const maxAgents = subscription.maxAgents
     const maxWhatsApp = subscription.maxWhatsAppNumbers
 
     return {
-        planId: plan.id,
-        planName: plan.name,
+        planId: subscription.plan,
+        planName: planNameFor(subscription.plan),
         status: subscription.status,
         agents: {
             used: agentCount,
@@ -233,8 +232,6 @@ export async function canConnectWhatsApp(
     }
     return { ok: true }
 }
-
-export { TRIAL }
 
 /**
  * Brings the account in line with the plan's allowance after a plan change.

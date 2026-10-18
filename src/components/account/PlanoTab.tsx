@@ -1,7 +1,8 @@
 'use client'
 
 import { UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { BandLayout, SettingsBand, SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
@@ -70,6 +71,9 @@ interface PlanConfig {
 }
 
 export function PlanoTab() {
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
     const [loading, setLoading] = useState(true)
     const [subscription, setSubscription] = useState<SubscriptionData | null>(null)
 
@@ -117,7 +121,14 @@ export function PlanoTab() {
         loadSubscription()
     }, [])
 
-    const loadSubscription = async () => {
+    /**
+     * `useCallback` porque um `useEffect` depende dela.
+     *
+     * Era função solta, criada de novo a cada render: o intervalo que relê
+     * durante a confirmação do pagamento seria desmontado e remontado sem
+     * parar, e poderia nunca chegar aos 5 segundos.
+     */
+    const loadSubscription = useCallback(async () => {
         try {
             const res = await fetch('/api/account/subscription')
             if (res.ok) {
@@ -131,7 +142,7 @@ export function PlanoTab() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
 
     /**
      * Contrata um plano. **O plano vem por parâmetro**, não do estado.
@@ -161,6 +172,22 @@ export function PlanoTab() {
 
             if (res.ok) {
                 const data = await res.json()
+
+                /**
+                 * Conta que paga sai desta tela: vai para o checkout do Asaas.
+                 *
+                 * `window.location.href` e não `router.push`: é outro domínio.
+                 * E nada de `_blank` — bloqueador de pop-up engole a aba nova, e
+                 * o cliente fica olhando uma tela que não mudou, achando que o
+                 * botão não funcionou.
+                 */
+                if (data.pago && data.link) {
+                    toast.success(data.message)
+                    window.location.href = data.link
+                    return
+                }
+
+                // Conta vitalícia ou antes da data de cobrança: ativou direto.
                 toast.success(data.message)
                 setShowPlanModal(false)
                 // Esperado antes de liberar o botão: sem o `await`, o modal
@@ -171,6 +198,24 @@ export function PlanoTab() {
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
                 const error = await res.json()
+
+                /**
+                 * Falta o documento: a recusa leva à tela certa.
+                 *
+                 * O Asaas exige `cpfCnpj`, e a avaliação não pede documento de
+                 * propósito. Um "erro ao alterar plano" aqui mandaria a pessoa
+                 * procurar o problema no lugar errado.
+                 */
+                if (error.faltaDocumento) {
+                    toast.error(error.error, {
+                        action: {
+                            label: 'Preencher',
+                            onClick: () => router.replace(`${pathname}?tab=empresa`),
+                        },
+                    })
+                    return
+                }
+
                 toast.error(error.error || 'Erro ao alterar plano')
             }
         } catch {
@@ -255,6 +300,46 @@ export function PlanoTab() {
             setProcessing(false)
         }
     }
+
+    /**
+     * O que o checkout do Asaas devolveu, pela URL de retorno.
+     *
+     * Lista branca: valor fora dela não desenha faixa nenhuma. É parâmetro de
+     * URL, logo texto que qualquer um edita, e uma faixa verde de "pagamento
+     * recebido" montada a partir dele seria mentira plantada por quem quisesse.
+     * Mesmo os três válidos não ativam nada — só contam o que está acontecendo.
+     */
+    const pagamentoParam = searchParams.get('pagamento')
+    const retornoDoPagamento =
+        pagamentoParam === 'processando' || pagamentoParam === 'cancelado' || pagamentoParam === 'expirado'
+            ? pagamentoParam
+            : null
+
+    /**
+     * Enquanto o pagamento está em confirmação, a tela relê a cada 5 segundos.
+     *
+     * Sem isto, quem volta do Pix fica olhando "em avaliação" até recarregar a
+     * página à mão — e a conclusão natural é que o pagamento não valeu. Para
+     * quando o plano fica ativo, ou depois de dois minutos: passado isso, o que
+     * falta não é tempo, é alguém olhar o log.
+     */
+    useEffect(() => {
+        if (retornoDoPagamento !== 'processando') return
+        if (subscription?.status === 'active') return
+
+        let tentativas = 0
+        const timer = setInterval(() => {
+            tentativas += 1
+            if (tentativas > 24) {
+                clearInterval(timer)
+                return
+            }
+            void loadSubscription()
+            window.dispatchEvent(new Event(BILLING_UPDATED))
+        }, 5_000)
+
+        return () => clearInterval(timer)
+    }, [retornoDoPagamento, subscription?.status, loadSubscription])
 
     const pacotes = subscription?.creditPacks ?? []
     const pacote = pacoteEscolhido ? pacotes.find((p) => p.credits === pacoteEscolhido) : undefined
@@ -388,6 +473,62 @@ export function PlanoTab() {
                     </Button>
                 </div>
             )}
+
+            {/* A volta do checkout do Asaas.
+                
+                Três desfechos chegam por `?pagamento=`, e nenhum deles **ativa**
+                nada: quem ativa é o webhook. Esta faixa existe porque, sem ela,
+                quem acabou de pagar voltaria para uma tela que ainda diz "em
+                avaliação" e concluiria que o pagamento falhou — e aí paga de
+                novo. É o estado que o sistema nunca teve: "recebemos, estamos
+                esperando a confirmação". */}
+            {retornoDoPagamento ? (
+                <div
+                    className={cn(
+                        'mb-4 flex items-start gap-3 rounded-lg border px-4 py-3',
+                        retornoDoPagamento === 'processando'
+                            ? 'border-info/30 bg-info-subtle text-info-subtle-foreground'
+                            : 'border-warning/30 bg-warning-subtle text-warning-subtle-foreground'
+                    )}
+                    role="status"
+                >
+                    <div className="min-w-0 flex-1 text-sm">
+                        {retornoDoPagamento === 'processando' ? (
+                            <>
+                                <p className="font-semibold">Pagamento recebido, aguardando confirmação.</p>
+                                <p className="mt-0.5 text-xs">
+                                    O Pix costuma confirmar em segundos e o cartão em alguns minutos.
+                                    Esta tela se atualiza sozinha quando o plano ficar ativo — não é
+                                    preciso pagar de novo.
+                                </p>
+                            </>
+                        ) : retornoDoPagamento === 'cancelado' ? (
+                            <>
+                                <p className="font-semibold">Pagamento cancelado.</p>
+                                <p className="mt-0.5 text-xs">
+                                    Nada foi cobrado. Você pode contratar de novo quando quiser.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="font-semibold">O prazo do pagamento expirou.</p>
+                                <p className="mt-0.5 text-xs">
+                                    Nada foi cobrado. Abra o pagamento de novo em &quot;Alterar plano&quot;.
+                                </p>
+                            </>
+                        )}
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-current"
+                        aria-label="Dispensar aviso de pagamento"
+                        onClick={() => router.replace(`${pathname}?tab=plano`, { scroll: false })}
+                    >
+                        <X className="h-5 w-5" />
+                    </Button>
+                </div>
+            ) : null}
 
             <SettingsBand
                 title="Assinatura"

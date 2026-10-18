@@ -4,11 +4,27 @@ import {
     canBuyAddons,
     getBillingState,
     purchaseExpiry,
-    renewalDate,
     spokenRepliesLeft,
 } from '@/lib/billing'
-import { applyPlanLimits } from '@/lib/limits'
-import { tetoDeUnidades } from '@/lib/plan-limits'
+import { isPlanId, tetoDeUnidades } from '@/lib/plan-limits'
+import { criarCheckoutDePlano } from '@/lib/asaas/checkout'
+import { regimeDaConta } from '@/lib/asaas/cobranca'
+import { AsaasError } from '@/lib/asaas/client'
+import { aplicarPlano } from '@/lib/billing/aplicar-plano'
+
+/**
+ * O endereço desta aplicação, para o Asaas devolver o pagador.
+ *
+ * Do cabeçalho da requisição e não de `NEXT_PUBLIC_APP_URL`: a variável é
+ * assada no build, e um deploy com ela errada mandaria o cliente de volta para
+ * o domínio anterior depois de pagar. O host que atendeu a chamada é o host em
+ * que a pessoa está.
+ */
+function baseDaAplicacao(request: NextRequest): string {
+    const proto = request.headers.get('x-forwarded-proto') ?? 'https'
+    const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
+    return host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL ?? '')
+}
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { accountIdOf, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
@@ -171,21 +187,31 @@ export async function POST(request: NextRequest) {
         const { action, ...data } = body
 
         switch (action) {
+            /**
+             * Contratar ou trocar de plano. Desde a fase 2, isto pode cobrar.
+             *
+             * Três desfechos, e a tela precisa saber qual foi:
+             *
+             * - **conta que paga** → devolve `link` do checkout do Asaas, e o
+             *   plano **não** muda aqui. Quem ativa é o webhook, quando o
+             *   dinheiro entra. Ativar na volta do pagador seria dar plano a
+             *   quem clicou em "voltar".
+             * - **conta vitalícia** (Venn360) → ativa direto, sem cobrar.
+             * - **antes da data de início** (Implante Ja até 27/10) → idem.
+             *
+             * O que **não** muda com a cobrança: a recusa de descer de plano
+             * para um que não cabe as unidades existentes. Essa é conferida
+             * antes de qualquer checkout, porque criar cobrança para uma troca
+             * que vai ser recusada é cobrar por nada.
+             */
             case 'change-plan': {
                 const { plan } = data
-                if (!PLANS[plan as keyof typeof PLANS]) {
+                if (!isPlanId(plan)) {
                     return NextResponse.json({ error: 'Plano inválido' }, { status: 400 })
                 }
 
-                const planConfig = PLANS[plan as keyof typeof PLANS]
+                const planConfig = PLANS[plan]
 
-                /**
-                 * Quem assina é a conta, e é dela o seletor único.
-                 *
-                 * Sem conta não há o que assinar: um workspace órfão é estado
-                 * que a migração não deixa existir, e tratá-lo aqui como
-                 * "crie uma" esconderia o defeito em vez de mostrá-lo.
-                 */
                 const accountId = await accountIdOf(workspaceUser.workspaceId)
                 if (!accountId) {
                     return NextResponse.json(
@@ -196,14 +222,8 @@ export async function POST(request: NextRequest) {
 
                 /**
                  * Descer de plano não pode deixar a conta com mais unidades do
-                 * que o plano novo cabe.
-                 *
-                 * E a saída não é apagar unidade: unidade tem pacientes, agenda
-                 * e conversas, e nenhuma troca de plano tem autoridade para
-                 * levar isso embora. Então a troca é **recusada**, dizendo o
-                 * número e as duas saídas reais — comprar adicional ou escolher
-                 * outro plano. As unidades compradas contam a favor: um Digital
-                 * com dois adicionais cabe três.
+                 * que o plano novo cabe. A saída não é apagar unidade — unidade
+                 * tem pacientes, agenda e conversas.
                  */
                 const unidades = await unidadesDaConta(accountId)
                 const cabe = tetoDeUnidades(plan, unidades.adicionais)
@@ -219,91 +239,86 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                const subscription = await prisma.subscription.upsert({
-                    where: { accountId },
-                    create: {
+                const regime = await regimeDaConta(accountId)
+
+                if (!regime.precisaPagar) {
+                    const { notas } = await aplicarPlano({
+                        accountId,
+                        workspaceId: workspaceUser.workspaceId,
+                        plan,
+                    })
+
+                    const porque =
+                        regime.motivo === 'vitalicia'
+                            ? 'Conta vitalícia: nada foi cobrado.'
+                            : `A cobrança desta conta começa em ${regime.a_partir_de?.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`
+
+                    return NextResponse.json({
+                        success: true,
+                        pago: false,
+                        message:
+                            `Plano alterado para ${planConfig.name}. ${porque}` +
+                            (notas.length ? ` ${notas.join('; ')}.` : ''),
+                    })
+                }
+
+                /**
+                 * O documento é obrigatório **aqui**, e não no cadastro.
+                 *
+                 * O Asaas exige `cpfCnpj` para o pagador, e a avaliação de 7
+                 * dias não pede documento nenhum de propósito — pedir no
+                 * cadastro é atrito antes de a clínica ver o produto. Então a
+                 * exigência nasce no momento em que ela vai pagar.
+                 */
+                const conta = await prisma.account.findUnique({
+                    where: { id: accountId },
+                    select: { name: true, cpfCnpj: true },
+                })
+
+                if (!conta?.cpfCnpj) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Antes de contratar, informe o CPF ou CNPJ de cobrança em ' +
+                                'Gerenciamento → Conta → Conta da Clínica.',
+                            faltaDocumento: true,
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                try {
+                    const { link } = await criarCheckoutDePlano({
                         accountId,
                         plan,
-                        status: 'active',
-                        maxAgents: planConfig.maxAgents,
-                        maxMessages: planConfig.maxMessages,
-                        maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
-                        maxSpokenReplies: planConfig.maxSpokenReplies,
-                        credits: planConfig.credits,
-                        currentPeriodStart: new Date(),
-                        currentPeriodEnd: renewalDate(),
-                    },
-                    update: {
-                        plan,
-                        status: 'active',
-                        maxAgents: planConfig.maxAgents,
-                        maxMessages: planConfig.maxMessages,
-                        maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
-                        maxSpokenReplies: planConfig.maxSpokenReplies,
-                        /**
-                         * A franquia passa a ser a do plano novo, e o consumo
-                         * do mês **fica**.
-                         *
-                         * `credits` ficava fora do update, e o resultado era o
-                         * que PRODUCT.md §2 proíbe em letra: "troca de plano
-                         * durante a avaliação: os 1.000 créditos de teste são
-                         * substituídos pelos do plano". Contratar encerrava a
-                         * avaliação (`trialEndsAt: null`, logo abaixo) e deixava
-                         * o saldo de teste no lugar — a clínica pagava o plano e
-                         * continuava com os créditos da avaliação.
-                         *
-                         * Fora da avaliação a regra é a mesma, e é o que faz
-                         * sentido para quem paga: subir de plano hoje dá a
-                         * franquia de hoje, não na renovação.
-                         *
-                         * `creditsUsed` **não** é zerado — é o que impede
-                         * alternar de plano para recarregar. O saldo é
-                         * `credits - creditsUsed`, com piso em zero
-                         * (`getBillingState`), então descer de plano depois de
-                         * gastar muito mostra zero, não número negativo.
-                         *
-                         * O período não é reiniciado: a renovação continua
-                         * contada da assinatura, como diz PRODUCT.md §2.
-                         */
-                        credits: planConfig.credits,
-                        trialEndsAt: null,
-                    }
-                })
+                        adicionais: unidades.adicionais,
+                        pagador: {
+                            name: conta.name,
+                            cpfCnpj: conta.cpfCnpj,
+                            email: user.email ?? '',
+                        },
+                        baseUrl: baseDaAplicacao(request),
+                    })
 
-                // Bring the workspace in line with what the new plan allows.
-                // Without this a downgrade would leave the limits displayed but
-                // not applied, and the clinic would keep running three agents on
-                // a one-agent plan.
-                const adjusted = await applyPlanLimits(workspaceUser.workspaceId, {
-                    maxAgents: planConfig.maxAgents,
-                    maxWhatsAppNumbers: planConfig.maxWhatsAppNumbers,
-                })
-
-                const notes: string[] = []
-                if (adjusted.agentsPaused > 0) {
-                    notes.push(
-                        `${adjusted.agentsPaused} agente${adjusted.agentsPaused === 1 ? ' foi pausado' : 's foram pausados'} por exceder o plano`
+                    return NextResponse.json({
+                        success: true,
+                        pago: true,
+                        /** A tela manda o pagador para cá. */
+                        link,
+                        message: `Abrindo o pagamento do ${planConfig.name}.`,
+                    })
+                } catch (erro) {
+                    console.error('[CHANGE_PLAN] falha ao criar checkout', erro)
+                    return NextResponse.json(
+                        {
+                            error:
+                                erro instanceof AsaasError
+                                    ? `O gateway recusou: ${erro.detalhe}`
+                                    : 'Não foi possível abrir o pagamento agora. Tente de novo em instantes.',
+                        },
+                        { status: 502 }
                     )
                 }
-                if (adjusted.numbersPaused > 0) {
-                    notes.push(
-                        `${adjusted.numbersPaused} número${adjusted.numbersPaused === 1 ? ' de WhatsApp foi desconectado' : 's de WhatsApp foram desconectados'}`
-                    )
-                }
-                if (adjusted.agentsReleased > 0) {
-                    notes.push(
-                        `${adjusted.agentsReleased} agente${adjusted.agentsReleased === 1 ? ' foi reativado' : 's foram reativados'}`
-                    )
-                }
-
-                return NextResponse.json({
-                    success: true,
-                    message:
-                        `Plano alterado para ${planConfig.name}` +
-                        (notes.length ? `. ${notes.join('; ')}.` : ''),
-                    adjusted,
-                    subscription
-                })
             }
 
             /**

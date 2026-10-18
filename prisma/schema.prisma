@@ -124,6 +124,7 @@ model Account {
   subscription Subscription?
   unitAddons   UnitAddon[]
   invoices     Invoice[]
+  checkouts    AsaasCheckout[]
 
   @@index([ownerUserId])
   @@map("accounts")
@@ -181,6 +182,45 @@ model AsaasEvent {
   @@index([event, receivedAt])
   @@index([processedAt])
   @@map("asaas_events")
+}
+
+/// Uma tentativa de contratar: o checkout criado, esperando pagamento.
+///
+/// Existe porque contratar deixou de ser instantâneo. Entre clicar em
+/// "Contratar" e o plano valer há um redirecionamento para fora, um Pix ou um
+/// cartão, e um webhook — e nesse intervalo a tela precisa dizer "estamos
+/// esperando a confirmação" em vez de "sem plano", que é o que ela diria sem
+/// esta linha.
+///
+/// O id desta linha vai no `externalReference` do checkout. É assim que o
+/// webhook sabe **qual conta e qual plano** foram pagos: sem isso, a volta do
+/// pagamento seria um pagamento órfão que alguém teria de conciliar à mão.
+model AsaasCheckout {
+  id String @id @default(cuid())
+
+  accountId String
+  /// "flow" | "pro" | "advanced" — o plano que esta tentativa contrata.
+  plan      String
+
+  /// O checkout no Asaas, e o link para onde o pagador foi mandado.
+  asaasCheckoutId String @unique
+  link            String
+
+  /// ACTIVE | PAID | CANCELED | EXPIRED — espelho do que o Asaas diz.
+  status String @default("ACTIVE")
+
+  /// Em centavos, o valor que estava sendo cobrado quando foi criado.
+  valueCents Int
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  paidAt    DateTime?
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([status])
+  @@map("asaas_checkouts")
 }
 
 /// O espelho de uma cobrança do Asaas, para a tela não depender da API.

@@ -20,7 +20,7 @@ import {
  * connections are created.
  */
 
-import { PLAN_LIMITS, type PlanId, type PlanLimits } from '@/lib/plan-limits'
+import { PLAN_LIMITS, PLAN_NAMES, type PlanId, type PlanLimits } from '@/lib/plan-limits'
 import { InstagramIcon, WhatsAppIcon } from '@/components/shared/BrandIcons'
 import { Globe } from 'lucide-react'
 
@@ -181,7 +181,7 @@ export const PLANS: Record<PlanId, Plan> = {
         id: 'flow',
         icon: '/planos/digital.png',
         iconDark: '/planos/digital-escuro.png',
-        name: 'Plano Digital',
+        name: PLAN_NAMES.flow,
         description:
             'Para clínicas que precisam conectar pacientes, WhatsApp e atendimento em um só lugar.',
         price: 390,
@@ -201,7 +201,7 @@ export const PLANS: Record<PlanId, Plan> = {
         id: 'pro',
         icon: '/planos/prime.png',
         iconDark: '/planos/prime-escuro.png',
-        name: 'Plano Prime',
+        name: PLAN_NAMES.pro,
         description:
             'Para clínicas que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.',
         price: 590,
@@ -224,7 +224,7 @@ export const PLANS: Record<PlanId, Plan> = {
         id: 'advanced',
         icon: '/planos/multiclinica.png',
         iconDark: '/planos/multiclinica-escuro.png',
-        name: 'Plano Multiclínica',
+        name: PLAN_NAMES.advanced,
         description:
             'Para clínicas com operações maiores, múltiplas unidades e maior fluxo de pacientes.',
         price: 890,

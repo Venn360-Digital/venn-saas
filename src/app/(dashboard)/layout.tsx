@@ -30,6 +30,21 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
  * viewport, like the inbox, simply does not render one. The breadcrumb trail
  * belongs to the Topbar, so those screens are still oriented.
  */
+/**
+ * Renderizado por requisição, declarado e não deduzido.
+ *
+ * `marcaDaSessao()` lê cookie, e o Next tentava prerenderizar as páginas deste
+ * segmento no build: a leitura lançava `DynamicServerError`, o nosso `try/catch`
+ * engolia, e o build terminava verde com uma dúzia de `[MARCA_DA_SESSAO] Error`
+ * no log. Funcionava — as rotas acabavam dinâmicas de todo jeito —, mas estava
+ * engolindo um sinal de controle do Next como se fosse falha nossa, e enchendo
+ * o log de build com erro que não é erro.
+ *
+ * Dito aqui, o Next não tenta o estático e o `catch` volta a existir só para o
+ * que ele deve pegar: banco fora.
+ */
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardLayout({
     children,
 }: {

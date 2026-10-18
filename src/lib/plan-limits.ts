@@ -78,6 +78,27 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     },
 }
 
+/**
+ * O nome comercial de cada plano.
+ *
+ * Mora aqui, e não em `plans.ts`, porque o **worker** precisa dele e `plans.ts`
+ * arrasta ícones do Lucide — React num processo que nunca desenha nada. Era
+ * `planFor(...).name`, e foi esse import que fez o compilador do worker recusar
+ * `lib/limits` inteiro quando ele passou a ser usado na ativação de plano.
+ *
+ * `plans.ts` lê daqui, então continua havendo um só lugar onde o nome muda.
+ */
+export const PLAN_NAMES: Record<PlanId, string> = {
+    flow: 'Plano Digital',
+    pro: 'Plano Prime',
+    advanced: 'Plano Multiclínica',
+}
+
+/** O nome do plano, caindo no de entrada quando o id não é reconhecido. */
+export function planNameFor(id: string | null | undefined): string {
+    return PLAN_NAMES[isPlanId(id) ? id : 'flow']
+}
+
 export function isPlanId(id: string | null | undefined): id is PlanId {
     return id === 'flow' || id === 'pro' || id === 'advanced'
 }
