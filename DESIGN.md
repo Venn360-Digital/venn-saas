@@ -812,9 +812,13 @@ Vantagem de estar no shell: as telas de viewport inteiro (chat, kanban), que nã
 renderizam `PageHeader`, continuam orientadas.
 
 **Em que clínica estou fica no Topbar**, à esquerda do som e separado por um
-fio. Com uma unidade é só o nome com o ícone de clínica — não é botão, não abre
-nada, não tem seta: um menu de um item só ensina que não há escolha. Com duas ou
-mais, o mesmo lugar vira o seletor (`UnitSwitcher`).
+fio, **no azul da marca** (`primary-subtle-foreground`, `font-semibold`) — é o
+único texto colorido do cabeçalho, e é o que merece: tudo mais ali é ajuste, só
+este diz onde o trabalho está acontecendo. Nunca `primary` cru: 2,5:1 sobre o
+fundo claro, abaixo do piso de texto. Com uma unidade é só o nome com o ícone de
+clínica — não é botão, não abre nada, não tem seta: um menu de um item só ensina
+que não há escolha. Com duas ou mais, o mesmo lugar vira o seletor
+(`UnitSwitcher`).
 
 Não fica na marca da sidebar, onde viveu meio dia: a calha recolhe para 32px e
 levava o seletor embora, a marca já é o link para o início (um elemento que é

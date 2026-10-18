@@ -40,7 +40,19 @@ export function UnitSwitcher() {
     // ficam onde estão.
     if (carregando || !dados.name) return null
 
-    const CLASSE_NOME = 'max-w-[11rem] truncate text-sm font-medium md:max-w-[16rem]'
+    /**
+     * O nome da clínica no azul da marca, nos dois temas — pedido do Andre, e
+     * de fato destaca sem gritar.
+     *
+     * O token é `primary-subtle-foreground` e **não** `primary`: o teal cru
+     * (#06B6D4) dá 2,5:1 sobre o fundo claro, abaixo do piso de 4,5:1 para
+     * texto, e o DESIGN.md §2 já mediu isso quando proibiu branco sobre teal.
+     * Este é o mesmo azul em forma de texto — #0A5566 no claro (7,8:1) e
+     * #7FDCEC no escuro (10,9:1). É o da guia ativa, então o destaque já é
+     * vocabulário da casa, não cor nova.
+     */
+    const CLASSE_NOME =
+        'max-w-[11rem] truncate text-sm font-semibold text-primary-subtle-foreground md:max-w-[16rem]'
 
     /**
      * O fio é daqui, e não do cabeçalho.
@@ -53,7 +65,7 @@ export function UnitSwitcher() {
     if (dados.unidades.length < 2) {
         return (
             <>
-                <span className="flex items-center gap-1.5 pl-1 text-muted-foreground">
+                <span className="flex items-center gap-1.5 pl-1 text-primary-subtle-foreground">
                     <Hospital className="size-4 shrink-0" aria-hidden="true" />
                     <span className={CLASSE_NOME}>{dados.name}</span>
                 </span>
@@ -82,11 +94,11 @@ export function UnitSwitcher() {
                     variant="ghost"
                     disabled={trocando}
                     aria-label={`Clínica atual: ${dados.name}. Trocar de clínica`}
-                    className="gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+                    className="gap-1.5 px-2 text-primary-subtle-foreground hover:bg-primary-subtle hover:text-primary-subtle-foreground"
                 >
                     <Hospital className="size-4 shrink-0" aria-hidden="true" />
                     <span className={CLASSE_NOME}>{dados.name}</span>
-                    <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                    <ChevronsUpDown className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">

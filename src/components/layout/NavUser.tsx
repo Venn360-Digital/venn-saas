@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ChevronsUpDown, CreditCard, LogOut, Plug, User, Users } from 'lucide-react'
+import { ChevronsUpDown, Hospital, LogOut, Plug, User, Users } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -136,10 +136,17 @@ export function NavUser() {
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
                             {/* A ordem é a da própria tela de Conta: quem é
-                                você, quem é a equipe, o que a clínica paga, o
-                                que ela conecta. `Users` é o mesmo ícone que a
-                                aba usa lá dentro — dois glifos para o mesmo
-                                destino custam mais que nenhum. */}
+                                você, quem é a equipe, qual é a clínica, o que
+                                ela conecta. Cada ícone é o mesmo que a aba usa
+                                lá dentro — dois glifos para o mesmo destino
+                                custam mais que nenhum.
+
+                                "Plano e créditos" saiu daqui em 2026-10-18, por
+                                decisão do Andre, e no lugar entrou a Conta da
+                                Clínica. Faz sentido: plano é coisa que se mexe
+                                uma vez por ano, e os dados da clínica e das
+                                unidades são o que se procura. O plano continua
+                                a uma guia de distância, dentro da mesma tela. */}
                             <DropdownMenuItem asChild>
                                 <Link href="/gerenciamento/conta?tab=perfil">
                                     <User />
@@ -153,9 +160,9 @@ export function NavUser() {
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                                <Link href="/gerenciamento/conta?tab=plano">
-                                    <CreditCard />
-                                    Plano e créditos
+                                <Link href="/gerenciamento/conta?tab=empresa">
+                                    <Hospital />
+                                    Conta da clínica
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>

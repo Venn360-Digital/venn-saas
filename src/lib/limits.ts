@@ -15,7 +15,7 @@ export interface WorkspaceLimits {
     planId: string | null
     planName: string | null
     status: string
-    agents: { used: number; max: number; remaining: number }
+    agents: { used: number; max: number; remaining: number; pausedByLimit: number }
     whatsapp: { used: number; max: number; remaining: number }
     credits: { used: number; total: number; remaining: number }
     /**
@@ -68,9 +68,18 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
         ? { workspace: { accountId } }
         : { workspaceId }
 
-    const [subscription, agentCount, whatsappCount, units] = await Promise.all([
+    const [subscription, agentCount, agentesPausados, whatsappCount, units] = await Promise.all([
         prisma.subscription.findFirst({ where: assinaturaDaUnidade(workspaceId) }),
+        /**
+         * Todos, **inclusive os pausados pelo limite**.
+         *
+         * Pausado não é apagado: o agente guarda prompt, histórico e integrações,
+         * e volta inteiro quando o plano cresce. Se ele não ocupasse vaga,
+         * descer de plano pausaria um e logo em seguida liberaria a criação de
+         * outro — de volta acima do teto, pausando de novo, sem fim.
+         */
         prisma.agent.count({ where: daConta }),
+        prisma.agent.count({ where: { ...daConta, pausedByLimit: true } }),
         // Linhas que ocupam vaga, em todos os agentes de todas as unidades da
         // conta — o teto é de quem paga. Ver `HOLDS_A_SLOT`.
         prisma.agentIntegration.count({
@@ -86,7 +95,7 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
             planId: null,
             planName: null,
             status: 'none',
-            agents: { used: agentCount, max: 0, remaining: 0 },
+            agents: { used: agentCount, max: 0, remaining: 0, pausedByLimit: agentesPausados },
             whatsapp: { used: whatsappCount, max: 0, remaining: 0 },
             credits: { used: 0, total: 0, remaining: 0 },
             units,
@@ -107,6 +116,7 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
             used: agentCount,
             max: maxAgents,
             remaining: Math.max(0, maxAgents - agentCount),
+            pausedByLimit: agentesPausados,
         },
         whatsapp: {
             used: whatsappCount,
@@ -135,6 +145,21 @@ function emTodasAsUnidades(units: Unidades): string {
     return units.used > 1 ? ` nas suas ${units.used} unidades` : ''
 }
 
+/**
+ * "(1 deles pausado por exceder o plano)", quando é o caso.
+ *
+ * Sem esta frase a recusa não fecha a conta para quem olha a tela: ela diz
+ * "você já tem 3 agentes" numa clínica onde um está visivelmente desligado, e a
+ * pessoa conclui que o sistema contou errado. Contou certo — pausado ocupa vaga,
+ * porque não foi apagado —, e é a frase que explica.
+ */
+function dosQuaisPausados(pausados: number): string {
+    if (pausados <= 0) return ''
+    return pausados === 1
+        ? ' (1 deles pausado por exceder o plano)'
+        : ` (${pausados} deles pausados por exceder o plano)`
+}
+
 export interface LimitRefusal {
     ok: false
     status: number
@@ -161,7 +186,7 @@ export async function canCreateAgent(workspaceId: string): Promise<LimitCheck> {
         return {
             ok: false,
             status: 402,
-            error: `O ${limits.planName} inclui ${limits.agents.max} agente${limits.agents.max === 1 ? '' : 's'} de IA, e você já tem ${limits.agents.used}${emTodasAsUnidades(limits.units)}. Mude de plano em Gerenciamento → Conta para criar mais.`,
+            error: `O ${limits.planName} inclui ${limits.agents.max} agente${limits.agents.max === 1 ? '' : 's'} de IA, e você já tem ${limits.agents.used}${emTodasAsUnidades(limits.units)}${dosQuaisPausados(limits.agents.pausedByLimit)}. Mude de plano em Gerenciamento → Conta para criar mais.`,
         }
     }
     return { ok: true }
