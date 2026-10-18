@@ -31,7 +31,47 @@ const dadosSchema = z.object({
         .optional(),
     /** `null` remove a logomarca e devolve a marca do produto ao cabeçalho. */
     logo: z.string().nullable().optional(),
+
+    /**
+     * O endereço de cobrança, em campos separados.
+     *
+     * Todos opcionais aqui e exigidos **na hora de contratar**: a avaliação de
+     * 7 dias não pede endereço. Vazio limpa, ausente não mexe — a mesma regra
+     * do documento.
+     */
+    postalCode: z
+        .string()
+        .trim()
+        .regex(/^(\d{8})?$/, 'O CEP tem 8 dígitos.')
+        .optional(),
+    address: z.string().trim().max(120).optional(),
+    addressNumber: z.string().trim().max(20).optional(),
+    complement: z.string().trim().max(60).optional(),
+    province: z.string().trim().max(60).optional(),
+    city: z.string().trim().max(60).optional(),
+    state: z
+        .string()
+        .trim()
+        .regex(/^([A-Za-z]{2})?$/, 'A UF tem 2 letras.')
+        .optional(),
+    billingPhone: z
+        .string()
+        .trim()
+        .regex(/^(\d{10,11})?$/, 'O telefone precisa de DDD e 8 ou 9 dígitos.')
+        .optional(),
 })
+
+/** Os campos do endereço, para não repetir a lista em três lugares. */
+const CAMPOS_DE_ENDERECO = [
+    'postalCode',
+    'address',
+    'addressNumber',
+    'complement',
+    'province',
+    'city',
+    'state',
+    'billingPhone',
+] as const
 
 export async function GET() {
     const auth = await getWorkspaceMember()
@@ -41,7 +81,22 @@ export async function GET() {
         where: { id: auth.member.workspaceId },
         select: {
             accountId: true,
-            account: { select: { name: true, cpfCnpj: true, logo: true, ownerUserId: true } },
+            account: {
+                select: {
+                    name: true,
+                    cpfCnpj: true,
+                    logo: true,
+                    ownerUserId: true,
+                    postalCode: true,
+                    address: true,
+                    addressNumber: true,
+                    complement: true,
+                    province: true,
+                    city: true,
+                    state: true,
+                    billingPhone: true,
+                },
+            },
         },
     })
     if (!workspace) return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 })
@@ -54,10 +109,11 @@ export async function GET() {
         }),
     ])
 
+    /* O dono não vai na resposta em si — vira `souMaster`, logo abaixo. */
+    const daConta = { ...workspace.account, ownerUserId: undefined }
+
     return NextResponse.json({
-        name: workspace.account.name,
-        cpfCnpj: workspace.account.cpfCnpj,
-        logo: workspace.account.logo,
+        ...daConta,
         /** Se quem pergunta é o MASTER — a tela esconde o que ele não pode fazer. */
         souMaster: workspace.account.ownerUserId === auth.member.userId,
         plano: subscription ? planFor(subscription.plan).name : null,
@@ -91,13 +147,23 @@ export async function PATCH(request: NextRequest) {
         )
     }
 
+    /** Vazio apaga; ausente não mexe. Sem a distinção, limpar um campo
+        digitado por engano seria impossível pela tela. */
+    const endereco = Object.fromEntries(
+        CAMPOS_DE_ENDERECO.filter((campo) => parsed.data[campo] !== undefined).map((campo) => [
+            campo,
+            campo === 'state'
+                ? parsed.data[campo]!.toUpperCase() || null
+                : parsed.data[campo] || null,
+        ])
+    )
+
     const conta = await prisma.account.update({
         where: { id: master.accountId },
         data: {
-            // Vazio apaga; ausente não mexe. Sem a distinção, limpar um
-            // documento digitado por engano seria impossível pela tela.
             cpfCnpj: parsed.data.cpfCnpj === undefined ? undefined : parsed.data.cpfCnpj || null,
             logo: parsed.data.logo === undefined ? undefined : parsed.data.logo,
+            ...endereco,
         },
         select: { name: true, cpfCnpj: true, logo: true },
     })

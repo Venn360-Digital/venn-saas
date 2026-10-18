@@ -272,7 +272,17 @@ export async function POST(request: NextRequest) {
                  */
                 const conta = await prisma.account.findUnique({
                     where: { id: accountId },
-                    select: { name: true, cpfCnpj: true },
+                    select: {
+                        name: true,
+                        cpfCnpj: true,
+                        postalCode: true,
+                        address: true,
+                        addressNumber: true,
+                        province: true,
+                        city: true,
+                        state: true,
+                        billingPhone: true,
+                    },
                 })
 
                 if (!conta?.cpfCnpj) {
@@ -288,17 +298,12 @@ export async function POST(request: NextRequest) {
                 }
 
                 /**
-                 * O endereço de cobrança, que hoje não existe estruturado.
+                 * O endereço de cobrança vem da conta, como o documento.
                  *
-                 * `workspaces.address` é uma linha de texto livre — "Rua das
-                 * Princesas, 101" —, e o cartão exige logradouro, número, bairro
-                 * e CEP em campos separados. Partir a string daria endereço
-                 * errado em cobrança, que é o pior lugar para adivinhar.
-                 *
-                 * Enquanto não houver campos próprios na conta, mandamos só o
-                 * que temos; `criarCheckoutDePlano` percebe que o conjunto está
-                 * incompleto e omite `customerData` inteiro, e a página do Asaas
-                 * pergunta ao pagador. Ver a tabela lá.
+                 * Se estiver completo, `criarCheckoutDePlano` manda tudo e o
+                 * cliente não redigita nada; faltando qualquer peça, ela omite
+                 * `customerData` inteiro e a página do Asaas pergunta — porque
+                 * metade é o único envio que o Asaas recusa. Ver a tabela lá.
                  */
 
                 try {
@@ -310,6 +315,11 @@ export async function POST(request: NextRequest) {
                             name: conta.name,
                             cpfCnpj: conta.cpfCnpj,
                             email: user.email ?? '',
+                            phone: conta.billingPhone,
+                            address: conta.address,
+                            addressNumber: conta.addressNumber,
+                            province: conta.province,
+                            postalCode: conta.postalCode,
                         },
                         baseUrl: baseDaAplicacao(request),
                     })

@@ -87,6 +87,30 @@ model Account {
   /// (`cpfCnpj`). Era `cnpj`, e o nome mentia sobre o que passou a caber.
   cpfCnpj String?
 
+  /// O endereço de **cobrança**: o do pagador, não o da clínica.
+  ///
+  /// Estruturado em campos separados porque é o que o cartão exige — o Asaas
+  /// recusa o checkout sem `address`, `addressNumber`, `province`,
+  /// `postalCode` e `phoneNumber`. `workspaces.address` continua existindo e é
+  /// outra coisa: uma linha de texto livre com o endereço onde o paciente
+  /// chega, que pode ser diferente em cada unidade.
+  ///
+  /// Tudo opcional no banco e obrigatório **na hora de contratar**: a avaliação
+  /// de 7 dias não pede endereço, e pedir no cadastro é atrito antes de a
+  /// clínica ver o produto.
+  postalCode    String?
+  address       String?
+  addressNumber String?
+  complement    String?
+  /// Bairro. `province` é o nome que o Asaas usa, e manter o mesmo evita a
+  /// tradução de ida e volta em cada chamada.
+  province      String?
+  city          String?
+  /// UF, duas letras.
+  state         String?
+  /// Telefone de cobrança, só dígitos com DDD.
+  billingPhone  String?
+
   /// O cliente desta conta no Asaas, criado na primeira cobrança.
   ///
   /// Único porque é 1:1 — duas contas apontando para o mesmo cliente fariam a

@@ -41,8 +41,10 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
     className?: string
     placeholder?: string
     autoFocus?: boolean
+    /** Campo de leitura — quem não administra a conta vê e não muda. */
+    disabled?: boolean
     'aria-label'?: string
-}>(function PhoneInput({ value, onChange, id, className, placeholder, autoFocus, ...rest }, ref) {
+}>(function PhoneInput({ value, onChange, id, className, placeholder, autoFocus, disabled, ...rest }, ref) {
     // Erro só depois de sair do campo: 3 dígitos digitados ainda não são um
     // telefone errado, são um telefone pela metade.
     const [touched, setTouched] = useState(false)
@@ -103,6 +105,7 @@ export const PhoneInput = forwardRef<HTMLInputElement, {
             placeholder={placeholder}
             maxLength={MASKS.phone.length}
             autoFocus={autoFocus}
+            disabled={disabled}
             className={cn('num', className)}
             {...rest}
         />

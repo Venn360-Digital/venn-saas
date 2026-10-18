@@ -14,6 +14,7 @@ import { PhoneInput } from '@/components/shared/PhoneInput'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { WORKSPACE_UPDATED } from '@/hooks/useUnidades'
 import { MASKS, onlyDigits } from '@/lib/masks'
+import { buscarCep } from '@/lib/cep'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 import { UNIDADE_ADICIONAL, formatPrice } from '@/lib/plans'
 import { cn } from '@/lib/utils'
@@ -65,6 +66,14 @@ interface Conta {
     name: string
     cpfCnpj: string | null
     logo: string | null
+    postalCode: string | null
+    address: string | null
+    addressNumber: string | null
+    complement: string | null
+    province: string | null
+    city: string | null
+    state: string | null
+    billingPhone: string | null
     souMaster: boolean
     plano: string | null
     unidades: { used: number; max: number; remaining: number; doPlano: number; adicionais: number }
@@ -88,8 +97,21 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
     const [carregando, setCarregando] = useState(true)
     const [salvando, setSalvando] = useState(false)
 
-    /** O CNPJ e a logo da conta, em edição. */
-    const [formConta, setFormConta] = useState({ cpfCnpj: '', logo: '' })
+    /** O documento, o endereço de cobrança e a logo da conta, em edição. */
+    const [formConta, setFormConta] = useState({
+        cpfCnpj: '',
+        logo: '',
+        postalCode: '',
+        address: '',
+        addressNumber: '',
+        complement: '',
+        province: '',
+        city: '',
+        state: '',
+        billingPhone: '',
+    })
+    /** Enquanto o ViaCEP responde, para o campo não parecer travado. */
+    const [buscandoCep, setBuscandoCep] = useState(false)
     /** Qual clínica está aberta no acordeão, e o que há nos campos dela. */
     const [abertaNoAcordeao, setAbertaNoAcordeao] = useState<string | null>(null)
     const [formUnidade, setFormUnidade] = useState<FormUnidade>({ name: '', address: '', phone: '' })
@@ -113,7 +135,18 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             const u = await ru.json()
 
             setConta(c)
-            setFormConta({ cpfCnpj: onlyDigits(c.cpfCnpj), logo: c.logo ?? '' })
+            setFormConta({
+                cpfCnpj: onlyDigits(c.cpfCnpj),
+                logo: c.logo ?? '',
+                postalCode: onlyDigits(c.postalCode),
+                address: c.address ?? '',
+                addressNumber: c.addressNumber ?? '',
+                complement: c.complement ?? '',
+                province: c.province ?? '',
+                city: c.city ?? '',
+                state: c.state ?? '',
+                billingPhone: formatPhone(c.billingPhone),
+            })
             setDados({ aberta: u.aberta, lista: u.lista })
 
             // A primeira da lista vem aberta — a mais antiga, que é a clínica
@@ -184,7 +217,18 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                 const rc = await fetch('/api/account', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cpfCnpj: formConta.cpfCnpj, logo: formConta.logo || null }),
+                    body: JSON.stringify({
+                        cpfCnpj: formConta.cpfCnpj,
+                        logo: formConta.logo || null,
+                        postalCode: formConta.postalCode,
+                        address: formConta.address,
+                        addressNumber: formConta.addressNumber,
+                        complement: formConta.complement,
+                        province: formConta.province,
+                        city: formConta.city,
+                        state: formConta.state,
+                        billingPhone: onlyDigits(formConta.billingPhone),
+                    }),
                 })
                 if (!rc.ok) {
                     const erro = await rc.json().catch(() => ({}))
@@ -217,6 +261,34 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             await carregar(abertaNoAcordeao ?? undefined)
         } finally {
             setSalvando(false)
+        }
+    }
+
+    /**
+     * O CEP preenche o resto, e é por isso que ele vem primeiro.
+     *
+     * Logradouro, bairro, cidade e UF digitados à mão em formulário de cobrança
+     * erram — e endereço errado em cobrança de cartão é recusa de transação,
+     * não defeito cosmético. Só preenche o que está **vazio**: quem já corrigiu
+     * um logradouro não o perde ao conferir o CEP.
+     *
+     * Falha do ViaCEP não trava nada: a pessoa digita à mão e contrata igual.
+     */
+    async function completarPeloCep(cep: string) {
+        if (onlyDigits(cep).length !== 8) return
+        setBuscandoCep(true)
+        try {
+            const achado = await buscarCep(cep)
+            if (!achado) return
+            setFormConta((p) => ({
+                ...p,
+                address: p.address || achado.address,
+                province: p.province || achado.province,
+                city: p.city || achado.city,
+                state: p.state || achado.state,
+            }))
+        } finally {
+            setBuscandoCep(false)
         }
     }
 
@@ -385,6 +457,119 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                 value={formConta.cpfCnpj}
                                 disabled={!conta?.souMaster}
                                 onChange={(digitos) => setFormConta((p) => ({ ...p, cpfCnpj: digitos }))}
+                            />
+                        </FormField>
+                    </div>
+
+                    {/* O endereço de **cobrança** — o de quem paga, não o da
+                        clínica onde o paciente chega (esse é de cada unidade,
+                        no cartão abaixo). O cartão de crédito exige os cinco
+                        campos separados, e o Asaas recusa o checkout sem eles.
+
+                        O CEP vem primeiro porque ele preenche o resto. */}
+                    <p className="mb-2 mt-5 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Endereço de cobrança
+                    </p>
+
+                    <div className="grid max-w-3xl gap-4 sm:grid-cols-6">
+                        <FormField
+                            label="CEP"
+                            htmlFor="conta-cep"
+                            className="sm:col-span-2"
+                            hint={buscandoCep ? 'Buscando…' : 'Preenche o resto sozinho.'}
+                        >
+                            <MaskedInput
+                                id="conta-cep"
+                                mask={MASKS.cep}
+                                value={formConta.postalCode}
+                                disabled={!conta?.souMaster}
+                                onChange={(digitos) => {
+                                    setFormConta((p) => ({ ...p, postalCode: digitos }))
+                                    // Busca ao completar os oito, sem esperar o
+                                    // foco sair: quem digita CEP já espera isso.
+                                    if (digitos.length === 8) void completarPeloCep(digitos)
+                                }}
+                            />
+                        </FormField>
+
+                        <FormField label="Logradouro" htmlFor="conta-logradouro" className="sm:col-span-4">
+                            <Input
+                                id="conta-logradouro"
+                                value={formConta.address}
+                                maxLength={120}
+                                disabled={!conta?.souMaster}
+                                placeholder="Rua, avenida, praça"
+                                onChange={(e) => setFormConta((p) => ({ ...p, address: e.target.value }))}
+                            />
+                        </FormField>
+
+                        <FormField label="Número" htmlFor="conta-numero" className="sm:col-span-1">
+                            <Input
+                                id="conta-numero"
+                                value={formConta.addressNumber}
+                                maxLength={20}
+                                disabled={!conta?.souMaster}
+                                onChange={(e) => setFormConta((p) => ({ ...p, addressNumber: e.target.value }))}
+                            />
+                        </FormField>
+
+                        <FormField label="Complemento" htmlFor="conta-complemento" className="sm:col-span-2">
+                            <Input
+                                id="conta-complemento"
+                                value={formConta.complement}
+                                maxLength={60}
+                                disabled={!conta?.souMaster}
+                                placeholder="Sala, andar"
+                                onChange={(e) => setFormConta((p) => ({ ...p, complement: e.target.value }))}
+                            />
+                        </FormField>
+
+                        <FormField label="Bairro" htmlFor="conta-bairro" className="sm:col-span-3">
+                            <Input
+                                id="conta-bairro"
+                                value={formConta.province}
+                                maxLength={60}
+                                disabled={!conta?.souMaster}
+                                onChange={(e) => setFormConta((p) => ({ ...p, province: e.target.value }))}
+                            />
+                        </FormField>
+
+                        <FormField label="Cidade" htmlFor="conta-cidade" className="sm:col-span-3">
+                            <Input
+                                id="conta-cidade"
+                                value={formConta.city}
+                                maxLength={60}
+                                disabled={!conta?.souMaster}
+                                onChange={(e) => setFormConta((p) => ({ ...p, city: e.target.value }))}
+                            />
+                        </FormField>
+
+                        <FormField label="UF" htmlFor="conta-uf" className="sm:col-span-1">
+                            <Input
+                                id="conta-uf"
+                                value={formConta.state}
+                                maxLength={2}
+                                disabled={!conta?.souMaster}
+                                className="uppercase"
+                                onChange={(e) =>
+                                    setFormConta((p) => ({ ...p, state: e.target.value.toUpperCase() }))
+                                }
+                            />
+                        </FormField>
+
+                        <FormField
+                            label="Telefone de cobrança"
+                            htmlFor="conta-telefone"
+                            className="sm:col-span-2"
+                            hint="Com DDD."
+                        >
+                            <PhoneInput
+                                id="conta-telefone"
+                                value={formConta.billingPhone}
+                                disabled={!conta?.souMaster}
+                                onChange={(digitos) =>
+                                    setFormConta((p) => ({ ...p, billingPhone: digitos }))
+                                }
                             />
                         </FormField>
                     </div>
