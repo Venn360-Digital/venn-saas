@@ -26,6 +26,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { UnitSwitcher } from '@/components/layout/UnitSwitcher'
+import type { UnidadeAberta } from '@/hooks/useUnidades'
 import { useSoundEnabled } from '@/hooks/useSoundEnabled'
 
 interface AppNotification {
@@ -57,7 +58,7 @@ function formatReminderTime(r: Reminder): string {
     return r.startTime ? `${dateStr} às ${r.startTime}` : dateStr
 }
 
-export function Topbar() {
+export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
     const [soundEnabled, setSoundEnabled] = useSoundEnabled()
     const [reminders, setReminders] = useState<Reminder[]>([])
     const [notifications, setNotifications] = useState<AppNotification[]>([])
@@ -180,7 +181,7 @@ export function Topbar() {
                 ler o cabeçalho da direita para a esquerda daria o ajuste antes
                 do contexto. */}
             <div className="flex items-center gap-0.5">
-                <UnitSwitcher />
+                <UnitSwitcher inicial={marca} />
 
                 {/* Sound Toggle */}
                 <Button

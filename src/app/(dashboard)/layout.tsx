@@ -1,4 +1,5 @@
 import { AppSidebar } from '@/components/layout/AppSidebar'
+import { marcaDaSessao } from '@/lib/session-brand'
 import { DocumentTitle } from '@/components/layout/DocumentTitle'
 import { Topbar } from '@/components/layout/Topbar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
@@ -29,11 +30,30 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
  * viewport, like the inbox, simply does not render one. The breadcrumb trail
  * belongs to the Topbar, so those screens are still oriented.
  */
-export default function DashboardLayout({
+export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
+    /**
+     * A marca lida **no servidor**, para o primeiro paint já vir certo.
+     *
+     * A sidebar desenhava o símbolo e o nome do OdontoBox360 enquanto o `fetch`
+     * do cliente não voltava, e só então trocava pela logo da clínica. Numa
+     * troca de unidade — que é recarga inteira — o pisca é visível e lê como
+     * defeito; em toda navegação era um pisca que ninguém havia reclamado.
+     *
+     * Não havia como resolver no cliente: ele não tem como saber se existe logo
+     * antes de perguntar, e um esqueleto no lugar da marca pioraria o caso da
+     * clínica **sem** logo, que é a maioria — para ela a marca do produto é a
+     * resposta final, não um estado intermediário.
+     *
+     * O custo é que as telas do dashboard passam a ser renderizadas por
+     * requisição em vez de servidas como casca estática. São duas consultas que
+     * o cliente já fazia de qualquer forma, agora sem a ida e volta extra.
+     */
+    const marca = await marcaDaSessao()
+
     return (
         // `fixed inset-0`, não só `h-svh`: preso ao viewport, o shell não
         // acompanha nenhuma rolagem do documento — nem a elástica do macOS/iOS,
@@ -51,11 +71,11 @@ export default function DashboardLayout({
                 Pular para o conteúdo
             </a>
             <DocumentTitle />
-            <AppSidebar />
+            <AppSidebar marca={marca} />
             {/* `overflow-hidden` recorta o Topbar nos cantos do cartão — sem
                 ele, a barra pinta por cima do raio do `inset`. */}
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-                <Topbar />
+                <Topbar marca={marca} />
                 <div
                     id="conteudo"
                     tabIndex={-1}

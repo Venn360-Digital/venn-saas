@@ -76,12 +76,32 @@ function carregar(forcar = false): Promise<UnidadeAberta> {
     return voando
 }
 
-export function useUnidades(): { dados: UnidadeAberta; carregando: boolean } {
-    const [dados, setDados] = useState<UnidadeAberta>(() => cache ?? VAZIO)
-    const [carregando, setCarregando] = useState(() => cache === null)
+/**
+ * A semente vem por **prop**, do layout para quem desenha.
+ *
+ * O layout é componente de servidor e não pode chamar função de módulo de
+ * cliente; e semear dentro de um efeito deixaria um paint com a marca do
+ * produto — que é exatamente o pisca que tudo isto existe para tirar.
+ */
+export function useUnidades(inicial?: UnidadeAberta | null): {
+    dados: UnidadeAberta
+    carregando: boolean
+} {
+    /**
+     * O estado nasce da **prop**, e o cache compartilhado é semeado no efeito.
+     *
+     * Ler a prop no inicializador é puro; escrever no global de módulo durante
+     * o render não é — o lint recusa com razão, e em StrictMode o render
+     * dobrado gravaria duas vezes. A semeadura acontece no efeito, **antes** de
+     * `carregar`, para que nenhuma busca saia quando a resposta já veio com a
+     * página.
+     */
+    const [dados, setDados] = useState<UnidadeAberta>(() => inicial ?? cache ?? VAZIO)
+    const [carregando, setCarregando] = useState(() => !(inicial ?? cache))
 
     useEffect(() => {
         let vivo = true
+        if (inicial && !cache) cache = inicial
 
         const aplicar = (d: UnidadeAberta) => {
             if (!vivo) return
@@ -90,6 +110,8 @@ export function useUnidades(): { dados: UnidadeAberta; carregando: boolean } {
         }
 
         ouvintes.add(aplicar)
+        // Com o cache já cheio (semente do servidor, ou outro componente que
+        // montou antes), `carregar` devolve o que tem e não vai ao servidor.
         void carregar().then(aplicar)
 
         const refazer = () => {
@@ -102,7 +124,10 @@ export function useUnidades(): { dados: UnidadeAberta; carregando: boolean } {
             ouvintes.delete(aplicar)
             window.removeEventListener(WORKSPACE_UPDATED, refazer)
         }
-    }, [])
+        // `inicial` vem do layout e é a mesma referência por carregamento de
+        // página, então isto não reexecuta à toa — e se reexecutasse, `carregar`
+        // devolveria o cache sem ir ao servidor.
+    }, [inicial])
 
     return { dados, carregando }
 }

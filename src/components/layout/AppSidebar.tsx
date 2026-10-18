@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 import { ClinicBrand } from '@/components/layout/ClinicBrand'
+import type { UnidadeAberta } from '@/hooks/useUnidades'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -40,7 +41,7 @@ import { NavUser } from './NavUser'
 import { SidebarEdgeToggle } from './SidebarEdgeToggle'
 
 
-export function AppSidebar() {
+export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
     const pathname = usePathname()
     // Starts null and loading, so role-gated sections never flash for an
     // ATENDENTE before the answer arrives.
@@ -114,7 +115,7 @@ export function AppSidebar() {
                         {/* A marca é da clínica quando ela enviou uma logo, e
                             desenha o próprio link: a altura é a da logo, não a
                             de um item de menu. */}
-                        <ClinicBrand />
+                        <ClinicBrand inicial={marca} />
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>

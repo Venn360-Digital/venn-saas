@@ -14,7 +14,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
-import { trocarDeUnidade, useUnidades } from '@/hooks/useUnidades'
+import { trocarDeUnidade, useUnidades, type UnidadeAberta } from '@/hooks/useUnidades'
 
 /**
  * Em qual clínica o sistema está — e, com mais de uma, o seletor.
@@ -31,8 +31,8 @@ import { trocarDeUnidade, useUnidades } from '@/hooks/useUnidades'
  * vale a tinta — é ele que diferencia "a clínica" do "sistema" para quem olha a
  * tela pela primeira vez.
  */
-export function UnitSwitcher() {
-    const { dados, carregando } = useUnidades()
+export function UnitSwitcher({ inicial }: { inicial?: UnidadeAberta | null }) {
+    const { dados, carregando } = useUnidades(inicial)
     const [trocando, setTrocando] = useState(false)
 
     // Nada enquanto não se sabe: um nome que aparece e muda logo depois lê como

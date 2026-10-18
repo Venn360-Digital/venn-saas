@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 import { Logo } from '@/components/brand/Logo'
 import { cn } from '@/lib/utils'
-import { useUnidades } from '@/hooks/useUnidades'
+import { useUnidades, type UnidadeAberta } from '@/hooks/useUnidades'
 
 /** Reexportado de onde o evento mora agora, para quem já importava daqui. */
 export { WORKSPACE_UPDATED } from '@/hooks/useUnidades'
@@ -28,6 +28,12 @@ export { WORKSPACE_UPDATED } from '@/hooks/useUnidades'
  * fica alto, um lettering largo fica baixo, e os dois ocupam a mesma coluna.
  * O teto de altura é só para o caso extremo do retrato.
  *
+ * **O primeiro paint já vem com a marca certa.** A logo chega como prop,
+ * renderizada no servidor pelo layout: antes ela vinha de um `fetch` do
+ * cliente, e até a resposta chegar esta calha desenhava o símbolo e o nome do
+ * OdontoBox360 — numa troca de unidade, que é recarga inteira, o pisca era
+ * visível e lia como defeito.
+ *
  * **A logo é da conta, não da unidade** (2026-10-18): o cabeçalho é um por
  * sessão, e a marca é a parte da tela que menos pode piscar — é por ela que a
  * pessoa sabe em que sistema está.
@@ -40,8 +46,8 @@ export { WORKSPACE_UPDATED } from '@/hooks/useUnidades'
  * avisos e do tema. Um seletor para a mesma coisa em dois lugares é o que um dia
  * discorda de si mesmo.
  */
-export function ClinicBrand() {
-    const { dados } = useUnidades()
+export function ClinicBrand({ inicial }: { inicial?: UnidadeAberta | null }) {
+    const { dados } = useUnidades(inicial)
     const { logo, name } = dados
 
     return (
