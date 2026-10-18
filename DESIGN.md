@@ -271,6 +271,30 @@ com borda**, não retângulo arredondado repetido.
 `ghost`. Ação destrutiva é `destructive` e pede confirmação (`ConfirmDialog` —
 nunca `confirm()` nativo).
 
+**Botão leva ícone.** É o padrão do sistema, não enfeite: numa pilha de linhas
+que só diferem pelo verbo, o ícone é o que se lê primeiro. `<Icon className="size-4" />`
+antes do rótulo, dentro do botão. A exceção é espaço — botão que divide uma
+barra estreita com outros, ou que já está apertado pelo rótulo, fica só com a
+palavra. Ícone **sozinho**, sem rótulo, é outro caso e tem outra regra: precisa
+de `aria-label`, senão o botão não tem nome.
+
+**O mesmo verbo, o mesmo ícone, na tela inteira.** Dois ícones para a mesma ação
+em telas vizinhas custam mais que nenhum. E o contrário também vale: não
+reaproveite um ícone para dois sentidos — `CreditCard` é a forma de pagamento,
+não "comprar".
+
+**Tamanho: deixe o sistema decidir.** `<Button variant="outline">` e pronto.
+`size="sm"` com `className="h-8"` por cima é o sintoma de uma briga com o
+primitivo — e foi o que deixou a guia Plano com quatro botões de três alturas
+diferentes.
+
+**O que destrói mora num cartão só dele.** Não basta pintar o botão de vermelho
+no fim de uma pilha: a diferença entre "troquei o cartão" e "cancelei a
+assinatura" não pode depender de reparar numa cor. Cartão próprio, com
+`border-destructive/30`, título dizendo o que acontece e uma frase dizendo que
+não tem volta — o padrão de `AcoesTab` (excluir agente) e de `PlanoTab`
+(cancelar assinatura).
+
 **Campo.** Use o primitivo pelado. `Input`, `SelectTrigger` e `Textarea` já
 resolvem superfície, borda, placeholder e foco nos dois modos. Toda classe de cor
 que você sentir vontade de adicionar num campo é, quase sempre, uma que o

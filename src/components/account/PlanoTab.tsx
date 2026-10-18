@@ -4,14 +4,17 @@ import { redesDoPlano } from '@/lib/plans'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { BandLayout, SettingsBand, SettingsRow } from '@/components/shared/TabsFrame'
+import { BandLayout, SettingsBand, SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { FormField } from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
 import {
-    Gift,
+    ArrowUpDown,
+    Ban,
     Check,
     CreditCard,
+    Gift,
+    Plus,
     X
 } from 'lucide-react'
 import { TermsCard } from '@/components/account/TermsCard'
@@ -81,6 +84,16 @@ export function PlanoTab() {
      */
     const [pacoteEscolhido, setPacoteEscolhido] = useState(10_000)
     const [processing, setProcessing] = useState(false)
+    /**
+     * O aviso de avaliação, dispensado nesta sessão.
+     *
+     * O `X` do canto existia e não tinha `onClick`: era um botão morto, que é
+     * pior que não ter botão — a pessoa clica, nada acontece, e ela deixa de
+     * confiar no resto da tela. Dispensa só a visita atual de propósito: o
+     * prazo da avaliação é o que mais importa nesta guia, e esconder para
+     * sempre o que está correndo contra o relógio não ajuda ninguém.
+     */
+    const [avisoDispensado, setAvisoDispensado] = useState(false)
 
     useEffect(() => {
         loadSubscription()
@@ -266,7 +279,7 @@ export function PlanoTab() {
     return (
         <BandLayout>
             {/* Trial Banner */}
-            {isTrialing && (
+            {isTrialing && !avisoDispensado && (
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-primary-subtle/40 px-5 py-4 md:px-6">
                     <div className="flex items-center gap-3">
                         <Gift className="h-6 w-6 text-primary" />
@@ -281,6 +294,8 @@ export function PlanoTab() {
                         variant="ghost"
                         size="icon"
                         className="text-muted-foreground"
+                        aria-label="Dispensar aviso de avaliação"
+                        onClick={() => setAvisoDispensado(true)}
                     >
                         <X className="h-5 w-5" />
                     </Button>
@@ -297,7 +312,8 @@ export function PlanoTab() {
                         title="Forma de pagamento"
                         description="Troque o cartão que paga a mensalidade."
                         action={
-                            <Button variant="outline" size="sm" className="h-8" onClick={() => setShowPaymentModal(true)}>
+                            <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
+                                <CreditCard className="size-4" />
                                 Alterar
                             </Button>
                         }
@@ -315,7 +331,8 @@ export function PlanoTab() {
                         }
                         description="Subir ou descer de plano vale a partir do próximo ciclo."
                         action={
-                            <Button variant="outline" size="sm" className="h-8" onClick={() => setShowPlanModal(true)}>
+                            <Button variant="outline" onClick={() => setShowPlanModal(true)}>
+                                <ArrowUpDown className="size-4" />
                                 Alterar plano
                             </Button>
                         }
@@ -337,7 +354,8 @@ export function PlanoTab() {
                                 </span>
                             </p>
                         </div>
-                        <Button size="sm" className="h-8" onClick={() => setShowCreditsModal(true)}>
+                        <Button variant="outline" onClick={() => setShowCreditsModal(true)}>
+                            <Plus className="size-4" />
                             Comprar créditos
                         </Button>
                     </div>
@@ -380,24 +398,45 @@ export function PlanoTab() {
                         ) : null}
                     </p>
                 </div>
-                <div className="px-5 py-4">
+              </div>
+            </SettingsBand>
+
+            {/*
+              * O que encerra a conta mora num cartão só dele — mesmo padrão da
+              * exclusão do agente.
+              *
+              * Antes, "Cancelar assinatura" era a quarta linha da mesma pilha
+              * de "Alterar" e "Comprar", separada do resto por um fio de 1px e
+              * por um botão fantasma com texto avermelhado. A diferença entre
+              * trocar o cartão e encerrar a conta não pode depender de reparar
+              * numa cor de texto — e um botão fantasma é o mais fácil de clicar
+              * sem querer, porque não parece um botão até o mouse chegar nele.
+              *
+              * Sem título de faixa em cima: o cabeçalho do cartão já diz o que
+              * é, e "Cancelar assinatura" escrito duas vezes, uma delas em
+              * caixa alta, só repete.
+              */}
+            <div className="px-5 py-4 md:px-6">
+                <SettingsCard
+                    className="max-w-5xl border-destructive/30"
+                    title="Cancelar assinatura"
+                    description="Esta ação não tem volta."
+                >
                     <SettingsRow
-                        title="Cancelar assinatura"
-                        description="O acesso continua até o fim do período já pago."
+                        title="O acesso continua até o fim do período já pago"
+                        description="Depois dessa data os agentes param de responder e os números de WhatsApp são desconectados. As conversas e o histórico de mensagens continuam guardados."
                         action={
                             <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-destructive-subtle-foreground hover:text-destructive-subtle-foreground"
+                                variant="destructive"
                                 onClick={() => setShowCancelModal(true)}
                             >
-                                Cancelar plano
+                                <Ban className="size-4" />
+                                Cancelar assinatura
                             </Button>
                         }
                     />
-                </div>
-              </div>
-            </SettingsBand>
+                </SettingsCard>
+            </div>
 
             {/* Change Plan Modal */}
             <RecordDialog
@@ -556,6 +595,12 @@ export function PlanoTab() {
                                         três — inclusive no mais cheio, onde não
                                         sobra folga para o `mt-auto` distribuir. */}
                                     <div className="mt-auto pt-4">
+                                        {/* `ArrowUpDown` é o mesmo ícone de
+                                            "Alterar plano" na guia, porque é a
+                                            mesma ação: mover-se entre planos. O
+                                            cartão atual troca por um `Check`,
+                                            que diz "é este que você tem" em vez
+                                            de oferecer o que já está feito. */}
                                         <Button
                                             className="w-full"
                                             variant={isPopular && !isCurrent ? 'default' : 'outline'}
@@ -566,6 +611,7 @@ export function PlanoTab() {
                                             }}
                                             disabled={isCurrent || processing}
                                         >
+                                            {isCurrent ? <Check className="size-4" /> : <ArrowUpDown className="size-4" />}
                                             {isCurrent ? 'Plano atual' : 'Contratar'}
                                         </Button>
                                     </div>
