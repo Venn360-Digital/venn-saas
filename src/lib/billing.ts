@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import { assinaturaDaUnidade } from '@/lib/account'
+import { assinaturaDaUnidade, daContaDaUnidade } from '@/lib/account'
 
 /**
  * Trial, credits and the read-only state. The rules live in
@@ -86,8 +86,11 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
 
     const [subscription, purchases] = await Promise.all([
         prisma.subscription.findFirst({ where: assinaturaDaUnidade(workspaceId) }),
+        // Em todas as unidades da conta: crédito comprado é de quem pagou, e
+        // PRODUCT.md §12 é explícito — "crédito somado deixa a unidade
+        // movimentada consumir a folga da que está parada".
         prisma.creditPurchase.findMany({
-            where: { workspaceId, expiresAt: { gt: now } },
+            where: { ...daContaDaUnidade(workspaceId), expiresAt: { gt: now } },
             orderBy: { expiresAt: 'asc' },
         }),
     ])
@@ -200,8 +203,11 @@ export async function spendCredits(
     }
 
     if (left > 0) {
+        // Os lotes da conta, não os desta unidade — o mesmo saldo que
+        // `getBillingState` mostra. Mostrar um e gastar outro é a clínica ver
+        // 50.000 créditos e o agente dizer que não tem.
         const purchases = await prisma.creditPurchase.findMany({
-            where: { workspaceId, expiresAt: { gt: new Date() } },
+            where: { ...daContaDaUnidade(workspaceId), expiresAt: { gt: new Date() } },
             orderBy: { expiresAt: 'asc' },
         })
         for (const purchase of purchases) {
@@ -268,7 +274,11 @@ export async function spokenRepliesLeft(workspaceId: string): Promise<number> {
 
     const used = await prisma.usageLog.count({
         where: {
-            workspaceId,
+            // O teto é do plano, logo da conta: contar por unidade daria 1.500
+            // respostas faladas **por clínica** no Multiclínica, 4.500 no total,
+            // e é esse teto que fecha o custo de IA dentro dos 10% da
+            // mensalidade.
+            ...daContaDaUnidade(workspaceId),
             // Sem período gravado, conta o mês corrido: melhor um recorte
             // aproximado que um teto que nunca fecha.
             createdAt: {

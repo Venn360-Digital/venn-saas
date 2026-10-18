@@ -28,6 +28,22 @@ export function assinaturaDaUnidade(workspaceId: string) {
 }
 
 /**
+ * O filtro de "em qualquer unidade da conta dona desta unidade".
+ *
+ * Para as tabelas que gravam `workspaceId` mas respondem a um teto da conta:
+ * crédito avulso comprado e respostas faladas medidas. Lidas por unidade, elas
+ * recriavam exatamente o defeito que a franquia por conta existe para evitar —
+ * o crédito que a clínica comprou ficava preso na unidade onde foi comprado, e
+ * o teto de áudio se multiplicava por unidade.
+ *
+ * Aninhado em vez de resolver o `accountId` antes: é uma ida ao banco a menos
+ * num caminho que o worker percorre a cada resposta do agente.
+ */
+export function daContaDaUnidade(workspaceId: string) {
+    return { workspace: { account: { workspaces: { some: { id: workspaceId } } } } }
+}
+
+/**
  * O id da conta dona desta unidade, para escrita.
  *
  * Escrita precisa do id: `update` e `upsert` pedem seletor único, e
