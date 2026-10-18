@@ -287,6 +287,20 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
+                /**
+                 * O endereço de cobrança, que hoje não existe estruturado.
+                 *
+                 * `workspaces.address` é uma linha de texto livre — "Rua das
+                 * Princesas, 101" —, e o cartão exige logradouro, número, bairro
+                 * e CEP em campos separados. Partir a string daria endereço
+                 * errado em cobrança, que é o pior lugar para adivinhar.
+                 *
+                 * Enquanto não houver campos próprios na conta, mandamos só o
+                 * que temos; `criarCheckoutDePlano` percebe que o conjunto está
+                 * incompleto e omite `customerData` inteiro, e a página do Asaas
+                 * pergunta ao pagador. Ver a tabela lá.
+                 */
+
                 try {
                     const { link } = await criarCheckoutDePlano({
                         accountId,

@@ -34,6 +34,42 @@ export interface DadosDoPagador {
     cpfCnpj: string
     email: string
     phone?: string | null
+    /** Endereço de cobrança. O cartão exige os cinco; o checkout, nenhum. */
+    address?: string | null
+    addressNumber?: string | null
+    province?: string | null
+    postalCode?: string | null
+}
+
+/**
+ * `customerData` é **tudo ou nada**, e por isso pode ser nada.
+ *
+ * Medido contra o sandbox em 2026-10-18, com três tentativas:
+ *
+ * | o que foi mandado | resposta |
+ * |---|---|
+ * | sem `customerData` | **aceito** — a página do Asaas pergunta ao pagador |
+ * | nome + documento + e-mail | **recusado**: faltam phoneNumber, address, addressNumber, postalCode, province |
+ * | tudo, com endereço | aceito |
+ *
+ * Então: se temos o conjunto inteiro, mandamos — o cliente não redigita o que
+ * já nos deu, e o documento que vai para o Asaas é o **da conta**, não um que
+ * alguém digitou na hora e que divergiria do ERP. Se falta qualquer peça,
+ * omitimos e a página deles pergunta. Mandar metade é o único caminho que não
+ * funciona.
+ */
+function dadosCompletos(p: DadosDoPagador): Record<string, string> | null {
+    const campos = {
+        name: p.name,
+        cpfCnpj: p.cpfCnpj,
+        email: p.email,
+        phone: p.phone ?? '',
+        address: p.address ?? '',
+        addressNumber: p.addressNumber ?? '',
+        province: p.province ?? '',
+        postalCode: p.postalCode ?? '',
+    }
+    return Object.values(campos).every((v) => v.trim().length > 0) ? campos : null
 }
 
 /**
@@ -123,12 +159,7 @@ export async function criarCheckoutDePlano(opcoes: {
                         value: valor,
                     },
                 ],
-                customerData: {
-                    name: pagador.name,
-                    cpfCnpj: pagador.cpfCnpj,
-                    email: pagador.email,
-                    ...(pagador.phone ? { phone: pagador.phone } : {}),
-                },
+                ...(dadosCompletos(pagador) ? { customerData: dadosCompletos(pagador) } : {}),
                 subscription: {
                     cycle: 'MONTHLY',
                     nextDueDate: hoje,
