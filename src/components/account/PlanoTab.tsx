@@ -2,6 +2,7 @@
 
 import { redesDoPlano } from '@/lib/plans'
 import { useState, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { BandLayout, SettingsBand, SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
@@ -14,6 +15,7 @@ import {
     Check,
     CreditCard,
     Gift,
+    Hospital,
     Plus,
     X
 } from 'lucide-react'
@@ -44,6 +46,7 @@ interface SubscriptionData {
         advanced: PlanConfig
     }
     creditPacks: { credits: number; price: number; discount: number; pitch: string }[]
+    unidades: { used: number; max: number; remaining: number; doPlano: number; adicionais: number }
 }
 
 interface PlanConfig {
@@ -61,6 +64,10 @@ interface PlanConfig {
 }
 
 export function PlanoTab() {
+    // A guia de unidades é vizinha desta: trocar de guia é trocar o `?tab=`,
+    // que é onde a Conta guarda a guia aberta (DESIGN.md §5, Tela 03).
+    const router = useRouter()
+    const pathname = usePathname()
     const [loading, setLoading] = useState(true)
     const [subscription, setSubscription] = useState<SubscriptionData | null>(null)
 
@@ -345,6 +352,33 @@ export function PlanoTab() {
                             <Button variant="outline" onClick={() => setShowPlanModal(true)}>
                                 <ArrowUpDown className="size-4" />
                                 {isTrialing ? 'Contratar plano' : 'Alterar plano'}
+                            </Button>
+                        }
+                    />
+                </div>
+                {/* Unidade é a quarta coisa que o plano dá, junto de agentes,
+                    números e crédito — e a única que não aparecia em lugar
+                    nenhum. A linha informa; gerenciar é na guia ao lado, que é
+                    onde a lista cabe. */}
+                <div className="px-5 py-4">
+                    <SettingsRow
+                        title={
+                            <>
+                                <span className="font-normal text-muted-foreground">Unidades: </span>
+                                <span className="num text-primary-subtle-foreground">
+                                    {subscription?.unidades?.used ?? 1} de {subscription?.unidades?.max ?? 1}
+                                </span>
+                            </>
+                        }
+                        description={
+                            (subscription?.unidades?.adicionais ?? 0) > 0
+                                ? `O plano inclui ${subscription?.unidades?.doPlano}, e você contratou ${subscription?.unidades?.adicionais} adicional${subscription?.unidades?.adicionais === 1 ? '' : 'is'}. Os agentes e números do plano são divididos entre elas.`
+                                : `O plano inclui ${subscription?.unidades?.doPlano ?? 1}. Os agentes e números do plano são divididos entre as unidades.`
+                        }
+                        action={
+                            <Button variant="outline" onClick={() => router.replace(`${pathname}?tab=unidades`, { scroll: false })}>
+                                <Hospital className="size-4" />
+                                Ver unidades
                             </Button>
                         }
                     />

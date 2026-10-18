@@ -1,4 +1,4 @@
-import { CREDIT_PACKS, PLAN_LIST, TRIAL, creditPackFor, planFor } from '@/lib/plans'
+import { CREDIT_PACKS, PLAN_LIST, TRIAL, UNIDADE_ADICIONAL, creditPackFor, planFor } from '@/lib/plans'
 import { currentMembership } from '@/lib/auth/workspace'
 import {
     canBuyCredits,
@@ -8,9 +8,10 @@ import {
     spokenRepliesLeft,
 } from '@/lib/billing'
 import { applyPlanLimits } from '@/lib/limits'
+import { tetoDeUnidades } from '@/lib/plan-limits'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { accountIdOf, assinaturaDaUnidade } from '@/lib/account'
+import { accountIdOf, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 
 
@@ -61,6 +62,11 @@ export async function GET() {
             where: assinaturaDaUnidade(workspaceUser.workspaceId),
         })
 
+        const accountId = await accountIdOf(workspaceUser.workspaceId)
+        const unidades = accountId
+            ? await unidadesDaConta(accountId)
+            : { used: 0, max: 0, remaining: 0, doPlano: 0, adicionais: 0 }
+
         if (!subscription) {
             // No subscription row means onboarding predates the step that
             // creates one. Say so rather than reporting a plan the workspace was
@@ -82,6 +88,9 @@ export async function GET() {
                 plans: PLANS,
                 trial: TRIAL,
                 creditPacks: CREDIT_PACKS,
+                // A mesma forma do caso com assinatura: uma resposta que às
+                // vezes traz o campo e às vezes não obriga a tela a adivinhar.
+                unidades,
             })
         }
 
@@ -110,6 +119,14 @@ export async function GET() {
             currentPeriodEnd: subscription.currentPeriodEnd,
             plans: PLANS,
             creditPacks: CREDIT_PACKS,
+            /**
+             * As unidades da conta, junto do resto da franquia.
+             *
+             * Aqui e não numa chamada própria porque a guia de plano já pergunta
+             * "o que eu tenho direito" — e unidade é uma das quatro respostas,
+             * ao lado de agentes, números e crédito.
+             */
+            unidades,
         })
     } catch (error) {
         console.error('[API] Error fetching subscription:', error)
@@ -157,6 +174,31 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json(
                         { error: 'Conta não encontrada para este workspace' },
                         { status: 404 }
+                    )
+                }
+
+                /**
+                 * Descer de plano não pode deixar a conta com mais unidades do
+                 * que o plano novo cabe.
+                 *
+                 * E a saída não é apagar unidade: unidade tem pacientes, agenda
+                 * e conversas, e nenhuma troca de plano tem autoridade para
+                 * levar isso embora. Então a troca é **recusada**, dizendo o
+                 * número e as duas saídas reais — comprar adicional ou escolher
+                 * outro plano. As unidades compradas contam a favor: um Digital
+                 * com dois adicionais cabe três.
+                 */
+                const unidades = await unidadesDaConta(accountId)
+                const cabe = tetoDeUnidades(plan, unidades.adicionais)
+                if (unidades.used > cabe) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                `Você tem ${unidades.used} unidades e o ${planConfig.name} cabe ${cabe}. ` +
+                                `Compre ${unidades.used - cabe} unidade${unidades.used - cabe === 1 ? '' : 's'} adicional${unidades.used - cabe === 1 ? '' : 'is'} ` +
+                                `ou escolha um plano com mais unidades.`,
+                        },
+                        { status: 409 }
                     )
                 }
 
@@ -300,6 +342,63 @@ export async function POST(request: NextRequest) {
                     creditsAdded: creditsToAdd,
                     expiresAt,
                     newTotal: after.credits.available,
+                })
+            }
+
+            /**
+             * Compra uma unidade adicional: R$ 290, qualquer plano.
+             *
+             * Só **sobe o teto** — não cria a unidade. Criar é um ato com nome,
+             * endereço e responsável, e mora em `POST /api/account/workspaces`.
+             * Juntar os dois faria a compra inventar uma clínica chamada "Nova
+             * unidade" que alguém teria de ir renomear depois.
+             *
+             * Mesmo portão do crédito avulso: plano ativo e fora da avaliação.
+             * Vender unidade para quem está avaliando seria vender adicional de
+             * uma assinatura que ainda não existe.
+             */
+            case 'buy-unit': {
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
+                // O portão é o mesmo do crédito avulso (plano ativo, fora da
+                // avaliação), mas a frase é escrita para unidade: reaproveitar
+                // a do crédito exigiria remendar o texto, e texto remendado é
+                // o que leva a clínica a procurar um botão de crédito.
+                const state = await getBillingState(workspaceUser.workspaceId)
+                if (state.phase === 'trial') {
+                    return NextResponse.json(
+                        { error: 'Durante a avaliação não é possível contratar unidades. Assine um plano primeiro.' },
+                        { status: 402 }
+                    )
+                }
+                if (state.phase !== 'active') {
+                    return NextResponse.json(
+                        { error: 'Contratar uma unidade exige um plano ativo. Escolha um plano em Gerenciamento → Conta.' },
+                        { status: 402 }
+                    )
+                }
+
+                await prisma.unitAddon.create({
+                    data: {
+                        accountId,
+                        priceCents: Math.round(UNIDADE_ADICIONAL.price * 100),
+                    },
+                })
+
+                const unidades = await unidadesDaConta(accountId)
+
+                return NextResponse.json({
+                    success: true,
+                    message:
+                        `Unidade adicional contratada por R$ ${UNIDADE_ADICIONAL.price.toFixed(2)}. ` +
+                        `Você pode ter ${unidades.max} unidade${unidades.max === 1 ? '' : 's'} e tem ${unidades.used}.`,
+                    unidades,
                 })
             }
 

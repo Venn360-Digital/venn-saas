@@ -2,7 +2,7 @@
 
 import { Suspense, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Building2, CalendarOff, CreditCard, Plug, Plus, User, Users, Zap } from 'lucide-react'
+import { Building2, CalendarOff, CreditCard, Hospital, Plug, Plus, User, Users, Zap } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
@@ -11,6 +11,7 @@ import { AutomacoesTab } from '@/components/account/AutomacoesTab'
 import { PerfilTab } from '@/components/account/PerfilTab'
 import { EmpresaTab } from '@/components/account/EmpresaTab'
 import { PlanoTab } from '@/components/account/PlanoTab'
+import { UnidadesTab } from '@/components/account/UnidadesTab'
 import { UsersPanel, type UsersPanelHandle } from '@/components/management/UsersPanel'
 import { IntegrationsPanel } from '@/components/management/IntegrationsPanel'
 
@@ -31,6 +32,10 @@ const TABS: FrameTab[] = [
     { id: 'agenda', label: 'Agenda da clínica', icon: CalendarOff },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },
+    // As duas guias da **conta** ficam juntas e no fim: unidades e plano são de
+    // quem paga, e as de cima são da unidade aberta. Contratar unidade mora ao
+    // lado de onde o dinheiro mora.
+    { id: 'unidades', label: 'Unidades', icon: Hospital },
     { id: 'plano', label: 'Plano', icon: CreditCard },
 ]
 
@@ -90,6 +95,7 @@ function ContaContent() {
             {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}
+            {activeTab === 'unidades' ? <UnidadesTab /> : null}
             {activeTab === 'plano' ? <PlanoTab /> : null}
         </TabsFrame>
     )

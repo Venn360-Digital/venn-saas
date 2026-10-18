@@ -644,8 +644,10 @@ não contradizê-lo, e não para ele repeti-lo.
 
 **Fechada em 2026-10-13**, com as seis guias da Conta no padrão.
 
-Uma tela, várias guias: Conta (perfil, empresa, usuários, integrações,
-automações, plano) e o que vier com a mesma forma. A geometria é a da Tela 01,
+Uma tela, várias guias: Conta (perfil, clínica, usuários, agenda, integrações,
+automações, unidades, plano) e o que vier com a mesma forma. As duas últimas são
+da **conta** — unidades e plano são de quem paga, e as de cima são da unidade
+aberta; por isso ficam juntas e no fim. A geometria é a da Tela 01,
 de propósito.
 
 - **Linha 1 (50px)**: o nome da tela à esquerda, a ação primária no canto —

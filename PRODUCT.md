@@ -440,20 +440,66 @@ quiser entre as unidades — na prática, um agente e dois números por unidade.
 de propósito: crédito somado deixa a unidade movimentada consumir a folga da
 que está parada, o que nenhuma assinatura separada permitiria.
 
-### Ainda não é o que o código faz
+### Como a franquia é contada
 
-A regra acima está decidida, não implementada. Hoje `getWorkspaceLimits` conta
-agentes e números **da unidade** (`where: { workspaceId }`) enquanto a
-assinatura já é da conta — então a segunda unidade de uma conta ganharia a
-franquia inteira outra vez, e um Multiclínica com três unidades chegaria a nove
-agentes e dezoito números. Está invisível só porque toda conta tem exatamente
-uma unidade. A contagem por conta, o teto de unidades por plano e a compra do
-adicional são a fase 4.
+A contagem atravessa as unidades: `getWorkspaceLimits` conta agentes e números
+em **todas as unidades da conta**, e não na unidade aberta. Antes contava por
+unidade enquanto a assinatura já era da conta, e a segunda unidade ganharia a
+franquia inteira outra vez — um Multiclínica com três unidades chegaria a nove
+agentes e dezoito números.
+
+A recusa diz onde estão: "você já tem 3 agentes **nas suas 2 unidades**". Sem
+essa metade da frase, a mensagem fica incompreensível justamente para quem tem
+multiunidade — a tela afirma três numa clínica onde há um.
+
+O ajuste do downgrade (`applyPlanLimits`) também atravessa: pausar só na unidade
+onde o plano foi trocado deixaria a conta acima do plano pelo caminho mais
+simples que existe — descer de plano numa unidade e manter os agentes da outra.
+O agente que sobrevive é o mais antigo **da conta**.
+
+### Descer de plano com unidades demais é recusado
+
+Multiclínica com três unidades não vira Digital. A saída não é apagar unidade —
+unidade tem pacientes, agenda e conversas, e nenhuma troca de plano tem
+autoridade para levar isso embora. Então a troca é recusada (409), dizendo o
+número e as duas saídas reais: comprar adicionais ou escolher outro plano. As
+adicionais já compradas contam a favor, então um Digital com dois adicionais
+cabe três unidades.
 
 ### A unidade adicional
 
 **Qualquer plano, a qualquer momento, pode adquirir uma unidade por R$ 290,00.**
 Não é privilégio do Multiclínica.
+
+**O adicional não traz capacidade.** Nenhum agente, nenhum número, nenhum
+crédito: compra separação — CRM, agenda e conversas próprios da outra clínica.
+É o que mantém a escada de planos honesta, do mesmo jeito que a recarga de
+crédito custa por crédito o que o plano entrega. Se a unidade trouxesse um
+agente, comprar unidade ficaria mais barato que subir de plano (Digital → Prime
+são R$ 200 por +1 agente, +3 números e +10.000 créditos) e a escada inverteria.
+
+A consequência é de venda, não técnica, e precisa ser dita na proposta: **um
+Digital com duas unidades tem um agente e um número para as duas**. A segunda
+clínica nasce com CRM e agenda, e só fala com paciente se a primeira ceder o
+número.
+
+### Quem cria unidade
+
+O **MASTER da conta** (`Account.ownerUserId`), não o OWNER da unidade aberta.
+Criar unidade gasta o teto que a conta comprou, e a conta tem um responsável
+explícito — foi para isto que a coluna existe. Com três unidades, "o OWNER de
+qual delas?" não tem resposta boa, e a pergunta aparece justamente quando a
+resposta importa.
+
+A unidade nasce **vazia e com quem a criou dentro**, como OWNER dela — sem isso
+ninguém poderia abri-la, porque o seletor lista participações, não contas. E
+nada é copiado da unidade de origem: funil, departamentos e tags herdados
+pareciam gentileza e eram armadilha, porque a clínica nova descobriria o funil
+que não é dela depois de cadastrar negócio nele.
+
+Comprar e criar são **dois atos**: comprar sobe o teto, criar dá nome à clínica.
+Juntá-los inventaria uma clínica chamada "Nova unidade" que alguém teria de ir
+renomear.
 
 O preço não é arbitrário: Multiclínica são R$ 890 por três unidades, ou seja
 R$ 297 cada. O adicional só torna explícito o preço marginal que o plano já

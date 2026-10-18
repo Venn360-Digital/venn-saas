@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
-import { assinaturaDaUnidade } from '@/lib/account'
+import { accountIdOf, assinaturaDaUnidade, unidadesDaConta, type Unidades } from '@/lib/account'
 import { TRIAL, planFor } from '@/lib/plans'
 
 /**
@@ -18,6 +18,14 @@ export interface WorkspaceLimits {
     agents: { used: number; max: number; remaining: number }
     whatsapp: { used: number; max: number; remaining: number }
     credits: { used: number; total: number; remaining: number }
+    /**
+     * As unidades da conta: quantas tem, quantas pode ter.
+     *
+     * Vem junto porque quem pergunta "o que meu plano me dá" pergunta as quatro
+     * coisas de uma vez — agentes, números, crédito e unidades —, e a tela de
+     * plano desenha as quatro na mesma faixa.
+     */
+    units: Unidades
     trialEndsAt: Date | null
     /** True while the workspace has no subscription row at all. */
     unsubscribed: boolean
@@ -41,15 +49,36 @@ const HOLDS_A_SLOT: Prisma.AgentIntegrationWhereInput = {
     OR: [{ status: { not: 'disconnected' } }, { phoneNumber: { not: null } }],
 }
 
+/**
+ * A franquia é da **conta**, e por isso a contagem atravessa as unidades.
+ *
+ * Isto contava `where: { workspaceId }` enquanto a assinatura já era da conta,
+ * e a aritmética não fechava: a segunda unidade ganharia a franquia inteira de
+ * novo, e um Multiclínica com três unidades chegaria a nove agentes e dezoito
+ * números. Ficava invisível só porque toda conta tinha uma unidade.
+ *
+ * A assinatura some para quem chama: o parâmetro continua sendo a unidade, que
+ * é o que as nove chamadas têm em mãos. A tradução para conta acontece aqui,
+ * como em `assinaturaDaUnidade`.
+ */
 export async function getWorkspaceLimits(workspaceId: string): Promise<WorkspaceLimits> {
-    const [subscription, agentCount, whatsappCount] = await Promise.all([
+    const accountId = await accountIdOf(workspaceId)
+    /** Todas as unidades de quem paga — ou só esta, se a conta sumiu. */
+    const daConta: Prisma.AgentWhereInput = accountId
+        ? { workspace: { accountId } }
+        : { workspaceId }
+
+    const [subscription, agentCount, whatsappCount, units] = await Promise.all([
         prisma.subscription.findFirst({ where: assinaturaDaUnidade(workspaceId) }),
-        prisma.agent.count({ where: { workspaceId } }),
-        // Linhas que ocupam vaga, em todos os agentes do workspace — o teto é da
-        // clínica, não do agente. Ver `HOLDS_A_SLOT`.
+        prisma.agent.count({ where: daConta }),
+        // Linhas que ocupam vaga, em todos os agentes de todas as unidades da
+        // conta — o teto é de quem paga. Ver `HOLDS_A_SLOT`.
         prisma.agentIntegration.count({
-            where: { agent: { workspaceId }, ...HOLDS_A_SLOT },
+            where: { agent: daConta, ...HOLDS_A_SLOT },
         }),
+        accountId
+            ? unidadesDaConta(accountId)
+            : Promise.resolve({ used: 0, max: 0, remaining: 0, doPlano: 0, adicionais: 0 }),
     ])
 
     if (!subscription) {
@@ -60,6 +89,7 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
             agents: { used: agentCount, max: 0, remaining: 0 },
             whatsapp: { used: whatsappCount, max: 0, remaining: 0 },
             credits: { used: 0, total: 0, remaining: 0 },
+            units,
             trialEndsAt: null,
             unsubscribed: true,
         }
@@ -88,9 +118,21 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
             total: subscription.credits,
             remaining: Math.max(0, subscription.credits - subscription.creditsUsed),
         },
+        units,
         trialEndsAt: subscription.trialEndsAt,
         unsubscribed: false,
     }
+}
+
+/**
+ * "nas suas N unidades", quando são mais de uma.
+ *
+ * Sem isto a recusa fica incompreensível justamente para quem tem multiunidade:
+ * a tela diz "você já tem 3 agentes" numa unidade onde há um, porque os outros
+ * dois estão na clínica do outro bairro. A frase é o que liga o número ao lugar.
+ */
+function emTodasAsUnidades(units: Unidades): string {
+    return units.used > 1 ? ` nas suas ${units.used} unidades` : ''
 }
 
 export interface LimitRefusal {
@@ -119,7 +161,7 @@ export async function canCreateAgent(workspaceId: string): Promise<LimitCheck> {
         return {
             ok: false,
             status: 402,
-            error: `O ${limits.planName} inclui ${limits.agents.max} agente${limits.agents.max === 1 ? '' : 's'} de IA, e você já tem ${limits.agents.used}. Mude de plano em Gerenciamento → Conta para criar mais.`,
+            error: `O ${limits.planName} inclui ${limits.agents.max} agente${limits.agents.max === 1 ? '' : 's'} de IA, e você já tem ${limits.agents.used}${emTodasAsUnidades(limits.units)}. Mude de plano em Gerenciamento → Conta para criar mais.`,
         }
     }
     return { ok: true }
@@ -161,7 +203,7 @@ export async function canConnectWhatsApp(
         return {
             ok: false,
             status: 402,
-            error: `O ${limits.planName} inclui ${limits.whatsapp.max} número${limits.whatsapp.max === 1 ? '' : 's'} de WhatsApp, e você já conectou ${limits.whatsapp.used}. Mude de plano em Gerenciamento → Conta para conectar mais.`,
+            error: `O ${limits.planName} inclui ${limits.whatsapp.max} número${limits.whatsapp.max === 1 ? '' : 's'} de WhatsApp, e você já conectou ${limits.whatsapp.used}${emTodasAsUnidades(limits.units)}. Mude de plano em Gerenciamento → Conta para conectar mais.`,
         }
     }
     return { ok: true }
@@ -170,7 +212,7 @@ export async function canConnectWhatsApp(
 export { TRIAL }
 
 /**
- * Brings the workspace in line with the plan's allowance after a plan change.
+ * Brings the account in line with the plan's allowance after a plan change.
  *
  * Downgrading pauses the excess by reverse order of creation — the oldest agent
  * survives, because it is the one most likely to be the clinic's real one.
@@ -180,13 +222,25 @@ export { TRIAL }
  * `pausedByLimit` is what makes the pause stick. A plain `isActive: false` could
  * be switched back on from the agents screen, which would put the workspace over
  * its plan with no further check. Only this function clears it.
+ *
+ * **Atravessa as unidades da conta**, como a contagem que a autoriza. Fazer o
+ * ajuste só na unidade onde o plano foi trocado deixaria a conta acima do plano
+ * pelo caminho mais simples que existe: descer de plano numa unidade e manter os
+ * agentes da outra. O mais antigo que sobrevive é o mais antigo **da conta** —
+ * que é também o mais provável de ser a clínica original.
  */
 export async function applyPlanLimits(
     workspaceId: string,
     limits: { maxAgents: number; maxWhatsAppNumbers: number }
 ): Promise<{ agentsPaused: number; agentsReleased: number; numbersPaused: number }> {
+    const accountId = await accountIdOf(workspaceId)
+    /** Todas as unidades de quem paga — ou só esta, se a conta sumiu. */
+    const daConta: Prisma.AgentWhereInput = accountId
+        ? { workspace: { accountId } }
+        : { workspaceId }
+
     const agents = await prisma.agent.findMany({
-        where: { workspaceId },
+        where: daConta,
         orderBy: { createdAt: 'asc' },
         select: { id: true, pausedByLimit: true },
     })
@@ -217,7 +271,7 @@ export async function applyPlanLimits(
     // a deletion — the instance and its history stay, so reconnecting does not
     // start from zero.
     const integrations = await prisma.agentIntegration.findMany({
-        where: { agent: { workspaceId }, ...HOLDS_A_SLOT },
+        where: { agent: daConta, ...HOLDS_A_SLOT },
         orderBy: { createdAt: 'asc' },
         select: { id: true },
     })

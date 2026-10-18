@@ -179,6 +179,7 @@ export const PLANS: Record<PlanId, Plan> = {
         features: [
             { text: '1 agente de atendimento IA' },
             { text: '1 número de WhatsApp' },
+            { text: '1 unidade (clínica)' },
             { text: 'CRM para clínicas com funil de vendas' },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
@@ -199,6 +200,7 @@ export const PLANS: Record<PlanId, Plan> = {
         features: [
             { text: '2 agentes de atendimento IA' },
             { text: '4 números de WhatsApp' },
+            { text: '1 unidade (clínica)' },
             { text: 'CRM para clínicas com funil de vendas' },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
@@ -220,6 +222,7 @@ export const PLANS: Record<PlanId, Plan> = {
         features: [
             { text: '3 agentes de atendimento IA' },
             { text: '6 números de WhatsApp' },
+            { text: '3 unidades (clínicas)' },
             { text: 'CRM para clínicas com funil de vendas' },
             { text: 'Usuários ilimitados' },
             { text: 'Dashboard inteligente' },
@@ -278,6 +281,32 @@ export const CREDIT_PACKS: CreditPack[] = [
 /** O pacote com exatamente esta quantidade, ou nada — a lista é fechada. */
 export function creditPackFor(credits: unknown): CreditPack | undefined {
     return CREDIT_PACKS.find((pack) => pack.credits === credits)
+}
+
+/**
+ * A unidade adicional, vendida fora do plano.
+ *
+ * **Qualquer plano, a qualquer momento** — não é privilégio do Multiclínica. O
+ * preço não é arbitrário: o Multiclínica são R$ 890 por três unidades, ou seja
+ * R$ 297 cada, e o adicional só torna explícito o preço marginal que o plano já
+ * embute. Fica abaixo dos R$ 390 de um Digital avulso, que é a alternativa que o
+ * cliente tem hoje, e com ele a clínica mantém uma fatura, uma renovação e a
+ * troca de unidade pela própria tela.
+ *
+ * **Não traz capacidade.** Nenhum agente, nenhum número, nenhum crédito: compra
+ * separação — CRM, agenda e conversas próprios da outra clínica. É o que
+ * mantém a escada de planos honesta, do mesmo jeito que a recarga de crédito
+ * custa por crédito o que o plano entrega: se a unidade trouxesse um agente,
+ * comprar unidade ficaria mais barato que subir de plano (Digital → Prime são
+ * R$ 200 por +1 agente, +3 números e +10.000 créditos) e a escada inverteria.
+ *
+ * A consequência é de venda, não técnica, e está em PRODUCT.md §12: um Digital
+ * com duas unidades tem **um** agente e **um** número para as duas.
+ */
+export const UNIDADE_ADICIONAL = {
+    price: 290,
+    name: 'Unidade adicional',
+    pitch: 'Mais uma clínica na mesma conta, com pacientes, agenda e conversas próprios.',
 }
 
 export const TRIAL = {

@@ -10,6 +10,7 @@
  */
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { tetoDeUnidades } from '@/lib/plan-limits'
 
 let fails = 0
 function eq(label: string, got: unknown, want: unknown) {
@@ -114,6 +115,34 @@ eq(
     conversationScope(member('ATENDENTE', [])),
     comFilas([])
 )
+
+console.log('\n— o teto de unidades da conta')
+
+/**
+ * A soma que decide se a clínica abre outra unidade, conferida aqui porque
+ * três lugares dependem dela: a tela que mostra "1 de 3", a trava dentro da
+ * transação que cria, e a recusa de descer de plano. Divergirem é a clínica ver
+ * um teto e encontrar outro — ou ganhar uma unidade de graça.
+ */
+eq('Digital inclui uma unidade', tetoDeUnidades('flow', 0), 1)
+eq('Prime inclui uma unidade', tetoDeUnidades('pro', 0), 1)
+eq('Multiclínica inclui três', tetoDeUnidades('advanced', 0), 3)
+
+// O adicional vale em qualquer plano — não é privilégio do Multiclínica. É a
+// regra do Andre em PRODUCT.md §12, e a soma é o que a implementa.
+eq('Digital com dois adicionais cabe três', tetoDeUnidades('flow', 2), 3)
+eq('Multiclínica com um adicional cabe quatro', tetoDeUnidades('advanced', 1), 4)
+
+// Plano desconhecido cai no de entrada, como `limitsFor` — e não em zero: a
+// conta **tem** uma unidade, é por ela que a pessoa está logada, e um teto zero
+// faria a tela anunciar "1 de 0" e a trava recusar o que já existe.
+eq('sem plano, o teto é o do plano de entrada', tetoDeUnidades(null, 0), 1)
+eq('plano desconhecido não zera o teto', tetoDeUnidades('ouro', 0), 1)
+
+// Adicional negativo não desconta. Não há caminho que o produza hoje — é uma
+// contagem de linhas —, e é exatamente por isso que vale travar: o dia em que
+// alguém passar um saldo calculado aqui, a trava não vai virar "cabe zero".
+eq('adicional negativo não derruba o teto', tetoDeUnidades('pro', -5), 1)
 
 console.log(fails === 0 ? '\nTodos passaram.' : `\n${fails} falharam.`)
 process.exit(fails === 0 ? 0 : 1)

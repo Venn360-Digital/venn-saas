@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { limitsFor, tetoDeUnidades } from '@/lib/plan-limits'
 
 /**
  * A ponte entre a unidade e quem paga por ela.
@@ -39,4 +40,42 @@ export async function accountIdOf(workspaceId: string): Promise<string | null> {
         select: { accountId: true },
     })
     return workspace?.accountId ?? null
+}
+
+/**
+ * Quantas unidades a conta pode ter, quantas tem, e quantas sobram.
+ *
+ * O teto é **o que o plano inclui mais as unidades compradas à parte**. A
+ * segunda metade é o que faz o adicional de R$ 290 funcionar em qualquer plano:
+ * um Digital com dois adicionais tem três unidades, sem precisar virar
+ * Multiclínica. Ver PRODUCT.md §12.
+ *
+ * Conta sem assinatura fica com o teto do plano de entrada (uma), e não com
+ * zero: ela **tem** uma unidade — é por ela que a pessoa está logada —, e
+ * devolver zero faria a tela anunciar "1 de 0".
+ */
+export interface Unidades {
+    used: number
+    max: number
+    remaining: number
+    /** O que o plano inclui, separado para a tela poder explicar o teto. */
+    doPlano: number
+    /** Quantas foram compradas à parte. */
+    adicionais: number
+}
+
+export async function unidadesDaConta(accountId: string): Promise<Unidades> {
+    const [used, adicionais, subscription] = await Promise.all([
+        prisma.workspace.count({ where: { accountId } }),
+        prisma.unitAddon.count({ where: { accountId } }),
+        prisma.subscription.findUnique({
+            where: { accountId },
+            select: { plan: true },
+        }),
+    ])
+
+    const doPlano = limitsFor(subscription?.plan).maxWorkspaces
+    const max = tetoDeUnidades(subscription?.plan, adicionais)
+
+    return { used, max, remaining: Math.max(0, max - used), doPlano, adicionais }
 }

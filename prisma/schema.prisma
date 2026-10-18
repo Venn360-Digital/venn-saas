@@ -81,9 +81,32 @@ model Account {
   owner        User?         @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   workspaces   Workspace[]
   subscription Subscription?
+  unitAddons   UnitAddon[]
 
   @@index([ownerUserId])
   @@map("accounts")
+}
+
+/// Uma unidade comprada fora do que o plano inclui.
+///
+/// Uma linha por unidade adquirida, e o teto da conta é "o que o plano inclui +
+/// quantas linhas destas existem". É o mesmo desenho de `CreditPurchase`: o
+/// saldo é derivado das compras, não guardado num contador que pode divergir
+/// delas — e aqui a diferença pesa mais, porque um contador errado ou tranca a
+/// clínica fora de uma unidade que ela pagou, ou lhe dá uma de graça.
+///
+/// `priceCents` guarda o preço cobrado, não o de tabela: se os R$ 290 mudarem,
+/// o que a clínica pagou continua escrito.
+model UnitAddon {
+  id         String   @id @default(cuid())
+  accountId  String
+  priceCents Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("unit_addons")
 }
 
 model Workspace {
