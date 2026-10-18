@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ChevronsUpDown, CreditCard, LogOut, Plug, User } from 'lucide-react'
+import { ChevronsUpDown, CreditCard, LogOut, Plug, User, Users } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -135,10 +135,21 @@ export function NavUser() {
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
+                            {/* A ordem é a da própria tela de Conta: quem é
+                                você, quem é a equipe, o que a clínica paga, o
+                                que ela conecta. `Users` é o mesmo ícone que a
+                                aba usa lá dentro — dois glifos para o mesmo
+                                destino custam mais que nenhum. */}
                             <DropdownMenuItem asChild>
                                 <Link href="/gerenciamento/conta?tab=perfil">
                                     <User />
                                     Perfil
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                                <Link href="/gerenciamento/conta?tab=usuarios">
+                                    <Users />
+                                    Usuários
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
