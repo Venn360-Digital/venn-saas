@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
 import { resolveConversationLine } from '@/lib/conversation-line'
-import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -21,14 +21,7 @@ export async function POST(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -150,7 +143,7 @@ export async function POST(
                 // Escrever na conversa de outra fila é pior que lê-la.
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
+                    departmentIds: workspaceUser.departmentIds,
                 }),
             },
             include: { contact: true },

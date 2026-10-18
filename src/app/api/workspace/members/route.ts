@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 
@@ -9,14 +10,7 @@ export async function GET() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const currentWU = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const currentWU = await currentMembership()
         if (!currentWU) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
         const members = await prisma.workspaceUser.findMany({

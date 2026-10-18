@@ -38,7 +38,43 @@ const BASELINE_FILE = join(ROOT, 'scripts', 'workspace-baseline.json')
  */
 const ALLOWED = ['src/lib/auth/workspace.ts']
 
-const PADRAO = /prisma\.workspaceUser\.findFirst/g
+const CHAMADA = 'prisma.workspaceUser.findFirst'
+
+/**
+ * Nem todo `findFirst` em participação é o defeito.
+ *
+ * Procurar **um membro de um workspace dado** é legítimo e acontece fora de
+ * qualquer sessão: o executor de regras atribuindo a conversa a alguém daquele
+ * departamento, o e-mail de cobrança achando o dono daquela unidade, a
+ * checagem de dono da plataforma. Todos dizem de qual workspace falam.
+ *
+ * O perigoso é o oposto: `userId` + `isActive` e **nenhuma pista de qual
+ * unidade** — aí a consulta escolhe sozinha, "a mais antiga", e ignora o que a
+ * pessoa selecionou. Um verificador que reclamasse dos três casos legítimos
+ * seria desligado na primeira semana, e aí não protegeria nada.
+ */
+function perigoso(trecho) {
+    const where = trecho.match(/where:\s*\{([\s\S]*?)\}/)
+    if (!where) return true
+    const corpo = where[1]
+    const escolheSozinho =
+        /\buserId\b/.test(corpo) &&
+        /\bisActive\b/.test(corpo) &&
+        !/\bworkspaceId\b/.test(corpo) &&
+        !/\bworkspace\s*:/.test(corpo)
+    return escolheSozinho
+}
+
+/** Do `(` que abre a chamada até o `)` que o fecha, contando parênteses. */
+function chamadaCompleta(texto, i) {
+    const ini = texto.indexOf('(', i)
+    let nivel = 0
+    for (let j = ini; j < texto.length; j++) {
+        if (texto[j] === '(') nivel++
+        else if (texto[j] === ')' && --nivel === 0) return texto.slice(ini, j + 1)
+    }
+    return texto.slice(ini)
+}
 
 function walk(dir, out = []) {
     for (const entry of readdirSync(dir)) {
@@ -54,9 +90,13 @@ for (const file of walk(SRC)) {
     const rel = relative(ROOT, file)
     if (ALLOWED.some((p) => rel.startsWith(p))) continue
     const texto = readFileSync(file, 'utf8')
-    PADRAO.lastIndex = 0
-    const matches = texto.match(PADRAO)
-    if (matches) findings.push({ file: rel, count: matches.length })
+    let count = 0
+    let i = texto.indexOf(CHAMADA)
+    while (i !== -1) {
+        if (perigoso(chamadaCompleta(texto, i))) count++
+        i = texto.indexOf(CHAMADA, i + CHAMADA.length)
+    }
+    if (count) findings.push({ file: rel, count })
 }
 
 const total = findings.reduce((n, f) => n + f.count, 0)

@@ -1,7 +1,19 @@
 import 'server-only'
 import type { Prisma } from '@prisma/client'
+import { cookies } from 'next/headers'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
+
+/**
+ * O cookie que guarda qual unidade a pessoa está olhando.
+ *
+ * Só o Multiclínica tem mais de uma, então para quase todo mundo ele nunca é
+ * escrito e nada muda. Quem escreve é a troca de workspace; quem lê é
+ * `getWorkspaceMember()`, e **só depois de conferir que a unidade é mesmo
+ * dela** — cookie é campo de texto como qualquer outro, e aceitar o que ele diz
+ * seria entregar a clínica do vizinho a quem souber editá-lo.
+ */
+export const WORKSPACE_COOKIE = 'odontobox.workspace'
 
 /**
  * Workspace authorisation for API routes.
@@ -51,6 +63,8 @@ export function hasEditorRole(role: string): boolean {
 }
 
 export interface WorkspaceMember {
+    /** O id da linha de participação — `WorkspaceUser.id`, não o do usuário. */
+    membershipId: string
     userId: string
     workspaceId: string
     role: WorkspaceRole
@@ -85,16 +99,38 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
         return { ok: false, status: 401, error: 'Não autenticado' }
     }
 
-    const membership = await prisma.workspaceUser.findFirst({
+    const SELECT = {
+        id: true,
+        userId: true,
+        workspaceId: true,
+        role: true,
+        canTransfer: true,
+        departments: { select: { departmentId: true } },
+    } as const
+
+    /**
+     * A unidade escolhida, quando há uma e quando ela é mesmo desta pessoa.
+     *
+     * A consulta já carrega o `workspaceId` do cookie: se a pessoa não
+     * participa daquela unidade — cookie forjado, acesso removido, conta
+     * trocada no mesmo navegador —, não volta linha nenhuma e a escolha é
+     * ignorada. Não existe caminho em que o cookie decida sozinho.
+     */
+    const escolhido = (await cookies()).get(WORKSPACE_COOKIE)?.value
+
+    let membership = escolhido
+        ? await prisma.workspaceUser.findFirst({
+            where: { userId: user.id, isActive: true, workspaceId: escolhido },
+            select: SELECT,
+        })
+        : null
+
+    // Sem escolha válida, a de sempre: a participação mais antiga. É o que
+    // valia antes do seletor existir, e continua valendo para quem tem uma só.
+    membership ??= await prisma.workspaceUser.findFirst({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
-        select: {
-            userId: true,
-            workspaceId: true,
-            role: true,
-            canTransfer: true,
-            departments: { select: { departmentId: true } },
-        },
+        select: SELECT,
     })
 
     if (!membership) {
@@ -106,6 +142,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
     return {
         ok: true,
         member: {
+            membershipId: membership.id,
             userId: membership.userId,
             workspaceId: membership.workspaceId,
             role: membership.role as WorkspaceRole,
@@ -113,6 +150,26 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             canTransfer: membership.canTransfer,
         },
     }
+}
+
+/**
+ * A participação ativa, crua — ou `null`.
+ *
+ * Mesma resolução de `getWorkspaceMember()`, incluindo a unidade escolhida e a
+ * conferência de que ela é mesmo desta pessoa. A diferença é só a forma da
+ * resposta: aqui vem o membro ou nada, para as dezenas de rotas que já têm o
+ * próprio 401 e o próprio 404 escritos.
+ *
+ * **As duas portas existem para que não exista uma terceira.** Enquanto cada
+ * rota resolvia a participação sozinha, com `findFirst` e "a mais antiga", a
+ * escolha de unidade não tinha como chegar nelas — e com três unidades por
+ * conta isso deixa de ser detalhe e vira a clínica errada na tela. Quem
+ * resolve participação é este arquivo; `scripts/lint-workspace.mjs` reprova o
+ * build se aparecer outro.
+ */
+export async function currentMembership(): Promise<WorkspaceMember | null> {
+    const result = await getWorkspaceMember()
+    return result.ok ? result.member : null
 }
 
 /** Resolve membership and require one of `roles`. */

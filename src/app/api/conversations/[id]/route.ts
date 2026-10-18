@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { phoneFromConfig } from '@/lib/conversation-line'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
@@ -19,14 +19,7 @@ export async function GET(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -44,7 +37,7 @@ export async function GET(
                 // não é autorização — o id na URL abre a conversa inteira.
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
+                    departmentIds: workspaceUser.departmentIds,
                 }),
             },
             include: {
@@ -298,14 +291,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, canTransfer: true, role: true, departments: { select: { departmentId: true } } }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -320,7 +306,7 @@ export async function PATCH(
                 workspaceId: workspaceUser.workspaceId,
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
+                    departmentIds: workspaceUser.departmentIds,
                 }),
             },
         })
@@ -411,14 +397,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -431,7 +410,7 @@ export async function DELETE(
                 workspaceId: workspaceUser.workspaceId,
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
+                    departmentIds: workspaceUser.departmentIds,
                 }),
             },
             select: { id: true }

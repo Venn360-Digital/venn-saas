@@ -1,4 +1,5 @@
 import { CREDIT_PACKS, PLAN_LIST, TRIAL, creditPackFor, planFor } from '@/lib/plans'
+import { currentMembership } from '@/lib/auth/workspace'
 import {
     canBuyCredits,
     getBillingState,
@@ -44,17 +45,13 @@ export async function GET() {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: {
-                workspaceId: true,
-                workspace: { select: { name: true } },
-            }
-        })
+        const workspaceUser = await currentMembership()
+        const workspace = workspaceUser
+            ? await prisma.workspace.findUnique({
+                where: { id: workspaceUser.workspaceId },
+                select: { name: true },
+            })
+            : null
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -71,7 +68,7 @@ export async function GET() {
             return NextResponse.json({
                 plan: null,
                 planName: null,
-                workspaceName: workspaceUser.workspace?.name ?? null,
+                workspaceName: workspace?.name ?? null,
                 status: 'none',
                 maxAgents: 0,
                 maxMessages: 0,
@@ -93,7 +90,7 @@ export async function GET() {
         return NextResponse.json({
             plan: subscription.plan,
             planName: planConfig.name,
-            workspaceName: workspaceUser.workspace?.name ?? null,
+            workspaceName: workspace?.name ?? null,
             maxWhatsAppNumbers: subscription.maxWhatsAppNumbers,
             trial: TRIAL,
             status: subscription.status,
@@ -130,13 +127,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser || !['OWNER', 'ADMIN'].includes(workspaceUser.role)) {
             return NextResponse.json({ error: 'Permissão negada' }, { status: 403 })

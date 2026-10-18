@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { currentMembership } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 
@@ -28,14 +29,13 @@ export async function GET() {
         }
 
         // Use Prisma to check workspace (bypasses RLS)
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, workspace: { select: { createdAt: true } } }
-        })
+        const workspaceUser = await currentMembership()
+        const workspace = workspaceUser
+            ? await prisma.workspace.findUnique({
+                where: { id: workspaceUser.workspaceId },
+                select: { createdAt: true },
+            })
+            : null
 
         /**
          * "Tem workspace" passou a significar "terminou o cadastro".
@@ -57,7 +57,7 @@ export async function GET() {
         // Conta anterior ao portão: entra no painel, e o aceite fica pendente
         // para ser pedido lá dentro.
         const grandfathered = Boolean(
-            workspaceUser && workspaceUser.workspace.createdAt < TERMS_RECORDED_SINCE
+            workspace && workspace.createdAt < TERMS_RECORDED_SINCE
         )
 
         return NextResponse.json({

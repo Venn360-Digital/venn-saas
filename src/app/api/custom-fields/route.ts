@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { isUniqueViolation } from '@/lib/prisma-errors'
 
@@ -11,14 +11,7 @@ export async function GET() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const wu = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
         const fields = await prisma.customFieldDefinition.findMany({
@@ -40,14 +33,7 @@ export async function POST(request: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const wu = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
         // Workspace configuration: shared across every operator, so it is not an ATENDENTE's to change.

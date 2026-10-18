@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
-import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -16,20 +16,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: {
-                workspaceId: true,
-                userId: true,
-                canTransfer: true,
-                role: true,
-                departments: { select: { departmentId: true } },
-            }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -67,7 +54,7 @@ export async function GET(request: NextRequest) {
          * departamentos não sente nada — ver `conversationScope`, onde a
          * fórmula se neutraliza sozinha.
          */
-        const departmentIds = workspaceUser.departments.map((d) => d.departmentId)
+        const departmentIds = workspaceUser.departmentIds
         const departmentScope = conversationScope({
             role: workspaceUser.role as WorkspaceRole,
             departmentIds,

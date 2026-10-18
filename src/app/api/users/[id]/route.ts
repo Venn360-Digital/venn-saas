@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
@@ -28,14 +29,7 @@ export async function GET(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const currentWorkspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const currentWorkspaceUser = await currentMembership()
 
         if (!currentWorkspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -101,14 +95,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const currentWorkspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const currentWorkspaceUser = await currentMembership()
 
         if (!currentWorkspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
@@ -271,14 +258,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const currentWorkspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const currentWorkspaceUser = await currentMembership()
 
         if (!currentWorkspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })

@@ -58,7 +58,7 @@ eq('23h59 local', isoDay(new Date(2026, 9, 14, 23, 59, 59)), '2026-10-14')
 
 console.log('\n— quem vê o quê')
 const member = (role: WorkspaceRole, departmentIds: string[] = []) => ({
-    userId: 'eu', workspaceId: 'w', role, departmentIds, canTransfer: false,
+    membershipId: 'm', userId: 'eu', workspaceId: 'w', role, departmentIds, canTransfer: false,
 })
 for (const role of ['OWNER', 'ADMIN', 'GESTOR'] as WorkspaceRole[]) {
     eq(`${role} pode escolher`, canSeeEveryone(role), true)

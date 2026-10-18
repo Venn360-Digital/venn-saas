@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { resolveConversationLine } from '@/lib/conversation-line'
-import { conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
+import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { resolveIntegration } from '@/lib/whatsapp'
 
@@ -22,11 +22,7 @@ export async function POST(
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } },
-        })
+        const workspaceUser = await currentMembership()
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
 
         const body = (await request.json().catch(() => ({}))) as { emoji?: string }
@@ -40,7 +36,7 @@ export async function POST(
                     workspaceId: workspaceUser.workspaceId,
                     ...conversationScope({
                         role: workspaceUser.role as WorkspaceRole,
-                        departmentIds: workspaceUser.departments.map((d) => d.departmentId),
+                        departmentIds: workspaceUser.departmentIds,
                     }),
                 },
             },

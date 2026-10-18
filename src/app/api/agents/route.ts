@@ -1,4 +1,5 @@
 import { canCreateAgent } from '@/lib/limits'
+import { currentMembership } from '@/lib/auth/workspace'
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
@@ -88,14 +89,7 @@ export async function GET(request: NextRequest) {
         // WORKAROUND: Handle 'current' or missing workspaceId by taking the first one found for the user
         // This allows the app to work before the Workspace Selector UI is fully implemented
         if (!workspaceId || workspaceId === 'current' || workspaceId === 'undefined') {
-            const firstWorkspace = await prisma.workspaceUser.findFirst({
-                where: { userId: user.id, isActive: true },
-                // Stable pick while there is no workspace selector: without an
-                // order, a multi-workspace user could read from one tenant and
-                // write to another between requests.
-                orderBy: { createdAt: 'asc' },
-                select: { workspaceId: true }
-            })
+            const firstWorkspace = await currentMembership()
 
             if (!firstWorkspace) {
                 // If user has no workspace, we could create one or return empty
@@ -153,14 +147,7 @@ export async function POST(request: NextRequest) {
 
         // Workaround for default workspace
         if (!workspaceId || workspaceId === 'current' || workspaceId === 'undefined') {
-            const firstWorkspace = await prisma.workspaceUser.findFirst({
-                where: { userId: user.id, isActive: true },
-                // Stable pick while there is no workspace selector: without an
-                // order, a multi-workspace user could read from one tenant and
-                // write to another between requests.
-                orderBy: { createdAt: 'asc' },
-                select: { workspaceId: true }
-            })
+            const firstWorkspace = await currentMembership()
 
             // Se o usuário não tem workspace, criar um automaticamente
             if (!firstWorkspace) {

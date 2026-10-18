@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
@@ -31,14 +31,7 @@ export async function GET(request: NextRequest) {
         console.log('[QUICK_RESPONSES_GET] User:', user.id)
 
         // Get user's workspace
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const workspaceUser = await currentMembership()
 
         console.log('[QUICK_RESPONSES_GET] WorkspaceUser:', workspaceUser)
 
@@ -70,14 +63,7 @@ export async function POST(request: NextRequest) {
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return new NextResponse('Workspace not found', { status: 404 })

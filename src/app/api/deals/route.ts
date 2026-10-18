@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
 import { periodWhere } from '@/lib/deal-filters'
-import { dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
+import { currentMembership, dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -166,14 +166,7 @@ export async function POST(request: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const workspaceUser = await currentMembership()
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
         // A lapsed trial keeps everything readable and keeps messages arriving;

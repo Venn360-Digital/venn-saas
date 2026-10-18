@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { currentMembership } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 
@@ -22,23 +23,15 @@ export async function GET() {
             }
         })
 
-        // Get user's workspace
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            include: {
-                workspace: {
-                    select: {
-                        id: true,
-                        name: true,
-                        slug: true,
-                    }
-                }
-            }
-        })
+        // A unidade escolhida, e os dados dela em seguida: quem decide qual
+        // é mora em `getWorkspaceMember`, e esta rota só precisa do nome.
+        const membro = await currentMembership()
+        const workspace = membro
+            ? await prisma.workspace.findUnique({
+                where: { id: membro.workspaceId },
+                select: { id: true, name: true, slug: true },
+            })
+            : null
 
         return NextResponse.json({
             user: {
@@ -48,8 +41,8 @@ export async function GET() {
                 avatar: dbUser?.avatar || null,
                 initials: getInitials(dbUser?.name || user.email || 'U'),
             },
-            workspace: workspaceUser?.workspace || null,
-            role: workspaceUser?.role || null,
+            workspace: workspace || null,
+            role: membro?.role || null,
         })
     } catch (error) {
         console.error('[ME] Error:', error)

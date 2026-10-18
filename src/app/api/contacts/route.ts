@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
 import { phoneVariants } from '@/lib/whatsapp/types'
 import { searchTerms } from '@/lib/search'
-import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
+import { contactScope, currentMembership, getWorkspaceMember } from '@/lib/auth/workspace'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -172,14 +172,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
 
@@ -12,43 +13,27 @@ export async function GET() {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: {
-                id: true,
-                workspaceId: true,
-                role: true,
-                canTransfer: true,
-                isActive: true,
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        lastName: true,
-                        email: true,
-                        avatar: true,
-                    }
-                }
-            }
-        })
-
-        if (!workspaceUser) {
+        // Qual unidade está escolhida é decisão de um lugar só; o perfil de
+        // quem está logado é uma leitura à parte, que não depende dela.
+        const membro = await currentMembership()
+        if (!membro) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         }
 
+        const perfil = await prisma.user.findUnique({
+            where: { id: membro.userId },
+            select: { id: true, name: true, lastName: true, email: true, avatar: true },
+        })
+
         return NextResponse.json({
-            id: workspaceUser.user.id,
-            name: workspaceUser.user.name,
-            lastName: workspaceUser.user.lastName,
-            email: workspaceUser.user.email,
-            avatar: workspaceUser.user.avatar,
-            role: workspaceUser.role,
-            canTransfer: workspaceUser.canTransfer,
-            workspaceId: workspaceUser.workspaceId,
+            id: perfil?.id ?? membro.userId,
+            name: perfil?.name ?? null,
+            lastName: perfil?.lastName ?? null,
+            email: perfil?.email ?? null,
+            avatar: perfil?.avatar ?? null,
+            role: membro.role,
+            canTransfer: membro.canTransfer,
+            workspaceId: membro.workspaceId,
         })
     } catch (error) {
         console.error('[ME] Error:', error)
