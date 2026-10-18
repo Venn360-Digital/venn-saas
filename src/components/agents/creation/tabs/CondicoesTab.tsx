@@ -485,18 +485,22 @@ function ParametrosDaAcao({
                         value={texto('note')}
                         onChange={(e) => onParams({ note: e.target.value })}
                     />
-                    <select
-                        value={texto('departmentId')}
-                        onChange={(e) => onParams({ departmentId: e.target.value || undefined })}
-                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                    >
-                        <option value="">Deixar em espera, sem responsável</option>
-                        {departments.map((d) => (
-                            <option key={d.id} value={d.id}>
-                                Atribuir ao departamento {d.name}
-                            </option>
-                        ))}
-                    </select>
+                    {/* Sem departamento cadastrado, o seletor só oferece "deixar
+                        em espera", que é o que a regra já faz sem ele. */}
+                    {departments.length > 0 ? (
+                        <select
+                            value={texto('departmentId')}
+                            onChange={(e) => onParams({ departmentId: e.target.value || undefined })}
+                            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        >
+                            <option value="">Deixar em espera, sem responsável</option>
+                            {departments.map((d) => (
+                                <option key={d.id} value={d.id}>
+                                    Atribuir ao departamento {d.name}
+                                </option>
+                            ))}
+                        </select>
+                    ) : null}
                 </div>
             )
 

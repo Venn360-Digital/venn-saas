@@ -9,7 +9,7 @@
  * `npm run check:period`
  */
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
-import { resolveOwnerScope, canSeeEveryone, type WorkspaceRole } from '@/lib/auth/workspace'
+import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 
 let fails = 0
 function eq(label: string, got: unknown, want: unknown) {
@@ -57,8 +57,8 @@ eq('meia-noite local', isoDay(new Date(2026, 9, 14, 0, 0, 0)), '2026-10-14')
 eq('23h59 local', isoDay(new Date(2026, 9, 14, 23, 59, 59)), '2026-10-14')
 
 console.log('\n— quem vê o quê')
-const member = (role: WorkspaceRole) => ({
-    userId: 'eu', workspaceId: 'w', role, departmentId: null, canTransfer: false,
+const member = (role: WorkspaceRole, departmentIds: string[] = []) => ({
+    userId: 'eu', workspaceId: 'w', role, departmentIds, canTransfer: false,
 })
 for (const role of ['OWNER', 'ADMIN', 'GESTOR'] as WorkspaceRole[]) {
     eq(`${role} pode escolher`, canSeeEveryone(role), true)
@@ -70,6 +70,50 @@ eq('ATENDENTE não pode escolher', canSeeEveryone('ATENDENTE'), false)
 eq('ATENDENTE pedindo todos recebe a si mesmo', resolveOwnerScope(member('ATENDENTE'), 'all'), 'eu')
 eq('ATENDENTE pedindo outra pessoa recebe a si mesmo', resolveOwnerScope(member('ATENDENTE'), 'outra'), 'eu')
 eq('ATENDENTE sem pedir nada recebe a si mesmo', resolveOwnerScope(member('ATENDENTE'), null), 'eu')
+
+/**
+ * O recorte de fila, que é a outra conta que erra calado.
+ *
+ * Um erro aqui não dá tela de erro: dá alguém vendo conversa que não é da fila
+ * dele — ou, pior, **não** dando sintoma nenhum, porque errar para o lado de
+ * mostrar demais ninguém reclama.
+ *
+ * `filaGeral` é o que todo mundo vê sempre: linha sem departamento e conversa
+ * sem linha não são de ninguém em particular.
+ */
+console.log('\n— recorte de conversa por departamento')
+
+const filaGeral = [
+    { integration: { departmentId: null } },
+    { integrationId: null },
+]
+const comFilas = (ids: string[]) => ({
+    AND: [{ OR: [{ integration: { departmentId: { in: ids } } }, ...filaGeral] }],
+})
+
+for (const role of ['OWNER', 'ADMIN', 'GESTOR'] as WorkspaceRole[]) {
+    eq(`${role} não é recortado`, conversationScope(member(role, ['comercial'])), {})
+}
+
+eq(
+    'atendente vê as filas dos departamentos dele',
+    conversationScope(member('ATENDENTE', ['comercial', 'recepcao'])),
+    comFilas(['comercial', 'recepcao'])
+)
+
+// O fail-closed: `in []` não casa com nada, então sobra a fila geral. Antes
+// este caso devolvia `{}` — "vê tudo" — e era o buraco: a clínica criava
+// departamentos, esquecia de atribuir alguém, e essa pessoa seguia lendo todas
+// as filas sem que nada apontasse para isso.
+//
+// É também a neutralização que dispensa um parâmetro de "usar departamentos":
+// numa clínica sem departamento nenhum, toda linha tem `departmentId` nulo, e
+// então esta mesma fórmula casa com todas as conversas.
+eq(
+    'atendente sem departamento fica com a fila geral, não com tudo',
+    conversationScope(member('ATENDENTE', [])),
+    comFilas([])
+)
 
 console.log(fails === 0 ? '\nTodos passaram.' : `\n${fails} falharam.`)
 process.exit(fails === 0 ? 0 : 1)

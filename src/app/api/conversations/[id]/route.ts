@@ -25,7 +25,7 @@ export async function GET(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departmentId: true }
+            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } }
         })
 
         if (!workspaceUser) {
@@ -44,7 +44,7 @@ export async function GET(
                 // não é autorização — o id na URL abre a conversa inteira.
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentId: workspaceUser.departmentId,
+                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
                 }),
             },
             include: {
@@ -56,7 +56,8 @@ export async function GET(
                         email: true,
                         avatar: true,
                         notes: true,
-                        source: true,
+                        createdVia: true,
+                        origin: { select: { id: true, name: true } },
                         tags: {
                             include: { tag: { select: { id: true, name: true, color: true } } }
                         },
@@ -173,7 +174,7 @@ export async function GET(
                 title: true,
                 stageId: true,
                 stage: { select: { name: true, color: true } },
-                agencyId: true,
+                originId: true,
                 mediaId: true,
                 userId: true,
                 owner: { select: { name: true, lastName: true } },
@@ -243,11 +244,8 @@ export async function GET(
                           stageId: openDeal.stageId,
                           stageName: openDeal.stage?.name ?? null,
                           stageColor: openDeal.stage?.color ?? null,
-                          // "Agência" e "Mídia" no banco; "Origem" e "Canal" na
-                          // tela. O nome do campo segue o schema até uma
-                          // migração valer a pena.
-                          originId: openDeal.agencyId,
-                          channelId: openDeal.mediaId,
+                          originId: openDeal.originId,
+                          mediaId: openDeal.mediaId,
                           // De quem é o negócio — não quem está com a conversa,
                           // que o chip de estado do chat já diz.
                           ownerId: openDeal.userId,
@@ -306,7 +304,7 @@ export async function PATCH(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, canTransfer: true, role: true, departmentId: true }
+            select: { workspaceId: true, canTransfer: true, role: true, departments: { select: { departmentId: true } } }
         })
 
         if (!workspaceUser) {
@@ -322,7 +320,7 @@ export async function PATCH(
                 workspaceId: workspaceUser.workspaceId,
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentId: workspaceUser.departmentId,
+                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
                 }),
             },
         })
@@ -419,7 +417,7 @@ export async function DELETE(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departmentId: true }
+            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } }
         })
 
         if (!workspaceUser) {
@@ -433,7 +431,7 @@ export async function DELETE(
                 workspaceId: workspaceUser.workspaceId,
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentId: workspaceUser.departmentId,
+                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
                 }),
             },
             select: { id: true }

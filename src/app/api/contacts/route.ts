@@ -7,13 +7,14 @@ import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
 import { phoneVariants } from '@/lib/whatsapp/types'
 import { searchTerms } from '@/lib/search'
+import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
     email: z.string().email().optional().nullable().or(z.literal('')),
     phone: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
-    source: z.string().optional().nullable(),
+    originId: z.string().optional().nullable(),
     customFields: z.record(z.string(), z.any()).optional().nullable(),
 })
 
@@ -27,25 +28,16 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
-
-        if (!workspaceUser) {
-            return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-        }
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
 
         const { searchParams } = new URL(request.url)
         const search = searchParams.get('search') || ''
         const page = parseInt(searchParams.get('page') || '1')
         const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
         const tagId = searchParams.get('tagId')
-        const source = searchParams.get('source')
+        const originId = searchParams.get('originId')
         const dateFrom = searchParams.get('dateFrom')
         const dateTo = searchParams.get('dateTo')
         const dealStatus = searchParams.get('dealStatus') // 'open', 'won', 'lost', 'none'
@@ -65,24 +57,32 @@ export async function GET(request: NextRequest) {
             where.OR = searchTerms(search).map((term) => ({ searchText: { contains: term } }))
         }
 
-        // Tag filter
+        /**
+         * As condições que valem **juntas**: o recorte de quem vê o quê e, se
+         * houver, o filtro de etiqueta.
+         *
+         * `AND`, e não `OR`, para que a etiqueta restrinja a busca textual em
+         * vez de alargá-la. E numa lista, não por atribuição: o recorte e a
+         * etiqueta usam os dois este campo, e o segundo apagaria o primeiro.
+         */
+        const todas: Prisma.ContactWhereInput[] = [contactScope(workspaceUser)]
+
         if (tagId) {
-            // AND, e não OR, para que o filtro de etiqueta restrinja a busca
-            // textual em vez de alargá-la. Só é atribuído aqui, então não há
-            // lista anterior para preservar.
-            where.AND = [
-                {
-                    OR: [
-                        { tags: { some: { tagId } } },
-                        { conversations: { some: { tags: { some: { tagId } } } } },
-                    ],
-                },
-            ]
+            todas.push({
+                OR: [
+                    { tags: { some: { tagId } } },
+                    { conversations: { some: { tags: { some: { tagId } } } } },
+                ],
+            })
         }
 
-        // Source filter
-        if (source) {
-            where.source = source
+        where.AND = todas
+
+        // Origin filter — a origem comercial, que é uma referência para a
+        // lista da clínica. O canal por onde o paciente escreveu não se filtra
+        // aqui: ele é da conversa, não da ficha.
+        if (originId) {
+            where.originId = originId
         }
 
         // Date range filter
@@ -230,7 +230,11 @@ export async function POST(request: NextRequest) {
                 email: validatedData.email || null,
                 phone,
                 notes: validatedData.notes || null,
-                source: validatedData.source || 'manual',
+                // Quem chega por esta rota foi digitado por alguém — é o que
+                // `manual` diz. A origem comercial é escolha de quem cadastra,
+                // e fica nula quando ninguém escolheu.
+                createdVia: 'manual',
+                originId: validatedData.originId || null,
                 customFields: (validatedData.customFields ?? undefined) as Prisma.InputJsonValue | undefined,
             }
         })

@@ -4,7 +4,7 @@ import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { isUniqueViolation } from '@/lib/prisma-errors'
 
-// GET - List agencies for the workspace
+// GET - List origins for the workspace
 export async function GET() {
     try {
         const supabase = await createClient()
@@ -21,19 +21,19 @@ export async function GET() {
         })
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
-        const agencies = await prisma.agency.findMany({
+        const origins = await prisma.origin.findMany({
             where: { workspaceId: wu.workspaceId },
             orderBy: { name: 'asc' },
         })
 
-        return NextResponse.json(agencies)
+        return NextResponse.json(origins)
     } catch (error) {
-        console.error('[AGENCIES_GET]', error)
+        console.error('[ORIGINS_GET]', error)
         return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 }
 
-// POST - Create agency
+// POST - Create origin
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient()
@@ -60,19 +60,19 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
         }
 
-        const agency = await prisma.agency.create({
+        const origin = await prisma.origin.create({
             data: {
                 workspaceId: wu.workspaceId,
                 name: name.trim(),
             },
         })
 
-        return NextResponse.json(agency, { status: 201 })
+        return NextResponse.json(origin, { status: 201 })
     } catch (error) {
         if (isUniqueViolation(error)) {
-            return NextResponse.json({ error: 'Agência já existe' }, { status: 409 })
+            return NextResponse.json({ error: 'Origem já existe' }, { status: 409 })
         }
-        console.error('[AGENCIES_POST]', error)
+        console.error('[ORIGINS_POST]', error)
         return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 }

@@ -79,26 +79,26 @@ export function NewAttendanceDialog({
     const [phone, setPhone] = useState(initialPhone)
     const [name, setName] = useState(initialName)
     const [originId, setOriginId] = useState('')
-    const [channelId, setChannelId] = useState('')
+    const [mediaId, setMediaId] = useState('')
     const [callNotes, setCallNotes] = useState('')
     const [lookup, setLookup] = useState<LookupResult | null>(null)
     const [lookupFailed, setLookupFailed] = useState(false)
     const [checking, setChecking] = useState(false)
     const [saving, setSaving] = useState(false)
     const [origins, setOrigins] = useState<Option[]>([])
-    const [channels, setChannels] = useState<Option[]>([])
+    const [medias, setMedias] = useState<Option[]>([])
 
     useEffect(() => {
         if (!open) return
         let cancelled = false
         Promise.all([
-            fetch('/api/agencies').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/origins').then((r) => (r.ok ? r.json() : [])),
             fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
         ])
             .then(([a, m]) => {
                 if (cancelled) return
                 setOrigins(Array.isArray(a) ? a : [])
-                setChannels(Array.isArray(m) ? m : [])
+                setMedias(Array.isArray(m) ? m : [])
             })
             .catch(() => { })
         return () => {
@@ -185,7 +185,7 @@ export function NewAttendanceDialog({
                     phone: lookup?.phone ?? phone,
                     name: name.trim(),
                     originId: originId || null,
-                    channelId: channelId || null,
+                    mediaId: mediaId || null,
                     callNotes: mode === 'call' ? callNotes.trim() : '',
                 }),
             })
@@ -200,7 +200,7 @@ export function NewAttendanceDialog({
             setName('')
             setCallNotes('')
             setOriginId('')
-            setChannelId('')
+            setMediaId('')
             setLookup(null)
         } catch {
             toast.error('Não foi possível abrir o atendimento')
@@ -342,13 +342,17 @@ export function NewAttendanceDialog({
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <Label htmlFor="intake-channel">Canal</Label>
-                            <Select value={channelId || 'none'} onValueChange={(v) => setChannelId(v === 'none' ? '' : v)}>
-                                <SelectTrigger id="intake-channel" className="w-full"><SelectValue /></SelectTrigger>
+                            {/* O canal desta conversa é o WhatsApp, e o sistema já
+                              * sabe: a recepção não escolhe transporte. O que ela
+                              * sabe é o detalhe da origem — qual anúncio, qual
+                              * campanha o paciente mencionou. */}
+                            <Label htmlFor="intake-media">Mídia</Label>
+                            <Select value={mediaId || 'none'} onValueChange={(v) => setMediaId(v === 'none' ? '' : v)}>
+                                <SelectTrigger id="intake-media" className="w-full"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">—</SelectItem>
-                                    {channels.map((c) => (
-                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                    {medias.map((m) => (
+                                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

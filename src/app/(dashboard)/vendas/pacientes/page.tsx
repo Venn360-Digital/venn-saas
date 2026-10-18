@@ -11,7 +11,7 @@ import { IndexFrame } from '@/components/shared/IndexFrame'
 import { FilterPill } from '@/components/shared/FilterPill'
 import { PeriodFields } from '@/components/shared/PeriodPicker'
 import { ContactPanel } from '@/components/contacts/ContactPanel'
-import { SOURCE_FILTER_OPTIONS, sourceLabel } from '@/lib/sources'
+import { createdViaLabel } from '@/lib/created-via'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -69,7 +69,7 @@ interface ContactTag { tag: { id: string; name: string; color: string } }
  */
 type CustomFieldValue = string | number | boolean | null
 
-interface Contact { id: string; name: string | null; email: string | null; phone: string | null; notes: string | null; source: string | null; customFields: Record<string, CustomFieldValue> | null; tags: ContactTag[]; createdAt: string }
+interface Contact { id: string; name: string | null; email: string | null; phone: string | null; notes: string | null; createdVia: string | null; origin: { id: string; name: string } | null; customFields: Record<string, CustomFieldValue> | null; tags: ContactTag[]; createdAt: string }
 interface TagOption { id: string; name: string; color: string }
 interface CustomFieldDef { id: string; name: string; key: string; type: string; options: string[] | null; required: boolean; order: number }
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
@@ -86,7 +86,6 @@ const getInitials = (name: string | null) => {
     return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 }
 
-const SOURCE_OPTIONS = ['manual', 'whatsapp', 'ligacao', 'instagram', 'indicacao', 'google', 'site', 'facebook']
 
 const DEAL_FILTER_OPTIONS = [
     { value: '', label: 'Todos' },
@@ -109,7 +108,7 @@ export default function ContatosPage() {
     // Filter state
     const [search, setSearch] = useState('')
     const [filterTagId, setFilterTagId] = useState('')
-    const [filterSource, setFilterSource] = useState('')
+    const [filterOriginId, setFilterOriginId] = useState('')
     const [filterDeal, setFilterDeal] = useState('')
     const [filterDateFrom, setFilterDateFrom] = useState('')
     const [filterDateTo, setFilterDateTo] = useState('')
@@ -118,7 +117,7 @@ export default function ContatosPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
 
     // Form state — o diálogo só cria; editar é na ficha ao lado da lista.
-    const EMPTY_FORM = { name: '', email: '', phone: '', notes: '', source: 'manual' }
+    const EMPTY_FORM = { name: '', email: '', phone: '', notes: '', originId: '' }
     const [formData, setFormData] = useState(EMPTY_FORM)
     const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string }>({})
     const [submitting, setSubmitting] = useState(false)
@@ -135,6 +134,7 @@ export default function ContatosPage() {
 
     // Lookup data
     const [allTags, setAllTags] = useState<TagOption[]>([])
+    const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
     const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([])
     const router = useRouter()
     const openParam = useSearchParams().get('open')
@@ -180,7 +180,7 @@ export default function ContatosPage() {
             params.set('limit', String(pagination.limit))
             if (search) params.set('search', search)
             if (filterTagId) params.set('tagId', filterTagId)
-            if (filterSource) params.set('source', filterSource)
+            if (filterOriginId) params.set('originId', filterOriginId)
             if (filterDeal) params.set('dealStatus', filterDeal)
             if (filterDateFrom) params.set('dateFrom', filterDateFrom)
             if (filterDateTo) params.set('dateTo', filterDateTo)
@@ -196,12 +196,15 @@ export default function ContatosPage() {
         } finally {
             setLoading(false)
         }
-    }, [pagination.page, pagination.limit, search, filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo])
+    }, [pagination.page, pagination.limit, search, filterTagId, filterOriginId, filterDeal, filterDateFrom, filterDateTo])
 
     useEffect(() => { loadContacts() }, [loadContacts])
 
     useEffect(() => {
         fetch('/api/tags?limit=100').then(r => r.json()).then(d => setAllTags(d.data || [])).catch(() => { })
+        // A origem deixou de ser lista fixa no código: ela é da clínica, e cada
+        // uma tem as suas — "V4", "Indicação da Dra. Ana", "Fachada".
+        fetch('/api/origins').then(r => r.json()).then(d => setOrigins(Array.isArray(d) ? d : [])).catch(() => { })
         fetch('/api/custom-fields').then(r => r.json()).then(d => setCustomFieldDefs(Array.isArray(d) ? d : [])).catch(() => { })
     }, [])
 
@@ -230,7 +233,7 @@ export default function ContatosPage() {
             if (!res.ok) { toast.error('Não foi possível abrir o paciente'); return }
             const c: Contact = await res.json()
             setEditingId(id)
-            setFormData({ name: c.name ?? '', email: c.email ?? '', phone: nationalDigits(c.phone), notes: c.notes ?? '', source: c.source ?? 'manual' })
+            setFormData({ name: c.name ?? '', email: c.email ?? '', phone: nationalDigits(c.phone), notes: c.notes ?? '', originId: c.origin?.id ?? '' })
             setSelectedTagIds(c.tags?.map(ct => ct.tag.id) ?? [])
             setCustomFieldValues(c.customFields ?? {})
             setErrors({}); setClash(null); setClashDismissed(false)
@@ -316,7 +319,7 @@ export default function ContatosPage() {
         const params = new URLSearchParams()
         if (search) params.set('search', search)
         if (filterTagId) params.set('tagId', filterTagId)
-        if (filterSource) params.set('source', filterSource)
+        if (filterOriginId) params.set('originId', filterOriginId)
         const res = await fetch(`/api/contacts/export?${params}`)
         if (res.ok) {
             const blob = await res.blob()
@@ -432,11 +435,11 @@ export default function ContatosPage() {
         } catch { toast.error('Erro ao excluir') }
     }
 
-    const activeFilterCount = [filterTagId, filterSource, filterDeal, filterDateFrom, filterDateTo]
+    const activeFilterCount = [filterTagId, filterOriginId, filterDeal, filterDateFrom, filterDateTo]
         .filter(Boolean).length
 
     const clearAllFilters = () => {
-        setFilterTagId(''); setFilterSource(''); setFilterDeal('')
+        setFilterTagId(''); setFilterOriginId(''); setFilterDeal('')
         setFilterDateFrom(''); setFilterDateTo('')
         setPagination(p => ({ ...p, page: 1 }))
     }
@@ -472,8 +475,8 @@ export default function ContatosPage() {
         const rows = contacts.filter(c => ids.includes(c.id))
         const esc = (v: string | null | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`
         const csv = [
-            ['Nome', 'Telefone', 'E-mail', 'Origem', 'Etiquetas'].join(';'),
-            ...rows.map(c => [esc(c.name), esc(c.phone), esc(c.email), esc(sourceLabel(c.source)), esc(c.tags.map(t => t.tag.name).join(', '))].join(';')),
+            ['Nome', 'Telefone', 'E-mail', 'Origem', 'Cadastro', 'Etiquetas'].join(';'),
+            ...rows.map(c => [esc(c.name), esc(c.phone), esc(c.email), esc(c.origin?.name ?? ''), esc(createdViaLabel(c.createdVia)), esc(c.tags.map(t => t.tag.name).join(', '))].join(';')),
         ].join('\n')
         const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
         const url = URL.createObjectURL(blob)
@@ -534,7 +537,7 @@ export default function ContatosPage() {
                 </div>
             ),
         },
-        { id: 'source', header: 'Origem', hideBelow: 'sm', sortable: true, sortValue: (c) => c.source ?? '', cell: (c) => <StatusBadge value={sourceLabel(c.source)} tone="neutral" /> },
+        { id: 'origin', header: 'Origem', hideBelow: 'sm', sortable: true, sortValue: (c) => c.origin?.name ?? '', cell: (c) => c.origin ? <StatusBadge value={c.origin.name} tone="neutral" /> : <span className="text-muted-foreground">—</span> },
         {
             id: 'whatsapp',
             header: 'WhatsApp',
@@ -570,7 +573,7 @@ export default function ContatosPage() {
                     </div>
                 )}
             </div>
-            <StatusBadge value={sourceLabel(c.source)} tone="neutral" />
+            {c.origin ? <StatusBadge value={c.origin.name} tone="neutral" /> : null}
         </div>
     )
 
@@ -611,11 +614,11 @@ export default function ContatosPage() {
                         />
                         <FilterPill
                             label="Origem"
-                            value={filterSource ? (SOURCE_FILTER_OPTIONS.find(o => o.value === filterSource)?.label ?? filterSource) : null}
-                            onClear={() => { setFilterSource(''); setPagination(p => ({ ...p, page: 1 })) }}
-                            options={SOURCE_FILTER_OPTIONS.map(o => ({ value: o.value, label: o.value ? o.label : 'Todas' }))}
-                            selected={filterSource}
-                            onSelect={v => { setFilterSource(v); setPagination(p => ({ ...p, page: 1 })) }}
+                            value={filterOriginId ? (origins.find(o => o.id === filterOriginId)?.name ?? filterOriginId) : null}
+                            onClear={() => { setFilterOriginId(''); setPagination(p => ({ ...p, page: 1 })) }}
+                            options={[{ value: '', label: 'Todas' }, ...origins.map(o => ({ value: o.id, label: o.name }))]}
+                            selected={filterOriginId}
+                            onSelect={v => { setFilterOriginId(v); setPagination(p => ({ ...p, page: 1 })) }}
                         />
                         <FilterPill
                             label="Negócio"
@@ -675,7 +678,7 @@ export default function ContatosPage() {
                     // Com a ficha aberta a tabela perde 380px: E-mail e Origem
                     // saem, porque os dois estão na ficha e as outras colunas
                     // precisam do espaço.
-                    columns={openId ? contactColumns.filter(c => c.id !== 'email' && c.id !== 'source') : contactColumns}
+                    columns={openId ? contactColumns.filter(c => c.id !== 'email' && c.id !== 'origin') : contactColumns}
                     rows={contacts}
                     getRowId={c => c.id}
                     loading={loading}
@@ -754,7 +757,7 @@ export default function ContatosPage() {
                         </SummaryCard>
                         <div className="flex flex-wrap gap-1.5">
                             {allTags.filter(t => selectedTagIds.includes(t.id)).map(t => <TagChip key={t.id} size="sm" name={t.name} color={t.color} />)}
-                            <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{sourceLabel(formData.source)}</span>
+                            {formData.originId ? <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{origins.find(o => o.id === formData.originId)?.name ?? 'Origem'}</span> : null}
                         </div>
                         {clash && !clashDismissed ? (
                             <SummaryNotice>
@@ -779,11 +782,15 @@ export default function ContatosPage() {
                     <PhoneInput id="ct-phone" value={formData.phone} onChange={digits => { setFormData(p => ({ ...p, phone: digits })); if (errors.phone) setErrors(p => ({ ...p, phone: undefined })); setClashDismissed(false) }} />
                 </FormField>
 
-                <FormField label="Origem" htmlFor="ct-source" required>
-                    <Select value={formData.source} onValueChange={v => setFormData(p => ({ ...p, source: v }))}>
-                        <SelectTrigger id="ct-source" className="w-full"><SelectValue /></SelectTrigger>
+                {/* Sem `required`: origem que ninguém sabe fica em branco. Obrigar
+                  * a escolher aqui produz "Manual" em toda ficha, que é o
+                  * mesmo que não ter o campo. */}
+                <FormField label="Origem" htmlFor="ct-origin" hint="O que trouxe o paciente. Em branco quando não se sabe.">
+                    <Select value={formData.originId || 'none'} onValueChange={v => setFormData(p => ({ ...p, originId: v === 'none' ? '' : v }))}>
+                        <SelectTrigger id="ct-origin" className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            {SOURCE_OPTIONS.map(v => <SelectItem key={v} value={v}>{sourceLabel(v)}</SelectItem>)}
+                            <SelectItem value="none">—</SelectItem>
+                            {origins.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </FormField>

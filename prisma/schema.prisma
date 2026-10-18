@@ -86,7 +86,7 @@ model Workspace {
   pipelineStages PipelineStage[]
   quickResponses QuickResponse[]
   usageLogs      UsageLog[]
-  agencies       Agency[]
+  origins        Origin[]
   medias         Media[]
   customFields   CustomFieldDefinition[]
 
@@ -101,23 +101,49 @@ model Workspace {
 }
 
 model WorkspaceUser {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  userId       String
-  role         String // OWNER, ADMIN, GESTOR, ATENDENTE
-  departmentId String?
-  canTransfer  Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  permissions  Json? // Granular permissions
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String // OWNER, ADMIN, GESTOR, ATENDENTE
+  canTransfer Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  permissions Json? // Granular permissions
+  createdAt   DateTime @default(now())
 
-  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  department Department? @relation(fields: [departmentId], references: [id])
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// De quais departamentos esta pessoa é — podem ser vários.
+  ///
+  /// Era uma coluna `departmentId`, um departamento por pessoa, e isso não
+  /// respondia à pergunta que a clínica faz: "hoje a Recepção precisa cobrir o
+  /// Comercial". Com um só, a única saída era mover a pessoa de departamento e
+  /// lembrar de mover de volta.
+  departments WorkspaceUserDepartment[]
 
   @@unique([workspaceId, userId])
-  @@index([departmentId])
   @@map("workspace_users")
+}
+
+/// De quais departamentos um membro é.
+///
+/// Tabela explícita, no mesmo molde de `ConversationTag` e `ContactTag`, em vez
+/// da relação implícita do Prisma: o nome da tabela aparece em migração e em
+/// consulta crua, e `_DepartmentToWorkspaceUser` não se lê.
+///
+/// **É o único botão da visibilidade de conversa.** O papel decide se a pessoa
+/// vê o próprio trabalho ou o de todos; esta tabela decide de quais filas. Não
+/// existe um terceiro ajuste, e tirar alguém de um departamento é como se tira
+/// o acesso à fila dele.
+model WorkspaceUserDepartment {
+  workspaceUserId String
+  departmentId    String
+
+  workspaceUser WorkspaceUser @relation(fields: [workspaceUserId], references: [id], onDelete: Cascade)
+  department    Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceUserId, departmentId])
+  @@index([departmentId])
+  @@map("workspace_user_departments")
 }
 
 // ============================================
@@ -282,6 +308,18 @@ model AgentIntegration {
   /// quem não usa departamentos, para quem nada muda.
   departmentId String?
 
+  /// A origem que esta linha semeia na ficha de quem escreve por ela.
+  ///
+  /// É o que separa duas linhas do **mesmo** canal: o WhatsApp QR da V4 e o do
+  /// Nando são os dois `whatsapp_qr`, e o que diz qual agência trouxe o
+  /// paciente não é o canal nem a conversa — é o número para onde o anúncio
+  /// mandou. Com a linha semeando, a atribuição acontece sem ninguém digitar.
+  ///
+  /// Nula na clínica de um número só, onde não há o que distinguir. Só semeia
+  /// ficha nova: a origem de quem já é paciente não se reescreve porque ele
+  /// voltou por outro anuncio.
+  defaultOriginId String?
+
   // Status da conexão
   status String @default("disconnected") // "connected" | "disconnected" | "pending" | "error"
 
@@ -298,6 +336,7 @@ model AgentIntegration {
 
   agent         Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
   department    Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  defaultOrigin Origin?        @relation(fields: [defaultOriginId], references: [id], onDelete: SetNull)
   conversations Conversation[]
 
   /// Sem `@@unique([agentId, channel])`: um agente atende por N números.
@@ -310,6 +349,7 @@ model AgentIntegration {
   @@index([agentId])
   @@index([agentId, channel])
   @@index([departmentId])
+  @@index([defaultOriginId])
   @@index([publicKey])
   @@map("agent_integrations")
 }
@@ -420,8 +460,25 @@ model Contact {
   // Custom Fields
   customFields Json?
 
-  // Metadata
-  source        String? // "whatsapp", "instagram", "manual"
+  /// Como esta ficha nasceu: `manual`, `import`, `ligacao` ou `inbound`.
+  ///
+  /// Era `source`, e guardava três coisas na mesma coluna — o canal
+  /// (`whatsapp`, `instagram`, `site`), o nascimento da ficha (`manual`,
+  /// `import`) e a origem comercial (`google`, `facebook`). A tela chamava
+  /// tudo de "Origem", então "WhatsApp" aparecia como resposta para "de onde
+  /// vem nosso paciente" — que é o canal, e não responde nada.
+  ///
+  /// Aqui fica só o nascimento. O canal se deriva da conversa (`channel` e a
+  /// linha); a origem comercial é `originId`.
+  createdVia    String?
+
+  /// A origem comercial — o que fez o paciente escrever.
+  ///
+  /// Semeada pela linha por onde ele chegou, quando ela tem dono conhecido
+  /// (ver `AgentIntegration.defaultOriginId`), e editável na ficha depois:
+  /// ninguém **detecta** origem, alguém informa.
+  originId      String?
+
   lastContactAt DateTime?
   /// Texto já normalizado para busca — minúsculo e sem acento.
   ///
@@ -435,6 +492,7 @@ model Contact {
   updatedAt     DateTime  @updatedAt
 
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  origin        Origin?        @relation(fields: [originId], references: [id], onDelete: SetNull)
   conversations Conversation[]
   deals         Deal[]
   activities    Activity[]
@@ -446,6 +504,7 @@ model Contact {
   @@index([phone])
   @@index([instagramId])
   @@index([email])
+  @@index([originId])
   @@map("contacts")
 }
 
@@ -454,7 +513,7 @@ model Deal {
   workspaceId String
   contactId   String?
   userId      String? // Deal owner
-  agencyId    String?
+  originId    String?
   mediaId     String?
 
   title    String
@@ -485,7 +544,6 @@ model Deal {
   trackingData Json?
 
   // Metadata
-  source     String?
   notes      String?   @db.Text
   closedAt   DateTime?
   /// Texto já normalizado para busca — minúsculo e sem acento.
@@ -502,7 +560,7 @@ model Deal {
   workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact       Contact?           @relation(fields: [contactId], references: [id], onDelete: SetNull)
   owner         User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  agency        Agency?            @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  origin        Origin?            @relation(fields: [originId], references: [id], onDelete: SetNull)
   media         Media?             @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   stage         PipelineStage      @relation("DealCurrentStage", fields: [stageId], references: [id])
   /// Relação nomeada: o negócio aponta para duas etapas — onde está e, se
@@ -517,7 +575,7 @@ model Deal {
   @@index([status])
   @@index([contactId, status])
   @@index([userId])
-  @@index([agencyId])
+  @@index([originId])
   @@index([mediaId])
   @@map("deals")
 }
@@ -614,18 +672,36 @@ model DealStageEntry {
   @@map("deal_stage_entries")
 }
 
-model Agency {
+/// De onde vem o paciente — a origem comercial, não o canal.
+///
+/// Era a tabela `agencies`, a lista que o Negócio chamava de "Origem", e vivia
+/// separada de `Contact.source`, que a ficha do paciente **também** chamava de
+/// Origem. Duas listas com o mesmo nome e nenhuma relação: a clínica cadastrava
+/// "V4" numa e gravava "facebook" na outra, e nenhum relatório fechava.
+///
+/// Esta é a lista única, usada pela ficha, pelo negócio e pela linha.
+///
+/// **Não é canal.** Canal é por onde a mensagem entrou (`whatsapp_qr`,
+/// `instagram`) e o sistema grava sozinho; origem é o que fez o paciente
+/// escrever, e nenhum canal entrega esse dado.
+///
+/// Um nível só, de propósito. "Facebook › V4 › campanha" é hierarquia, e
+/// hierarquia aqui é uma coluna `parentId` nula a mais no dia em que a clínica
+/// precisar comparar canal de aquisição entre unidades — não antes.
+model Origin {
   id          String   @id @default(cuid())
   workspaceId String
   name        String
   createdAt   DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deals     Deal[]
+  contacts  Contact[]
+  lines     AgentIntegration[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
-  @@map("agencies")
+  @@map("origins")
 }
 
 model Media {
@@ -1194,9 +1270,9 @@ model Department {
   name        String
   description String?
 
-  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  users      WorkspaceUser[]
-  lines      AgentIntegration[]
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members   WorkspaceUserDepartment[]
+  lines     AgentIntegration[]
   /// Texto já normalizado para busca — minúsculo e sem acento.
   ///
   /// Coluna GERADA pelo Postgres (ver a migração

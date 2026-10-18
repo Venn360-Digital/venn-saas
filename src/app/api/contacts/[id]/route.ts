@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
+import { PERMISSION_DENIED, contactScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/intake'
 
@@ -18,14 +18,9 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -34,9 +29,13 @@ export async function GET(
         const contact = await prisma.contact.findFirst({
             where: {
                 id,
-                workspaceId: workspaceUser.workspaceId
+                workspaceId: workspaceUser.workspaceId,
+            // Esconder da lista não é autorização: o id na URL abre a ficha
+            // inteira, então o recorte vale aqui também.
+                ...contactScope(workspaceUser),
             },
             include: {
+                origin: { select: { id: true, name: true } },
                 tags: {
                     include: { tag: { select: { id: true, name: true, color: true } } }
                 },
@@ -135,21 +134,22 @@ export async function PATCH(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
         }
 
         const existingContact = await prisma.contact.findFirst({
-            where: { id, workspaceId: workspaceUser.workspaceId }
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+            // Esconder da lista não é autorização: o id na URL abre a ficha
+            // inteira, então o recorte vale aqui também.
+                ...contactScope(workspaceUser),
+            }
         })
 
         if (!existingContact) {
@@ -157,7 +157,7 @@ export async function PATCH(
         }
 
         const body = await request.json()
-        const { name, email, phone, notes, tagIds, customFields } = body
+        const { name, email, phone, notes, tagIds, customFields, originId } = body
 
         const contact = await prisma.contact.update({
             where: { id },
@@ -169,6 +169,10 @@ export async function PATCH(
                 ...(phone !== undefined && { phone: phone ? normalizePhone(String(phone)).digits : null }),
                 ...(notes !== undefined && { notes }),
                 ...(customFields !== undefined && { customFields }),
+                // A origem é editável porque ninguém a detecta: a linha semeia
+                // um palpite bom, e quem atende corrige quando o paciente diz
+                // de onde veio. `null` é uma escolha válida — "não sabemos".
+                ...(originId !== undefined && { originId: originId || null }),
             }
         })
 
@@ -187,6 +191,7 @@ export async function PATCH(
         const updated = await prisma.contact.findUnique({
             where: { id },
             include: {
+                origin: { select: { id: true, name: true } },
                 tags: { include: { tag: { select: { id: true, name: true, color: true } } } }
             }
         })
@@ -212,14 +217,9 @@ export async function DELETE(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -231,7 +231,13 @@ export async function DELETE(
         }
 
         const existingContact = await prisma.contact.findFirst({
-            where: { id, workspaceId: workspaceUser.workspaceId }
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+            // Esconder da lista não é autorização: o id na URL abre a ficha
+            // inteira, então o recorte vale aqui também.
+                ...contactScope(workspaceUser),
+            }
         })
 
         if (!existingContact) {

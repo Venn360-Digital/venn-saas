@@ -215,6 +215,7 @@ function toListItem(line: AgentIntegration) {
         id: line.id,
         label: line.label,
         departmentId: line.departmentId,
+        defaultOriginId: line.defaultOriginId,
         phoneNumber: line.phoneNumber ?? phoneFromConfig(line.config),
         status: line.status,
         connectedAt: line.connectedAt,
@@ -452,7 +453,7 @@ export async function GET(
         const integrationId = new URL(request.url).searchParams.get('integrationId')
 
         if (!integrationId) {
-            const [lines, limits, departments] = await Promise.all([
+            const [lines, limits, departments, origins] = await Promise.all([
                 prisma.agentIntegration.findMany({
                     where: { agentId, channel: CHANNEL },
                     orderBy: { createdAt: 'asc' },
@@ -465,11 +466,18 @@ export async function GET(
                     orderBy: { name: 'asc' },
                     select: { id: true, name: true },
                 }),
+                // E a lista de origens, pelo mesmo motivo: é o seletor ao lado.
+                prisma.origin.findMany({
+                    where: { workspaceId },
+                    orderBy: { name: 'asc' },
+                    select: { id: true, name: true },
+                }),
             ])
             return NextResponse.json({
                 lines: lines.map(toListItem),
                 limit: limits.whatsapp,
                 departments,
+                origins,
             })
         }
 
@@ -578,11 +586,13 @@ export async function GET(
 }
 
 /**
- * PATCH — o apelido da linha e de quem é a fila dela.
+ * PATCH — o apelido da linha, de quem é a fila dela e que origem ela semeia.
  *
- * Os dois campos são independentes: o corpo pode trazer um, o outro, ou os dois,
- * e o que não vier fica como está. `departmentId: null` tira a linha do
- * departamento e devolve a fila dela para a geral da clínica.
+ * Os três campos são independentes: o corpo pode trazer um, outro, ou todos, e
+ * o que não vier fica como está. `departmentId: null` tira a linha do
+ * departamento e devolve a fila dela para a geral da clínica;
+ * `defaultOriginId: null` faz a linha parar de semear origem, e as fichas que
+ * ela já semeou continuam como estão — origem não se reescreve para trás.
  */
 export async function PATCH(
     request: NextRequest,
@@ -598,6 +608,7 @@ export async function PATCH(
             integrationId?: string
             label?: string
             departmentId?: string | null
+            defaultOriginId?: string | null
         }
         if (!body.integrationId) {
             return NextResponse.json({ error: 'Linha não informada' }, { status: 400 })
@@ -606,7 +617,7 @@ export async function PATCH(
         const line = await findLine(body.integrationId, agentId, workspaceId)
         if (!line) return NextResponse.json({ error: 'Linha não encontrada' }, { status: 404 })
 
-        const data: { label?: string | null; departmentId?: string | null } = {}
+        const data: { label?: string | null; departmentId?: string | null; defaultOriginId?: string | null } = {}
 
         if (typeof body.label === 'string') {
             data.label = body.label.trim().slice(0, 60) || null
@@ -630,6 +641,22 @@ export async function PATCH(
                 }
             }
             data.departmentId = wanted
+        }
+
+        if ('defaultOriginId' in body) {
+            const wanted = body.defaultOriginId || null
+            if (wanted) {
+                // Do mesmo workspace, pela mesma razão do departamento acima:
+                // o id vem do corpo da requisição e não de uma lista fechada.
+                const origin = await prisma.origin.findFirst({
+                    where: { id: wanted, workspaceId },
+                    select: { id: true },
+                })
+                if (!origin) {
+                    return NextResponse.json({ error: 'Origem não encontrada' }, { status: 404 })
+                }
+            }
+            data.defaultOriginId = wanted
         }
 
         if (Object.keys(data).length === 0) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
+import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 
@@ -11,7 +11,7 @@ const dealInclude = {
     owner: {
         select: { id: true, name: true, email: true, avatar: true }
     },
-    agency: {
+    origin: {
         select: { id: true, name: true }
     },
     media: {
@@ -31,23 +31,24 @@ export async function PATCH(
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
         const existingDeal = await prisma.deal.findFirst({
-            where: { id, workspaceId: workspaceUser.workspaceId }
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+            // Esconder da lista não é autorização: o id na URL abre a ficha
+            // inteira, então o recorte vale aqui também.
+                ...dealScope(workspaceUser),
+            }
         })
         if (!existingDeal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
         const body = await request.json()
-        const { title, value, stageId, contactId, notes, probability, status, userId, agencyId, mediaId, trackingData, outcomeReasonId, outcomeNotes, closedValue, stageNote, stageEntry } = body
+        const { title, value, stageId, contactId, notes, probability, status, userId, originId, mediaId, trackingData, outcomeReasonId, outcomeNotes, closedValue, stageNote, stageEntry } = body
 
         // If changing contact, enforce 1:1 rule
         if (contactId && contactId !== existingDeal.contactId) {
@@ -75,7 +76,7 @@ export async function PATCH(
         if (notes !== undefined) updateData.notes = notes
         if (probability !== undefined) updateData.probability = probability
         if (userId !== undefined) updateData.userId = userId
-        if (agencyId !== undefined) updateData.agencyId = agencyId
+        if (originId !== undefined) updateData.originId = originId
         if (mediaId !== undefined) updateData.mediaId = mediaId
         if (trackingData !== undefined) updateData.trackingData = trackingData
 
@@ -245,14 +246,9 @@ export async function DELETE(
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true }
-        })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
         // Deleting takes related records with it; an ATENDENTE may create and edit, not remove.
@@ -261,7 +257,13 @@ export async function DELETE(
         }
 
         const existingDeal = await prisma.deal.findFirst({
-            where: { id, workspaceId: workspaceUser.workspaceId }
+            where: {
+                id,
+                workspaceId: workspaceUser.workspaceId,
+            // Esconder da lista não é autorização: o id na URL abre a ficha
+            // inteira, então o recorte vale aqui também.
+                ...dealScope(workspaceUser),
+            }
         })
         if (!existingDeal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 

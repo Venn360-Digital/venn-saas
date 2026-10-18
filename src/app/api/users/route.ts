@@ -13,7 +13,14 @@ const createUserSchema = z.object({
     email: z.string().email('E-mail inválido'),
     password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
     phone: z.string().optional(),
-    departmentId: z.string().optional().nullable(),
+    /**
+     * De quais departamentos a pessoa é.
+     *
+     * Lista, não um: é o que permite a atendente da Recepção cobrir a fila do
+     * Comercial hoje sem ser mudada de departamento e ter de ser mudada de
+     * volta na segunda.
+     */
+    departmentIds: z.array(z.string()).optional().default([]),
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']),
     canTransfer: z.boolean().default(false),
     isActive: z.boolean().default(true),
@@ -72,7 +79,15 @@ export async function GET(request: NextRequest) {
             select: { id: true }
         })
 
-        const [users, total] = await Promise.all([
+        /**
+         * Quantos atendentes estão sem departamento.
+         *
+         * O recorte de fila fecha em vez de abrir: atendente sem departamento
+         * numa clínica que *tem* departamentos vê só a fila geral. Isso é o
+         * certo, e é invisível — ele não aparece reclamando de ver demais.
+         * Então a tela conta, e a conta é do workspace inteiro, não da página.
+         */
+        const [users, total, semDepartamento] = await Promise.all([
             prisma.workspaceUser.findMany({
                 where,
                 skip,
@@ -89,15 +104,22 @@ export async function GET(request: NextRequest) {
                             avatar: true,
                         }
                     },
-                    department: {
+                    departments: {
                         select: {
-                            id: true,
-                            name: true,
+                            department: { select: { id: true, name: true } },
                         }
                     }
                 }
             }),
-            prisma.workspaceUser.count({ where })
+            prisma.workspaceUser.count({ where }),
+            prisma.workspaceUser.count({
+                where: {
+                    workspaceId: workspaceUser.workspaceId,
+                    isActive: true,
+                    role: 'ATENDENTE',
+                    departments: { none: {} },
+                },
+            }),
         ])
 
         console.log('[USERS_GET] Found', users.length, 'users')
@@ -112,13 +134,13 @@ export async function GET(request: NextRequest) {
                 phone: wu.user.phone,
                 avatar: wu.user.avatar,
                 role: wu.role,
-                departmentId: wu.departmentId,
-                departmentName: wu.department?.name,
+                departments: wu.departments.map((d) => d.department),
                 canTransfer: wu.canTransfer,
                 isActive: wu.isActive,
                 isFirstAdmin: wu.id === foundingMember?.id, // First member is protected
                 createdAt: wu.createdAt,
             })),
+            semDepartamento,
             pagination: {
                 page,
                 limit,
@@ -224,9 +246,22 @@ export async function POST(request: NextRequest) {
                 workspaceId: currentWorkspaceUser.workspaceId,
                 userId: newUser.id,
                 role: validatedData.role,
-                departmentId: validatedData.departmentId,
                 canTransfer: validatedData.canTransfer,
                 isActive: validatedData.isActive,
+                // Do mesmo workspace: os ids vêm do corpo da requisição, e sem
+                // o filtro a pessoa poderia ser posta no departamento de outra
+                // clínica — e passaria a ver a fila dela.
+                departments: {
+                    create: (
+                        await prisma.department.findMany({
+                            where: {
+                                id: { in: validatedData.departmentIds },
+                                workspaceId: currentWorkspaceUser.workspaceId,
+                            },
+                            select: { id: true },
+                        })
+                    ).map((d) => ({ departmentId: d.id })),
+                },
             },
             include: {
                 user: {
@@ -238,12 +273,9 @@ export async function POST(request: NextRequest) {
                         phone: true,
                     }
                 },
-                department: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
-                }
+                departments: {
+                    select: { department: { select: { id: true, name: true } } },
+                },
             }
         })
 
@@ -257,8 +289,7 @@ export async function POST(request: NextRequest) {
             email: workspaceUser.user.email,
             phone: workspaceUser.user.phone,
             role: workspaceUser.role,
-            departmentId: workspaceUser.departmentId,
-            departmentName: workspaceUser.department?.name,
+            departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
             isActive: workspaceUser.isActive,
         }, { status: 201 })

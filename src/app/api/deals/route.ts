@@ -7,14 +7,24 @@ import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
 import { periodWhere } from '@/lib/deal-filters'
+import { dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
 
 const dealSchema = z.object({
     title: z.string().min(1),
     value: z.number().optional(),
     stageId: z.string(),
     contactId: z.string().optional(),
-    userId: z.string().optional(),
-    agencyId: z.string().optional().nullable(),
+    /**
+     * De quem é o negócio. **Obrigatório** nesta rota.
+     *
+     * Se é um negócio, alguém cuida dele. A coluna continua aceitando nulo por
+     * causa de um caso só: o negócio que nasce da primeira mensagem do
+     * paciente, criado pelo worker antes de existir pessoa nenhuma — ele ganha
+     * dono quando alguém assume a conversa. Fora dele, negócio sem responsável
+     * é cartão que ninguém persegue.
+     */
+    userId: z.string().min(1, 'Escolha quem cuida deste negócio'),
+    originId: z.string().optional().nullable(),
     mediaId: z.string().optional().nullable(),
     notes: z.string().optional(),
     status: z.enum(['open', 'won', 'lost']).optional(),
@@ -28,7 +38,7 @@ const dealInclude = {
     owner: {
         select: { id: true, name: true, email: true, avatar: true }
     },
-    agency: {
+    origin: {
         select: { id: true, name: true }
     },
     media: {
@@ -55,19 +65,9 @@ const dealInclude = {
 // GET - List deals with optional filters
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-        const workspaceUser = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
-        if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const workspaceUser = auth.member
 
         const { searchParams } = new URL(request.url)
         const search = searchParams.get('search') || ''
@@ -78,10 +78,21 @@ export async function GET(request: NextRequest) {
 
         const where: Prisma.DealWhereInput = { workspaceId: workspaceUser.workspaceId }
 
+        /**
+         * As condições que têm de valer **juntas**, numa lista só.
+         *
+         * `Object.assign` não serve aqui: o recorte de visibilidade e o filtro
+         * de faixa devolvem os dois um `AND`, e espalhar um sobre o outro faria
+         * o segundo apagar o primeiro em silêncio — escolher uma faixa
+         * desligaria o recorte e mostraria o funil inteiro. A busca por texto
+         * mais abaixo usa `OR`, que convive com este `AND`.
+         */
+        const todas: Prisma.DealWhereInput[] = [dealScope(workspaceUser)]
+
         // A mesma faixa de prioridades do quadro, para que trocar de visão não
         // troque o conjunto de negócios.
         const lane = searchParams.get('lane')
-        if (isDealLane(lane)) Object.assign(where, laneWhere(lane))
+        if (isDealLane(lane)) todas.push(laneWhere(lane))
 
         if (search) {
             where.OR = [
@@ -111,6 +122,8 @@ export async function GET(request: NextRequest) {
         // Aberto corta por criação; finalizado, por fechamento — a mesma regra
         // do resumo e do quadro, num módulo só.
         Object.assign(where, periodWhere(status, dateFrom, dateTo))
+
+        where.AND = todas
 
         // Bounded. This query had no `take`, so a workspace with thousands of
         // deals loaded all of them — with `dealInclude` relations — on every
@@ -192,7 +205,7 @@ export async function POST(request: NextRequest) {
                 stageId: validatedData.stageId,
                 contactId: validatedData.contactId,
                 userId: validatedData.userId,
-                agencyId: validatedData.agencyId,
+                originId: validatedData.originId,
                 mediaId: validatedData.mediaId,
                 notes: validatedData.notes,
                 status: validatedData.status || 'open',

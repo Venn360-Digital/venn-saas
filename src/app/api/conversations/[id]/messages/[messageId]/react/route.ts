@@ -25,7 +25,7 @@ export async function POST(
         const workspaceUser = await prisma.workspaceUser.findFirst({
             where: { userId: user.id, isActive: true },
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departmentId: true },
+            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } },
         })
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
 
@@ -40,7 +40,7 @@ export async function POST(
                     workspaceId: workspaceUser.workspaceId,
                     ...conversationScope({
                         role: workspaceUser.role as WorkspaceRole,
-                        departmentId: workspaceUser.departmentId,
+                        departmentIds: workspaceUser.departments.map((d) => d.departmentId),
                     }),
                 },
             },

@@ -27,7 +27,7 @@ export async function POST(
             // order, a multi-workspace user could read from one tenant and
             // write to another between requests.
             orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true, role: true, departmentId: true }
+            select: { workspaceId: true, role: true, departments: { select: { departmentId: true } } }
         })
 
         if (!workspaceUser) {
@@ -150,7 +150,7 @@ export async function POST(
                 // Escrever na conversa de outra fila é pior que lê-la.
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
-                    departmentId: workspaceUser.departmentId,
+                    departmentIds: workspaceUser.departments.map((d) => d.departmentId),
                 }),
             },
             include: { contact: true },

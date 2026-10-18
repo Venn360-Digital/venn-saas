@@ -49,6 +49,8 @@ interface Line {
     id: string
     label: string | null
     departmentId: string | null
+    /** A origem que esta linha semeia na ficha de quem escreve por ela. */
+    defaultOriginId: string | null
     phoneNumber: string | null
     status: string
     connectedAt: string | null
@@ -120,6 +122,7 @@ function nomeDaLinha(line: Line): string {
 export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [lines, setLines] = useState<Line[]>([])
     const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+    const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
     const [limit, setLimit] = useState<LineLimit | null>(null)
     const [loading, setLoading] = useState(Boolean(agentId))
     const [ocupada, setOcupada] = useState<string | null>(null)
@@ -143,6 +146,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             setLines(data.lines ?? [])
             setLimit(data.limit ?? null)
             setDepartments(data.departments ?? [])
+            setOrigins(data.origins ?? [])
         } finally {
             setLoading(false)
         }
@@ -230,7 +234,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
     const ajustar = async (
         line: Line,
-        patch: { label?: string; departmentId?: string | null }
+        patch: { label?: string; departmentId?: string | null; defaultOriginId?: string | null }
     ) => {
         const res = await fetch(`/api/agents/${agentId}/integrations/whatsapp`, {
             method: 'PATCH',
@@ -390,6 +394,40 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                             {departments.map((d) => (
                                                                 <SelectItem key={d.id} value={d.id}>
                                                                     {d.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : null}
+                                                {/* Que origem esta linha semeia.
+                                                    É o que separa duas linhas do
+                                                    mesmo canal: o número da V4 e o
+                                                    do Nando são os dois WhatsApp, e
+                                                    quem trouxe o paciente é o número
+                                                    para onde o anúncio mandou. Só
+                                                    aparece quando há origens
+                                                    cadastradas — sem lista, o seletor
+                                                    não oferece nada. */}
+                                                {origins.length > 0 ? (
+                                                    <Select
+                                                        value={line.defaultOriginId ?? 'none'}
+                                                        onValueChange={(v) =>
+                                                            void ajustar(line, {
+                                                                defaultOriginId: v === 'none' ? null : v,
+                                                            })
+                                                        }
+                                                    >
+                                                        <SelectTrigger
+                                                            aria-label={`Origem semeada por ${nomeDaLinha(line)}`}
+                                                            className="h-8 w-[10.5rem] text-xs"
+                                                        >
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="none">Sem origem</SelectItem>
+                                                            {origins.map((o) => (
+                                                                <SelectItem key={o.id} value={o.id}>
+                                                                    {o.name}
                                                                 </SelectItem>
                                                             ))}
                                                         </SelectContent>

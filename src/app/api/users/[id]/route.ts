@@ -8,7 +8,7 @@ const updateUserSchema = z.object({
     name: z.string().min(1).optional(),
     lastName: z.string().optional(),
     phone: z.string().optional(),
-    departmentId: z.string().optional().nullable(),
+    departmentIds: z.array(z.string()).optional(),
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']).optional(),
     canTransfer: z.boolean().optional(),
     isActive: z.boolean().optional(),
@@ -57,11 +57,8 @@ export async function GET(
                         avatar: true,
                     }
                 },
-                department: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
+                departments: {
+                    select: { department: { select: { id: true, name: true } } },
                 }
             }
         })
@@ -79,8 +76,7 @@ export async function GET(
             phone: workspaceUser.user.phone,
             avatar: workspaceUser.user.avatar,
             role: workspaceUser.role,
-            departmentId: workspaceUser.departmentId,
-            departmentName: workspaceUser.department?.name,
+            departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
             isActive: workspaceUser.isActive,
             createdAt: workspaceUser.createdAt,
@@ -198,9 +194,28 @@ export async function PATCH(
             where: { id },
             data: {
                 role: validatedData.role,
-                departmentId: validatedData.departmentId,
                 canTransfer: validatedData.canTransfer,
                 isActive: validatedData.isActive,
+                // A lista vem inteira ou não vem: `deleteMany` + `create` é o
+                // que faz tirar alguém de um departamento funcionar. Ausente no
+                // corpo, os departamentos ficam como estão — um PATCH que só
+                // muda o telefone não pode zerar o acesso às filas.
+                ...(validatedData.departmentIds
+                    ? {
+                        departments: {
+                            deleteMany: {},
+                            create: (
+                                await prisma.department.findMany({
+                                    where: {
+                                        id: { in: validatedData.departmentIds },
+                                        workspaceId: currentWorkspaceUser.workspaceId,
+                                    },
+                                    select: { id: true },
+                                })
+                            ).map((d) => ({ departmentId: d.id })),
+                        },
+                    }
+                    : {}),
             },
             include: {
                 user: {
@@ -212,11 +227,8 @@ export async function PATCH(
                         phone: true,
                     }
                 },
-                department: {
-                    select: {
-                        id: true,
-                        name: true,
-                    }
+                departments: {
+                    select: { department: { select: { id: true, name: true } } },
                 }
             }
         })
@@ -231,8 +243,7 @@ export async function PATCH(
             email: workspaceUser.user.email,
             phone: workspaceUser.user.phone,
             role: workspaceUser.role,
-            departmentId: workspaceUser.departmentId,
-            departmentName: workspaceUser.department?.name,
+            departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
             isActive: workspaceUser.isActive,
             isFirstAdmin: isFoundingMember,

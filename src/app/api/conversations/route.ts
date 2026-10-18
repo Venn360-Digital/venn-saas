@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
                 userId: true,
                 canTransfer: true,
                 role: true,
-                departmentId: true,
+                departments: { select: { departmentId: true } },
             }
         })
 
@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
         const onlyMine = searchParams.get('onlyMine') === 'true'
         /** Por qual linha de WhatsApp — vazio ou "all" para todas. */
         const line = searchParams.get('line') || ''
+        /** Por qual agente — vazio ou "all" para todos. */
+        const agent = searchParams.get('agent') || ''
 
         const isAtendente = workspaceUser.role === 'ATENDENTE'
 
@@ -55,18 +57,20 @@ export async function GET(request: NextRequest) {
          * recorte nenhum.
          *
          * O recorte é a linha: ela pertence a um departamento, e o atendente vê
-         * a fila do departamento dele. Fica de fora do recorte o que não é de
-         * ninguém em particular — conversa sem linha e linha sem departamento
-         * são a fila geral da clínica, e some do mapa se forem escondidas.
+         * as filas dos departamentos dele. Fica de fora do recorte o que não é
+         * de ninguém em particular — conversa sem linha e linha sem
+         * departamento são a fila geral da clínica, e some do mapa se forem
+         * escondidas.
          *
          * Gestão (dono, administrador, gestor) vê tudo: é o mesmo critério de
-         * `OVERSIGHT_ROLES` no resto do sistema. E atendente **sem**
-         * departamento também vê tudo — numa clínica que não usa departamentos,
-         * nada aqui muda.
+         * `OVERSIGHT_ROLES` no resto do sistema. Clínica que não usa
+         * departamentos não sente nada — ver `conversationScope`, onde a
+         * fórmula se neutraliza sozinha.
          */
+        const departmentIds = workspaceUser.departments.map((d) => d.departmentId)
         const departmentScope = conversationScope({
             role: workspaceUser.role as WorkspaceRole,
-            departmentId: workspaceUser.departmentId,
+            departmentIds,
         })
 
         // Build filter based on tab
@@ -109,6 +113,22 @@ export async function GET(request: NextRequest) {
          */
         if (line && line !== 'all') {
             where.integrationId = line === 'none' ? null : line
+        }
+
+        /**
+         * O recorte por agente.
+         *
+         * Não é uma segunda parede, é um filtro: a parede é o departamento da
+         * linha, e um agente pode atender linhas de departamentos diferentes.
+         * Quem precisa de "esta atendente só vê o bot da Ortodontia" dá um
+         * departamento próprio à linha daquele bot — um conceito, um muro.
+         *
+         * Serve a quem tem um agente em várias linhas: filtrar por ele é
+         * pegar as filas todas dele de uma vez, o que o seletor de linha não
+         * faz.
+         */
+        if (agent && agent !== 'all') {
+            where.agentId = agent === 'none' ? null : agent
         }
 
         // Espalhado e não atribuído: o recorte vem como `AND`, e a busca abaixo
@@ -280,14 +300,32 @@ export async function GET(request: NextRequest) {
                 // fios dele, e um seletor que não os oferece esconde metade
                 // da operação de quem quer filtrar por linha.
                 channel: { in: [...WHATSAPP_CHANNELS, 'instagram'] },
-                // O seletor só oferece as linhas que esta pessoa pode ver.
-                ...(workspaceUser.departmentId && departmentScope.AND
-                    ? { OR: [{ departmentId: workspaceUser.departmentId }, { departmentId: null }] }
+                // O seletor só oferece as linhas que esta pessoa pode ver — a
+                // mesma regra do recorte acima, para que o filtro não ofereça
+                // uma fila que a lista não mostra.
+                ...(departmentScope.AND
+                    ? { OR: [{ departmentId: { in: departmentIds } }, { departmentId: null }] }
                     : {}),
             },
             orderBy: { createdAt: 'asc' },
-            select: { id: true, label: true, phoneNumber: true, config: true, agent: { select: { name: true } } },
+            select: {
+                id: true,
+                label: true,
+                phoneNumber: true,
+                config: true,
+                agent: { select: { id: true, name: true } },
+            },
         })
+
+        /**
+         * Os agentes do seletor, tirados das linhas que esta pessoa pode ver.
+         *
+         * Não é a lista de agentes do workspace: oferecer um agente cujas
+         * linhas são todas de outro departamento é oferecer um filtro que só
+         * devolve lista vazia.
+         */
+        const agents = [...new Map(lines.map((l) => [l.agent.id, l.agent])).values()]
+            .sort((a, b) => a.name.localeCompare(b.name))
 
         return NextResponse.json({
             conversations: result,
@@ -297,6 +335,7 @@ export async function GET(request: NextRequest) {
                 phoneNumber: l.phoneNumber ?? phoneFromConfig(l.config),
                 agentName: l.agent.name,
             })),
+            agents,
             counts: {
                 waiting,
                 active,

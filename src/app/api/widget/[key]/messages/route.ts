@@ -118,7 +118,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             data: {
                 workspaceId,
                 name: body.name?.trim().slice(0, 80) || null,
-                source: 'site',
+                // O visitante escreveu primeiro — é isso que `inbound` diz. De
+                // onde ele veio, o navegador não conta: quem sabe é a linha,
+                // quando a clínica disse a ela qual anúncio aponta para o site.
+                createdVia: 'inbound',
+                originId: integracao.defaultOriginId,
             },
         })
         conversa = await prisma.conversation.create({

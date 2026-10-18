@@ -6,7 +6,7 @@ este documento e a implementação, **o documento está certo e o código é o b
 O sistema visual mora em [`DESIGN.md`](DESIGN.md). Aqui ficam as regras de
 negócio: avaliação, planos, créditos, limites e retenção.
 
-Última revisão: 7 de outubro de 2026.
+Última revisão: 17 de outubro de 2026.
 
 ---
 
@@ -288,7 +288,126 @@ capaz.
 
 ---
 
-## 10. O que ainda não existe
+## 10. Canal, Origem e Mídia
+
+Três coisas que o sistema chamava de duas, e que não se substituem.
+
+**Canal** é por onde a mensagem transita: `whatsapp_qr`, `whatsapp_business`,
+`instagram`, `site`. É fato técnico — o sistema grava sozinho, ninguém digita, e
+**não serve para medir marketing**. Serve para responder ao paciente pela via
+certa e para decidir quem vê a conversa.
+
+**Linha** é a conta concreta daquele canal: um número, um perfil, uma chave de
+widget. Cada linha tem um agente e, opcionalmente, um departamento — é o átomo
+do sistema, e tudo que é visibilidade sobe por ela.
+
+**Origem** é o que fez o paciente escrever: Facebook, indicação, fachada, a
+agência que trouxe o lead. **Nenhum canal entrega esse dado** — o WhatsApp não
+conta de onde a pessoa veio. Logo, origem só chega de duas formas:
+
+1. **Semeada pela linha.** `AgentIntegration.defaultOriginId`. É o que separa
+   duas linhas do mesmo canal: o WhatsApp QR da V4 e o do Nando são os dois
+   `whatsapp_qr`, e quem trouxe o paciente é o número para onde o anúncio
+   mandou. A ficha nova nasce com a origem da linha, sem ninguém digitar.
+2. **Informada por quem atende**, na ficha do paciente ou do negócio.
+
+**Mídia** é o detalhe da origem: qual campanha, qual peça. Era rotulada "Canal"
+no Negócio, que é de onde vinha a confusão — a mesma palavra para transporte e
+para marketing.
+
+### As regras
+
+- **Uma lista de origem só** (`origins`), usada pela ficha do paciente, pelo
+  negócio e pela linha. Eram duas listas com o mesmo nome e nenhuma relação.
+- **A origem não se reescreve.** A linha semeia apenas ficha nova: paciente que
+  volta por outro anúncio mantém a origem com que entrou. Quem corrige é uma
+  pessoa, na ficha.
+- **Origem em branco é resposta válida** — significa "não sabemos". Obrigar a
+  escolher produz "Manual" em toda ficha, que é o mesmo que não ter o campo.
+- **O negócio herda a origem do paciente** quando nasce da primeira mensagem, e
+  pode ser corrigido depois sem mexer na ficha.
+- **A palavra "Canal" não aparece em tela de marketing.** Em Negócios e no
+  painel da conversa, o campo é "Mídia".
+- **Como a ficha nasceu é outro campo** (`createdVia`: `manual`, `import`,
+  `ligacao`, `inbound`), e não divide espaço com origem. É o que responde "quem
+  digitou isto?", não "o que trouxe este paciente?".
+
+### Um nível, não três
+
+Origem é uma lista plana. "Facebook › V4 › Campanha Implante Set/26" é
+hierarquia, e hierarquia aqui é uma coluna `parentId` nula a mais no dia em que
+a clínica precisar comparar canal de aquisição entre unidades — **não antes**.
+Enquanto um nível basta, a linha semeia "V4" e o relatório fecha.
+
+---
+
+## 11. Quem vê qual conversa
+
+Dois eixos, e **só** dois.
+
+**O papel** decide entre o próprio trabalho e o de todos. Dono, administrador e
+gestor veem tudo; atendente vê a conversa atribuída a ele. Não há ajuste por
+pessoa para isso — o papel é o ajuste.
+
+**O departamento da linha** decide de quais filas em espera ele pode puxar
+trabalho. A linha pertence a um departamento, a pessoa pertence a N
+departamentos, e é isso que define o que ela alcança.
+
+### As regras
+
+- **A lista de departamentos da pessoa é o único botão da visibilidade.** Não
+  existe um terceiro ajuste em lugar nenhum. Tirar alguém de um departamento é
+  como se tira o acesso àquela fila.
+- **Uma pessoa pode ser de vários departamentos.** É o que permite a atendente
+  da Recepção cobrir a fila do Comercial hoje sem ser mudada de departamento e
+  ter de ser mudada de volta na segunda.
+- **Não existe parâmetro de "usar departamentos".** A lista de departamentos da
+  clínica é o botão: sem nenhum, a fórmula do recorte casa com todas as
+  conversas e não recorta nada; apagar o último derruba o muro. Um interruptor
+  à parte criaria um estado em que o dado diz uma coisa e o comportamento diz
+  outra.
+- **Fecha em vez de abrir.** Atendente sem departamento numa clínica que *tem*
+  departamentos vê a fila geral, não tudo. O contrário erra para o lado que não
+  dá sintoma: ninguém reclama de ver demais.
+- **A fila geral é de todos, sempre**: linha sem departamento e conversa sem
+  linha não são de ninguém em particular, e esconder isso faria trabalho
+  desaparecer do mapa.
+- **Agente é filtro, não parede.** Um agente pode atender linhas de
+  departamentos diferentes; quem precisa de "esta atendente só vê o bot da
+  Ortodontia" dá um departamento próprio à linha daquele bot. Um conceito, um
+  muro.
+- **Onde a clínica não usa departamentos, nada de departamento aparece**: o
+  campo na ficha do usuário, a coluna na lista e a opção na regra do agente
+  somem. O **menu** Departamentos fica — é onde a função se descobre, como
+  Especialistas e Etiquetas.
+- **O que o atendente sem departamento perde é invisível**, então a tela de
+  Usuários diz quantos estão assim.
+
+### Negócios e Pacientes
+
+**Todo negócio tem dono.** No cadastro pelo menu o responsável é **obrigatório**
+— se é um negócio, alguém cuida dele. No negócio que nasce da primeira mensagem
+o dono é quem assume a conversa. A coluna continua aceitando nulo por causa de
+uma janela só: entre a mensagem chegar e alguém assumir.
+
+Nessa janela, **negócio sem dono é lead não assumido** e aparece para quem pode
+assumi-lo — o recorte passa pela conversa do paciente, com a mesma regra de
+fila. Fora dela, atendente vê o negócio que é dele.
+
+**Paciente não tem dono, e não vai ter.** Um quarto campo de responsável seria
+um quarto lugar para dessincronizar. O recorte é derivado: é dele o paciente de
+quem ele cuida o negócio, com quem está conversando, ou que escreveu para uma
+fila dele. Consequência aceita: paciente cadastrado pela gestão que nunca
+escreveu e não tem negócio de ninguém é invisível para o atendente — a mesma
+regra da atividade sem responsável.
+
+**O recorte vale na ficha e na exportação**, não só na lista: esconder da lista
+não é autorização, e um CSV que devolve o que a tela esconde é a mesma falha com
+outro nome.
+
+---
+
+## 12. O que ainda não existe
 
 Registrado para não ser esquecido:
 

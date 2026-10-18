@@ -143,8 +143,17 @@ export class RuleExecutor {
         }
 
         if (params.departmentId) {
+            // Quem é **daquele** departamento, agora que uma pessoa pode ser de
+            // vários: o filtro passa pela tabela de junção em vez de comparar
+            // uma coluna. O mais antigo do departamento continua sendo a
+            // escolha — é o critério que já valia, e trocá-lo mudaria para
+            // quem as regras existentes atribuem.
             const member = await prisma.workspaceUser.findFirst({
-                where: { workspaceId, departmentId: String(params.departmentId), isActive: true },
+                where: {
+                    workspaceId,
+                    isActive: true,
+                    departments: { some: { departmentId: String(params.departmentId) } },
+                },
                 select: { userId: true },
                 orderBy: { createdAt: 'asc' },
             })

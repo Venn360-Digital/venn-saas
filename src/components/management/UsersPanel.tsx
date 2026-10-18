@@ -26,8 +26,7 @@ interface WorkspaceUser {
     phone: string | null
     avatar: string | null
     role: string
-    departmentId: string | null
-    departmentName: string | null
+    departments: { id: string; name: string }[]
     canTransfer: boolean
     isActive: boolean
     isFirstAdmin: boolean
@@ -60,6 +59,7 @@ export interface UsersPanelHandle {
 
 export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPanel(_props, ref) {
     const [users, setUsers] = useState<WorkspaceUser[]>([])
+    const [semDepartamento, setSemDepartamento] = useState(0)
     const [departments, setDepartments] = useState<Department[]>([])
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -94,6 +94,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
             if (response.ok) {
                 const data = await response.json()
                 setUsers(data.data ?? data)
+                setSemDepartamento(Number(data.semDepartamento) || 0)
             }
         } catch (error) {
             console.error('[USUARIOS] load', error)
@@ -175,14 +176,21 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
             hideBelow: 'lg',
             cell: (u) => <span className="text-muted-foreground">{u.email}</span>,
         },
-        {
-            id: 'department',
-            header: 'Departamento',
-            sortable: true,
-            sortValue: (u) => u.departmentName ?? '',
-            hideBelow: 'md',
-            cell: (u) => u.departmentName ?? <span className="text-muted-foreground">—</span>,
-        },
+        // A coluna só existe se a clínica usa departamentos: vazia em toda
+        // linha, ela gasta largura para não dizer nada.
+        ...(departments.length > 0
+            ? [{
+                id: 'department',
+                header: 'Departamentos',
+                sortable: true,
+                sortValue: (u: WorkspaceUser) => u.departments.map((d) => d.name).sort().join(', '),
+                hideBelow: 'md' as const,
+                cell: (u: WorkspaceUser) =>
+                    u.departments.length > 0
+                        ? u.departments.map((d) => d.name).join(', ')
+                        : <span className="text-muted-foreground">—</span>,
+            }]
+            : []),
         {
             id: 'role',
             header: 'Função',
@@ -210,6 +218,21 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                     {/* Sem linha de busca: a equipe de uma clínica cabe numa
                         tela, e procurar vinte nomes custa mais que lê-los. */}
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        {/*
+                          * O aviso que torna visível o que é invisível por
+                          * natureza: atendente sem departamento vê só a fila
+                          * geral, e quem vê de menos por engano não aparece
+                          * reclamando — quem vê de mais é que não reclamava.
+                          * Só faz sentido quando a clínica usa departamentos.
+                          */}
+                        {departments.length > 0 && semDepartamento > 0 ? (
+                            <p className="border-b bg-warning-subtle px-3 py-2 text-xs text-warning-subtle-foreground">
+                                {semDepartamento === 1
+                                    ? '1 atendente está sem departamento e vê só a fila geral.'
+                                    : `${semDepartamento} atendentes estão sem departamento e veem só a fila geral.`}
+                                {' '}Abra a ficha para dar acesso às filas.
+                            </p>
+                        ) : null}
                         <DataTable
                             frame
                             selectable

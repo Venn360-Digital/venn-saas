@@ -116,10 +116,11 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
         previousClosedDeals,
         stageEntries,
         heatmap,
-        contactsBySource,
-        previousContactsBySource,
+        contactsByOrigin,
+        previousContactsByOrigin,
         lostByReason,
         reasons,
+        origins,
         activityRows,
         wonByUser,
         lostByUser,
@@ -177,8 +178,12 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
         `,
 
         // 4 — pacientes novos por origem, agora e antes.
+        //
+        // Por `originId`, não mais pela coluna que misturava canal com origem:
+        // este gráfico respondia "WhatsApp: 340", que é por onde os pacientes
+        // escrevem e não diz nada sobre o que os trouxe.
         prisma.contact.groupBy({
-            by: ['source'],
+            by: ['originId'],
             where: {
                 workspaceId,
                 ...contactOwner,
@@ -188,7 +193,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
         }),
         window
             ? prisma.contact.groupBy({
-                by: ['source'],
+                by: ['originId'],
                 where: {
                     workspaceId,
                     ...contactOwner,
@@ -213,6 +218,12 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
         prisma.dealOutcomeReason.findMany({
             where: { workspaceId },
             select: { id: true, name: true, kind: true },
+        }),
+        // O nome de cada origem. `groupBy` não traz relação, então o de-para
+        // vem numa consulta à parte — o mesmo arranjo dos motivos acima.
+        prisma.origin.findMany({
+            where: { workspaceId },
+            select: { id: true, name: true },
         }),
 
         // 6 — atividades criadas e concluídas.
@@ -365,14 +376,17 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
     const heatmapMax = Math.max(0, ...grid.flat())
 
     // ── 4. Origem ──────────────────────────────────────────────────────────
-    const previousBySource = new Map(
-        previousContactsBySource.map((row) => [row.source ?? '', row._count._all])
+    const originName = new Map(origins.map((o) => [o.id, o.name]))
+    const previousByOrigin = new Map(
+        previousContactsByOrigin.map((row) => [row.originId ?? '', row._count._all])
     )
-    const sources = contactsBySource
+    const sources = contactsByOrigin
         .map((row) => ({
-            source: row.source || 'Sem origem',
+            // Ficha sem origem é a maioria no começo, e dizer isso é o ponto:
+            // é o buraco de atribuição que a clínica tem para fechar.
+            source: row.originId ? (originName.get(row.originId) ?? 'Origem removida') : 'Sem origem',
             count: row._count._all,
-            delta: window ? row._count._all - (previousBySource.get(row.source ?? '') ?? 0) : null,
+            delta: window ? row._count._all - (previousByOrigin.get(row.originId ?? '') ?? 0) : null,
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 6)

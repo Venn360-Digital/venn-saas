@@ -144,7 +144,7 @@ async function handleCommit(
                     email: c.email || null,
                     phone,
                     notes: c.notes || null,
-                    source: 'import',
+                    createdVia: 'import',
                 },
             })
             created++

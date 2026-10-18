@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
                         owner: {
                             select: { id: true, name: true, email: true, avatar: true }
                         },
-                        agency: {
+                        origin: {
                             select: { id: true, name: true }
                         },
                         media: {

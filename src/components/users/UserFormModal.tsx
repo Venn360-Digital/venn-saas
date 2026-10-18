@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -30,7 +31,7 @@ interface WorkspaceUser {
     email: string
     phone: string | null
     role: string
-    departmentId: string | null
+    departments: { id: string; name: string }[]
     canTransfer: boolean
     isActive: boolean
     isFirstAdmin?: boolean
@@ -57,7 +58,7 @@ const EMPTY_FORM = {
     email: '',
     password: '',
     phone: '',
-    departmentId: '',
+    departmentIds: [] as string[],
     role: 'GESTOR' as Role,
     canTransfer: false,
     isActive: true,
@@ -98,7 +99,7 @@ export function UserFormModal({
                 email: user.email || '',
                 password: '',
                 phone: user.phone ?? '',
-                departmentId: user.departmentId || '',
+                departmentIds: user.departments.map((d) => d.id),
                 role: (user.role === 'ADMIN' || user.role === 'OWNER'
                     ? 'ADMIN'
                     : user.role === 'ATENDENTE'
@@ -131,7 +132,7 @@ export function UserFormModal({
                 name: formData.name,
                 lastName: formData.lastName,
                 phone: formData.phone,
-                departmentId: formData.departmentId || null,
+                departmentIds: formData.departmentIds,
                 role: formData.role,
                 canTransfer: formData.canTransfer,
                 isActive: formData.isActive,
@@ -174,7 +175,7 @@ export function UserFormModal({
     }
 
     const roleInfo = ROLES.find((r) => r.value === formData.role)
-    const deptName = departments.find((d) => d.id === formData.departmentId)?.name
+    const deptNames = departments.filter((d) => formData.departmentIds.includes(d.id)).map((d) => d.name)
     const fullName = `${formData.name} ${formData.lastName}`.trim()
 
     return (
@@ -200,7 +201,7 @@ export function UserFormModal({
                     </SummaryCard>
                     <div className="flex flex-wrap items-center gap-1.5">
                         <StatusBadge value={formData.role} map={WORKSPACE_ROLE} />
-                        {deptName ? <span className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{deptName}</span> : null}
+                        {deptNames.map((nome) => <span key={nome} className="inline-flex h-[22px] items-center rounded-full bg-muted px-2 text-[11px] text-muted-foreground">{nome}</span>)}
                         {!formData.isActive ? <span className="text-[11px] text-muted-foreground">Inativo</span> : null}
                     </div>
                     {roleInfo ? <p className="text-[11px] leading-relaxed text-muted-foreground">{roleInfo.label}: {roleInfo.description.toLowerCase()}</p> : null}
@@ -262,22 +263,37 @@ export function UserFormModal({
                 />
             </FormField>
 
-            <FormField label="Departamento" htmlFor="user-department">
-                <Select
-                    value={formData.departmentId || 'none'}
-                    onValueChange={(v) => setFormData({ ...formData, departmentId: v === 'none' ? '' : v })}
+            {/*
+              * Caixas, e nenhuma quando a clínica não tem departamentos: um
+              * campo cuja única opção é "sem departamento" ocupa uma linha do
+              * formulário para não decidir nada.
+              */}
+            {departments.length > 0 ? (
+                <FormField
+                    label="Departamentos"
+                    hint="As filas que esta pessoa vê. Nenhuma marcada, ela vê só a fila geral."
                 >
-                    <SelectTrigger id="user-department" className="w-full">
-                        <SelectValue placeholder="Sem departamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">Sem departamento</SelectItem>
+                    <div className="flex flex-col gap-1.5 pt-1">
                         {departments.map((d) => (
-                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                            <label key={d.id} className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                    checked={formData.departmentIds.includes(d.id)}
+                                    aria-label={d.name}
+                                    onCheckedChange={(marcado) =>
+                                        setFormData({
+                                            ...formData,
+                                            departmentIds: marcado
+                                                ? [...formData.departmentIds, d.id]
+                                                : formData.departmentIds.filter((x) => x !== d.id),
+                                        })
+                                    }
+                                />
+                                {d.name}
+                            </label>
                         ))}
-                    </SelectContent>
-                </Select>
-            </FormField>
+                    </div>
+                </FormField>
+            ) : null}
 
             <div className="col-span-2 space-y-2">
                 <Label>

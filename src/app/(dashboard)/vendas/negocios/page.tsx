@@ -153,7 +153,7 @@ interface Deal {
     closedValue: number | null
     contact: Contact | null
     owner: DealOwner | null
-    agency: LookupItem | null
+    origin: LookupItem | null
     media: LookupItem | null
     notes: string | null
     /** Vem incluída pela rota de listagem; é o que pinta o selo de etapa. */
@@ -598,7 +598,7 @@ export default function NegociosPage() {
 
     // Lookup data
     const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([])
-    const [agencies, setAgencies] = useState<LookupItem[]>([])
+    const [origins, setOrigins] = useState<LookupItem[]>([])
     const [medias, setMedias] = useState<LookupItem[]>([])
 
     // Delete dialog
@@ -743,13 +743,13 @@ export default function NegociosPage() {
 
 
     const loadLookups = useCallback(async () => {
-        const [membersRes, agenciesRes, mediasRes] = await Promise.all([
+        const [membersRes, originsRes, mediasRes] = await Promise.all([
             fetch('/api/workspace/members'),
-            fetch('/api/agencies'),
+            fetch('/api/origins'),
             fetch('/api/medias'),
         ])
         if (membersRes.ok) setWorkspaceMembers(await membersRes.json())
-        if (agenciesRes.ok) setAgencies(await agenciesRes.json())
+        if (originsRes.ok) setOrigins(await originsRes.json())
         if (mediasRes.ok) setMedias(await mediasRes.json())
     }, [])
 
@@ -821,8 +821,8 @@ export default function NegociosPage() {
             deal: selectedDeal,
             stages: stages.map((st) => ({ id: st.id, name: st.name, color: st.color })),
             members: workspaceMembers.map((m) => ({ userId: m.userId, name: m.name })),
-            origins: agencies,
-            channels: medias,
+            origins,
+            medias,
             onPatch: (data: Record<string, unknown>) => patchDeal(selectedDeal.id, data),
             onChanged: reloadAll,
             // O trilho segue o negócio: mudou de fase pela jornada, a coluna
@@ -1011,23 +1011,6 @@ export default function NegociosPage() {
             await fetch(`/api/deals/${deal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stageId }) })
             void loadLanes()
         } catch { toast.error('Erro ao mover negócio'); loadPipeline() }
-    }
-
-    // ─── Create agency/media ────────────────────────────────────────
-    const createAgency = async (name: string): Promise<LookupItem | null> => {
-        try {
-            const res = await fetch('/api/agencies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
-            if (res.ok) { const item = await res.json(); setAgencies(prev => [...prev, item].sort((a, b) => a.name.localeCompare(b.name))); return item }
-            const err = await res.json(); toast.error(err.error); return null
-        } catch { toast.error('Erro ao criar origem'); return null }
-    }
-
-    const createMedia = async (name: string): Promise<LookupItem | null> => {
-        try {
-            const res = await fetch('/api/medias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
-            if (res.ok) { const item = await res.json(); setMedias(prev => [...prev, item].sort((a, b) => a.name.localeCompare(b.name))); return item }
-            const err = await res.json(); toast.error(err.error); return null
-        } catch { toast.error('Erro ao criar canal'); return null }
     }
 
     // ─── Drag & Drop ────────────────────────────────────────────────

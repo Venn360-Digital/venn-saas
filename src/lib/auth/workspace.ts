@@ -54,7 +54,12 @@ export interface WorkspaceMember {
     userId: string
     workspaceId: string
     role: WorkspaceRole
-    departmentId: string | null
+    /**
+     * De quais departamentos esta pessoa é. Vazio é legítimo: clínica que não
+     * usa departamentos tem todo mundo assim, e nesse caso o recorte de
+     * conversa não recorta nada — ver `conversationScope`.
+     */
+    departmentIds: string[]
     canTransfer: boolean
 }
 
@@ -87,8 +92,8 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             userId: true,
             workspaceId: true,
             role: true,
-            departmentId: true,
             canTransfer: true,
+            departments: { select: { departmentId: true } },
         },
     })
 
@@ -104,7 +109,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             userId: membership.userId,
             workspaceId: membership.workspaceId,
             role: membership.role as WorkspaceRole,
-            departmentId: membership.departmentId,
+            departmentIds: membership.departments.map((d) => d.departmentId),
             canTransfer: membership.canTransfer,
         },
     }
@@ -130,20 +135,29 @@ export async function requireRole(roles: WorkspaceRole[]): Promise<AuthResult> {
  * Quais conversas este membro pode ver, por departamento.
  *
  * O recorte é a **linha** por onde a conversa entrou: ela pertence a um
- * departamento, e quem não é gestão vê a fila do departamento dele. Fica sempre
- * dentro do recorte o que não é de ninguém em particular — conversa sem linha e
- * linha sem departamento são a fila geral da clínica.
+ * departamento, e quem não é gestão vê as filas dos departamentos dele. Fica
+ * sempre dentro do recorte o que não é de ninguém em particular — conversa sem
+ * linha e linha sem departamento são a fila geral da clínica.
  *
- * Devolve `null` para "sem recorte", que é o caso da gestão e também o de um
- * atendente sem departamento: numa clínica que não usa departamentos, nada muda.
+ * **Não existe parâmetro para ligar ou desligar isto.** A lista de
+ * departamentos da clínica é o botão, e a fórmula se neutraliza sozinha: numa
+ * clínica sem departamento nenhum, toda linha tem `departmentId` nulo, então
+ * `linha sem departamento OR sem linha` casa com todas as conversas e o recorte
+ * não recorta nada. Nada muda para quem não usa a função.
+ *
+ * E **fecha em vez de abrir**: atendente sem departamento numa clínica que *tem*
+ * departamentos cai no `in []`, que não casa com nada, e sobra para ele a fila
+ * geral. Antes esse caso devolvia "vê tudo" — e errar para o lado de mostrar
+ * demais não dá sintoma, então ninguém descobria. Ele não fica cego: no instante
+ * em que recebe um departamento, vê a fila dele.
  *
  * Mora aqui, e não na rota da lista, porque esconder uma conversa da lista não é
  * autorização: o id dela na URL abre a conversa inteira.
  */
 export function conversationScope(
-    member: Pick<WorkspaceMember, 'role' | 'departmentId'>
+    member: Pick<WorkspaceMember, 'role' | 'departmentIds'>
 ): Prisma.ConversationWhereInput {
-    if (canSeeEveryone(member.role) || !member.departmentId) return {}
+    if (canSeeEveryone(member.role)) return {}
     return {
         // Em `AND` para poder ser espalhado sobre um `where` que já tenha `OR`
         // — a busca por texto usa `OR`, e as duas condições têm que valer
@@ -151,9 +165,77 @@ export function conversationScope(
         AND: [
             {
                 OR: [
-                    { integration: { departmentId: member.departmentId } },
+                    { integration: { departmentId: { in: member.departmentIds } } },
                     { integration: { departmentId: null } },
                     { integrationId: null },
+                ],
+            },
+        ],
+    }
+}
+
+/**
+ * Quais negócios este membro pode ver.
+ *
+ * O eixo aqui é o **responsável**, não o departamento: negócio não tem linha, e
+ * quem cuida dele é uma pessoa. Atendente vê o que é dele.
+ *
+ * A segunda cláusula é o que tornava este recorte impossível antes: o negócio
+ * que nasce da primeira mensagem do paciente é criado pelo worker **sem dono** —
+ * não há pessoa nenhuma no momento em que a mensagem chega. Recortar só por
+ * `userId` esconderia justamente o lead que acabou de entrar, que é a maioria.
+ *
+ * Então negócio sem dono é lead não assumido, e aparece para quem pode assumir:
+ * o recorte passa pela conversa do paciente, com a mesma regra de fila. O que
+ * fecha essa janela é o dono chegar — ao assumir a conversa, ao cadastrar pelo
+ * menu (onde o responsável é obrigatório) ou ao abrir o negócio pelo chat.
+ */
+export function dealScope(
+    member: Pick<WorkspaceMember, 'role' | 'userId' | 'departmentIds'>
+): Prisma.DealWhereInput {
+    if (canSeeEveryone(member.role)) return {}
+    return {
+        AND: [
+            {
+                OR: [
+                    { userId: member.userId },
+                    {
+                        userId: null,
+                        contact: { conversations: { some: conversationScope(member) } },
+                    },
+                ],
+            },
+        ],
+    }
+}
+
+/**
+ * Quais pacientes este membro pode ver.
+ *
+ * Paciente não tem dono — e não vai ter: um quarto campo de responsável seria um
+ * quarto lugar para dessincronizar. Então o recorte é **derivado**: é dele o
+ * paciente de quem ele cuida o negócio, ou com quem ele está conversando, ou que
+ * escreveu para uma fila que é dele.
+ *
+ * A consequência, que é decisão e não falha: paciente cadastrado pela gestão que
+ * nunca escreveu e não tem negócio de ninguém fica invisível para o atendente —
+ * a mesma regra que já vale para atividade sem responsável.
+ *
+ * As duas primeiras cláusulas não se somam por engano: conversa transferida para
+ * ele pode vir de uma linha de departamento que não é dele, e aí a terceira não
+ * a alcança.
+ */
+export function contactScope(
+    member: Pick<WorkspaceMember, 'role' | 'userId' | 'departmentIds'>
+): Prisma.ContactWhereInput {
+    if (canSeeEveryone(member.role)) return {}
+    return {
+        AND: [
+            {
+                OR: [
+                    { deals: { some: { userId: member.userId } } },
+                    { conversations: { some: { assignedTo: member.userId } } },
+                    { conversations: { some: conversationScope(member) } },
                 ],
             },
         ],

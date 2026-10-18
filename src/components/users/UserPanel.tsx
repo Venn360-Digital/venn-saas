@@ -1,6 +1,7 @@
 'use client'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { InlineField } from '@/components/shared/InlineField'
@@ -16,8 +17,8 @@ export interface UserPanelItem {
     phone: string | null
     avatar: string | null
     role: string
-    departmentId: string | null
-    departmentName: string | null
+    /** De quais departamentos ele é — as filas que ele pode ver. */
+    departments: { id: string; name: string }[]
     canTransfer: boolean
     isActive: boolean
     isFirstAdmin: boolean
@@ -117,27 +118,49 @@ export function UserPanel({
             </PanelSection>
 
             <PanelSection title="Acesso">
-                <PanelField label="Departamento" saved={saved === 'departmentId'}>
-                    <Select
-                        value={u.departmentId ?? 'none'}
-                        disabled={!canEdit}
-                        onValueChange={(v) => {
-                            const departmentId = v === 'none' ? null : v
-                            const departmentName = departments.find((d) => d.id === departmentId)?.name ?? null
-                            void save('departmentId', { departmentId, departmentName })
-                        }}
-                    >
-                        <SelectTrigger size="sm" className="w-full" aria-label="Departamento">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">Sem departamento</SelectItem>
-                            {departments.map((d) => (
-                                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </PanelField>
+                {/*
+                  * Caixas, não um seletor: a pessoa pode ser de vários, e a
+                  * lista inteira à vista é o que deixa óbvio quais filas ela
+                  * alcança. Some quando a clínica não tem departamento nenhum —
+                  * um campo que só oferece "nenhum" não decide nada.
+                  */}
+                {departments.length > 0 ? (
+                    <PanelField label="Departamentos" saved={saved === 'departments'}>
+                        <div className="flex flex-col gap-1.5 py-1">
+                            {departments.map((d) => {
+                                const marcado = u.departments.some((x) => x.id === d.id)
+                                return (
+                                    <label key={d.id} className="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            checked={marcado}
+                                            disabled={!canEdit}
+                                            aria-label={d.name}
+                                            onCheckedChange={() => {
+                                                const next = marcado
+                                                    ? u.departments.filter((x) => x.id !== d.id)
+                                                    : [...u.departments, { id: d.id, name: d.name }]
+                                                // O painel guarda a lista; o
+                                                // corpo manda só os ids, que é
+                                                // o que a rota grava.
+                                                void save(
+                                                    'departments',
+                                                    { departments: next },
+                                                    { departmentIds: next.map((x) => x.id) }
+                                                )
+                                            }}
+                                        />
+                                        {d.name}
+                                    </label>
+                                )
+                            })}
+                            {u.departments.length === 0 && u.role === 'ATENDENTE' ? (
+                                <p className="text-xs text-muted-foreground">
+                                    Sem departamento, ele vê só a fila geral — linhas sem dono.
+                                </p>
+                            ) : null}
+                        </div>
+                    </PanelField>
+                ) : null}
                 <PanelField label="Função" saved={saved === 'role'}>
                     {isOwner ? (
                         <span className="text-sm text-muted-foreground">Proprietário</span>

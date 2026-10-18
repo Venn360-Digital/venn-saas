@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { User } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -42,7 +42,33 @@ export function NewDealDialog({
     const [titleOverride, setTitleOverride] = useState<string | null>(null)
     const [stageId, setStageId] = useState(defaultStageId ?? stages[0]?.id ?? '')
     const [saving, setSaving] = useState(false)
-    const [errors, setErrors] = useState<{ contact?: string; title?: string }>({})
+    const [errors, setErrors] = useState<{ contact?: string; title?: string; owner?: string }>({})
+
+    /**
+     * De quem é o negócio. Obrigatório: se é um negócio, alguém cuida dele.
+     *
+     * Nasce com quem está cadastrando — é o palpite certo em quase todo caso, e
+     * um campo obrigatório que já vem preenchido não vira obstáculo. Quem
+     * cadastra para outra pessoa troca.
+     */
+    const [ownerId, setOwnerId] = useState('')
+    const [members, setMembers] = useState<{ userId: string; name: string }[]>([])
+
+    useEffect(() => {
+        if (!open) return
+        let cancelled = false
+        Promise.all([
+            fetch('/api/workspace/members').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/me').then((r) => (r.ok ? r.json() : null)),
+        ])
+            .then(([equipe, eu]) => {
+                if (cancelled) return
+                setMembers(Array.isArray(equipe) ? equipe : [])
+                if (eu?.id) setOwnerId((atual) => atual || String(eu.id))
+            })
+            .catch(() => { /* sem lista, o campo cobra a escolha e não inventa dono */ })
+        return () => { cancelled = true }
+    }, [open])
 
     // O mesmo texto que o webhook usa quando o paciente escreve primeiro: dois
     // caminhos criando negócios com títulos diferentes dariam duas convenções.
@@ -73,6 +99,7 @@ export function NewDealDialog({
         const next: typeof errors = {}
         if (!contact) next.contact = 'Escolha o paciente — ou cadastre um novo aqui mesmo.'
         if (!title.trim()) next.title = 'Dê um título ao negócio.'
+        if (!ownerId) next.owner = 'Escolha quem cuida deste negócio.'
         if (Object.keys(next).length) { setErrors(next); return }
         if (!stageId) { toast.error('Escolha a fase'); return }
         setSaving(true)
@@ -84,6 +111,7 @@ export function NewDealDialog({
                     title: title.trim(),
                     stageId,
                     contactId: contact?.id,
+                    userId: ownerId,
                     status: 'open',
                 }),
             })
@@ -151,7 +179,7 @@ export function NewDealDialog({
                         const res = await fetch('/api/contacts', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name, source: 'manual' }),
+                            body: JSON.stringify({ name }),
                         })
                         const data = await res.json().catch(() => ({}))
                         if (!res.ok) {
@@ -171,6 +199,19 @@ export function NewDealDialog({
                     placeholder="Ex: Ortodontia"
                     aria-invalid={errors.title ? true : undefined}
                 />
+            </FormField>
+
+            <FormField label="Responsável" htmlFor="new-deal-owner" required error={errors.owner} hint="Se é um negócio, alguém cuida dele.">
+                <Select value={ownerId} onValueChange={(v) => { setOwnerId(v); if (errors.owner) setErrors((p) => ({ ...p, owner: undefined })) }}>
+                    <SelectTrigger id="new-deal-owner" className="w-full" aria-invalid={errors.owner ? true : undefined}>
+                        <SelectValue placeholder="Escolha o responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {members.map((m) => (
+                            <SelectItem key={m.userId} value={m.userId}>{m.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </FormField>
 
             <FormField label="Fase" htmlFor="new-deal-stage" required>

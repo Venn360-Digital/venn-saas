@@ -264,7 +264,7 @@ interface OpenDeal {
     /** De onde veio o paciente — "Agência" no banco. */
     originId: string | null
     /** Por onde veio — "Mídia" no banco. */
-    channelId: string | null
+    mediaId: string | null
     /** De quem é o negócio. Quem está com a conversa é outra coisa, e é do chip. */
     ownerId: string | null
     ownerName: string | null
@@ -487,7 +487,7 @@ export default function ConversasPage() {
     /** Quem pode ser dono do negócio — carregado uma vez, para o campo da ficha. */
     const [dealOwners, setDealOwners] = useState<{ userId: string; name: string }[]>([])
     const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
-    const [channels, setChannels] = useState<{ id: string; name: string }[]>([])
+    const [medias, setMedias] = useState<{ id: string; name: string }[]>([])
     const [slashIndex, setSlashIndex] = useState(0)
     /** `commands` lista os comandos; `replies` é a segunda página, só respostas. */
     const [slashPage, setSlashPage] = useState<'commands' | 'replies'>('commands')
@@ -509,6 +509,8 @@ export default function ConversasPage() {
     const [sending, setSending] = useState(false)
     const [loading, setLoading] = useState(true)
     const [canTransfer, setCanTransfer] = useState(false)
+    /** Quem sou eu: vira o dono do negócio aberto por aqui. */
+    const [meuId, setMeuId] = useState('')
     const [onlyMine, setOnlyMine] = useState(false)
     /**
      * Qual linha a lista mostra — "all" para todas.
@@ -518,6 +520,8 @@ export default function ConversasPage() {
      * todo as conversas da outra.
      */
     const [lineFilter, setLineFilter] = useState('all')
+    const [agentFilter, setAgentFilter] = useState('all')
+    const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
     const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -739,14 +743,14 @@ export default function ConversasPage() {
     useEffect(() => {
         let cancelled = false
         Promise.all([
-            fetch('/api/agencies').then((r) => (r.ok ? r.json() : [])),
+            fetch('/api/origins').then((r) => (r.ok ? r.json() : [])),
             fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
             fetch('/api/workspace/members').then((r) => (r.ok ? r.json() : [])),
         ])
-            .then(([agencies, medias, members]) => {
+            .then(([origens, midias, members]) => {
                 if (cancelled) return
-                setOrigins(Array.isArray(agencies) ? agencies : [])
-                setChannels(Array.isArray(medias) ? medias : [])
+                setOrigins(Array.isArray(origens) ? origens : [])
+                setMedias(Array.isArray(midias) ? midias : [])
                 setDealOwners(
                     Array.isArray(members)
                         ? members.map((m: { userId: string; name: string }) => ({ userId: m.userId, name: m.name }))
@@ -766,6 +770,7 @@ export default function ConversasPage() {
             if (searchQuery) params.set('search', searchQuery)
             if (onlyMine) params.set('onlyMine', 'true')
             if (lineFilter !== 'all') params.set('line', lineFilter)
+            if (agentFilter !== 'all') params.set('agent', agentFilter)
             const res = await fetch(`/api/conversations?${params}`)
             const data = await res.json()
             if (data.conversations && Array.isArray(data.conversations)) {
@@ -778,9 +783,11 @@ export default function ConversasPage() {
 
                 setConversations(data.conversations)
                 if (Array.isArray(data.lines)) setLines(data.lines)
+                if (Array.isArray(data.agents)) setAgents(data.agents)
                 if (data.counts) setQueue(data.counts)
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
+                    setMeuId(String(data.currentUser.id ?? ''))
                 }
             } else if (Array.isArray(data)) {
                 setConversations(data)
@@ -790,7 +797,7 @@ export default function ConversasPage() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab, searchQuery, onlyMine, lineFilter, playNotificationSound])
+    }, [activeTab, searchQuery, onlyMine, lineFilter, agentFilter, playNotificationSound])
 
     // Fetch conversation messages (initial load, limited to 30)
     const fetchMessages = useCallback(async (convId: string) => {
@@ -1512,7 +1519,7 @@ export default function ConversasPage() {
         }
     }
 
-    const setDealLookup = async (field: 'agencyId' | 'mediaId', value: string) => {
+    const setDealLookup = async (field: 'originId' | 'mediaId', value: string) => {
         const deal = conversationDetail?.conversation?.openDeal
         if (!deal) return
         const id = value || null
@@ -1531,7 +1538,7 @@ export default function ConversasPage() {
                               ...prev.conversation,
                               openDeal: {
                                   ...prev.conversation.openDeal,
-                                  ...(field === 'agencyId' ? { originId: id } : { channelId: id }),
+                                  ...(field === 'originId' ? { originId: id } : { mediaId: id }),
                               },
                           },
                       }
@@ -1563,6 +1570,10 @@ export default function ConversasPage() {
                     title: conv.contact.name || conv.contact.phone || 'Novo paciente',
                     stageId: first.id,
                     contactId: conv.contact.id,
+                    // O dono é quem está na conversa: quem já é responsável por
+                    // ela, ou quem está abrindo o negócio. Negócio aberto daqui
+                    // sem dono seria cartão que ninguém persegue.
+                    userId: conv.assignedTo || meuId,
                 }),
             })
             if (!res.ok) throw new Error()
@@ -1953,6 +1964,34 @@ export default function ConversasPage() {
                                         </SelectItem>
                                     ))}
                                     <SelectItem value="none">Sem linha definida</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    ) : null}
+
+                    {/* Por agente, e pelo mesmo critério do de linha: só aparece
+                        com mais de um, porque com um só ele não decide nada.
+                        Filtrar por agente é pegar todas as linhas dele de uma
+                        vez — o que o seletor de linha não faz. */}
+                    {agents.length > 1 ? (
+                        <div className="flex items-center gap-2 px-3 py-2 border-b">
+                            <span className="shrink-0 text-[11px] text-muted-foreground">Agente:</span>
+                            <Select
+                                value={agentFilter}
+                                onValueChange={(v) => { setAgentFilter(v); setLoading(true) }}
+                            >
+                                <SelectTrigger
+                                    aria-label="Filtrar por agente"
+                                    className="h-7 flex-1 text-[11px]"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os agentes</SelectItem>
+                                    {agents.map((a) => (
+                                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                                    ))}
+                                    <SelectItem value="none">Sem agente</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -3110,7 +3149,7 @@ export default function ConversasPage() {
                                                                 <PanelField label="Origem">
                                                                     <Select
                                                                         value={conv.openDeal.originId ?? 'none'}
-                                                                        onValueChange={(v) => void setDealLookup('agencyId', v === 'none' ? '' : v)}
+                                                                        onValueChange={(v) => void setDealLookup('originId', v === 'none' ? '' : v)}
                                                                     >
                                                                         <SelectTrigger size="sm" className="w-full" aria-label="Origem"><SelectValue placeholder="—" /></SelectTrigger>
                                                                         <SelectContent>
@@ -3119,15 +3158,19 @@ export default function ConversasPage() {
                                                                         </SelectContent>
                                                                     </Select>
                                                                 </PanelField>
-                                                                <PanelField label="Canal">
+                                                                {/* "Mídia", não "Canal": o canal desta conversa está no
+                                                                  * cabeçalho dela, é a linha por onde o paciente escreveu,
+                                                                  * e o sistema o sabe sem perguntar. Aqui é o detalhe da
+                                                                  * origem — qual campanha, qual peça. */}
+                                                                <PanelField label="Mídia">
                                                                     <Select
-                                                                        value={conv.openDeal.channelId ?? 'none'}
+                                                                        value={conv.openDeal.mediaId ?? 'none'}
                                                                         onValueChange={(v) => void setDealLookup('mediaId', v === 'none' ? '' : v)}
                                                                     >
-                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Canal"><SelectValue placeholder="—" /></SelectTrigger>
+                                                                        <SelectTrigger size="sm" className="w-full" aria-label="Mídia"><SelectValue placeholder="—" /></SelectTrigger>
                                                                         <SelectContent>
                                                                             <SelectItem value="none">—</SelectItem>
-                                                                            {channels.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                                                            {medias.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
                                                                         </SelectContent>
                                                                     </Select>
                                                                 </PanelField>

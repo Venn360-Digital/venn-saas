@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const name = String(body.name ?? '').trim()
     const callNotes = String(body.callNotes ?? '').trim()
     const originId = body.originId ? String(body.originId) : null
-    const channelId = body.channelId ? String(body.channelId) : null
+    const mediaId = body.mediaId ? String(body.mediaId) : null
 
     const channel = await connectedWhatsApp(workspaceId)
     if (!channel) {
@@ -76,7 +76,11 @@ export async function POST(request: NextRequest) {
                 workspaceId,
                 phone: canonical,
                 name: name || `WhatsApp ${canonical}`,
-                source: mode === 'call' ? 'ligacao' : 'manual',
+                // Quem abre por aqui é a recepção: ou ela ligou, ou ela
+                // digitou. A origem comercial é a que ela escolheu na tela, e
+                // vale para a ficha e para o negócio — é a mesma lista.
+                createdVia: mode === 'call' ? 'ligacao' : 'manual',
+                originId,
                 lastContactAt: new Date(),
             },
         }))
@@ -112,10 +116,9 @@ export async function POST(request: NextRequest) {
                 userId,
                 title: `Novo paciente - ${name || canonical}`,
                 stageId: firstStage.id,
-                source: mode === 'call' ? 'ligacao' : 'whatsapp',
                 status: 'open',
-                agencyId: originId,
-                mediaId: channelId,
+                originId,
+                mediaId,
             },
             select: { id: true, stageId: true },
         })
@@ -125,12 +128,12 @@ export async function POST(request: NextRequest) {
             data: { dealId: created.id, stageId: created.stageId, userId, enteredAt: new Date() },
         })
         deal = created
-    } else if (originId || channelId) {
+    } else if (originId || mediaId) {
         await prisma.deal.update({
             where: { id: deal.id },
             data: {
-                ...(originId ? { agencyId: originId } : {}),
-                ...(channelId ? { mediaId: channelId } : {}),
+                ...(originId ? { originId } : {}),
+                ...(mediaId ? { mediaId } : {}),
             },
         })
     }

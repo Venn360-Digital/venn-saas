@@ -44,7 +44,7 @@ export interface PanelDeal extends DealLike {
     stage?: { name: string; color: string } | null
     contact: { id: string; name: string | null; phone: string | null } | null
     owner: { id: string; name: string | null } | null
-    agency: { id: string; name: string } | null
+    origin: { id: string; name: string } | null
     media: { id: string; name: string } | null
     outcomeReason?: { id: string; name: string; kind: string } | null
     outcomeNotes?: string | null
@@ -76,7 +76,7 @@ export function DealPanel<T extends PanelDeal>({
     stages,
     members,
     origins,
-    channels,
+    medias,
     onPatch,
     onChanged,
     onStageChange,
@@ -89,8 +89,10 @@ export function DealPanel<T extends PanelDeal>({
     deal: T
     stages: { id: string; name: string; color: string }[]
     members: { userId: string; name: string }[]
+    /** A lista de origens da clínica — a mesma da ficha do paciente. */
     origins: { id: string; name: string }[]
-    channels: { id: string; name: string }[]
+    /** As mídias: o detalhe da origem ("Campanha Implante Set/26"). */
+    medias: { id: string; name: string }[]
     /** Grava um pedaço do negócio. Devolve `true` quando deu certo. */
     onPatch: (data: Record<string, unknown>) => Promise<boolean>
     onChanged: () => void
@@ -115,7 +117,7 @@ export function DealPanel<T extends PanelDeal>({
     // Listas que o painel cadastra por conta própria, para não esperar a tela
     // recarregar os lookups depois de um `+`.
     const [extraOrigins, setExtraOrigins] = useState<PickOption[]>([])
-    const [extraChannels, setExtraChannels] = useState<PickOption[]>([])
+    const [extraMedias, setExtraMedias] = useState<PickOption[]>([])
 
     const [contactResults, setContactResults] = useState<PickOption[]>([])
     const [searchingContacts, setSearchingContacts] = useState(false)
@@ -161,9 +163,9 @@ export function DealPanel<T extends PanelDeal>({
     }, [])
 
     const createLookup = async (
-        endpoint: 'agencies' | 'medias',
+        endpoint: 'origins' | 'medias',
         name: string,
-        field: 'agencyId' | 'mediaId',
+        field: 'originId' | 'mediaId',
         remember: (option: PickOption) => void
     ): Promise<PickOption | null> => {
         const res = await fetch(`/api/${endpoint}`, {
@@ -184,7 +186,7 @@ export function DealPanel<T extends PanelDeal>({
     }
 
     const originOptions = [...origins, ...extraOrigins]
-    const channelOptions = [...channels, ...extraChannels]
+    const mediaOptions = [...medias, ...extraMedias]
 
     const modes = [
         { id: 'ficha', label: 'Ficha do negócio', icon: Route },
@@ -355,26 +357,26 @@ export function DealPanel<T extends PanelDeal>({
                                 <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Origem</Label>
                                 <PickField
                                     className="mt-1"
-                                    value={deal.agency ?? null}
+                                    value={deal.origin ?? null}
                                     options={originOptions}
                                     disabled={closed}
                                     placeholder="—"
                                     newPlaceholder="Nova origem"
-                                    onSelect={(option) => void save({ agencyId: option?.id ?? null })}
-                                    onCreate={(name) => createLookup('agencies', name, 'agencyId', (o) => setExtraOrigins((p) => [...p, o]))}
+                                    onSelect={(option) => void save({ originId: option?.id ?? null })}
+                                    onCreate={(name) => createLookup('origins', name, 'originId', (o) => setExtraOrigins((p) => [...p, o]))}
                                 />
                             </div>
                             <div>
-                                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Canal</Label>
+                                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Mídia</Label>
                                 <PickField
                                     className="mt-1"
                                     value={deal.media ?? null}
-                                    options={channelOptions}
+                                    options={mediaOptions}
                                     disabled={closed}
                                     placeholder="—"
-                                    newPlaceholder="Novo canal"
+                                    newPlaceholder="Nova mídia"
                                     onSelect={(option) => void save({ mediaId: option?.id ?? null })}
-                                    onCreate={(name) => createLookup('medias', name, 'mediaId', (o) => setExtraChannels((p) => [...p, o]))}
+                                    onCreate={(name) => createLookup('medias', name, 'mediaId', (o) => setExtraMedias((p) => [...p, o]))}
                                 />
                             </div>
                         </div>

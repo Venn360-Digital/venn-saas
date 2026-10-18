@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { createdViaLabel } from '@/lib/created-via'
+import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
@@ -11,20 +13,14 @@ export async function GET(request: NextRequest) {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const wu = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true },
-            // Stable pick while there is no workspace selector: without an
-            // order, a multi-workspace user could read from one tenant and
-            // write to another between requests.
-            orderBy: { createdAt: 'asc' },
-            select: { workspaceId: true }
-        })
-        if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        const auth = await getWorkspaceMember()
+        if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+        const wu = auth.member
 
         const { searchParams } = new URL(request.url)
         const search = searchParams.get('search') || ''
         const tagId = searchParams.get('tagId')
-        const source = searchParams.get('source')
+        const originId = searchParams.get('originId')
 
         // Build where clause (same filters as list)
         const where: Prisma.ContactWhereInput = { workspaceId: wu.workspaceId }
@@ -35,19 +31,26 @@ export async function GET(request: NextRequest) {
             // antes eram três — e passa a achar "André" por "andre".
             where.OR = searchTerms(search).map((term) => ({ searchText: { contains: term } }))
         }
+        /**
+         * O mesmo recorte da tela. Sem ele, a exportação devolveria em CSV
+         * exatamente o que a lista esconde — e é a mesma pessoa clicando.
+         */
+        const todas: Prisma.ContactWhereInput[] = [contactScope(wu)]
         if (tagId) {
-            where.AND = [{
+            todas.push({
                 OR: [
                     { tags: { some: { tagId } } },
                     { conversations: { some: { tags: { some: { tagId } } } } },
                 ]
-            }]
+            })
         }
-        if (source) where.source = source
+        where.AND = todas
+        if (originId) where.originId = originId
 
         const contacts = await prisma.contact.findMany({
             where,
             include: {
+                origin: { select: { name: true } },
                 tags: { include: { tag: { select: { name: true } } } },
                 conversations: {
                     select: {
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
         })
 
         // Build CSV
-        const headers = ['Nome', 'E-mail', 'Telefone', 'Origem', 'Etiquetas', 'Observações', 'Criado em']
+        const headers = ['Nome', 'E-mail', 'Telefone', 'Origem', 'Cadastro', 'Etiquetas', 'Observações', 'Criado em']
         const rows = contacts.map(contact => {
             // Merge tags
             const tagNames = new Set<string>()
@@ -70,7 +73,11 @@ export async function GET(request: NextRequest) {
                 escapeCsv(contact.name || ''),
                 escapeCsv(contact.email || ''),
                 escapeCsv(contact.phone || ''),
-                escapeCsv(contact.source || 'manual'),
+                // Origem é o nome que a clínica deu, não o código: a planilha
+                // vai para fora do sistema e "whatsapp_qr" não significa nada
+                // em cima de uma mesa.
+                escapeCsv(contact.origin?.name || ''),
+                escapeCsv(createdViaLabel(contact.createdVia)),
                 escapeCsv(Array.from(tagNames).join(', ')),
                 escapeCsv(contact.notes || ''),
                 new Date(contact.createdAt).toLocaleDateString('pt-BR'),

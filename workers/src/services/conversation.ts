@@ -40,8 +40,29 @@ function lockKeyFor(workspaceId: string, identity: ContactIdentity): string {
 export interface ResolveContactInput {
     workspaceId: string
     identity: ContactIdentity
+    /** A linha por onde ele escreveu — é dela que sai a origem da ficha nova. */
+    integrationId: string
     pushName?: string | null
     profilePicUrl?: string | null
+}
+
+/**
+ * A origem que esta linha semeia, se a clínica disse qual é.
+ *
+ * Consultada **só quando a ficha vai nascer**, e não a cada mensagem: a origem
+ * não se reescreve depois, então o valor não interessa para quem já é paciente.
+ *
+ * É esta consulta que faz a atribuição funcionar sem ninguém digitar nada. O
+ * WhatsApp QR da V4 e o do Nando são os dois `whatsapp_qr` — o canal não
+ * distingue, a conversa não distingue, e o que distingue é o número para onde
+ * o anúncio da agência mandou o paciente.
+ */
+async function origemDaLinha(integrationId: string): Promise<string | null> {
+    const linha = await prisma.agentIntegration.findUnique({
+        where: { id: integrationId },
+        select: { defaultOriginId: true },
+    })
+    return linha?.defaultOriginId ?? null
 }
 
 /**
@@ -51,10 +72,10 @@ export interface ResolveContactInput {
  * Callers must already hold the per-contact lock (see `resolveInboundContext`).
  */
 async function resolveContact(input: ResolveContactInput): Promise<Contact> {
-    const { workspaceId, identity, pushName, profilePicUrl } = input
+    const { workspaceId, identity, integrationId, pushName, profilePicUrl } = input
 
     if (identity.kind === 'instagram') {
-        return resolveInstagramContact(workspaceId, identity.value, pushName, profilePicUrl)
+        return resolveInstagramContact(workspaceId, identity.value, integrationId, pushName, profilePicUrl)
     }
 
     const phone = identity.value
@@ -80,7 +101,10 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
                 phone,
                 name: pushName || `WhatsApp ${phone}`,
                 avatar: profilePicUrl ?? null,
-                source: 'whatsapp',
+                // `inbound`: ele escreveu primeiro. Antes era `whatsapp`, que é
+                // o canal — e o canal já está na conversa, gravado na linha.
+                createdVia: 'inbound',
+                originId: await origemDaLinha(integrationId),
             },
         })
     }
@@ -118,6 +142,7 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
 async function resolveInstagramContact(
     workspaceId: string,
     instagramId: string,
+    integrationId: string,
     pushName?: string | null,
     profilePicUrl?: string | null
 ): Promise<Contact> {
@@ -130,7 +155,8 @@ async function resolveInstagramContact(
                 instagramId,
                 name: pushName || NOME_PROVISORIO_INSTAGRAM,
                 avatar: profilePicUrl ?? null,
-                source: 'instagram',
+                createdVia: 'inbound',
+                originId: await origemDaLinha(integrationId),
             },
         })
     }
@@ -147,9 +173,10 @@ async function resolveInstagramContact(
  * Drop every new inbound contact into the first pipeline stage, so inbound
  * new patients show up on the Negócios board without manual entry.
  *
- * A origem do negócio segue o canal por onde o paciente chegou — o funil
- * precisa poder dizer de onde vem cada paciente, e gravar "whatsapp" num que
- * veio do Direct tiraria essa resposta do relatório.
+ * O negócio herda a origem da ficha, que é a lista única da clínica. Antes ele
+ * gravava o **canal** (`whatsapp`) num campo chamado origem, e aí o funil
+ * respondia "de onde vêm nossos negócios? WhatsApp" — que é por onde eles
+ * escrevem, e não diz nada sobre o que os trouxe.
  *
  * Non-fatal: a workspace with no pipeline stages yet simply gets no deal.
  */
@@ -187,7 +214,7 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
             // "Novo paciente - null": lá o telefone não existe.
             title: `Novo paciente - ${contact.name || contact.phone || contact.instagramId}`,
             stageId: firstStage.id,
-            source: contact.source ?? 'whatsapp',
+            originId: contact.originId,
             status: 'open',
             // `userId` nulo: não foi pessoa nenhuma que moveu, foi a mensagem
             // do paciente chegando.
@@ -325,7 +352,7 @@ export async function resolveInboundContext(input: {
     return withLock(
         lockKeyFor(workspaceId, identity),
         async () => {
-            const contact = await resolveContact({ workspaceId, identity, pushName, profilePicUrl })
+            const contact = await resolveContact({ workspaceId, identity, integrationId, pushName, profilePicUrl })
 
             try {
                 await ensureOpenDeal(workspaceId, contact)

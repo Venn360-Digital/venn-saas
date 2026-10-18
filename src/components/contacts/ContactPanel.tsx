@@ -30,9 +30,10 @@ import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
 import { InlineField } from '@/components/shared/InlineField'
 import { RecordPanel } from '@/components/shared/RecordPanel'
+import { PickField, type PickOption } from '@/components/shared/PickField'
 import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
 import { formatPhone } from '@/lib/phone'
-import { sourceLabel } from '@/lib/sources'
+import { createdViaLabel } from '@/lib/created-via'
 import { cn } from '@/lib/utils'
 
 /** Os quatro modos da ficha, nos mesmos nomes da ficha do negócio. */
@@ -53,7 +54,10 @@ interface Detail {
     name: string | null
     phone: string | null
     email: string | null
-    source: string | null
+    /** Como a ficha nasceu — `manual`, `import`, `ligacao`, `inbound`. */
+    createdVia: string | null
+    /** A origem comercial, da lista da clínica. Nula é "não sabemos". */
+    origin: { id: string; name: string } | null
     notes: string | null
     createdAt: string
     customFields: Record<string, CustomValue> | null
@@ -145,6 +149,7 @@ export function ContactPanel({
     const [saved, setSaved] = useState<string | null>(null)
     const [mode, setMode] = useState<Mode>('ficha')
     const [activitiesToken, setActivitiesToken] = useState(0)
+    const [origins, setOrigins] = useState<PickOption[]>([])
 
     // A tela monta um painel por paciente (`key={contactId}`): trocar de ficha
     // remonta tudo, então a anterior não fica na tela enquanto a nova carrega.
@@ -163,6 +168,17 @@ export function ContactPanel({
             })
         return () => { cancelled = true }
     }, [contactId])
+
+    // A lista de origens da clínica. Meia dúzia de nomes, então vem inteira e
+    // sem busca — é o mesmo arranjo da ficha do negócio.
+    useEffect(() => {
+        let cancelled = false
+        fetch('/api/origins')
+            .then((res) => (res.ok ? res.json() : []))
+            .then((data) => { if (!cancelled) setOrigins(Array.isArray(data) ? data : []) })
+            .catch(() => { /* sem lista, o campo ainda aceita cadastrar */ })
+        return () => { cancelled = true }
+    }, [])
 
     const save = useCallback(
         async (field: string, patch: Record<string, unknown>) => {
@@ -189,6 +205,31 @@ export function ContactPanel({
         },
         [contactId, onChanged]
     )
+
+    /**
+     * Cadastrar origem sem sair da ficha.
+     *
+     * Quem descobre a origem é quem está falando com o paciente, e nesse
+     * momento ele está nesta tela — mandá-lo até Negócios para cadastrar
+     * "Indicação da Dra. Ana" é o caminho que ninguém faz: o campo fica vazio.
+     */
+    const createOrigin = async (name: string): Promise<PickOption | null> => {
+        const res = await fetch('/api/origins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        })
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            toast.error(err.error || 'Não foi possível cadastrar a origem')
+            return null
+        }
+        const created: PickOption = await res.json()
+        setOrigins((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+        setDetail((prev) => (prev ? { ...prev, origin: created } : prev))
+        await save('originId', { originId: created.id })
+        return created
+    }
 
     const applied: PickableTag[] = detail?.tags.map((t) => t.tag) ?? []
 
@@ -311,8 +352,30 @@ export function ContactPanel({
                                 className="h-8"
                             />
                         </Field>
-                        <Field label="Origem">
-                            <p className="px-2 text-sm">{sourceLabel(detail.source)}</p>
+                        {/*
+                          * Origem é editável porque ninguém a detecta: nenhum
+                          * canal conta por que o paciente escreveu. A linha
+                          * semeia o palpite bom — o número da agência diz de
+                          * quem é o lead — e quem atende corrige quando ouve do
+                          * próprio paciente. A lista é a mesma do negócio.
+                          */}
+                        <Field label="Origem" saved={saved === 'originId'}>
+                            <PickField
+                                value={detail.origin}
+                                options={origins}
+                                placeholder="—"
+                                newPlaceholder="Nova origem"
+                                onSelect={(option) => {
+                                    setDetail((prev) => (prev ? { ...prev, origin: option } : prev))
+                                    void save('originId', { originId: option?.id ?? null })
+                                }}
+                                onCreate={createOrigin}
+                            />
+                        </Field>
+                        {/* Como a ficha nasceu — não é origem, e por isso não
+                          * divide mais campo com ela. */}
+                        <Field label="Cadastro">
+                            <p className="px-2 text-sm">{createdViaLabel(detail.createdVia)}</p>
                         </Field>
 
                         {fieldDefs.map((def) => {

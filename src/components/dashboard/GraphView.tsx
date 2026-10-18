@@ -1,5 +1,4 @@
 import { getDashboardCharts } from '@/lib/dashboard/charts'
-import { sourceLabel } from '@/lib/sources'
 import {
     BarList,
     ChartCard,
@@ -61,7 +60,9 @@ export async function GraphView({
 
     const sourceRows: BarRow[] = data.sources.map((source) => ({
         key: source.source,
-        label: sourceLabel(source.source),
+        // Já vem com o nome que a clínica deu à origem: o de-para acontece em
+        // `getDashboardCharts`, que é quem tem a lista em mãos.
+        label: source.source,
         percent: (source.count / maxSource) * 100,
         value: source.count.toLocaleString('pt-BR'),
         note:
