@@ -40,6 +40,8 @@ interface PagamentoDoAsaas {
     id?: string
     subscription?: string
     customer?: string
+    /** O id da nossa conta, gravado na assinatura depois da primeira ativação. */
+    externalReference?: string
     value?: number
     status?: string
     billingType?: string
@@ -152,6 +154,20 @@ async function espelharCobranca(
      * caso de uma conta cujo cliente mudou.
      */
     const conta =
+        /**
+         * Primeiro a referência, quando vier.
+         *
+         * `descreverAssinatura` grava o id da conta no `externalReference` da
+         * assinatura logo após a primeira ativação, e o Asaas o repassa para as
+         * cobranças geradas depois disso. Daí em diante o evento chega dizendo
+         * de quem é, e os dois caminhos abaixo viram rede de segurança.
+         */
+        (p.externalReference
+            ? await prisma.account.findUnique({
+                where: { id: p.externalReference },
+                select: { id: true },
+            })
+            : null) ??
         (p.customer
             ? await prisma.account.findUnique({
                 where: { asaasCustomerId: p.customer },

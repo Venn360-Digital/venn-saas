@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { asaas } from '@/lib/asaas/client'
+import { planNameFor } from '@/lib/plan-limits'
 
 /**
  * Descobre o cliente e a assinatura que um checkout pago criou no Asaas.
@@ -95,9 +96,103 @@ export async function vincularContaAoAsaas(opcoes: {
             where: { accountId },
             data: { asaasSubscriptionId: ativa.id },
         })
+
+        /**
+         * A descrição e a referência, por fora do vínculo.
+         *
+         * Falhar aqui não desfaz nada: a conta já está ligada e o plano já vale.
+         * O que se perde é a frase na fatura e a referência que facilita os
+         * eventos futuros — pendência de conciliação, não de atendimento.
+         */
+        try {
+            await descreverAssinatura({ accountId, subscriptionId: ativa.id })
+        } catch (erro) {
+            console.warn(`[ASAAS_VINCULAR] assinatura ${ativa.id} sem descrição: ${String(erro)}`)
+        }
     } else {
         console.warn(`[ASAAS_VINCULAR] cliente ${cliente.id} sem assinatura ativa`)
     }
 
     return { customerId: cliente.id, subscriptionId: ativa?.id ?? null }
+}
+
+/**
+ * A frase que aparece na fatura do Asaas.
+ *
+ * Pedido do Andre ao olhar a primeira cobrança: ela chegava com o cliente certo
+ * e **sem dizer o que estava sendo cobrado**. Quem abre a fatura — ou o extrato
+ * do cartão da clínica — precisa reconhecer a linha sem abrir o sistema.
+ *
+ * Medido: o `items[].description` do checkout **não** propaga para a assinatura
+ * nem para a cobrança (as duas vieram com `description: null`). Por isso a frase
+ * é escrita depois, pela rota de atualização, com `updatePendingPayments` para
+ * alcançar a cobrança deste mês e não só as próximas.
+ *
+ * Teto de 500 caracteres é do Asaas; a lista de unidades é cortada antes disso,
+ * porque uma frase que termina no meio do nome de uma clínica é pior que uma que
+ * diz "e mais 3".
+ */
+async function descricaoDaAssinatura(accountId: string): Promise<string> {
+    const conta = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: {
+            name: true,
+            subscription: { select: { plan: true } },
+            workspaces: { orderBy: { createdAt: 'asc' }, select: { name: true } },
+        },
+    })
+
+    if (!conta) return 'OdontoBox360'
+
+    const plano = planNameFor(conta.subscription?.plan)
+    const nomes = conta.workspaces.map((w) => w.name)
+
+    /** Até três nomes; o resto vira contagem. */
+    const unidades =
+        nomes.length === 0
+            ? ''
+            : nomes.length <= 3
+              ? nomes.join(', ')
+              : `${nomes.slice(0, 3).join(', ')} e mais ${nomes.length - 3}`
+
+    const partes = [
+        `OdontoBox360 — ${plano}`,
+        conta.name,
+        unidades ? `${nomes.length} unidade${nomes.length === 1 ? '' : 's'}: ${unidades}` : '',
+    ].filter(Boolean)
+
+    return partes.join(' · ').slice(0, 500)
+}
+
+/**
+ * Escreve na assinatura do Asaas o que ela é, e de quem.
+ *
+ * Duas coisas, e a segunda importa mais do que parece:
+ *
+ * **`description`** — o que o Andre pediu: plano, conta e unidades na fatura.
+ *
+ * **`externalReference`** — o id da conta. Com ele, todo evento futuro desta
+ * assinatura chega sabendo de quem é, e o emaranhado que custou a primeira
+ * ativação (nenhum evento traz a nossa referência junto com o que foi criado)
+ * deixa de existir deste ponto em diante. Não dá para pôr na criação: o
+ * `externalReference` do checkout não propaga, medido.
+ *
+ * `updatePendingPayments: true` porque, por padrão, "as alterações são aplicadas
+ * nas próximas cobranças da recorrência; as já geradas permanecem inalteradas" —
+ * e a já gerada é justamente a deste mês.
+ */
+export async function descreverAssinatura(opcoes: {
+    accountId: string
+    subscriptionId: string
+}): Promise<void> {
+    const description = await descricaoDaAssinatura(opcoes.accountId)
+
+    await asaas(`/subscriptions/${opcoes.subscriptionId}`, {
+        method: 'PUT',
+        body: {
+            description,
+            externalReference: opcoes.accountId,
+            updatePendingPayments: true,
+        },
+    })
 }

@@ -143,10 +143,20 @@ export async function criarCheckoutDePlano(opcoes: {
                 minutesToExpire: 1440,
                 /** Como o webhook descobre qual conta e qual plano foram pagos. */
                 externalReference: tentativa.id,
+                /**
+                 * A volta cai numa página de uma frase, não na guia Plano.
+                 *
+                 * O checkout abre numa janela própria; mandar a volta para a
+                 * guia carregaria o sistema inteiro **dentro da janelinha** —
+                 * sidebar, cabeçalho e tudo, espremidos em 480 pixels. A página
+                 * de retorno avisa a janela de origem e se fecha; se o pop-up
+                 * tiver sido bloqueado e isto for a aba principal, ela redireciona
+                 * para a guia.
+                 */
                 callback: {
-                    successUrl: `${baseUrl}/gerenciamento/conta?tab=plano&pagamento=processando`,
-                    cancelUrl: `${baseUrl}/gerenciamento/conta?tab=plano&pagamento=cancelado`,
-                    expiredUrl: `${baseUrl}/gerenciamento/conta?tab=plano&pagamento=expirado`,
+                    successUrl: `${baseUrl}/pagamento/retorno?status=processando`,
+                    cancelUrl: `${baseUrl}/pagamento/retorno?status=cancelado`,
+                    expiredUrl: `${baseUrl}/pagamento/retorno?status=expirado`,
                 },
                 items: [
                     {

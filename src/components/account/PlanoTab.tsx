@@ -1,7 +1,7 @@
 'use client'
 
 import { UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ import {
     Check,
     CreditCard,
     Gift,
+    Loader2,
     Minus,
     Plus,
     X
@@ -105,6 +106,16 @@ export function PlanoTab() {
     const [pacoteEscolhido, setPacoteEscolhido] = useState<number | null>(null)
     /** Quantas unidades adicionais nesta compra. R$ 290 por mês cada. */
     const [unidadesEscolhidas, setUnidadesEscolhidas] = useState(0)
+
+    /**
+     * A janela do checkout, enquanto estiver aberta.
+     *
+     * Em `useRef` e não em estado: ela não desenha nada, e guardá-la em estado
+     * faria a tela repintar a cada mudança de uma coisa que ninguém vê.
+     */
+    const janelaDoPagamento = useRef<Window | null>(null)
+    /** Enquanto o cliente está na janela do Asaas. */
+    const [pagando, setPagando] = useState(false)
     const [processing, setProcessing] = useState(false)
     /**
      * O aviso de avaliação, dispensado nesta sessão.
@@ -162,6 +173,23 @@ export function PlanoTab() {
             return
         }
 
+        /**
+         * A janela abre **aqui**, vazia, ainda dentro do clique.
+         *
+         * O endereço do checkout só existe depois de uma ida ao servidor, e a
+         * essa altura o navegador já não considera a abertura "pedida pelo
+         * usuário" — bloqueador de pop-up engole. Abrir vazia agora e dar o
+         * endereço depois é o padrão que sobrevive a isso.
+         *
+         * Conta isenta não paga e não usa janela nenhuma; ela é fechada logo
+         * abaixo, no desfecho sem link.
+         */
+        janelaDoPagamento.current = window.open(
+            '',
+            'odontobox-pagamento',
+            'width=520,height=760,noopener=no'
+        )
+
         setProcessing(true)
         try {
             const res = await fetch('/api/account/subscription', {
@@ -182,12 +210,35 @@ export function PlanoTab() {
                  * botão não funcionou.
                  */
                 if (data.pago && data.link) {
+                    /**
+                     * A janela já foi aberta no clique, vazia. Aqui ela só
+                     * ganha endereço.
+                     *
+                     * É o único jeito de sobreviver ao bloqueador de pop-up:
+                     * `window.open` precisa acontecer **dentro** do gesto do
+                     * usuário, e entre o clique e esta linha houve uma ida ao
+                     * servidor. Abrir agora seria bloqueado na maioria dos
+                     * navegadores.
+                     */
+                    if (janelaDoPagamento.current && !janelaDoPagamento.current.closed) {
+                        janelaDoPagamento.current.location.href = data.link
+                        setShowPlanModal(false)
+                        setPagando(true)
+                        return
+                    }
+
+                    // Pop-up bloqueado (ou recusado): o caminho de sempre, a
+                    // página inteira. Pior visualmente, mas sempre funciona.
                     toast.success(data.message)
                     window.location.href = data.link
                     return
                 }
 
-                // Conta vitalícia ou antes da data de cobrança: ativou direto.
+                // Conta vitalícia ou antes da data de cobrança: ativou direto,
+                // e a janela em branco não tem para onde ir.
+                janelaDoPagamento.current?.close()
+                janelaDoPagamento.current = null
+
                 toast.success(data.message)
                 setShowPlanModal(false)
                 // Esperado antes de liberar o botão: sem o `await`, o modal
@@ -197,6 +248,11 @@ export function PlanoTab() {
                 // E o rodapé da sidebar, que lê a assinatura por conta própria.
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
+                // A janela em branco não pode ficar órfã esperando um endereço
+                // que não vem.
+                janelaDoPagamento.current?.close()
+                janelaDoPagamento.current = null
+
                 const error = await res.json()
 
                 /**
@@ -219,6 +275,8 @@ export function PlanoTab() {
                 toast.error(error.error || 'Erro ao alterar plano')
             }
         } catch {
+            janelaDoPagamento.current?.close()
+            janelaDoPagamento.current = null
             toast.error('Erro ao alterar plano')
         } finally {
             setProcessing(false)
@@ -314,6 +372,57 @@ export function PlanoTab() {
         pagamentoParam === 'processando' || pagamentoParam === 'cancelado' || pagamentoParam === 'expirado'
             ? pagamentoParam
             : null
+
+    /**
+     * A janela do pagamento avisando o que aconteceu.
+     *
+     * Duas fontes, porque a janela pode acabar de duas formas: ela mesma
+     * manda a mensagem quando o Asaas a devolve, e o `setInterval` percebe
+     * quando a pessoa simplesmente fecha no X — caso em que mensagem nenhuma
+     * chega e a tela de trás ficaria esperando para sempre.
+     */
+    useEffect(() => {
+        if (!pagando) return
+
+        const aoReceber = (evento: MessageEvent) => {
+            // Só a própria aplicação fala aqui. Sem esta conferência, qualquer
+            // página aberta numa aba vizinha poderia dizer "pagamento
+            // confirmado" e mudar o que esta tela mostra.
+            if (evento.origin !== window.location.origin) return
+            const dado = evento.data as { tipo?: string; status?: string } | null
+            if (dado?.tipo !== 'odontobox:pagamento') return
+
+            setPagando(false)
+            janelaDoPagamento.current = null
+
+            if (dado.status === 'processando') {
+                // Não ativa nada: quem ativa é o webhook. Isto só põe a tela no
+                // estado de espera e começa a reler.
+                router.replace(`${pathname}?tab=plano&pagamento=processando`, { scroll: false })
+            } else {
+                router.replace(`${pathname}?tab=plano&pagamento=${dado.status}`, { scroll: false })
+            }
+            void loadSubscription()
+        }
+
+        window.addEventListener('message', aoReceber)
+
+        const vigia = setInterval(() => {
+            if (janelaDoPagamento.current?.closed) {
+                clearInterval(vigia)
+                setPagando(false)
+                janelaDoPagamento.current = null
+                // Fechou sem avisar: pode ter pago e fechado rápido. Reler é
+                // mais barato que perguntar, e o webhook decide de qualquer forma.
+                void loadSubscription()
+            }
+        }, 1_000)
+
+        return () => {
+            window.removeEventListener('message', aoReceber)
+            clearInterval(vigia)
+        }
+    }, [pagando, router, pathname, loadSubscription])
 
     /**
      * Enquanto o pagamento está em confirmação, a tela relê a cada 5 segundos.
@@ -473,6 +582,34 @@ export function PlanoTab() {
                     </Button>
                 </div>
             )}
+
+            {/* Enquanto a janela do Asaas está aberta, a tela de trás diz o
+                que está acontecendo — e não finge que nada mudou. */}
+            {pagando ? (
+                <div
+                    className="mb-4 flex items-start gap-3 rounded-lg border border-info/30 bg-info-subtle px-4 py-3 text-info-subtle-foreground"
+                    role="status"
+                >
+                    <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" aria-hidden="true" />
+                    <div className="min-w-0 flex-1 text-sm">
+                        <p className="font-semibold">Concluindo o pagamento na janela do Asaas.</p>
+                        <p className="mt-0.5 text-xs">
+                            O cartão é informado na página segura do Asaas — ele não passa pelo
+                            OdontoBox360. Assim que você terminar, esta tela se atualiza sozinha.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-current"
+                        onClick={() => {
+                            janelaDoPagamento.current?.focus()
+                        }}
+                    >
+                        Ver janela
+                    </Button>
+                </div>
+            ) : null}
 
             {/* A volta do checkout do Asaas.
                 
