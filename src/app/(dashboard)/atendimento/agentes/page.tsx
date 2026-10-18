@@ -11,6 +11,16 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { RecordDialog } from '@/components/shared/RecordDialog'
+import { FormField } from '@/components/shared/FormField'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import { useUnidades } from '@/hooks/useUnidades'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { IndexFrame } from '@/components/shared/IndexFrame'
@@ -46,6 +56,64 @@ export default function AgentsPage() {
     const [busca, setBusca] = useState('')
     const [duplicando, setDuplicando] = useState<string | null>(null)
     const [excluindo, setExcluindo] = useState<Agent | null>(null)
+
+    /**
+     * Mover de unidade.
+     *
+     * A lista de destinos é a das **unidades da conta**, buscada só quando o
+     * diálogo abre: numa conta de uma unidade — quase todas — ninguém paga por
+     * uma consulta que só poderia responder "não há para onde mover".
+     */
+    const { dados: contexto } = useUnidades()
+    const [movendo, setMovendo] = useState<Agent | null>(null)
+    const [destinos, setDestinos] = useState<{ id: string; name: string }[]>([])
+    const [destino, setDestino] = useState('')
+    const [movendoAgora, setMovendoAgora] = useState(false)
+
+    const abrirMover = useCallback(async (agent: Agent) => {
+        setMovendo(agent)
+        setDestino('')
+        try {
+            const res = await fetch('/api/account/workspaces')
+            if (!res.ok) return
+            const corpo = await res.json()
+            setDestinos(
+                (corpo.lista as { id: string; name: string }[]).filter((u) => u.id !== corpo.aberta)
+            )
+        } catch {
+            setDestinos([])
+        }
+    }, [])
+
+    const mover = async () => {
+        if (!movendo || !destino) return
+        setMovendoAgora(true)
+        try {
+            const res = await fetch(`/api/agents/${movendo.id}/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId: destino }),
+            })
+            const corpo = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                toast.error(corpo.error ?? 'Não foi possível mover o agente')
+                return
+            }
+            setMovendo(null)
+            toast.success(
+                `${corpo.agente} agora é de ${corpo.para}.` +
+                    (corpo.linhas > 0
+                        ? ` ${corpo.linhas} número${corpo.linhas === 1 ? '' : 's'} foi junto.`
+                        : '')
+            )
+            // O agente saiu desta unidade: a lista daqui tem de perdê-lo.
+            await carregar()
+        } catch {
+            toast.error('Não foi possível mover o agente')
+        } finally {
+            setMovendoAgora(false)
+        }
+    }
 
     const carregar = useCallback(async () => {
         setLoading(true)
@@ -235,6 +303,11 @@ export default function AgentsPage() {
                                 onEdit={(a) => router.push(`/atendimento/agentes/novo?id=${a.id}&tab=perfil`)}
                                 onDuplicate={(a) => void duplicar(a)}
                                 onDelete={setExcluindo}
+                                onMove={
+                                    canManage && contexto.unidades.length > 1
+                                        ? (a) => void abrirMover(a)
+                                        : undefined
+                                }
                                 onToggleStatus={(id, ativo) => void alternarEstado(id, ativo)}
                                 canManage={canManage}
                             />
@@ -272,6 +345,51 @@ export default function AgentsPage() {
                     </span>
                 ) : null}
             </div>
+
+            <RecordDialog
+                open={movendo !== null}
+                onOpenChange={(open) => {
+                    if (!open) setMovendo(null)
+                }}
+                title="Mover agente de unidade"
+                description={
+                    `"${movendo?.name ?? ''}" vai inteiro: prompt, regras, campos, webhooks, ` +
+                    'base de conhecimento e os números conectados — a próxima mensagem naquele ' +
+                    'número já nasce na clínica de destino. As conversas e o histórico ficam ' +
+                    'nesta clínica, porque pertencem aos pacientes dela.' +
+                    /* O caso que decepciona em silêncio: mover um agente pausado
+                       e esperar que a clínica nova passe a ser atendida. A vaga
+                       é da conta, então ele chega pausado do outro lado. */
+                    (movendo?.pausedByLimit
+                        ? ' Atenção: este agente está pausado por exceder o plano e vai continuar' +
+                          ' pausado no destino — mover não abre vaga, porque a franquia é da conta.'
+                        : '')
+                }
+                submitLabel="Mover agente"
+                submitting={movendoAgora}
+                submitDisabled={!destino}
+                hideAgain
+                onSubmit={() => void mover()}
+            >
+                <FormField
+                    label="Unidade de destino"
+                    required
+                    hint="O departamento e a origem padrão dos números são limpos: são desta clínica."
+                >
+                    <Select value={destino} onValueChange={setDestino}>
+                        <SelectTrigger className="w-full" aria-label="Unidade de destino">
+                            <SelectValue placeholder="Escolha a clínica" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {destinos.map((u) => (
+                                <SelectItem key={u.id} value={u.id}>
+                                    {u.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+            </RecordDialog>
 
             <ConfirmDialog
                 open={excluindo !== null}

@@ -4,13 +4,18 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Bot, Copy, Eye, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, Bot, Copy, Eye, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 interface AgentCardProps {
     agent: Agent
     onEdit: (agent: Agent) => void
     onDuplicate: (agent: Agent) => void
     onDelete: (agent: Agent) => void
+    /**
+     * Mover para outra unidade. Ausente quando não há para onde mover — conta
+     * com uma unidade só, que é quase todo cliente.
+     */
+    onMove?: (agent: Agent) => void
     onToggleStatus: (id: string, currentStatus: boolean) => void
     /** Enquanto a cópia é criada, para o botão não aceitar um segundo clique. */
     duplicating?: boolean
@@ -62,6 +67,7 @@ export function AgentCard({
     onEdit,
     onDuplicate,
     onDelete,
+    onMove,
     onToggleStatus,
     duplicating,
     canManage = true,
@@ -167,6 +173,17 @@ export function AgentCard({
                             busy={duplicating}
                             onClick={() => onDuplicate(agent)}
                         />
+                        {/* Mover vem antes de Excluir: é a alternativa a
+                            excluir quando o agente tem de sair daqui, e lê-la
+                            primeiro é o que evita o apagar por falta de opção.
+                            Some quando não há segunda unidade. */}
+                        {onMove ? (
+                            <CardAction
+                                icon={ArrowRightLeft}
+                                label="Mover para outra unidade"
+                                onClick={() => onMove(agent)}
+                            />
+                        ) : null}
                         <CardAction
                             icon={Trash2}
                             label="Excluir agente"

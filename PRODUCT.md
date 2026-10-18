@@ -531,6 +531,41 @@ Editar a clínica em que não se está passou a ser possível de propósito — 
 de três clínicas arruma o telefone da segunda sem trocar de unidade. Quem pode:
 o MASTER da conta, ou quem administra aquela unidade.
 
+### Mover agente entre unidades
+
+Existe porque a franquia não se multiplica: num Prime são dois agentes **no
+total**, e a segunda clínica só tem agente se um dos dois for para lá. Sem isso a
+saída era apagar de um lado e criar do outro — perder prompt, regras, documentos
+e webhooks por causa de uma limitação de tela, não por decisão de ninguém.
+
+**Vai:** o agente e tudo o que pende só dele — regras, campos, webhooks, base de
+conhecimento — e as **linhas** (números). As linhas vão porque linha sem agente é
+número que ninguém atende, e porque é a linha que leva o atendimento para o outro
+lado: o worker resolve o workspace pela linha, então a próxima mensagem naquele
+número já nasce na clínica de destino.
+
+**Fica:** as conversas e a medição de consumo. Conversa pertence ao paciente, e
+paciente é da unidade — arrastá-las as deixaria apontando para pacientes de outra
+clínica, ou obrigaria a arrastar a base inteira junto. Histórico fica onde
+aconteceu, que também é a resposta certa para quem for auditar quem atendeu quem.
+
+**É limpado:** o departamento e a origem padrão de cada linha. Apontam para
+linhas de tabela da clínica velha, e "Recepção" de outra clínica não quer dizer
+nada aqui — ficaria um id órfão decidindo quem vê a conversa. Efeito colateral
+conhecido: as conversas antigas daquela linha caem na fila geral da clínica de
+origem, porque é o que o escopo faz com linha sem departamento.
+
+**É convertido:** regra cuja ação aponta para etapa de funil por `stageId` passa a
+apontar por `stageName`. O id é validado contra o workspace, então falharia no
+destino; por nome a regra fica portável, que é como o executor já sabe resolver.
+
+**Mover não abre vaga.** Agente pausado por exceder o plano chega pausado do
+outro lado — a vaga é da conta. A tela avisa antes de mover.
+
+Quem pode: o **MASTER**. As duas pontas têm de ser da mesma conta — mover para
+fora dela faria a franquia da origem liberar uma vaga que a assinatura de destino
+não comprou.
+
 ### A troca de unidade
 
 Quem participa de mais de uma vê o seletor na marca, no topo da barra lateral —
