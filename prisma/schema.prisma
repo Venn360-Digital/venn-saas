@@ -577,6 +577,18 @@ model Deal {
   @@index([userId])
   @@index([originId])
   @@index([mediaId])
+  /// A varredura do cron de follow-up, que procura por fase e estado.
+  ///
+  /// Criado em `20261011090000_follow_up_engine` e **não declarado aqui** por
+  /// dois meses: existia no banco, servia o cron, e não aparecia no schema. O
+  /// efeito era invisível até alguém criar um banco novo a partir dele — aí o
+  /// cron varria a tabela inteira em sequencial, e o desempenho de
+  /// desenvolvimento divergia do de produção sem nada explicar por quê.
+  ///
+  /// `map` preserva o nome que o banco já tem: sem ele o Prisma chamaria o
+  /// índice de `deals_workspaceId_status_stageId_idx` e passaria a querer
+  /// derrubar o existente para criar um idêntico com outro nome.
+  @@index([workspaceId, status, stageId], map: "deals_workspace_status_stage_idx")
   @@map("deals")
 }
 
