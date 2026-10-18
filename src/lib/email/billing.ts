@@ -155,23 +155,46 @@ ${copy.body
 
 export async function sendBillingEmail(input: {
     workspaceId: string
+    /**
+     * A conta, quando quem avisa é cobrança.
+     *
+     * Dado: o destinatário de um aviso de cobrança é o MASTER da conta, não o
+     * dono de uma unidade qualquer dela. Com três clínicas na mesma assinatura,
+     * "o OWNER do workspace" deixa de ter resposta única — e escolher a unidade
+     * mais antiga mandaria o aviso para quem talvez não pague nada.
+     *
+     * `workspaceId` continua obrigatório porque é ele que amarra o registro de
+     * envio e o contexto do texto. Com a conta junto, só o destinatário muda.
+     */
+    accountId?: string
     kind: BillingEmailKind
     /** Makes a recurring notice repeatable — a billing period, typically. */
     scope?: string
     context?: Record<string, unknown>
 }): Promise<void> {
-    const { workspaceId, kind, scope = '', context = {} } = input
+    const { workspaceId, accountId, kind, scope = '', context = {} } = input
 
     // Claim the send before making it. Writing the row first means a crash
     // between the two sends nothing rather than sending twice — for a billing
     // warning, a missed notice is recoverable and a duplicate is not.
-    const owner = await prisma.workspaceUser.findFirst({
-        where: { workspaceId, role: 'OWNER', isActive: true },
-        orderBy: { createdAt: 'asc' },
-        select: { user: { select: { email: true, name: true } } },
-    })
+    const master = accountId
+        ? await prisma.account.findUnique({
+            where: { id: accountId },
+            select: { owner: { select: { email: true, name: true } } },
+        })
+        : null
 
-    const to = owner?.user?.email
+    // Sem MASTER definido, cai no dono da unidade — que é quem recebia antes
+    // desta coluna existir, e continua sendo a resposta certa com uma só.
+    const owner = master?.owner
+        ? null
+        : await prisma.workspaceUser.findFirst({
+            where: { workspaceId, role: 'OWNER', isActive: true },
+            orderBy: { createdAt: 'asc' },
+            select: { user: { select: { email: true, name: true } } },
+        })
+
+    const to = master?.owner?.email ?? owner?.user?.email
     if (!to) return
 
     try {

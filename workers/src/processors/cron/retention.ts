@@ -57,12 +57,15 @@ async function warn(
             status: 'trialing',
             readOnlySince: { lte: newest, gt: oldest },
         },
-        select: { workspaceId: true, readOnlySince: true },
+        select: { accountId: true, readOnlySince: true, account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } } },
     })
 
     for (const subscription of due) {
         await sendBillingEmail({
-            workspaceId: subscription.workspaceId,
+            // O registro de envio precisa de uma unidade; o destinatário é o
+            // MASTER da conta, que é quem paga — ver `sendBillingEmail`.
+            workspaceId: subscription.account.workspaces[0]?.id ?? '',
+            accountId: subscription.accountId,
             kind,
             context: {
                 deleteAt: subscription.readOnlySince
@@ -80,7 +83,7 @@ async function purge(now: Date): Promise<void> {
 
     const expired = await prisma.subscription.findMany({
         where: { status: 'trialing', readOnlySince: { lte: cutoff } },
-        select: { workspaceId: true, readOnlySince: true },
+        select: { accountId: true, readOnlySince: true, account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } } },
     })
 
     if (expired.length === 0) return
@@ -90,16 +93,25 @@ async function purge(now: Date): Promise<void> {
     for (const subscription of expired) {
         if (!enabled) {
             log.warn(
-                `workspace ${subscription.workspaceId} is past retention ` +
+                `conta ${subscription.accountId} is past retention ` +
                     `(read-only since ${subscription.readOnlySince?.toISOString()}) — ` +
                     `NOT deleted: set RETENTION_DELETION_ENABLED=true to enable`
             )
             continue
         }
 
-        // Cascades from the workspace: contacts, conversations, messages, deals,
-        // agents and their integrations all carry onDelete: Cascade.
-        await prisma.workspace.delete({ where: { id: subscription.workspaceId } })
-        log.warn(`workspace ${subscription.workspaceId} deleted after retention period`)
+        /**
+         * Apaga a **conta**, e as unidades vão junto.
+         *
+         * Era `workspace.delete`, que com uma unidade por conta dava no mesmo.
+         * Com três, apagar só uma deixaria a assinatura viva pagando por uma
+         * conta pela metade — e as outras duas sem nunca serem apagadas, porque
+         * é a assinatura que marca o prazo e ela é uma só.
+         *
+         * Cascata a partir da conta: workspaces e, dentro deles, pacientes,
+         * conversas, mensagens, negócios, agentes e integrações.
+         */
+        await prisma.account.delete({ where: { id: subscription.accountId } })
+        log.warn(`conta ${subscription.accountId} deleted after retention period`)
     }
 }

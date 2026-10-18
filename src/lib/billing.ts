@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { assinaturaDaUnidade } from '@/lib/account'
 
 /**
  * Trial, credits and the read-only state. The rules live in
@@ -84,7 +85,7 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
     const now = new Date()
 
     const [subscription, purchases] = await Promise.all([
-        prisma.subscription.findUnique({ where: { workspaceId } }),
+        prisma.subscription.findFirst({ where: assinaturaDaUnidade(workspaceId) }),
         prisma.creditPurchase.findMany({
             where: { workspaceId, expiresAt: { gt: now } },
             orderBy: { expiresAt: 'asc' },
@@ -182,13 +183,15 @@ export async function spendCredits(
     let left = amount
     let spent = 0
 
-    const subscription = await prisma.subscription.findUnique({ where: { workspaceId } })
+    const subscription = await prisma.subscription.findFirst({ where: assinaturaDaUnidade(workspaceId) })
     if (subscription) {
         const planAvailable = Math.max(0, subscription.credits - subscription.creditsUsed)
         const fromPlan = Math.min(planAvailable, left)
         if (fromPlan > 0) {
+            // Por `id`: a assinatura já está em mãos, e `accountId` seria
+            // uma consulta a mais para chegar ao mesmo lugar.
             await prisma.subscription.update({
-                where: { workspaceId },
+                where: { id: subscription.id },
                 data: { creditsUsed: { increment: fromPlan } },
             })
             left -= fromPlan
@@ -256,8 +259,8 @@ export function canBuyCredits(state: BillingState): { ok: true } | { ok: false; 
  * manter em sincronia, e o período é o da assinatura.
  */
 export async function spokenRepliesLeft(workspaceId: string): Promise<number> {
-    const subscription = await prisma.subscription.findUnique({
-        where: { workspaceId },
+    const subscription = await prisma.subscription.findFirst({
+        where: assinaturaDaUnidade(workspaceId),
         select: { maxSpokenReplies: true, currentPeriodStart: true },
     })
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { assinaturaDaUnidade } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 
@@ -55,8 +56,8 @@ export async function POST(
         }
 
         // Duplication bypassed the plan limit that POST /api/agents enforces.
-        const subscription = await prisma.subscription.findUnique({
-            where: { workspaceId: originalAgent.workspaceId },
+        const subscription = await prisma.subscription.findFirst({
+            where: assinaturaDaUnidade(originalAgent.workspaceId),
             select: { maxAgents: true, plan: true },
         })
 

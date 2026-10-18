@@ -3,6 +3,7 @@ import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { assinaturaDaUnidade } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { findModel } from '@/lib/llm/models'
@@ -188,6 +189,12 @@ export async function POST(request: NextRequest) {
                     data: {
                         name: 'Meu Workspace',
                         slug: slug,
+                        // Toda unidade nasce dentro de uma conta — é a conta
+                        // que assina. Aninhado para que as duas apareçam
+                        // juntas ou nenhuma apareça.
+                        account: {
+                            create: { name: 'Meu Workspace', ownerUserId: user.id },
+                        },
                         users: {
                             create: {
                                 userId: user.id,
@@ -221,8 +228,8 @@ export async function POST(request: NextRequest) {
         // Plan limit. `maxAgents` was stored on the subscription and shown on the
         // Plano tab, but nothing enforced it — every plan could create unlimited
         // agents.
-        const subscription = await prisma.subscription.findUnique({
-            where: { workspaceId },
+        const subscription = await prisma.subscription.findFirst({
+            where: assinaturaDaUnidade(workspaceId),
             select: { maxAgents: true, plan: true },
         })
 

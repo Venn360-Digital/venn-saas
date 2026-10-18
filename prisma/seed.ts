@@ -29,6 +29,7 @@ async function main() {
             name: 'OdontoBox360 HQ',
             slug: workspaceSlug,
             settings: { theme: 'light', language: 'pt-BR' },
+            account: { create: { name: 'OdontoBox360 HQ' } },
         }
     })
 

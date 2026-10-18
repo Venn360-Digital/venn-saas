@@ -43,19 +43,20 @@ async function warnBeforeExpiry(now: Date): Promise<void> {
                 status: 'trialing',
                 trialEndsAt: { gte: from, lt: to },
             },
-            select: { workspaceId: true, trialEndsAt: true },
+            select: { id: true, accountId: true, trialEndsAt: true, account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } } },
         })
 
         for (const subscription of subscriptions) {
             await sendBillingEmail({
-                workspaceId: subscription.workspaceId,
+                workspaceId: subscription.account.workspaces[0]?.id ?? '',
+                accountId: subscription.accountId,
                 kind,
                 context: { trialEndsAt: subscription.trialEndsAt },
             })
         }
 
         if (subscriptions.length > 0) {
-            log.info(`${kind}: ${subscriptions.length} workspace(s) notified`)
+            log.info(`${kind}: ${subscriptions.length} conta(s) notified`)
         }
     }
 }
@@ -74,16 +75,23 @@ async function markLapsed(now: Date): Promise<void> {
             trialEndsAt: { lte: now },
             readOnlySince: null,
         },
-        select: { workspaceId: true },
+        select: { id: true, accountId: true, account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } } },
     })
 
     for (const subscription of lapsed) {
+        // Somente-leitura é da assinatura, então vale para as unidades todas
+        // da conta de uma vez — que é o certo: quem não pagou não pagou por
+        // nenhuma delas.
         await prisma.subscription.update({
-            where: { workspaceId: subscription.workspaceId },
+            where: { id: subscription.id },
             data: { readOnlySince: now },
         })
-        await sendBillingEmail({ workspaceId: subscription.workspaceId, kind: 'trial_ended' })
-        log.info(`workspace ${subscription.workspaceId} is read-only`)
+        await sendBillingEmail({
+            workspaceId: subscription.account.workspaces[0]?.id ?? '',
+            accountId: subscription.accountId,
+            kind: 'trial_ended',
+        })
+        log.info(`conta ${subscription.accountId} is read-only`)
     }
 }
 
@@ -101,10 +109,11 @@ async function warnOnCreditUsage(): Promise<void> {
             credits: { gt: 0 },
         },
         select: {
-            workspaceId: true,
+            accountId: true,
             credits: true,
             creditsUsed: true,
             currentPeriodEnd: true,
+            account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } },
         },
     })
 
@@ -113,7 +122,8 @@ async function warnOnCreditUsage(): Promise<void> {
         if (ratio < 0.8) continue
 
         await sendBillingEmail({
-            workspaceId: subscription.workspaceId,
+            workspaceId: subscription.account.workspaces[0]?.id ?? '',
+            accountId: subscription.accountId,
             kind: 'credits_80',
             // Part of the idempotency key, so the notice repeats once per period
             // rather than never again.

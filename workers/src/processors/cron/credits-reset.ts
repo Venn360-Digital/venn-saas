@@ -59,7 +59,7 @@ export async function runCreditsReset(): Promise<void> {
         },
         select: {
             id: true,
-            workspaceId: true,
+            accountId: true,
             plan: true,
             currentPeriodEnd: true,
             creditsUsed: true,
@@ -96,7 +96,7 @@ export async function runCreditsReset(): Promise<void> {
             tabela.maxWhatsAppNumbers < subscription.maxWhatsAppNumbers
         ) {
             log.warn(
-                `workspace ${subscription.workspaceId}: a tabela do plano ` +
+                `conta ${subscription.accountId}: a tabela do plano ` +
                     `${subscription.plan} reduz limite estrutural ` +
                     `(agentes ${subscription.maxAgents}→${tabela.maxAgents}, ` +
                     `números ${subscription.maxWhatsAppNumbers}→${tabela.maxWhatsAppNumbers}). ` +
@@ -123,7 +123,7 @@ export async function runCreditsReset(): Promise<void> {
 
         const mudouFranquia = subscription.credits !== tabela.credits
         log.info(
-            `renewed workspace ${subscription.workspaceId}: ` +
+            `renewed account ${subscription.accountId}: ` +
                 `${subscription.creditsUsed}/${subscription.credits} used → 0` +
                 (mudouFranquia ? `, franquia ${subscription.credits}→${tabela.credits}` : '') +
                 `, next period ends ${periodEnd.toISOString()}`

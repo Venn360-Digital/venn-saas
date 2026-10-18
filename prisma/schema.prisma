@@ -38,6 +38,8 @@ model User {
 
   // Multi-workspace support
   workspaces WorkspaceUser[]
+  /// As contas das quais esta pessoa é o MASTER.
+  accounts   Account[]
   activities Activity[]
   deals      Deal[]
 
@@ -45,7 +47,48 @@ model User {
   specialists Specialist[]
 }
 
+/// Quem paga — o cliente, acima das clínicas dele.
+///
+/// Nasceu para o Multiclínica: um plano que inclui até três unidades precisa de
+/// algo **acima** do workspace para comprá-lo. Sem esta entidade, "o plano
+/// inclui 3" não teria onde morar, e a alternativa — eleger um workspace
+/// primário e fazer os outros apontarem para ele — deixaria um caso especial
+/// permanente em toda consulta de cobrança.
+///
+/// A decisão de cobrar na conta, e não por workspace, é de 2026-10-18. Três
+/// assinaturas independentes para o mesmo dono significariam três datas de
+/// renovação, três cartões, créditos que não se somam entre unidades e — o
+/// pior — cancelar uma sem cancelar as outras, com o cliente achando que
+/// cancelou tudo.
+///
+/// Hoje é **uma conta por workspace**: a migração que a criou não muda
+/// comportamento nenhum. O que ela cria é o lugar onde o segundo workspace vai
+/// caber.
+model Account {
+  id   String @id @default(cuid())
+  name String
+
+  /// O MASTER da assinatura: quem contrata, paga e governa todas as unidades.
+  ///
+  /// Explícito, e não deduzido do papel OWNER de algum workspace: com três
+  /// unidades, "o dono de qual delas?" não tem resposta boa. `SetNull` porque
+  /// remover a pessoa não pode levar a conta junto.
+  ownerUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner        User?         @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  workspaces   Workspace[]
+  subscription Subscription?
+
+  @@index([ownerUserId])
+  @@map("accounts")
+}
+
 model Workspace {
+  /// De quem é esta unidade. Toda workspace tem conta — ver `Account`.
+  accountId        String
   creditPurchases  CreditPurchase[]
   notificationLogs NotificationLog[]
   notifications    Notification[]
@@ -71,6 +114,7 @@ model Workspace {
   updatedAt DateTime @updatedAt
 
   // Relations
+  account        Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
   users          WorkspaceUser[]
   agents         Agent[]
   outcomeReasons DealOutcomeReason[]
@@ -78,7 +122,6 @@ model Workspace {
   deals          Deal[]
   conversations  Conversation[]
   integrations   Integration[]
-  subscription   Subscription?
   departments    Department[]
   tags           Tag[]
   products       ProductService[]
@@ -95,6 +138,7 @@ model Workspace {
   /// coluna por chave viraria uma migração por melhoria.
   automations Json?
 
+  @@index([accountId])
   @@map("workspaces")
   specialists        Specialist[]
   scheduleExceptions ScheduleException[]
@@ -988,8 +1032,9 @@ model Integration {
 // ============================================
 
 model Subscription {
-  id          String @id @default(cuid())
-  workspaceId String @unique
+  id        String @id @default(cuid())
+  /// Uma assinatura por conta, cobrindo todas as unidades dela.
+  accountId String @unique
 
   plan   String // "flow", "pro", "advanced"
   status String @default("active") // "active", "past_due", "canceled", "trialing"
@@ -1026,7 +1071,7 @@ model Subscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("subscriptions")
 }

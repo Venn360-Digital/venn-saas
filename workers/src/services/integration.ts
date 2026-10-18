@@ -1,4 +1,4 @@
-import type { Agent, AgentIntegration, Subscription, Workspace } from '@prisma/client'
+import type { Account, Agent, AgentIntegration, Subscription, Workspace } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import {
     type IntegrationConfig,
@@ -9,13 +9,18 @@ import {
 import type { InstanceRef } from '@/lib/whatsapp/envelopes'
 
 export type ResolvedIntegration = AgentIntegration & {
-    agent: Agent & { workspace: Workspace & { subscription: Subscription | null } }
+    agent: Agent & {
+        workspace: Workspace & { account: Account & { subscription: Subscription | null } }
+    }
 }
 
 const AGENT_INCLUDE = {
     agent: {
         include: {
-            workspace: { include: { subscription: true } },
+            // A assinatura pende da conta desde 2026-10-18: uma por cliente,
+            // cobrindo as unidades dele. O caminho ficou um salto mais longo e
+            // continua uma consulta só.
+            workspace: { include: { account: { include: { subscription: true } } } },
         },
     },
 } as const

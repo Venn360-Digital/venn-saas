@@ -132,7 +132,20 @@ export async function POST(request: NextRequest) {
                 data: {
                     name: workspaceName,
                     slug: workspaceSlug,
-                }
+                    /**
+                     * A conta nasce junto, com quem está cadastrando como
+                     * MASTER: é ela que assina, e no Multiclínica é ela que
+                     * vai abrigar a segunda e a terceira unidade.
+                     *
+                     * Aninhada e dentro da mesma transação: conta sem unidade
+                     * e unidade sem conta são dois estados que nenhuma tela
+                     * sabe apresentar.
+                     */
+                    account: {
+                        create: { name: workspaceName, ownerUserId: user.id },
+                    },
+                },
+                select: { id: true, accountId: true, name: true, slug: true },
             })
             console.log('[ONBOARDING] Workspace created:', workspace.id)
 
@@ -177,7 +190,7 @@ export async function POST(request: NextRequest) {
 
             await tx.subscription.create({
                 data: {
-                    workspaceId: workspace.id,
+                    accountId: workspace.accountId,
                     plan: chosen.id,
                     status: 'trialing',
                     maxAgents: chosen.limits.maxAgents,

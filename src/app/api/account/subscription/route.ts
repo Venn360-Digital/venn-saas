@@ -9,6 +9,7 @@ import {
 import { applyPlanLimits } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { accountIdOf, assinaturaDaUnidade } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 
 
@@ -59,8 +60,8 @@ export async function GET() {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         }
 
-        const subscription = await prisma.subscription.findUnique({
-            where: { workspaceId: workspaceUser.workspaceId }
+        const subscription = await prisma.subscription.findFirst({
+            where: assinaturaDaUnidade(workspaceUser.workspaceId),
         })
 
         if (!subscription) {
@@ -153,10 +154,25 @@ export async function POST(request: NextRequest) {
 
                 const planConfig = PLANS[plan as keyof typeof PLANS]
 
+                /**
+                 * Quem assina é a conta, e é dela o seletor único.
+                 *
+                 * Sem conta não há o que assinar: um workspace órfão é estado
+                 * que a migração não deixa existir, e tratá-lo aqui como
+                 * "crie uma" esconderia o defeito em vez de mostrá-lo.
+                 */
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
                 const subscription = await prisma.subscription.upsert({
-                    where: { workspaceId: workspaceUser.workspaceId },
+                    where: { accountId },
                     create: {
-                        workspaceId: workspaceUser.workspaceId,
+                        accountId,
                         plan,
                         status: 'active',
                         maxAgents: planConfig.maxAgents,
@@ -312,8 +328,8 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                await prisma.subscription.update({
-                    where: { workspaceId: workspaceUser.workspaceId },
+                await prisma.subscription.updateMany({
+                    where: assinaturaDaUnidade(workspaceUser.workspaceId),
                     data: {
                         status: 'canceled',
                     }
@@ -328,8 +344,8 @@ export async function POST(request: NextRequest) {
             case 'update-payment-method': {
                 const { paymentMethod } = data
 
-                await prisma.subscription.update({
-                    where: { workspaceId: workspaceUser.workspaceId },
+                await prisma.subscription.updateMany({
+                    where: assinaturaDaUnidade(workspaceUser.workspaceId),
                     data: { paymentMethod }
                 })
 

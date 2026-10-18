@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
+import { assinaturaDaUnidade } from '@/lib/account'
 import { TRIAL, planFor } from '@/lib/plans'
 
 /**
@@ -42,7 +43,7 @@ const HOLDS_A_SLOT: Prisma.AgentIntegrationWhereInput = {
 
 export async function getWorkspaceLimits(workspaceId: string): Promise<WorkspaceLimits> {
     const [subscription, agentCount, whatsappCount] = await Promise.all([
-        prisma.subscription.findUnique({ where: { workspaceId } }),
+        prisma.subscription.findFirst({ where: assinaturaDaUnidade(workspaceId) }),
         prisma.agent.count({ where: { workspaceId } }),
         // Linhas que ocupam vaga, em todos os agentes do workspace — o teto é da
         // clínica, não do agente. Ver `HOLDS_A_SLOT`.
