@@ -440,6 +440,16 @@ quiser entre as unidades — na prática, um agente e dois números por unidade.
 de propósito: crédito somado deixa a unidade movimentada consumir a folga da
 que está parada, o que nenhuma assinatura separada permitiria.
 
+### Ainda não é o que o código faz
+
+A regra acima está decidida, não implementada. Hoje `getWorkspaceLimits` conta
+agentes e números **da unidade** (`where: { workspaceId }`) enquanto a
+assinatura já é da conta — então a segunda unidade de uma conta ganharia a
+franquia inteira outra vez, e um Multiclínica com três unidades chegaria a nove
+agentes e dezoito números. Está invisível só porque toda conta tem exatamente
+uma unidade. A contagem por conta, o teto de unidades por plano e a compra do
+adicional são a fase 4.
+
 ### A unidade adicional
 
 **Qualquer plano, a qualquer momento, pode adquirir uma unidade por R$ 290,00.**
