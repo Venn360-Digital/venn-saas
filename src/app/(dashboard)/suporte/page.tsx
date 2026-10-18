@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/collapsible'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
+import { normalizeSearch } from '@/lib/search'
 
 /**
  * A central de ajuda, dentro do próprio produto.
@@ -218,6 +219,25 @@ const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
 
 const TOTAL_FAQ = FAQ.reduce((n, g) => n + g.itens.length, 0)
 
+/**
+ * O texto de cada resposta já sem acento e em minúscula, montado uma vez.
+ *
+ * Sem isto a busca era sensível a acento: quem digitava "negocio" não achava
+ * "negócio", e a palavra certa em português é justamente a acentuada — ou
+ * seja, o termo que a pessoa consegue digitar rápido era o que não funcionava.
+ *
+ * É a mesma `normalizeSearch` que o banco usa para a coluna `searchText`, para
+ * a busca da ajuda e a do resto do produto se comportarem igual.
+ */
+const INDICE = new Map(
+    FAQ.flatMap((g) => g.itens).map((i) => [i.p, normalizeSearch(`${i.p} ${i.r}`)])
+)
+
+/** O mesmo para os guias, que também são conteúdo buscável. */
+const INDICE_PASSOS = new Map(
+    PASSOS.map((t) => [t.id, normalizeSearch(`${t.titulo} ${t.resumo} ${t.passos.join(' ')} ${t.nota}`)])
+)
+
 export default function SuportePage() {
     const [busca, setBusca] = useState('')
     const [topico, setTopico] = useState<string>('todos')
@@ -261,26 +281,32 @@ export default function SuportePage() {
      * qualquer lugar, e um resultado vazio por causa de um filtro que a pessoa
      * esqueceu que estava ligado é o pior tipo de nada encontrado.
      */
-    const resultado = useMemo(() => {
-        const termo = busca.trim().toLowerCase()
-        const base = termo
-            ? FAQ
-            : topico === 'todos'
-              ? FAQ
-              : FAQ.filter((g) => g.grupo === topico)
-        if (!termo) return base
-        return base
-            .map((g) => ({
-                ...g,
-                itens: g.itens.filter(
-                    (i) => i.p.toLowerCase().includes(termo) || i.r.toLowerCase().includes(termo)
-                ),
-            }))
-            .filter((g) => g.itens.length > 0)
-    }, [busca, topico])
+    const termo = normalizeSearch(busca)
+    const buscando = termo.length > 0
 
-    const achados = resultado.reduce((n, g) => n + g.itens.length, 0)
-    const buscando = busca.trim().length > 0
+    const resultado = useMemo(() => {
+        const base = buscando || topico === 'todos' ? FAQ : FAQ.filter((g) => g.grupo === topico)
+        if (!buscando) return base
+        return base
+            .map((g) => ({ ...g, itens: g.itens.filter((i) => INDICE.get(i.p)?.includes(termo)) }))
+            .filter((g) => g.itens.length > 0)
+    }, [termo, buscando, topico])
+
+    /**
+     * Os guias também entram na busca.
+     *
+     * Antes eles sumiam enquanto se buscava — então procurar "agenda" escondia
+     * justamente o guia de criar compromisso na agenda, que é a melhor
+     * resposta para quem digitou aquilo.
+     */
+    const guias = useMemo(
+        () => (buscando ? PASSOS.filter((t) => INDICE_PASSOS.get(t.id)?.includes(termo)) : PASSOS),
+        [termo, buscando]
+    )
+
+    const achadosFaq = resultado.reduce((n, g) => n + g.itens.length, 0)
+    /** Guia encontrado é resultado como outro qualquer — e às vezes o melhor. */
+    const achados = achadosFaq + (buscando ? guias.length : 0)
 
     return (
         <div className="pb-16">
@@ -289,7 +315,10 @@ export default function SuportePage() {
                 o lugar dela. ──────────────────────────────────────────── */}
             <header className="border-b border-border bg-card">
                 <div className="mx-auto w-full max-w-4xl px-4 py-10 text-center md:px-8 md:py-14">
-                    <Logo variant="wordmark" height={30} priority />
+                    {/* `mx-auto` porque o `Logo` sai como `block`: o
+                        `text-center` do cabeçalho alinha texto, não bloco — ele
+                        ficava encostado à esquerda. */}
+                    <Logo variant="wordmark" height={90} priority className="mx-auto" />
                     <h1 className="mt-5 text-[26px] font-bold tracking-tight md:text-[32px]">
                         Central de ajuda
                     </h1>
@@ -346,15 +375,15 @@ export default function SuportePage() {
             </header>
 
             <div className="mx-auto w-full max-w-6xl px-4 md:px-8">
-                {/* ─── Guias: só fora da busca. Quem está procurando algo
-                    específico não quer um tutorial no caminho. ─────────── */}
-                {!buscando ? (
+                {/* Os guias entram na busca como o resto: quem procura "agenda"
+                    tem no guia da agenda a melhor resposta possível. */}
+                {guias.length > 0 ? (
                     <section className="pt-10">
                         <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Guias
+                            {buscando ? `Guias (${guias.length})` : 'Guias'}
                         </h2>
-                        <div className="mt-3 grid gap-4 lg:grid-cols-3">
-                            {PASSOS.map((t) => (
+                        <div className={cn('mt-3 grid gap-4', guias.length > 1 && 'lg:grid-cols-3')}>
+                            {guias.map((t) => (
                                 <article
                                     key={t.id}
                                     className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
@@ -430,12 +459,12 @@ export default function SuportePage() {
                             <p className="mb-3 text-sm text-muted-foreground">
                                 {achados === 0
                                     ? 'Nada encontrado para '
-                                    : `${achados} ${achados === 1 ? 'resposta' : 'respostas'} para `}
+                                    : `${achados} ${achados === 1 ? 'resultado' : 'resultados'} para `}
                                 <strong className="text-foreground">“{busca.trim()}”</strong>
                             </p>
                         ) : null}
 
-                        {achados === 0 ? (
+                        {achadosFaq === 0 && achados > 0 ? null : achados === 0 ? (
                             <EmptyState
                                 variant="inline"
                                 icon={Search}
