@@ -121,7 +121,13 @@ export async function GET(request: NextRequest) {
 
         // Aberto corta por criação; finalizado, por fechamento — a mesma regra
         // do resumo e do quadro, num módulo só.
-        Object.assign(where, periodWhere(status, dateFrom, dateTo))
+        //
+        // Na lista, e não por `Object.assign`: hoje `periodWhere` devolve só
+        // `createdAt` ou `closedAt`, mas o `where.AND = todas` abaixo apagaria
+        // em silêncio qualquer `AND` que ele passasse a devolver — foi
+        // exatamente assim que o recorte de visibilidade quase se perdeu para o
+        // filtro de faixa.
+        todas.push(periodWhere(status, dateFrom, dateTo))
 
         where.AND = todas
 

@@ -876,6 +876,10 @@ model Conversation {
   @@index([integrationId])
   @@index([visitorKey])
   @@index([status])
+  /// Filtrada em dois caminhos quentes: as guias Ativas e Finalizadas do
+  /// atendente, que mostram só o que é dele, e o recorte de Pacientes, que
+  /// pergunta "tem conversa atribuída a mim?" em toda listagem.
+  @@index([assignedTo])
   @@map("conversations")
 }
 
