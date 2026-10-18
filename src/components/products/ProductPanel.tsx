@@ -3,6 +3,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
+import { isSchedulable } from '@/lib/product-categories'
 
 export interface ProductPanelItem {
     id: string
@@ -10,6 +11,8 @@ export interface ProductPanelItem {
     description: string | null
     sku: string | null
     category: string
+    /** Minutos que ocupa na agenda. Nulo em produto, que não ocupa cadeira. */
+    durationMinutes: number | null
     price: number | null
     group: string | null
 }
@@ -83,6 +86,24 @@ export function ProductPanel({
                         </SelectContent>
                     </Select>
                 </PanelField>
+                {/* Logo abaixo da categoria, porque é ela que decide se este
+                    campo existe — e some em produto, onde a resposta certa é
+                    "não se aplica". */}
+                {isSchedulable(p.category) ? (
+                    <PanelField label="Duração" htmlFor="prod-panel-duration" saved={saved === 'durationMinutes'}>
+                        <InlineField
+                            id="prod-panel-duration"
+                            value={p.durationMinutes != null ? String(p.durationMinutes) : ''}
+                            disabled={!canEdit}
+                            placeholder="30"
+                            onCommit={(texto) => {
+                                const minutos = Number(texto.replace(/\D/g, ''))
+                                void save('durationMinutes', { durationMinutes: minutos || null })
+                            }}
+                            className="num h-8 text-sm"
+                        />
+                    </PanelField>
+                ) : null}
                 <PanelField label="Preço" htmlFor="prod-panel-price" saved={saved === 'price'}>
                     <InlineField
                         id="prod-panel-price"

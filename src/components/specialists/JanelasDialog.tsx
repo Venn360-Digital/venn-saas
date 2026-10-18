@@ -93,7 +93,7 @@ export function JanelasDialog({
 
     useEffect(() => {
         if (!open) return
-        fetch('/api/products?category=procedure&limit=200')
+        fetch('/api/products?schedulable=true&limit=200')
             .then((r) => (r.ok ? r.json() : null))
             .then((d) => setProcedimentos(d?.data ?? d ?? []))
             .catch(() => undefined)

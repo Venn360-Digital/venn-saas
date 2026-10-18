@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { ProductPanel } from '@/components/products/ProductPanel'
+import { PRODUCT_CATEGORIES, isSchedulable } from '@/lib/product-categories'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
@@ -36,6 +37,7 @@ interface Product {
     description: string | null
     sku: string | null
     category: string
+    durationMinutes: number | null
     price: number | null
     group: string | null
     createdAt: string
@@ -48,14 +50,13 @@ interface PaginationState {
     totalPages: number
 }
 
-const CATEGORIES = [
-    { id: 'product', label: 'Produto' },
-    { id: 'service', label: 'Serviço' },
-]
+const CATEGORIES = PRODUCT_CATEGORIES.map((c) => ({ id: c.id as string, label: c.label }))
 
 const CATEGORY_TONES = {
-    product: { label: 'Produto', tone: 'info' as const },
-    service: { label: 'Serviço', tone: 'neutral' as const },
+    // O que ocupa agenda leva cor; o que é mercadoria fica neutro.
+    service: { label: 'Serviço', tone: 'primary' as const },
+    procedure: { label: 'Procedimento', tone: 'info' as const },
+    product: { label: 'Produto', tone: 'neutral' as const },
 }
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -94,9 +95,12 @@ export default function ProdutosServicosPage() {
         name: '',
         description: '',
         sku: '',
-        category: 'product',
+        // Serviço é o padrão: é o que a clínica cadastra o dia todo, e era
+        // "produto", a categoria que ela menos usa.
+        category: 'service',
         priceCents: '',
         group: '',
+        durationMinutes: '',
     })
 
     useEffect(() => {
@@ -140,7 +144,7 @@ export default function ProdutosServicosPage() {
 
     function openNew() {
         setEditingId(null)
-        setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
+        setFormData({ name: '', description: '', sku: '', category: 'service', priceCents: '', group: '', durationMinutes: '' })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -148,7 +152,7 @@ export default function ProdutosServicosPage() {
     /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
     function openEdit(item: Product) {
         setEditingId(item.id)
-        setFormData({ name: item.name, description: item.description ?? '', sku: item.sku ?? '', category: item.category, priceCents: item.price != null ? String(Math.round(item.price * 100)) : '', group: item.group ?? '' })
+        setFormData({ name: item.name, description: item.description ?? '', sku: item.sku ?? '', category: item.category, priceCents: item.price != null ? String(Math.round(item.price * 100)) : '', group: item.group ?? '', durationMinutes: item.durationMinutes != null ? String(item.durationMinutes) : '' })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -171,6 +175,11 @@ export default function ProdutosServicosPage() {
                     description: formData.description.trim() || undefined,
                     sku: formData.sku.trim() || undefined,
                     category: formData.category,
+                    // Nulo fora de serviço e procedimento: produto não ocupa
+                    // cadeira, e um número pendurado nele apareceria na agenda.
+                    durationMinutes: isSchedulable(formData.category)
+                        ? Number(formData.durationMinutes) || null
+                        : null,
                     price: cents == null ? undefined : cents / 100,
                     group: formData.group.trim() || undefined,
                 }),
@@ -178,7 +187,7 @@ export default function ProdutosServicosPage() {
             if (res.ok) {
                 toast.success(editingId ? 'Item atualizado' : 'Item criado')
                 setErrors({})
-                if (again && !editingId) setFormData({ name: '', description: '', sku: '', category: 'product', priceCents: '', group: '' })
+                if (again && !editingId) setFormData({ name: '', description: '', sku: '', category: 'service', priceCents: '', group: '', durationMinutes: '' })
                 else setIsDialogOpen(false)
                 load()
             } else {
@@ -293,7 +302,7 @@ export default function ProdutosServicosPage() {
                         onDelete={(id) => { const p = products.find((x) => x.id === id); if (p) setDeleting(p) }}
                     />
                 ) : null}
-                title="Produtos e serviços"
+                title="Serviços e procedimentos"
                 primary={
                     canEdit ? (
                         <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
@@ -449,6 +458,26 @@ export default function ProdutosServicosPage() {
                         className="num"
                     />
                 </FormField>
+
+                {/* Só para o que ocupa cadeira. Em produto o campo não
+                    aparece, porque a resposta certa ali é "não se aplica" — e
+                    um campo vazio que nunca se preenche é pior que nenhum. */}
+                {isSchedulable(formData.category) ? (
+                    <FormField
+                        label="Duração"
+                        htmlFor="prod-duration"
+                        hint="Minutos que ocupa na agenda. É daqui que sai o tamanho do compromisso."
+                    >
+                        <Input
+                            id="prod-duration"
+                            inputMode="numeric"
+                            value={formData.durationMinutes}
+                            onChange={(e) => setFormData((p) => ({ ...p, durationMinutes: onlyDigits(e.target.value) }))}
+                            placeholder="30"
+                            className="num"
+                        />
+                    </FormField>
+                ) : null}
 
                 <FormField label="SKU" htmlFor="prod-sku">
                     <Input id="prod-sku" value={formData.sku} onChange={(e) => setFormData((p) => ({ ...p, sku: e.target.value }))} placeholder="PROF-001" className="font-mono" />

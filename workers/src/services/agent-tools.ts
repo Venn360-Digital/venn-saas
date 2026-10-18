@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { normalizeSearch } from '@/lib/search'
 import type { LLMTool } from '@/types/llm'
 import { createLogger } from '../logger'
@@ -329,7 +330,7 @@ const consultarHorarios: AgentTool = {
         if (!nome) return 'Erro: diga qual procedimento.'
 
         const todosProcedimentos = await prisma.productService.findMany({
-            where: { workspaceId: ctx.workspaceId, category: 'procedure' },
+            where: { workspaceId: ctx.workspaceId, category: { in: SCHEDULABLE_CATEGORIES } },
             orderBy: { name: 'asc' },
             select: { id: true, name: true },
         })
@@ -418,7 +419,7 @@ const marcarConsulta: AgentTool = {
 
         const [procedimentos, especialistas] = await Promise.all([
             prisma.productService.findMany({
-                where: { workspaceId: ctx.workspaceId, category: 'procedure' },
+                where: { workspaceId: ctx.workspaceId, category: { in: SCHEDULABLE_CATEGORIES } },
                 select: { id: true, name: true, durationMinutes: true },
             }),
             prisma.specialist.findMany({

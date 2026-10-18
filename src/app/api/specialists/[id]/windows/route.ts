@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
@@ -89,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             where: {
                 id: { in: pedidos },
                 workspaceId: auth.member.workspaceId,
-                category: 'procedure',
+                category: { in: SCHEDULABLE_CATEGORIES },
             },
             select: { id: true },
         })

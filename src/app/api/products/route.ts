@@ -1,6 +1,7 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { SCHEDULABLE_CATEGORIES, isSchedulable } from '@/lib/product-categories'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
@@ -70,9 +71,19 @@ export async function GET(request: NextRequest) {
             where.searchText = { contains: normalizeSearch(search) }
         }
 
-        // Filter by category
+        /**
+         * Por categoria, ou pelo que ocupa agenda.
+         *
+         * `schedulable` existe porque os três lugares que pedem "o que dá para
+         * marcar" — o seletor da agenda, as janelas do especialista e o
+         * diálogo delas — pediam `category=procedure` escrito à mão. Com
+         * serviço passando a ocupar agenda também, cada um desses pontos
+         * precisaria saber a lista; aqui é um nome só.
+         */
         if (category && category !== 'all') {
             where.category = category
+        } else if (new URL(request.url).searchParams.get('schedulable') === 'true') {
+            where.category = { in: SCHEDULABLE_CATEGORIES }
         }
 
         const [products, total] = await Promise.all([
@@ -147,12 +158,11 @@ export async function POST(request: NextRequest) {
                 category: validatedData.category,
                 price: validatedData.price,
                 group: validatedData.group,
-                // Só o procedimento ocupa tempo: produto e serviço ficam nulos
+                // Só o que ocupa agenda guarda duração: produto fica nulo
                 // mesmo que alguém mande um número.
-                durationMinutes:
-                    validatedData.category === 'procedure'
-                        ? validatedData.durationMinutes ?? null
-                        : null,
+                durationMinutes: isSchedulable(validatedData.category)
+                    ? validatedData.durationMinutes ?? null
+                    : null,
             }
         })
 

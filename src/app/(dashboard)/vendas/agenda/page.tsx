@@ -180,7 +180,7 @@ export default function AgendaPage() {
             .then((r) => (r.ok ? r.json() : []))
             .then(setEspecialistas)
             .catch(() => undefined)
-        void fetch('/api/products?category=procedure&limit=200')
+        void fetch('/api/products?schedulable=true&limit=200')
             .then((r) => (r.ok ? r.json() : null))
             .then((d) => setProcedimentos(d?.data ?? []))
             .catch(() => undefined)

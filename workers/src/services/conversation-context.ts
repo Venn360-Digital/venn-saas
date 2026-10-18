@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { createLogger } from '../logger'
 
 const log = createLogger('CONTEXT')
@@ -141,7 +142,7 @@ export async function loadConversationContext(
             prisma.productService.findMany({
                 where: {
                     workspaceId,
-                    category: 'procedure',
+                    category: { in: SCHEDULABLE_CATEGORIES },
                     durationMinutes: { not: null },
                     windows: { some: { window: { agentCanBook: true } } },
                 },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { isSchedulable } from '@/lib/product-categories'
 import { PERMISSION_DENIED, hasEditorRole } from '@/lib/auth/workspace'
 import { createClient } from '@/lib/supabase/server'
 
@@ -52,17 +53,16 @@ export async function PATCH(
         /**
          * Duração só existe em procedimento.
          *
-         * Mudar a categoria de "procedimento" para "produto" tem que zerar a
-         * duração junto — senão ela fica pendurada num creme dental, e a janela
-         * do especialista passaria a oferecer um item que ninguém executa.
+         * Mudar a categoria para "produto" tem que zerar a duração junto —
+         * senão ela fica pendurada num creme dental, e a janela do especialista
+         * passaria a oferecer um item que ninguém executa.
          */
         const categoriaFinal = category ?? existingProduct.category
-        const duracao =
-            categoriaFinal === 'procedure'
-                ? durationMinutes !== undefined
-                    ? durationMinutes
-                    : undefined
-                : null
+        const duracao = isSchedulable(categoriaFinal)
+            ? durationMinutes !== undefined
+                ? durationMinutes
+                : undefined
+            : null
 
         const product = await prisma.productService.update({
             where: { id },

@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import {
     calcularVagas,
     type Excecao,
@@ -44,7 +45,7 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
             include: { windows: { include: { procedures: true } } },
         }),
         prisma.productService.findFirst({
-            where: { id: procedureId, workspaceId, category: 'procedure' },
+            where: { id: procedureId, workspaceId, category: { in: SCHEDULABLE_CATEGORIES } },
             select: { name: true, durationMinutes: true },
         }),
     ])

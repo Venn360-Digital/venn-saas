@@ -1355,11 +1355,17 @@ model ProductService {
   category    String  @default("product") // "product" | "service" | "procedure"
   price       Float?
 
-  /// Quanto tempo este procedimento ocupa na agenda.
+  /// Quanto tempo este item ocupa na agenda.
   ///
-  /// Só faz sentido em `category = "procedure"`: avaliação são 30 minutos,
-  /// implante são 120. É daqui que a agenda tira o tamanho do compromisso, e é
-  /// o que impede o agente de encaixar uma cirurgia no buraco de uma consulta.
+  /// Vale para `service` **e** `procedure` — ver `SCHEDULABLE_CATEGORIES` em
+  /// `src/lib/product-categories.ts`. Era só de `procedure`, e as duas rotas
+  /// zeravam a duração de serviço mesmo que alguém a mandasse; só que limpeza
+  /// e clareamento ocupam cadeira igual a um implante, e a diferença entre
+  /// serviço e procedimento é de catálogo, não de agenda.
+  ///
+  /// Avaliação são 30 minutos, implante são 120. É daqui que a agenda tira o
+  /// tamanho do compromisso, e é o que impede o agente de encaixar uma cirurgia
+  /// no buraco de uma consulta. Nulo em `product`, que não ocupa cadeira.
   ///
   /// Mora no Item, e não numa tabela à parte, porque é aqui que a clínica já
   /// pensa no procedimento — com nome e preço. Mudar de 30 para 40 minutos

@@ -13,7 +13,8 @@ import {
  *
  * Breadcrumbs used to derive their labels by title-casing URL segments, which
  * rendered "/vendas/produtos-servicos" as "Produtos Servicos" — hyphen eaten,
- * accent gone. The sidebar carried its own copy of the same names, so the two
+ * accent gone (aquela rota hoje é `/vendas/servicos`).
+ * The sidebar carried its own copy of the same names, so the two
  * could disagree. Both read from here now, and so does the trail in the
  * topbar.
  */
@@ -92,7 +93,7 @@ export const navSections: NavSection[] = [
             { label: 'Pacientes', href: '/vendas/pacientes' },
             { label: 'Agenda', href: '/vendas/agenda' },
             { label: 'Especialistas', href: '/vendas/especialistas' },
-            { label: 'Produtos e serviços', href: '/vendas/produtos-servicos' },
+            { label: 'Serviços e procedimentos', href: '/vendas/servicos' },
             { label: 'Departamentos', href: '/vendas/departamentos' },
         ],
     },
@@ -144,7 +145,7 @@ const SEGMENT_LABELS: Record<string, string> = {
     contatos: 'Pacientes',
     agenda: 'Agenda',
     especialistas: 'Especialistas',
-    'produtos-servicos': 'Produtos e serviços',
+    servicos: 'Serviços e procedimentos',
     departamentos: 'Departamentos',
 
     conta: 'Conta',
