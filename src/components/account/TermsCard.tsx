@@ -27,7 +27,9 @@ function BandFrame({
     children: React.ReactNode
 }) {
     return (
-        <SettingsBand title={title} last>
+        // Sem `last`: o acordo deixou de ser o pé da guia quando o cancelamento
+        // passou para depois dele, e sem o fio os dois correm juntos.
+        <SettingsBand title={title}>
             {/* O acordo num cartão de bordas arredondadas: a frase do estado e o
                 botão de ler ficam na mesma peça, e não soltos no pé da guia. */}
             <div className="max-w-5xl rounded-xl border border-border bg-card p-4">

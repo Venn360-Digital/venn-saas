@@ -267,9 +267,15 @@ com borda**, não retângulo arredondado repetido.
 
 ## 5. Regras de componente
 
-**Botão.** Um `variant="default"` por tela. O resto é `outline`, `secondary` ou
-`ghost`. Ação destrutiva é `destructive` e pede confirmação (`ConfirmDialog` —
-nunca `confirm()` nativo).
+**Botão.** Um `variant="default"` por tela — **um, e não zero**. O azul é como a
+tela diz qual é o próximo passo; sem ele, todas as ações pesam igual e a pessoa
+tem de ler as quatro para escolher. O resto é `outline`, `secondary` ou `ghost`.
+Ação destrutiva é `destructive` e pede confirmação (`ConfirmDialog` — nunca
+`confirm()` nativo).
+
+Quando o próximo passo muda com o estado, o azul muda com ele: na guia Plano é
+*Contratar plano* durante a avaliação e *Comprar créditos* com plano ativo. O
+que não pode é a tela ficar sem nenhum.
 
 **Botão leva ícone.** É o padrão do sistema, não enfeite: numa pilha de linhas
 que só diferem pelo verbo, o ícone é o que se lê primeiro. `<Icon className="size-4" />`

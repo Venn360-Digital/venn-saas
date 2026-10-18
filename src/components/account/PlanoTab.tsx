@@ -247,6 +247,27 @@ export function PlanoTab() {
         cancelEmail.trim().toLowerCase() === adminEmail.trim().toLowerCase()
 
     const isTrialing = subscription?.status === 'trialing'
+
+    /**
+     * Se dá para comprar crédito avulso agora — as mesmas duas condições que o
+     * servidor cobra em `canBuyCredits`: plano ativo **e** fora da avaliação.
+     *
+     * Repetidas aqui porque a tela estava oferecendo o que o servidor recusa: o
+     * botão ficava clicável durante a avaliação, abria o modal, deixava
+     * escolher o pacote e só então devolvia 402. Quem decide continua sendo o
+     * servidor; isto é para não convidar para uma porta fechada.
+     */
+    const podeComprarCreditos = subscription?.status === 'active'
+
+    /**
+     * Qual é a ação principal desta tela — o único botão sólido dela.
+     *
+     * Muda com o momento, e é o que o cliente faria em seguida: em avaliação, é
+     * contratar um plano; com plano ativo, é recarregar crédito. A alternativa
+     * — deixar as duas em `outline` — foi o que deixou a guia sem botão azul
+     * nenhum enquanto todas as outras de Conta têm exatamente um.
+     */
+    const principal: 'plano' | 'creditos' = podeComprarCreditos ? 'creditos' : 'plano'
     const trialDaysLeft = subscription?.trialEndsAt
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0
@@ -331,9 +352,12 @@ export function PlanoTab() {
                         }
                         description="Subir ou descer de plano vale a partir do próximo ciclo."
                         action={
-                            <Button variant="outline" onClick={() => setShowPlanModal(true)}>
+                            <Button
+                                variant={principal === 'plano' ? 'default' : 'outline'}
+                                onClick={() => setShowPlanModal(true)}
+                            >
                                 <ArrowUpDown className="size-4" />
-                                Alterar plano
+                                {isTrialing ? 'Contratar plano' : 'Alterar plano'}
                             </Button>
                         }
                     />
@@ -354,7 +378,11 @@ export function PlanoTab() {
                                 </span>
                             </p>
                         </div>
-                        <Button variant="outline" onClick={() => setShowCreditsModal(true)}>
+                        <Button
+                            variant={principal === 'creditos' ? 'default' : 'outline'}
+                            disabled={!podeComprarCreditos}
+                            onClick={() => setShowCreditsModal(true)}
+                        >
                             <Plus className="size-4" />
                             Comprar créditos
                         </Button>
@@ -381,6 +409,13 @@ export function PlanoTab() {
                         />
                     </div>
 
+                    {!podeComprarCreditos ? (
+                        <p className="text-xs text-muted-foreground">
+                            Crédito avulso exige plano ativo. Na avaliação, a franquia é a do
+                            plano que você escolher.
+                        </p>
+                    ) : null}
+
                     <p className="text-xs text-muted-foreground">
                         <span className="num">
                             {(subscription?.creditsUsed ?? 0).toLocaleString('pt-BR')} de{' '}
@@ -400,6 +435,13 @@ export function PlanoTab() {
                 </div>
               </div>
             </SettingsBand>
+
+            {/* O acordo fica junto das outras condições — o que se paga, o que
+                se gasta, até quando. É onde alguém procura quando quer reler o
+                que aceitou. Vem **antes** do cancelamento: ler o que foi
+                acordado é passo de quem está decidindo, e encerrar a conta é o
+                fim da guia por ser o fim do caminho. */}
+            <TermsCard band />
 
             {/*
               * O que encerra a conta mora num cartão só dele — mesmo padrão da
@@ -844,10 +886,6 @@ export function PlanoTab() {
                 </div>
             </RecordDialog>
 
-            {/* O acordo fica junto das outras condições — o que se paga, o que
-                se gasta, até quando. É onde alguém procura quando quer reler o
-                que aceitou. */}
-            <TermsCard band />
         </BandLayout>
     )
 }
