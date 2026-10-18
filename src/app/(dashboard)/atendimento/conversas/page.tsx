@@ -7,7 +7,7 @@ import { prettyPhone } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
 import { usePermissions } from '@/hooks/usePermissions'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -1626,6 +1626,52 @@ export default function ConversasPage() {
         }
     }
 
+    /**
+     * A caixa de digitação cresce até cinco linhas, e só então rola.
+     *
+     * Antes não crescia: `rows={1}` com `height: 'auto'` fixo no style deixava
+     * a caixa na altura mínima, e a partir da terceira linha aparecia barra de
+     * rolagem num campo de 40px — escrever um parágrafo virava espiar o texto
+     * por uma fresta. É o comportamento que todo mundo conhece do WhatsApp:
+     * uma, duas, três, quatro, cinco linhas empurram a caixa para cima; da
+     * sexta em diante ela para de crescer e o texto rola por dentro.
+     *
+     * As medidas saem do estilo calculado, não de números escritos aqui: altura
+     * de linha e padding mudam com o tema e com a escala tipográfica, e um
+     * `120px` fixo passaria a valer quatro linhas e meia no dia em que o corpo
+     * do texto subisse um ponto.
+     *
+     * `useLayoutEffect` e não `useEffect` porque a medição acontece antes da
+     * pintura: com o segundo, cada tecla que muda de linha pisca a altura
+     * antiga por um quadro.
+     */
+    const LINHAS_ATE_ROLAR = 5
+    useLayoutEffect(() => {
+        const el = textareaRef.current
+        if (!el) return
+
+        // Zerar antes de medir: `scrollHeight` nunca encolhe sozinho, então sem
+        // isto a caixa cresceria e nunca mais voltaria ao apagar o texto.
+        el.style.height = 'auto'
+
+        const estilo = window.getComputedStyle(el)
+        const linha = parseFloat(estilo.lineHeight)
+        const respiro =
+            parseFloat(estilo.paddingTop) +
+            parseFloat(estilo.paddingBottom) +
+            parseFloat(estilo.borderTopWidth) +
+            parseFloat(estilo.borderBottomWidth)
+
+        // `lineHeight: normal` não é número: aí o teto vem do próprio conteúdo,
+        // e o máximo volta a ser o do CSS.
+        const teto = Number.isFinite(linha) ? linha * LINHAS_ATE_ROLAR + respiro : Infinity
+
+        el.style.height = `${Math.min(el.scrollHeight, teto)}px`
+        // Sem barra enquanto cabe: um canal de rolagem desenhado numa caixa de
+        // duas linhas é ruído, e em alguns sistemas rouba largura do texto.
+        el.style.overflowY = el.scrollHeight > teto ? 'auto' : 'hidden'
+    }, [messageInput, attachment])
+
     /** Insere no ponto do cursor e devolve o foco, sem perder a seleção. */
     const insertAtCursor = (text: string) => {
         const el = textareaRef.current
@@ -2954,8 +3000,12 @@ export default function ConversasPage() {
                                                                     : 'Digite sua mensagem… ( / para comandos )'
                                                             }
                                                             rows={1}
+                                                            /* A altura é do efeito acima, que mede o
+                                                               conteúdo. `max-h` fica como rede: se o
+                                                               efeito não rodar, a caixa ainda para de
+                                                               crescer em cinco linhas da escala atual
+                                                               (5 × 20px + 20px de respiro). */
                                                             className="max-h-[120px] min-h-[40px] w-full resize-none rounded-lg bg-muted/50 py-2.5 pl-4 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                                            style={{ height: 'auto' }}
                                                         />
                                                         <EmojiPicker
                                                             onSelect={insertAtCursor}
