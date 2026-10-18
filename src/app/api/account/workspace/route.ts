@@ -19,25 +19,44 @@ export async function GET() {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         }
 
-        const workspace = await prisma.workspace.findUnique({
-            where: { id: workspaceUser.workspaceId },
-            select: {
-                id: true,
-                name: true,
-                slug: true,
-                cnpj: true,
-                address: true,
-                phone: true,
-                logo: true,
-                createdAt: true,
-            }
-        })
+        /**
+         * A unidade aberta e as outras que esta pessoa pode abrir.
+         *
+         * As duas na mesma resposta porque quem as usa é a marca da sidebar,
+         * que está em toda tela: uma segunda chamada só para saber se existe
+         * uma segunda unidade custaria uma viagem por carregamento de página
+         * para, em quase todo cliente, responder "não".
+         */
+        const [workspace, unidades] = await Promise.all([
+            prisma.workspace.findUnique({
+                where: { id: workspaceUser.workspaceId },
+                select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    cnpj: true,
+                    address: true,
+                    phone: true,
+                    logo: true,
+                    createdAt: true,
+                }
+            }),
+            prisma.workspaceUser.findMany({
+                where: { userId: workspaceUser.userId, isActive: true },
+                orderBy: { createdAt: 'asc' },
+                select: { workspace: { select: { id: true, name: true, logo: true } } },
+            }),
+        ])
 
         if (!workspace) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         }
 
-        return NextResponse.json(workspace)
+        return NextResponse.json({
+            ...workspace,
+            /** As unidades desta pessoa, para o seletor da marca. */
+            unidades: unidades.map((u) => u.workspace),
+        })
     } catch (error) {
         console.error('[API] Error fetching workspace:', error)
         return NextResponse.json({ error: 'Erro ao buscar dados da empresa' }, { status: 500 })

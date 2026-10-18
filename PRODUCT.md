@@ -414,7 +414,55 @@ outro nome.
 
 ---
 
-## 12. O que ainda não existe
+## 12. Unidades e quem paga
+
+**A assinatura é da conta, não da unidade.** A conta é o cliente; as unidades
+(workspaces) são as clínicas dele. Uma assinatura cobre todas, com uma data de
+renovação, um cartão e uma fatura. O proprietário é o **MASTER** da conta:
+contrata, paga e governa todas as unidades.
+
+A alternativa — assinatura por unidade — foi descartada em 2026-10-18 por
+quatro razões: três datas de renovação para o mesmo dono, créditos que não se
+somam entre unidades, avaliação recomeçando a cada unidade criada, e cancelar
+uma sem cancelar as outras, com o cliente achando que cancelou tudo.
+
+### O que o plano dá
+
+| Plano | Unidades inclusas |
+|---|---|
+| Digital | 1 |
+| Prime | 1 |
+| Multiclínica | 3 |
+
+**Os limites do plano não se multiplicam por unidade.** Multiclínica são 3
+agentes, 6 números e 30.000 créditos **no total**, divididos como a clínica
+quiser entre as unidades — na prática, um agente e dois números por unidade. É
+de propósito: crédito somado deixa a unidade movimentada consumir a folga da
+que está parada, o que nenhuma assinatura separada permitiria.
+
+### A unidade adicional
+
+**Qualquer plano, a qualquer momento, pode adquirir uma unidade por R$ 290,00.**
+Não é privilégio do Multiclínica.
+
+O preço não é arbitrário: Multiclínica são R$ 890 por três unidades, ou seja
+R$ 297 cada. O adicional só torna explícito o preço marginal que o plano já
+embute — e fica abaixo dos R$ 390 de um Digital avulso, que é a alternativa que
+o cliente tem hoje. Com o adicional ele mantém uma fatura, uma renovação e a
+troca de unidade pela própria tela.
+
+### A troca de unidade
+
+Quem participa de mais de uma vê o seletor na marca, no topo da barra lateral —
+que é onde a tela já diz em qual clínica se está. A escolha mora num cookie, e
+**é conferida contra as participações a cada requisição**: cookie é campo de
+texto, e aceitar o que ele diz seria entregar a clínica do vizinho a quem
+souber editá-lo. Trocar recarrega a tela inteira, porque trocar de clínica troca
+tudo — conversas, pacientes, agenda, agentes.
+
+---
+
+## 13. O que ainda não existe
 
 Registrado para não ser esquecido:
 
