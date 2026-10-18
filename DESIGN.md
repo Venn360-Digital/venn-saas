@@ -267,15 +267,25 @@ com borda**, não retângulo arredondado repetido.
 
 ## 5. Regras de componente
 
-**Botão.** Um `variant="default"` por tela — **um, e não zero**. O azul é como a
-tela diz qual é o próximo passo; sem ele, todas as ações pesam igual e a pessoa
-tem de ler as quatro para escolher. O resto é `outline`, `secondary` ou `ghost`.
-Ação destrutiva é `destructive` e pede confirmação (`ConfirmDialog` — nunca
-`confirm()` nativo).
+**Botão.** O peso segue a forma da tela, e são duas formas:
 
-Quando o próximo passo muda com o estado, o azul muda com ele: na guia Plano é
-*Contratar plano* durante a avaliação e *Comprar créditos* com plano ativo. O
-que não pode é a tela ficar sem nenhum.
+- **Formulário** — Perfil, Empresa, qualquer diálogo. Um `default` azul: o
+  `Salvar`. Tudo o mais é `outline`, porque é ajudante de um campo e está
+  subordinado àquele envio. Zero azul aqui é tela sem saída.
+- **Lista de ações independentes** — a guia Plano. Alterar forma, Alterar
+  plano, Comprar créditos, Ler os termos: cada uma abre o próprio diálogo,
+  nenhuma depende da outra, e nenhuma é "o próximo passo". Então **todas levam
+  o mesmo peso e todas são azuis**. Pintar uma delas de azul e as outras de
+  branco inventa uma hierarquia que não existe e faz a pessoa procurar o que a
+  diferença quer dizer.
+
+Em qualquer das duas, o que destrói é `destructive` e pede confirmação
+(`ConfirmDialog` — nunca `confirm()` nativo). É dele o contraste da tela: numa
+lista toda azul, o vermelho é a única coisa que se lê diferente, que é
+exatamente o que se quer.
+
+Ação que o servidor vai recusar nasce **desabilitada**, com a razão escrita ao
+lado — não habilitada para devolver erro três cliques depois.
 
 **Botão leva ícone.** É o padrão do sistema, não enfeite: numa pilha de linhas
 que só diferem pelo verbo, o ícone é o que se lê primeiro. `<Icon className="size-4" />`

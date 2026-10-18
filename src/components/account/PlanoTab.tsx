@@ -258,16 +258,6 @@ export function PlanoTab() {
      * servidor; isto é para não convidar para uma porta fechada.
      */
     const podeComprarCreditos = subscription?.status === 'active'
-
-    /**
-     * Qual é a ação principal desta tela — o único botão sólido dela.
-     *
-     * Muda com o momento, e é o que o cliente faria em seguida: em avaliação, é
-     * contratar um plano; com plano ativo, é recarregar crédito. A alternativa
-     * — deixar as duas em `outline` — foi o que deixou a guia sem botão azul
-     * nenhum enquanto todas as outras de Conta têm exatamente um.
-     */
-    const principal: 'plano' | 'creditos' = podeComprarCreditos ? 'creditos' : 'plano'
     const trialDaysLeft = subscription?.trialEndsAt
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0
@@ -333,9 +323,9 @@ export function PlanoTab() {
                         title="Forma de pagamento"
                         description="Troque o cartão que paga a mensalidade."
                         action={
-                            <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
+                            <Button onClick={() => setShowPaymentModal(true)}>
                                 <CreditCard className="size-4" />
-                                Alterar
+                                Alterar forma
                             </Button>
                         }
                     />
@@ -352,10 +342,7 @@ export function PlanoTab() {
                         }
                         description="Subir ou descer de plano vale a partir do próximo ciclo."
                         action={
-                            <Button
-                                variant={principal === 'plano' ? 'default' : 'outline'}
-                                onClick={() => setShowPlanModal(true)}
-                            >
+                            <Button onClick={() => setShowPlanModal(true)}>
                                 <ArrowUpDown className="size-4" />
                                 {isTrialing ? 'Contratar plano' : 'Alterar plano'}
                             </Button>
@@ -379,7 +366,6 @@ export function PlanoTab() {
                             </p>
                         </div>
                         <Button
-                            variant={principal === 'creditos' ? 'default' : 'outline'}
                             disabled={!podeComprarCreditos}
                             onClick={() => setShowCreditsModal(true)}
                         >

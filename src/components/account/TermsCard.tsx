@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, FileText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -142,7 +142,8 @@ export function TermsCard({ band = false }: { band?: boolean }) {
             }
             action={
                 needsSignature ? null : (
-                    <Button variant="outline" size="sm" className="h-8" onClick={() => setReading(true)}>
+                    <Button onClick={() => setReading(true)}>
+                        <FileText className="size-4" />
                         Ler os termos
                     </Button>
                 )
@@ -205,7 +206,7 @@ export function TermsCard({ band = false }: { band?: boolean }) {
 
                     <div className="flex justify-end">
                         <Button onClick={() => void submit()} disabled={!accepted || saving}>
-                            {saving ? <Loader2 className="animate-spin" /> : null}
+                            {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                             Autorizar
                         </Button>
                     </div>
