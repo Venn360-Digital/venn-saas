@@ -52,6 +52,16 @@ export async function updateSession(request: NextRequest) {
         // Providers post here with their own API key; they carry no session.
         pathname.startsWith('/api/webhooks/') ||
         /**
+         * A volta do checkout do Asaas: uma frase e um `postMessage`.
+         *
+         * Pública porque não lê dado nenhum — e porque exigir sessão aqui cria
+         * um desfecho ruim de verdade: se a sessão expirar enquanto a pessoa
+         * paga, ela volta para uma tela de login **dentro da janelinha do
+         * pagamento**, o aviso nunca chega à tela de trás, e quem pagou fica
+         * olhando um "aguardando" que não termina.
+         */
+        pathname.startsWith('/pagamento/retorno') ||
+        /**
          * O widget do site, que roda no navegador de um visitante anônimo.
          *
          * O script e a API dele são públicos por construção — quem os chama é
