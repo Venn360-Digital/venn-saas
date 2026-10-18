@@ -343,6 +343,18 @@ nenhum**: ela é alvo de arrasto, e um alvo que só existe depois de rolar até 
 fim não é alvo. Medido: com seis colunas de doze cartões, a região externa rola
 zero, o quadro rola 193px na vertical e o rodapé não sai do lugar.
 
+**Cartão dentro de guia que rola leva `shrink-0`.** É a armadilha de flexbox
+que mais custa caro aqui, porque ela não quebra nada visivelmente — só esconde.
+Item de coluna flex não encolhe abaixo do próprio conteúdo, **exceto** quando
+tem `overflow` diferente de `visible`, que zera o mínimo automático. Como todo
+cartão nosso usa `overflow-hidden` para o conteúdo respeitar o raio da borda,
+ele vira encolhível: a guia com `overflow-y-auto` nunca transborda, porque os
+cartões cedem altura primeiro, e cada um corta o próprio fim — inclusive o
+rodapé, onde moram os botões. Medido na guia Agenda da clínica: cartão de 616px
+de conteúdo esmagado para 219px, sem barra de rolagem em lugar nenhum e com o
+botão "Novo fechamento" fora do corte. `SettingsCard` já traz o `shrink-0`; um
+cartão escrito à mão dentro de uma guia `fill` precisa do seu.
+
 **Cabeçalho em ícone precisa continuar tendo nome.** Coluna estreita pode
 trocar o rótulo por um ícone — é o caso de WhatsApp e do medidor de dias sem
 movimento, onde a palavra era mais larga que o dado. O ícone vai acompanhado de

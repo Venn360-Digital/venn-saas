@@ -225,7 +225,22 @@ export function SettingsCard({
     children: React.ReactNode
 }) {
     return (
-        <section className={cn('overflow-hidden rounded-lg border border-border bg-card', className)}>
+        /*
+         * `shrink-0` não é detalhe: sem ele o cartão **encolhe e corta o
+         * próprio conteúdo** dentro de uma guia que rola.
+         *
+         * A armadilha é do flexbox. Item de coluna flex não encolhe abaixo do
+         * conteúdo — o mínimo automático o protege —, **exceto** quando o item
+         * tem `overflow` diferente de `visible`, que zera esse mínimo. Este
+         * cartão tem `overflow-hidden` para que o conteúdo respeite o raio da
+         * borda, e isso o tornava encolhível.
+         *
+         * O efeito na tela era não haver rolagem em lugar nenhum: a guia tinha
+         * `overflow-y-auto`, mas nada transbordava porque os cartões cediam
+         * altura primeiro, e cada um escondia o próprio fim — inclusive o
+         * rodapé, onde moram os botões. Ver a guia Agenda da clínica.
+         */
+        <section className={cn('shrink-0 overflow-hidden rounded-lg border border-border bg-card', className)}>
             {title || aside ? (
                 <header className="flex items-start justify-between gap-3 px-5 pt-4">
                     <div className="min-w-0">
