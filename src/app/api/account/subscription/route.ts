@@ -67,6 +67,20 @@ export async function GET() {
             ? await unidadesDaConta(accountId)
             : { used: 0, max: 0, remaining: 0, doPlano: 0, adicionais: 0 }
 
+        /**
+         * O crédito como a sidebar o vê: franquia **mais** lotes avulsos.
+         *
+         * Esta rota devolvia só `credits`/`creditsUsed` da assinatura — a
+         * franquia do plano —, e o medidor da guia desenhava aquilo. Quem
+         * comprasse 10.000 avulsos via a sidebar somar e o medidor continuar em
+         * "33 de 20.000": duas fontes para a mesma pergunta, duas respostas, e a
+         * menor delas na tela onde a compra acabou de acontecer.
+         *
+         * `getBillingState` é a fonte única dessa conta, e agora as duas telas
+         * leem dela.
+         */
+        const estado = await getBillingState(workspaceUser.workspaceId)
+
         if (!subscription) {
             // No subscription row means onboarding predates the step that
             // creates one. Say so rather than reporting a plan the workspace was
@@ -88,6 +102,7 @@ export async function GET() {
                 plans: PLANS,
                 trial: TRIAL,
                 creditPacks: CREDIT_PACKS,
+                creditos: estado.credits,
                 // A mesma forma do caso com assinatura: uma resposta que às
                 // vezes traz o campo e às vezes não obriga a tela a adivinhar.
                 unidades,
@@ -119,6 +134,8 @@ export async function GET() {
             currentPeriodEnd: subscription.currentPeriodEnd,
             plans: PLANS,
             creditPacks: CREDIT_PACKS,
+            /** Franquia e avulso somados, para o medidor não contradizer a sidebar. */
+            creditos: estado.credits,
             /**
              * As unidades da conta, junto do resto da franquia.
              *

@@ -45,6 +45,13 @@ interface SubscriptionData {
         advanced: PlanConfig
     }
     creditPacks: { credits: number; price: number; discount: number; pitch: string }[]
+    /** Franquia e avulso somados — a mesma conta que a sidebar mostra. */
+    creditos?: {
+        plan: { total: number; used: number; remaining: number }
+        purchased: { total: number; used: number; remaining: number; nextExpiry: string | null }
+        available: number
+        exhausted: boolean
+    }
     unidades: { used: number; max: number; remaining: number; doPlano: number; adicionais: number }
 }
 
@@ -314,17 +321,35 @@ export function PlanoTab() {
         : 0
 
     /**
-     * Quanto da franquia já foi gasto, em percentual.
+     * Quanto do crédito já foi gasto, em percentual.
      *
      * É o número grande do medidor, e é de propósito que o percentual venha
      * antes da contagem: a pergunta de quem abre esta tela é "estou perto do
-     * fim?", não "quantos créditos exatamente". Franquia zero — assinatura que
+     * fim?", não "quantos créditos exatamente". Total zero — assinatura que
      * nunca foi criada — mostra 0 em vez de dividir por zero.
+     *
+     * **Conta os dois baldes**, franquia e avulso. Contava só a franquia, e
+     * quem comprasse 10.000 avulsos via a sidebar somar e o medidor continuar
+     * em "33 de 20.000" — na própria tela onde a compra tinha acabado de
+     * acontecer. O avulso é saldo real: é gasto depois da franquia, mas é
+     * gasto.
      */
+    const creditoTotal =
+        (subscription?.creditos?.plan.total ?? subscription?.credits ?? 0) +
+        (subscription?.creditos?.purchased.total ?? 0)
+    const creditoUsado =
+        (subscription?.creditos?.plan.used ?? subscription?.creditsUsed ?? 0) +
+        (subscription?.creditos?.purchased.used ?? 0)
+
     const percentualUsado =
-        subscription && subscription.credits > 0
-            ? Math.min(100, Math.round((subscription.creditsUsed / subscription.credits) * 100))
-            : 0
+        creditoTotal > 0 ? Math.min(100, Math.round((creditoUsado / creditoTotal) * 100)) : 0
+
+    /** A data em que o próximo lote avulso vence, se houver lote. */
+    const venceEm = subscription?.creditos?.purchased.nextExpiry
+        ? new Date(subscription.creditos.purchased.nextExpiry).toLocaleDateString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+          })
+        : null
 
     const renovaEmDias = subscription?.currentPeriodEnd
         ? Math.max(
@@ -474,8 +499,8 @@ export function PlanoTab() {
 
                     <p className="text-xs text-muted-foreground">
                         <span className="num">
-                            {(subscription?.creditsUsed ?? 0).toLocaleString('pt-BR')} de{' '}
-                            {(subscription?.credits ?? 0).toLocaleString('pt-BR')}
+                            {creditoUsado.toLocaleString('pt-BR')} de{' '}
+                            {creditoTotal.toLocaleString('pt-BR')}
                         </span>
                         {renovaEmDias !== null ? ` · renova em ${renovaEmDias} dia(s)` : null}
                         {(subscription?.maxSpokenReplies ?? 0) > 0 ? (
@@ -488,6 +513,23 @@ export function PlanoTab() {
                             </>
                         ) : null}
                     </p>
+
+                    {/* De onde vem o total, quando não vem de um lugar só. A
+                        franquia renova e o lote avulso vence — somá-los sem
+                        dizer qual é qual deixaria a clínica sem entender por que
+                        o número cai de uma vez no dia do vencimento. */}
+                    {(subscription?.creditos?.purchased.total ?? 0) > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                            <span className="num">
+                                {(subscription?.creditos?.plan.total ?? 0).toLocaleString('pt-BR')}
+                            </span>{' '}
+                            do plano +{' '}
+                            <span className="num">
+                                {(subscription?.creditos?.purchased.total ?? 0).toLocaleString('pt-BR')}
+                            </span>{' '}
+                            avulsos{venceEm ? `, válidos até ${venceEm}` : null}.
+                        </p>
+                    ) : null}
 
                     {/* O outro adicional, que não tem medidor: o que as unidades
                         contratadas somam à mensalidade. Fica aqui porque é

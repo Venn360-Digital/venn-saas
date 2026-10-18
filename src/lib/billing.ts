@@ -71,7 +71,20 @@ export interface BillingState {
         /** The plan's allowance, discarded at renewal. */
         plan: { total: number; used: number; remaining: number }
         /** Avulso, each lot expiring on its own date. */
-        purchased: { remaining: number; nextExpiry: Date | null }
+        /**
+         * Os lotes avulsos **válidos**: o que foi comprado, o que já se gastou
+         * deles e o que resta.
+         *
+         * Só `remaining` existia, e por isso o medidor da guia Plano não tinha
+         * como somar o avulso — mostrava "33 de 20.000" numa conta com 30.000
+         * disponíveis, enquanto a sidebar, que lê `available`, mostrava o certo.
+         * Duas fontes para a mesma pergunta davam duas respostas.
+         *
+         * Lote vencido não entra em nenhum dos três: o que não foi gasto até o
+         * vencimento deixou de existir, e contá-lo no total faria o medidor
+         * dizer que a clínica tem crédito que não tem.
+         */
+        purchased: { total: number; used: number; remaining: number; nextExpiry: Date | null }
         /** What the agent can actually spend right now. */
         available: number
         exhausted: boolean
@@ -95,6 +108,8 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
         }),
     ])
 
+    const purchasedTotal = purchases.reduce((sum, p) => sum + p.amount, 0)
+    const purchasedUsed = purchases.reduce((sum, p) => sum + Math.min(p.used, p.amount), 0)
     const purchasedRemaining = purchases.reduce(
         (sum, p) => sum + Math.max(0, p.amount - p.used),
         0
@@ -111,7 +126,7 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
             remaining: null,
             credits: {
                 plan: { total: 0, used: 0, remaining: 0 },
-                purchased: { remaining: purchasedRemaining, nextExpiry },
+                purchased: { total: purchasedTotal, used: purchasedUsed, remaining: purchasedRemaining, nextExpiry },
                 available: purchasedRemaining,
                 exhausted: purchasedRemaining <= 0,
             },
@@ -155,7 +170,7 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
                 used: subscription.creditsUsed,
                 remaining: planRemaining,
             },
-            purchased: { remaining: purchasedRemaining, nextExpiry },
+            purchased: { total: purchasedTotal, used: purchasedUsed, remaining: purchasedRemaining, nextExpiry },
             available,
             exhausted: available <= 0,
         },
