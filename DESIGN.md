@@ -744,6 +744,36 @@ põem os filtros. Quem aprendeu a filtrar em Pacientes já sabe filtrar aqui.
 
 ---
 
+### Tela 05 — a página de conteúdo
+
+**Aberta em 2026-10-18**, com a central de ajuda (`/suporte`).
+
+Não é índice, não é tela de trabalho, não tem guias: é texto para ler, com um
+caminho para agir. A primeira é a ajuda; se vierem outras (novidades da versão,
+tutoriais), nascem aqui.
+
+- **Coluna centralizada de 1024px** (`max-w-5xl mx-auto`), com respiro de 32px
+  em cima e 64px embaixo. Centralizar é o oposto do que a Tela 01 manda — e é
+  certo aqui pelo mesmo motivo que lá é errado: não há tabela nem título de
+  tela à esquerda para alinhar, e texto longo lê-se em coluna.
+- **A abertura leva a marca** (`Logo variant="wordmark"`), um título em 34px e
+  uma frase. É o único lugar do produto onde a logo aparece fora da barra
+  lateral: a página é um destino, não um ajuste.
+- **O que faz agir vem antes do que explica.** Os canais de contato ficam acima
+  das respostas, em cartões grandes e clicáveis por inteiro — não um botão
+  dentro de um cartão. Quem chega já tentou resolver sozinho.
+- **Um destaque só.** O canal principal leva borda e fundo de marca; os outros
+  ficam neutros. Dois destaques não destacam nada.
+- **Ilustração é desenhada, não capturada.** Print envelhece na primeira
+  mudança de layout e ninguém lembra de trocar — uma ajuda que mostra a tela de
+  três versões atrás é pior que nenhuma. SVG em `currentColor` e tokens, que
+  acompanha o tema e sobrevive ao redesenho.
+- **Lista longa pede busca.** Acima de ~15 respostas, um campo que filtra por
+  pergunta **e** por resposta: quem não sabe o termo certo descreve o sintoma.
+- O conteúdo não cita caminho de menu que não exista, e cada resposta sai de uma
+  regra real do produto — texto genérico de ajuda não responde nada e ninguém
+  volta uma segunda vez.
+
 ## 6. O shell
 
 **A trilha mora no Topbar.** Uma tela diz onde está (trilha, `text-sm

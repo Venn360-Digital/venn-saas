@@ -3,7 +3,12 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, CreditCard, TriangleAlert } from 'lucide-react'
+import {
+    ChevronRight,
+    CreditCard,
+    LifeBuoy,
+    TriangleAlert,
+} from 'lucide-react'
 
 import { ClinicBrand } from '@/components/layout/ClinicBrand'
 import { Badge } from '@/components/ui/badge'
@@ -206,6 +211,7 @@ export function AppSidebar() {
                 <NavSecondary
                     className="mt-auto"
                     items={[
+                        { title: 'Dúvidas e suporte', url: '/suporte', icon: LifeBuoy, destaque: true },
                         { title: 'Plano e créditos', url: '/gerenciamento/conta?tab=plano', icon: CreditCard },
                     ]}
                 />

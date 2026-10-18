@@ -48,6 +48,11 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_SUPABASE_DB_SCHEMA
+# Os canais da central de ajuda. `NEXT_PUBLIC_*` é embutido **no build**, não
+# lido em tempo de execução: sem passar por aqui, a página de suporte sobe
+# dizendo que o suporte não está configurado, com as variáveis certas no .env.
+ARG NEXT_PUBLIC_SUPPORT_WHATSAPP
+ARG NEXT_PUBLIC_SUPPORT_EMAIL
 # Cap the compiler's heap. Node sizes its old space from total system memory, so
 # on a small host it will happily grow until the machine swaps — building this app
 # on a 2 vCPU / 3.9 GB VPS alongside a running Supabase stack took the whole box
@@ -59,6 +64,8 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_SUPABASE_DB_SCHEMA=$NEXT_PUBLIC_SUPABASE_DB_SCHEMA \
+    NEXT_PUBLIC_SUPPORT_WHATSAPP=$NEXT_PUBLIC_SUPPORT_WHATSAPP \
+    NEXT_PUBLIC_SUPPORT_EMAIL=$NEXT_PUBLIC_SUPPORT_EMAIL \
     NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS=--max-old-space-size=$NODE_HEAP_MB
 

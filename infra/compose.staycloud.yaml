@@ -38,6 +38,8 @@ services:
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
         NEXT_PUBLIC_SUPABASE_DB_SCHEMA: ${NEXT_PUBLIC_SUPABASE_DB_SCHEMA}
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${NEXT_PUBLIC_SUPPORT_WHATSAPP}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${NEXT_PUBLIC_SUPPORT_EMAIL}
     restart: "no"
     env_file: ../.env
     # Runs to completion before app and worker start, so neither ever talks to a

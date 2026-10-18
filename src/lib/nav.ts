@@ -148,6 +148,7 @@ const SEGMENT_LABELS: Record<string, string> = {
     servicos: 'Serviços e procedimentos',
     departamentos: 'Departamentos',
 
+    suporte: 'Dúvidas e suporte',
     conta: 'Conta',
     usuarios: 'Usuários',
 
