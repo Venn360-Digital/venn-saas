@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import { PLATFORM_PROVIDERS, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials } from '@/lib/platform-credentials'
+import { PLATFORM_PROVIDERS, ambienteDaChave, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials, temSegredoDuplo } from '@/lib/platform-credentials'
 
 import { platformSecretName, vaultSecretExists } from '@/lib/vault'
 
@@ -54,13 +54,32 @@ export async function GET() {
     const providers = await Promise.all(
         PLATFORM_PROVIDERS.map(async (p) => {
             const row = byProvider.get(p.provider)
-            const creds = (row?.credentials ?? {}) as { clientId?: string }
+            const creds = (row?.credentials ?? {}) as { clientId?: string; ambiente?: string }
             const temSegredo = await vaultSecretExists(platformSecretName(p.provider))
+
+            /**
+             * Com segredo duplo, "configurado" é **os dois no cofre** — e a
+             * primeira metade nunca volta para a tela: ela é a chave que move
+             * dinheiro, não um id público. No lugar dela vai o ambiente, que é
+             * derivado do prefixo e é o que o administrador precisa ver.
+             */
+            if (temSegredoDuplo(p.provider)) {
+                const temChave = await vaultSecretExists(platformSecretName(p.provider, 'clientId'))
+                return {
+                    ...p,
+                    configured: Boolean(temChave && temSegredo),
+                    clientId: null,
+                    ambiente: admin ? creds.ambiente ?? null : null,
+                    updatedAt: row?.updatedAt ?? null,
+                }
+            }
+
             const configured = Boolean(creds.clientId && temSegredo)
             return {
                 ...p,
                 configured,
                 clientId: admin && creds.clientId ? creds.clientId : null,
+                ambiente: null,
                 updatedAt: row?.updatedAt ?? null,
             }
         })
@@ -88,7 +107,24 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Provedor desconhecido' }, { status: 400 })
     }
     if (!clientId || !clientSecret) {
-        return NextResponse.json({ error: 'Informe o Client ID e o Client Secret' }, { status: 400 })
+        return NextResponse.json({ error: 'Preencha os dois campos' }, { status: 400 })
+    }
+
+    /**
+     * Chave do Asaas que não começa por `$aact_` é chave colada pela metade.
+     *
+     * Recusar aqui é mais gentil que aceitar: guardada errada, ela só daria erro
+     * na primeira cobrança de verdade, longe daqui e sem dizer o motivo.
+     */
+    if (provider === 'asaas' && ambienteDaChave(clientId) === 'desconhecido') {
+        return NextResponse.json(
+            {
+                error:
+                    'A chave do Asaas começa com $aact_hmlg_ (sandbox) ou $aact_prod_ (produção). ' +
+                    'Confira se ela foi copiada inteira.',
+            },
+            { status: 400 }
+        )
     }
 
     await setPlatformCredentials(provider, { clientId, clientSecret }, admin.userId)

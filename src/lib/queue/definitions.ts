@@ -42,6 +42,8 @@ export const QUEUE = {
     RAG_INDEX: 'rag-index',
     /** Deliver an outbound AgentWebhook call. */
     AGENT_WEBHOOK: 'agent-webhook',
+    /** Processa um evento do webhook do Asaas, já gravado no banco. */
+    ASAAS_EVENT: 'asaas-event',
     /** Scheduled maintenance: reminders, recurrences, credit reset, health checks. */
     CRON: 'cron',
 } as const
@@ -147,6 +149,19 @@ export interface CronJob {
     task: CronJobName
 }
 
+/**
+ * Um evento do Asaas para processar.
+ *
+ * Carrega o **id da nossa linha**, não o corpo do evento: o corpo já está
+ * gravado em `asaas_events`, e repeti-lo no Redis seria guardar dado de cobrança
+ * em dois lugares com validades diferentes. O job é um aviso de "tem o que
+ * fazer", e o banco é a verdade.
+ */
+export interface AsaasEventJob {
+    /** `AsaasEvent.id` — o nosso, não o do Asaas. */
+    eventRowId: string
+}
+
 export interface JobPayloads {
     [QUEUE.WHATSAPP_INBOUND]: WhatsAppInboundJob
     [QUEUE.WHATSAPP_EVENT]: WhatsAppEventJob
@@ -154,6 +169,7 @@ export interface JobPayloads {
     [QUEUE.AI_REPLY]: AiReplyJob
     [QUEUE.RAG_INDEX]: RagIndexJob
     [QUEUE.AGENT_WEBHOOK]: AgentWebhookJob
+    [QUEUE.ASAAS_EVENT]: AsaasEventJob
     [QUEUE.CRON]: CronJob
 }
 
@@ -195,6 +211,19 @@ export const DEFAULT_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
     [QUEUE.RAG_INDEX]: {
         ...RETENTION,
         attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+    },
+    [QUEUE.ASAAS_EVENT]: {
+        ...RETENTION,
+        /**
+         * Mais tentativas que as outras filas, e com paciência.
+         *
+         * O que está em jogo é ativar plano e creditar compra: desistir rápido
+         * deixa cliente pagando e sem acesso. Como o evento já está gravado, o
+         * reprocessamento é barato e idempotente — a única coisa que uma
+         * tentativa a mais custa é tempo.
+         */
+        attempts: 8,
         backoff: { type: 'exponential', delay: 5_000 },
     },
     [QUEUE.AGENT_WEBHOOK]: {

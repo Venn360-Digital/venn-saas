@@ -8,6 +8,7 @@ import { ALL_QUEUES, QUEUE, closeQueues, type QueueName } from './queues'
 import { registerSchedules } from './scheduler'
 import { processAiReply } from './processors/ai-reply'
 import { processAgentWebhook } from './processors/agent-webhook'
+import { processAsaasEvent } from './processors/asaas-event'
 import { processCron } from './processors/cron'
 import { processRagIndex } from './processors/rag-index'
 import { processWhatsAppEvent } from './processors/whatsapp-event'
@@ -24,6 +25,7 @@ const PROCESSORS: Record<QueueName, Processor<any, any, string>> = {
     [QUEUE.AI_REPLY]: processAiReply as Processor<any, any, string>,
     [QUEUE.RAG_INDEX]: processRagIndex as Processor<any, any, string>,
     [QUEUE.AGENT_WEBHOOK]: processAgentWebhook as Processor<any, any, string>,
+    [QUEUE.ASAAS_EVENT]: processAsaasEvent as Processor<any, any, string>,
     [QUEUE.CRON]: processCron as Processor<any, any, string>,
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -42,6 +44,15 @@ const TUNING: Partial<Record<QueueName, { concurrency?: number; limiter?: { max:
     [QUEUE.AI_REPLY]: { concurrency: 4 },
     [QUEUE.RAG_INDEX]: { concurrency: 2 },
     [QUEUE.AGENT_WEBHOOK]: { concurrency: 5 },
+    /**
+     * Um por vez, de propósito.
+     *
+     * Dois eventos da mesma cobrança em paralelo — `PAYMENT_CONFIRMED` e
+     * `PAYMENT_RECEIVED` chegam quase juntos — disputariam o mesmo `upsert` do
+     * espelho. Serial é barato aqui: o volume é de uma cobrança por conta por
+     * mês, não de mensagem de WhatsApp.
+     */
+    [QUEUE.ASAAS_EVENT]: { concurrency: 1 },
     [QUEUE.CRON]: { concurrency: 1 },
 }
 

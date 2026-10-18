@@ -89,7 +89,14 @@ export async function vaultSecretExists(name: string): Promise<boolean> {
     return rows.length > 0
 }
 
-/** O nome do segredo de um provedor de plataforma, num lugar só. */
-export function platformSecretName(provider: string): string {
-    return `platform:${provider}:clientSecret`
+/**
+ * O nome do segredo de um provedor de plataforma, num lugar só.
+ *
+ * O campo entra no nome porque há provedor com **dois** segredos e nenhuma
+ * metade pública: o Asaas guarda a chave de API e o token do webhook, e os dois
+ * precisam de nome próprio no cofre. O padrão continua `clientSecret` para que
+ * os segredos já gravados dos provedores OAuth sigam sendo encontrados.
+ */
+export function platformSecretName(provider: string, campo = 'clientSecret'): string {
+    return `platform:${provider}:${campo}`
 }

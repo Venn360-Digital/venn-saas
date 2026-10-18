@@ -18,11 +18,16 @@ import { planFor } from '@/lib/plans'
  */
 
 const dadosSchema = z.object({
-    /** Dígitos ou vazio — a pontuação é da tela. Vazio limpa o campo. */
-    cnpj: z
+    /**
+     * CPF (11) ou CNPJ (14), em dígitos. Vazio limpa o campo.
+     *
+     * Os dois, por decisão do Andre: dentista sozinho às vezes não tem CNPJ, e
+     * o Asaas recebe ambos no mesmo campo. A tela pontua conforme o tamanho.
+     */
+    cpfCnpj: z
         .string()
         .trim()
-        .regex(/^(\d{14})?$/, 'O CNPJ precisa ter 14 dígitos.')
+        .regex(/^(\d{11}|\d{14})?$/, 'Informe um CPF (11 dígitos) ou um CNPJ (14 dígitos).')
         .optional(),
     /** `null` remove a logomarca e devolve a marca do produto ao cabeçalho. */
     logo: z.string().nullable().optional(),
@@ -36,7 +41,7 @@ export async function GET() {
         where: { id: auth.member.workspaceId },
         select: {
             accountId: true,
-            account: { select: { name: true, cnpj: true, logo: true, ownerUserId: true } },
+            account: { select: { name: true, cpfCnpj: true, logo: true, ownerUserId: true } },
         },
     })
     if (!workspace) return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 })
@@ -51,7 +56,7 @@ export async function GET() {
 
     return NextResponse.json({
         name: workspace.account.name,
-        cnpj: workspace.account.cnpj,
+        cpfCnpj: workspace.account.cpfCnpj,
         logo: workspace.account.logo,
         /** Se quem pergunta é o MASTER — a tela esconde o que ele não pode fazer. */
         souMaster: workspace.account.ownerUserId === auth.member.userId,
@@ -60,7 +65,7 @@ export async function GET() {
     })
 }
 
-/** O CNPJ de cobrança e a logomarca. Do MASTER: os dois são da fatura e do cabeçalho. */
+/** O documento de cobrança e a logomarca. Do MASTER: os dois são da fatura e do cabeçalho. */
 export async function PATCH(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -71,7 +76,7 @@ export async function PATCH(request: NextRequest) {
             {
                 error:
                     master.status === 403
-                        ? 'Só o responsável pela conta pode alterar o CNPJ de cobrança e a logomarca.'
+                        ? 'Só o responsável pela conta pode alterar o documento de cobrança e a logomarca.'
                         : master.error,
             },
             { status: master.status }
@@ -89,12 +94,12 @@ export async function PATCH(request: NextRequest) {
     const conta = await prisma.account.update({
         where: { id: master.accountId },
         data: {
-            // Vazio apaga; ausente não mexe. Sem a distinção, limpar um CNPJ
-            // digitado por engano seria impossível pela tela.
-            cnpj: parsed.data.cnpj === undefined ? undefined : parsed.data.cnpj || null,
+            // Vazio apaga; ausente não mexe. Sem a distinção, limpar um
+            // documento digitado por engano seria impossível pela tela.
+            cpfCnpj: parsed.data.cpfCnpj === undefined ? undefined : parsed.data.cpfCnpj || null,
             logo: parsed.data.logo === undefined ? undefined : parsed.data.logo,
         },
-        select: { name: true, cnpj: true, logo: true },
+        select: { name: true, cpfCnpj: true, logo: true },
     })
 
     return NextResponse.json(conta)

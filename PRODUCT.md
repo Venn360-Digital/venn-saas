@@ -588,7 +588,52 @@ tudo — conversas, pacientes, agenda, agentes.
 
 ---
 
-## 13. O que ainda não existe
+## 13. Cobrança: as decisões do gateway
+
+Decidido com o Andre em 2026-10-18, antes de escrever a fase 1. O gateway é o
+**Asaas**, porque o ERP financeiro dele é o Asaas — recebimento, conciliação e
+inadimplência de verdade são de lá. **Nosso banco guarda ponteiros e um
+espelho, não o livro-caixa:** dois livros divergem no primeiro estorno, e aí
+ninguém sabe qual está certo.
+
+| Decisão | O que vale |
+|---|---|
+| Carência depois do vencimento | **3 dias** no cartão, **2 dias** no Pix |
+| Boleto | **fora**, por enquanto |
+| Documento de cobrança | **CPF ou CNPJ**, e vem da **conta** (`accounts.cpfCnpj`) |
+| Unidade adicional | **recorrente**: soma R$ 290 à mensalidade enquanto existir |
+| Crédito avulso | **compra única**, 90 dias de validade |
+| Unidade comprada no meio do mês | **proporcional até a renovação**, depois ciclos cheios — se o Asaas permitir |
+| Venn360 | **vitalícia** (`billingExempt`): é a conta de teste do produto |
+| Implante Ja | cobrada **a partir de 27/10/2026** (`billingStartsAt`) |
+
+### Por que checkout hospedado, e não tokenização
+
+O Asaas oferece os dois. `POST /v3/creditCard/tokenizeCreditCard` recebe o
+número do cartão **no nosso servidor**; o Asaas Checkout é uma página deles onde
+o pagador digita. Vamos de Checkout: a diferença não é de conveniência, é de
+responsabilidade — no primeiro caminho o cartão passa pela nossa aplicação e
+pelos nossos logs, e o escopo de PCI sai de SAQ A para SAQ A-EP.
+
+### Por que o webhook grava antes de pensar
+
+Três frases da documentação deles desenharam a rota. A entrega é **at least
+once**, então o mesmo evento chega mais de uma vez — `asaas_events.asaasEventId`
+é único, e a colisão é resposta de sucesso. Eles pedem **200 imediato** e
+processamento assíncrono. E **depois de 15 falhas consecutivas a fila deles
+para**: os eventos continuam a ser gerados sem serem enviados até alguém
+reativar. Um `500` nosso repetido não atrasa um evento — fecha a torneira, em
+silêncio, com cliente pagando e nada acontecendo.
+
+### O que a fase 1 **não** faz
+
+Não ativa plano, não credita compra, não corta inadimplente. Ela cria o cliente,
+recebe o evento e espelha a cobrança. Mexer em dinheiro antes de o espelho ter
+sido provado contra o sandbox é a ordem errada de fazer as coisas.
+
+---
+
+## 14. O que ainda não existe
 
 Registrado para não ser esquecido:
 

@@ -63,7 +63,7 @@ interface Unidade {
 
 interface Conta {
     name: string
-    cnpj: string | null
+    cpfCnpj: string | null
     logo: string | null
     souMaster: boolean
     plano: string | null
@@ -89,7 +89,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
     const [salvando, setSalvando] = useState(false)
 
     /** O CNPJ e a logo da conta, em edição. */
-    const [formConta, setFormConta] = useState({ cnpj: '', logo: '' })
+    const [formConta, setFormConta] = useState({ cpfCnpj: '', logo: '' })
     /** Qual clínica está aberta no acordeão, e o que há nos campos dela. */
     const [abertaNoAcordeao, setAbertaNoAcordeao] = useState<string | null>(null)
     const [formUnidade, setFormUnidade] = useState<FormUnidade>({ name: '', address: '', phone: '' })
@@ -113,7 +113,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             const u = await ru.json()
 
             setConta(c)
-            setFormConta({ cnpj: onlyDigits(c.cnpj), logo: c.logo ?? '' })
+            setFormConta({ cpfCnpj: onlyDigits(c.cpfCnpj), logo: c.logo ?? '' })
             setDados({ aberta: u.aberta, lista: u.lista })
 
             // A primeira da lista vem aberta — a mais antiga, que é a clínica
@@ -165,8 +165,9 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             toast.error('Dê um nome à clínica.')
             return
         }
-        if (formConta.cnpj && formConta.cnpj.length !== 14) {
-            toast.error('O CNPJ precisa ter 14 dígitos.')
+        // 11 = CPF, 14 = CNPJ. Os dois valem; o que não vale é parar no meio.
+        if (formConta.cpfCnpj && ![11, 14].includes(formConta.cpfCnpj.length)) {
+            toast.error('Informe um CPF (11 dígitos) ou um CNPJ (14 dígitos).')
             return
         }
 
@@ -183,7 +184,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                 const rc = await fetch('/api/account', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cnpj: formConta.cnpj, logo: formConta.logo || null }),
+                    body: JSON.stringify({ cpfCnpj: formConta.cpfCnpj, logo: formConta.logo || null }),
                 })
                 if (!rc.ok) {
                     const erro = await rc.json().catch(() => ({}))
@@ -365,17 +366,25 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                             <Input id="conta-nome" value={conta?.name ?? ''} disabled />
                         </FormField>
 
+                        {/* CPF **ou** CNPJ: dentista sozinho às vezes não tem
+                            CNPJ, e é este o documento que vai para o Asaas no
+                            campo `cpfCnpj`. O molde troca pelo tamanho, com o
+                            teto do maior — senão o campo ficaria preso em CPF no
+                            décimo segundo dígito. Até 11 pontua como CPF, que é
+                            o caso comum; quem digita CNPJ passa por ali e se
+                            corrige no dígito seguinte. */}
                         <FormField
-                            label="CNPJ de cobrança"
-                            htmlFor="conta-cnpj"
-                            hint="O da empresa que assina. Cada clínica pode ter o seu."
+                            label="CPF ou CNPJ de cobrança"
+                            htmlFor="conta-documento"
+                            hint="De quem assina. É o documento que vai na fatura."
                         >
                             <MaskedInput
-                                id="conta-cnpj"
-                                mask={MASKS.cnpj}
-                                value={formConta.cnpj}
+                                id="conta-documento"
+                                mask={formConta.cpfCnpj.length <= 11 ? MASKS.cpf : MASKS.cnpj}
+                                capacity={14}
+                                value={formConta.cpfCnpj}
                                 disabled={!conta?.souMaster}
-                                onChange={(digitos) => setFormConta((p) => ({ ...p, cnpj: digitos }))}
+                                onChange={(digitos) => setFormConta((p) => ({ ...p, cpfCnpj: digitos }))}
                             />
                         </FormField>
                     </div>

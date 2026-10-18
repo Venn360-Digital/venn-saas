@@ -21,6 +21,14 @@ export const MaskedInput = forwardRef<HTMLInputElement, {
     value: string
     onChange: (digits: string) => void
     mask: string
+    /**
+     * Teto de dígitos, quando ele **não** é o do molde.
+     *
+     * Existe para o campo que troca de molde conforme o tamanho: CPF ou CNPJ no
+     * mesmo lugar. Com o molde de CPF ativo, o teto dele (11) comeria o décimo
+     * segundo dígito e o campo ficaria preso em CPF para sempre.
+     */
+    capacity?: number
     id?: string
     className?: string
     disabled?: boolean
@@ -29,8 +37,9 @@ export const MaskedInput = forwardRef<HTMLInputElement, {
     'aria-describedby'?: string
     'aria-invalid'?: boolean
     onBlur?: () => void
-}>(function MaskedInput({ value, onChange, mask, id, className, disabled, autoFocus, onBlur, ...aria }, ref) {
-    const digits = onlyDigits(value).slice(0, maskCapacity(mask))
+}>(function MaskedInput({ value, onChange, mask, capacity, id, className, disabled, autoFocus, onBlur, ...aria }, ref) {
+    const teto = capacity ?? maskCapacity(mask)
+    const digits = onlyDigits(value).slice(0, teto)
     const shown = applyMask(digits, mask)
     const rest = maskRest(digits, mask)
 
@@ -45,7 +54,7 @@ export const MaskedInput = forwardRef<HTMLInputElement, {
                 disabled={disabled}
                 autoFocus={autoFocus}
                 onBlur={onBlur}
-                onChange={(e) => onChange(onlyDigits(e.target.value).slice(0, maskCapacity(mask)))}
+                onChange={(e) => onChange(onlyDigits(e.target.value).slice(0, teto))}
                 className={cn('num', className)}
                 {...aria}
             />

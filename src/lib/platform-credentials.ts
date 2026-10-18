@@ -60,9 +60,51 @@ export const PLATFORM_PROVIDERS = [
         secretLabel: 'Chave secreta do aplicativo do Instagram',
     },
     { provider: 'clinicorp', label: 'Clinicorp', help: 'Token de integração fornecido pelo Clinicorp.' },
+    {
+        provider: 'asaas',
+        label: 'Asaas (cobrança)',
+        help:
+            'Chave de API em Configurações → Integrações → API. Use a de sandbox ' +
+            '($aact_hmlg_) até a cobrança ser provada ponta a ponta. O token do ' +
+            'webhook é inventado por você aqui e colado no painel do Asaas ao ' +
+            'cadastrar a URL — ele não é a chave de API.',
+        idLabel: 'Chave de API',
+        secretLabel: 'Token do webhook',
+        /**
+         * As duas metades são segredo, e nenhuma é pública.
+         *
+         * O par OAuth dos outros provedores é "id público + segredo"; aqui o
+         * primeiro campo é a chave que move dinheiro. Com isto, ela vai para o
+         * cofre como a segunda e **nunca** é devolvida para a tela.
+         */
+        segredoDuplo: true,
+    },
 ] as const
 
 export type PlatformProvider = (typeof PLATFORM_PROVIDERS)[number]['provider']
+
+/**
+ * Sandbox ou produção, lido do prefixo da chave do Asaas.
+ *
+ * Eles são autodescritivos — `$aact_hmlg_` e `$aact_prod_` —, então perguntar o
+ * ambiente numa caixa de seleção seria convidar a marcar errado e cobrar de
+ * verdade num teste. "desconhecido" para chave que não segue o padrão, que é
+ * sinal de chave colada pela metade.
+ */
+export function ambienteDaChave(chave: string): 'sandbox' | 'producao' | 'desconhecido' {
+    if (chave.startsWith('$aact_hmlg_')) return 'sandbox'
+    if (chave.startsWith('$aact_prod_')) return 'producao'
+    return 'desconhecido'
+}
+
+/** Se as duas metades deste provedor são segredo. Ver o descritor do Asaas. */
+export function temSegredoDuplo(provider: string): boolean {
+    const p = PLATFORM_PROVIDERS.find((x) => x.provider === provider)
+    return Boolean(p && 'segredoDuplo' in p && p.segredoDuplo)
+}
+
+/** O nome do segredo onde mora a primeira metade, quando ela também é segredo. */
+const CAMPO_ID = 'clientId'
 
 /**
  * De onde cada metade vem, e por quê.
@@ -81,7 +123,9 @@ export async function getPlatformCredentials(provider: string): Promise<OAuthApp
     })
     const creds = (row?.credentials ?? {}) as Partial<OAuthAppCredentials>
 
-    const clientId = creds.clientId ?? null
+    const clientId = temSegredoDuplo(provider)
+        ? await readVaultSecret(platformSecretName(provider, CAMPO_ID))
+        : creds.clientId ?? null
     const clientSecret = await readVaultSecret(platformSecretName(provider))
 
     if (clientId && clientSecret) return { clientId, clientSecret }
@@ -148,12 +192,30 @@ export async function setPlatformCredentials(
         `Client secret do app de plataforma "${provider}" do OdontoBox360.`
     )
 
-    const apenasId = { clientId: credentials.clientId } as unknown as Prisma.InputJsonObject
+    /**
+     * Com segredo duplo, a primeira metade vai para o cofre e a coluna guarda
+     * só o que é seguro mostrar.
+     *
+     * No caso do Asaas, isso é o **ambiente** — e ele não é digitado: sai do
+     * prefixo da própria chave (`$aact_hmlg_` é sandbox, `$aact_prod_` é
+     * produção). Um campo a menos para alguém marcar errado, e a tela passa a
+     * poder dizer em letras grandes em qual dos dois está.
+     */
+    let coluna: Record<string, string> = { clientId: credentials.clientId }
+
+    if (temSegredoDuplo(provider)) {
+        await writeVaultSecret(
+            platformSecretName(provider, CAMPO_ID),
+            credentials.clientId,
+            `Chave de API da plataforma "${provider}" do OdontoBox360.`
+        )
+        coluna = { ambiente: ambienteDaChave(credentials.clientId) }
+    }
 
     await prisma.platformCredential.upsert({
         where: { provider },
-        create: { provider, credentials: apenasId, updatedBy },
-        update: { credentials: apenasId, updatedBy },
+        create: { provider, credentials: coluna as unknown as Prisma.InputJsonObject, updatedBy },
+        update: { credentials: coluna as unknown as Prisma.InputJsonObject, updatedBy },
     })
 }
 

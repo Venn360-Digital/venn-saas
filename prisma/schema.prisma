@@ -37,14 +37,14 @@ model User {
   updatedAt        DateTime          @updatedAt
 
   // Multi-workspace support
-  workspaces WorkspaceUser[]
+  workspaces  WorkspaceUser[]
   /// As contas das quais esta pessoa é o MASTER.
-  accounts   Account[]
-  activities Activity[]
-  deals      Deal[]
+  accounts    Account[]
+  activities  Activity[]
+  deals       Deal[]
+  specialists Specialist[]
 
   @@map("users")
-  specialists Specialist[]
 }
 
 /// Quem paga — o cliente, acima das clínicas dele.
@@ -75,13 +75,39 @@ model Account {
   /// remover a pessoa não pode levar a conta junto.
   ownerUserId String?
 
-  /// O CNPJ de **cobrança**: o da empresa que assina, não o da clínica.
+  /// O CPF ou CNPJ de **cobrança**: de quem assina, não da clínica.
   ///
   /// Mora aqui e não na unidade porque é um por fatura. Pode se repetir na
   /// unidade sem contradição: as unidades podem ser filiais do mesmo CNPJ ou
   /// franquias com CNPJ próprio, e `workspaces.cnpj` continua existindo para o
   /// segundo caso — vazio na filial, que é o caso comum.
-  cnpj String?
+  ///
+  /// **Aceita os dois** por decisão do Andre em 2026-10-18: dentista sozinho
+  /// às vezes não tem CNPJ, e o Asaas recebe os dois no mesmo campo
+  /// (`cpfCnpj`). Era `cnpj`, e o nome mentia sobre o que passou a caber.
+  cpfCnpj String?
+
+  /// O cliente desta conta no Asaas, criado na primeira cobrança.
+  ///
+  /// Único porque é 1:1 — duas contas apontando para o mesmo cliente fariam a
+  /// assinatura de uma cobrar a outra. Nulo até a primeira contratação: a
+  /// avaliação de 7 dias não pede cartão nem documento.
+  asaasCustomerId String? @unique
+
+  /// Conta vitalícia: usa o produto e nunca é cobrada.
+  ///
+  /// Existe porque a Venn360 é a conta de teste do produto — decisão do Andre
+  /// em 2026-10-18 — e não por generosidade com cliente. Uma marca explícita é
+  /// melhor que uma assinatura falsa com data de renovação eterna, que os
+  /// relatórios somariam como receita.
+  billingExempt Boolean @default(false)
+
+  /// Quando esta conta passa a ser cobrada.
+  ///
+  /// Para quem já estava usando de graça quando a cobrança nasceu: a Implante Ja
+  /// começa em 27/10/2026. Antes desta data o sistema não cobra e não corta;
+  /// depois, segue a regra de todo mundo. Nulo = cobra desde já.
+  billingStartsAt DateTime?
 
   /// A logomarca que substitui a do produto no cabeçalho do sistema.
   ///
@@ -97,6 +123,7 @@ model Account {
   workspaces   Workspace[]
   subscription Subscription?
   unitAddons   UnitAddon[]
+  invoices     Invoice[]
 
   @@index([ownerUserId])
   @@map("accounts")
@@ -122,6 +149,82 @@ model UnitAddon {
 
   @@index([accountId])
   @@map("unit_addons")
+}
+
+/// Um evento recebido do webhook do Asaas, gravado antes de ser processado.
+///
+/// Existe por duas frases da documentação deles. A entrega é **at least once**,
+/// então o mesmo evento chega mais de uma vez e processar duas vezes dobraria
+/// crédito — o `@unique` em `asaasEventId` é a trava. E **depois de 15 falhas
+/// consecutivas o Asaas interrompe a fila**: os eventos continuam a ser gerados
+/// e não são enviados até alguém reativar. Por isso a rota grava, responde 200 e
+/// processa na fila: um erro nosso não pode ser a resposta que o Asaas conta.
+///
+/// `payload` guarda o corpo inteiro. Quando a interpretação de um evento mudar —
+/// e vai mudar —, dá para reprocessar o que já chegou em vez de pedir reenvio.
+model AsaasEvent {
+  id String @id @default(cuid())
+
+  /// O `id` do evento no Asaas. A trava de idempotência.
+  asaasEventId String @unique
+  /// "PAYMENT_CONFIRMED", "CHECKOUT_PAID"…
+  event        String
+  payload      Json
+
+  receivedAt  DateTime  @default(now())
+  /// Nulo = ainda não processado. Preenchido = não processa de novo.
+  processedAt DateTime?
+  /// A última falha, para o vigia e para quem for depurar.
+  error       String?   @db.Text
+  attempts    Int       @default(0)
+
+  @@index([event, receivedAt])
+  @@index([processedAt])
+  @@map("asaas_events")
+}
+
+/// O espelho de uma cobrança do Asaas, para a tela não depender da API.
+///
+/// **Não é o livro-caixa.** Recebimento, conciliação e inadimplência de verdade
+/// são do ERP do Andre, que é o próprio Asaas — decisão registrada em
+/// PRODUCT.md §13. Isto existe para a guia Plano responder "o que eu paguei e
+/// quando" sem uma chamada externa a cada abertura, e para o job de conciliação
+/// ter contra o que comparar.
+model Invoice {
+  id        String @id @default(cuid())
+  accountId String
+
+  /// A cobrança no Asaas. Única: é o espelho de uma linha de lá.
+  asaasPaymentId      String  @unique
+  /// A assinatura que a gerou, quando vem de uma. Nulo em compra avulsa.
+  asaasSubscriptionId String?
+
+  /// "subscription" | "credits" | "units" — o que esta cobrança pagou.
+  kind        String
+  /// O status como o Asaas o chama: PENDING, CONFIRMED, RECEIVED, OVERDUE, REFUNDED…
+  status      String
+  /// "PIX" | "CREDIT_CARD". Guardado porque a carência depende dele:
+  /// 3 dias no cartão, 2 no Pix.
+  billingType String?
+
+  /// Em centavos, como todo dinheiro deste banco.
+  valueCents Int
+
+  dueDate DateTime
+  paidAt  DateTime?
+
+  /// Links do Asaas: a fatura para pagar e o comprovante depois de paga.
+  invoiceUrl String?
+  receiptUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, dueDate])
+  @@index([status])
+  @@map("invoices")
 }
 
 model Workspace {
@@ -174,12 +277,12 @@ model Workspace {
   /// O que a clínica deixou ligado: boletim diário, hora dele, tarefa de
   /// retomada. JSON porque a lista cresce a cada camada de automação, e uma
   /// coluna por chave viraria uma migração por melhoria.
-  automations Json?
+  automations        Json?
+  specialists        Specialist[]
+  scheduleExceptions ScheduleException[]
 
   @@index([accountId])
   @@map("workspaces")
-  specialists        Specialist[]
-  scheduleExceptions ScheduleException[]
 }
 
 model WorkspaceUser {
@@ -552,14 +655,14 @@ model Contact {
   ///
   /// Aqui fica só o nascimento. O canal se deriva da conversa (`channel` e a
   /// linha); a origem comercial é `originId`.
-  createdVia    String?
+  createdVia String?
 
   /// A origem comercial — o que fez o paciente escrever.
   ///
   /// Semeada pela linha por onde ele chegou, quando ela tem dono conhecido
   /// (ver `AgentIntegration.defaultOriginId`), e editável na ficha depois:
   /// ninguém **detecta** origem, alguém informa.
-  originId      String?
+  originId String?
 
   lastContactAt DateTime?
   /// Texto já normalizado para busca — minúsculo e sem acento.
@@ -744,7 +847,7 @@ model DealOutcomeReason {
 }
 
 model DealStageEntry {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   dealId    String
   stageId   String
   /// Quando entrou. Separado de `createdAt` porque a clínica pode corrigir a
@@ -753,10 +856,10 @@ model DealStageEntry {
   /// é a data que falta.
   enteredAt DateTime? @default(now())
   /// O que aconteceu nesta fase. É a "nota" que a jornada antiga guardava.
-  note      String?  @db.Text
+  note      String?   @db.Text
   /// Quem moveu. Nulo quando foi uma regra ou o próprio agente.
   userId    String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   deal  Deal          @relation(fields: [dealId], references: [id], onDelete: Cascade)
   stage PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
@@ -872,20 +975,19 @@ model Activity {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal      Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contact        Contact?        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal           Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  specialist     Specialist?     @relation(fields: [specialistId], references: [id], onDelete: SetNull)
+  productService ProductService? @relation(fields: [productServiceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
   @@index([userId])
   @@index([dueDate])
   @@index([recurrenceParentId])
-  @@map("activities")
-  specialist     Specialist?     @relation(fields: [specialistId], references: [id], onDelete: SetNull)
-  productService ProductService? @relation(fields: [productServiceId], references: [id], onDelete: SetNull)
-
   @@index([specialistId])
+  @@map("activities")
 }
 
 // ============================================
@@ -1074,12 +1176,18 @@ model Subscription {
   /// Uma assinatura por conta, cobrindo todas as unidades dela.
   accountId String @unique
 
+  /// A assinatura recorrente correspondente no Asaas.
+  ///
+  /// `cycle: MONTHLY`, valor = plano + unidades adicionais. Única por ser 1:1.
+  /// Nula enquanto a conta não contratou — ou quando é vitalícia.
+  asaasSubscriptionId String? @unique
+
   plan   String // "flow", "pro", "advanced"
   status String @default("active") // "active", "past_due", "canceled", "trialing"
 
   // Limits
-  maxAgents          Int @default(1)
-  maxMessages        Int @default(100)
+  maxAgents   Int @default(1)
+  maxMessages Int @default(100)
 
   /// Quantas respostas o agente pode **falar** no mês, pelo plano.
   ///
@@ -1369,9 +1477,9 @@ model Department {
   name        String
   description String?
 
-  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  members   WorkspaceUserDepartment[]
-  lines     AgentIntegration[]
+  workspace  Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members    WorkspaceUserDepartment[]
+  lines      AgentIntegration[]
   /// Texto já normalizado para busca — minúsculo e sem acento.
   ///
   /// Coluna GERADA pelo Postgres (ver a migração
@@ -1454,8 +1562,8 @@ model ProductService {
   /// pensa no procedimento — com nome e preço. Mudar de 30 para 40 minutos
   /// passa a ser um lugar só.
   durationMinutes Int?
-  currency    String  @default("BRL")
-  group       String? // Grupo/categoria do produto
+  currency        String  @default("BRL")
+  group           String? // Grupo/categoria do produto
 
   /// Texto já normalizado para busca — minúsculo e sem acento.
   ///

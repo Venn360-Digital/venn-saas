@@ -16,6 +16,10 @@ interface ProviderRow {
     /** Como o provedor chama suas credenciais. "Client ID" é só o padrão. */
     idLabel?: string
     secretLabel?: string
+    /** Provedor cujas duas metades são segredo — o Asaas. Nenhuma volta para cá. */
+    segredoDuplo?: boolean
+    /** "sandbox" | "producao", derivado do prefixo da chave. Só com segredo duplo. */
+    ambiente?: string | null
     configured: boolean
     clientId: string | null
     updatedAt: string | null
@@ -120,7 +124,18 @@ export function PlatformCredentialsPanel() {
                                             : 'leading-relaxed'
                                     )}
                                 >
-                                    {row.configured && row.clientId ? row.clientId : row.help}
+                                    {row.configured && row.clientId
+                                        ? row.clientId
+                                        : /* Com segredo duplo não há id para
+                                             mostrar — a chave é segredo. O que
+                                             vale dizer é o ambiente, porque
+                                             cobrar de verdade num teste é o erro
+                                             caro desta tela. */
+                                          row.configured && row.segredoDuplo
+                                          ? row.ambiente === 'producao'
+                                              ? 'Chave de PRODUÇÃO — cobra de verdade.'
+                                              : 'Chave de sandbox — nada é cobrado.'
+                                          : row.help}
                                 </p>
                             </div>
                             <Button
@@ -128,7 +143,11 @@ export function PlatformCredentialsPanel() {
                                 variant="outline"
                                 onClick={() => {
                                     setOpen(open === row.provider ? null : row.provider)
-                                    setClientId(row.clientId ?? '')
+                                    // Com segredo duplo o campo nasce vazio:
+                                    // não há o que pré-preencher, e mostrar a
+                                    // chave de novo seria tirá-la do cofre para
+                                    // nada.
+                                    setClientId(row.segredoDuplo ? '' : row.clientId ?? '')
                                     setClientSecret('')
                                 }}
                             >
@@ -144,6 +163,11 @@ export function PlatformCredentialsPanel() {
                                     </Label>
                                     <Input
                                         id={`${row.provider}-id`}
+                                        // Segredo duplo esconde também o primeiro
+                                        // campo: ali está a chave que move
+                                        // dinheiro, e ela não se lê de relance
+                                        // por cima do ombro de ninguém.
+                                        type={row.segredoDuplo ? 'password' : 'text'}
                                         value={clientId}
                                         onChange={(e) => setClientId(e.target.value)}
                                         autoComplete="off"
