@@ -31,6 +31,11 @@ export const WORKSPACE_UPDATED = 'workspace:updated'
  * no lugar de outra, não as duas lado a lado. Na calha recolhida volta o
  * símbolo: uma logo de clínica não cabe num quadrado de 32.
  *
+ * **A logo é da conta, não da unidade** (2026-10-18). O cabeçalho é um por
+ * sessão, e uma marca que troca ao trocar de clínica é a parte da tela que
+ * menos pode piscar — é por ela que a pessoa sabe em que sistema está. Quem
+ * troca ao trocar de clínica é o **nome**, logo abaixo no seletor.
+ *
  * Quem manda é a **largura**: 120px, centrados na calha. Era a altura que
  * mandava, e com um lockup quase quadrado (300 × 170) isso limitava tudo — em
  * 26px de altura a logo saía com 46 de largura, perdida ao lado de um menu de
@@ -41,7 +46,6 @@ export const WORKSPACE_UPDATED = 'workspace:updated'
 interface Unidade {
     id: string
     name: string
-    logo: string | null
 }
 
 export function ClinicBrand() {

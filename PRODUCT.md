@@ -507,6 +507,30 @@ embute — e fica abaixo dos R$ 390 de um Digital avulso, que é a alternativa q
 o cliente tem hoje. Com o adicional ele mantém uma fatura, uma renovação e a
 troca de unidade pela própria tela.
 
+### Onde isso aparece na tela
+
+As guias "Clínica" e "Unidades" viraram **Conta da Clínica** em 2026-10-18, por
+decisão do Andre: a conta é a clínica, e as unidades pertencem a ela. Os campos
+não mudaram, mudaram de dono.
+
+| Campo | Dono | Por quê |
+|---|---|---|
+| Nome da conta | conta | fechado na tela; nasce do cadastro, que pergunta um nome só |
+| CNPJ de cobrança | conta | um por fatura |
+| Logomarca | conta | o cabeçalho é um por sessão, e não pode piscar ao trocar de clínica |
+| Nome, endereço, telefone | unidade | é o que distingue uma clínica da outra |
+| CNPJ da unidade | unidade | existe na coluna, fora da tela: é da franquia com CNPJ próprio, e vazio na filial |
+
+O segundo cartão é um **acordeão** com uma clínica aberta por vez, a primeira já
+aberta — "na grande maioria será apenas unidade". Com uma clínica só, a guia é o
+formulário da Clínica de sempre. Abrir a segunda fecha a primeira, e é por isso
+que o Salvar grava **uma** unidade: com todos os blocos abertos, um Salvar sobre
+três clínicas exigiria transação para não deixar meia gravação.
+
+Editar a clínica em que não se está passou a ser possível de propósito — um dono
+de três clínicas arruma o telefone da segunda sem trocar de unidade. Quem pode:
+o MASTER da conta, ou quem administra aquela unidade.
+
 ### A troca de unidade
 
 Quem participa de mais de uma vê o seletor na marca, no topo da barra lateral —

@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { unidadesDaConta } from '@/lib/account'
+import { contaDoMaster, unidadesDaConta } from '@/lib/account'
 import { tetoDeUnidades } from '@/lib/plan-limits'
 import { planFor } from '@/lib/plans'
 
@@ -62,31 +62,6 @@ async function slugLivre(
     return `${base}-${Date.now()}`
 }
 
-/**
- * Quem pode mexer nas unidades da conta: o MASTER dela.
- *
- * Não é o OWNER da unidade aberta. Criar unidade gasta o teto que a conta
- * comprou, e a conta tem **um** responsável explícito (`Account.ownerUserId`) —
- * foi para isto que a coluna existe. Com três unidades, "o OWNER de qual
- * delas?" não tem resposta boa, e a pergunta aparece justamente quando a
- * resposta importa.
- */
-async function contaDoMaster(workspaceId: string, userId: string) {
-    const workspace = await prisma.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { accountId: true, account: { select: { ownerUserId: true, name: true } } },
-    })
-    if (!workspace) return { ok: false as const, status: 404, error: 'Conta não encontrada' }
-    if (workspace.account.ownerUserId !== userId) {
-        return {
-            ok: false as const,
-            status: 403,
-            error: 'Só o responsável pela conta pode criar unidades.',
-        }
-    }
-    return { ok: true as const, accountId: workspace.accountId }
-}
-
 export async function GET() {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -105,6 +80,8 @@ export async function GET() {
             select: {
                 id: true,
                 name: true,
+                address: true,
+                phone: true,
                 createdAt: true,
                 _count: { select: { users: true, contacts: true, agents: true } },
             },
@@ -140,6 +117,8 @@ export async function GET() {
         lista: lista.map((u) => ({
             id: u.id,
             name: u.name,
+            address: u.address,
+            phone: u.phone,
             createdAt: u.createdAt,
             usuarios: u._count.users,
             pacientes: u._count.contacts,
@@ -165,7 +144,17 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const master = await contaDoMaster(auth.member.workspaceId, auth.member.userId)
-    if (!master.ok) return NextResponse.json({ error: master.error }, { status: master.status })
+    if (!master.ok) {
+        return NextResponse.json(
+            {
+                error:
+                    master.status === 403
+                        ? 'Só o responsável pela conta pode criar unidades.'
+                        : master.error,
+            },
+            { status: master.status }
+        )
+    }
 
     const parsed = criarSchema.safeParse(await request.json().catch(() => ({})))
     if (!parsed.success) {
@@ -219,7 +208,7 @@ export async function POST(request: NextRequest) {
                 {
                     error:
                         `Seu plano cabe ${error.max} unidade${error.max === 1 ? '' : 's'} e você já tem ${error.existentes}. ` +
-                        `Contrate uma unidade adicional em Gerenciamento → Conta → Plano.`,
+                        `Contrate uma unidade adicional em Gerenciamento → Conta → Conta da Clínica.`,
                 },
                 { status: 402 }
             )

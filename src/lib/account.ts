@@ -95,3 +95,32 @@ export async function unidadesDaConta(accountId: string): Promise<Unidades> {
 
     return { used, max, remaining: Math.max(0, max - used), doPlano, adicionais }
 }
+
+/**
+ * Quem pode mexer nas unidades da conta: o MASTER dela.
+ *
+ * Não é o OWNER da unidade aberta. Criar unidade gasta o teto que a conta
+ * comprou, e mexer no CNPJ de cobrança mexe na fatura — a conta tem **um**
+ * responsável explícito (`Account.ownerUserId`), e foi para isto que a coluna
+ * existe. Com três unidades, "o OWNER de qual delas?" não tem resposta boa, e a
+ * pergunta aparece justamente quando a resposta importa.
+ *
+ * A frase da recusa é de quem chama: criar unidade, renomear, trocar o CNPJ e
+ * trocar a logo são atos diferentes, e "você não pode criar unidades" na tela de
+ * CNPJ manda a pessoa procurar o botão errado.
+ */
+export async function contaDoMaster(workspaceId: string, userId: string) {
+    const workspace = await prisma.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { accountId: true, account: { select: { ownerUserId: true, name: true } } },
+    })
+    if (!workspace) return { ok: false as const, status: 404, error: 'Conta não encontrada' }
+    if (workspace.account.ownerUserId !== userId) {
+        return {
+            ok: false as const,
+            status: 403,
+            error: 'Só o responsável pela conta pode fazer isto.',
+        }
+    }
+    return { ok: true as const, accountId: workspace.accountId }
+}

@@ -644,10 +644,22 @@ não contradizê-lo, e não para ele repeti-lo.
 
 **Fechada em 2026-10-13**, com as seis guias da Conta no padrão.
 
-Uma tela, várias guias: Conta (perfil, clínica, usuários, agenda, integrações,
-automações, unidades, plano) e o que vier com a mesma forma. As duas últimas são
-da **conta** — unidades e plano são de quem paga, e as de cima são da unidade
-aberta; por isso ficam juntas e no fim. A geometria é a da Tela 01,
+Uma tela, várias guias: Conta (perfil, conta da clínica, usuários, agenda,
+integrações, automações, plano) e o que vier com a mesma forma.
+
+**Guia com acordeão.** Quando a guia governa vários objetos da mesma espécie —
+as clínicas da conta —, eles entram num acordeão com **um aberto por vez**, o
+primeiro já aberto. Não é economia de espaço: é o que mantém o Salvar do rodapé
+com um objeto em mãos, e então não existe meia gravação para desfazer. Fechado,
+o item mostra em texto o que o aberto mostra em campos, para a lista ser legível
+sem abrir um por um. O gatilho é `type="button"` — dentro de um `<form>`, um
+botão sem tipo submete, e abrir a segunda clínica gravaria a primeira.
+
+**Diga qual é "aberto" e qual é "em uso".** Numa guia que edita objeto que não é
+o da sessão, as duas palavras são coisas diferentes e a tela precisa das duas: o
+acordeão abre a clínica para editar, e a etiqueta "em uso" marca a clínica em
+que o resto do sistema está. Trocar a da sessão não é o Salvar — tem botão
+próprio, porque recarrega tudo. A geometria é a da Tela 01,
 de propósito.
 
 - **Linha 1 (50px)**: o nome da tela à esquerda, a ação primária no canto —

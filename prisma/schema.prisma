@@ -75,6 +75,21 @@ model Account {
   /// remover a pessoa não pode levar a conta junto.
   ownerUserId String?
 
+  /// O CNPJ de **cobrança**: o da empresa que assina, não o da clínica.
+  ///
+  /// Mora aqui e não na unidade porque é um por fatura. Pode se repetir na
+  /// unidade sem contradição: as unidades podem ser filiais do mesmo CNPJ ou
+  /// franquias com CNPJ próprio, e `workspaces.cnpj` continua existindo para o
+  /// segundo caso — vazio na filial, que é o caso comum.
+  cnpj String?
+
+  /// A logomarca que substitui a do produto no cabeçalho do sistema.
+  ///
+  /// Da conta, e não da unidade, por um motivo de tela: lida da unidade, a
+  /// marca mudaria ao trocar de clínica — e é justamente a parte do cabeçalho
+  /// que não deve mudar. Uma conta, uma marca.
+  logo String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

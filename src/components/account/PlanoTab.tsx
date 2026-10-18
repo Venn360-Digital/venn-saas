@@ -376,7 +376,7 @@ export function PlanoTab() {
                                 : `O plano inclui ${subscription?.unidades?.doPlano ?? 1}. Os agentes e números do plano são divididos entre as unidades.`
                         }
                         action={
-                            <Button variant="outline" onClick={() => router.replace(`${pathname}?tab=unidades`, { scroll: false })}>
+                            <Button variant="outline" onClick={() => router.replace(`${pathname}?tab=empresa`, { scroll: false })}>
                                 <Hospital className="size-4" />
                                 Ver unidades
                             </Button>

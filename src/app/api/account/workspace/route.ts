@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { createClient } from '@/lib/supabase/server'
@@ -37,8 +37,16 @@ export async function GET() {
                     cnpj: true,
                     address: true,
                     phone: true,
-                    logo: true,
                     createdAt: true,
+                    /**
+                     * A logomarca vem da **conta**, não da unidade.
+                     *
+                     * É quem desenha o cabeçalho do sistema, e lida da unidade
+                     * ela mudaria ao trocar de clínica — justamente a parte da
+                     * tela que não pode mudar. A coluna `workspaces.logo`
+                     * continua existindo e deixou de ser lida aqui.
+                     */
+                    account: { select: { logo: true, name: true } },
                 }
             }),
             prisma.workspaceUser.findMany({
@@ -52,86 +60,18 @@ export async function GET() {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         }
 
+        const { account, ...daUnidade } = workspace
+
         return NextResponse.json({
-            ...workspace,
+            ...daUnidade,
+            /** A marca do cabeçalho: da conta. Ver o `select` acima. */
+            logo: account.logo,
+            conta: account.name,
             /** As unidades desta pessoa, para o seletor da marca. */
             unidades: unidades.map((u) => u.workspace),
         })
     } catch (error) {
         console.error('[API] Error fetching workspace:', error)
         return NextResponse.json({ error: 'Erro ao buscar dados da empresa' }, { status: 500 })
-    }
-}
-
-// PATCH /api/account/workspace - Update workspace
-export async function PATCH(request: NextRequest) {
-    try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-        }
-
-        // Verify user is owner/admin of workspace
-        const workspaceUser = await currentMembership()
-
-        if (!workspaceUser || !['OWNER', 'ADMIN'].includes(workspaceUser.role)) {
-            return NextResponse.json(
-                { error: 'Permissão negada' },
-                { status: 403 }
-            )
-        }
-
-        const body = await request.json()
-        const { name, cnpj, address, phone, logo } = body
-
-        /**
-         * O nome da unidade passou a ser editável em 2026-10-18.
-         *
-         * Era um campo desabilitado com a dica "é o identificador do workspace
-         * e não muda por aqui" — verdade enquanto havia uma clínica por conta,
-         * porque ninguém lia aquele nome em lugar nenhum. Com várias unidades o
-         * nome é **como se distingue uma clínica da outra** no seletor da marca
-         * e na lista de unidades, e a unidade criada pela tela ganha o nome
-         * digitado na hora: sem isto, um erro de digitação ficava para sempre.
-         *
-         * O `slug` não acompanha, de propósito. Ele não aparece em rota nenhuma
-         * (é promessa de subdomínio do cadastro, e nada mais lê), e mexer nele
-         * trocaria a única chave estável da unidade por uma derivada de texto
-         * que a clínica edita.
-         */
-        const nome = typeof name === 'string' ? name.trim() : undefined
-        if (nome !== undefined && (nome.length < 2 || nome.length > 80)) {
-            return NextResponse.json(
-                { error: 'O nome da unidade precisa ter de 2 a 80 caracteres.' },
-                { status: 400 }
-            )
-        }
-
-        const workspace = await prisma.workspace.update({
-            where: { id: workspaceUser.workspaceId },
-            data: {
-                name: nome,
-                cnpj: cnpj !== undefined ? cnpj : undefined,
-                address: address !== undefined ? address : undefined,
-                phone: phone !== undefined ? phone : undefined,
-                logo: logo !== undefined ? logo : undefined,
-            },
-            select: {
-                id: true,
-                name: true,
-                slug: true,
-                cnpj: true,
-                address: true,
-                phone: true,
-                logo: true,
-            }
-        })
-
-        return NextResponse.json(workspace)
-    } catch (error) {
-        console.error('[API] Error updating workspace:', error)
-        return NextResponse.json({ error: 'Erro ao atualizar dados da empresa' }, { status: 500 })
     }
 }
