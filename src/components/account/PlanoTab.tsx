@@ -323,7 +323,7 @@ export function PlanoTab() {
                         title="Forma de pagamento"
                         description="Troque o cartão que paga a mensalidade."
                         action={
-                            <Button onClick={() => setShowPaymentModal(true)}>
+                            <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
                                 <CreditCard className="size-4" />
                                 Alterar forma
                             </Button>
@@ -342,7 +342,7 @@ export function PlanoTab() {
                         }
                         description="Subir ou descer de plano vale a partir do próximo ciclo."
                         action={
-                            <Button onClick={() => setShowPlanModal(true)}>
+                            <Button variant="outline" onClick={() => setShowPlanModal(true)}>
                                 <ArrowUpDown className="size-4" />
                                 {isTrialing ? 'Contratar plano' : 'Alterar plano'}
                             </Button>
@@ -366,6 +366,7 @@ export function PlanoTab() {
                             </p>
                         </div>
                         <Button
+                            variant="outline"
                             disabled={!podeComprarCreditos}
                             onClick={() => setShowCreditsModal(true)}
                         >

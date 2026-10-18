@@ -142,6 +142,9 @@ export function TermsCard({ band = false }: { band?: boolean }) {
             }
             action={
                 needsSignature ? null : (
+                    /* O único `default` da guia Plano — ver DESIGN.md §5. O
+                       acordo é o que a clínica precisa ter lido, e é a única
+                       ação da tela que não é transação. */
                     <Button onClick={() => setReading(true)}>
                         <FileText className="size-4" />
                         Ler os termos

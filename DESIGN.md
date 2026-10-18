@@ -267,22 +267,18 @@ com borda**, não retângulo arredondado repetido.
 
 ## 5. Regras de componente
 
-**Botão.** O peso segue a forma da tela, e são duas formas:
+**Botão.** **Um `default` por tela, e `outline` em todo o resto.** Em
+formulário o azul é o `Salvar`; numa lista de ações independentes é a que a tela
+quer que seja feita ou lida — na guia Plano é *Ler os termos*, que é a única que
+não é transação. O que destrói é `destructive`, mora em cartão próprio e pede
+confirmação (`ConfirmDialog` — nunca `confirm()` nativo).
 
-- **Formulário** — Perfil, Empresa, qualquer diálogo. Um `default` azul: o
-  `Salvar`. Tudo o mais é `outline`, porque é ajudante de um campo e está
-  subordinado àquele envio. Zero azul aqui é tela sem saída.
-- **Lista de ações independentes** — a guia Plano. Alterar forma, Alterar
-  plano, Comprar créditos, Ler os termos: cada uma abre o próprio diálogo,
-  nenhuma depende da outra, e nenhuma é "o próximo passo". Então **todas levam
-  o mesmo peso e todas são azuis**. Pintar uma delas de azul e as outras de
-  branco inventa uma hierarquia que não existe e faz a pessoa procurar o que a
-  diferença quer dizer.
-
-Em qualquer das duas, o que destrói é `destructive` e pede confirmação
-(`ConfirmDialog` — nunca `confirm()` nativo). É dele o contraste da tela: numa
-lista toda azul, o vermelho é a única coisa que se lê diferente, que é
-exatamente o que se quer.
+Não é só gosto: o primário é `#06b6d4`, ciano claro com texto navy, e o contorno
+leva **15,9:1** de contraste contra **6,8:1** do azul. O botão quieto é o mais
+legível dos dois — encher a tela de azul a deixa menos clara, não mais. Pior: o
+azul e o vermelho pesam quase igual (6,8 contra 5,6), então numa coluna de
+vários azuis o botão que encerra a conta deixa de se separar por peso e passa a
+depender só de matiz.
 
 Ação que o servidor vai recusar nasce **desabilitada**, com a razão escrita ao
 lado — não habilitada para devolver erro três cliques depois.
