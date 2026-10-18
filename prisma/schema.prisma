@@ -217,6 +217,19 @@ model Invoice {
   invoiceUrl String?
   receiptUrl String?
 
+  /// Quando chegou o evento que escreveu esta linha pela última vez.
+  ///
+  /// É o que torna o espelho **independente de ordem**. `PAYMENT_CONFIRMED` e
+  /// `PAYMENT_RECEIVED` chegam quase juntos, e uma retentativa do BullMQ pode
+  /// aplicar o primeiro **depois** do segundo: sem esta coluna, o último a
+  /// escrever ganharia, e o espelho diria "confirmado" numa cobrança já
+  /// recebida. Com ela, evento mais antigo que o último aplicado é descartado.
+  ///
+  /// A ordem é a de **chegada** e não a de criação no Asaas: é a que vale com o
+  /// envio sequencial deles, e é a única que temos sem depender de um campo de
+  /// data no corpo.
+  lastEventAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

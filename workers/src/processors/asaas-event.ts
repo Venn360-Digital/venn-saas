@@ -57,7 +57,14 @@ export async function processAsaasEvent(job: Job<AsaasEventJob>): Promise<void> 
 
     const linha = await prisma.asaasEvent.findUnique({
         where: { id: eventRowId },
-        select: { id: true, asaasEventId: true, event: true, payload: true, processedAt: true },
+        select: {
+            id: true,
+            asaasEventId: true,
+            event: true,
+            payload: true,
+            processedAt: true,
+            receivedAt: true,
+        },
     })
 
     if (!linha) {
@@ -71,7 +78,11 @@ export async function processAsaasEvent(job: Job<AsaasEventJob>): Promise<void> 
 
     try {
         if (DE_COBRANCA.test(linha.event)) {
-            await espelharCobranca(linha.event, linha.payload as { payment?: PagamentoDoAsaas })
+            await espelharCobranca(
+                linha.event,
+                linha.payload as { payment?: PagamentoDoAsaas },
+                linha.receivedAt
+            )
         } else {
             log.info(`evento ${linha.event} sem tratamento nesta fase; apenas registrado`)
         }
@@ -106,7 +117,9 @@ export async function processAsaasEvent(job: Job<AsaasEventJob>): Promise<void> 
  */
 async function espelharCobranca(
     event: string,
-    payload: { payment?: PagamentoDoAsaas }
+    payload: { payment?: PagamentoDoAsaas },
+    /** Quando **este** evento chegou. É o que ordena as escritas. */
+    receivedAt: Date
 ): Promise<void> {
     const p = payload.payment
     if (!p?.id) {
@@ -151,10 +164,38 @@ async function espelharCobranca(
         receiptUrl: p.transactionReceiptUrl ?? null,
     }
 
+    /**
+     * Evento mais antigo que o último aplicado não escreve.
+     *
+     * `PAYMENT_CONFIRMED` e `PAYMENT_RECEIVED` chegam quase juntos, e uma
+     * retentativa do BullMQ aplica o primeiro **depois** do segundo — a
+     * reordenação nasce aqui, não na entrega do Asaas, então escolher "envio
+     * sequencial" no painel deles não resolveria isto.
+     *
+     * A conferência é por data de chegada e não por hierarquia de status: um
+     * ranking de status teria de decidir se `REFUNDED` é "mais novo" que
+     * `RECEIVED` (é) e se `OVERDUE` é mais novo que `CONFIRMED` (não deveria
+     * existir), e cada resposta dessas é uma regra de negócio escondida numa
+     * tabela de precedência. A hora em que o evento chegou não precisa de
+     * interpretação.
+     */
+    const atual = await prisma.invoice.findUnique({
+        where: { asaasPaymentId: p.id },
+        select: { lastEventAt: true, status: true },
+    })
+
+    if (atual?.lastEventAt && atual.lastEventAt > receivedAt) {
+        log.info(
+            `${event} da cobrança ${p.id} é mais antigo que o último aplicado ` +
+                `(${atual.status}); descartado`
+        )
+        return
+    }
+
     await prisma.invoice.upsert({
         where: { asaasPaymentId: p.id },
-        create: { asaasPaymentId: p.id, ...dados },
-        update: dados,
+        create: { asaasPaymentId: p.id, ...dados, lastEventAt: receivedAt },
+        update: { ...dados, lastEventAt: receivedAt },
     })
 
     log.info(`${event} espelhado: cobrança ${p.id}, conta ${conta.id}, status ${dados.status}`)
