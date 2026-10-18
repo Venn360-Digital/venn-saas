@@ -91,20 +91,25 @@ export async function POST(request: NextRequest) {
     }
     const e = parsed.data
 
-    const criado = await prisma.scheduleException.create({
-        data: {
-            workspaceId: auth.member.workspaceId,
-            name: e.name,
-            startsOn: new Date(`${e.startsOn}T00:00:00Z`),
-            endsOn: new Date(`${e.endsOn}T00:00:00Z`),
-            allDay: e.allDay,
-            startTime: e.allDay ? null : e.startTime ?? null,
-            endTime: e.allDay ? null : e.endTime ?? null,
-            blocks: e.blocks,
-        },
-        select: { id: true },
-    })
-    return NextResponse.json(criado, { status: 201 })
+    try {
+        const criado = await prisma.scheduleException.create({
+            data: {
+                workspaceId: auth.member.workspaceId,
+                name: e.name,
+                startsOn: new Date(`${e.startsOn}T00:00:00Z`),
+                endsOn: new Date(`${e.endsOn}T00:00:00Z`),
+                allDay: e.allDay,
+                startTime: e.allDay ? null : e.startTime ?? null,
+                endTime: e.allDay ? null : e.endTime ?? null,
+                blocks: e.blocks,
+            },
+            select: { id: true },
+        })
+        return NextResponse.json(criado, { status: 201 })
+    } catch (error) {
+        console.error('[SCHEDULE_EXCEPTIONS_POST]', error)
+        return NextResponse.json({ error: 'Não foi possível salvar o fechamento' }, { status: 500 })
+    }
 }
 
 /**
@@ -129,16 +134,33 @@ export async function PUT(request: NextRequest) {
 
     const blocks = body.blocks !== false
 
-    await prisma.scheduleException.upsert({
-        where: { workspaceId_holidayKey: { workspaceId: auth.member.workspaceId, holidayKey: chave } },
-        create: {
-            workspaceId: auth.member.workspaceId,
-            holidayKey: chave,
-            name: conhecido.name,
-            blocks,
-        },
-        update: { blocks },
-    })
+    /**
+     * Sem `try`, esta rota devolvia 500 mudo e a tela dizia só "Não foi
+     * possível salvar" — foi o que escondeu, por dias, um erro de banco que
+     * dizia exatamente o que estava errado.
+     *
+     * O `upsert` do Prisma compila para `INSERT … ON CONFLICT
+     * ("workspaceId","holidayKey")`, e isso exige um índice único **não
+     * parcial** sobre essas duas colunas. O índice criado em
+     * `20261014200000_agenda_specialists` era parcial, e o Postgres recusava a
+     * inferência em toda marcação de feriado. Corrigido em
+     * `20261018040000_feriado_unico_nao_parcial`.
+     */
+    try {
+        await prisma.scheduleException.upsert({
+            where: { workspaceId_holidayKey: { workspaceId: auth.member.workspaceId, holidayKey: chave } },
+            create: {
+                workspaceId: auth.member.workspaceId,
+                holidayKey: chave,
+                name: conhecido.name,
+                blocks,
+            },
+            update: { blocks },
+        })
+    } catch (error) {
+        console.error('[SCHEDULE_EXCEPTIONS_PUT]', error)
+        return NextResponse.json({ error: 'Não foi possível salvar o feriado' }, { status: 500 })
+    }
 
     return NextResponse.json({ holidayKey: chave, blocks })
 }

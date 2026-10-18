@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { CalendarOff, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -228,9 +229,28 @@ export function AgendaClinicaTab() {
                 }
             >
                 {fechamentos.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-muted-foreground">
-                        Nenhum fechamento cadastrado.
-                    </p>
+                    /*
+                     * Estado vazio com ação, como manda o DESIGN.md §5. Era um
+                     * parágrafo pelado dizendo "Nenhum fechamento cadastrado",
+                     * e o único botão de criar ficava no rodapé do cartão,
+                     * **abaixo** da frase — o lugar onde se procura a ação não
+                     * a oferecia, e a tela lia como se não houvesse como
+                     * cadastrar.
+                     */
+                    <EmptyState
+                        variant="inline"
+                        icon={CalendarOff}
+                        title="Nenhum fechamento cadastrado"
+                        description="Recesso de fim de ano, congresso, dedetização — o que fecha a agenda e não é feriado nacional."
+                        action={
+                            canEdit ? (
+                                <Button onClick={() => { setForm(VAZIO); setErro(null); setDialogo(true) }}>
+                                    <Plus className="size-4" />
+                                    Novo fechamento
+                                </Button>
+                            ) : undefined
+                        }
+                    />
                 ) : (
                     <div className="flex flex-col divide-y divide-border">
                         {fechamentos.map((f) => (
