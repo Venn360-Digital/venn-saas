@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -345,6 +345,7 @@ export function JanelasDialog({
                         Cancelar
                     </Button>
                     <Button onClick={() => void salvar()} disabled={salvando}>
+                        {salvando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                         {salvando ? 'Salvando…' : 'Salvar grade'}
                     </Button>
                 </DialogFooter>

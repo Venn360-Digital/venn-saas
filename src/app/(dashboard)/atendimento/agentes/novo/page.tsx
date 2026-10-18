@@ -16,7 +16,7 @@ import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
 import { InstrucoesTab } from '@/components/agents/creation/tabs/InstrucoesTab'
 import { VozTab } from '@/components/agents/creation/tabs/VozTab'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface KnowledgeSource {
@@ -288,6 +288,7 @@ function NovoAgenteContent() {
                que só sabe recusar é pior que a sua ausência. */
             acoes={canManage ? (
                 <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving || loading}>
+                    {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                     {isSaving ? 'Salvando…' : 'Salvar agente'}
                 </Button>
             ) : null}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Eye, EyeOff, Loader2, Lock } from 'lucide-react'
+import { Check, Eye, EyeOff, Loader2, Lock, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
@@ -133,7 +133,7 @@ export function NovaSenhaForm({ email }: { email: string }) {
                     </div>
 
                     <Button type="submit" className="w-full" disabled={!canSubmit}>
-                        {loading ? <Loader2 className="animate-spin" /> : null}
+                        {loading ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                         Salvar e entrar
                     </Button>
                 </form>

@@ -13,7 +13,7 @@ import { CanaisTab } from '@/components/agents/creation/tabs/CanaisTab'
 import { ApiTab } from '@/components/agents/creation/tabs/ApiTab'
 import { WebhooksTab } from '@/components/agents/creation/tabs/WebhooksTab'
 import { useAgentIntegrations } from '@/hooks/useAgentIntegrations'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 function IntegracoesContent() {
@@ -90,6 +90,7 @@ function IntegracoesContent() {
             acoes={
                 currentTab === 'webhooks' && canManage ? (
                     <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving || loading}>
+                        {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                         {isSaving ? 'Salvando…' : 'Salvar webhooks'}
                     </Button>
                 ) : null

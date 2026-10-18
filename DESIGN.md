@@ -295,6 +295,14 @@ em telas vizinhas custam mais que nenhum. E o contrário também vale: não
 reaproveite um ícone para dois sentidos — `CreditCard` é a forma de pagamento,
 não "comprar".
 
+O vocabulário fixo até aqui: **`Save` para todo botão Salvar**, em qualquer
+tela; `Trash2` para excluir; `Copy` para duplicar; `Power` para pausar e ativar;
+`Ban` para cancelar assinatura; `Check` para autorizar e para "é este que você
+já tem"; `Plus` para comprar ou acrescentar; `ArrowUpDown` para mover-se entre
+planos; `FileText` para ler um documento; `CreditCard` para a forma de
+pagamento. Enquanto salva, o ícone dá lugar ao `Loader2` girando — não some,
+senão o botão muda de largura no meio do clique.
+
 **Tamanho: deixe o sistema decidir.** `<Button variant="outline">` e pronto.
 `size="sm"` com `className="h-8"` por cima é o sintoma de uma briga com o
 primitivo — e foi o que deixou a guia Plano com quatro botões de três alturas

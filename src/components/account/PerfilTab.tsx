@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Camera, User } from 'lucide-react'
+import { Camera, Save, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { FormField } from '@/components/shared/FormField'
@@ -168,6 +168,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                 <>
                     {saving ? <p className="mr-auto text-xs text-muted-foreground">Salvando…</p> : null}
                     <Button type="submit" form={formId} size="sm" className="h-8" disabled={saving}>
+                        <Save className="size-4" />
                         Salvar perfil
                     </Button>
                 </>

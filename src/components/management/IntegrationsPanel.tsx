@@ -2,7 +2,7 @@
 
 import { BRAND_COLORS } from '@/lib/brand-colors'
 import { useState, useEffect } from 'react'
-import { ExternalLink, Unplug, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Save, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -310,7 +310,7 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                     </div>
                     <div className="flex gap-2">
                         <Button size="sm" onClick={handleSaveClient} disabled={savingClient} className="gap-2">
-                            {savingClient ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                            {savingClient ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                             Salvar credenciais
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => setShowOwnProject(false)}>

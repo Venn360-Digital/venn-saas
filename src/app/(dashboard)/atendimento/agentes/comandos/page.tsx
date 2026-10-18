@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
 import { PreferenciasTab } from '@/components/agents/creation/tabs/PreferenciasTab'
 import { useAgentCommands } from '@/hooks/useAgentCommands'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 function ComandosContent() {
@@ -90,6 +90,7 @@ function ComandosContent() {
                que só sabe recusar é pior que a sua ausência. */
             acoes={canManage ? (
                 <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving || loading}>
+                    {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                     {isSaving ? 'Salvando…' : 'Salvar parametrização'}
                 </Button>
             ) : null}

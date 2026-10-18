@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, Loader2, ShieldCheck } from 'lucide-react'
+import { Check, Loader2, Save, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -166,7 +166,7 @@ export function PlatformCredentialsPanel() {
                                 </div>
                                 <div className="flex gap-2">
                                     <Button size="sm" onClick={() => void save(row.provider)} disabled={saving} className="gap-2">
-                                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                        {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                                         Salvar
                                     </Button>
                                     <Button size="sm" variant="ghost" onClick={() => setOpen(null)}>Cancelar</Button>
