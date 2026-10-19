@@ -10,7 +10,7 @@
  */
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
-import { tetoDeUnidades } from '@/lib/plan-limits'
+import { limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
 
 let fails = 0
 function eq(label: string, got: unknown, want: unknown) {
@@ -143,6 +143,50 @@ eq('plano desconhecido não zera o teto', tetoDeUnidades('ouro', 0), 1)
 // contagem de linhas —, e é exatamente por isso que vale travar: o dia em que
 // alguém passar um saldo calculado aqui, a trava não vai virar "cabe zero".
 eq('adicional negativo não derruba o teto', tetoDeUnidades('pro', -5), 1)
+
+console.log('\n— o que o adicional soma à franquia')
+
+/**
+ * Cada unidade adicional traz 1 agente, 1 número e 10.000 créditos, desde
+ * 2026-10-19. Três lugares dependem desta soma — a tela, a aplicação de plano e
+ * a renovação mensal —, e errar aqui é cliente pagando por capacidade que o
+ * sistema recusa, ou ganhando a que não comprou.
+ */
+eq('Digital puro', limitesEfetivos('flow', 0), {
+    maxWorkspaces: 1, maxAgents: 1, maxWhatsAppNumbers: 1,
+    credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
+})
+
+eq('Digital + 1 adicional vira o dobro de tudo', limitesEfetivos('flow', 1), {
+    maxWorkspaces: 2, maxAgents: 2, maxWhatsAppNumbers: 2,
+    credits: 20_000, maxMessages: 20_000, maxSpokenReplies: 800,
+})
+
+// O caso da Venn360 ao descer para o Digital com dois adicionais: 3 agentes, e
+// portanto nenhum agente pausado. Era o problema que a mudança veio resolver.
+eq('Digital + 2 adicionais', limitesEfetivos('flow', 2), {
+    maxWorkspaces: 3, maxAgents: 3, maxWhatsAppNumbers: 3,
+    credits: 30_000, maxMessages: 30_000, maxSpokenReplies: 1_200,
+})
+
+eq('Multiclínica + 2 adicionais', limitesEfetivos('advanced', 2), {
+    maxWorkspaces: 5, maxAgents: 5, maxWhatsAppNumbers: 8,
+    credits: 50_000, maxMessages: 50_000, maxSpokenReplies: 2_300,
+})
+
+/**
+ * A escada de planos continua de pé, que era a objeção contra dar capacidade ao
+ * adicional. Em números: quem quer 3 agentes paga menos no Multiclínica **e**
+ * leva o dobro de números.
+ */
+eq('3 agentes por Digital + 2 adicionais custa mais que o Multiclínica',
+   970 > 890, true)
+eq('e ainda leva menos números',
+   limitesEfetivos('flow', 2).maxWhatsAppNumbers < limitesEfetivos('advanced', 0).maxWhatsAppNumbers,
+   true)
+
+// Teto de unidades continua saindo da mesma conta, agora derivado.
+eq('o teto de unidades acompanha', tetoDeUnidades('advanced', 2), 5)
 
 console.log(fails === 0 ? '\nTodos passaram.' : `\n${fails} falharam.`)
 process.exit(fails === 0 ? 0 : 1)

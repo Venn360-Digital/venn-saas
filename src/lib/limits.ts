@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { accountIdOf, assinaturaDaUnidade, unidadesDaConta, type Unidades } from '@/lib/account'
-import { planNameFor } from '@/lib/plan-limits'
+import { limitesEfetivos, planNameFor } from '@/lib/plan-limits'
 
 /**
  * What the workspace's plan actually allows, and how much of it is used.
@@ -104,8 +104,21 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
         }
     }
 
-    const maxAgents = subscription.maxAgents
-    const maxWhatsApp = subscription.maxWhatsAppNumbers
+    /**
+     * O teto vem da **tabela viva**, não da cópia na assinatura.
+     *
+     * A assinatura guarda uma cópia escrita na contratação, e ela envelhece: um
+     * adicional comprado depois não aparece lá até alguém reaplicar o plano. Com
+     * os adicionais trazendo agente e número desde 2026-10-19, essa defasagem
+     * seria a clínica pagando por um agente que o sistema recusa criar.
+     *
+     * `Math.max` com a cópia preserva o caso oposto — assinatura com teto maior
+     * que a tabela, concedido à mão —, que é o mesmo cuidado que o cron de
+     * renovação já toma.
+     */
+    const efetivos = limitesEfetivos(subscription.plan, units.adicionais)
+    const maxAgents = Math.max(subscription.maxAgents, efetivos.maxAgents)
+    const maxWhatsApp = Math.max(subscription.maxWhatsAppNumbers, efetivos.maxWhatsAppNumbers)
 
     return {
         planId: subscription.plan,

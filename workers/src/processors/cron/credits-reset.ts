@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { RENEWAL_DAYS } from '@/lib/billing'
-import { limitsFor } from '@/lib/plan-limits'
+import { limitesEfetivos } from '@/lib/plan-limits'
 import { createLogger } from '../../logger'
 
 const log = createLogger('CRON:CREDITS')
@@ -88,7 +88,18 @@ export async function runCreditsReset(): Promise<void> {
             periodEnd = new Date(periodEnd.getTime() + PERIOD_MS)
         }
 
-        const tabela = limitsFor(subscription.plan)
+        /**
+         * A franquia da renovação é o plano **mais** os adicionais.
+         *
+         * Desde 2026-10-19 cada unidade adicional traz 10.000 créditos, 1 agente
+         * e 1 número. Renovar só pela tabela do plano devolveria, todo mês, uma
+         * franquia menor que a contratada — e o cliente descobriria pelo saldo
+         * acabando antes da hora.
+         */
+        const adicionais = await prisma.unitAddon.count({
+            where: { accountId: subscription.accountId },
+        })
+        const tabela = limitesEfetivos(subscription.plan, adicionais)
 
         // Estrutural só sobe. Redução fica no log para alguém decidir à mão.
         if (

@@ -109,6 +109,66 @@ export function limitsFor(id: string | null | undefined): PlanLimits {
 }
 
 /**
+ * O que **uma** unidade adicional traz, além da unidade em si.
+ *
+ * Decidido pelo Andre em 2026-10-19, corrigindo a regra anterior — em que o
+ * adicional comprava só separação, sem capacidade nenhuma.
+ *
+ * A razão é prática: unidade sem agente e sem número é clínica que não atende.
+ * O adicional resolvia o problema pela metade, e a conta que descia de plano
+ * ficava com uma unidade viva e muda.
+ *
+ * **Minha objeção original não sobrevivia à aritmética.** Eu argumentei que
+ * capacidade no adicional inverteria a escada de planos; não inverte, porque os
+ * planos dão **números** desproporcionalmente e o adicional dá um só:
+ *
+ * | para ter | pelo plano | por Digital + adicionais |
+ * |---|---|---|
+ * | 2 agentes, 20k | Prime R$ 590, **4 números** | R$ 680, 2 números |
+ * | 3 agentes, 30k | Multiclínica R$ 890, **6 números** | R$ 970, 3 números |
+ *
+ * Em dinheiro e em números o plano ganha nos dois casos. O adicional é o Plano
+ * Digital a R$ 290 para quem já assina — que é exatamente o que ele deve ser.
+ *
+ * `maxSpokenReplies` acompanha porque o teto de fala existe para fechar o custo
+ * de IA dentro dos 10% da mensalidade: 10.000 créditos a mais sem fala a mais
+ * seria franquia que não pode ser usada como o plano permite; e fala a mais sem
+ * teto furaria a margem pelo lado que ninguém olha.
+ */
+export const ADICIONAL_INCLUI = {
+    maxWorkspaces: 1,
+    maxAgents: 1,
+    maxWhatsAppNumbers: 1,
+    credits: 10_000,
+    maxMessages: 10_000,
+    maxSpokenReplies: 400,
+} satisfies PlanLimits
+
+/**
+ * Os limites efetivos da conta: o plano mais o que os adicionais trazem.
+ *
+ * É a fonte única dessa soma. Antes só as unidades somavam (`tetoDeUnidades`), e
+ * agora somam cinco coisas — espalhar isso por rota, worker e tela seria
+ * garantir que um dos três esquecesse uma delas.
+ */
+export function limitesEfetivos(
+    plan: string | null | undefined,
+    adicionais: number
+): PlanLimits {
+    const base = limitsFor(plan)
+    const n = Math.max(0, adicionais)
+
+    return {
+        maxWorkspaces: base.maxWorkspaces + n * ADICIONAL_INCLUI.maxWorkspaces,
+        maxAgents: base.maxAgents + n * ADICIONAL_INCLUI.maxAgents,
+        maxWhatsAppNumbers: base.maxWhatsAppNumbers + n * ADICIONAL_INCLUI.maxWhatsAppNumbers,
+        credits: base.credits + n * ADICIONAL_INCLUI.credits,
+        maxMessages: base.maxMessages + n * ADICIONAL_INCLUI.maxMessages,
+        maxSpokenReplies: base.maxSpokenReplies + n * ADICIONAL_INCLUI.maxSpokenReplies,
+    }
+}
+
+/**
  * Quantas unidades a conta pode ter: o que o plano inclui mais as compradas.
  *
  * Aqui e não inline porque **três lugares precisam concordar**: a tela que
@@ -120,5 +180,5 @@ export function limitsFor(id: string | null | undefined): PlanLimits {
  * `npm run check:period`, que é onde mora o que erra calado.
  */
 export function tetoDeUnidades(plan: string | null | undefined, adicionais: number): number {
-    return limitsFor(plan).maxWorkspaces + Math.max(0, adicionais)
+    return limitesEfetivos(plan, adicionais).maxWorkspaces
 }

@@ -526,7 +526,11 @@ export function PlanoTab() {
             u.adicionais > 0
                 ? `Inclui ${plural(u.doPlano)}, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'} — ${plural(u.max)} no total, ${u.used} em uso.`
                 : `Inclui ${plural(u.doPlano)}, ${u.used} em uso.`
-        return `${base} Os agentes e números do plano são divididos entre elas. ${fim}`
+        const comAdicionais =
+            u.adicionais > 0
+                ? ` Cada adicional soma 1 agente, 1 número e 10.000 créditos à franquia.`
+                : ''
+        return `${base}${comAdicionais} ${fim}`
     })()
 
     /** Quanto os adicionais de unidade somam por mês. */
@@ -1289,8 +1293,7 @@ export function PlanoTab() {
                             </span>
                         </p>
                         <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
-                            {UNIDADE_ADICIONAL.pitch} Os agentes, números e créditos do plano
-                            continuam sendo os mesmos, divididos entre as clínicas.
+                            {UNIDADE_ADICIONAL.pitch}
                         </p>
                     </div>
 
@@ -1328,9 +1331,10 @@ export function PlanoTab() {
                 </div>
 
                 <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
-                    A unidade é uma clínica a mais na mesma conta, com pacientes, agenda e conversas
-                    próprios — e <strong>soma à mensalidade enquanto existir</strong>, diferente do
-                    crédito, que é uma vez. Depois de contratar, dê nome à clínica em{' '}
+                    Cada unidade adicional é um <strong>Plano Digital dentro da sua conta</strong>:
+                    uma clínica a mais, com 1 agente, 1 número de WhatsApp e 10.000 créditos somados
+                    à sua franquia. <strong>Soma à mensalidade enquanto existir</strong>, diferente
+                    do crédito, que é uma vez. Depois de contratar, dê nome à clínica em{' '}
                     <strong>Conta da Clínica</strong>. Até 10 por compra.
                 </p>
             </RecordDialog>

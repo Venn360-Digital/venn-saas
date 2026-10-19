@@ -628,7 +628,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                               (u.adicionais > 0
                                   ? `, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'}.`
                                   : '.') +
-                              ' Os agentes e números do plano são divididos entre elas.'
+                              ' Cada adicional soma 1 agente, 1 número e 10.000 créditos.'
                             : 'Cada clínica tem pacientes, agenda e conversas próprios.'
                     }
                     aside={

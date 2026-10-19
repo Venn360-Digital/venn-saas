@@ -436,9 +436,13 @@ uma sem cancelar as outras, com o cliente achando que cancelou tudo.
 
 **Os limites do plano não se multiplicam por unidade.** Multiclínica são 3
 agentes, 6 números e 30.000 créditos **no total**, divididos como a clínica
-quiser entre as unidades — na prática, um agente e dois números por unidade. É
-de propósito: crédito somado deixa a unidade movimentada consumir a folga da
-que está parada, o que nenhuma assinatura separada permitiria.
+quiser entre as unidades. É de propósito: crédito somado deixa a unidade
+movimentada consumir a folga da que está parada, o que nenhuma assinatura
+separada permitiria.
+
+**O que soma é o adicional, não a unidade.** Desde 2026-10-19 cada unidade
+adicional traz consigo 1 agente, 1 número e 10.000 créditos — ver abaixo. As
+duas regras convivem: o plano é um pacote fixo; o adicional é um pacote a mais.
 
 ### Como a franquia é contada
 
@@ -482,17 +486,26 @@ Por isso a tela de compra mostra **dois subtotais e nunca uma soma**: "R$ 184
 agora" e "R$ 290 por mês" não são parcelas da mesma coisa, e somá-las dá
 exatamente a conta que o cliente contesta na fatura.
 
-**O adicional não traz capacidade.** Nenhum agente, nenhum número, nenhum
-crédito: compra separação — CRM, agenda e conversas próprios da outra clínica.
-É o que mantém a escada de planos honesta, do mesmo jeito que a recarga de
-crédito custa por crédito o que o plano entrega. Se a unidade trouxesse um
-agente, comprar unidade ficaria mais barato que subir de plano (Digital → Prime
-são R$ 200 por +1 agente, +3 números e +10.000 créditos) e a escada inverteria.
+**O adicional é um Plano Digital dentro da conta.** Por R$ 290 vêm: a unidade,
+**1 agente, 1 número de WhatsApp e 10.000 créditos** somados à franquia (mais
+400 respostas faladas, que acompanham o crédito para o teto de áudio continuar
+fechando o custo de IA dentro dos 10% da mensalidade).
 
-A consequência é de venda, não técnica, e precisa ser dita na proposta: **um
-Digital com duas unidades tem um agente e um número para as duas**. A segunda
-clínica nasce com CRM e agenda, e só fala com paciente se a primeira ceder o
-número.
+Mudou em 2026-10-19, e a regra anterior — adicional sem capacidade nenhuma —
+resolvia o problema pela metade: unidade sem agente e sem número é clínica que
+não atende, e quem comprasse ficava com uma segunda unidade viva e muda.
+
+**A objeção que sustentava a regra antiga não sobrevive à conta.** O argumento
+era que capacidade no adicional inverteria a escada de planos; não inverte,
+porque os planos dão **números** desproporcionalmente e o adicional dá um só:
+
+| para ter | pelo plano | por Digital + adicionais |
+|---|---|---|
+| 2 agentes, 20.000 créditos | Prime **R$ 590**, com 4 números | R$ 680, com 2 números |
+| 3 agentes, 30.000 créditos | Multiclínica **R$ 890**, com 6 números | R$ 970, com 3 números |
+
+O plano ganha em dinheiro **e** em capacidade nos dois casos. Quem compra
+adicional está comprando uma clínica a mais, não um atalho de preço.
 
 ### Quem cria unidade
 

@@ -303,20 +303,25 @@ export function creditPackFor(credits: unknown): CreditPack | undefined {
  * cliente tem hoje, e com ele a clínica mantém uma fatura, uma renovação e a
  * troca de unidade pela própria tela.
  *
- * **Não traz capacidade.** Nenhum agente, nenhum número, nenhum crédito: compra
- * separação — CRM, agenda e conversas próprios da outra clínica. É o que
- * mantém a escada de planos honesta, do mesmo jeito que a recarga de crédito
- * custa por crédito o que o plano entrega: se a unidade trouxesse um agente,
- * comprar unidade ficaria mais barato que subir de plano (Digital → Prime são
- * R$ 200 por +1 agente, +3 números e +10.000 créditos) e a escada inverteria.
+ * **Traz capacidade desde 2026-10-19**: 1 agente, 1 número e 10.000 créditos,
+ * além da unidade. É o Plano Digital a R$ 290 para quem já assina.
  *
- * A consequência é de venda, não técnica, e está em PRODUCT.md §12: um Digital
- * com duas unidades tem **um** agente e **um** número para as duas.
+ * Mudou porque a regra anterior resolvia o problema pela metade: unidade sem
+ * agente e sem número é clínica que não atende, e quem comprasse ficava com uma
+ * segunda unidade viva e muda.
+ *
+ * A objeção que sustentava a regra antiga — "capacidade no adicional inverte a
+ * escada de planos" — não sobrevive à conta, porque os planos dão **números**
+ * desproporcionalmente e o adicional dá um só: quem quer 3 agentes paga R$ 890
+ * no Multiclínica com 6 números, contra R$ 970 por Digital + 2 adicionais com 3
+ * números. O plano ganha em dinheiro **e** em capacidade.
  */
 export const UNIDADE_ADICIONAL = {
     price: 290,
     name: 'Unidade adicional',
-    pitch: 'Mais uma clínica na mesma conta, com pacientes, agenda e conversas próprios.',
+    pitch:
+        'Mais uma clínica na mesma conta — com agenda, pacientes e conversas próprios, ' +
+        'mais 1 agente de IA, 1 número de WhatsApp e 10.000 créditos.',
 }
 
 export const TRIAL = {

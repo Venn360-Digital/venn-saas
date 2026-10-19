@@ -9,7 +9,7 @@ import { renewalDate } from '@/lib/billing'
  * (ver o cabeçalho de `plan-limits.ts`), e o compilador do worker reclama na
  * hora: "Module '@/components/shared/BrandIcons' ... '--jsx' is not set".
  */
-import { PLAN_LIMITS, type PlanId } from '@/lib/plan-limits'
+import { limitesEfetivos, type PlanId } from '@/lib/plan-limits'
 
 /**
  * Põe a conta no plano: a assinatura, a franquia e o ajuste dos limites.
@@ -41,7 +41,17 @@ export async function aplicarPlano(opcoes: {
     asaasSubscriptionId?: string | null
 }): Promise<ResultadoDaAtivacao> {
     const { accountId, workspaceId, plan, asaasSubscriptionId } = opcoes
-    const limites = PLAN_LIMITS[plan]
+
+    /**
+     * O plano **mais** os adicionais contratados.
+     *
+     * Desde 2026-10-19 cada unidade adicional traz 1 agente, 1 número e 10.000
+     * créditos. Aplicar só a tabela do plano faria a troca de plano apagar a
+     * capacidade que a clínica comprou à parte — e o sintoma seria um agente
+     * pausado logo depois de um upgrade pago.
+     */
+    const adicionais = await prisma.unitAddon.count({ where: { accountId } })
+    const limites = limitesEfetivos(plan, adicionais)
 
     const dados = {
         plan,
