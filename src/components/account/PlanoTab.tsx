@@ -677,9 +677,8 @@ export function PlanoTab() {
          */
         const comAdicionais =
             u.adicionais > 0
-                ? ` Cada adicional soma ${ADICIONAL_INCLUI.maxAgents} agente,` +
-                  ` ${ADICIONAL_INCLUI.maxWhatsAppNumbers} número e` +
-                  ` ${ADICIONAL_INCLUI.credits.toLocaleString('pt-BR')} créditos à franquia.`
+                ? ` Cada adicional soma ${ADICIONAL_INCLUI.maxAgents} agente e` +
+                  ` ${ADICIONAL_INCLUI.maxWhatsAppNumbers} número; o crédito sai da franquia do plano.`
                 : ''
 
         /**
@@ -1423,11 +1422,12 @@ export function PlanoTab() {
                 </div>
 
                 <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
-                    Cada unidade adicional é um <strong>Plano Digital dentro da sua conta</strong>:
-                    uma clínica a mais, com 1 agente, 1 número de WhatsApp e 10.000 créditos somados
-                    à sua franquia. <strong>Soma à mensalidade enquanto existir</strong>, diferente
-                    do crédito, que é uma vez. Depois de contratar, dê nome à clínica em{' '}
-                    <strong>Conta da Clínica</strong>. Até 10 por compra.
+                    Cada unidade adicional é <strong>uma clínica a mais na sua conta</strong>,
+                    com agenda, pacientes e conversas próprios, mais 1 agente e 1 número de
+                    WhatsApp. O crédito continua saindo da franquia do plano — se precisar de
+                    mais, compre avulso acima. <strong>Soma à mensalidade enquanto
+                    existir</strong>, diferente do crédito, que é uma vez. Depois de contratar,
+                    dê nome à clínica em <strong>Conta da Clínica</strong>. Até 10 por compra.
                 </p>
             </RecordDialog>
 

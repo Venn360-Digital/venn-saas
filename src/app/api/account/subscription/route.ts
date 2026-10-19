@@ -608,11 +608,16 @@ export async function POST(request: NextRequest) {
                         /**
                          * A capacidade entra **na hora**, somada ao que já há.
                          *
-                         * Sem isto, quem pagasse R$ 290 só receberia os 10.000
-                         * créditos e o agente na renovação seguinte — pagou
-                         * hoje, recebe em trinta dias. O defeito passou
-                         * despercebido porque a franquia só era recalculada ao
-                         * aplicar um plano.
+                         * Sem isto, quem pagasse R$ 290 só receberia o agente e
+                         * o número na renovação seguinte — pagou hoje, recebe em
+                         * trinta dias. O defeito passou despercebido porque os
+                         * tetos só eram recalculados ao aplicar um plano.
+                         *
+                         * As linhas de crédito e fala continuam aqui e somam
+                         * zero, porque `ADICIONAL_INCLUI` não traz consumo. É de
+                         * propósito: no dia em que a tabela comercial mudar, o
+                         * incremento acompanha sem ninguém se lembrar desta
+                         * transação.
                          *
                          * **Somado, e não recalculado pela tabela**: uma conta
                          * que desceu de plano mantém a franquia paga até a

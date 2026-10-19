@@ -10,7 +10,7 @@
  */
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
-import { limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
+import { limitesEfetivos, tetoDeUnidades, PRECO_ADICIONAL, PLAN_PRICES } from '@/lib/plan-limits'
 import { diferencaProporcional, direcaoDaTroca, mensalidade } from '@/lib/billing/troca-de-plano'
 
 let fails = 0
@@ -145,46 +145,72 @@ eq('plano desconhecido não zera o teto', tetoDeUnidades('ouro', 0), 1)
 // alguém passar um saldo calculado aqui, a trava não vai virar "cabe zero".
 eq('adicional negativo não derruba o teto', tetoDeUnidades('pro', -5), 1)
 
-console.log('\n— o que o adicional soma à franquia')
+console.log('\n— o que o adicional soma, e o que não soma')
 
 /**
- * Cada unidade adicional traz 1 agente, 1 número e 10.000 créditos, desde
- * 2026-10-19. Três lugares dependem desta soma — a tela, a aplicação de plano e
- * a renovação mensal —, e errar aqui é cliente pagando por capacidade que o
- * sistema recusa, ou ganhando a que não comprou.
+ * Cada unidade adicional traz 1 unidade, 1 agente e 1 número — **e crédito
+ * nenhum**, decidido em 2026-10-19: 10.000 avulsos custam R$ 49, então embutir
+ * franquia no adicional daria de graça o que já se compra, e abriria uma
+ * terceira origem de crédito na tela.
+ *
+ * Três lugares dependem desta soma — a tela, a aplicação de plano e a renovação
+ * mensal —, e errar aqui é cliente pagando por capacidade que o sistema recusa,
+ * ou ganhando a que não comprou.
  */
 eq('Digital puro', limitesEfetivos('flow', 0), {
     maxWorkspaces: 1, maxAgents: 1, maxWhatsAppNumbers: 1,
     credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
 })
 
-eq('Digital + 1 adicional vira o dobro de tudo', limitesEfetivos('flow', 1), {
+eq('Digital + 1 adicional dobra a capacidade, não o consumo', limitesEfetivos('flow', 1), {
     maxWorkspaces: 2, maxAgents: 2, maxWhatsAppNumbers: 2,
-    credits: 20_000, maxMessages: 20_000, maxSpokenReplies: 800,
+    credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
 })
 
 // O caso da Venn360 ao descer para o Digital com dois adicionais: 3 agentes, e
 // portanto nenhum agente pausado. Era o problema que a mudança veio resolver.
 eq('Digital + 2 adicionais', limitesEfetivos('flow', 2), {
     maxWorkspaces: 3, maxAgents: 3, maxWhatsAppNumbers: 3,
-    credits: 30_000, maxMessages: 30_000, maxSpokenReplies: 1_200,
+    credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
 })
 
 eq('Multiclínica + 2 adicionais', limitesEfetivos('advanced', 2), {
     maxWorkspaces: 5, maxAgents: 5, maxWhatsAppNumbers: 8,
-    credits: 50_000, maxMessages: 50_000, maxSpokenReplies: 2_300,
+    credits: 30_000, maxMessages: 30_000, maxSpokenReplies: 1_500,
 })
 
 /**
- * A escada de planos continua de pé, que era a objeção contra dar capacidade ao
- * adicional. Em números: quem quer 3 agentes paga menos no Multiclínica **e**
- * leva o dobro de números.
+ * Duas caixas d'água, e só duas: o adicional não toca na franquia.
+ *
+ * É a asserção que impede o modelo de voltar a crescer sem alguém decidir —
+ * mudar `ADICIONAL_INCLUI.credits` para qualquer coisa acima de zero quebra
+ * aqui, não em produção.
+ */
+eq('o adicional não mexe na franquia do plano',
+   limitesEfetivos('advanced', 7).credits, limitesEfetivos('advanced', 0).credits)
+eq('nem no teto de fala',
+   limitesEfetivos('advanced', 7).maxSpokenReplies, limitesEfetivos('advanced', 0).maxSpokenReplies)
+
+/**
+ * A escada de planos, que é o que justifica o preço do adicional. Quem quer 3
+ * agentes paga menos no Multiclínica **e** leva o dobro de números e o triplo
+ * de crédito.
  */
 eq('3 agentes por Digital + 2 adicionais custa mais que o Multiclínica',
    970 > 890, true)
 eq('e ainda leva menos números',
    limitesEfetivos('flow', 2).maxWhatsAppNumbers < limitesEfetivos('advanced', 0).maxWhatsAppNumbers,
    true)
+eq('e menos crédito',
+   limitesEfetivos('flow', 2).credits < limitesEfetivos('advanced', 0).credits, true)
+
+/**
+ * Expandir pelo adicional continua mais barato que assinar um Digital novo,
+ * **somado** o pacote de crédito que o adicional deixou de embutir. É a conta
+ * que sustenta a decisão: R$ 290 + R$ 49 contra R$ 390.
+ */
+eq('expandir sai mais barato que uma assinatura nova',
+   PRECO_ADICIONAL + 49 < PLAN_PRICES.flow, true)
 
 // Teto de unidades continua saindo da mesma conta, agora derivado.
 eq('o teto de unidades acompanha', tetoDeUnidades('advanced', 2), 5)

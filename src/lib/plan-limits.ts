@@ -140,24 +140,33 @@ export function limitsFor(id: string | null | undefined): PlanLimits {
  *
  * | para ter | pelo plano | por Digital + adicionais |
  * |---|---|---|
- * | 2 agentes, 20k | Prime R$ 590, **4 números** | R$ 680, 2 números |
- * | 3 agentes, 30k | Multiclínica R$ 890, **6 números** | R$ 970, 3 números |
+ * | 2 agentes | Prime R$ 590, **4 números, 20k** | R$ 680, 2 números, 10k |
+ * | 3 agentes | Multiclínica R$ 890, **6 números, 30k** | R$ 970, 3 números, 10k |
  *
- * Em dinheiro e em números o plano ganha nos dois casos. O adicional é o Plano
- * Digital a R$ 290 para quem já assina — que é exatamente o que ele deve ser.
+ * **CRÉDITO NÃO VEM NO ADICIONAL — decisão do Andre em 2026-10-19.**
  *
- * `maxSpokenReplies` acompanha porque o teto de fala existe para fechar o custo
- * de IA dentro dos 10% da mensalidade: 10.000 créditos a mais sem fala a mais
- * seria franquia que não pode ser usada como o plano permite; e fala a mais sem
- * teto furaria a margem pelo lado que ninguém olha.
+ * Veio por algumas horas, e a razão de sair é que o crédito já se compra
+ * separado: 10.000 avulsos custam R$ 49, então expandir sai por R$ 290 + R$ 49
+ * = R$ 339, ainda abaixo dos R$ 390 de uma assinatura Digital nova. Embutir a
+ * franquia no adicional dava de graça o que o cliente compra por R$ 49 — e
+ * criava uma terceira origem de crédito para a clínica entender.
+ *
+ * O que o adicional resolve é **separar unidade**, que é o problema de quem tem
+ * quatro clínicas e não quer quatro contas. Então ele traz capacidade — a
+ * unidade, o agente e o número, sem os quais a clínica nova fica muda — e o
+ * consumo continua vindo de duas caixas d'água só: a franquia do plano e o
+ * avulso.
+ *
+ * `maxSpokenReplies` segue o crédito, não o agente: fala é consumo, e consumo
+ * sai da franquia do plano.
  */
 export const ADICIONAL_INCLUI = {
     maxWorkspaces: 1,
     maxAgents: 1,
     maxWhatsAppNumbers: 1,
-    credits: 10_000,
-    maxMessages: 10_000,
-    maxSpokenReplies: 400,
+    credits: 0,
+    maxMessages: 0,
+    maxSpokenReplies: 0,
 } satisfies PlanLimits
 
 /**

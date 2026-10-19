@@ -303,25 +303,24 @@ export function creditPackFor(credits: unknown): CreditPack | undefined {
  * cliente tem hoje, e com ele a clínica mantém uma fatura, uma renovação e a
  * troca de unidade pela própria tela.
  *
- * **Traz capacidade desde 2026-10-19**: 1 agente, 1 número e 10.000 créditos,
- * além da unidade. É o Plano Digital a R$ 290 para quem já assina.
+ * **Traz 1 agente e 1 número, além da unidade. Crédito não.**
  *
- * Mudou porque a regra anterior resolvia o problema pela metade: unidade sem
- * agente e sem número é clínica que não atende, e quem comprasse ficava com uma
- * segunda unidade viva e muda.
+ * A unidade precisa do agente e do número ou nasce muda — era a regra anterior,
+ * e ela resolvia o problema pela metade. O crédito, ao contrário, já tem onde
+ * ser comprado: 10.000 avulsos por R$ 49. Expandir sai por R$ 339 contra os
+ * R$ 390 de uma assinatura Digital nova, e a clínica continua com uma fatura,
+ * uma renovação e duas caixas d'água de crédito em vez de três.
  *
- * A objeção que sustentava a regra antiga — "capacidade no adicional inverte a
- * escada de planos" — não sobrevive à conta, porque os planos dão **números**
- * desproporcionalmente e o adicional dá um só: quem quer 3 agentes paga R$ 890
- * no Multiclínica com 6 números, contra R$ 970 por Digital + 2 adicionais com 3
- * números. O plano ganha em dinheiro **e** em capacidade.
+ * A escada de planos fica mais firme assim: quem quer 3 agentes paga R$ 890 no
+ * Multiclínica com 6 números e 30.000 créditos, contra R$ 970 por Digital + 2
+ * adicionais com 3 números e 10.000. O plano ganha em dinheiro e em capacidade.
  */
 export const UNIDADE_ADICIONAL = {
     price: PRECO_ADICIONAL,
     name: 'Unidade adicional',
     pitch:
         'Mais uma clínica na mesma conta — com agenda, pacientes e conversas próprios, ' +
-        'mais 1 agente de IA, 1 número de WhatsApp e 10.000 créditos.',
+        'mais 1 agente de IA e 1 número de WhatsApp. O crédito sai da franquia do plano.',
 }
 
 export const TRIAL = {
