@@ -197,6 +197,16 @@ export function PlanoTab() {
      * encerrava antes de começar e o rodapé seguia mostrando o plano anterior.
      */
     const [planoEmContratacao, setPlanoEmContratacao] = useState<string | null>(null)
+    /**
+     * Uma compra de adicionais esperando confirmação do gateway.
+     *
+     * Separado de `planoEmContratacao` porque o que se espera é outro: ali é o
+     * plano virar X; aqui é o saldo ou o teto subir, e o plano não muda.
+     */
+    const [comprandoAdicionais, setComprandoAdicionais] = useState<{
+        adicionais: number
+        avulso: number
+    } | null>(null)
     const [processing, setProcessing] = useState(false)
     /**
      * O aviso de avaliação, dispensado nesta sessão.
@@ -383,10 +393,28 @@ export function PlanoTab() {
     /**
      * Compra os adicionais escolhidos — crédito, unidades, ou os dois.
      *
-     * Uma chamada só, e o servidor grava numa transação: o cliente clicou uma
-     * vez, e metade comprada é pior que nada comprado.
+     * Desde a fase 3 isto **cobra**: o servidor devolve o link de um checkout
+     * avulso (Pix ou cartão) e a entrega acontece quando o pagamento confirma,
+     * não quando o botão é clicado. A janela segue o mesmo padrão da troca de
+     * plano — aberta vazia dentro do gesto, endereçada depois —, porque o
+     * bloqueador de pop-up engole `window.open` que nasce de uma resposta de
+     * rede.
+     *
+     * Conta isenta e cesta abaixo do mínimo do gateway continuam entrando na
+     * hora, sem janela: nos dois casos não há nada a cobrar.
      */
     const handleBuyAddons = async () => {
+        const largura = 560
+        const altura = Math.min(880, Math.max(640, window.screen.availHeight - 80))
+        const esquerda = Math.round(window.screenX + (window.outerWidth - largura) / 2)
+        const topo = Math.round(window.screenY + Math.max(0, (window.outerHeight - altura) / 2))
+
+        janelaDoPagamento.current = window.open(
+            '',
+            'odontobox-pagamento',
+            `width=${largura},height=${altura},left=${esquerda},top=${topo},noopener=no`
+        )
+
         setProcessing(true)
         try {
             const res = await fetch('/api/account/subscription', {
@@ -401,6 +429,33 @@ export function PlanoTab() {
 
             if (res.ok) {
                 const data = await res.json()
+
+                if (data.pago && data.link) {
+                    if (janelaDoPagamento.current && !janelaDoPagamento.current.closed) {
+                        janelaDoPagamento.current.location.href = data.link
+                        setShowCreditsModal(false)
+                        setPagando(true)
+                        /**
+                         * A espera é pelos **créditos ou pela unidade**, não
+                         * pelo plano: `planoEmContratacao` fica nulo e o
+                         * efeito de sondagem para quando a assinatura muda de
+                         * saldo ou de teto.
+                         */
+                        setComprandoAdicionais({
+                            adicionais: subscription?.unidades?.adicionais ?? 0,
+                            avulso: subscription?.creditos?.purchased.total ?? 0,
+                        })
+                        return
+                    }
+
+                    toast.success(data.message)
+                    window.location.href = data.link
+                    return
+                }
+
+                janelaDoPagamento.current?.close()
+                janelaDoPagamento.current = null
+
                 toast.success(data.message)
                 setShowCreditsModal(false)
                 setPacoteEscolhido(null)
@@ -408,10 +463,14 @@ export function PlanoTab() {
                 await loadSubscription()
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
+                janelaDoPagamento.current?.close()
+                janelaDoPagamento.current = null
                 const error = await res.json()
                 toast.error(error.error || 'Erro ao comprar adicionais')
             }
         } catch {
+            janelaDoPagamento.current?.close()
+            janelaDoPagamento.current = null
             toast.error('Erro ao comprar adicionais')
         } finally {
             setProcessing(false)
@@ -555,11 +614,25 @@ export function PlanoTab() {
          * a página. Sem alvo — contratação vinda de outro lugar — vale a regra
          * antiga, que é melhor que nenhuma.
          */
+        /**
+         * O que significa "chegou" muda com o que foi comprado.
+         *
+         * Plano: a assinatura passa a ser aquele plano. Adicional: o plano não
+         * muda — o que muda é a contagem de unidades ou o saldo avulso, e é por
+         * isso que a sondagem guarda o retrato de antes da compra. Sem esta
+         * distinção, comprar crédito deixaria a faixa "aguardando confirmação"
+         * girando as 24 tentativas inteiras mesmo depois de o crédito entrar.
+         */
         const chegou = planoEmContratacao
             ? subscription?.plan === planoEmContratacao
-            : subscription?.status === 'active'
+            : comprandoAdicionais
+              ? (subscription?.unidades?.adicionais ?? 0) > comprandoAdicionais.adicionais ||
+                (subscription?.creditos?.purchased.total ?? 0) > comprandoAdicionais.avulso
+              : subscription?.status === 'active'
+
         if (chegou) {
             setPlanoEmContratacao(null)
+            setComprandoAdicionais(null)
             return
         }
 
@@ -575,7 +648,16 @@ export function PlanoTab() {
         }, 5_000)
 
         return () => clearInterval(timer)
-    }, [retornoDoPagamento, subscription?.status, subscription?.plan, planoEmContratacao, loadSubscription])
+    }, [
+        retornoDoPagamento,
+        subscription?.status,
+        subscription?.plan,
+        subscription?.unidades?.adicionais,
+        subscription?.creditos?.purchased.total,
+        planoEmContratacao,
+        comprandoAdicionais,
+        loadSubscription,
+    ])
 
     const pacotes = subscription?.creditPacks ?? []
     const pacote = pacoteEscolhido ? pacotes.find((p) => p.credits === pacoteEscolhido) : undefined

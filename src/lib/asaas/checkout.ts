@@ -252,3 +252,134 @@ export async function criarCheckoutDePlano(opcoes: {
         throw erro
     }
 }
+
+/**
+ * O checkout da cesta de adicionais: crédito avulso, unidades, ou os dois.
+ *
+ * **Uma cobrança só, DETACHED.** A tela vende as duas coisas no mesmo diálogo e
+ * o cliente clica uma vez; dois checkouts seriam duas janelas, duas aprovações
+ * e a chance de pagar uma e abandonar a outra — com metade da cesta entregue.
+ *
+ * E DETACHED mesmo para a unidade, que é recorrente: o que se cobra aqui é o
+ * proporcional dos dias que faltam. A recorrência já existe, e quem sobe o valor
+ * dela para os próximos ciclos é o processador do webhook, com um `PUT` na
+ * assinatura. Criar uma segunda assinatura para o adicional é exatamente a
+ * cobrança dobrada que custou caro no dia da troca de plano.
+ *
+ * Por ser avulsa, aceita **Pix**, que confirma em segundos — recorrente é que é
+ * cartão e só cartão.
+ */
+export async function criarCheckoutDeAdicionais(opcoes: {
+    accountId: string
+    workspaceId: string
+    /** O plano vigente, só para a linha saber a que assinatura ela pertence. */
+    plan: PlanId
+    pacote?: { credits: number; price: number } | null
+    unidades: number
+    /** Quanto as unidades custam agora, proporcional aos dias que faltam. */
+    valorDasUnidades: number
+    pagador: DadosDoPagador
+    asaasCustomerId?: string | null
+    baseUrl: string
+}): Promise<{ link: string; checkoutId: string }> {
+    const {
+        accountId,
+        workspaceId,
+        plan,
+        pacote,
+        unidades,
+        valorDasUnidades,
+        pagador,
+        asaasCustomerId,
+        baseUrl,
+    } = opcoes
+
+    const valorDoPacote = pacote ? pacote.price : 0
+    const valor = Math.round((valorDoPacote + valorDasUnidades) * 100) / 100
+
+    /**
+     * Um item por natureza, porque a fatura é lida por gente.
+     *
+     * "Adicionais R$ 339,00" obriga quem abre o extrato a lembrar o que comprou.
+     * Duas linhas dizem, e é o mesmo trabalho.
+     */
+    const items: { name: string; description: string; quantity: number; value: number }[] = []
+
+    if (pacote) {
+        items.push({
+            name: `${pacote.credits.toLocaleString('pt-BR')} créditos de IA`,
+            description: 'Crédito avulso, válido por 90 dias a partir da compra',
+            quantity: 1,
+            value: pacote.price,
+        })
+    }
+
+    if (unidades > 0 && valorDasUnidades > 0) {
+        items.push({
+            name: `${unidades} unidade${unidades === 1 ? '' : 's'} adicional${unidades === 1 ? '' : 'is'}`,
+            description:
+                `Proporcional até a renovação. A partir do próximo ciclo, ` +
+                `${unidades === 1 ? 'ela soma' : 'elas somam'} ao valor da mensalidade`,
+            quantity: 1,
+            value: valorDasUnidades,
+        })
+    }
+
+    // A linha nasce antes da chamada, com o id que vai no `externalReference`:
+    // mesma ordem, e pela mesma razão, do checkout de plano.
+    const tentativa = await prisma.asaasCheckout.create({
+        data: {
+            accountId,
+            workspaceId,
+            plan,
+            asaasCheckoutId: `pendente:${accountId}:${Date.now()}`,
+            link: '',
+            kind: 'adicionais',
+            valueCents: Math.round(valor * 100),
+            packCredits: pacote?.credits ?? null,
+            packPriceCents: pacote ? Math.round(pacote.price * 100) : null,
+            units: unidades > 0 ? unidades : null,
+        },
+        select: { id: true },
+    })
+
+    try {
+        const resposta = await asaas<RespostaCheckout>('/checkouts', {
+            method: 'POST',
+            body: {
+                billingTypes: ['PIX', 'CREDIT_CARD'],
+                chargeTypes: ['DETACHED'],
+                minutesToExpire: 1440,
+                externalReference: tentativa.id,
+                callback: {
+                    successUrl: `${baseUrl}/pagamento/retorno?status=processando`,
+                    cancelUrl: `${baseUrl}/pagamento/retorno?status=cancelado`,
+                    expiredUrl: `${baseUrl}/pagamento/retorno?status=expirado`,
+                },
+                items,
+                ...(asaasCustomerId
+                    ? { customer: asaasCustomerId }
+                    : dadosCompletos(pagador)
+                      ? { customerData: dadosCompletos(pagador) }
+                      : {}),
+            },
+        })
+
+        await prisma.asaasCheckout.update({
+            where: { id: tentativa.id },
+            data: {
+                asaasCheckoutId: resposta.id,
+                link: resposta.link,
+                status: resposta.status ?? 'ACTIVE',
+            },
+        })
+
+        return { link: resposta.link, checkoutId: resposta.id }
+    } catch (erro) {
+        await prisma.asaasCheckout.update({
+            where: { id: tentativa.id },
+            data: { status: 'CANCELED' },
+        })
+        throw erro
+    }
+}

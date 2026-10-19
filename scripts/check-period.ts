@@ -11,7 +11,12 @@
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 import { limitesEfetivos, tetoDeUnidades, PRECO_ADICIONAL, PLAN_PRICES } from '@/lib/plan-limits'
-import { diferencaProporcional, direcaoDaTroca, mensalidade } from '@/lib/billing/troca-de-plano'
+import {
+    diferencaProporcional,
+    direcaoDaTroca,
+    mensalidade,
+    proporcionalDoAdicional,
+} from '@/lib/billing/troca-de-plano'
 
 let fails = 0
 function eq(label: string, got: unknown, want: unknown) {
@@ -229,6 +234,60 @@ eq('mesmo plano não é troca', direcaoDaTroca('pro', 'pro'), 'igual')
 const inicio = new Date('2026-10-18T12:00:00-03:00')
 const fim = new Date('2026-11-17T12:00:00-03:00')
 const meio = new Date('2026-11-02T12:00:00-03:00')
+
+console.log('\n— a unidade adicional contratada no meio do ciclo')
+
+/**
+ * A regra da fase 3, decidida com o Andre: a unidade vale a partir do
+ * pagamento, e por isso só o pedaço que falta do ciclo é cobrado agora. A
+ * renovação cobra o mês inteiro dela **somado ao plano**, numa fatura só.
+ *
+ * Sem esta conta, as duas saídas são ruins: cobrar R$ 290 cheios no dia 28 é
+ * cobrar duas vezes os mesmos dois dias, e esperar a renovação é entregar hoje
+ * o que só será pago em trinta dias.
+ */
+eq('meio ciclo, uma unidade',
+   proporcionalDoAdicional({ unidades: 1, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }).valor,
+   145)
+
+eq('meio ciclo, duas unidades',
+   proporcionalDoAdicional({ unidades: 2, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }).valor,
+   290)
+
+// Um dia de R$ 290 são R$ 9,67 — acima do mínimo do gateway, então cobra.
+// O ciclo fecha em 17/11, então "um dia restante" é o dia 16.
+const umDia = proporcionalDoAdicional({
+    unidades: 1,
+    inicioDoCiclo: inicio,
+    fimDoCiclo: fim,
+    agora: new Date('2026-11-16T12:00:00-03:00'),
+})
+eq('um dia ainda cobra', umDia.valor > 0, true)
+eq('e é um trinta avos', umDia.valor, 9.67)
+
+// Na virada não sobra dia nenhum: a renovação já vai cobrar o mês cheio.
+eq('na virada não cobra nada',
+   proporcionalDoAdicional({ unidades: 1, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: fim }).valor,
+   0)
+
+eq('e a tela sabe dizer por quê',
+   proporcionalDoAdicional({ unidades: 1, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: fim }).abaixoDoMinimo,
+   true)
+
+// Zero unidade é compra só de crédito: não há proporcional nenhum.
+eq('sem unidade, sem proporcional',
+   proporcionalDoAdicional({ unidades: 0, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }).valor,
+   0)
+
+/**
+ * E o proporcional nunca passa do valor cheio: contratar no primeiro dia paga
+ * o mês, não mais que ele. A trava é `Math.min(diasRestantes, diasDoCiclo)`, e
+ * ela existe porque `currentPeriodEnd` pode estar mais longe que um ciclo
+ * quando o gateway remarca a data.
+ */
+eq('o proporcional não passa do mês cheio',
+   proporcionalDoAdicional({ unidades: 1, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: inicio }).valor,
+   290)
 
 eq(
     'upgrade na metade do ciclo cobra metade da diferença',

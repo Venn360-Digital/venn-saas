@@ -233,13 +233,26 @@ model AsaasCheckout {
   /// ACTIVE | PAID | CANCELED | EXPIRED — espelho do que o Asaas diz.
   status String @default("ACTIVE")
 
-  /// "assinatura" (cria a recorrência) | "proporcional" (só a diferença do upgrade).
+  /// "assinatura" | "proporcional" | "adicionais".
   ///
   /// O processador precisa saber qual é: o primeiro cria assinatura no Asaas e
   /// manda procurá-la; o segundo é cobrança avulsa sobre uma assinatura que já
   /// existe, e o que ele faz é aplicar o plano e **atualizar o valor** da
-  /// recorrência para os próximos ciclos.
+  /// recorrência para os próximos ciclos. O terceiro não toca no plano: credita
+  /// o lote avulso, cria as linhas de unidade adicional e sobe o valor da
+  /// recorrência.
   kind String @default("assinatura")
+
+  /// O que a compra de adicionais trazia, para o webhook poder aplicá-la.
+  ///
+  /// O evento do Asaas devolve valor e referência, nunca a cesta — sem estas
+  /// colunas, um `CHECKOUT_PAID` de adicionais seria dinheiro recebido sem
+  /// saber o que entregar. Nulos num checkout de plano.
+  packCredits    Int?
+  packPriceCents Int?
+  units          Int?
+  /// A unidade de onde a compra partiu: o lote de crédito avulso é dela.
+  workspaceId    String?
 
   /// Em centavos, o valor que estava sendo cobrado quando foi criado.
   valueCents Int

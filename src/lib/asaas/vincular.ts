@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { asaas } from '@/lib/asaas/client'
-import { planNameFor } from '@/lib/plan-limits'
+import { isPlanId, planNameFor } from '@/lib/plan-limits'
+import { mensalidade } from '@/lib/billing/troca-de-plano'
 
 /**
  * Descobre o cliente e a assinatura que um checkout pago criou no Asaas.
@@ -267,4 +268,39 @@ export async function descreverAssinatura(opcoes: {
                 : { updatePendingPayments: true }),
         },
     })
+}
+
+/**
+ * Põe o valor da recorrência no Asaas de acordo com o que a conta tem hoje.
+ *
+ * É a peça que impede a **cobrança separada** do adicional, que era a dúvida
+ * certa do Andre: sem ela, a unidade comprada no meio do mês ou nunca mais
+ * seria cobrada, ou pediria uma segunda assinatura no Asaas — e aí a clínica
+ * receberia duas cobranças por mês, uma do plano e outra da unidade. Uma
+ * assinatura por conta, com o valor atualizado, mantém uma fatura só.
+ *
+ * Lê o estado em vez de receber o delta: a soma é `mensalidade(plano,
+ * adicionais)` sobre o que está gravado **agora**, então duas compras
+ * simultâneas não se perdem e cancelar um adicional (fase 4) usa a mesma
+ * função para descer o valor.
+ *
+ * **Sem `updatePendingPayments`** — quem decide isso é `descreverAssinatura`
+ * quando recebe um valor: a cobrança deste ciclo já foi paga, e reescrevê-la
+ * seria mexer no que o cliente pagou. O valor novo vale da próxima em diante.
+ */
+export async function sincronizarValorDaAssinatura(
+    accountId: string,
+    subscriptionId: string
+): Promise<number> {
+    const [assinatura, adicionais] = await Promise.all([
+        prisma.subscription.findUnique({ where: { accountId }, select: { plan: true } }),
+        prisma.unitAddon.count({ where: { accountId } }),
+    ])
+
+    const plano = isPlanId(assinatura?.plan) ? assinatura.plan : 'flow'
+    const valor = mensalidade(plano, adicionais)
+
+    await descreverAssinatura({ accountId, subscriptionId, value: valor })
+
+    return valor
 }

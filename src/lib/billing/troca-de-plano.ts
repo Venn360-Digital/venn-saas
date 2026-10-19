@@ -61,20 +61,24 @@ export interface Proporcional {
 export const MINIMO_DO_ASAAS = 5
 
 /**
- * A diferença proporcional aos dias que faltam do ciclo pago.
+ * Quanto de um valor mensal cabe nos dias que faltam do ciclo pago.
+ *
+ * A conta é uma só e serve a dois casos: a diferença de um upgrade e a unidade
+ * adicional contratada no meio do mês. Separá-la daqui foi o que impediu a
+ * segunda de nascer com uma regra de arredondamento própria — duas contas de
+ * proporcional no mesmo sistema divergem no dia em que alguém corrige uma.
  *
  * `agora` e as datas entram como parâmetro para a conta ser testável sem
  * esperar um mês passar.
  */
-export function diferencaProporcional(opcoes: {
-    atual: PlanId
-    novo: PlanId
-    adicionais: number
+export function proporcionalDoCiclo(opcoes: {
+    /** O valor cheio de um mês. Zero ou negativo não gera cobrança. */
+    valorMensal: number
     inicioDoCiclo: Date | null
     fimDoCiclo: Date | null
     agora: Date
 }): Proporcional {
-    const { atual, novo, adicionais, inicioDoCiclo, fimDoCiclo, agora } = opcoes
+    const { valorMensal, inicioDoCiclo, fimDoCiclo, agora } = opcoes
 
     const DIA = 86_400_000
 
@@ -96,15 +100,13 @@ export function diferencaProporcional(opcoes: {
         ? Math.max(0, Math.ceil((fimDoCiclo.getTime() - agora.getTime()) / DIA))
         : diasDoCiclo
 
-    const diferencaMensal = mensalidade(novo, adicionais) - mensalidade(atual, adicionais)
-
     // Descer não gera cobrança: a diferença negativa não vira crédito nem
     // devolução. O cliente usa o que pagou até o fim do ciclo.
-    if (diferencaMensal <= 0) {
+    if (valorMensal <= 0) {
         return { valor: 0, diasRestantes, diasDoCiclo, abaixoDoMinimo: false }
     }
 
-    const bruto = (diferencaMensal * Math.min(diasRestantes, diasDoCiclo)) / diasDoCiclo
+    const bruto = (valorMensal * Math.min(diasRestantes, diasDoCiclo)) / diasDoCiclo
     const valor = Math.round(bruto * 100) / 100
 
     if (valor < MINIMO_DO_ASAAS) {
@@ -112,4 +114,47 @@ export function diferencaProporcional(opcoes: {
     }
 
     return { valor, diasRestantes, diasDoCiclo, abaixoDoMinimo: false }
+}
+
+/**
+ * A diferença proporcional aos dias que faltam do ciclo pago.
+ *
+ * Os adicionais entram nos dois lados da subtração e se cancelam — ficam no
+ * cálculo porque a mensalidade é o conceito que o resto do sistema usa, e tirar
+ * um termo que se cancela só economiza caracteres.
+ */
+export function diferencaProporcional(opcoes: {
+    atual: PlanId
+    novo: PlanId
+    adicionais: number
+    inicioDoCiclo: Date | null
+    fimDoCiclo: Date | null
+    agora: Date
+}): Proporcional {
+    const { atual, novo, adicionais, ...ciclo } = opcoes
+
+    return proporcionalDoCiclo({
+        valorMensal: mensalidade(novo, adicionais) - mensalidade(atual, adicionais),
+        ...ciclo,
+    })
+}
+
+/**
+ * O que uma unidade adicional custa agora, contratada no meio do ciclo.
+ *
+ * Mesma regra do upgrade, e pela mesma razão: ela passa a valer hoje e a
+ * renovação já vai cobrar o mês inteiro dela. Cobrar R$ 290 cheios no dia 28 do
+ * ciclo seria cobrar duas vezes os mesmos dois dias.
+ */
+export function proporcionalDoAdicional(opcoes: {
+    unidades: number
+    inicioDoCiclo: Date | null
+    fimDoCiclo: Date | null
+    agora: Date
+}): Proporcional {
+    const { unidades, ...ciclo } = opcoes
+    return proporcionalDoCiclo({
+        valorMensal: Math.max(0, unidades) * PRECO_ADICIONAL,
+        ...ciclo,
+    })
 }

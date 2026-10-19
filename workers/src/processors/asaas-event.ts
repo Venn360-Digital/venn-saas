@@ -2,7 +2,12 @@ import type { Job } from 'bullmq'
 
 import prisma from '@/lib/prisma'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
-import { descreverAssinatura, vincularContaAoAsaas } from '@/lib/asaas/vincular'
+import {
+    descreverAssinatura,
+    sincronizarValorDaAssinatura,
+    vincularContaAoAsaas,
+} from '@/lib/asaas/vincular'
+import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
 import { mensalidade } from '@/lib/billing/troca-de-plano'
 import { isPlanId } from '@/lib/plan-limits'
 import { createLogger } from '../logger'
@@ -299,7 +304,18 @@ async function tratarCheckout(
 
     const tentativa = await prisma.asaasCheckout.findUnique({
         where: { id: ref },
-        select: { id: true, accountId: true, plan: true, status: true, appliedAt: true, kind: true },
+        select: {
+            id: true,
+            accountId: true,
+            plan: true,
+            status: true,
+            appliedAt: true,
+            kind: true,
+            workspaceId: true,
+            packCredits: true,
+            packPriceCents: true,
+            units: true,
+        },
     })
 
     if (!tentativa) {
@@ -344,6 +360,67 @@ async function tratarCheckout(
      */
     if (tentativa.appliedAt) {
         log.info(`tentativa ${tentativa.id} já aplicada em ${tentativa.appliedAt.toISOString()}`)
+        return
+    }
+
+    /**
+     * Compra de adicionais: não toca no plano.
+     *
+     * Entrega o lote avulso e as unidades, e então **sobe o valor da
+     * recorrência** — é o passo que mantém uma fatura só por mês. Sem ele a
+     * clínica pagaria o plano numa cobrança e a unidade noutra, ou a unidade
+     * nunca mais seria cobrada depois do proporcional.
+     *
+     * A ordem importa: aplica, marca `appliedAt`, e só então fala com o Asaas.
+     * Se o `PUT` falhar, este processador **relança** — o BullMQ retenta, a
+     * entrega não se repete (a trava é `appliedAt`) e o valor acaba sincronizado.
+     * Engolir o erro aqui seria perder R$ 290 por mês em silêncio.
+     */
+    if (tentativa.kind === 'adicionais') {
+        if (!tentativa.workspaceId) {
+            log.error(`tentativa ${tentativa.id} de adicionais sem unidade de origem`)
+            return
+        }
+
+        const entregue = await aplicarAdicionais({
+            accountId: tentativa.accountId,
+            workspaceId: tentativa.workspaceId,
+            packCredits: tentativa.packCredits,
+            packPriceCents: tentativa.packPriceCents,
+            units: tentativa.units,
+        })
+
+        await prisma.asaasCheckout.update({
+            where: { id: tentativa.id },
+            data: { appliedAt: new Date() },
+        })
+
+        log.info(
+            `CHECKOUT_PAID (adicionais): conta ${tentativa.accountId} recebeu ` +
+                `${entregue.creditosAdicionados} créditos e ${entregue.unidadesAdicionadas} unidade(s)`
+        )
+
+        if (entregue.unidadesAdicionadas > 0) {
+            const assinatura = await prisma.subscription.findUnique({
+                where: { accountId: tentativa.accountId },
+                select: { asaasSubscriptionId: true },
+            })
+
+            if (!assinatura?.asaasSubscriptionId) {
+                log.error(
+                    `conta ${tentativa.accountId} comprou unidade sem assinatura no Asaas; ` +
+                        'a mensalidade não subiu e a unidade não será renovada'
+                )
+                return
+            }
+
+            const valor = await sincronizarValorDaAssinatura(
+                tentativa.accountId,
+                assinatura.asaasSubscriptionId
+            )
+            log.info(`mensalidade da conta ${tentativa.accountId} agora é R$ ${valor.toFixed(2)}`)
+        }
+
         return
     }
 

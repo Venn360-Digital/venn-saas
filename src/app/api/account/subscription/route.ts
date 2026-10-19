@@ -1,18 +1,14 @@
 import { CREDIT_PACKS, PLAN_LIST, TRIAL, UNIDADE_ADICIONAL, creditPackFor, planFor } from '@/lib/plans'
 import { currentMembership } from '@/lib/auth/workspace'
-import {
-    canBuyAddons,
-    getBillingState,
-    purchaseExpiry,
-    spokenRepliesLeft,
-} from '@/lib/billing'
-import { ADICIONAL_INCLUI, isPlanId, limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
-import { criarCheckoutDePlano } from '@/lib/asaas/checkout'
+import { canBuyAddons, getBillingState, spokenRepliesLeft } from '@/lib/billing'
+import { isPlanId, limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
+import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@/lib/asaas/checkout'
 import { regimeDaConta } from '@/lib/asaas/cobranca'
+import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
 import { AsaasError } from '@/lib/asaas/client'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
-import { descreverAssinatura } from '@/lib/asaas/vincular'
-import { diferencaProporcional, direcaoDaTroca, mensalidade } from '@/lib/billing/troca-de-plano'
+import { descreverAssinatura, sincronizarValorDaAssinatura } from '@/lib/asaas/vincular'
+import { MINIMO_DO_ASAAS, diferencaProporcional, direcaoDaTroca, mensalidade, proporcionalDoAdicional } from '@/lib/billing/troca-de-plano'
 
 /**
  * O endereço desta aplicação, para o Asaas devolver o pagador.
@@ -181,6 +177,34 @@ export async function GET() {
 }
 
 // POST /api/account/subscription - Update subscription (change-plan, buy-credits, cancel)
+/**
+ * A cesta em palavras, para a mensagem de volta.
+ *
+ * Uma função porque dois caminhos a escrevem — a conta isenta, que recebe na
+ * hora, e a confirmação do pagamento — e duas cópias divergiriam na primeira
+ * correção de plural.
+ */
+function resumoDaCesta(
+    pack: { credits: number; price: number } | null,
+    unidades: number,
+    tetoDeUnidades: number
+): string {
+    const partes: string[] = []
+
+    if (pack) {
+        partes.push(`${pack.credits.toLocaleString('pt-BR')} créditos avulsos`)
+    }
+
+    if (unidades > 0) {
+        partes.push(
+            `${unidades} unidade${unidades === 1 ? '' : 's'} adicional${unidades === 1 ? '' : 'is'}` +
+                ` — você pode ter ${tetoDeUnidades} no total`
+        )
+    }
+
+    return partes.length ? `Contratado: ${partes.join('; ')}.` : 'Nada a contratar.'
+}
+
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient()
@@ -565,114 +589,211 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                const expiresAt = purchaseExpiry()
-
-                // Numa transação: metade comprada é pior que nada comprado, e o
-                // cliente clicou uma vez.
-                await prisma.$transaction(async (tx) => {
-                    if (pack) {
-                        /**
-                         * Lote próprio, com validade própria — não incremento da
-                         * franquia do plano. A franquia é descartada na
-                         * renovação, e crédito que a clínica pagou à parte não
-                         * pode ir com ela.
-                         */
-                        await tx.creditPurchase.create({
-                            data: {
-                                workspaceId: workspaceUser.workspaceId,
-                                amount: pack.credits,
-                                priceCents: Math.round(pack.price * 100),
-                                expiresAt,
-                            },
-                        })
-                    }
-
-                    /**
-                     * Uma linha por unidade, e não uma linha com quantidade.
-                     *
-                     * O teto é derivado da contagem de linhas (ver
-                     * `unidadesDaConta`), e cada linha guarda o preço cobrado
-                     * naquele dia: se os R$ 290 mudarem, o que cada cliente paga
-                     * continua escrito. Uma coluna de quantidade obrigaria a
-                     * escolher entre um preço só para o lote ou um contador que
-                     * divergiria das linhas.
-                     */
-                    if (unidadesPedidas > 0) {
-                        await tx.unitAddon.createMany({
-                            data: Array.from({ length: unidadesPedidas }, () => ({
-                                accountId,
-                                priceCents: Math.round(UNIDADE_ADICIONAL.price * 100),
-                            })),
-                        })
-
-                        /**
-                         * A capacidade entra **na hora**, somada ao que já há.
-                         *
-                         * Sem isto, quem pagasse R$ 290 só receberia o agente e
-                         * o número na renovação seguinte — pagou hoje, recebe em
-                         * trinta dias. O defeito passou despercebido porque os
-                         * tetos só eram recalculados ao aplicar um plano.
-                         *
-                         * As linhas de crédito e fala continuam aqui e somam
-                         * zero, porque `ADICIONAL_INCLUI` não traz consumo. É de
-                         * propósito: no dia em que a tabela comercial mudar, o
-                         * incremento acompanha sem ninguém se lembrar desta
-                         * transação.
-                         *
-                         * **Somado, e não recalculado pela tabela**: uma conta
-                         * que desceu de plano mantém a franquia paga até a
-                         * renovação, e recalcular aqui a derrubaria no meio do
-                         * ciclo — tirando dela justamente o que a regra do
-                         * downgrade promete preservar.
-                         */
-                        await tx.subscription.updateMany({
-                            where: { accountId },
-                            data: {
-                                credits: { increment: unidadesPedidas * ADICIONAL_INCLUI.credits },
-                                maxMessages: { increment: unidadesPedidas * ADICIONAL_INCLUI.maxMessages },
-                                maxAgents: { increment: unidadesPedidas * ADICIONAL_INCLUI.maxAgents },
-                                maxWhatsAppNumbers: {
-                                    increment: unidadesPedidas * ADICIONAL_INCLUI.maxWhatsAppNumbers,
-                                },
-                                maxSpokenReplies: {
-                                    increment: unidadesPedidas * ADICIONAL_INCLUI.maxSpokenReplies,
-                                },
-                            },
-                        })
-                    }
+                /**
+                 * O que a cesta custa agora.
+                 *
+                 * O pacote de crédito é compra única e vai pelo preço de
+                 * tabela. A unidade é **recorrente**, e por isso entra
+                 * proporcional aos dias que faltam do ciclo já pago: ela passa a
+                 * valer hoje e a renovação já vai cobrar o mês inteiro dela.
+                 * Cobrar R$ 290 cheios no dia 28 seria cobrar duas vezes os
+                 * mesmos dois dias — a mesma regra do upgrade de plano.
+                 */
+                const assinatura = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: {
+                        plan: true,
+                        asaasSubscriptionId: true,
+                        currentPeriodStart: true,
+                        currentPeriodEnd: true,
+                    },
                 })
 
-                const [depois, unidades] = await Promise.all([
-                    getBillingState(workspaceUser.workspaceId),
-                    unidadesDaConta(accountId),
-                ])
-
-                const partes: string[] = []
-                if (pack) {
-                    partes.push(
-                        `${pack.credits.toLocaleString('pt-BR')} créditos por R$ ${pack.price.toFixed(2)}, ` +
-                            `válidos até ${expiresAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
-                    )
-                }
-                if (unidadesPedidas > 0) {
-                    const mensal = unidadesPedidas * UNIDADE_ADICIONAL.price
-                    partes.push(
-                        `${unidadesPedidas} unidade${unidadesPedidas === 1 ? '' : 's'} adicional${unidadesPedidas === 1 ? '' : 'is'} ` +
-                            `por R$ ${mensal.toFixed(2)} por mês — você pode ter ${unidades.max} no total`
-                    )
-                }
-
-                return NextResponse.json({
-                    success: true,
-                    message: `Contratado: ${partes.join('; ')}.`,
-                    /** Separados de propósito: um é uma vez, o outro é por mês. */
-                    cobradoAgoraCents: pack ? Math.round(pack.price * 100) : 0,
-                    mensalidadeAdicionadaCents: Math.round(unidadesPedidas * UNIDADE_ADICIONAL.price * 100),
-                    creditsAdded: pack?.credits ?? 0,
-                    unidadesAdicionadas: unidadesPedidas,
-                    newTotal: depois.credits.available,
-                    unidades,
+                const proporcional = proporcionalDoAdicional({
+                    unidades: unidadesPedidas,
+                    inicioDoCiclo: assinatura?.currentPeriodStart ?? null,
+                    fimDoCiclo: assinatura?.currentPeriodEnd ?? null,
+                    agora: new Date(),
                 })
+
+                const unidadesDepois = await unidadesDaConta(accountId)
+                const planoVigente = isPlanId(assinatura?.plan) ? assinatura.plan : 'flow'
+
+                const regime = await regimeDaConta(accountId)
+
+                /**
+                 * A conta isenta recebe na hora, sem passar pelo gateway.
+                 *
+                 * Vitalícia ou antes da data de início: mandar essa conta para
+                 * um checkout de R$ 0,00 seria inventar uma cobrança que a
+                 * decisão do produto diz que não existe.
+                 */
+                if (!regime.precisaPagar) {
+                    const entregue = await aplicarAdicionais({
+                        accountId,
+                        workspaceId: workspaceUser.workspaceId,
+                        packCredits: pack?.credits ?? null,
+                        packPriceCents: pack ? Math.round(pack.price * 100) : null,
+                        units: unidadesPedidas,
+                    })
+
+                    const [depois, unidades] = await Promise.all([
+                        getBillingState(workspaceUser.workspaceId),
+                        unidadesDaConta(accountId),
+                    ])
+
+                    const porque =
+                        regime.motivo === 'vitalicia'
+                            ? 'Conta vitalícia: nada foi cobrado.'
+                            : `A cobrança desta conta começa em ${regime.a_partir_de?.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`
+
+                    return NextResponse.json({
+                        success: true,
+                        pago: false,
+                        message: `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max)} ${porque}`,
+                        creditsAdded: entregue.creditosAdicionados,
+                        unidadesAdicionadas: entregue.unidadesAdicionadas,
+                        newTotal: depois.credits.available,
+                        unidades,
+                    })
+                }
+
+                /**
+                 * Cesta abaixo do mínimo do Asaas entra de graça.
+                 *
+                 * Acontece na véspera da renovação: um dia de R$ 290 são
+                 * R$ 9,67, dois dias de meia unidade podem ficar abaixo dos
+                 * R$ 5 que o gateway aceita por cobrança. Forçar uma cobrança
+                 * de R$ 5 por R$ 3 é cobrar a mais para respeitar um limite do
+                 * gateway — e a diferença some na renovação, que é logo ali.
+                 *
+                 * Mesma decisão do upgrade de plano, e de propósito: duas
+                 * regras diferentes para o mesmo limite seria o tipo de
+                 * divergência que ninguém encontra até um cliente reclamar.
+                 */
+                const totalDaCesta = (pack?.price ?? 0) + proporcional.valor
+
+                if (totalDaCesta < MINIMO_DO_ASAAS) {
+                    const entregue = await aplicarAdicionais({
+                        accountId,
+                        workspaceId: workspaceUser.workspaceId,
+                        packCredits: pack?.credits ?? null,
+                        packPriceCents: pack ? Math.round(pack.price * 100) : null,
+                        units: unidadesPedidas,
+                    })
+
+                    if (unidadesPedidas > 0 && assinatura?.asaasSubscriptionId) {
+                        await sincronizarValorDaAssinatura(accountId, assinatura.asaasSubscriptionId)
+                    }
+
+                    const [depois, unidades] = await Promise.all([
+                        getBillingState(workspaceUser.workspaceId),
+                        unidadesDaConta(accountId),
+                    ])
+
+                    return NextResponse.json({
+                        success: true,
+                        pago: false,
+                        message:
+                            `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max)} ` +
+                            `Faltam ${proporcional.diasRestantes} dia(s) para a renovação e o ` +
+                            `proporcional ficou abaixo do mínimo, então nada foi cobrado agora.`,
+                        creditsAdded: entregue.creditosAdicionados,
+                        unidadesAdicionadas: entregue.unidadesAdicionadas,
+                        newTotal: depois.credits.available,
+                        unidades,
+                    })
+                }
+
+                /**
+                 * Comprar unidade exige assinatura viva no Asaas.
+                 *
+                 * O valor da recorrência sobe depois do pagamento, e sem
+                 * `asaasSubscriptionId` não há o que subir: a unidade seria
+                 * cobrada uma vez, proporcional, e nunca mais. Melhor recusar
+                 * com a razão do que vender algo que não renova.
+                 */
+                if (unidadesPedidas > 0 && !assinatura?.asaasSubscriptionId) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'A unidade adicional soma à sua mensalidade, e esta conta ainda não ' +
+                                'tem assinatura ativa no gateway. Contrate ou renove o plano antes.',
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                const conta = await prisma.account.findUnique({
+                    where: { id: accountId },
+                    select: {
+                        name: true,
+                        cpfCnpj: true,
+                        asaasCustomerId: true,
+                        billingPhone: true,
+                        address: true,
+                        addressNumber: true,
+                        province: true,
+                        postalCode: true,
+                    },
+                })
+
+                if (!conta?.cpfCnpj) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Informe o CPF ou CNPJ de cobrança em Conta da Clínica antes de comprar.',
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                try {
+                    const { link } = await criarCheckoutDeAdicionais({
+                        accountId,
+                        workspaceId: workspaceUser.workspaceId,
+                        plan: planoVigente,
+                        pacote: pack ? { credits: pack.credits, price: pack.price } : null,
+                        unidades: unidadesPedidas,
+                        valorDasUnidades: proporcional.valor,
+                        asaasCustomerId: conta.asaasCustomerId,
+                        pagador: {
+                            name: conta.name,
+                            cpfCnpj: conta.cpfCnpj,
+                            email: user.email ?? '',
+                            phone: conta.billingPhone,
+                            address: conta.address,
+                            addressNumber: conta.addressNumber,
+                            province: conta.province,
+                            postalCode: conta.postalCode,
+                        },
+                        baseUrl: baseDaAplicacao(request),
+                    })
+
+                    return NextResponse.json({
+                        success: true,
+                        pago: true,
+                        link,
+                        message:
+                            unidadesPedidas > 0 && proporcional.valor > 0
+                                ? `Abrindo o pagamento. A unidade entra proporcional aos ` +
+                                  `${proporcional.diasRestantes} dia(s) que faltam e passa a somar ` +
+                                  `R$ ${(unidadesPedidas * UNIDADE_ADICIONAL.price).toFixed(2)} por mês na renovação.`
+                                : 'Abrindo o pagamento dos créditos.',
+                        unidades: unidadesDepois,
+                    })
+                } catch (erro) {
+                    console.error('[BUY_ADDONS] falha ao criar checkout', erro)
+                    return NextResponse.json(
+                        {
+                            error:
+                                erro instanceof AsaasError
+                                    ? `O gateway recusou: ${erro.detalhe}`
+                                    : 'Não foi possível abrir o pagamento agora. Tente de novo em instantes.',
+                        },
+                        { status: 502 }
+                    )
+                }
             }
 
             case 'cancel': {
