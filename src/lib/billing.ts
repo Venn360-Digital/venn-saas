@@ -142,7 +142,27 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
     const trialEndsAt = subscription.trialEndsAt
     const trialLapsed = trialing && !!trialEndsAt && trialEndsAt.getTime() <= now.getTime()
 
-    const phase: Phase = trialLapsed ? 'readonly' : trialing ? 'trial' : 'active'
+    /**
+     * O corte — e ele é lido daqui, não deduzido do status.
+     *
+     * `readOnlySince` existia na tabela desde a avaliação e **nada o lia**: a
+     * fase saía só do trial. O efeito é que a tarefa que marca a conta cortada
+     * marcava uma coluna que não mudava nada, e uma assinatura cancelada seguia
+     * operando para sempre. Encontrado ao escrever a fase 4, que é o que
+     * finalmente grava a coluna.
+     *
+     * É uma data e não um booleano porque ela também é o **início do relógio
+     * de retenção** (PRODUCT.md §7): dia 37 avisa, dia 97 apaga.
+     *
+     * Atraso dentro da carência **não** entra aqui: `past_due` continua
+     * operando, e quem grava `readOnlySince` é o cron, no dia em que a carência
+     * termina. A regra inteira da carência mora nisso.
+     */
+    const cortada = Boolean(
+        subscription.readOnlySince && subscription.readOnlySince.getTime() <= now.getTime()
+    )
+
+    const phase: Phase = trialLapsed || cortada ? 'readonly' : trialing ? 'trial' : 'active'
 
     let remaining: BillingState['remaining'] = null
     if (phase === 'trial' && trialEndsAt) {

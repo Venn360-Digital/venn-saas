@@ -80,10 +80,25 @@ export interface Unidades {
     adicionais: number
 }
 
+/**
+ * O filtro que separa adicional vivo de adicional cancelado.
+ *
+ * Cancelar um adicional não apaga a linha: o ciclo foi pago e a unidade vale
+ * até o fim dele. Então "quantos adicionais esta conta tem" é sempre uma
+ * pergunta **com data**, e a resposta muda sozinha na virada.
+ *
+ * Exportado porque três lugares precisam concordar — a contagem de unidades, a
+ * renovação que reescreve os tetos e o valor que vai para o gateway. Um deles
+ * contando linha cancelada é teto que não cai, ou cobrança que não desce.
+ */
+export function adicionaisVivos(em: Date = new Date()) {
+    return { OR: [{ endsAt: null }, { endsAt: { gt: em } }] }
+}
+
 export async function unidadesDaConta(accountId: string): Promise<Unidades> {
     const [used, adicionais, subscription] = await Promise.all([
         prisma.workspace.count({ where: { accountId } }),
-        prisma.unitAddon.count({ where: { accountId } }),
+        prisma.unitAddon.count({ where: { accountId, ...adicionaisVivos() } }),
         prisma.subscription.findUnique({
             where: { accountId },
             select: { plan: true },

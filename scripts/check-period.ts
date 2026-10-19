@@ -11,6 +11,7 @@
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 import { limitesEfetivos, tetoDeUnidades, PRECO_ADICIONAL, PLAN_PRICES } from '@/lib/plan-limits'
+import { carenciaEmDias, fimDaCarencia, carenciaVencida } from '@/lib/billing/inadimplencia'
 import {
     diferencaProporcional,
     direcaoDaTroca,
@@ -219,6 +220,46 @@ eq('expandir sai mais barato que uma assinatura nova',
 
 // Teto de unidades continua saindo da mesma conta, agora derivado.
 eq('o teto de unidades acompanha', tetoDeUnidades('advanced', 2), 5)
+
+console.log('\n— a carência de quem atrasou')
+
+/**
+ * 3 dias no cartão, 2 no Pix, contados do **dia do vencimento** — decisão do
+ * Andre. É a conta que decide o dia em que uma clínica para de atender, então
+ * ela é conferida aqui e não no olho.
+ */
+eq('cartão tem 3 dias', carenciaEmDias('CREDIT_CARD'), 3)
+eq('Pix tem 2', carenciaEmDias('PIX'), 2)
+eq('meio desconhecido cai no mais generoso', carenciaEmDias(null), 3)
+
+/**
+ * O vencimento chega do Asaas como data pura ("2026-11-18"), e o espelho o
+ * grava ao meio-dia de São Paulo. As linhas antigas o gravaram à meia-noite
+ * UTC — que em São Paulo é o dia **anterior**. As duas têm de dar a mesma
+ * carência, senão o corte chega um dia antes para quem assinou cedo.
+ */
+const venceMeiaNoiteUtc = new Date('2026-11-18T00:00:00Z')
+const venceMeioDiaSp = new Date('2026-11-18T15:00:00Z')
+
+const diaDoCorte = (d: Date, meio: string) =>
+    fimDaCarencia(d, meio).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+
+eq('cartão: vence 18, corta depois do dia 21', diaDoCorte(venceMeiaNoiteUtc, 'CREDIT_CARD'), '21/11/2026')
+eq('Pix: vence 18, corta depois do dia 20', diaDoCorte(venceMeiaNoiteUtc, 'PIX'), '20/11/2026')
+eq('e as duas formas de gravar a data concordam',
+   fimDaCarencia(venceMeiaNoiteUtc, 'CREDIT_CARD').getTime(),
+   fimDaCarencia(venceMeioDiaSp, 'CREDIT_CARD').getTime())
+
+/**
+ * A carência vale o **dia inteiro**: quem lê "até dia 21" paga no dia 21 à
+ * tarde. Cortar às 9h do dia 21 seria cumprir a letra e quebrar a promessa.
+ */
+const fimDaCarenciaCartao = fimDaCarencia(venceMeiaNoiteUtc, 'CREDIT_CARD')
+eq('ainda dá tempo às 18h do último dia',
+   carenciaVencida(fimDaCarenciaCartao, new Date('2026-11-21T21:00:00Z')), false)
+eq('e acabou na virada para o dia seguinte',
+   carenciaVencida(fimDaCarenciaCartao, new Date('2026-11-22T03:00:01Z')), true)
+eq('sem carência gravada, não corta ninguém', carenciaVencida(null, new Date()), false)
 
 console.log('\n— trocar de plano no meio de um ciclo pago')
 

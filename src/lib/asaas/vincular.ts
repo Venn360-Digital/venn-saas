@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { adicionaisVivos } from '@/lib/account'
 import { asaas } from '@/lib/asaas/client'
 import { isPlanId, planNameFor } from '@/lib/plan-limits'
 import { mensalidade } from '@/lib/billing/troca-de-plano'
@@ -294,7 +295,7 @@ export async function sincronizarValorDaAssinatura(
 ): Promise<number> {
     const [assinatura, adicionais] = await Promise.all([
         prisma.subscription.findUnique({ where: { accountId }, select: { plan: true } }),
-        prisma.unitAddon.count({ where: { accountId } }),
+        prisma.unitAddon.count({ where: { accountId, ...adicionaisVivos() } }),
     ])
 
     const plano = isPlanId(assinatura?.plan) ? assinatura.plan : 'flow'

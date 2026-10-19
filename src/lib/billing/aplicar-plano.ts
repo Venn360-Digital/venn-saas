@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { adicionaisVivos } from '@/lib/account'
 import { applyPlanLimits } from '@/lib/limits'
 import { renewalDate } from '@/lib/billing'
 /**
@@ -63,7 +64,9 @@ export async function aplicarPlano(opcoes: {
      * capacidade que a clínica comprou à parte — e o sintoma seria um agente
      * pausado logo depois de um upgrade pago.
      */
-    const adicionais = await prisma.unitAddon.count({ where: { accountId } })
+    const adicionais = await prisma.unitAddon.count({
+        where: { accountId, ...adicionaisVivos() },
+    })
     const limites = limitesEfetivos(plan, adicionais)
 
     const dados = {

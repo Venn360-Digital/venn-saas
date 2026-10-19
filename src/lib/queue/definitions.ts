@@ -144,6 +144,7 @@ export type CronJobName =
     | 'daily-briefing'
     | 'auto-follow-up'
     | 'instagram-token-refresh'
+    | 'billing-dunning'
 
 export interface CronJob {
     task: CronJobName

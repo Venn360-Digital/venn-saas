@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { contaDoMaster, unidadesDaConta } from '@/lib/account'
+import { adicionaisVivos, contaDoMaster, unidadesDaConta } from '@/lib/account'
 import { tetoDeUnidades } from '@/lib/plan-limits'
 import { planFor } from '@/lib/plans'
 
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         const criada = await prisma.$transaction(async (tx) => {
             const [existentes, adicionais, subscription] = await Promise.all([
                 tx.workspace.count({ where: { accountId: master.accountId } }),
-                tx.unitAddon.count({ where: { accountId: master.accountId } }),
+                tx.unitAddon.count({ where: { accountId: master.accountId, ...adicionaisVivos() } }),
                 tx.subscription.findUnique({
                     where: { accountId: master.accountId },
                     select: { plan: true },

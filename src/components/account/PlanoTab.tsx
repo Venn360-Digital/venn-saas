@@ -104,6 +104,9 @@ interface SubscriptionData {
     } | null
     trialEndsAt: string | null
     currentPeriodEnd: string | null
+    /** Até quando a clínica tem para pagar, quando há cobrança vencida. */
+    graceEndsAt?: string | null
+    pastDueSince?: string | null
     plans: {
         flow: PlanConfig
         pro: PlanConfig
@@ -127,6 +130,19 @@ interface SubscriptionData {
         maxMessages: number
         maxSpokenReplies: number
     }
+}
+
+/** Uma cobrança do espelho, como a faixa de histórico a lê. */
+interface Cobranca {
+    id: string
+    kind: string
+    status: string
+    billingType: string | null
+    valueCents: number
+    dueDate: string
+    paidAt: string | null
+    invoiceUrl: string | null
+    receiptUrl: string | null
 }
 
 interface PlanConfig {
@@ -203,6 +219,8 @@ export function PlanoTab() {
      * Separado de `planoEmContratacao` porque o que se espera é outro: ali é o
      * plano virar X; aqui é o saldo ou o teto subir, e o plano não muda.
      */
+    const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
+    const [cancelandoAdicional, setCancelandoAdicional] = useState(false)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
         adicionais: number
         avulso: number
@@ -245,6 +263,67 @@ export function PlanoTab() {
             setLoading(false)
         }
     }, [])
+
+    /**
+     * O histórico de cobranças, numa chamada à parte.
+     *
+     * Separado de `loadSubscription` porque as duas têm pressa diferente: a
+     * assinatura é sondada de cinco em cinco segundos enquanto um pagamento
+     * confirma, e arrastar doze faturas em cada sondagem seria pagar por um
+     * dado que não muda nesse intervalo.
+     */
+    const loadCobrancas = useCallback(async () => {
+        try {
+            const res = await fetch('/api/account/invoices')
+            if (res.ok) {
+                const data = await res.json()
+                setCobrancas(data.invoices ?? [])
+            }
+        } catch {
+            // Sem histórico a tela continua inteira: ele é consulta, não
+            // requisito para contratar nem para pagar.
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadCobrancas()
+    }, [loadCobrancas])
+
+    /**
+     * Cancela unidades adicionais — direito do cliente, e só dele.
+     *
+     * Sem diálogo de confirmação próprio: o `ConfirmDialog` do sistema já é
+     * quem pergunta, e a ação não destrói dado nenhum — a unidade continua de
+     * pé até a renovação, e recontratar é um clique. O que destrói é excluir a
+     * clínica, e isso mora em outra tela.
+     */
+    const handleCancelAddon = useCallback(
+        async (quantas: number) => {
+            setCancelandoAdicional(true)
+            try {
+                const res = await fetch('/api/account/subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'cancel-addon', units: quantas }),
+                })
+
+                const data = await res.json()
+
+                if (res.ok) {
+                    toast.success(data.message)
+                    await loadSubscription()
+                    window.dispatchEvent(new Event(BILLING_UPDATED))
+                } else {
+                    toast.error(data.error || 'Não foi possível cancelar o adicional')
+                }
+            } catch {
+                toast.error('Não foi possível cancelar o adicional')
+            } finally {
+                setCancelandoAdicional(false)
+            }
+        },
+        [loadSubscription]
+    )
 
     /**
      * Contrata um plano. **O plano vem por parâmetro**, não do estado.
@@ -805,6 +884,20 @@ export function PlanoTab() {
             : null
         : renovaEm
 
+    /**
+     * O atraso, e até quando ele pode ser resolvido sem parar a clínica.
+     *
+     * A carência existe desde a fase 4 (3 dias no cartão, 2 no Pix) e só
+     * protege quem sabe dela: avisar "em atraso" sem dizer até quando é susto
+     * sem instrução.
+     */
+    const emAtraso = subscription?.status === 'past_due'
+    const carenciaAte = subscription?.graceEndsAt
+        ? new Date(subscription.graceEndsAt).toLocaleDateString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+          })
+        : null
+
     /** O cartão, como ele aparece na fatura. */
     const formaDePagamento = subscription?.paymentMethod
         ? [subscription.paymentMethod.brand, subscription.paymentMethod.last4 ? `•••• ${subscription.paymentMethod.last4}` : '']
@@ -890,6 +983,27 @@ export function PlanoTab() {
                 avaliação" e concluiria que o pagamento falhou — e aí paga de
                 novo. É o estado que o sistema nunca teve: "recebemos, estamos
                 esperando a confirmação". */}
+            {/* O ATRASO, antes de tudo.
+                Não é a mesma coisa que o aviso de avaliação: ali a clínica
+                ainda não pagou nada e aqui ela já é cliente. A faixa diz o
+                prazo e abre o caminho de pagar — a lista de cobranças, logo
+                abaixo, tem o link da fatura vencida. */}
+            {emAtraso ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-warning-subtle/60 px-5 py-4 md:px-6">
+                    <div className="flex items-center gap-3">
+                        <AlertTriangle className="size-6 text-warning-subtle-foreground" />
+                        <div>
+                            <p className="font-medium">Há uma cobrança vencida.</p>
+                            <p className="text-sm text-muted-foreground">
+                                {carenciaAte
+                                    ? `Você tem até ${carenciaAte} para pagar. Depois disso a clínica fica em somente-leitura: as mensagens continuam chegando e o histórico fica inteiro, mas o envio para.`
+                                    : 'Regularize para manter o envio de mensagens.'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
             {retornoDoPagamento ? (
                 <div
                     className={cn(
@@ -1019,9 +1133,24 @@ export function PlanoTab() {
                                         {' · '}1 agente e 1 número cada
                                     </span>
                                 </p>
-                                <p className="num text-sm font-semibold">
-                                    {formatPrice(mensalDosAdicionais)}
-                                </p>
+                                <div className="flex items-baseline gap-3">
+                                    {/* Cancelar mora **na linha do contrato**,
+                                        não num cartão de zona de perigo: é
+                                        reversível, não apaga nada e a unidade
+                                        vale até a renovação. O que destrói é
+                                        excluir a clínica, e isso é outra tela. */}
+                                    <button
+                                        type="button"
+                                        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive-subtle-foreground disabled:opacity-50"
+                                        disabled={cancelandoAdicional}
+                                        onClick={() => void handleCancelAddon(1)}
+                                    >
+                                        Cancelar {(u?.adicionais ?? 0) > 1 ? 'uma' : ''}
+                                    </button>
+                                    <p className="num text-sm font-semibold">
+                                        {formatPrice(mensalDosAdicionais)}
+                                    </p>
+                                </div>
                             </div>
                         ) : null}
                     </div>
@@ -1113,6 +1242,83 @@ export function PlanoTab() {
                 </div>
               </div>
             </SettingsBand>
+
+            {/* O HISTÓRICO, depois do que se paga e antes do que se acordou.
+                É consulta, não decisão: quem abre a guia quer saber o valor e o
+                saldo; o extrato é a pergunta seguinte, de quem precisa de uma
+                segunda via ou quer conferir um mês. Fica fora do card de
+                assinatura por isso — e some quando não há nada a mostrar, em
+                vez de desenhar uma tabela vazia com cabeçalho. */}
+            {cobrancas.length > 0 ? (
+                <SettingsBand
+                    title="Cobranças"
+                    description="As últimas faturas desta conta, com link para a segunda via."
+                >
+                    <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
+                        {cobrancas.map((c) => {
+                            const pago = c.status === 'RECEIVED' || c.status === 'CONFIRMED'
+                            const vencida = c.status === 'OVERDUE'
+                            const quando = new Date(c.paidAt ?? c.dueDate).toLocaleDateString('pt-BR', {
+                                timeZone: 'America/Sao_Paulo',
+                            })
+                            /** O link certo depende do estado: comprovante
+                                quando pago, fatura quando há o que pagar. */
+                            const destino = pago ? (c.receiptUrl ?? c.invoiceUrl) : c.invoiceUrl
+
+                            return (
+                                <div
+                                    key={c.id}
+                                    className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <span
+                                            className={cn(
+                                                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
+                                                pago
+                                                    ? 'bg-success-subtle text-success-subtle-foreground'
+                                                    : vencida
+                                                      ? 'bg-destructive-subtle text-destructive-subtle-foreground'
+                                                      : 'bg-muted text-muted-foreground'
+                                            )}
+                                        >
+                                            {pago ? 'Pago' : vencida ? 'Vencida' : 'Em aberto'}
+                                        </span>
+                                        <div>
+                                            <p className="text-sm">
+                                                {c.kind === 'subscription' ? 'Mensalidade' : 'Compra avulsa'}
+                                                {c.billingType ? (
+                                                    <span className="text-muted-foreground">
+                                                        {' · '}
+                                                        {c.billingType === 'PIX' ? 'Pix' : 'Cartão'}
+                                                    </span>
+                                                ) : null}
+                                            </p>
+                                            <p className="num text-xs text-muted-foreground">
+                                                {pago ? `pago em ${quando}` : `vence em ${quando}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="num text-sm font-semibold">
+                                            {formatPrice(c.valueCents / 100)}
+                                        </span>
+                                        {destino ? (
+                                            <a
+                                                href={destino}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-primary-subtle-foreground underline underline-offset-2"
+                                            >
+                                                {pago ? 'Comprovante' : 'Pagar'}
+                                            </a>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </SettingsBand>
+            ) : null}
 
             {/* O acordo fica junto das outras condições — o que se paga, o que
                 se gasta, até quando. É onde alguém procura quando quer reler o

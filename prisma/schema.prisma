@@ -170,9 +170,19 @@ model UnitAddon {
   priceCents Int      @default(0)
   createdAt  DateTime @default(now())
 
+  /// Quando o cliente pediu o cancelamento, e quando ele deixa de valer.
+  ///
+  /// Cancelar não apaga a linha. O adicional é contrato à parte e o ciclo já
+  /// foi pago: a unidade continua de pé até a renovação, e é `endsAt` que o
+  /// diz. Toda contagem de teto filtra por ele — linha vencida não conta, e a
+  /// renovação seguinte derruba os limites pela tabela, sozinha.
+  canceledAt DateTime?
+  endsAt     DateTime?
+
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
+  @@index([accountId, endsAt])
   @@map("unit_addons")
 }
 
@@ -1326,6 +1336,15 @@ model Subscription {
   trialEndsAt        DateTime? // 23:59 do sétimo dia, fuso America/Sao_Paulo
   /// Quando o workspace entrou em somente-leitura. Inicia a contagem de retenção.
   readOnlySince      DateTime?
+
+  /// Desde quando há cobrança vencida, e até quando a clínica tem para pagar.
+  ///
+  /// A carência é 3 dias no cartão e 2 no Pix, contada do vencimento. Fica
+  /// gravada porque quem corta é um cron de madrugada, que não tem o evento do
+  /// gateway em mãos — recalcular a partir da fatura obrigaria a varrer
+  /// cobranças para decidir sobre assinaturas.
+  pastDueSince       DateTime?
+  graceEndsAt        DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
 

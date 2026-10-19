@@ -1,11 +1,11 @@
-import { CREDIT_PACKS, PLAN_LIST, TRIAL, UNIDADE_ADICIONAL, creditPackFor, planFor } from '@/lib/plans'
+import { CREDIT_PACKS, PLAN_LIST, TRIAL, UNIDADE_ADICIONAL, creditPackFor, formatPrice, planFor } from '@/lib/plans'
 import { currentMembership } from '@/lib/auth/workspace'
 import { canBuyAddons, getBillingState, spokenRepliesLeft } from '@/lib/billing'
 import { isPlanId, limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
 import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@/lib/asaas/checkout'
 import { regimeDaConta } from '@/lib/asaas/cobranca'
 import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
-import { AsaasError } from '@/lib/asaas/client'
+import { AsaasError, asaas } from '@/lib/asaas/client'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
 import { descreverAssinatura, sincronizarValorDaAssinatura } from '@/lib/asaas/vincular'
 import { MINIMO_DO_ASAAS, diferencaProporcional, direcaoDaTroca, mensalidade, proporcionalDoAdicional } from '@/lib/billing/troca-de-plano'
@@ -25,7 +25,7 @@ function baseDaAplicacao(request: NextRequest): string {
 }
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { accountIdOf, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
+import { accountIdOf, adicionaisVivos, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 
 
@@ -146,6 +146,15 @@ export async function GET() {
             trialEndsAt: subscription.trialEndsAt,
             currentPeriodStart: subscription.currentPeriodStart,
             currentPeriodEnd: subscription.currentPeriodEnd,
+            /**
+             * Até quando a clínica tem para regularizar, quando há atraso.
+             *
+             * Vai para a tela porque a carência só protege quem sabe dela: um
+             * aviso que diz "em atraso" sem dizer até quando é susto sem
+             * instrução.
+             */
+            graceEndsAt: subscription.graceEndsAt,
+            pastDueSince: subscription.pastDueSince,
             plans: PLANS,
             creditPacks: CREDIT_PACKS,
             /** Franquia e avulso somados, para o medidor não contradizer a sidebar. */
@@ -552,6 +561,28 @@ export async function POST(request: NextRequest) {
                 }
 
                 /**
+                 * Plano cancelado ainda opera até o fim do ciclo — e por isso
+                 * `canBuyAddons` o considera ativo —, mas ele **não renova**.
+                 * Vender um adicional recorrente aí seria cobrar por algo que
+                 * não tem próximo ciclo onde existir.
+                 */
+                const assinaturaViva = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: { status: true },
+                })
+
+                if (assinaturaViva?.status === 'canceled') {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Sua assinatura está cancelada e não será renovada. ' +
+                                'Contrate um plano para voltar a comprar adicionais.',
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                /**
                  * O pacote de crédito vem da lista fechada, e o preço vem dela.
                  *
                  * A rota aceitava qualquer quantidade e multiplicava por um
@@ -796,6 +827,133 @@ export async function POST(request: NextRequest) {
                 }
             }
 
+            /**
+             * Cancela unidades adicionais — uma, algumas, ou todas.
+             *
+             * **É direito do cliente, e só dele.** O upgrade de plano que passa
+             * a cobrir a unidade não cancela o adicional sozinho: contrato à
+             * parte se encerra por decisão de quem assinou, e cancelar em nome
+             * dele "porque agora está incluso" é decidir sobre o dinheiro dos
+             * outros. Decisão do Andre, e é por isso que esta ação existe.
+             *
+             * O cancelamento **não é retroativo**: o ciclo foi pago e a unidade
+             * vale até a renovação. O que muda hoje é o valor da recorrência
+             * para os ciclos seguintes.
+             */
+            case 'cancel-addon': {
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
+                const quantas = Number(data.units) || 1
+                if (!Number.isInteger(quantas) || quantas < 1) {
+                    return NextResponse.json(
+                        { error: 'Informe quantas unidades adicionais cancelar.' },
+                        { status: 400 }
+                    )
+                }
+
+                const [assinatura, vivos, unidades] = await Promise.all([
+                    prisma.subscription.findUnique({
+                        where: { accountId },
+                        select: { plan: true, asaasSubscriptionId: true, currentPeriodEnd: true },
+                    }),
+                    prisma.unitAddon.findMany({
+                        where: { accountId, ...adicionaisVivos() },
+                        orderBy: { createdAt: 'desc' },
+                        select: { id: true },
+                    }),
+                    unidadesDaConta(accountId),
+                ])
+
+                if (vivos.length === 0) {
+                    return NextResponse.json(
+                        { error: 'Esta conta não tem unidades adicionais contratadas.' },
+                        { status: 409 }
+                    )
+                }
+
+                if (quantas > vivos.length) {
+                    return NextResponse.json(
+                        {
+                            error: `Você tem ${vivos.length} unidade${vivos.length === 1 ? '' : 's'} adicional${vivos.length === 1 ? '' : 'is'}.`,
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                /**
+                 * Recusa quando a clínica ficaria com mais unidades do que cabe.
+                 *
+                 * O downgrade de plano pausa agente e desconecta número, que são
+                 * reversíveis. Unidade não: ela tem agenda, pacientes e
+                 * conversas, e "pausar uma clínica" não existe. Então o sistema
+                 * não aceita o cancelamento que deixaria a conta por cima do
+                 * teto — ele diz quantas sobram e deixa a decisão de apagar
+                 * alguma coisa com quem é dono dela.
+                 */
+                const tetoDepois = tetoDeUnidades(assinatura?.plan, vivos.length - quantas)
+                if (unidades.used > tetoDepois) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                `Você usa ${unidades.used} unidades e, cancelando ` +
+                                `${quantas}, caberiam ${tetoDepois}. Exclua ou transfira ` +
+                                `${unidades.used - tetoDepois} unidade${unidades.used - tetoDepois === 1 ? '' : 's'} antes.`,
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                /** As mais novas primeiro: a mais antiga é a que a clínica já organizou em volta. */
+                const alvo = vivos.slice(0, quantas).map((a) => a.id)
+                const fimDoCiclo = assinatura?.currentPeriodEnd ?? new Date()
+
+                await prisma.unitAddon.updateMany({
+                    where: { id: { in: alvo } },
+                    data: { canceledAt: new Date(), endsAt: fimDoCiclo },
+                })
+
+                /**
+                 * O valor da recorrência desce **agora**, e isso não cobra menos
+                 * pelo ciclo em curso: `descreverAssinatura` não toca nas
+                 * cobranças já geradas. O que muda é a próxima — que é a
+                 * primeira em que a unidade não vale mais.
+                 */
+                let mensalidadeNova: number | null = null
+                if (assinatura?.asaasSubscriptionId) {
+                    try {
+                        mensalidadeNova = await sincronizarValorDaAssinatura(
+                            accountId,
+                            assinatura.asaasSubscriptionId
+                        )
+                    } catch (erro) {
+                        console.error(
+                            `[CANCEL_ADDON] ATENÇÃO: conta ${accountId} cancelou ${quantas} ` +
+                                `adicional(is) e o valor no gateway não desceu. ` +
+                                `Ajuste à mão no painel do Asaas. ${String(erro)}`
+                        )
+                    }
+                }
+
+                const ate = fimDoCiclo.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+
+                return NextResponse.json({
+                    success: true,
+                    message:
+                        `${quantas} unidade${quantas === 1 ? '' : 's'} adicional${quantas === 1 ? '' : 'is'} ` +
+                        `cancelada${quantas === 1 ? '' : 's'}. Você usa até ${ate}` +
+                        (mensalidadeNova !== null
+                            ? `, e a partir daí a mensalidade passa a ser ${formatPrice(mensalidadeNova)}.`
+                            : '.'),
+                    unidades: await unidadesDaConta(accountId),
+                })
+            }
+
             case 'cancel': {
                 /**
                  * Cancelar é a operação mais cara da conta, e por isso pede o
@@ -812,16 +970,98 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                await prisma.subscription.updateMany({
-                    where: assinaturaDaUnidade(workspaceUser.workspaceId),
-                    data: {
-                        status: 'canceled',
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
+                const assinatura = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: { asaasSubscriptionId: true, currentPeriodEnd: true },
+                })
+
+                /**
+                 * Cancelar no gateway **antes** de cancelar aqui.
+                 *
+                 * Na ordem inversa, uma falha do Asaas deixaria a tela dizendo
+                 * "cancelada" enquanto a recorrência segue cobrando todo mês —
+                 * e o cliente só descobriria pela fatura. Se o gateway recusa,
+                 * nada muda aqui e a mensagem pede para tentar de novo: o
+                 * estado continua coerente e a segunda tentativa é barata.
+                 *
+                 * `DELETE /subscriptions/{id}` encerra a recorrência sem mexer
+                 * nas cobranças já geradas — o ciclo pago continua pago, que é
+                 * exatamente o que a tela promete.
+                 */
+                if (assinatura?.asaasSubscriptionId) {
+                    try {
+                        await asaas(`/subscriptions/${assinatura.asaasSubscriptionId}`, {
+                            method: 'DELETE',
+                        })
+                    } catch (erro) {
+                        console.error(
+                            `[CANCEL] não consegui encerrar a assinatura ` +
+                                `${assinatura.asaasSubscriptionId} da conta ${accountId}`,
+                            erro
+                        )
+                        return NextResponse.json(
+                            {
+                                error:
+                                    'Não conseguimos encerrar a cobrança no gateway agora, e por ' +
+                                    'isso nada foi cancelado — tentar de novo em instantes evita ' +
+                                    'que você fique cancelado aqui e cobrado lá.',
+                            },
+                            { status: 502 }
+                        )
                     }
+                }
+
+                const fimDoCiclo = assinatura?.currentPeriodEnd ?? new Date()
+
+                await prisma.$transaction(async (tx) => {
+                    await tx.subscription.updateMany({
+                        where: { accountId },
+                        data: {
+                            status: 'canceled',
+                            pastDueSince: null,
+                            graceEndsAt: null,
+                            /**
+                             * O ponteiro some junto: a recorrência foi apagada
+                             * no Asaas, e um id que não existe mais lá é o tipo
+                             * de resíduo que faz uma rotina futura dar `PUT`
+                             * num recurso fantasma e registrar erro sem causa.
+                             */
+                            asaasSubscriptionId: null,
+                        },
+                    })
+
+                    /**
+                     * Os adicionais morrem com o plano, na mesma data.
+                     *
+                     * Eles são contratos à parte — só o cliente os cancela —,
+                     * mas são adicionais **de uma assinatura**: sem ela não há
+                     * o que somar nem a que fatura anexá-los. Marcá-los aqui é
+                     * o que faz a contagem de unidades e a renovação pararem de
+                     * considerá-los no dia certo, sem varredura nenhuma.
+                     */
+                    await tx.unitAddon.updateMany({
+                        where: { accountId, ...adicionaisVivos() },
+                        data: { canceledAt: new Date(), endsAt: fimDoCiclo },
+                    })
+                })
+
+                const ate = fimDoCiclo.toLocaleDateString('pt-BR', {
+                    timeZone: 'America/Sao_Paulo',
                 })
 
                 return NextResponse.json({
                     success: true,
-                    message: 'Assinatura cancelada. Você terá acesso até o fim do período atual.'
+                    message:
+                        `Assinatura cancelada. Nada mais será cobrado, e você usa o que já ` +
+                        `pagou até ${ate}.`,
                 })
             }
 

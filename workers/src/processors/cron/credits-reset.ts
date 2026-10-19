@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { adicionaisVivos } from '@/lib/account'
 import { RENEWAL_DAYS } from '@/lib/billing'
 import { limitesEfetivos } from '@/lib/plan-limits'
 import { applyPlanLimits } from '@/lib/limits'
@@ -98,7 +99,7 @@ export async function runCreditsReset(): Promise<void> {
          * acabando antes da hora.
          */
         const adicionais = await prisma.unitAddon.count({
-            where: { accountId: subscription.accountId },
+            where: { accountId: subscription.accountId, ...adicionaisVivos(now) },
         })
         const tabela = limitesEfetivos(subscription.plan, adicionais)
 

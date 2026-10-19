@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
 
 import prisma from '@/lib/prisma'
+import { adicionaisVivos } from '@/lib/account'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
 import {
     descreverAssinatura,
@@ -10,6 +11,7 @@ import {
 import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
 import { mensalidade } from '@/lib/billing/troca-de-plano'
 import { isPlanId } from '@/lib/plan-limits'
+import { fimDaCarencia } from '@/lib/billing/inadimplencia'
 import { createLogger } from '../logger'
 import type { AsaasEventJob } from '../queues'
 
@@ -235,8 +237,16 @@ async function espelharCobranca(
         status: p.status ?? event.replace('PAYMENT_', ''),
         billingType: p.billingType ?? null,
         valueCents,
-        dueDate: p.dueDate ? new Date(`${p.dueDate}T00:00:00Z`) : new Date(),
-        paidAt: pago ? new Date(`${pago}T00:00:00Z`) : null,
+        /**
+         * Meio-dia de São Paulo, e não meia-noite UTC.
+         *
+         * O Asaas manda só a data ("2026-11-18"). Meia-noite UTC é 21h do dia
+         * **anterior** em São Paulo: a tela mostrava 17/11 para uma cobrança
+         * que vence em 18/11, e a carência contava um dia a menos. O meio-dia
+         * fica longe das duas bordas e sobrevive a qualquer fuso do Brasil.
+         */
+        dueDate: p.dueDate ? new Date(`${p.dueDate}T12:00:00-03:00`) : new Date(),
+        paidAt: pago ? new Date(`${pago}T12:00:00-03:00`) : null,
         invoiceUrl: p.invoiceUrl ?? null,
         receiptUrl: p.transactionReceiptUrl ?? null,
     }
@@ -276,6 +286,81 @@ async function espelharCobranca(
     })
 
     log.info(`${event} espelhado: cobrança ${p.id}, conta ${conta.id}, status ${dados.status}`)
+
+    await reagirAoStatusDaCobranca(conta.id, dados)
+}
+
+/**
+ * O que o status de uma cobrança faz com a assinatura.
+ *
+ * Só para cobrança **de assinatura**: uma compra avulsa vencida é uma compra
+ * que não aconteceu — ela não entrega nada e não corta ninguém. Cortar a
+ * clínica porque um pacote de crédito não foi pago seria punir quem está em dia
+ * com a mensalidade.
+ *
+ * Vencer não corta na hora: começa a **carência** (3 dias no cartão, 2 no Pix).
+ * Quem corta é o cron, no dia em que ela termina — aqui só se grava a data,
+ * porque o evento é o único lugar onde o meio de pagamento é conhecido.
+ *
+ * Pagar restaura tudo, inclusive o somente-leitura de quem já tinha sido
+ * cortado. É o caminho normal de quem pagou atrasado, e ele não pode exigir
+ * intervenção.
+ */
+async function reagirAoStatusDaCobranca(
+    accountId: string,
+    dados: { kind: string; status: string; billingType: string | null; dueDate: Date }
+): Promise<void> {
+    if (dados.kind !== 'subscription') return
+
+    const assinatura = await prisma.subscription.findUnique({
+        where: { accountId },
+        select: { id: true, status: true, readOnlySince: true, graceEndsAt: true },
+    })
+
+    if (!assinatura) return
+
+    if (dados.status === 'OVERDUE') {
+        /**
+         * A carência não é reiniciada a cada evento.
+         *
+         * O Asaas reenvia `PAYMENT_OVERDUE` enquanto a cobrança seguir vencida,
+         * e regravar a data em cada um daria carência infinita — a clínica
+         * nunca seria cortada, porque o prazo andaria junto com o relógio.
+         */
+        if (assinatura.graceEndsAt) return
+
+        const graceEndsAt = fimDaCarencia(dados.dueDate, dados.billingType)
+
+        await prisma.subscription.update({
+            where: { id: assinatura.id },
+            data: { status: 'past_due', pastDueSince: new Date(), graceEndsAt },
+        })
+
+        log.warn(
+            `conta ${accountId} em atraso; carência até ` +
+                `${graceEndsAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} ` +
+                `(${dados.billingType ?? 'sem meio'})`
+        )
+        return
+    }
+
+    if (dados.status === 'RECEIVED' || dados.status === 'CONFIRMED') {
+        if (!assinatura.graceEndsAt && assinatura.status === 'active' && !assinatura.readOnlySince) {
+            return
+        }
+
+        await prisma.subscription.update({
+            where: { id: assinatura.id },
+            data: {
+                status: 'active',
+                pastDueSince: null,
+                graceEndsAt: null,
+                readOnlySince: null,
+            },
+        })
+
+        log.info(`conta ${accountId} regularizada: atraso encerrado e acesso restaurado`)
+    }
 }
 
 /**
@@ -482,7 +567,7 @@ async function tratarCheckout(
 
         if (assinatura?.asaasSubscriptionId) {
             const adicionais = await prisma.unitAddon.count({
-                where: { accountId: tentativa.accountId },
+                where: { accountId: tentativa.accountId, ...adicionaisVivos() },
             })
             try {
                 await descreverAssinatura({

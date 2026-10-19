@@ -49,6 +49,11 @@ const SCHEDULES: Schedule[] = [
     // falhando, que é tempo de sobra para alguém ver o alerta. Às :48 para não
     // disputar o banco com as outras rotinas da hora cheia.
     { task: 'instagram-token-refresh', pattern: '48 * * * *' },
+    // De manhã cedo, e **depois** da renovação (03:13): a carência que vence
+    // hoje é decidida com o período já virado, não com o de ontem. Uma vez por
+    // dia basta — a carência é contada em dias, e cortar às 5h ou às 9h não
+    // muda nada para quem não pagou em três dias.
+    { task: 'billing-dunning', pattern: '27 5 * * *' },
 ]
 
 /**
