@@ -600,6 +600,13 @@ export function PlanoTab() {
           })
         : null
 
+    /** A data da renovação, por extenso curto: "19/11/2026". */
+    const renovaEm = subscription?.currentPeriodEnd
+        ? new Date(subscription.currentPeriodEnd).toLocaleDateString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+          })
+        : null
+
     const renovaEmDias = subscription?.currentPeriodEnd
         ? Math.max(
               0,
@@ -747,6 +754,21 @@ export function PlanoTab() {
                                     duas vezes. Fica só a informação. */}
                                 <span className="font-normal text-muted-foreground">Plano atual: </span>
                                 <span className="text-primary-subtle-foreground">{planLabel || '—'}</span>
+                                {/* A data da renovação junto do nome, a pedido
+                                    do Andre: é a pergunta seguinte de quem lê o
+                                    plano, e ela estava só em "renova em N dias"
+                                    lá embaixo, no medidor de crédito.
+
+                                    É a data **do gateway** — `currentPeriodEnd`
+                                    passou a vir do `nextDueDate` da assinatura
+                                    no Asaas. Mostrar a nossa conta de 30 dias
+                                    seria anunciar um dia e cobrar outro. */}
+                                {renovaEm ? (
+                                    <>
+                                        <span className="font-normal text-muted-foreground"> · renova em </span>
+                                        <span className="num font-bold">{renovaEm}</span>
+                                    </>
+                                ) : null}
                             </>
                         }
                         /**

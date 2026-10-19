@@ -37,6 +37,8 @@ interface AssinaturaDoAsaas {
     id: string
     status?: string
     dateCreated?: string
+    /** A data da próxima cobrança, "AAAA-MM-DD". É a renovação de verdade. */
+    nextDueDate?: string
 }
 
 interface Lista<T> {
@@ -92,9 +94,25 @@ export async function vincularContaAoAsaas(opcoes: {
     })
 
     if (ativa) {
+        /**
+         * A renovação passa a ser a **do Asaas**, não a nossa conta de 30 dias.
+         *
+         * `currentPeriodEnd` nascia de `renovaçãoDate()` — hoje + 30 dias — e o
+         * Asaas cobra pelo ciclo mensal dele, que cai no mesmo dia do mês
+         * seguinte. As duas datas divergiam em um ou dois dias, e a nossa é a
+         * que aparece na tela: anunciaríamos uma data e cobraríamos outra.
+         *
+         * Quem cobra é quem decide quando. A partir daqui a tela mostra a data
+         * do gateway.
+         */
         await prisma.subscription.updateMany({
             where: { accountId },
-            data: { asaasSubscriptionId: ativa.id },
+            data: {
+                asaasSubscriptionId: ativa.id,
+                ...(ativa.nextDueDate
+                    ? { currentPeriodEnd: new Date(`${ativa.nextDueDate}T12:00:00-03:00`) }
+                    : {}),
+            },
         })
 
         /**
