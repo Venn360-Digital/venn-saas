@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ChevronsUpDown, Hospital, LogOut, Plug, User, Users } from 'lucide-react'
 
@@ -23,6 +22,7 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar'
 import { createClient } from '@/lib/supabase/client'
+import { esquecerUnidades } from '@/hooks/useUnidades'
 
 interface Me {
     user: { id: string; email: string; name: string; avatar: string | null; initials: string }
@@ -43,7 +43,6 @@ interface Me {
  */
 export function NavUser() {
     const { isMobile } = useSidebar()
-    const router = useRouter()
     const [me, setMe] = useState<Me | null>(null)
     const [loading, setLoading] = useState(true)
 
@@ -64,11 +63,34 @@ export function NavUser() {
         }
     }, [])
 
+    /**
+     * Sair recarrega a página inteira, de propósito.
+     *
+     * `router.push` era navegação de cliente: o módulo JS continuava vivo, com
+     * o cache da conta anterior dentro, e o Router Cache do Next podia reusar o
+     * RSC do layout — que desde a correção do primeiro paint carrega **dados do
+     * usuário**. Foi assim que a conta de um cliente apareceu no cabeçalho de
+     * outro, na mesma aba.
+     *
+     * `window.location.assign` joga fora os dois caches de uma vez: a aba
+     * reinicia. Custa um recarregamento numa ação que acontece uma vez por dia.
+     */
     const signOut = async () => {
+        /**
+         * O cookie da unidade sai **antes** da sessão.
+         *
+         * Ele é httpOnly, então quem apaga é o servidor — e o middleware recusa
+         * rota de API sem sessão. Chamar depois do `signOut` seria pedir a
+         * exclusão já deslogado e receber 401, deixando o cookie para trás
+         * exatamente no caso em que ele atrapalha.
+         */
+        await fetch('/api/workspace/switch', { method: 'DELETE' }).catch(() => {})
+
         const supabase = createClient()
         await supabase.auth.signOut()
-        router.push('/login')
-        router.refresh()
+
+        esquecerUnidades()
+        window.location.assign('/login')
     }
 
     if (loading) {

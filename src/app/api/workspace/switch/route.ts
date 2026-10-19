@@ -54,3 +54,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Não foi possível trocar de unidade' }, { status: 500 })
     }
 }
+
+/**
+ * Esquece a unidade escolhida. Chamado ao sair da conta.
+ *
+ * O cookie é `httpOnly`, então o cliente não consegue apagá-lo sozinho — e
+ * deixá-lo para trás faz a próxima pessoa que entrar **na mesma máquina**
+ * começar na clínica de quem saiu. Não vaza nada (a participação é conferida a
+ * cada requisição, e sem ela cai na unidade mais antiga de quem entrou), mas é
+ * o tipo de surpresa que faz alguém achar que entrou na conta errada.
+ *
+ * Não exige sessão: quem está saindo pode já não ter uma, e recusar aqui
+ * deixaria o cookie para trás justamente no caso em que ele mais atrapalha.
+ */
+export async function DELETE() {
+    const jar = await cookies()
+    jar.delete(WORKSPACE_COOKIE)
+    return NextResponse.json({ ok: true })
+}

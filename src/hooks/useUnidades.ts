@@ -40,6 +40,17 @@ const VAZIO: UnidadeAberta = { id: null, name: null, logo: null, conta: null, un
  */
 let cache: UnidadeAberta | null = null
 let voando: Promise<UnidadeAberta> | null = null
+
+/**
+ * Esquece tudo. Chamado ao sair da conta.
+ *
+ * Sem isto, o cache de módulo atravessa a troca de usuário na mesma aba — foi
+ * assim que a conta de um cliente apareceu no cabeçalho de outro.
+ */
+export function esquecerUnidades(): void {
+    cache = null
+    voando = null
+}
 const ouvintes = new Set<(d: UnidadeAberta) => void>()
 
 async function buscar(): Promise<UnidadeAberta> {
@@ -101,7 +112,26 @@ export function useUnidades(inicial?: UnidadeAberta | null): {
 
     useEffect(() => {
         let vivo = true
-        if (inicial && !cache) cache = inicial
+
+        /**
+         * A semente do servidor **manda** sobre o cache. Isto era um vazamento.
+         *
+         * O cache é de módulo, e módulo sobrevive à navegação de cliente — sair
+         * e entrar com outro usuário não recarrega a página, então ele atravessa
+         * a troca de conta. A regra antiga era "semeia só se o cache estiver
+         * vazio", e o resultado foi o que o Andre viu: a Rachel, da conta
+         * Implante Ja, entrou e o cabeçalho mostrou as unidades da Venn360 —
+         * `carregar()` encontrava o cache cheio, devolvia o dono anterior, e
+         * sobrescrevia a semente correta que já estava na tela.
+         *
+         * Agora, semente diferente do que está guardado **substitui**: o
+         * servidor acabou de dizer quem é esta sessão, e ele sabe mais que uma
+         * variável que ninguém limpou.
+         */
+        if (inicial && (!cache || cache.id !== inicial.id)) {
+            cache = inicial
+            voando = null
+        }
 
         const aplicar = (d: UnidadeAberta) => {
             if (!vivo) return

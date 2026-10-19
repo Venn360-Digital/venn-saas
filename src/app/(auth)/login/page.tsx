@@ -85,9 +85,24 @@ function LoginForm() {
 
                 if (!checkData.hasWorkspace) {
                     // Onboarding comes first regardless of where they were headed.
-                    router.push('/onboarding')
+                    // Recarga inteira, não `router.push`: ver o comentário
+                    // logo abaixo, no caminho normal.
+                    window.location.assign('/onboarding')
                 } else {
-                    router.push(redirectTo)
+                    /**
+                     * Entrar recarrega a página inteira.
+                     *
+                     * `router.push` é navegação de cliente: o módulo JS da aba
+                     * sobrevive — com o cache da conta anterior dentro — e o
+                     * Router Cache do Next pode reusar o RSC do layout do
+                     * dashboard, que carrega **dados do usuário** desde a
+                     * correção do primeiro paint. Numa aba onde outra pessoa
+                     * esteve logada, isso mostra a conta dela.
+                     *
+                     * A aba reiniciar no login custa um recarregamento numa
+                     * ação que acontece uma vez por dia.
+                     */
+                    window.location.assign(redirectTo)
                 }
 
                 router.refresh()
