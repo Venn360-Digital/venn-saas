@@ -25,7 +25,7 @@ function baseDaAplicacao(request: NextRequest): string {
 }
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { accountIdOf, adicionaisVivos, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
+import { accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 
 
@@ -998,8 +998,17 @@ export async function POST(request: NextRequest) {
                         where: { accountId },
                         select: { plan: true, asaasSubscriptionId: true, currentPeriodEnd: true },
                     }),
+                    /**
+                     * Só as que **ainda não foram canceladas**.
+                     *
+                     * Era `adicionaisVivos`, e cancelado continua vivo até a
+                     * renovação: a tela mostrava a mesma vaga, o botão seguia
+                     * ativo, e cada clique cancelava outra contratação em
+                     * silêncio. Aconteceu duas vezes na homologação do Andre
+                     * antes de alguém notar.
+                     */
                     prisma.unitAddon.findMany({
-                        where: { accountId, ...adicionaisVivos() },
+                        where: { accountId, ...adicionaisCobraveis },
                         orderBy: { createdAt: 'desc' },
                         select: { id: true },
                     }),
@@ -1008,7 +1017,12 @@ export async function POST(request: NextRequest) {
 
                 if (vivos.length === 0) {
                     return NextResponse.json(
-                        { error: 'Esta conta não tem unidades adicionais contratadas.' },
+                        {
+                            error:
+                                unidades.cancelados > 0
+                                    ? 'Todas as contratações adicionais desta conta já foram canceladas.'
+                                    : 'Esta conta não tem unidades adicionais contratadas.',
+                        },
                         { status: 409 }
                     )
                 }
@@ -1016,7 +1030,7 @@ export async function POST(request: NextRequest) {
                 if (quantas > vivos.length) {
                     return NextResponse.json(
                         {
-                            error: `Você tem ${vivos.length} unidade${vivos.length === 1 ? '' : 's'} adicional${vivos.length === 1 ? '' : 'is'}.`,
+                            error: `Você tem ${vivos.length} contratação${vivos.length === 1 ? '' : 'ões'} adicional${vivos.length === 1 ? '' : 'is'} ainda ativa${vivos.length === 1 ? '' : 's'}.`,
                         },
                         { status: 409 }
                     )
@@ -1037,9 +1051,10 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json(
                         {
                             error:
-                                `Você usa ${unidades.used} unidades e, cancelando ` +
-                                `${quantas}, caberiam ${tetoDepois}. Exclua ou transfira ` +
-                                `${unidades.used - tetoDepois} unidade${unidades.used - tetoDepois === 1 ? '' : 's'} antes.`,
+                                `Você tem ${unidades.used} unidade${unidades.used === 1 ? '' : 's'} cadastrada${unidades.used === 1 ? '' : 's'} e, ` +
+                                `cancelando ${quantas} contratação, caberiam ${tetoDepois}. ` +
+                                `Suspenda ${unidades.used - tetoDepois} unidade${unidades.used - tetoDepois === 1 ? '' : 's'} antes — ` +
+                                'suspender tira a clínica do ar sem apagar nada.',
                         },
                         { status: 409 }
                     )
@@ -1081,10 +1096,83 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: true,
                     message:
-                        `${quantas} unidade${quantas === 1 ? '' : 's'} adicional${quantas === 1 ? '' : 'is'} ` +
-                        `cancelada${quantas === 1 ? '' : 's'}. Você usa até ${ate}` +
+                        `${quantas} contratação adicional cancelada. ` +
+                        `A unidade continua disponível até ${ate}` +
                         (mensalidadeNova !== null
                             ? `, e a partir daí a mensalidade passa a ser ${formatPrice(mensalidadeNova)}.`
+                            : '.'),
+                    unidades: await unidadesDaConta(accountId),
+                })
+            }
+
+            /**
+             * Desfaz o cancelamento de uma contratação adicional.
+             *
+             * Existe porque o cancelamento **não é instantâneo**: a unidade
+             * vale até a renovação, e até lá nada aconteceu de irreversível.
+             * Sem este caminho, um clique errado só se consertava comprando de
+             * novo — pagando outra vez pelo que ainda está pago.
+             *
+             * Desfaz a mais recente: é a que acabou de ser cancelada, que é o
+             * caso que esta ação existe para resolver.
+             */
+            case 'restore-addon': {
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
+                const cancelada = await prisma.unitAddon.findFirst({
+                    where: { accountId, canceledAt: { not: null }, ...adicionaisVivos() },
+                    orderBy: { canceledAt: 'desc' },
+                    select: { id: true },
+                })
+
+                if (!cancelada) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Não há contratação cancelada para restaurar. ' +
+                                'Depois da renovação, o caminho é contratar de novo.',
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                await prisma.unitAddon.update({
+                    where: { id: cancelada.id },
+                    data: { canceledAt: null, endsAt: null },
+                })
+
+                const assinaturaRestaurada = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: { asaasSubscriptionId: true },
+                })
+
+                let mensalidadeNova: number | null = null
+                if (assinaturaRestaurada?.asaasSubscriptionId) {
+                    try {
+                        mensalidadeNova = await sincronizarValorDaAssinatura(
+                            accountId,
+                            assinaturaRestaurada.asaasSubscriptionId
+                        )
+                    } catch (erro) {
+                        console.error(
+                            `[RESTORE_ADDON] ATENÇÃO: conta ${accountId} restaurou uma ` +
+                                `contratação e o valor no gateway não subiu de volta. ${String(erro)}`
+                        )
+                    }
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    message:
+                        'Contratação restaurada — ela volta a renovar normalmente' +
+                        (mensalidadeNova !== null
+                            ? `, e a mensalidade segue em ${formatPrice(mensalidadeNova)}.`
                             : '.'),
                     unidades: await unidadesDaConta(accountId),
                 })

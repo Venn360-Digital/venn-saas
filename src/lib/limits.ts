@@ -87,7 +87,14 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
         }),
         accountId
             ? unidadesDaConta(accountId)
-            : Promise.resolve({ used: 0, max: 0, remaining: 0, doPlano: 0, adicionais: 0 }),
+            : Promise.resolve({
+                  used: 0,
+                  max: 0,
+                  remaining: 0,
+                  doPlano: 0,
+                  adicionais: 0,
+                  cancelados: 0,
+              }),
     ])
 
     if (!subscription) {

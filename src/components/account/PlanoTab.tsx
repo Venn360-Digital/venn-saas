@@ -131,7 +131,15 @@ interface SubscriptionData {
         available: number
         exhausted: boolean
     }
-    unidades: { used: number; max: number; remaining: number; doPlano: number; adicionais: number }
+    unidades: {
+        used: number
+        max: number
+        remaining: number
+        doPlano: number
+        adicionais: number
+        /** Contratações já canceladas que ainda valem até a renovação. */
+        cancelados: number
+    }
     /** O que o plano vigente daria, com os adicionais somados. */
     efetivos?: {
         maxWorkspaces: number
@@ -143,7 +151,7 @@ interface SubscriptionData {
     }
 }
 
-/** Uma unidade da conta, como a tela de vagas a lê. */
+/** Uma unidade da conta, como a tela de unidades a lê. */
 interface UnidadeDaConta {
     id: string
     name: string
@@ -316,7 +324,7 @@ export function PlanoTab() {
     }, [loadCobrancas])
 
     /**
-     * As unidades da conta, para a tela de vagas.
+     * As unidades da conta, para a tela de contratações.
      *
      * Carregada só quando o diálogo abre: é uma consulta com contagens de
      * agente, canal, conversa e paciente por unidade, e a guia Plano abre o
@@ -361,14 +369,20 @@ export function PlanoTab() {
         [loadUnidades, loadSubscription]
     )
 
-    /** Devolve uma vaga contratada — o adicional deixa de ser cobrado. */
-    const devolverVaga = useCallback(async () => {
+    /**
+     * Cancela — ou restaura — uma contratação de unidade adicional.
+     *
+     * As duas no mesmo lugar porque são a mesma transição em sentidos opostos,
+     * e porque o cancelamento só vale na renovação: até lá, desfazer é o
+     * conserto natural de um clique errado.
+     */
+    const mexerNaContratacao = useCallback(async (acao: 'cancel-addon' | 'restore-addon') => {
         setProcessing(true)
         try {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'cancel-addon', units: 1 }),
+                body: JSON.stringify({ action: acao, units: 1 }),
             })
             const data = await res.json()
             if (res.ok) {
@@ -376,10 +390,10 @@ export function PlanoTab() {
                 await Promise.all([loadUnidades(), loadSubscription()])
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
-                toast.error(data.error || 'Não foi possível devolver a vaga')
+                toast.error(data.error || 'Não foi possível concluir')
             }
         } catch {
-            toast.error('Não foi possível devolver a vaga')
+            toast.error('Não foi possível concluir')
         } finally {
             setProcessing(false)
         }
@@ -1007,7 +1021,7 @@ export function PlanoTab() {
      *
      * O parágrafo longo que explicava plano, adicionais e a virada foi
      * desmontado: o preço virou extrato, a virada virou faixa própria, e aqui
-     * fica só de onde vêm as vagas.
+     * fica só de onde vêm as unidades.
      */
     const descricaoCurtaDasUnidades = !u
         ? null
@@ -1406,17 +1420,16 @@ export function PlanoTab() {
                 </SettingsBand>
             ) : null}
 
-            {/* ALTERAR UNIDADES — a tela das vagas.
+            {/* ALTERAR UNIDADES.
                 Cenário 1 do comp de 2026-10-19, escolhido pelo Andre.
 
-                A lista é das **vagas contratadas**, não das clínicas: é o que
-                torna visível a vaga paga e vazia, que foi o caso que o teste
-                dele expôs (3 contratadas, 2 cadastradas). Cada vaga mostra quem
-                a ocupa e o que dá para fazer com ela.
+                A lista é das **unidades contratadas**, não das cadastradas: é o
+                que torna visível a contratada sem clínica dentro — o caso que a
+                homologação dele expôs, com 3 contratadas e 2 cadastradas.
 
-                A ordem das ações é a do endurecimento: devolver a vaga de uma
-                unidade no ar é recusado, e o botão diz o que destrava em vez de
-                ficar cinza sem explicação. */}
+                A ordem das ações é a do endurecimento: cancelar a contratação
+                de uma unidade no ar é recusado, e a frase diz o que destrava
+                em vez de o botão ficar cinza sem explicação. */}
             <RecordDialog
                 open={showUnidadesModal}
                 onOpenChange={setShowUnidadesModal}
@@ -1430,8 +1443,11 @@ export function PlanoTab() {
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span className="num text-2xl font-bold leading-none">{u?.max ?? 0}</span>
                         <span className="text-sm text-muted-foreground">
-                            vagas contratadas · <strong className="text-foreground">{u?.used ?? 0} em uso</strong>
-                            {(u?.remaining ?? 0) > 0 ? ` · ${u?.remaining} livre${u?.remaining === 1 ? '' : 's'}` : null}
+                            unidades contratadas ·{' '}
+                            <strong className="text-foreground">{u?.used ?? 0} cadastradas</strong>
+                            {(u?.remaining ?? 0) > 0
+                                ? ` · ${u?.remaining} disponível${u?.remaining === 1 ? '' : 'is'}`
+                                : null}
                         </span>
                         {mensalDosAdicionais > 0 ? (
                             <span className="rounded-full bg-info-subtle px-2.5 py-1 text-xs font-semibold text-info-subtle-foreground">
@@ -1541,27 +1557,35 @@ export function PlanoTab() {
                                             : suspensa
                                               ? 'Fora do ar desde ' +
                                                 new Date(unidade.suspendedAt as string).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) +
-                                                '. Nada foi apagado, e a vaga que ela ocupava está livre.'
-                                              : 'Suspenda a unidade para liberar o cancelamento desta vaga.'}
+                                                '. Nada foi apagado, e a contratação que ela ocupava pode ser cancelada.'
+                                              : 'Para cancelar esta contratação, suspenda a unidade antes.'}
                                     </p>
                                 </div>
                             )
                         })}
 
-                        {/* A VAGA LIVRE — contratada, paga e sem ninguém dentro.
-                            É a linha que o teste do Andre expôs: 3 contratadas,
-                            2 cadastradas. Aqui ela tem preço e um botão que a
-                            devolve sem cerimônia, porque não há o que suspender. */}
-                        {Array.from({ length: Math.max(0, u?.remaining ?? 0) }).map((_, i) => (
+                        {/* A CONTRATADA SEM CLÍNICA.
+                            É a linha que a homologação do Andre expôs: 3
+                            contratadas e 2 cadastradas. Contratar e cadastrar
+                            são coisas diferentes, e é aqui que a diferença
+                            aparece com preço.
+
+                            O vocabulário é o do negócio, não o de estacionamento:
+                            "vaga livre" e "devolver a vaga" saíram a pedido
+                            dele. Contrata-se uma unidade adicional; cadastra-se
+                            a clínica que a ocupa; cancela-se a contratação. */}
+                        {Array.from({
+                            length: Math.max(0, (u?.remaining ?? 0) - (u?.cancelados ?? 0)),
+                        }).map((_, i) => (
                             <div
-                                key={`livre-${i}`}
+                                key={`disponivel-${i}`}
                                 className="rounded-lg border border-dashed border-border bg-muted/40 p-4"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-semibold">Vaga livre</span>
+                                        <span className="font-semibold">Unidade adicional</span>
                                         <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-xs font-semibold text-warning-subtle-foreground">
-                                            paga e vazia
+                                            contratada, sem clínica
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1575,16 +1599,56 @@ export function PlanoTab() {
                                             variant="outline"
                                             size="sm"
                                             disabled={processing}
-                                            onClick={() => void devolverVaga()}
+                                            onClick={() => void mexerNaContratacao('cancel-addon')}
                                         >
-                                            Devolver a vaga
+                                            Cancelar contratação
                                         </Button>
                                     </div>
                                 </div>
                                 <p className="mt-2.5 text-xs text-muted-foreground">
-                                    Nenhuma clínica ocupa esta vaga. Devolver agora reduz a
-                                    mensalidade na renovação{renovaEm ? `, em ${renovaEm}` : ''}.
-                                    Para usá-la, crie a unidade em Conta da Clínica.
+                                    Você paga por esta unidade e ainda não cadastrou a clínica dela.
+                                    Para usá-la, crie a unidade em Conta da Clínica — ou cancele a
+                                    contratação e a mensalidade cai na renovação
+                                    {renovaEm ? `, em ${renovaEm}` : ''}.
+                                </p>
+                            </div>
+                        ))}
+
+                        {/* A CANCELADA QUE AINDA VALE.
+                            Cancelar não é instantâneo — o ciclo foi pago —, e
+                            foi justamente isso que fez o Andre clicar duas
+                            vezes: a tela não mudava. Agora ela muda, mostra até
+                            quando vale, e oferece desfazer enquanto dá. */}
+                        {Array.from({ length: Math.max(0, u?.cancelados ?? 0) }).map((_, i) => (
+                            <div
+                                key={`cancelada-${i}`}
+                                className="rounded-lg border border-dashed border-border p-4 opacity-90"
+                            >
+                                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold">Unidade adicional</span>
+                                        <span className="rounded-full bg-destructive-subtle px-2.5 py-1 text-xs font-semibold text-destructive-subtle-foreground">
+                                            contratação cancelada
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="num text-sm text-muted-foreground line-through">
+                                            {formatPrice(UNIDADE_ADICIONAL.price)}/mês
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={processing}
+                                            onClick={() => void mexerNaContratacao('restore-addon')}
+                                        >
+                                            Restaurar
+                                        </Button>
+                                    </div>
+                                </div>
+                                <p className="mt-2.5 text-xs text-muted-foreground">
+                                    Continua valendo até {renovaEm ?? 'a renovação'}, porque o ciclo
+                                    já está pago. A partir daí ela deixa de ser cobrada e o teto da
+                                    conta diminui. Restaurar enquanto não renova não custa nada.
                                 </p>
                             </div>
                         ))}

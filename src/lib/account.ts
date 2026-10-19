@@ -76,8 +76,10 @@ export interface Unidades {
     remaining: number
     /** O que o plano inclui, separado para a tela poder explicar o teto. */
     doPlano: number
-    /** Quantas foram compradas à parte. */
+    /** Quantas foram compradas à parte e ainda valem. */
     adicionais: number
+    /** Dessas, quantas já foram canceladas e valem só até a renovação. */
+    cancelados: number
 }
 
 /**
@@ -96,6 +98,20 @@ export function adicionaisVivos(em: Date = new Date()) {
 }
 
 /**
+ * O adicional que **o próximo ciclo vai cobrar**.
+ *
+ * Não é a mesma pergunta que `adicionaisVivos`, e confundir as duas custou um
+ * defeito: cancelado continua valendo até a renovação (teto), mas não pode
+ * entrar na próxima fatura (cobrança). Com um filtro só, ou a capacidade caía
+ * no dia do clique — tirando o que o cliente pagou — ou o Asaas seguiria
+ * cobrando um adicional cancelado para sempre, porque nada re-sincroniza o
+ * valor depois da renovação.
+ *
+ * Teto pergunta "ainda vale?"; cobrança pergunta "foi cancelado?".
+ */
+export const adicionaisCobraveis = { canceledAt: null } as const
+
+/**
  * A unidade que **ocupa vaga**: a que está no ar.
  *
  * Unidade suspensa continua existindo, com agenda, pacientes e histórico — e
@@ -106,9 +122,13 @@ export function adicionaisVivos(em: Date = new Date()) {
 export const unidadesNoAr = { suspendedAt: null } as const
 
 export async function unidadesDaConta(accountId: string): Promise<Unidades> {
-    const [used, adicionais, subscription] = await Promise.all([
+    const [used, adicionais, cancelados, subscription] = await Promise.all([
         prisma.workspace.count({ where: { accountId, ...unidadesNoAr } }),
         prisma.unitAddon.count({ where: { accountId, ...adicionaisVivos() } }),
+        /** Canceladas que ainda valem: a tela precisa mostrá-las como tal. */
+        prisma.unitAddon.count({
+            where: { accountId, canceledAt: { not: null }, ...adicionaisVivos() },
+        }),
         prisma.subscription.findUnique({
             where: { accountId },
             select: { plan: true },
@@ -118,7 +138,14 @@ export async function unidadesDaConta(accountId: string): Promise<Unidades> {
     const doPlano = limitsFor(subscription?.plan).maxWorkspaces
     const max = tetoDeUnidades(subscription?.plan, adicionais)
 
-    return { used, max, remaining: Math.max(0, max - used), doPlano, adicionais }
+    return {
+        used,
+        max,
+        remaining: Math.max(0, max - used),
+        doPlano,
+        adicionais,
+        cancelados,
+    }
 }
 
 /**

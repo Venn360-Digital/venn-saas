@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import { adicionaisVivos } from '@/lib/account'
+import { adicionaisCobraveis } from '@/lib/account'
 import { asaas } from '@/lib/asaas/client'
 import { isPlanId, planNameFor } from '@/lib/plan-limits'
 import { mensalidade } from '@/lib/billing/troca-de-plano'
@@ -295,7 +295,15 @@ export async function sincronizarValorDaAssinatura(
 ): Promise<number> {
     const [assinatura, adicionais] = await Promise.all([
         prisma.subscription.findUnique({ where: { accountId }, select: { plan: true } }),
-        prisma.unitAddon.count({ where: { accountId, ...adicionaisVivos() } }),
+        /**
+         * Cobrança conta o que **não foi cancelado**, e não o que ainda vale.
+         *
+         * O valor que vai para o Asaas é o da próxima fatura, e a próxima
+         * fatura é a renovação — exatamente quando o adicional cancelado deixa
+         * de valer. Contar por `adicionaisVivos` aqui manteria o cancelado na
+         * conta para sempre, porque nada re-sincroniza o valor depois.
+         */
+        prisma.unitAddon.count({ where: { accountId, ...adicionaisCobraveis } }),
     ])
 
     const plano = isPlanId(assinatura?.plan) ? assinatura.plan : 'flow'
