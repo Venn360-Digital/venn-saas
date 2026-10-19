@@ -22,7 +22,6 @@ import {
     Plus,
     X
 } from 'lucide-react'
-import { TermsCard } from '@/components/account/TermsCard'
 import { toast } from 'sonner'
 import { BILLING_UPDATED } from '@/components/layout/AppSidebar'
 
@@ -223,7 +222,6 @@ export function PlanoTab() {
      */
     const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
     const [cartaoEscolhido, setCartaoEscolhido] = useState<string | null>(null)
-    const [cancelandoAdicional, setCancelandoAdicional] = useState(false)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
         adicionais: number
         avulso: number
@@ -321,42 +319,6 @@ export function PlanoTab() {
             setProcessing(false)
         }
     }, [cartaoEscolhido, loadSubscription])
-
-    /**
-     * Cancela unidades adicionais — direito do cliente, e só dele.
-     *
-     * Sem diálogo de confirmação próprio: o `ConfirmDialog` do sistema já é
-     * quem pergunta, e a ação não destrói dado nenhum — a unidade continua de
-     * pé até a renovação, e recontratar é um clique. O que destrói é excluir a
-     * clínica, e isso mora em outra tela.
-     */
-    const handleCancelAddon = useCallback(
-        async (quantas: number) => {
-            setCancelandoAdicional(true)
-            try {
-                const res = await fetch('/api/account/subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'cancel-addon', units: quantas }),
-                })
-
-                const data = await res.json()
-
-                if (res.ok) {
-                    toast.success(data.message)
-                    await loadSubscription()
-                    window.dispatchEvent(new Event(BILLING_UPDATED))
-                } else {
-                    toast.error(data.error || 'Não foi possível cancelar o adicional')
-                }
-            } catch {
-                toast.error('Não foi possível cancelar o adicional')
-            } finally {
-                setCancelandoAdicional(false)
-            }
-        },
-        [loadSubscription]
-    )
 
     /**
      * Contrata um plano. **O plano vem por parâmetro**, não do estado.
@@ -1085,17 +1047,14 @@ export function PlanoTab() {
                 </div>
             ) : null}
 
-            <SettingsBand
-                title="Assinatura"
-                description="O que dá para mudar sem falar com a gente."
-            >
+            <SettingsBand title="Assinatura">
               <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
                 {/* O QUANTO E O QUANDO, antes de tudo.
                     O card começava pela forma de pagamento e nunca dizia o
                     valor: mostrava R$ 580,00 dos adicionais e calava a
                     mensalidade. Agora a primeira linha é a resposta da primeira
                     pergunta de quem abre uma tela de assinatura. */}
-                <div className="grid gap-4 px-5 py-5 sm:grid-cols-[1fr_auto] sm:items-start">
+                <div className="grid gap-4 px-5 pb-3 pt-5 sm:grid-cols-[1fr_auto] sm:items-start">
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             {isTrialing ? 'Primeira cobrança' : 'Próxima cobrança'}
@@ -1135,13 +1094,13 @@ export function PlanoTab() {
                     </div>
                 </div>
 
-                {/* DO QUE O VALOR É FEITO.
-                    Duas linhas de extrato, porque adicional é contrato à parte:
-                    quem vê R$ 970,00 sem a abertura não sabe o que cancelar
-                    para baixar a conta. */}
+                {/* DO QUE O VALOR É FEITO — sem fio no meio.
+                    O extrato era faixa separada, e o fio entre o total e as
+                    linhas que o explicam sugeria dois assuntos. É um só: o
+                    valor e sua composição. Decisão do Andre em 2026-10-19. */}
                 {temPlano ? (
-                    <div className="px-5 py-4">
-                        <div className="flex items-baseline justify-between gap-4 border-b border-dashed border-border py-2 first:pt-0 last:border-b-0 last:pb-0">
+                    <div className="px-5 pb-4">
+                        <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border py-2">
                             <p className="text-sm">
                                 Plano {planLabel}
                                 <span className="text-muted-foreground">
@@ -1158,7 +1117,7 @@ export function PlanoTab() {
                             <p className="num text-sm font-semibold">{formatPrice(precoDoPlano)}</p>
                         </div>
                         {(u?.adicionais ?? 0) > 0 ? (
-                            <div className="flex items-baseline justify-between gap-4 py-2 pb-0">
+                            <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border py-2">
                                 <p className="text-sm">
                                     {u?.adicionais} unidade{u?.adicionais === 1 ? '' : 's'} adicional
                                     {u?.adicionais === 1 ? '' : 'is'}
@@ -1166,24 +1125,9 @@ export function PlanoTab() {
                                         {' · '}1 agente e 1 número cada
                                     </span>
                                 </p>
-                                <div className="flex items-baseline gap-3">
-                                    {/* Cancelar mora **na linha do contrato**,
-                                        não num cartão de zona de perigo: é
-                                        reversível, não apaga nada e a unidade
-                                        vale até a renovação. O que destrói é
-                                        excluir a clínica, e isso é outra tela. */}
-                                    <button
-                                        type="button"
-                                        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive-subtle-foreground disabled:opacity-50"
-                                        disabled={cancelandoAdicional}
-                                        onClick={() => void handleCancelAddon(1)}
-                                    >
-                                        Cancelar {(u?.adicionais ?? 0) > 1 ? 'uma' : ''}
-                                    </button>
-                                    <p className="num text-sm font-semibold">
-                                        {formatPrice(mensalDosAdicionais)}
-                                    </p>
-                                </div>
+                                <p className="num text-sm font-semibold">
+                                    {formatPrice(mensalDosAdicionais)}
+                                </p>
                             </div>
                         ) : null}
                     </div>
@@ -1352,13 +1296,6 @@ export function PlanoTab() {
                     </div>
                 </SettingsBand>
             ) : null}
-
-            {/* O acordo fica junto das outras condições — o que se paga, o que
-                se gasta, até quando. É onde alguém procura quando quer reler o
-                que aceitou. Vem **antes** do cancelamento: ler o que foi
-                acordado é passo de quem está decidindo, e encerrar a conta é o
-                fim da guia por ser o fim do caminho. */}
-            <TermsCard band />
 
             {/*
               * O que encerra a conta mora num cartão só dele — mesmo padrão da

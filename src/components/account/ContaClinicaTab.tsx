@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
+import { TermsCard } from '@/components/account/TermsCard'
 import { FormField } from '@/components/shared/FormField'
 import { MaskedInput } from '@/components/shared/MaskedInput'
 import { PhoneInput } from '@/components/shared/PhoneInput'
@@ -795,6 +796,14 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                     )}
                 </SettingsBand>
             </form>
+
+            {/* O ACORDO, no fim da guia da conta.
+                Morava na guia Plano, junto do que se paga. Mudou a pedido do
+                Andre em 2026-10-19, e o lugar novo é melhor: o aceite é da
+                **conta** — quem aceitou, quando, qual versão —, e não uma
+                condição comercial. Fica por último porque é consulta, não
+                tarefa: ninguém abre esta guia para reler termos. */}
+            <TermsCard band />
 
             <RecordDialog
                 open={criando}
