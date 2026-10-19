@@ -647,17 +647,7 @@ export function PlanoTab() {
           )
         : null
 
-    /**
-     * A franquia, separada por origem.
-     *
-     * O que estava escrito como "30.000 do plano" eram 10.000 do plano e
-     * 20.000 de dois adicionais — a tela creditava ao plano uma capacidade que
-     * o cliente comprou à parte. São origens com regras diferentes: a do plano
-     * acompanha a troca de plano, a do adicional só sai se o adicional for
-     * cancelado, e a avulsa vence por lote.
-     */
-    const creditoDeAdicionais = (u?.adicionais ?? 0) * ADICIONAL_INCLUI.credits
-    const creditoDoPlano = Math.max(0, (subscription?.credits ?? 0) - creditoDeAdicionais)
+    /** O avulso somado, para a segunda caixa d'água da linha de crédito. */
     const creditoAvulso = subscription?.creditos?.purchased.total ?? 0
 
     /** "Plano Evolução" vira "Evolução": o rótulo ao lado já diz "Plano". */
@@ -679,9 +669,17 @@ export function PlanoTab() {
             u.adicionais > 0
                 ? `Inclui ${plural(u.doPlano)}, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'} — ${plural(u.max)} no total, ${u.used} em uso.`
                 : `Inclui ${plural(u.doPlano)}, ${u.used} em uso.`
+        /**
+         * O que o adicional inclui aparece **aqui**, uma vez, junto da
+         * contagem de unidades — e não no medidor de crédito, que fala de
+         * saldo. Lido de `ADICIONAL_INCLUI` para a frase não envelhecer sem a
+         * tabela comercial.
+         */
         const comAdicionais =
             u.adicionais > 0
-                ? ` Cada adicional soma 1 agente, 1 número e 10.000 créditos à franquia.`
+                ? ` Cada adicional soma ${ADICIONAL_INCLUI.maxAgents} agente,` +
+                  ` ${ADICIONAL_INCLUI.maxWhatsAppNumbers} número e` +
+                  ` ${ADICIONAL_INCLUI.credits.toLocaleString('pt-BR')} créditos à franquia.`
                 : ''
 
         /**
@@ -953,42 +951,26 @@ export function PlanoTab() {
                         ) : null}
                     </p>
 
-                    {/* De onde vem o total, quando não vem de um lugar só. A
-                        franquia renova e o lote avulso vence — somá-los sem
-                        dizer qual é qual deixaria a clínica sem entender por que
-                        o número cai de uma vez no dia do vencimento. */}
-                    {/* De onde vem o total — e a parte que vinha mentindo.
-                        Dizer "30.000 do plano" escondia que 20.000 deles vêm
-                        dos adicionais, e que a franquia pode ser a do plano
-                        anterior, preservada até a renovação. São três origens
-                        com regras diferentes: a do plano renova, a do adicional
-                        renova junto, a avulsa vence. */}
+                    {/* Duas caixas d'água, e só duas.
+                        Esta linha chegou a decompor a franquia por origem —
+                        tanto do plano, tanto de cada unidade adicional, tanto
+                        avulso. Decisão do Andre em 2026-10-19: isso vira
+                        bagunça para quem paga. O que importa a quem lê é
+                        quanto tem e até quando vale, e são **duas** respostas:
+                        a franquia, que zera na renovação, e o avulso, que
+                        vence por lote. De onde a franquia veio é assunto do
+                        contrato do adicional, não do medidor. */}
                     {creditoTotal > 0 ? (
                         <p className="text-xs text-muted-foreground">
-                            {trocaPendente ? (
-                                <>
-                                    <span className="num">
-                                        {(subscription?.credits ?? 0).toLocaleString('pt-BR')}
-                                    </span>{' '}
-                                    da franquia já paga, válida até {renovaEm}
-                                </>
-                            ) : (
-                                <>
-                                    <span className="num">{creditoDoPlano.toLocaleString('pt-BR')}</span>{' '}
-                                    do {planLabel}
-                                    {creditoDeAdicionais > 0 ? (
-                                        <>
-                                            {' + '}
-                                            <span className="num">
-                                                {creditoDeAdicionais.toLocaleString('pt-BR')}
-                                            </span>{' '}
-                                            de {u?.adicionais} unidade
-                                            {u?.adicionais === 1 ? '' : 's'} adicional
-                                            {u?.adicionais === 1 ? '' : 'is'}
-                                        </>
-                                    ) : null}
-                                </>
-                            )}
+                            <span className="num">
+                                {(subscription?.credits ?? 0).toLocaleString('pt-BR')}
+                            </span>{' '}
+                            de franquia
+                            {renovaEm
+                                ? trocaPendente
+                                    ? `, já paga e válida até ${renovaEm}`
+                                    : `, renovada em ${renovaEm}`
+                                : null}
                             {creditoAvulso > 0 ? (
                                 <>
                                     {' + '}
