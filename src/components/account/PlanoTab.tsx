@@ -21,6 +21,7 @@ import {
     Loader2,
     Minus,
     Plus,
+    Receipt,
     X
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -107,6 +108,12 @@ interface SubscriptionData {
     currentPeriodEnd: string | null
     /** Até quando a clínica tem para pagar, quando há cobrança vencida. */
     graceEndsAt?: string | null
+    /** Se esta conta é cobrada, e desde quando. */
+    regime?: {
+        precisaPagar: boolean
+        motivo: 'vitalicia' | 'antes_da_data' | null
+        a_partir_de: string | null
+    }
     pastDueSince?: string | null
     plans: {
         flow: PlanConfig
@@ -252,6 +259,7 @@ export function PlanoTab() {
     const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
     const [cartaoEscolhido, setCartaoEscolhido] = useState<string | null>(null)
     const [showUnidadesModal, setShowUnidadesModal] = useState(false)
+    const [showFaturasModal, setShowFaturasModal] = useState(false)
     const [unidadesLista, setUnidadesLista] = useState<UnidadeDaConta[]>([])
     const [mexendoNaUnidade, setMexendoNaUnidade] = useState<string | null>(null)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
@@ -948,6 +956,30 @@ export function PlanoTab() {
      * protege quem sabe dela: avisar "em atraso" sem dizer até quando é susto
      * sem instrução.
      */
+    /** O avulso comprado, para a faixa de adicionais. */
+    const creditoAvulso = subscription?.creditos?.purchased.total ?? 0
+
+    /**
+     * Quando esta conta **não** será cobrada, e por quê.
+     *
+     * Vem do servidor (`regime`), e aparece **antes** do clique. Era o defeito
+     * que o Andre encontrou: comprar adicional numa conta vitalícia entregava
+     * sem cobrar — comportamento correto — e a tela só dizia isso depois, na
+     * mensagem de sucesso. Quem testa cobrança lê "comprei sem pagar".
+     */
+    const regimeSemCobranca =
+        subscription?.regime && !subscription.regime.precisaPagar
+            ? subscription.regime.motivo === 'vitalicia'
+                ? 'Esta conta é vitalícia: nada é cobrado.'
+                : `A cobrança desta conta começa em ${
+                      subscription.regime.a_partir_de
+                          ? new Date(subscription.regime.a_partir_de).toLocaleDateString('pt-BR', {
+                                timeZone: 'America/Sao_Paulo',
+                            })
+                          : 'breve'
+                  } — até lá, nada é cobrado.`
+            : null
+
     /** A cobrança que ainda dá para pagar — é por ela que um cartão novo entra. */
     const faturaEmAberto =
         cobrancas.find((c) => c.status === 'OVERDUE' || c.status === 'PENDING')?.invoiceUrl ?? null
@@ -1113,7 +1145,7 @@ export function PlanoTab() {
                 </div>
             ) : null}
 
-            <SettingsBand title="Assinatura">
+            <SettingsBand title="Minha assinatura">
               <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
                 {/* O QUANTO E O QUANDO, antes de tudo.
                     O card começava pela forma de pagamento e nunca dizia o
@@ -1152,6 +1184,10 @@ export function PlanoTab() {
                         <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
                             <CreditCard className="size-4" />
                             Alterar forma
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowFaturasModal(true)}>
+                            <Receipt className="size-4" />
+                            Ver faturas
                         </Button>
                         <Button
                             variant="outline"
@@ -1268,46 +1304,124 @@ export function PlanoTab() {
                     />
                 </div>
 
-                {/* COMPRAR, no fim, onde a pessoa chega depois de ver o que
-                    tem. O botão nasce desabilitado quando o servidor vai
-                    recusar, com a razão ao lado. */}
-                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                    <p className="text-sm">
-                        Adicionais
-                        <span className="block text-xs text-muted-foreground">
-                            {podeComprarAdicionais
-                                ? 'Pacotes de crédito com 90 dias de validade, ou mais uma unidade com agente e número.'
-                                : 'Exige plano ativo. Na avaliação, a franquia é a do plano que você escolher.'}
-                        </span>
-                    </p>
-                    <Button
-                        variant="outline"
-                        disabled={!podeComprarAdicionais}
-                        onClick={() => {
-                            setPacoteEscolhido(null)
-                            setUnidadesEscolhidas(0)
-                            setShowCreditsModal(true)
-                        }}
-                    >
-                        <Plus className="size-4" />
-                        Comprar adicionais
-                    </Button>
-                </div>
               </div>
             </SettingsBand>
 
-            {/* O HISTÓRICO, depois do que se paga e antes do que se acordou.
-                É consulta, não decisão: quem abre a guia quer saber o valor e o
-                saldo; o extrato é a pergunta seguinte, de quem precisa de uma
-                segunda via ou quer conferir um mês. Fica fora do card de
-                assinatura por isso — e some quando não há nada a mostrar, em
-                vez de desenhar uma tabela vazia com cabeçalho. */}
-            {cobrancas.length > 0 ? (
-                <SettingsBand
-                    title="Cobranças"
-                    description="As últimas faturas desta conta, com link para a segunda via."
-                >
-                    <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
+            {/* MEUS ADICIONAIS, em faixa própria.
+                Era a última linha do card de assinatura, e lá ela competia com
+                o que o card existe para dizer — quanto custa e quanto se
+                gastou. Adicional é outro assunto: é o que foi contratado à
+                parte, cada um com a sua regra de validade. Separado a pedido do
+                Andre em 2026-10-19. */}
+            <SettingsBand title="Meus adicionais">
+                <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
+                    {(u?.adicionais ?? 0) === 0 && creditoAvulso === 0 ? (
+                        <p className="px-5 py-4 text-sm text-muted-foreground">
+                            Nenhum adicional contratado. O plano sozinho já dá conta — e, se
+                            faltar, dá para comprar crédito ou mais uma unidade sem trocar de
+                            plano.
+                        </p>
+                    ) : null}
+
+                    {(u?.adicionais ?? 0) > 0 ? (
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4">
+                            <div>
+                                <p className="text-sm font-medium">
+                                    {u?.adicionais} contratação
+                                    {u?.adicionais === 1 ? '' : 'ões'} de unidade
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    Cada uma soma 1 agente e 1 número, e cabe uma clínica.
+                                    {(u?.cancelados ?? 0) > 0
+                                        ? ` ${u?.cancelados} cancelada${u?.cancelados === 1 ? '' : 's'}, válida${u?.cancelados === 1 ? '' : 's'} até ${renovaEm ?? 'a renovação'}.`
+                                        : ''}
+                                </p>
+                            </div>
+                            <p className="num text-sm font-semibold">
+                                {formatPrice(mensalDosAdicionais)}
+                                <span className="font-normal text-muted-foreground">/mês</span>
+                            </p>
+                        </div>
+                    ) : null}
+
+                    {creditoAvulso > 0 ? (
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4">
+                            <div>
+                                <p className="text-sm font-medium">
+                                    <span className="num">
+                                        {creditoAvulso.toLocaleString('pt-BR')}
+                                    </span>{' '}
+                                    créditos avulsos
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    Compra única{venceEm ? `, válida até ${venceEm}` : ''}. Gasta-se
+                                    depois da franquia do plano.
+                                </p>
+                            </div>
+                            <p className="num text-sm font-semibold text-muted-foreground">
+                                {(subscription?.creditos?.purchased.remaining ?? 0).toLocaleString('pt-BR')}{' '}
+                                <span className="font-normal">disponíveis</span>
+                            </p>
+                        </div>
+                    ) : null}
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                        <p className="text-xs text-muted-foreground">
+                            {podeComprarAdicionais
+                                ? regimeSemCobranca ?? '\u00A0'
+                                : 'Exige plano ativo. Na avaliação, a franquia é a do plano que você escolher.'}
+                        </p>
+                        <Button
+                            variant="outline"
+                            disabled={!podeComprarAdicionais}
+                            onClick={() => {
+                                setPacoteEscolhido(null)
+                                setUnidadesEscolhidas(0)
+                                setShowCreditsModal(true)
+                            }}
+                        >
+                            <Plus className="size-4" />
+                            Comprar adicionais
+                        </Button>
+                    </div>
+                </div>
+            </SettingsBand>
+
+            {/* E no fim da guia, o que não tem volta.
+                Voltou para cá a pedido do Andre: ele tentou no rodapé de
+                Alterar unidades (confundia) e na Conta da Clínica, e o lugar
+                que ficou é este — o fim da guia onde se vê o que se paga.
+                Cartão próprio, com borda vermelha, longe da pilha de "alterar"
+                e "comprar": a diferença entre trocar o cartão e encerrar a
+                conta não pode depender de reparar numa cor de texto. */}
+            <CancelarAssinaturaCard />
+
+            {/* AS FATURAS, em tela própria.
+                Eram uma faixa abaixo da assinatura, e consulta não disputa
+                espaço com decisão: quem abre a guia quer saber quanto paga e
+                quanto gastou. A segunda via é a pergunta seguinte, de quem
+                precisa dela — e agora tem um botão com esse nome no topo.
+
+                Diálogo e não rota: a guia da Conta não rola (ver DESIGN.md,
+                Tela 03), e uma rota nova por lista de leitura seria uma tela a
+                mais para manter pelo mesmo resultado. */}
+            <RecordDialog
+                open={showFaturasModal}
+                onOpenChange={setShowFaturasModal}
+                title="Faturas"
+                description="As últimas cobranças desta conta, com link para a segunda via."
+                hideAgain
+                submitLabel="Fechar"
+                onSubmit={() => setShowFaturasModal(false)}
+            >
+                <div className="col-span-2">
+                    {cobrancas.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                            Nenhuma cobrança ainda. A primeira aparece aqui assim que o plano for
+                            contratado.
+                        </p>
+                    ) : (
+<div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
                         {cobrancas.map((c) => {
                             const pago = c.status === 'RECEIVED' || c.status === 'CONFIRMED'
                             const vencida = c.status === 'OVERDUE'
@@ -1370,17 +1484,9 @@ export function PlanoTab() {
                             )
                         })}
                     </div>
-                </SettingsBand>
-            ) : null}
-
-            {/* E no fim da guia, o que não tem volta.
-                Voltou para cá a pedido do Andre: ele tentou no rodapé de
-                Alterar unidades (confundia) e na Conta da Clínica, e o lugar
-                que ficou é este — o fim da guia onde se vê o que se paga.
-                Cartão próprio, com borda vermelha, longe da pilha de "alterar"
-                e "comprar": a diferença entre trocar o cartão e encerrar a
-                conta não pode depender de reparar numa cor de texto. */}
-            <CancelarAssinaturaCard />
+                    )}
+                </div>
+            </RecordDialog>
 
             {/* ALTERAR UNIDADES.
                 Cenário 1 do comp de 2026-10-19, escolhido pelo Andre.
@@ -1396,7 +1502,6 @@ export function PlanoTab() {
                 open={showUnidadesModal}
                 onOpenChange={setShowUnidadesModal}
                 title="Alterar unidades"
-                description="O que você contratou, qual clínica ocupa cada contratação e quanto isso custa por mês."
                 hideAgain
                 submitLabel="Fechar"
                 onSubmit={() => setShowUnidadesModal(false)}
@@ -1856,18 +1961,31 @@ export function PlanoTab() {
                                     : 'nenhuma unidade escolhida'}
                             </span>
                         </SummaryCard>
-                        {subscription?.paymentMethod ? (
+                        {/* QUANDO NÃO HÁ COBRANÇA, DIGA ANTES.
+                            Conta vitalícia (ou antes da data de início) recebe
+                            o adicional sem passar pelo checkout — é a regra, e
+                            está certa. O que estava errado era a tela avisar
+                            depois: quem testa cobrança clica, recebe e conclui
+                            que o gateway falhou. Foi o que aconteceu com o
+                            Andre em 2026-10-19. */}
+                        {regimeSemCobranca ? (
+                            <p className="rounded-md bg-info-subtle px-3 py-2 text-[11px] font-medium leading-snug text-info-subtle-foreground">
+                                {regimeSemCobranca} O adicional entra na hora, sem checkout.
+                            </p>
+                        ) : subscription?.paymentMethod ? (
                             <p className="num flex items-center gap-2 text-[11px] text-muted-foreground">
                                 <CreditCard className="size-3.5" /> •••• {subscription.paymentMethod.last4}
                             </p>
                         ) : null}
-                        <button
-                            type="button"
-                            onClick={() => { setShowCreditsModal(false); setShowPaymentModal(true) }}
-                            className="w-fit text-[11px] font-semibold text-primary-subtle-foreground underline-offset-2 hover:underline"
-                        >
-                            Pagar de outra forma
-                        </button>
+                        {regimeSemCobranca ? null : (
+                            <button
+                                type="button"
+                                onClick={() => { setShowCreditsModal(false); setShowPaymentModal(true) }}
+                                className="w-fit text-[11px] font-semibold text-primary-subtle-foreground underline-offset-2 hover:underline"
+                            >
+                                Pagar de outra forma
+                            </button>
+                        )}
                     </>
                 }
             >

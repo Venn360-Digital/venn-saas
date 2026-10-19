@@ -213,7 +213,7 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
                     className="mt-auto"
                     items={[
                         { title: 'Dúvidas e suporte', url: '/suporte', icon: LifeBuoy, destaque: true },
-                        { title: 'Plano e créditos', url: '/gerenciamento/conta?tab=plano', icon: CreditCard },
+                        { title: 'Assinatura', url: '/gerenciamento/conta?tab=plano', icon: CreditCard },
                     ]}
                 />
             </SidebarContent>

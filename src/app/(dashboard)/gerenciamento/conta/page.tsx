@@ -39,7 +39,7 @@ const TABS: FrameTab[] = [
     { id: 'agenda', label: 'Agenda da clínica', icon: CalendarOff },
     { id: 'integracoes', label: 'Integrações', icon: Plug },
     { id: 'automacoes', label: 'Automações', icon: Zap },
-    { id: 'plano', label: 'Plano', icon: CreditCard },
+    { id: 'plano', label: 'Assinatura', icon: CreditCard },
 ]
 
 function ContaContent() {

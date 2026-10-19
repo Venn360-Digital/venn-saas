@@ -168,6 +168,15 @@ export async function GET() {
              * instrução.
              */
             graceEndsAt: subscription.graceEndsAt,
+            /**
+             * Se esta conta é cobrada — a tela precisa dizer isso **antes** do
+             * clique. Conta vitalícia recebe adicional sem cobrança, e anunciar
+             * isso só na mensagem de sucesso faz quem testa concluir que o
+             * gateway falhou.
+             */
+            regime: accountId
+                ? await regimeDaConta(accountId)
+                : { precisaPagar: true, motivo: null, a_partir_de: null },
             pastDueSince: subscription.pastDueSince,
             plans: PLANS,
             creditPacks: CREDIT_PACKS,
