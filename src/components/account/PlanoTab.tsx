@@ -1,7 +1,7 @@
 'use client'
 
 import { UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
-import { ADICIONAL_INCLUI } from '@/lib/plan-limits'
+import { limitsFor, PLAN_PRICES, isPlanId } from '@/lib/plan-limits'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { FormField } from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
 import {
+    AlertTriangle,
     ArrowUpDown,
     Ban,
     Check,
@@ -24,6 +25,66 @@ import {
 import { TermsCard } from '@/components/account/TermsCard'
 import { toast } from 'sonner'
 import { BILLING_UPDATED } from '@/components/layout/AppSidebar'
+
+/**
+ * Uma célula de consumo: rótulo, "usado de total", barra fina e a validade.
+ *
+ * Existe como componente porque são quatro iguais e a tentação, com quatro
+ * blocos repetidos no JSX, é deixar um deles divergir — foi assim que o áudio
+ * ficou sem medidor por três semanas enquanto o crédito tinha um de 24px.
+ *
+ * A barra só aparece onde "cheio" significa alguma coisa. Unidade em uso não é
+ * consumo: ou cabe ou não cabe, e um medidor de 2 de 3 unidades sugere um
+ * gasto que não existe.
+ */
+function MedidorDeConsumo({
+    rotulo,
+    usado,
+    total,
+    nota,
+    semBarra = false,
+    className,
+}: {
+    rotulo: string
+    usado: number
+    total: number
+    nota?: string | null
+    semBarra?: boolean
+    className?: string
+}) {
+    const pct = total > 0 ? Math.min(100, Math.round((usado / total) * 100)) : 0
+
+    return (
+        <div className={cn('px-5 py-4', className)}>
+            <p className="text-xs text-muted-foreground">{rotulo}</p>
+            <p className="num mt-0.5 text-xl font-semibold">
+                {usado.toLocaleString('pt-BR')}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                    de {total.toLocaleString('pt-BR')}
+                </span>
+            </p>
+            {semBarra ? null : (
+                <div
+                    className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                    aria-valuenow={pct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${rotulo}: ${pct}% usado`}
+                >
+                    <div
+                        className={cn(
+                            'h-full rounded-full transition-all',
+                            pct >= 90 ? 'bg-destructive' : pct >= 80 ? 'bg-warning' : 'bg-primary'
+                        )}
+                        style={{ width: `${pct}%` }}
+                    />
+                </div>
+            )}
+            {nota ? <p className="mt-2 text-xs text-muted-foreground">{nota}</p> : null}
+        </div>
+    )
+}
 
 interface SubscriptionData {
     plan: string
@@ -561,30 +622,6 @@ export function PlanoTab() {
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0
 
-    /**
-     * Quanto do crédito já foi gasto, em percentual.
-     *
-     * É o número grande do medidor, e é de propósito que o percentual venha
-     * antes da contagem: a pergunta de quem abre esta tela é "estou perto do
-     * fim?", não "quantos créditos exatamente". Total zero — assinatura que
-     * nunca foi criada — mostra 0 em vez de dividir por zero.
-     *
-     * **Conta os dois baldes**, franquia e avulso. Contava só a franquia, e
-     * quem comprasse 10.000 avulsos via a sidebar somar e o medidor continuar
-     * em "33 de 20.000" — na própria tela onde a compra tinha acabado de
-     * acontecer. O avulso é saldo real: é gasto depois da franquia, mas é
-     * gasto.
-     */
-    const creditoTotal =
-        (subscription?.creditos?.plan.total ?? subscription?.credits ?? 0) +
-        (subscription?.creditos?.purchased.total ?? 0)
-    const creditoUsado =
-        (subscription?.creditos?.plan.used ?? subscription?.creditsUsed ?? 0) +
-        (subscription?.creditos?.purchased.used ?? 0)
-
-    const percentualUsado =
-        creditoTotal > 0 ? Math.min(100, Math.round((creditoUsado / creditoTotal) * 100)) : 0
-
     /** A data em que o próximo lote avulso vence, se houver lote. */
     const venceEm = subscription?.creditos?.purchased.nextExpiry
         ? new Date(subscription.creditos.purchased.nextExpiry).toLocaleDateString('pt-BR', {
@@ -638,67 +675,76 @@ export function PlanoTab() {
           })
         : null
 
-    const renovaEmDias = subscription?.currentPeriodEnd
-        ? Math.max(
-              0,
-              Math.ceil(
-                  (new Date(subscription.currentPeriodEnd).getTime() - Date.now()) / 86_400_000
-              )
-          )
-        : null
+    /**
+     * As duas carteiras, **separadas** — decisão do Andre em 2026-10-19.
+     *
+     * Esta tela não soma crédito de plano com crédito avulso. São duas regras
+     * diferentes (um renova e zera, o outro vence por lote) e somá-los obriga
+     * quem lê a desfazer a conta de cabeça para saber o que tem de gastar
+     * primeiro. A sidebar continua somando, porque lá a pergunta é só "ainda
+     * dá para responder?".
+     */
+    const planoTotal = subscription?.creditos?.plan.total ?? subscription?.credits ?? 0
+    const planoUsado = subscription?.creditos?.plan.used ?? subscription?.creditsUsed ?? 0
+    const avulsoTotal = subscription?.creditos?.purchased.total ?? 0
+    const avulsoUsado = subscription?.creditos?.purchased.used ?? 0
 
-    /** O avulso somado, para a segunda caixa d'água da linha de crédito. */
-    const creditoAvulso = subscription?.creditos?.purchased.total ?? 0
+    /**
+     * O que o plano vigente custa e inclui, **da tabela comercial**.
+     *
+     * Não da assinatura: a linha do extrato descreve o produto contratado, e os
+     * campos gravados carregam o teto pago, que durante um downgrade é o do
+     * plano anterior. Dizer "Plano Digital · 30.000 créditos" por causa disso
+     * seria descrever o Digital com a franquia do Multiclínica.
+     *
+     * E `limitsFor` em vez do payload: o tipo `PlanConfig` desta tela declara
+     * `maxAgents`/`credits` no primeiro nível, mas `PLANS` os entrega dentro de
+     * `limits` — ler de lá traria `undefined` sem erro de compilação.
+     */
+    const precoDoPlano = isPlanId(subscription?.plan) ? PLAN_PRICES[subscription.plan] : 0
+    const incluiDoPlano = limitsFor(subscription?.plan)
+
+    /** A conta que o card nunca mostrou: plano + adicionais. */
+    const mensalidadeTotal = precoDoPlano + mensalDosAdicionais
+
+    const temPlano = Boolean(subscription?.plan)
+
+    /**
+     * Quando cai a próxima cobrança.
+     *
+     * Na avaliação é o fim dela — ali a primeira cobrança é o que a pessoa quer
+     * saber, e `currentPeriodEnd` ainda não significa nada.
+     */
+    const cobrancaEm = isTrialing
+        ? subscription?.trialEndsAt
+            ? new Date(subscription.trialEndsAt).toLocaleDateString('pt-BR', {
+                  timeZone: 'America/Sao_Paulo',
+              })
+            : null
+        : renovaEm
+
+    /** O cartão, como ele aparece na fatura. */
+    const formaDePagamento = subscription?.paymentMethod
+        ? [subscription.paymentMethod.brand, subscription.paymentMethod.last4 ? `•••• ${subscription.paymentMethod.last4}` : '']
+              .filter(Boolean)
+              .join(' ')
+        : null
 
     /** "Plano Evolução" vira "Evolução": o rótulo ao lado já diz "Plano". */
     const planLabel = (subscription?.planName ?? '').replace(/^Plano\s+/i, '')
 
     /**
-     * O que o plano dá em unidades, em uma linha, na voz de quem paga.
+     * As unidades em uma frase curta, para caber na célula.
      *
-     * Montada aqui e não no JSX porque são três casos e cada um pede uma frase
-     * diferente: sem adicional, com adicional, e o plano que ainda não existe.
-     * Um ternário aninhado dentro do atributo esconderia justamente a parte que
-     * alguém vai querer reler.
+     * O parágrafo longo que explicava plano, adicionais e a virada foi
+     * desmontado: o preço virou extrato, a virada virou faixa própria, e aqui
+     * fica só de onde vêm as vagas.
      */
-    const descricaoDoPlano = (() => {
-        const fim = 'Subir ou descer de plano vale a partir do próximo ciclo.'
-        if (!u || u.max === 0) return fim
-        const plural = (n: number) => `${n} unidade${n === 1 ? '' : 's'}`
-        const base =
-            u.adicionais > 0
-                ? `Inclui ${plural(u.doPlano)}, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'} — ${plural(u.max)} no total, ${u.used} em uso.`
-                : `Inclui ${plural(u.doPlano)}, ${u.used} em uso.`
-        /**
-         * O que o adicional inclui aparece **aqui**, uma vez, junto da
-         * contagem de unidades — e não no medidor de crédito, que fala de
-         * saldo. Lido de `ADICIONAL_INCLUI` para a frase não envelhecer sem a
-         * tabela comercial.
-         */
-        const comAdicionais =
-            u.adicionais > 0
-                ? ` Cada adicional soma ${ADICIONAL_INCLUI.maxAgents} agente e` +
-                  ` ${ADICIONAL_INCLUI.maxWhatsAppNumbers} número; o crédito sai da franquia do plano.`
-                : ''
-
-        /**
-         * Quando há downgrade esperando a renovação, a tela **tem** de dizer.
-         *
-         * Sem esta frase ela mostra "Plano Digital" ao lado de seis números de
-         * WhatsApp e deixa quem lê concluir que um dos dois está errado. E o
-         * que ela diz é só o que **cai**: listar o que não muda assustaria à
-         * toa.
-         */
-        if (trocaPendente && renovaEm) {
-            const perde = oQueCai.length ? ` Em ${renovaEm} você passa a ter ${oQueCai.join(', ')} a menos.` : ''
-            return (
-                `${base}${comAdicionais} Você mantém os recursos já pagos até ${renovaEm},` +
-                ` quando o ${planLabel} passa a valer com o preço novo.${perde}`
-            )
-        }
-
-        return `${base}${comAdicionais} ${fim}`
-    })()
+    const descricaoCurtaDasUnidades = !u
+        ? null
+        : u.adicionais > 0
+          ? `${u.doPlano} do plano + ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'}`
+          : 'incluídas no plano'
 
     return (
         <BandLayout>
@@ -815,183 +861,173 @@ export function PlanoTab() {
                 description="O que dá para mudar sem falar com a gente."
             >
               <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
-                <div className="px-5 py-4">
-                    <SettingsRow
-                        title="Forma de pagamento"
-                        description="Troque o cartão que paga a mensalidade."
-                        action={
-                            <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
-                                <CreditCard className="size-4" />
-                                Alterar forma
-                            </Button>
-                        }
-                    />
-                </div>
-                <div className="px-5 py-4">
-                    <SettingsRow
-                        title={
-                            <>
-                                {/* "Plano · Plano atual: Evolução" dizia Plano
-                                    duas vezes. Fica só a informação. */}
-                                <span className="font-normal text-muted-foreground">Plano atual: </span>
-                                <span className="text-primary-subtle-foreground">{planLabel || '—'}</span>
-                                {/* A data da renovação junto do nome, a pedido
-                                    do Andre: é a pergunta seguinte de quem lê o
-                                    plano, e ela estava só em "renova em N dias"
-                                    lá embaixo, no medidor de crédito.
-
-                                    É a data **do gateway** — `currentPeriodEnd`
-                                    passou a vir do `nextDueDate` da assinatura
-                                    no Asaas. Mostrar a nossa conta de 30 dias
-                                    seria anunciar um dia e cobrar outro. */}
-                                {renovaEm ? (
-                                    <>
-                                        <span className="font-normal text-muted-foreground"> · renova em </span>
-                                        <span className="num font-bold">{renovaEm}</span>
-                                    </>
-                                ) : null}
-                            </>
-                        }
-                        /**
-                         * As unidades viraram parte da descrição do plano — eram
-                         * uma linha própria com um botão "Ver unidades", que o
-                         * Andre tirou com um argumento certo: o número de
-                         * unidades **é** uma propriedade do plano contratado e
-                         * dos adicionais, então falar dele aqui é falar de uma
-                         * coisa só, no lugar onde ela já está sendo falada.
-                         */
-                        description={descricaoDoPlano}
-                        action={
-                            <Button variant="outline" onClick={() => setShowPlanModal(true)}>
-                                <ArrowUpDown className="size-4" />
-                                {isTrialing ? 'Contratar plano' : 'Alterar plano'}
-                            </Button>
-                        }
-                    />
-                </div>
-                {/* "Adicionais do plano" e não "Créditos de IA": desde
-                    2026-10-18 há dois adicionais, crédito e unidade, e um botão
-                    só os vende. O medidor continua sendo de crédito, porque
-                    crédito é o único que tem nível — unidade se tem ou não se
-                    tem, e o quanto delas já está dito na linha do plano, acima.
-
-                    O medidor: percentual grande, número pequeno, dinheiro
-                    nenhum. A clínica precisa saber se está perto do fim, não
-                    quanto custa uma resposta — e a conversão de crédito para
-                    resposta não vai para a tela de propósito: publicá-la convida
-                    a dividir a mensalidade por ela. */}
-                <div className="space-y-3 px-5 py-4">
-                    <div className="flex items-end justify-between gap-4">
-                        <div>
-                            <p className="text-sm font-medium">Adicionais do plano</p>
-                            <p className="text-2xl font-semibold num">
-                                {percentualUsado}%{' '}
-                                <span className="text-sm font-normal text-muted-foreground">
-                                    dos créditos usado
-                                </span>
-                            </p>
+                {/* O QUANTO E O QUANDO, antes de tudo.
+                    O card começava pela forma de pagamento e nunca dizia o
+                    valor: mostrava R$ 580,00 dos adicionais e calava a
+                    mensalidade. Agora a primeira linha é a resposta da primeira
+                    pergunta de quem abre uma tela de assinatura. */}
+                <div className="grid gap-4 px-5 py-5 sm:grid-cols-[1fr_auto] sm:items-start">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {isTrialing ? 'Primeira cobrança' : 'Próxima cobrança'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                            {temPlano ? (
+                                <>
+                                    <span className="num text-[2.25rem] font-bold leading-none tracking-tight">
+                                        {formatPrice(mensalidadeTotal)}
+                                    </span>
+                                    <span className="text-sm text-muted-foreground">
+                                        {cobrancaEm ? (
+                                            <>
+                                                em{' '}
+                                                <span className="num font-semibold text-foreground">
+                                                    {cobrancaEm}
+                                                </span>
+                                            </>
+                                        ) : null}
+                                        {formaDePagamento ? ` · ${formaDePagamento}` : null}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-h3 font-semibold">Nenhum plano contratado</span>
+                            )}
                         </div>
-                        <Button
-                            variant="outline"
-                            disabled={!podeComprarAdicionais}
-                            onClick={() => {
-                                setPacoteEscolhido(null)
-                                setUnidadesEscolhidas(0)
-                                setShowCreditsModal(true)
-                            }}
-                        >
-                            <Plus className="size-4" />
-                            Comprar adicionais
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                        <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
+                            <CreditCard className="size-4" />
+                            Alterar forma
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowPlanModal(true)}>
+                            <ArrowUpDown className="size-4" />
+                            {isTrialing || !temPlano ? 'Contratar plano' : 'Alterar plano'}
                         </Button>
                     </div>
+                </div>
 
-                    <div
-                        className="h-2 w-full overflow-hidden rounded-full bg-muted"
-                        role="progressbar"
-                        aria-valuenow={percentualUsado}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-label="Créditos de IA usados no período"
-                    >
-                        <div
-                            className={cn(
-                                'h-full rounded-full transition-all',
-                                percentualUsado >= 90
-                                    ? 'bg-destructive'
-                                    : percentualUsado >= 80
-                                      ? 'bg-warning'
-                                      : 'bg-primary'
-                            )}
-                            style={{ width: `${Math.min(100, percentualUsado)}%` }}
-                        />
-                    </div>
-
-                    {!podeComprarAdicionais ? (
-                        <p className="text-xs text-muted-foreground">
-                            Adicional exige plano ativo. Na avaliação, a franquia é a do plano
-                            que você escolher.
-                        </p>
-                    ) : null}
-
-                    <p className="text-xs text-muted-foreground">
-                        <span className="num">
-                            {creditoUsado.toLocaleString('pt-BR')} de{' '}
-                            {creditoTotal.toLocaleString('pt-BR')}
-                        </span>
-                        {renovaEmDias !== null ? ` · renova em ${renovaEmDias} dia(s)` : null}
-                        {(subscription?.maxSpokenReplies ?? 0) > 0 ? (
-                            <>
-                                {' · '}
-                                <span className="num">
-                                    áudio: {(subscription?.spokenRepliesUsed ?? 0).toLocaleString('pt-BR')} de{' '}
-                                    {(subscription?.maxSpokenReplies ?? 0).toLocaleString('pt-BR')}
+                {/* DO QUE O VALOR É FEITO.
+                    Duas linhas de extrato, porque adicional é contrato à parte:
+                    quem vê R$ 970,00 sem a abertura não sabe o que cancelar
+                    para baixar a conta. */}
+                {temPlano ? (
+                    <div className="px-5 py-4">
+                        <div className="flex items-baseline justify-between gap-4 border-b border-dashed border-border py-2 first:pt-0 last:border-b-0 last:pb-0">
+                            <p className="text-sm">
+                                Plano {planLabel}
+                                <span className="text-muted-foreground">
+                                    {' · '}
+                                    {incluiDoPlano.maxWorkspaces} unidade
+                                    {incluiDoPlano.maxWorkspaces === 1 ? '' : 's'},{' '}
+                                    {incluiDoPlano.maxAgents} agente
+                                    {incluiDoPlano.maxAgents === 1 ? '' : 's'},{' '}
+                                    {incluiDoPlano.maxWhatsAppNumbers} número
+                                    {incluiDoPlano.maxWhatsAppNumbers === 1 ? '' : 's'},{' '}
+                                    {incluiDoPlano.credits.toLocaleString('pt-BR')} créditos
                                 </span>
-                            </>
+                            </p>
+                            <p className="num text-sm font-semibold">{formatPrice(precoDoPlano)}</p>
+                        </div>
+                        {(u?.adicionais ?? 0) > 0 ? (
+                            <div className="flex items-baseline justify-between gap-4 py-2 pb-0">
+                                <p className="text-sm">
+                                    {u?.adicionais} unidade{u?.adicionais === 1 ? '' : 's'} adicional
+                                    {u?.adicionais === 1 ? '' : 'is'}
+                                    <span className="text-muted-foreground">
+                                        {' · '}1 agente e 1 número cada
+                                    </span>
+                                </p>
+                                <p className="num text-sm font-semibold">
+                                    {formatPrice(mensalDosAdicionais)}
+                                </p>
+                            </div>
                         ) : null}
-                    </p>
+                    </div>
+                ) : null}
 
-                    {/* Duas caixas d'água, e só duas.
-                        Esta linha chegou a decompor a franquia por origem —
-                        tanto do plano, tanto de cada unidade adicional, tanto
-                        avulso. Decisão do Andre em 2026-10-19: isso vira
-                        bagunça para quem paga. O que importa a quem lê é
-                        quanto tem e até quando vale, e são **duas** respostas:
-                        a franquia, que zera na renovação, e o avulso, que
-                        vence por lote. De onde a franquia veio é assunto do
-                        contrato do adicional, não do medidor. */}
-                    {creditoTotal > 0 ? (
+                {/* O AVISO DA VIRADA, em faixa própria.
+                    Estava no meio de um parágrafo de quatro linhas dentro da
+                    descrição do plano — é o fato que mais muda a operação da
+                    clínica, e por isso fica colado no valor que ele explica. */}
+                {trocaPendente && renovaEm ? (
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 bg-muted px-5 py-3">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-subtle px-2.5 py-1 text-xs font-semibold text-warning-subtle-foreground">
+                            <AlertTriangle className="size-3.5" />
+                            Troca em {renovaEm}
+                        </span>
                         <p className="text-xs text-muted-foreground">
-                            <span className="num">
-                                {(subscription?.credits ?? 0).toLocaleString('pt-BR')}
-                            </span>{' '}
-                            de franquia
-                            {renovaEm
+                            Até lá valem os recursos que você já pagou. Nessa cobrança você passa a
+                            ter {oQueCai.join(', ')} a menos.
+                        </p>
+                    </div>
+                ) : null}
+
+                {/* O CONSUMO, uma célula por carteira.
+                    As duas de crédito não se somam aqui: cada uma tem a sua
+                    regra de validade, e é a validade que decide o que gastar
+                    primeiro. A barra fina existe só para o "estou perto do
+                    fim?" — o percentual em 24px dizia menos que o número. */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4">
+                    <MedidorDeConsumo
+                        rotulo="Crédito do plano"
+                        usado={planoUsado}
+                        total={planoTotal}
+                        nota={
+                            renovaEm
                                 ? trocaPendente
-                                    ? `, já paga e válida até ${renovaEm}`
-                                    : `, renovada em ${renovaEm}`
-                                : null}
-                            {creditoAvulso > 0 ? (
-                                <>
-                                    {' + '}
-                                    <span className="num">{creditoAvulso.toLocaleString('pt-BR')}</span>{' '}
-                                    avulsos{venceEm ? `, válidos até ${venceEm}` : ''}
-                                </>
-                            ) : null}
-                            .
-                        </p>
-                    ) : null}
+                                    ? `pago até ${renovaEm}`
+                                    : `renova em ${renovaEm}`
+                                : null
+                        }
+                        className="border-b border-border sm:border-r lg:border-b-0"
+                    />
+                    <MedidorDeConsumo
+                        rotulo="Crédito avulso"
+                        usado={avulsoUsado}
+                        total={avulsoTotal}
+                        nota={venceEm ? `expira em ${venceEm}` : 'nenhum lote comprado'}
+                        className="border-b border-border lg:border-b-0 lg:border-r"
+                    />
+                    <MedidorDeConsumo
+                        rotulo="Respostas em áudio"
+                        usado={subscription?.spokenRepliesUsed ?? 0}
+                        total={subscription?.maxSpokenReplies ?? 0}
+                        nota={renovaEm ? `renova em ${renovaEm}` : null}
+                        className="border-b border-border sm:border-r sm:border-b-0"
+                    />
+                    <MedidorDeConsumo
+                        rotulo="Unidades em uso"
+                        usado={u?.used ?? 0}
+                        total={u?.max ?? 0}
+                        nota={descricaoCurtaDasUnidades}
+                        semBarra
+                    />
+                </div>
 
-                    {/* O outro adicional, que não tem medidor: o que as unidades
-                        contratadas somam à mensalidade. Fica aqui porque é
-                        dinheiro recorrente, e dinheiro recorrente é a informação
-                        que a pessoa procura nesta faixa. */}
-                    {mensalDosAdicionais > 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                            <span className="num">{formatPrice(mensalDosAdicionais)}</span> por mês em{' '}
-                            {u?.adicionais} unidade{u?.adicionais === 1 ? '' : 's'} adicional
-                            {u?.adicionais === 1 ? '' : 'is'}.
-                        </p>
-                    ) : null}
+                {/* COMPRAR, no fim, onde a pessoa chega depois de ver o que
+                    tem. O botão nasce desabilitado quando o servidor vai
+                    recusar, com a razão ao lado. */}
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                    <p className="text-sm">
+                        Adicionais
+                        <span className="block text-xs text-muted-foreground">
+                            {podeComprarAdicionais
+                                ? 'Pacotes de crédito com 90 dias de validade, ou mais uma unidade com agente e número.'
+                                : 'Exige plano ativo. Na avaliação, a franquia é a do plano que você escolher.'}
+                        </span>
+                    </p>
+                    <Button
+                        variant="outline"
+                        disabled={!podeComprarAdicionais}
+                        onClick={() => {
+                            setPacoteEscolhido(null)
+                            setUnidadesEscolhidas(0)
+                            setShowCreditsModal(true)
+                        }}
+                    >
+                        <Plus className="size-4" />
+                        Comprar adicionais
+                    </Button>
                 </div>
               </div>
             </SettingsBand>
