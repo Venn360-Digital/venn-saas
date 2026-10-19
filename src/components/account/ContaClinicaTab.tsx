@@ -77,7 +77,16 @@ interface Conta {
     billingPhone: string | null
     souMaster: boolean
     plano: string | null
-    unidades: { used: number; max: number; remaining: number; doPlano: number; adicionais: number }
+    unidades: {
+        used: number
+        max: number
+        remaining: number
+        doPlano: number
+        adicionais: number
+        cancelados: number
+        maxDepois: number
+        livres: number
+    }
 }
 
 interface Unidades {
@@ -372,7 +381,16 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
     }
 
     const u = conta?.unidades
-    const cabeMais = (u?.remaining ?? 0) > 0
+    /**
+     * "Cabe mais" é o que **ainda caberá depois da renovação**, não o teto de
+     * hoje.
+     *
+     * Com contratação cancelada de pé, o teto de hoje comporta uma clínica que
+     * some em trinta dias — e o servidor recusa a criação por isso. Usar
+     * `remaining` aqui ofereceria um botão que a rota fecha; `livres` é o
+     * mesmo número dos dois lados.
+     */
+    const cabeMais = (u?.livres ?? 0) > 0
 
     return (
         <BandLayout
@@ -629,13 +647,25 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                               (u.adicionais > 0
                                   ? `, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'}.`
                                   : '.') +
-                              ' Cada adicional soma 1 agente e 1 número.'
+                              ' Cada adicional soma 1 agente e 1 número.' +
+                              /* O que a frase escondia: contratação cancelada
+                                 continua valendo até a renovação e some depois.
+                                 Sem dizer isso, quem lê "3 adicionais" conta
+                                 vagas que vão evaporar — foi o que o Andre
+                                 apontou na homologação. */
+                              (u.cancelados > 0
+                                  ? ` ${u.cancelados} contratação${u.cancelados === 1 ? '' : 'ões'} ` +
+                                    `cancelada${u.cancelados === 1 ? '' : 's'} vale${u.cancelados === 1 ? '' : 'm'} ` +
+                                    `até a renovação; depois dela a conta comporta ${u.maxDepois} ` +
+                                    `unidade${u.maxDepois === 1 ? '' : 's'}.`
+                                  : '')
                             : 'Cada clínica tem pacientes, agenda e conversas próprios.'
                     }
                     aside={
                         u ? (
                             <span className="num text-xs font-semibold text-muted-foreground">
                                 {u.used} de {u.max}
+                                {u.maxDepois !== u.max ? ` · ${u.maxDepois} após a renovação` : ''}
                             </span>
                         ) : undefined
                     }

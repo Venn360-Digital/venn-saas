@@ -80,6 +80,23 @@ export interface Unidades {
     adicionais: number
     /** Dessas, quantas já foram canceladas e valem só até a renovação. */
     cancelados: number
+    /**
+     * O teto **depois da renovação**, quando as canceladas deixarem de valer.
+     *
+     * Sem este número a tela conta uma meia-verdade: "2 de 4" é o teto de
+     * hoje, e uma das vagas livres evapora em trinta dias. Quem lê planeja
+     * abrir duas clínicas e descobre o contrário na virada.
+     */
+    maxDepois: number
+    /**
+     * Quantas clínicas dá para abrir **agora** sem criar uma que não caiba
+     * depois da renovação.
+     *
+     * É o número que o botão "Nova unidade" obedece, e é o mesmo que o
+     * servidor cobra na criação — com dois critérios diferentes a tela
+     * ofereceria uma porta que a rota fecha.
+     */
+    livres: number
 }
 
 /**
@@ -138,6 +155,14 @@ export async function unidadesDaConta(accountId: string): Promise<Unidades> {
     const doPlano = limitsFor(subscription?.plan).maxWorkspaces
     const max = tetoDeUnidades(subscription?.plan, adicionais)
 
+    /**
+     * O teto de depois da renovação: as canceladas saem da conta.
+     *
+     * O plano não precisa do mesmo cuidado — num downgrade pendente a coluna
+     * `plan` já guarda o plano novo, então este teto já é o de depois.
+     */
+    const maxDepois = tetoDeUnidades(subscription?.plan, adicionais - cancelados)
+
     return {
         used,
         max,
@@ -145,6 +170,8 @@ export async function unidadesDaConta(accountId: string): Promise<Unidades> {
         doPlano,
         adicionais,
         cancelados,
+        maxDepois,
+        livres: Math.max(0, Math.min(max, maxDepois) - used),
     }
 }
 

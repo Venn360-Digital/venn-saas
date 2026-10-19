@@ -137,6 +137,10 @@ interface SubscriptionData {
         adicionais: number
         /** Contratações já canceladas que ainda valem até a renovação. */
         cancelados: number
+        /** O teto depois da renovação, quando as canceladas saírem. */
+        maxDepois: number
+        /** Quantas clínicas dá para abrir sem criar uma que não caiba depois. */
+        livres: number
     }
     /** O que o plano vigente daria, com os adicionais somados. */
     efetivos?: {
@@ -1392,7 +1396,7 @@ export function PlanoTab() {
                 open={showUnidadesModal}
                 onOpenChange={setShowUnidadesModal}
                 title="Alterar unidades"
-                description="Unidades contratadas, quem ocupa cada uma e o que isso custa por mês."
+                description="O que você contratou, qual clínica ocupa cada contratação e quanto isso custa por mês."
                 hideAgain
                 submitLabel="Fechar"
                 onSubmit={() => setShowUnidadesModal(false)}
@@ -1401,10 +1405,17 @@ export function PlanoTab() {
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span className="num text-2xl font-bold leading-none">{u?.max ?? 0}</span>
                         <span className="text-sm text-muted-foreground">
-                            unidades contratadas ·{' '}
+                            contratações ·{' '}
                             <strong className="text-foreground">{u?.used ?? 0} cadastradas</strong>
-                            {(u?.remaining ?? 0) > 0
-                                ? ` · ${u?.remaining} disponível${u?.remaining === 1 ? '' : 'is'}`
+                            {/* Disponível é o que dá para usar; cancelada é o
+                                que vai sumir. Somar as duas num número só
+                                ("2 disponíveis") contradizia as linhas logo
+                                abaixo, que mostram uma de cada. */}
+                            {(u?.livres ?? 0) > 0
+                                ? ` · ${u?.livres} disponível${u?.livres === 1 ? '' : 'is'}`
+                                : null}
+                            {(u?.cancelados ?? 0) > 0
+                                ? ` · ${u?.cancelados} cancelada${u?.cancelados === 1 ? '' : 's'}`
                                 : null}
                         </span>
                         {mensalDosAdicionais > 0 ? (
@@ -1532,18 +1543,22 @@ export function PlanoTab() {
                             "vaga livre" e "devolver a vaga" saíram a pedido
                             dele. Contrata-se uma unidade adicional; cadastra-se
                             a clínica que a ocupa; cancela-se a contratação. */}
-                        {Array.from({
-                            length: Math.max(0, (u?.remaining ?? 0) - (u?.cancelados ?? 0)),
-                        }).map((_, i) => (
+                        {Array.from({ length: Math.max(0, u?.livres ?? 0) }).map((_, i) => (
                             <div
                                 key={`disponivel-${i}`}
                                 className="rounded-lg border border-dashed border-border bg-muted/40 p-4"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-semibold">Unidade adicional</span>
-                                        <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-xs font-semibold text-warning-subtle-foreground">
-                                            contratada, sem clínica
+                                        {/* Contratação, não unidade. A clínica
+                                            não nasce do contrato — nasce de um
+                                            clique em Nova unidade. Chamar a
+                                            linha vazia de "unidade" é o mesmo
+                                            embaralhamento que esta tela existe
+                                            para desfazer. */}
+                                        <span className="font-semibold">Contratação adicional</span>
+                                        <span className="rounded-full bg-success-subtle px-2.5 py-1 text-xs font-semibold text-success-subtle-foreground">
+                                            livre para uma clínica
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1564,9 +1579,9 @@ export function PlanoTab() {
                                     </div>
                                 </div>
                                 <p className="mt-2.5 text-xs text-muted-foreground">
-                                    Você paga por esta unidade e ainda não cadastrou a clínica dela.
-                                    Para usá-la, crie a unidade em Conta da Clínica — ou cancele a
-                                    contratação e a mensalidade cai na renovação
+                                    Você paga por esta contratação e ainda não criou a clínica que
+                                    vai ocupá-la. Crie em Conta da Clínica → Nova unidade — ou
+                                    cancele a contratação, e a mensalidade cai na renovação
                                     {renovaEm ? `, em ${renovaEm}` : ''}.
                                 </p>
                             </div>
@@ -1584,9 +1599,9 @@ export function PlanoTab() {
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-semibold">Unidade adicional</span>
+                                        <span className="font-semibold">Contratação adicional</span>
                                         <span className="rounded-full bg-destructive-subtle px-2.5 py-1 text-xs font-semibold text-destructive-subtle-foreground">
-                                            contratação cancelada
+                                            cancelada
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1605,8 +1620,9 @@ export function PlanoTab() {
                                 </div>
                                 <p className="mt-2.5 text-xs text-muted-foreground">
                                     Continua valendo até {renovaEm ?? 'a renovação'}, porque o ciclo
-                                    já está pago. A partir daí ela deixa de ser cobrada e o teto da
-                                    conta diminui. Restaurar enquanto não renova não custa nada.
+                                    já está pago — e dá para abrir uma clínica nela até lá, embora
+                                    ela perca a vaga na virada. A partir daí deixa de ser cobrada e
+                                    o teto da conta diminui. Restaurar não custa nada.
                                 </p>
                             </div>
                         ))}

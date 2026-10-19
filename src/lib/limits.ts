@@ -94,6 +94,8 @@ export async function getWorkspaceLimits(workspaceId: string): Promise<Workspace
                   doPlano: 0,
                   adicionais: 0,
                   cancelados: 0,
+                  maxDepois: 0,
+                  livres: 0,
               }),
     ])
 

@@ -231,6 +231,14 @@ export async function POST(request: NextRequest) {
             ])
 
             /**
+             * A contagem é refeita **dentro da transação**, e não lida de
+             * `unidadesDaConta`, embora a conta seja a mesma: conferir fora e
+             * criar dentro reabre a corrida que esta transação existe para
+             * fechar — dois cliques, duas conferências que passam, duas
+             * unidades numa conta que cabe uma.
+             */
+
+            /**
              * Duas contas, e vale a **menor**.
              *
              * O teto de hoje conta a contratação cancelada, que ainda vale até
