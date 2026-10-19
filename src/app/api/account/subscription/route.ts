@@ -6,7 +6,7 @@ import {
     purchaseExpiry,
     spokenRepliesLeft,
 } from '@/lib/billing'
-import { isPlanId, tetoDeUnidades } from '@/lib/plan-limits'
+import { ADICIONAL_INCLUI, isPlanId, limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
 import { criarCheckoutDePlano } from '@/lib/asaas/checkout'
 import { regimeDaConta } from '@/lib/asaas/cobranca'
 import { AsaasError } from '@/lib/asaas/client'
@@ -154,6 +154,17 @@ export async function GET() {
             creditPacks: CREDIT_PACKS,
             /** Franquia e avulso somados, para o medidor não contradizer a sidebar. */
             creditos: estado.credits,
+            /**
+             * O que o plano vigente **daria**, com os adicionais somados.
+             *
+             * A tela compara com o que está guardado na assinatura para
+             * descobrir, sem coluna nenhuma, que há um downgrade esperando a
+             * renovação: teto guardado maior que o do plano vigente só acontece
+             * nesse caso. É o que permite a tela dizer "você está no Digital,
+             * com os recursos do plano anterior até 18/11" em vez de mostrar
+             * Digital e números de Multiclínica sem explicar.
+             */
+            efetivos: limitesEfetivos(subscription.plan, unidades.adicionais),
             /**
              * As unidades da conta, junto do resto da franquia.
              *
@@ -592,6 +603,36 @@ export async function POST(request: NextRequest) {
                                 accountId,
                                 priceCents: Math.round(UNIDADE_ADICIONAL.price * 100),
                             })),
+                        })
+
+                        /**
+                         * A capacidade entra **na hora**, somada ao que já há.
+                         *
+                         * Sem isto, quem pagasse R$ 290 só receberia os 10.000
+                         * créditos e o agente na renovação seguinte — pagou
+                         * hoje, recebe em trinta dias. O defeito passou
+                         * despercebido porque a franquia só era recalculada ao
+                         * aplicar um plano.
+                         *
+                         * **Somado, e não recalculado pela tabela**: uma conta
+                         * que desceu de plano mantém a franquia paga até a
+                         * renovação, e recalcular aqui a derrubaria no meio do
+                         * ciclo — tirando dela justamente o que a regra do
+                         * downgrade promete preservar.
+                         */
+                        await tx.subscription.updateMany({
+                            where: { accountId },
+                            data: {
+                                credits: { increment: unidadesPedidas * ADICIONAL_INCLUI.credits },
+                                maxMessages: { increment: unidadesPedidas * ADICIONAL_INCLUI.maxMessages },
+                                maxAgents: { increment: unidadesPedidas * ADICIONAL_INCLUI.maxAgents },
+                                maxWhatsAppNumbers: {
+                                    increment: unidadesPedidas * ADICIONAL_INCLUI.maxWhatsAppNumbers,
+                                },
+                                maxSpokenReplies: {
+                                    increment: unidadesPedidas * ADICIONAL_INCLUI.maxSpokenReplies,
+                                },
+                            },
                         })
                     }
                 })

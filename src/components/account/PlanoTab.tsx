@@ -1,6 +1,7 @@
 'use client'
 
 import { UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
+import { ADICIONAL_INCLUI } from '@/lib/plan-limits'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,7 @@ interface SubscriptionData {
     status: string
     maxAgents: number
     maxMessages: number
+    maxWhatsAppNumbers: number
     credits: number
     creditsUsed: number
     maxSpokenReplies: number
@@ -55,6 +57,15 @@ interface SubscriptionData {
         exhausted: boolean
     }
     unidades: { used: number; max: number; remaining: number; doPlano: number; adicionais: number }
+    /** O que o plano vigente daria, com os adicionais somados. */
+    efetivos?: {
+        maxWorkspaces: number
+        maxAgents: number
+        maxWhatsAppNumbers: number
+        credits: number
+        maxMessages: number
+        maxSpokenReplies: number
+    }
 }
 
 interface PlanConfig {
@@ -510,29 +521,6 @@ export function PlanoTab() {
 
     const u = subscription?.unidades
 
-    /**
-     * O que o plano dá em unidades, em uma linha, na voz de quem paga.
-     *
-     * Montada aqui e não no JSX porque são três casos e cada um pede uma frase
-     * diferente: sem adicional, com adicional, e o plano que ainda não existe.
-     * Um ternário aninhado dentro do atributo esconderia justamente a parte que
-     * alguém vai querer reler.
-     */
-    const descricaoDoPlano = (() => {
-        const fim = 'Subir ou descer de plano vale a partir do próximo ciclo.'
-        if (!u || u.max === 0) return fim
-        const plural = (n: number) => `${n} unidade${n === 1 ? '' : 's'}`
-        const base =
-            u.adicionais > 0
-                ? `Inclui ${plural(u.doPlano)}, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'} — ${plural(u.max)} no total, ${u.used} em uso.`
-                : `Inclui ${plural(u.doPlano)}, ${u.used} em uso.`
-        const comAdicionais =
-            u.adicionais > 0
-                ? ` Cada adicional soma 1 agente, 1 número e 10.000 créditos à franquia.`
-                : ''
-        return `${base}${comAdicionais} ${fim}`
-    })()
-
     /** Quanto os adicionais de unidade somam por mês. */
     const mensalDosAdicionais = (u?.adicionais ?? 0) * UNIDADE_ADICIONAL.price
 
@@ -604,6 +592,45 @@ export function PlanoTab() {
           })
         : null
 
+    /**
+     * O que está guardado contra o que o plano vigente daria.
+     *
+     * Teto guardado **maior** que o do plano só acontece num caso: a conta
+     * desceu de plano e mantém, até a renovação, os recursos que já pagou.
+     * Descobrir assim dispensa coluna de "plano agendado" — foi a simplificação
+     * que o Andre pediu — e deixa a tela explicar em vez de mostrar "Plano
+     * Digital" ao lado de números de Multiclínica sem dizer por quê.
+     */
+    const ef = subscription?.efetivos
+    const aMais = ef
+        ? {
+            agentes: (subscription?.maxAgents ?? 0) - ef.maxAgents,
+            numeros: (subscription?.maxWhatsAppNumbers ?? 0) - ef.maxWhatsAppNumbers,
+            creditos: (subscription?.credits ?? 0) - ef.credits,
+            audio: (subscription?.maxSpokenReplies ?? 0) - ef.maxSpokenReplies,
+        }
+        : null
+    const trocaPendente = Boolean(
+        aMais && (aMais.agentes > 0 || aMais.numeros > 0 || aMais.creditos > 0 || aMais.audio > 0)
+    )
+
+    /**
+     * O que muda na virada, em palavras.
+     *
+     * Só o que **cai** entra na frase: com dois adicionais, descer de
+     * Multiclínica para Digital não mexe em crédito nem em agentes (30.000 e 3
+     * dos dois jeitos) — o que cai são números e áudio. Listar o que não muda
+     * assustaria à toa.
+     */
+    const oQueCai = !aMais
+        ? []
+        : [
+            aMais.agentes > 0 ? `${aMais.agentes} agente(s)` : null,
+            aMais.numeros > 0 ? `${aMais.numeros} número(s) de WhatsApp` : null,
+            aMais.creditos > 0 ? `${aMais.creditos.toLocaleString('pt-BR')} créditos` : null,
+            aMais.audio > 0 ? `${aMais.audio.toLocaleString('pt-BR')} respostas em áudio` : null,
+        ].filter(Boolean)
+
     /** A data da renovação, por extenso curto: "19/11/2026". */
     const renovaEm = subscription?.currentPeriodEnd
         ? new Date(subscription.currentPeriodEnd).toLocaleDateString('pt-BR', {
@@ -620,8 +647,61 @@ export function PlanoTab() {
           )
         : null
 
+    /**
+     * A franquia, separada por origem.
+     *
+     * O que estava escrito como "30.000 do plano" eram 10.000 do plano e
+     * 20.000 de dois adicionais — a tela creditava ao plano uma capacidade que
+     * o cliente comprou à parte. São origens com regras diferentes: a do plano
+     * acompanha a troca de plano, a do adicional só sai se o adicional for
+     * cancelado, e a avulsa vence por lote.
+     */
+    const creditoDeAdicionais = (u?.adicionais ?? 0) * ADICIONAL_INCLUI.credits
+    const creditoDoPlano = Math.max(0, (subscription?.credits ?? 0) - creditoDeAdicionais)
+    const creditoAvulso = subscription?.creditos?.purchased.total ?? 0
+
     /** "Plano Evolução" vira "Evolução": o rótulo ao lado já diz "Plano". */
     const planLabel = (subscription?.planName ?? '').replace(/^Plano\s+/i, '')
+
+    /**
+     * O que o plano dá em unidades, em uma linha, na voz de quem paga.
+     *
+     * Montada aqui e não no JSX porque são três casos e cada um pede uma frase
+     * diferente: sem adicional, com adicional, e o plano que ainda não existe.
+     * Um ternário aninhado dentro do atributo esconderia justamente a parte que
+     * alguém vai querer reler.
+     */
+    const descricaoDoPlano = (() => {
+        const fim = 'Subir ou descer de plano vale a partir do próximo ciclo.'
+        if (!u || u.max === 0) return fim
+        const plural = (n: number) => `${n} unidade${n === 1 ? '' : 's'}`
+        const base =
+            u.adicionais > 0
+                ? `Inclui ${plural(u.doPlano)}, e você contratou ${u.adicionais} adicional${u.adicionais === 1 ? '' : 'is'} — ${plural(u.max)} no total, ${u.used} em uso.`
+                : `Inclui ${plural(u.doPlano)}, ${u.used} em uso.`
+        const comAdicionais =
+            u.adicionais > 0
+                ? ` Cada adicional soma 1 agente, 1 número e 10.000 créditos à franquia.`
+                : ''
+
+        /**
+         * Quando há downgrade esperando a renovação, a tela **tem** de dizer.
+         *
+         * Sem esta frase ela mostra "Plano Digital" ao lado de seis números de
+         * WhatsApp e deixa quem lê concluir que um dos dois está errado. E o
+         * que ela diz é só o que **cai**: listar o que não muda assustaria à
+         * toa.
+         */
+        if (trocaPendente && renovaEm) {
+            const perde = oQueCai.length ? ` Em ${renovaEm} você passa a ter ${oQueCai.join(', ')} a menos.` : ''
+            return (
+                `${base}${comAdicionais} Você mantém os recursos já pagos até ${renovaEm},` +
+                ` quando o ${planLabel} passa a valer com o preço novo.${perde}`
+            )
+        }
+
+        return `${base}${comAdicionais} ${fim}`
+    })()
 
     return (
         <BandLayout>
@@ -877,16 +957,46 @@ export function PlanoTab() {
                         franquia renova e o lote avulso vence — somá-los sem
                         dizer qual é qual deixaria a clínica sem entender por que
                         o número cai de uma vez no dia do vencimento. */}
-                    {(subscription?.creditos?.purchased.total ?? 0) > 0 ? (
+                    {/* De onde vem o total — e a parte que vinha mentindo.
+                        Dizer "30.000 do plano" escondia que 20.000 deles vêm
+                        dos adicionais, e que a franquia pode ser a do plano
+                        anterior, preservada até a renovação. São três origens
+                        com regras diferentes: a do plano renova, a do adicional
+                        renova junto, a avulsa vence. */}
+                    {creditoTotal > 0 ? (
                         <p className="text-xs text-muted-foreground">
-                            <span className="num">
-                                {(subscription?.creditos?.plan.total ?? 0).toLocaleString('pt-BR')}
-                            </span>{' '}
-                            do plano +{' '}
-                            <span className="num">
-                                {(subscription?.creditos?.purchased.total ?? 0).toLocaleString('pt-BR')}
-                            </span>{' '}
-                            avulsos{venceEm ? `, válidos até ${venceEm}` : null}.
+                            {trocaPendente ? (
+                                <>
+                                    <span className="num">
+                                        {(subscription?.credits ?? 0).toLocaleString('pt-BR')}
+                                    </span>{' '}
+                                    da franquia já paga, válida até {renovaEm}
+                                </>
+                            ) : (
+                                <>
+                                    <span className="num">{creditoDoPlano.toLocaleString('pt-BR')}</span>{' '}
+                                    do {planLabel}
+                                    {creditoDeAdicionais > 0 ? (
+                                        <>
+                                            {' + '}
+                                            <span className="num">
+                                                {creditoDeAdicionais.toLocaleString('pt-BR')}
+                                            </span>{' '}
+                                            de {u?.adicionais} unidade
+                                            {u?.adicionais === 1 ? '' : 's'} adicional
+                                            {u?.adicionais === 1 ? '' : 'is'}
+                                        </>
+                                    ) : null}
+                                </>
+                            )}
+                            {creditoAvulso > 0 ? (
+                                <>
+                                    {' + '}
+                                    <span className="num">{creditoAvulso.toLocaleString('pt-BR')}</span>{' '}
+                                    avulsos{venceEm ? `, válidos até ${venceEm}` : ''}
+                                </>
+                            ) : null}
+                            .
                         </p>
                     ) : null}
 
