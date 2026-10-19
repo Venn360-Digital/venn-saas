@@ -607,6 +607,23 @@ ninguém sabe qual está certo.
 | Venn360 | **vitalícia** (`billingExempt`): é a conta de teste do produto |
 | Implante Ja | cobrada **a partir de 27/10/2026** (`billingStartsAt`) |
 
+### O adicional é contrato à parte, e só o cliente o encerra
+
+Decidido em 2026-10-19, ao ver o Multiclínica cobrar R$ 1.470 — R$ 890 do plano
+mais 2 × R$ 290 de adicionais — numa conta que usa 2 das 3 unidades que o plano
+já inclui.
+
+**A soma continua.** Subir de plano **não** absorve adicional já contratado,
+mesmo quando o plano novo cobriria aquelas unidades: às vezes a clínica precisa
+dos dois, e cancelar o que ela pagou sem ela pedir é decidir pelo bolso dos
+outros. O teto, afinal, é "o que o plano inclui **mais** os adicionais" — a soma
+é a regra, não um efeito colateral dela.
+
+A consequência é que o cliente precisa de um jeito de **cancelar adicional**,
+assim como já pode cancelar o plano. Isso é da fase 4 (ciclo de vida), junto do
+cancelamento da assinatura — e é a primeira vez que a fase 4 ganha escopo que
+não veio de inadimplência.
+
 ### Por que checkout hospedado, e não tokenização
 
 O Asaas oferece os dois. `POST /v3/creditCard/tokenizeCreditCard` recebe o
