@@ -113,7 +113,13 @@ interface SubscriptionData {
     }
     creditPacks: { credits: number; price: number; discount: number; pitch: string }[]
     /** Os cartões que já pagaram algo desta conta — é entre eles que se troca. */
-    cartoes?: { id: string; asaasToken: string; brand: string | null; last4: string | null }[]
+    cartoes?: {
+        id: string
+        asaasToken: string
+        brand: string | null
+        last4: string | null
+        isDefault: boolean
+    }[]
     /** Franquia e avulso somados — a mesma conta que a sidebar mostra. */
     creditos?: {
         plan: { total: number; used: number; remaining: number }
@@ -886,6 +892,10 @@ export function PlanoTab() {
      * protege quem sabe dela: avisar "em atraso" sem dizer até quando é susto
      * sem instrução.
      */
+    /** A cobrança que ainda dá para pagar — é por ela que um cartão novo entra. */
+    const faturaEmAberto =
+        cobrancas.find((c) => c.status === 'OVERDUE' || c.status === 'PENDING')?.invoiceUrl ?? null
+
     const emAtraso = subscription?.status === 'past_due'
     const carenciaAte = subscription?.graceEndsAt
         ? new Date(subscription.graceEndsAt).toLocaleDateString('pt-BR', {
@@ -1732,7 +1742,7 @@ export function PlanoTab() {
                 onOpenChange={setShowPaymentModal}
                 title="Forma de pagamento"
                 description="O cartão que cobra a mensalidade, e como pagar o resto."
-                submitLabel="Usar este cartão"
+                submitLabel="Tornar padrão"
                 submitDisabled={!cartaoEscolhido || processing}
                 submitting={processing}
                 onSubmit={() => { void handleSetCard() }}
@@ -1752,9 +1762,10 @@ export function PlanoTab() {
                         {(subscription?.cartoes?.length ?? 0) > 0 ? (
                             <div className="mt-3 divide-y divide-border overflow-hidden rounded-lg border border-border">
                                 {subscription?.cartoes?.map((c) => {
-                                    const emUso =
-                                        subscription?.paymentMethod?.last4 === (c.last4 ?? '') &&
-                                        subscription?.paymentMethod?.brand === (c.brand ?? '')
+                                    /* Quem é o padrão vem gravado, e não de
+                                       comparar bandeira e quatro dígitos: dois
+                                       "Visa ••••4242" empatariam na comparação. */
+                                    const emUso = c.isDefault
                                     return (
                                         <label
                                             key={c.id}
@@ -1776,7 +1787,7 @@ export function PlanoTab() {
                                             </span>
                                             {emUso ? (
                                                 <span className="ml-auto rounded-full bg-success-subtle px-2 py-0.5 text-[11px] font-semibold text-success-subtle-foreground">
-                                                    em uso
+                                                    padrão
                                                 </span>
                                             ) : null}
                                         </label>
@@ -1794,12 +1805,47 @@ export function PlanoTab() {
                             A frase é curta de propósito: quem abre esta tela
                             quer trocar o cartão, não ler sobre PCI. O que ela
                             precisa saber é **como** o cartão novo entra. */}
-                        <p className="mt-3 text-xs text-muted-foreground">
-                            Um cartão novo entra pagando: na próxima cobrança, escolha
-                            &ldquo;cartão de crédito&rdquo; na página do Asaas e use o cartão que
-                            quiser — ele aparece aqui depois. O número do cartão nunca passa pelo
-                            OdontoBox360.
-                        </p>
+                        {/* COMO UM CARTÃO NOVO ENTRA.
+                            Não há campo de número aqui, e não é limitação de
+                            prazo: o número do cartão nunca passa por esta
+                            aplicação (ver PRODUCT.md §13). O cartão se cadastra
+                            **pagando** — é assim que o Asaas nos devolve um
+                            token, e é com o token que a troca acontece.
+
+                            Quando existe cobrança em aberto, o caminho é um
+                            clique; quando não existe, a frase diz quando vai
+                            existir, em vez de prometer um botão que não há. */}
+                        <div className="mt-3 rounded-lg bg-muted p-3">
+                            <p className="text-xs font-semibold">Adicionar outro cartão</p>
+                            {faturaEmAberto ? (
+                                <>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Pague a cobrança em aberto com o cartão novo: ele passa a
+                                        aparecer nesta lista e pode virar o padrão.
+                                    </p>
+                                    <a
+                                        href={faturaEmAberto}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mt-2 inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 text-[13px] font-semibold hover:bg-accent"
+                                    >
+                                        <CreditCard className="size-4" />
+                                        Pagar com outro cartão
+                                    </a>
+                                </>
+                            ) : (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Sem cobrança em aberto agora. Na próxima — a renovação de{' '}
+                                    {renovaEm ?? 'cada mês'} — escolha &ldquo;cartão de
+                                    crédito&rdquo; na página do Asaas e use o cartão que quiser:
+                                    ele aparece aqui depois.
+                                </p>
+                            )}
+                            <p className="mt-2 text-[11px] text-muted-foreground">
+                                O número do cartão nunca passa pelo OdontoBox360 — quem o recebe é
+                                a página do Asaas.
+                            </p>
+                        </div>
                     </div>
 
                     {/* AS COMPRAS AVULSAS: três meios, e a diferença entre eles

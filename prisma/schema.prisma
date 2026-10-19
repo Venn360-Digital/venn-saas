@@ -319,6 +319,10 @@ model PaymentCard {
   brand      String?
   last4      String?
 
+  /// O que cobra a mensalidade hoje. Um por conta, garantido por índice único
+  /// parcial — a rota sozinha não resolve duas abas marcando ao mesmo tempo.
+  isDefault  Boolean @default(false)
+
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 

@@ -154,7 +154,7 @@ export async function GET() {
                 ? await prisma.paymentCard.findMany({
                 where: { accountId },
                 orderBy: { lastSeenAt: 'desc' },
-                select: { id: true, asaasToken: true, brand: true, last4: true },
+                select: { id: true, asaasToken: true, brand: true, last4: true, isDefault: true },
                   })
                 : [],
             trialEndsAt: subscription.trialEndsAt,
@@ -943,16 +943,32 @@ export async function POST(request: NextRequest) {
                  * cobrança seguiria no antigo — e ninguém desconfiaria até a
                  * fatura.
                  */
-                await prisma.subscription.updateMany({
-                    where: { accountId },
-                    data: {
-                        paymentMethod: {
-                            type: 'credit_card',
-                            brand: cartao.brand ?? '',
-                            last4: cartao.last4 ?? '',
+                await prisma.$transaction([
+                    /**
+                     * O padrão é único por conta, e o banco garante isso com um
+                     * índice parcial. Limpar antes de marcar é o que mantém a
+                     * transação válida — e numa transação, porque entre as duas
+                     * escritas a conta ficaria sem cartão padrão nenhum.
+                     */
+                    prisma.paymentCard.updateMany({
+                        where: { accountId, isDefault: true },
+                        data: { isDefault: false },
+                    }),
+                    prisma.paymentCard.update({
+                        where: { asaasToken: cartao.asaasToken },
+                        data: { isDefault: true },
+                    }),
+                    prisma.subscription.updateMany({
+                        where: { accountId },
+                        data: {
+                            paymentMethod: {
+                                type: 'credit_card',
+                                brand: cartao.brand ?? '',
+                                last4: cartao.last4 ?? '',
+                            },
                         },
-                    },
-                })
+                    }),
+                ])
 
                 return NextResponse.json({
                     success: true,
