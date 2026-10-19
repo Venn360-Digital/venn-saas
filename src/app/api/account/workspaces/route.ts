@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@/lib/account'
+import { adicionaisCobraveis, adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@/lib/account'
 import { tetoDeUnidades } from '@/lib/plan-limits'
 import { planFor } from '@/lib/plans'
 
@@ -17,7 +17,19 @@ import { planFor } from '@/lib/plans'
 
 /** Recusa de teto, para atravessar a transação sem virar 500. */
 class AcimaDoTeto extends Error {
-    constructor(readonly existentes: number, readonly max: number) {
+    constructor(
+        readonly existentes: number,
+        readonly max: number,
+        /**
+         * Quantas contratações canceladas ainda estão de pé, e até quando.
+         *
+         * Muda a frase da recusa, não a decisão: com elas, o teto de hoje
+         * comporta a unidade e o da renovação não — e a saída não é "mude de
+         * plano", é restaurar o que foi cancelado ou contratar de novo.
+         */
+        readonly canceladas = 0,
+        readonly ate: Date | null = null
+    ) {
         super('acima do teto de unidades')
     }
 }
@@ -205,18 +217,42 @@ export async function POST(request: NextRequest) {
      */
     try {
         const criada = await prisma.$transaction(async (tx) => {
-            const [existentes, adicionais, subscription] = await Promise.all([
+            const [existentes, adicionais, cobraveis, subscription] = await Promise.all([
                 tx.workspace.count({ where: { accountId: master.accountId, ...unidadesNoAr } }),
                 tx.unitAddon.count({ where: { accountId: master.accountId, ...adicionaisVivos() } }),
+                /** As que não foram canceladas: são as que existirão depois da renovação. */
+                tx.unitAddon.count({
+                    where: { accountId: master.accountId, ...adicionaisCobraveis },
+                }),
                 tx.subscription.findUnique({
                     where: { accountId: master.accountId },
-                    select: { plan: true },
+                    select: { plan: true, currentPeriodEnd: true },
                 }),
             ])
 
+            /**
+             * Duas contas, e vale a **menor**.
+             *
+             * O teto de hoje conta a contratação cancelada, que ainda vale até
+             * a renovação. Criar uma clínica nessa folga seria cadastrar hoje o
+             * que some em trinta dias: na virada o teto cai, o cron pausa
+             * agente e desconecta número, e a clínica fica de pé sem contratação
+             * que a sustente — com agenda e pacientes dentro.
+             *
+             * O plano não precisa do mesmo cuidado: num downgrade pendente a
+             * coluna `plan` já guarda o plano novo, então o teto calculado dela
+             * já é o de depois da renovação.
+             */
             const max = tetoDeUnidades(subscription?.plan, adicionais)
-            if (existentes >= max) {
-                throw new AcimaDoTeto(existentes, max)
+            const maxDepois = tetoDeUnidades(subscription?.plan, cobraveis)
+
+            if (existentes >= Math.min(max, maxDepois)) {
+                throw new AcimaDoTeto(
+                    existentes,
+                    Math.min(max, maxDepois),
+                    adicionais - cobraveis,
+                    subscription?.currentPeriodEnd ?? null
+                )
             }
 
             const workspace = await tx.workspace.create({
@@ -235,11 +271,26 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(criada, { status: 201 })
     } catch (error) {
         if (error instanceof AcimaDoTeto) {
+            /**
+             * Quando o teto que barra é o **de depois da renovação**, dizer
+             * "seu plano cabe N" seria mentira: hoje cabe mais. A frase precisa
+             * nomear a causa — contratação cancelada — e a saída, que é
+             * restaurá-la, não mudar de plano.
+             */
+            const ate = error.ate
+                ? error.ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                : 'a renovação'
+
             return NextResponse.json(
                 {
                     error:
-                        `Seu plano cabe ${error.max} unidade${error.max === 1 ? '' : 's'} e você já tem ${error.existentes}. ` +
-                        `Contrate uma unidade adicional em Gerenciamento → Conta → Conta da Clínica.`,
+                        error.canceladas > 0
+                            ? `Você tem ${error.canceladas} contratação${error.canceladas === 1 ? '' : 'ões'} adicional${error.canceladas === 1 ? '' : 'is'} cancelada${error.canceladas === 1 ? '' : 's'}, ` +
+                              `que vale${error.canceladas === 1 ? '' : 'm'} só até ${ate}. ` +
+                              `Criar uma clínica agora deixaria ela sem contratação depois dessa data. ` +
+                              `Restaure a contratação em Plano → Alterar unidades, ou contrate outra.`
+                            : `Seu plano cabe ${error.max} unidade${error.max === 1 ? '' : 's'} e você já tem ${error.existentes}. ` +
+                              `Contrate uma unidade adicional em Gerenciamento → Conta → Conta da Clínica.`,
                 },
                 { status: 402 }
             )

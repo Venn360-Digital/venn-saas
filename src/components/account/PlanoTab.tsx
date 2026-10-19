@@ -8,12 +8,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
-import { FormField } from '@/components/shared/FormField'
-import { Input } from '@/components/ui/input'
 import {
     AlertTriangle,
     ArrowUpDown,
-    Ban,
     Building2,
     Lock,
     PauseCircle,
@@ -201,10 +198,7 @@ export function PlanoTab() {
     const [showPlanModal, setShowPlanModal] = useState(false)
     const [showCreditsModal, setShowCreditsModal] = useState(false)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
-    const [showCancelModal, setShowCancelModal] = useState(false)
     /** O cancelamento pede o e-mail de quem está logado, digitado à mão. */
-    const [cancelEmail, setCancelEmail] = useState('')
-    const [adminEmail, setAdminEmail] = useState('')
 
     // Action states
     const [selectedPlan, setSelectedPlan] = useState('')
@@ -660,44 +654,6 @@ export function PlanoTab() {
         }
     }
 
-    useEffect(() => {
-        fetch('/api/account/profile')
-            .then((r) => (r.ok ? r.json() : null))
-            .then((data) => data?.email && setAdminEmail(data.email))
-            .catch(() => {
-                // Sem o e-mail a confirmação ainda funciona: quem confere de
-                // verdade é o servidor.
-            })
-    }, [])
-
-    const handleCancelPlan = async () => {
-        setProcessing(true)
-        try {
-            const res = await fetch('/api/account/subscription', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                // O e-mail digitado vai junto: o servidor confere de novo,
-                // porque uma confirmação que só existe no navegador é teatro.
-                body: JSON.stringify({ action: 'cancel', confirmEmail: cancelEmail.trim() })
-            })
-
-            if (res.ok) {
-                const data = await res.json()
-                toast.success(data.message)
-                setShowCancelModal(false)
-                setCancelEmail('')
-                loadSubscription()
-            } else {
-                const error = await res.json()
-                toast.error(error.error || 'Erro ao cancelar plano')
-            }
-        } catch (error) {
-            toast.error('Erro ao cancelar plano')
-        } finally {
-            setProcessing(false)
-        }
-    }
-
     /**
      * O que o checkout do Asaas devolveu, pela URL de retorno.
      *
@@ -863,14 +819,6 @@ export function PlanoTab() {
     }
 
     /** Até quando o acesso vale: o fim do ciclo pago ou o fim da avaliação. */
-    const accessUntil = subscription?.currentPeriodEnd ?? subscription?.trialEndsAt ?? null
-    const accessUntilLabel = accessUntil
-        ? new Date(accessUntil).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        : 'o fim do período já pago'
-    const emailMatches =
-        adminEmail.trim().length > 0 &&
-        cancelEmail.trim().toLowerCase() === adminEmail.trim().toLowerCase()
-
     const isTrialing = subscription?.status === 'trialing'
 
     /**
@@ -1654,27 +1602,6 @@ export function PlanoTab() {
                         ))}
                     </div>
 
-                    {/* A SAÍDA, no rodapé e só aqui.
-                        Saiu da guia Plano, onde era um cartão vermelho ao lado
-                        de "alterar" e "comprar": encerrar a conta é o fim deste
-                        caminho, não mais uma opção da pilha. */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 p-4">
-                        <p className="text-xs text-muted-foreground">
-                            <strong className="text-foreground">Não quer mais o sistema?</strong>{' '}
-                            Suspender unidade não encerra a conta — o caminho é cancelar a
-                            assinatura, e o acesso continua até {accessUntilLabel}.
-                        </p>
-                        <Button
-                            variant="destructive"
-                            onClick={() => {
-                                setShowUnidadesModal(false)
-                                setShowCancelModal(true)
-                            }}
-                        >
-                            <Ban className="size-4" />
-                            Cancelar assinatura
-                        </Button>
-                    </div>
                 </div>
             </RecordDialog>
 
@@ -2202,92 +2129,6 @@ export function PlanoTab() {
                 tela. O quadro diz até quando o plano vale e o que acontece
                 depois, e só libera o botão quando a pessoa digita o próprio
                 e-mail — o mesmo que o servidor confere. */}
-            <RecordDialog
-                open={showCancelModal}
-                onOpenChange={(open) => { setShowCancelModal(open); if (!open) setCancelEmail('') }}
-                title="Cancelar assinatura"
-                description="Leia o que muda antes de confirmar."
-                submitLabel="Cancelar assinatura"
-                hideAgain
-                destructive
-                submitDisabled={!emailMatches}
-                submitting={processing}
-                onSubmit={() => { void handleCancelPlan() }}
-                summary={
-                    <>
-                        <SummaryCard className="flex-col items-start gap-1">
-                            <span className="text-[11px] text-muted-foreground">Acesso garantido até</span>
-                            <span className="num text-lg font-bold">{accessUntilLabel}</span>
-                        </SummaryCard>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">
-                            Até lá nada muda. Depois dessa data os agentes param de responder e os
-                            números de WhatsApp são desconectados.
-                        </p>
-                    </>
-                }
-            >
-                <div className="col-span-2 space-y-4">
-                    <div className="rounded-lg border border-border bg-muted/40 p-4">
-                        <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
-                            O que acontece
-                        </p>
-                        <ul className="mt-2 space-y-2 text-[13px] leading-snug">
-                            <li className="flex items-start gap-2">
-                                <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                                <span>
-                                    O plano <strong>{subscription?.planName ?? '—'}</strong> continua valendo até{' '}
-                                    <strong className="num">{accessUntilLabel}</strong>. Não há reembolso do
-                                    período já pago, e nada é cobrado depois.
-                                </span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <X className="mt-0.5 size-3.5 shrink-0 text-destructive-subtle-foreground" />
-                                <span>
-                                    Depois dessa data os agentes param de responder, os números de WhatsApp
-                                    são desconectados e os{' '}
-                                    <strong className="num">{(subscription?.credits ?? 0).toLocaleString('pt-BR')}</strong>{' '}
-                                    créditos restantes deixam de valer.
-                                </span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                                <span>
-                                    As conversas, os pacientes e os negócios continuam guardados, e voltam
-                                    inteiros se a clínica assinar de novo.
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <FormField
-                        label="Digite o seu e-mail de administrador para confirmar"
-                        htmlFor="cancel-confirm-email"
-                        required
-                        hint={adminEmail ? `A conta em uso é ${adminEmail}.` : undefined}
-                        error={
-                            cancelEmail.trim() !== '' && !emailMatches
-                                ? 'O e-mail não confere com o da conta em uso.'
-                                : undefined
-                        }
-                    >
-                        <Input
-                            id="cancel-confirm-email"
-                            type="email"
-                            autoComplete="off"
-                            value={cancelEmail}
-                            onChange={(e) => setCancelEmail(e.target.value)}
-                            placeholder="voce@clinica.com.br"
-                        />
-                    </FormField>
-
-                    {!emailMatches ? (
-                        <p className="text-xs text-muted-foreground">
-                            O botão <strong>Cancelar assinatura</strong> só funciona depois que o e-mail
-                            confere.
-                        </p>
-                    ) : null}
-                </div>
-            </RecordDialog>
 
         </BandLayout>
     )

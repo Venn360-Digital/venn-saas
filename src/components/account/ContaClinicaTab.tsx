@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { TermsCard } from '@/components/account/TermsCard'
+import { CancelarAssinaturaCard } from '@/components/account/CancelarAssinaturaCard'
 import { FormField } from '@/components/shared/FormField'
 import { MaskedInput } from '@/components/shared/MaskedInput'
 import { PhoneInput } from '@/components/shared/PhoneInput'
@@ -804,6 +805,13 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                 condição comercial. Fica por último porque é consulta, não
                 tarefa: ninguém abre esta guia para reler termos. */}
             <TermsCard band />
+
+            {/* E por último o que não tem volta.
+                Cancelar a assinatura encerra a **conta**, não o plano — por
+                isso saiu da guia Plano. E não é a saída da tela de unidades,
+                onde confundia duas ações de tamanhos muito diferentes. Aqui é a
+                guia da conta, logo depois do acordo que está sendo encerrado. */}
+            <CancelarAssinaturaCard />
 
             <RecordDialog
                 open={criando}
