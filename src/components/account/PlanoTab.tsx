@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { BandLayout, SettingsBand, SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
+import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { FormField } from '@/components/shared/FormField'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,10 @@ import {
     AlertTriangle,
     ArrowUpDown,
     Ban,
+    Building2,
+    Lock,
+    PauseCircle,
+    PlayCircle,
     Check,
     CreditCard,
     Gift,
@@ -139,6 +143,18 @@ interface SubscriptionData {
     }
 }
 
+/** Uma unidade da conta, como a tela de vagas a lê. */
+interface UnidadeDaConta {
+    id: string
+    name: string
+    createdAt: string
+    suspendedAt: string | null
+    agentes: number
+    canais: number
+    conversas: number
+    pacientes: number
+}
+
 /** Uma cobrança do espelho, como a faixa de histórico a lê. */
 interface Cobranca {
     id: string
@@ -228,6 +244,9 @@ export function PlanoTab() {
      */
     const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
     const [cartaoEscolhido, setCartaoEscolhido] = useState<string | null>(null)
+    const [showUnidadesModal, setShowUnidadesModal] = useState(false)
+    const [unidadesLista, setUnidadesLista] = useState<UnidadeDaConta[]>([])
+    const [mexendoNaUnidade, setMexendoNaUnidade] = useState<string | null>(null)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
         adicionais: number
         avulso: number
@@ -295,6 +314,76 @@ export function PlanoTab() {
     useEffect(() => {
         void loadCobrancas()
     }, [loadCobrancas])
+
+    /**
+     * As unidades da conta, para a tela de vagas.
+     *
+     * Carregada só quando o diálogo abre: é uma consulta com contagens de
+     * agente, canal, conversa e paciente por unidade, e a guia Plano abre o
+     * tempo todo sem precisar dela.
+     */
+    const loadUnidades = useCallback(async () => {
+        try {
+            const res = await fetch('/api/account/workspaces')
+            if (res.ok) {
+                const data = await res.json()
+                setUnidadesLista(data.lista ?? [])
+            }
+        } catch {
+            // Sem a lista o diálogo mostra o que já sabe pela assinatura.
+        }
+    }, [])
+
+    /** Suspende ou reativa uma unidade, e recarrega o que isso muda. */
+    const mexerNaUnidade = useCallback(
+        async (workspaceId: string, acao: 'suspender' | 'reativar') => {
+            setMexendoNaUnidade(workspaceId)
+            try {
+                const res = await fetch('/api/account/workspaces', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workspaceId, acao }),
+                })
+                const data = await res.json()
+                if (res.ok) {
+                    toast.success(data.message)
+                    await Promise.all([loadUnidades(), loadSubscription()])
+                    window.dispatchEvent(new Event(BILLING_UPDATED))
+                } else {
+                    toast.error(data.error || 'Não foi possível concluir')
+                }
+            } catch {
+                toast.error('Não foi possível concluir')
+            } finally {
+                setMexendoNaUnidade(null)
+            }
+        },
+        [loadUnidades, loadSubscription]
+    )
+
+    /** Devolve uma vaga contratada — o adicional deixa de ser cobrado. */
+    const devolverVaga = useCallback(async () => {
+        setProcessing(true)
+        try {
+            const res = await fetch('/api/account/subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'cancel-addon', units: 1 }),
+            })
+            const data = await res.json()
+            if (res.ok) {
+                toast.success(data.message)
+                await Promise.all([loadUnidades(), loadSubscription()])
+                window.dispatchEvent(new Event(BILLING_UPDATED))
+            } else {
+                toast.error(data.error || 'Não foi possível devolver a vaga')
+            }
+        } catch {
+            toast.error('Não foi possível devolver a vaga')
+        } finally {
+            setProcessing(false)
+        }
+    }, [loadUnidades, loadSubscription])
 
     /**
      * Troca o cartão da mensalidade por um que já pagou algo desta conta.
@@ -1097,6 +1186,16 @@ export function PlanoTab() {
                             <CreditCard className="size-4" />
                             Alterar forma
                         </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                void loadUnidades()
+                                setShowUnidadesModal(true)
+                            }}
+                        >
+                            <Building2 className="size-4" />
+                            Alterar unidades
+                        </Button>
                         <Button variant="outline" onClick={() => setShowPlanModal(true)}>
                             <ArrowUpDown className="size-4" />
                             {isTrialing || !temPlano ? 'Contratar plano' : 'Alterar plano'}
@@ -1307,42 +1406,213 @@ export function PlanoTab() {
                 </SettingsBand>
             ) : null}
 
-            {/*
-              * O que encerra a conta mora num cartão só dele — mesmo padrão da
-              * exclusão do agente.
-              *
-              * Antes, "Cancelar assinatura" era a quarta linha da mesma pilha
-              * de "Alterar" e "Comprar", separada do resto por um fio de 1px e
-              * por um botão fantasma com texto avermelhado. A diferença entre
-              * trocar o cartão e encerrar a conta não pode depender de reparar
-              * numa cor de texto — e um botão fantasma é o mais fácil de clicar
-              * sem querer, porque não parece um botão até o mouse chegar nele.
-              *
-              * Sem título de faixa em cima: o cabeçalho do cartão já diz o que
-              * é, e "Cancelar assinatura" escrito duas vezes, uma delas em
-              * caixa alta, só repete.
-              */}
-            <div className="px-5 py-4 md:px-6">
-                <SettingsCard
-                    className="max-w-5xl border-destructive/30"
-                    title="Cancelar assinatura"
-                    description="Esta ação não tem volta."
-                >
-                    <SettingsRow
-                        title="O acesso continua até o fim do período já pago"
-                        description="Depois dessa data os agentes param de responder e os números de WhatsApp são desconectados. As conversas e o histórico de mensagens continuam guardados."
-                        action={
-                            <Button
-                                variant="destructive"
-                                onClick={() => setShowCancelModal(true)}
+            {/* ALTERAR UNIDADES — a tela das vagas.
+                Cenário 1 do comp de 2026-10-19, escolhido pelo Andre.
+
+                A lista é das **vagas contratadas**, não das clínicas: é o que
+                torna visível a vaga paga e vazia, que foi o caso que o teste
+                dele expôs (3 contratadas, 2 cadastradas). Cada vaga mostra quem
+                a ocupa e o que dá para fazer com ela.
+
+                A ordem das ações é a do endurecimento: devolver a vaga de uma
+                unidade no ar é recusado, e o botão diz o que destrava em vez de
+                ficar cinza sem explicação. */}
+            <RecordDialog
+                open={showUnidadesModal}
+                onOpenChange={setShowUnidadesModal}
+                title="Alterar unidades"
+                description="Unidades contratadas, quem ocupa cada uma e o que isso custa por mês."
+                hideAgain
+                submitLabel="Fechar"
+                onSubmit={() => setShowUnidadesModal(false)}
+            >
+                <div className="col-span-2 space-y-4">
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span className="num text-2xl font-bold leading-none">{u?.max ?? 0}</span>
+                        <span className="text-sm text-muted-foreground">
+                            vagas contratadas · <strong className="text-foreground">{u?.used ?? 0} em uso</strong>
+                            {(u?.remaining ?? 0) > 0 ? ` · ${u?.remaining} livre${u?.remaining === 1 ? '' : 's'}` : null}
+                        </span>
+                        {mensalDosAdicionais > 0 ? (
+                            <span className="rounded-full bg-info-subtle px-2.5 py-1 text-xs font-semibold text-info-subtle-foreground">
+                                {formatPrice(mensalDosAdicionais)}/mês em adicionais
+                            </span>
+                        ) : null}
+                    </div>
+
+                    <div className="space-y-2.5">
+                        {unidadesLista.map((unidade, indice) => {
+                            /* A primeira da conta é a principal: ela é a conta,
+                               e não se suspende. A ordem vem do servidor, por
+                               data de criação. */
+                            const principal = indice === 0
+                            const suspensa = Boolean(unidade.suspendedAt)
+
+                            return (
+                                <div
+                                    key={unidade.id}
+                                    className={cn(
+                                        'rounded-lg border border-border p-4',
+                                        suspensa && 'bg-muted'
+                                    )}
+                                >
+                                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="font-semibold">{unidade.name}</span>
+                                            {principal ? (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                                                    <Lock className="size-3" />
+                                                    Protegida pela conta — {planLabel || 'plano'}
+                                                </span>
+                                            ) : suspensa ? (
+                                                <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-xs font-semibold text-warning-subtle-foreground">
+                                                    suspensa
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    <span className="rounded-full bg-success-subtle px-2.5 py-1 text-xs font-semibold text-success-subtle-foreground">
+                                                        em uso
+                                                    </span>
+                                                    <span className="rounded-full bg-info-subtle px-2.5 py-1 text-xs font-semibold text-info-subtle-foreground">
+                                                        adicional
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {!principal ? (
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="num text-sm text-muted-foreground">
+                                                    <strong className="text-foreground">
+                                                        {formatPrice(UNIDADE_ADICIONAL.price)}
+                                                    </strong>
+                                                    /mês
+                                                </span>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={mexendoNaUnidade === unidade.id}
+                                                    onClick={() =>
+                                                        void mexerNaUnidade(
+                                                            unidade.id,
+                                                            suspensa ? 'reativar' : 'suspender'
+                                                        )
+                                                    }
+                                                >
+                                                    {suspensa ? (
+                                                        <>
+                                                            <PlayCircle className="size-4" />
+                                                            Reativar
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <PauseCircle className="size-4" />
+                                                            Suspender
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <span className="num text-sm text-muted-foreground">
+                                                incluída no plano
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-3 grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-md border border-border sm:grid-cols-4 sm:divide-y-0">
+                                        {[
+                                            ['Agentes', unidade.agentes],
+                                            ['Canais', unidade.canais],
+                                            ['Conversas', unidade.conversas],
+                                            ['Pacientes', unidade.pacientes],
+                                        ].map(([rotulo, valor]) => (
+                                            <div key={rotulo as string} className="px-3 py-2">
+                                                <p className="text-[11px] text-muted-foreground">{rotulo}</p>
+                                                <p className="num text-base font-semibold">
+                                                    {(valor as number).toLocaleString('pt-BR')}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <p className="mt-2.5 text-xs text-muted-foreground">
+                                        {principal
+                                            ? 'É a primeira unidade da conta e não pode ser suspensa. Para encerrar tudo, cancele a assinatura.'
+                                            : suspensa
+                                              ? 'Fora do ar desde ' +
+                                                new Date(unidade.suspendedAt as string).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) +
+                                                '. Nada foi apagado, e a vaga que ela ocupava está livre.'
+                                              : 'Suspenda a unidade para liberar o cancelamento desta vaga.'}
+                                    </p>
+                                </div>
+                            )
+                        })}
+
+                        {/* A VAGA LIVRE — contratada, paga e sem ninguém dentro.
+                            É a linha que o teste do Andre expôs: 3 contratadas,
+                            2 cadastradas. Aqui ela tem preço e um botão que a
+                            devolve sem cerimônia, porque não há o que suspender. */}
+                        {Array.from({ length: Math.max(0, u?.remaining ?? 0) }).map((_, i) => (
+                            <div
+                                key={`livre-${i}`}
+                                className="rounded-lg border border-dashed border-border bg-muted/40 p-4"
                             >
-                                <Ban className="size-4" />
-                                Cancelar assinatura
-                            </Button>
-                        }
-                    />
-                </SettingsCard>
-            </div>
+                                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold">Vaga livre</span>
+                                        <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-xs font-semibold text-warning-subtle-foreground">
+                                            paga e vazia
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="num text-sm text-muted-foreground">
+                                            <strong className="text-foreground">
+                                                {formatPrice(UNIDADE_ADICIONAL.price)}
+                                            </strong>
+                                            /mês
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={processing}
+                                            onClick={() => void devolverVaga()}
+                                        >
+                                            Devolver a vaga
+                                        </Button>
+                                    </div>
+                                </div>
+                                <p className="mt-2.5 text-xs text-muted-foreground">
+                                    Nenhuma clínica ocupa esta vaga. Devolver agora reduz a
+                                    mensalidade na renovação{renovaEm ? `, em ${renovaEm}` : ''}.
+                                    Para usá-la, crie a unidade em Conta da Clínica.
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* A SAÍDA, no rodapé e só aqui.
+                        Saiu da guia Plano, onde era um cartão vermelho ao lado
+                        de "alterar" e "comprar": encerrar a conta é o fim deste
+                        caminho, não mais uma opção da pilha. */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 p-4">
+                        <p className="text-xs text-muted-foreground">
+                            <strong className="text-foreground">Não quer mais o sistema?</strong>{' '}
+                            Suspender unidade não encerra a conta — o caminho é cancelar a
+                            assinatura, e o acesso continua até {accessUntilLabel}.
+                        </p>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                setShowUnidadesModal(false)
+                                setShowCancelModal(true)
+                            }}
+                        >
+                            <Ban className="size-4" />
+                            Cancelar assinatura
+                        </Button>
+                    </div>
+                </div>
+            </RecordDialog>
 
             {/* Change Plan Modal */}
             <RecordDialog

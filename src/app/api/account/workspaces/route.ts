@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { adicionaisVivos, contaDoMaster, unidadesDaConta } from '@/lib/account'
+import { adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@/lib/account'
 import { tetoDeUnidades } from '@/lib/plan-limits'
 import { planFor } from '@/lib/plans'
 
@@ -83,7 +83,15 @@ export async function GET() {
                 address: true,
                 phone: true,
                 createdAt: true,
-                _count: { select: { users: true, contacts: true, agents: true } },
+                suspendedAt: true,
+                _count: {
+                    select: {
+                        users: true,
+                        contacts: true,
+                        agents: true,
+                        conversations: true,
+                    },
+                },
             },
         }),
         /**
@@ -106,6 +114,26 @@ export async function GET() {
 
     const participo = new Set(minhas.map((m) => m.workspaceId))
 
+    /**
+     * Quantos canais cada unidade tem.
+     *
+     * Fora do `_count` porque o canal pende do **agente**, não da unidade, e
+     * `_count` não atravessa duas relações. Uma consulta só para a conta
+     * inteira, somada em memória: são dezenas de linhas, não milhares.
+     */
+    const agentesComCanais = await prisma.agent.findMany({
+        where: { workspace: { accountId: workspace.accountId } },
+        select: { workspaceId: true, _count: { select: { integrations: true } } },
+    })
+
+    const canaisPorUnidade = new Map<string, number>()
+    for (const a of agentesComCanais) {
+        canaisPorUnidade.set(
+            a.workspaceId,
+            (canaisPorUnidade.get(a.workspaceId) ?? 0) + a._count.integrations
+        )
+    }
+
     return NextResponse.json({
         conta: workspace.account.name,
         /** Se quem pergunta é o MASTER — a tela esconde o que ele não pode fazer. */
@@ -120,9 +148,12 @@ export async function GET() {
             address: u.address,
             phone: u.phone,
             createdAt: u.createdAt,
+            suspendedAt: u.suspendedAt,
             usuarios: u._count.users,
             pacientes: u._count.contacts,
             agentes: u._count.agents,
+            conversas: u._count.conversations,
+            canais: canaisPorUnidade.get(u.id) ?? 0,
             participo: participo.has(u.id),
         })),
     })
@@ -175,7 +206,7 @@ export async function POST(request: NextRequest) {
     try {
         const criada = await prisma.$transaction(async (tx) => {
             const [existentes, adicionais, subscription] = await Promise.all([
-                tx.workspace.count({ where: { accountId: master.accountId } }),
+                tx.workspace.count({ where: { accountId: master.accountId, ...unidadesNoAr } }),
                 tx.unitAddon.count({ where: { accountId: master.accountId, ...adicionaisVivos() } }),
                 tx.subscription.findUnique({
                     where: { accountId: master.accountId },
@@ -216,4 +247,195 @@ export async function POST(request: NextRequest) {
         console.error('[ACCOUNT_WORKSPACES_POST]', error)
         return NextResponse.json({ error: 'Não foi possível criar a unidade' }, { status: 500 })
     }
+}
+
+/**
+ * Suspende ou reativa uma unidade.
+ *
+ * **Suspender não apaga nada.** A clínica sai do ar — ninguém entra, os agentes
+ * são pausados e os números desconectados — e agenda, pacientes, conversas e
+ * histórico continuam guardados. É o que o Andre pediu em 2026-10-19: unidade
+ * nunca é excluída, e é a suspensão que libera a vaga contratada para que o
+ * adicional possa ser devolvido.
+ *
+ * TRÊS RECUSAS, E CADA UMA EVITA UM ESTRAGO DIFERENTE
+ *
+ * 1. **A primeira unidade não se suspende.** Ela é a conta. Quem quer encerrar
+ *    tudo cancela a assinatura, que é outro caminho e tem outra confirmação.
+ *
+ * 2. **Ninguém pode ficar sem unidade.** Se alguém participa só desta, suspender
+ *    tiraria essa pessoa do sistema inteiro — e o portão de onboarding, ao não
+ *    achar participação nenhuma, a mandaria **criar uma clínica nova**, com
+ *    avaliação e tudo. A recusa diz quem são, para o dono resolver o acesso
+ *    antes.
+ *
+ * 3. **Reativar precisa de vaga.** Devolver a unidade ao ar ocupa de novo o
+ *    teto, e deixar reativar acima dele é dar unidade de graça.
+ */
+export async function PATCH(request: NextRequest) {
+    const auth = await getWorkspaceMember()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    const master = await contaDoMaster(auth.member.workspaceId, auth.member.userId)
+    if (!master.ok) {
+        return NextResponse.json({ error: master.error }, { status: master.status })
+    }
+
+    const body = (await request.json()) as { workspaceId?: string; acao?: string }
+    const acao = body.acao === 'reativar' ? 'reativar' : 'suspender'
+
+    if (!body.workspaceId) {
+        return NextResponse.json({ error: 'Informe a unidade' }, { status: 400 })
+    }
+
+    const unidade = await prisma.workspace.findFirst({
+        where: { id: body.workspaceId, accountId: master.accountId },
+        select: { id: true, name: true, suspendedAt: true, createdAt: true },
+    })
+
+    if (!unidade) {
+        return NextResponse.json({ error: 'Unidade não encontrada nesta conta' }, { status: 404 })
+    }
+
+    /** A mais antiga da conta é a principal, e ela não sai do ar. */
+    const principal = await prisma.workspace.findFirst({
+        where: { accountId: master.accountId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+    })
+
+    if (acao === 'suspender') {
+        if (principal?.id === unidade.id) {
+            return NextResponse.json(
+                {
+                    error:
+                        'A primeira unidade da conta não pode ser suspensa — ela é a conta. ' +
+                        'Para encerrar o sistema, cancele a assinatura.',
+                },
+                { status: 409 }
+            )
+        }
+
+        if (unidade.suspendedAt) {
+            return NextResponse.json({ error: 'Esta unidade já está suspensa' }, { status: 409 })
+        }
+
+        /**
+         * Quem ficaria sem nenhuma unidade no ar se esta sair.
+         *
+         * Conferido por participação ativa, que é o mesmo critério do seletor e
+         * do portão de sessão — de onde a pessoa seria expulsa.
+         */
+        const membros = await prisma.workspaceUser.findMany({
+            where: { workspaceId: unidade.id, isActive: true },
+            select: { userId: true, user: { select: { name: true, email: true } } },
+        })
+
+        const presos: string[] = []
+        for (const m of membros) {
+            const outra = await prisma.workspaceUser.findFirst({
+                where: {
+                    userId: m.userId,
+                    isActive: true,
+                    workspaceId: { not: unidade.id },
+                    workspace: { accountId: master.accountId, suspendedAt: null },
+                },
+                select: { id: true },
+            })
+            if (!outra) presos.push(m.user?.name || m.user?.email || 'um usuário')
+        }
+
+        if (presos.length > 0) {
+            return NextResponse.json(
+                {
+                    error:
+                        `${presos.join(', ')} ${presos.length === 1 ? 'participa' : 'participam'} ` +
+                        `só desta unidade e ficaria${presos.length === 1 ? '' : 'm'} sem acesso ao ` +
+                        'sistema. Dê acesso a outra unidade antes de suspender.',
+                },
+                { status: 409 }
+            )
+        }
+
+        /**
+         * Pausar e desconectar acontece **na suspensão**, não por varredura.
+         *
+         * O agente de uma clínica fora do ar continuaria respondendo paciente
+         * até o próximo cron, e o número continuaria pareado ocupando vaga no
+         * Evolution. `pausedByLimit` é a mesma marca que o downgrade usa, então
+         * reativar devolve o agente pelo caminho que já existe.
+         */
+        const resultado = await prisma.$transaction(async (tx) => {
+            await tx.workspace.update({
+                where: { id: unidade.id },
+                data: { suspendedAt: new Date() },
+            })
+
+            const agentes = await tx.agent.updateMany({
+                where: { workspaceId: unidade.id, isActive: true },
+                data: { isActive: false, pausedByLimit: true },
+            })
+
+            const canais = await tx.agentIntegration.updateMany({
+                where: { agent: { workspaceId: unidade.id }, status: { not: 'disconnected' } },
+                data: { status: 'disconnected', errorMessage: 'Unidade suspensa' },
+            })
+
+            return { agentes: agentes.count, canais: canais.count }
+        })
+
+        const unidades = await unidadesDaConta(master.accountId)
+
+        return NextResponse.json({
+            success: true,
+            message:
+                `${unidade.name} foi suspensa: ${resultado.agentes} agente(s) pausado(s) e ` +
+                `${resultado.canais} canal(is) desconectado(s). Nada foi apagado — ` +
+                'agenda, pacientes e conversas continuam guardados.',
+            unidades,
+        })
+    }
+
+    // ── reativar ──
+    if (!unidade.suspendedAt) {
+        return NextResponse.json({ error: 'Esta unidade já está no ar' }, { status: 409 })
+    }
+
+    const unidades = await unidadesDaConta(master.accountId)
+    if (unidades.remaining < 1) {
+        return NextResponse.json(
+            {
+                error:
+                    `Todas as ${unidades.max} vagas contratadas estão ocupadas. ` +
+                    'Contrate uma unidade adicional para reativar esta.',
+            },
+            { status: 402 }
+        )
+    }
+
+    await prisma.workspace.update({
+        where: { id: unidade.id },
+        data: { suspendedAt: null },
+    })
+
+    /**
+     * O agente volta, o número **não**.
+     *
+     * Reativar devolve o que a suspensão pausou — mesma marca do downgrade —,
+     * mas reconectar WhatsApp exige ler o QR de novo: a sessão foi derrubada no
+     * Evolution e não há como ressuscitá-la daqui. Dizer isso na mensagem evita
+     * a clínica achar que o número voltou sozinho.
+     */
+    const agentes = await prisma.agent.updateMany({
+        where: { workspaceId: unidade.id, pausedByLimit: true },
+        data: { isActive: true, pausedByLimit: false },
+    })
+
+    return NextResponse.json({
+        success: true,
+        message:
+            `${unidade.name} está no ar de novo, com ${agentes.count} agente(s) reativado(s). ` +
+            'Os números de WhatsApp precisam ser reconectados pelo QR.',
+        unidades: await unidadesDaConta(master.accountId),
+    })
 }

@@ -30,7 +30,13 @@ export async function POST(request: NextRequest) {
         }
 
         const membro = await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, workspaceId, isActive: true },
+            /** Suspensa não se abre: o seletor não a lista, e o POST confere. */
+            where: {
+                userId: user.id,
+                workspaceId,
+                isActive: true,
+                workspace: { suspendedAt: null },
+            },
             select: { workspaceId: true, workspace: { select: { name: true } } },
         })
         if (!membro) {

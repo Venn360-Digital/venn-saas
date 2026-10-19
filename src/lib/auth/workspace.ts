@@ -118,9 +118,23 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
      */
     const escolhido = (await cookies()).get(WORKSPACE_COOKIE)?.value
 
+    /**
+     * Unidade suspensa não é escolhível — nem pelo cookie, nem por omissão.
+     *
+     * É aqui que a suspensão vira acesso negado, e é um ponto só: toda rota e
+     * toda página passam por esta função. Sem este filtro, suspender uma
+     * unidade a tiraria da tela de seleção e deixaria o cookie antigo continuar
+     * abrindo-a.
+     *
+     * Ninguém fica preso por causa disto: suspender é recusado quando algum
+     * membro participa **só** daquela unidade (ver a rota de suspensão), então
+     * sempre sobra uma no ar para a escolha por omissão encontrar.
+     */
+    const noAr = { workspace: { suspendedAt: null } }
+
     let membership = escolhido
         ? await prisma.workspaceUser.findFirst({
-            where: { userId: user.id, isActive: true, workspaceId: escolhido },
+            where: { userId: user.id, isActive: true, workspaceId: escolhido, ...noAr },
             select: SELECT,
         })
         : null
@@ -128,7 +142,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
     // Sem escolha válida, a de sempre: a participação mais antiga. É o que
     // valia antes do seletor existir, e continua valendo para quem tem uma só.
     membership ??= await prisma.workspaceUser.findFirst({
-        where: { userId: user.id, isActive: true },
+        where: { userId: user.id, isActive: true, ...noAr },
         orderBy: { createdAt: 'asc' },
         select: SELECT,
     })

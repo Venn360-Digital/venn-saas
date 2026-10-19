@@ -406,6 +406,17 @@ model Workspace {
   // there is no second permission list to keep in sync with the roles.
   isPlatform Boolean @default(false)
 
+  /// Quando a unidade foi tirada do ar, se foi.
+  ///
+  /// Suspender não apaga nada: a clínica sai do ar — ninguém entra, os agentes
+  /// são pausados e os números desconectados — e agenda, pacientes, conversas e
+  /// histórico continuam guardados. É o que permite devolver a vaga contratada
+  /// sem destruir a clínica que a ocupava, e reativar é voltar isto a nulo.
+  ///
+  /// A primeira unidade da conta nunca é suspensa: ela é a conta. Quem quer
+  /// encerrar tudo cancela a assinatura.
+  suspendedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

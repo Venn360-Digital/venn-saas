@@ -71,7 +71,12 @@ async function lerMarca(): Promise<MarcaDaSessao | null> {
          * responder "não".
          */
         prisma.workspaceUser.findMany({
-            where: { userId: auth.member.userId, isActive: true },
+            /** Suspensa não aparece no seletor: ela está fora do ar. */
+            where: {
+                userId: auth.member.userId,
+                isActive: true,
+                workspace: { suspendedAt: null },
+            },
             orderBy: { createdAt: 'asc' },
             select: { workspace: { select: { id: true, name: true } } },
         }),
