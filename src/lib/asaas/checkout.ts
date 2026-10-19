@@ -23,6 +23,23 @@ export function mensalidadeDoPlano(plan: PlanId, adicionais: number): number {
     return PLANS[plan].price + adicionais * UNIDADE_ADICIONAL.price
 }
 
+/**
+ * Os meios aceitos numa cobrança **avulsa**.
+ *
+ * Boleto entrou em 2026-10-19, a pedido do Andre, e reverte a decisão de
+ * 2026-10-18 de deixá-lo fora. A razão de ter ficado fora era a recorrência:
+ * boleto não cobra sozinho todo mês. Em compra única esse argumento não existe
+ * — e clínica que paga fornecedor por boleto é a regra, não a exceção.
+ *
+ * O preço é a demora: boleto compensa em um a três dias úteis, e a entrega
+ * acontece na confirmação. Quem precisa do crédito hoje paga no Pix, que
+ * confirma em segundos. A tela diz isso.
+ *
+ * A **recorrência** continua sendo cartão e só cartão, que é limite do Asaas e
+ * não escolha nossa: cobrar sozinho todo mês exige credencial guardada.
+ */
+const AVULSO = ['PIX', 'CREDIT_CARD', 'BOLETO'] as const
+
 interface RespostaCheckout {
     id: string
     link: string
@@ -168,7 +185,7 @@ export async function criarCheckoutDePlano(opcoes: {
                  * cartão, porque cobrar sozinho todo mês exige credencial
                  * guardada (medido: o Asaas recusa PIX com RECURRENT).
                  */
-                billingTypes: proporcional ? ['PIX', 'CREDIT_CARD'] : ['CREDIT_CARD'],
+                billingTypes: proporcional ? AVULSO : ['CREDIT_CARD'],
                 chargeTypes: proporcional ? ['DETACHED'] : ['RECURRENT'],
                 minutesToExpire: 1440,
                 /** Como o webhook descobre qual conta e qual plano foram pagos. */
@@ -347,7 +364,7 @@ export async function criarCheckoutDeAdicionais(opcoes: {
         const resposta = await asaas<RespostaCheckout>('/checkouts', {
             method: 'POST',
             body: {
-                billingTypes: ['PIX', 'CREDIT_CARD'],
+                billingTypes: AVULSO,
                 chargeTypes: ['DETACHED'],
                 minutesToExpire: 1440,
                 externalReference: tentativa.id,

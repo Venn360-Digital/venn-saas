@@ -45,6 +45,7 @@ const log = createLogger('ASAAS_EVENT')
 
 /** O que o Asaas manda dentro de `payment`, do que nos interessa. */
 interface PagamentoDoAsaas {
+    creditCard?: CartaoDoAsaas
     id?: string
     subscription?: string
     customer?: string
@@ -64,6 +65,13 @@ interface PagamentoDoAsaas {
 const DE_COBRANCA = /^PAYMENT_/
 
 /** O que o Asaas manda dentro de `checkout`, do que nos interessa. */
+/** O que vem dentro de `payment.creditCard` quando o pagamento foi no cartão. */
+interface CartaoDoAsaas {
+    creditCardNumber?: string
+    creditCardBrand?: string
+    creditCardToken?: string
+}
+
 interface CheckoutDoAsaas {
     id?: string
     externalReference?: string
@@ -288,6 +296,47 @@ async function espelharCobranca(
     log.info(`${event} espelhado: cobrança ${p.id}, conta ${conta.id}, status ${dados.status}`)
 
     await reagirAoStatusDaCobranca(conta.id, dados)
+    await guardarCartao(conta.id, p.creditCard)
+}
+
+/**
+ * Guarda o cartão que pagou — token, bandeira e quatro dígitos, nunca o número.
+ *
+ * É o que torna a troca de cartão possível sem PCI: `PUT
+ * /subscriptions/{id}/creditCard` aceita o cartão inteiro ou um token que o
+ * Asaas já conheça, e o token só chega por aqui, depois de alguém pagar na
+ * página deles.
+ *
+ * Por isso a lista se preenche de uso, e não de cadastro: um cartão novo entra
+ * pagando qualquer cobrança. Não há tela nossa pedindo número de cartão, e é
+ * essa a intenção.
+ */
+async function guardarCartao(
+    accountId: string,
+    cartao: CartaoDoAsaas | undefined
+): Promise<void> {
+    if (!cartao?.creditCardToken) return
+
+    await prisma.paymentCard.upsert({
+        where: { asaasToken: cartao.creditCardToken },
+        create: {
+            accountId,
+            asaasToken: cartao.creditCardToken,
+            brand: cartao.creditCardBrand ?? null,
+            /** O Asaas manda só os quatro últimos neste campo. */
+            last4: cartao.creditCardNumber ?? null,
+        },
+        update: {
+            lastSeenAt: new Date(),
+            brand: cartao.creditCardBrand ?? null,
+            last4: cartao.creditCardNumber ?? null,
+        },
+    })
+
+    log.info(
+        `cartão ${cartao.creditCardBrand ?? '?'} ••••${cartao.creditCardNumber ?? '????'} ` +
+            `guardado para a conta ${accountId}`
+    )
 }
 
 /**

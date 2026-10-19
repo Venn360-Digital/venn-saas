@@ -152,6 +152,7 @@ model Account {
 
   @@index([ownerUserId])
   @@map("accounts")
+  paymentCards PaymentCard[]
 }
 
 /// Uma unidade comprada fora do que o plano inclui.
@@ -295,6 +296,38 @@ model AsaasCheckout {
 /// PRODUCT.md §13. Isto existe para a guia Plano responder "o que eu paguei e
 /// quando" sem uma chamada externa a cada abertura, e para o job de conciliação
 /// ter contra o que comparar.
+/// Um cartão que já pagou alguma coisa desta conta.
+///
+/// Nunca guarda o número.** Só o token do Asaas, a bandeira e os quatro
+/// dígitos finais — que é tudo o que uma tela mostra e tudo o que a troca de
+/// cartão precisa.
+///
+/// Existe porque `PUT /subscriptions/{id}/creditCard` aceita o cartão inteiro
+/// ou um token já conhecido (medido no sandbox em 2026-10-19). Com o token, a
+/// troca acontece sem o PAN passar pela nossa aplicação — que é a mesma razão
+/// de o checkout ser hospedado (ver PRODUCT.md §13).
+///
+/// O token chega sozinho: todo pagamento no cartão volta com ele no evento.
+/// Então a lista se preenche de uso, e um cartão novo entra pagando qualquer
+/// cobrança na página do Asaas.
+model PaymentCard {
+  id        String @id @default(cuid())
+  accountId String
+
+  /// O token do Asaas. Único: é o mesmo cartão.
+  asaasToken String  @unique
+  brand      String?
+  last4      String?
+
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@map("payment_cards")
+}
+
 model Invoice {
   id        String @id @default(cuid())
   accountId String

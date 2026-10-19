@@ -143,6 +143,20 @@ export async function GET() {
                 subscription.maxSpokenReplies -
                 (await spokenRepliesLeft(workspaceUser.workspaceId)),
             paymentMethod: subscription.paymentMethod,
+            /**
+             * Os cartões que já pagaram algo desta conta.
+             *
+             * A tela precisa deles para **trocar** o cartão da assinatura sem
+             * pedir o número: a troca no Asaas aceita um token já conhecido, e
+             * o token nasce de um pagamento na página deles.
+             */
+            cartoes: accountId
+                ? await prisma.paymentCard.findMany({
+                where: { accountId },
+                orderBy: { lastSeenAt: 'desc' },
+                select: { id: true, asaasToken: true, brand: true, last4: true },
+                  })
+                : [],
             trialEndsAt: subscription.trialEndsAt,
             currentPeriodStart: subscription.currentPeriodStart,
             currentPeriodEnd: subscription.currentPeriodEnd,
@@ -840,6 +854,112 @@ export async function POST(request: NextRequest) {
              * vale até a renovação. O que muda hoje é o valor da recorrência
              * para os ciclos seguintes.
              */
+            /**
+             * Troca o cartão que paga a mensalidade.
+             *
+             * **Sem o número do cartão.** O que vai para o Asaas é um
+             * `creditCardToken` que ele já conhece — medido lá: `PUT
+             * /subscriptions/{id}/creditCard` aceita ou o cartão inteiro, que
+             * levaria o PAN para dentro desta aplicação e dos nossos logs, ou
+             * um token. Com o token, o escopo de PCI continua sendo SAQ A, que
+             * é a mesma razão de o checkout ser hospedado.
+             *
+             * O preço desse desenho é que só dá para escolher entre cartões que
+             * **já pagaram** alguma coisa — um cartão novo entra pagando, na
+             * página do Asaas. É o que a tela explica.
+             */
+            case 'set-card': {
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
+                const token = typeof data.token === 'string' ? data.token.trim() : ''
+                if (!token) {
+                    return NextResponse.json({ error: 'Escolha um cartão.' }, { status: 400 })
+                }
+
+                /**
+                 * O cartão tem de ser **desta conta**.
+                 *
+                 * Sem esta conferência, um token copiado de outra clínica
+                 * passaria a pagar a assinatura desta — e o dono do cartão
+                 * descobriria pela fatura. O token vem do cliente, então ele é
+                 * entrada não confiável como qualquer outra.
+                 */
+                const cartao = await prisma.paymentCard.findFirst({
+                    where: { accountId, asaasToken: token },
+                    select: { asaasToken: true, brand: true, last4: true },
+                })
+
+                if (!cartao) {
+                    return NextResponse.json(
+                        { error: 'Cartão não encontrado nesta conta.' },
+                        { status: 404 }
+                    )
+                }
+
+                const assinaturaDoCartao = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: { asaasSubscriptionId: true },
+                })
+
+                if (!assinaturaDoCartao?.asaasSubscriptionId) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Esta conta não tem assinatura ativa no gateway, então não há ' +
+                                'cobrança recorrente para trocar de cartão.',
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                try {
+                    await asaas(
+                        `/subscriptions/${assinaturaDoCartao.asaasSubscriptionId}/creditCard`,
+                        { method: 'PUT', body: { creditCardToken: cartao.asaasToken } }
+                    )
+                } catch (erro) {
+                    console.error('[SET_CARD] o gateway recusou a troca', erro)
+                    return NextResponse.json(
+                        {
+                            error:
+                                erro instanceof AsaasError
+                                    ? `O gateway recusou: ${erro.detalhe}`
+                                    : 'Não foi possível trocar o cartão agora.',
+                        },
+                        { status: 502 }
+                    )
+                }
+
+                /**
+                 * O espelho só é escrito **depois** que o gateway aceitou.
+                 *
+                 * Na ordem inversa a tela mostraria o cartão novo enquanto a
+                 * cobrança seguiria no antigo — e ninguém desconfiaria até a
+                 * fatura.
+                 */
+                await prisma.subscription.updateMany({
+                    where: { accountId },
+                    data: {
+                        paymentMethod: {
+                            type: 'credit_card',
+                            brand: cartao.brand ?? '',
+                            last4: cartao.last4 ?? '',
+                        },
+                    },
+                })
+
+                return NextResponse.json({
+                    success: true,
+                    message: `A mensalidade passa a ser cobrada no ${cartao.brand ?? 'cartão'} ••••${cartao.last4 ?? ''}.`,
+                })
+            }
+
             case 'cancel-addon': {
                 const accountId = await accountIdOf(workspaceUser.workspaceId)
                 if (!accountId) {

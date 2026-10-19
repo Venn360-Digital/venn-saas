@@ -113,6 +113,8 @@ interface SubscriptionData {
         advanced: PlanConfig
     }
     creditPacks: { credits: number; price: number; discount: number; pitch: string }[]
+    /** Os cartões que já pagaram algo desta conta — é entre eles que se troca. */
+    cartoes?: { id: string; asaasToken: string; brand: string | null; last4: string | null }[]
     /** Franquia e avulso somados — a mesma conta que a sidebar mostra. */
     creditos?: {
         plan: { total: number; used: number; remaining: number }
@@ -220,6 +222,7 @@ export function PlanoTab() {
      * plano virar X; aqui é o saldo ou o teto subir, e o plano não muda.
      */
     const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
+    const [cartaoEscolhido, setCartaoEscolhido] = useState<string | null>(null)
     const [cancelandoAdicional, setCancelandoAdicional] = useState(false)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
         adicionais: number
@@ -288,6 +291,36 @@ export function PlanoTab() {
     useEffect(() => {
         void loadCobrancas()
     }, [loadCobrancas])
+
+    /**
+     * Troca o cartão da mensalidade por um que já pagou algo desta conta.
+     *
+     * Não há campo de número de cartão nesta tela, e isso é desenho: o número
+     * nunca passa pela nossa aplicação. Ver o comentário da ação `set-card`.
+     */
+    const handleSetCard = useCallback(async () => {
+        if (!cartaoEscolhido) return
+        setProcessing(true)
+        try {
+            const res = await fetch('/api/account/subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'set-card', token: cartaoEscolhido }),
+            })
+            const data = await res.json()
+            if (res.ok) {
+                toast.success(data.message)
+                setShowPaymentModal(false)
+                await loadSubscription()
+            } else {
+                toast.error(data.error || 'Não foi possível trocar o cartão')
+            }
+        } catch {
+            toast.error('Não foi possível trocar o cartão')
+        } finally {
+            setProcessing(false)
+        }
+    }, [cartaoEscolhido, loadSubscription])
 
     /**
      * Cancela unidades adicionais — direito do cliente, e só dele.
@@ -1761,14 +1794,87 @@ export function PlanoTab() {
                 open={showPaymentModal}
                 onOpenChange={setShowPaymentModal}
                 title="Forma de pagamento"
-                description="O cartão que paga a mensalidade e os créditos."
+                description="O cartão que cobra a mensalidade, e como pagar o resto."
+                submitLabel="Usar este cartão"
+                submitDisabled={!cartaoEscolhido || processing}
+                submitting={processing}
+                onSubmit={() => { void handleSetCard() }}
             >
-                <div className="col-span-2 space-y-3">
-                    <div className="rounded-lg border border-dashed border-input p-6 text-center">
-                        <CreditCard className="mx-auto size-10 text-muted-foreground" />
-                        <p className="mt-2 text-sm font-semibold">Ainda não dá para trocar o cartão por aqui</p>
+                <div className="col-span-2 space-y-4">
+                    {/* A MENSALIDADE: cartão, e só cartão.
+                        Não é escolha nossa — cobrar sozinho todo mês exige
+                        credencial guardada, e o Asaas recusa Pix e boleto em
+                        cobrança recorrente. */}
+                    <div>
+                        <p className="text-sm font-semibold">Mensalidade</p>
+                        <p className="text-xs text-muted-foreground">
+                            A cobrança que se repete todo mês vai no cartão de crédito — Pix e
+                            boleto não cobram sozinhos.
+                        </p>
+
+                        {(subscription?.cartoes?.length ?? 0) > 0 ? (
+                            <div className="mt-3 divide-y divide-border overflow-hidden rounded-lg border border-border">
+                                {subscription?.cartoes?.map((c) => {
+                                    const emUso =
+                                        subscription?.paymentMethod?.last4 === (c.last4 ?? '') &&
+                                        subscription?.paymentMethod?.brand === (c.brand ?? '')
+                                    return (
+                                        <label
+                                            key={c.id}
+                                            className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent"
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="cartao"
+                                                className="accent-primary"
+                                                checked={cartaoEscolhido === c.asaasToken}
+                                                onChange={() => setCartaoEscolhido(c.asaasToken)}
+                                            />
+                                            <CreditCard className="size-4 text-muted-foreground" />
+                                            <span className="text-sm">
+                                                {c.brand ?? 'Cartão'}{' '}
+                                                <span className="num text-muted-foreground">
+                                                    ••••{c.last4 ?? '????'}
+                                                </span>
+                                            </span>
+                                            {emUso ? (
+                                                <span className="ml-auto rounded-full bg-success-subtle px-2 py-0.5 text-[11px] font-semibold text-success-subtle-foreground">
+                                                    em uso
+                                                </span>
+                                            ) : null}
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            <div className="mt-3 rounded-lg border border-dashed border-input p-5 text-center">
+                                <CreditCard className="mx-auto size-8 text-muted-foreground" />
+                                <p className="mt-2 text-sm font-medium">Nenhum cartão conhecido ainda</p>
+                            </div>
+                        )}
+
+                        {/* Por que não há campo de número de cartão aqui.
+                            A frase é curta de propósito: quem abre esta tela
+                            quer trocar o cartão, não ler sobre PCI. O que ela
+                            precisa saber é **como** o cartão novo entra. */}
+                        <p className="mt-3 text-xs text-muted-foreground">
+                            Um cartão novo entra pagando: na próxima cobrança, escolha
+                            &ldquo;cartão de crédito&rdquo; na página do Asaas e use o cartão que
+                            quiser — ele aparece aqui depois. O número do cartão nunca passa pelo
+                            OdontoBox360.
+                        </p>
+                    </div>
+
+                    {/* AS COMPRAS AVULSAS: três meios, e a diferença entre eles
+                        é tempo. Dizer isso aqui evita a pergunta "comprei e
+                        não recebi" de quem pagou boleto. */}
+                    <div className="rounded-lg border border-border p-4">
+                        <p className="text-sm font-semibold">Créditos e unidades adicionais</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            O pagamento será integrado ao Stripe. Até lá, fale com a gente para alterar o cartão.
+                            Compra única aceita <strong>Pix</strong>, <strong>cartão</strong> e{' '}
+                            <strong>boleto</strong> — você escolhe na hora de pagar. Pix e cartão
+                            confirmam em segundos; boleto leva de um a três dias úteis, e a entrega
+                            acontece quando o pagamento confirma.
                         </p>
                     </div>
                 </div>
