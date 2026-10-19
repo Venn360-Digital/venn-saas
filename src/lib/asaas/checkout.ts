@@ -100,12 +100,22 @@ export async function criarCheckoutDePlano(opcoes: {
      * aproveita o que existe.
      */
     asaasCustomerId?: string | null
+    /**
+     * Cobrança avulsa da diferença, em vez da mensalidade inteira.
+     *
+     * É o upgrade no meio de um ciclo pago: o cliente já pagou o mês, então o
+     * que falta é a diferença dos dias restantes. Sem isto, subir de plano
+     * cobraria um segundo mês cheio dentro do período já pago.
+     */
+    valorProporcional?: number
     /** Para onde o Asaas devolve o pagador. Sem rota, sem volta. */
     baseUrl: string
 }): Promise<{ link: string; checkoutId: string }> {
-    const { accountId, plan, adicionais, pagador, asaasCustomerId, baseUrl } = opcoes
+    const { accountId, plan, adicionais, pagador, asaasCustomerId, valorProporcional, baseUrl } =
+        opcoes
 
-    const valor = mensalidadeDoPlano(plan, adicionais)
+    const proporcional = valorProporcional !== undefined
+    const valor = proporcional ? valorProporcional : mensalidadeDoPlano(plan, adicionais)
     const planConfig = PLANS[plan]
 
     /**
@@ -125,6 +135,7 @@ export async function criarCheckoutDePlano(opcoes: {
             // Preenchidos depois da resposta: a linha nasce para ter id.
             asaasCheckoutId: `pendente:${accountId}:${Date.now()}`,
             link: '',
+            kind: proporcional ? 'proporcional' : 'assinatura',
             valueCents: Math.round(valor * 100),
         },
         select: { id: true },
@@ -148,8 +159,17 @@ export async function criarCheckoutDePlano(opcoes: {
                  * isso. "Assinatura no Pix" no Brasil é outra coisa — é fatura
                  * mensal que o cliente paga à mão —, e ela não passa por aqui.
                  */
-                billingTypes: ['CREDIT_CARD'],
-                chargeTypes: ['RECURRENT'],
+                /**
+                 * Avulso aceita Pix; recorrente, não.
+                 *
+                 * A diferença de um upgrade é cobrança única, então ela pode ir
+                 * por Pix — que confirma em segundos e não exige cartão de quem
+                 * só quer subir de plano hoje. A recorrência continua restrita a
+                 * cartão, porque cobrar sozinho todo mês exige credencial
+                 * guardada (medido: o Asaas recusa PIX com RECURRENT).
+                 */
+                billingTypes: proporcional ? ['PIX', 'CREDIT_CARD'] : ['CREDIT_CARD'],
+                chargeTypes: proporcional ? ['DETACHED'] : ['RECURRENT'],
                 minutesToExpire: 1440,
                 /** Como o webhook descobre qual conta e qual plano foram pagos. */
                 externalReference: tentativa.id,
@@ -171,10 +191,11 @@ export async function criarCheckoutDePlano(opcoes: {
                 items: [
                     {
                         name: planConfig.name,
-                        description:
-                            adicionais > 0
-                                ? `Mensalidade do ${planConfig.name} com ${adicionais} unidade(s) adicional(is)`
-                                : `Mensalidade do ${planConfig.name}`,
+                        description: proporcional
+                            ? `Diferença proporcional até a renovação — mudança para ${planConfig.name}`
+                            : adicionais > 0
+                              ? `Mensalidade do ${planConfig.name} com ${adicionais} unidade(s) adicional(is)`
+                              : `Mensalidade do ${planConfig.name}`,
                         quantity: 1,
                         value: valor,
                     },
@@ -198,10 +219,16 @@ export async function criarCheckoutDePlano(opcoes: {
                     : dadosCompletos(pagador)
                       ? { customerData: dadosCompletos(pagador) }
                       : {}),
-                subscription: {
-                    cycle: 'MONTHLY',
-                    nextDueDate: hoje,
-                },
+                // Avulso não leva recorrência: a assinatura já existe, e criar
+                // outra é a cobrança dobrada que custou caro hoje.
+                ...(proporcional
+                    ? {}
+                    : {
+                        subscription: {
+                            cycle: 'MONTHLY',
+                            nextDueDate: hoje,
+                        },
+                    }),
             },
         })
 

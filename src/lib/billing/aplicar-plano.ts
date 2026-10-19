@@ -39,8 +39,21 @@ export async function aplicarPlano(opcoes: {
     plan: PlanId
     /** A assinatura recorrente no Asaas, quando houve pagamento. */
     asaasSubscriptionId?: string | null
+    /**
+     * Descer de plano **não** mexe nos tetos nem desliga nada.
+     *
+     * "Todos os recursos do plano superior continuam valendo até a renovação" —
+     * decisão do Andre. Então `plan` muda agora, para o registro e para o preço
+     * do próximo ciclo, e os tetos pagos ficam onde estão: quem pagou
+     * Multiclínica usa Multiclínica até a virada. É o cron de renovação que
+     * traz os tetos para o plano vigente e desliga o que não couber.
+     *
+     * Sem isto, descer de plano desconectaria números no mesmo instante — e o
+     * cliente perderia, no dia 2, vinte e oito dias de capacidade comprada.
+     */
+    somenteRegistro?: boolean
 }): Promise<ResultadoDaAtivacao> {
-    const { accountId, workspaceId, plan, asaasSubscriptionId } = opcoes
+    const { accountId, workspaceId, plan, asaasSubscriptionId, somenteRegistro } = opcoes
 
     /**
      * O plano **mais** os adicionais contratados.
@@ -73,6 +86,21 @@ export async function aplicarPlano(opcoes: {
         ...(asaasSubscriptionId ? { asaasSubscriptionId } : {}),
     }
 
+    /**
+     * No downgrade grava-se **só** o nome do plano e o estado.
+     *
+     * Os tetos, a franquia e o teto de fala continuam os do plano pago. A
+     * leitura em `getWorkspaceLimits` usa o maior entre a cópia e a tabela, então
+     * o cliente segue com o que comprou sem nenhum "plano agendado" para
+     * ninguém manter.
+     */
+    const dadosDoDowngrade = {
+        plan,
+        status: 'active',
+        readOnlySince: null,
+        ...(asaasSubscriptionId ? { asaasSubscriptionId } : {}),
+    }
+
     await prisma.subscription.upsert({
         where: { accountId },
         create: {
@@ -86,8 +114,16 @@ export async function aplicarPlano(opcoes: {
          * contada da assinatura, como diz PRODUCT.md §2. Na primeira ativação
          * ele nasce no `create` acima.
          */
-        update: dados,
+        update: somenteRegistro ? dadosDoDowngrade : dados,
     })
+
+    if (somenteRegistro) {
+        console.info(
+            `[APLICAR_PLANO] conta ${accountId} passa a ${plan} no próximo ciclo; ` +
+                'tetos e franquia continuam os do plano pago até a renovação'
+        )
+        return { agentsPaused: 0, agentsReleased: 0, numbersPaused: 0, notas: [] }
+    }
 
     const ajuste = await applyPlanLimits(workspaceId, {
         maxAgents: limites.maxAgents,

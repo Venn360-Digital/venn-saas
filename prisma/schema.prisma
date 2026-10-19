@@ -233,6 +233,14 @@ model AsaasCheckout {
   /// ACTIVE | PAID | CANCELED | EXPIRED — espelho do que o Asaas diz.
   status String @default("ACTIVE")
 
+  /// "assinatura" (cria a recorrência) | "proporcional" (só a diferença do upgrade).
+  ///
+  /// O processador precisa saber qual é: o primeiro cria assinatura no Asaas e
+  /// manda procurá-la; o segundo é cobrança avulsa sobre uma assinatura que já
+  /// existe, e o que ele faz é aplicar o plano e **atualizar o valor** da
+  /// recorrência para os próximos ciclos.
+  kind String @default("assinatura")
+
   /// Em centavos, o valor que estava sendo cobrado quando foi criado.
   valueCents Int
 
@@ -1272,7 +1280,14 @@ model Subscription {
   plan   String // "flow", "pro", "advanced"
   status String @default("active") // "active", "past_due", "canceled", "trialing"
 
-  // Limits
+  /// Os tetos **pagos**, que podem estar acima do plano vigente.
+  ///
+  /// Desde 2026-10-19 esta cópia tem função, e não é mais só histórico: ao
+  /// descer de plano, `plan` muda na hora e estes números **ficam** até a
+  /// renovação. É assim que "todos os recursos do plano superior continuam
+  /// valendo até a renovação" acontece sem precisar de plano agendado — a
+  /// leitura usa o maior entre a cópia e a tabela do plano. Na virada, o cron
+  /// de renovação os traz para o plano vigente e desliga o que não couber.
   maxAgents   Int @default(1)
   maxMessages Int @default(100)
 

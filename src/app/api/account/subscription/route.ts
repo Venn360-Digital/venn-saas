@@ -11,6 +11,8 @@ import { criarCheckoutDePlano } from '@/lib/asaas/checkout'
 import { regimeDaConta } from '@/lib/asaas/cobranca'
 import { AsaasError } from '@/lib/asaas/client'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
+import { descreverAssinatura } from '@/lib/asaas/vincular'
+import { diferencaProporcional, direcaoDaTroca, mensalidade } from '@/lib/billing/troca-de-plano'
 
 /**
  * O endereço desta aplicação, para o Asaas devolver o pagador.
@@ -241,6 +243,39 @@ export async function POST(request: NextRequest) {
 
                 const regime = await regimeDaConta(accountId)
 
+                /**
+                 * Três situações, e só uma delas cobra um mês cheio.
+                 *
+                 * Antes **toda** troca criava um checkout novo com vencimento
+                 * hoje, e o Asaas cobrava ao concluir: trocar três vezes num dia
+                 * cobrava três meses. O período já pago simplesmente não era
+                 * considerado.
+                 *
+                 * - **primeira contratação** → checkout recorrente, cobra o mês;
+                 * - **upgrade** → cobra só a diferença dos dias que faltam, e
+                 *   entrega na hora;
+                 * - **downgrade** → não cobra nada; o plano muda no registro, o
+                 *   preço muda na renovação, e os recursos pagos valem até lá.
+                 */
+                const assinatura = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: {
+                        plan: true,
+                        status: true,
+                        asaasSubscriptionId: true,
+                        currentPeriodStart: true,
+                        currentPeriodEnd: true,
+                    },
+                })
+
+                const temAssinaturaViva = Boolean(
+                    assinatura?.asaasSubscriptionId && assinatura.status === 'active'
+                )
+                const direcao = direcaoDaTroca(
+                    temAssinaturaViva && isPlanId(assinatura?.plan) ? assinatura.plan : null,
+                    plan
+                )
+
                 if (!regime.precisaPagar) {
                     const { notas } = await aplicarPlano({
                         accountId,
@@ -259,6 +294,49 @@ export async function POST(request: NextRequest) {
                         message:
                             `Plano alterado para ${planConfig.name}. ${porque}` +
                             (notas.length ? ` ${notas.join('; ')}.` : ''),
+                    })
+                }
+
+                /**
+                 * Descer de plano: nada é cobrado, nada é desligado hoje.
+                 *
+                 * O valor novo vai para a assinatura do Asaas **sem**
+                 * `updatePendingPayments` — a cobrança deste mês já foi paga, e
+                 * reescrevê-la seria mexer no que o cliente pagou. Ele passa a
+                 * valer na próxima.
+                 */
+                if (direcao === 'downgrade' && assinatura?.asaasSubscriptionId) {
+                    await aplicarPlano({
+                        accountId,
+                        workspaceId: workspaceUser.workspaceId,
+                        plan,
+                        somenteRegistro: true,
+                    })
+
+                    try {
+                        await descreverAssinatura({
+                            accountId,
+                            subscriptionId: assinatura.asaasSubscriptionId,
+                            value: mensalidade(plan, unidades.adicionais),
+                        })
+                    } catch (erro) {
+                        console.error(
+                            `[CHANGE_PLAN] conta ${accountId} desceu para ${plan} mas o valor ` +
+                                `da assinatura no Asaas não mudou: ${String(erro)}`
+                        )
+                    }
+
+                    const virada = assinatura.currentPeriodEnd?.toLocaleDateString('pt-BR', {
+                        timeZone: 'America/Sao_Paulo',
+                    })
+
+                    return NextResponse.json({
+                        success: true,
+                        pago: false,
+                        message:
+                            `Plano alterado para ${planConfig.name}. Nada foi cobrado agora — ` +
+                            `você continua com os recursos do plano atual até ` +
+                            `${virada ?? 'a renovação'}, quando o novo preço passa a valer.`,
                     })
                 }
 
@@ -307,12 +385,61 @@ export async function POST(request: NextRequest) {
                  * metade é o único envio que o Asaas recusa. Ver a tabela lá.
                  */
 
+                /**
+                 * Subir de plano cobra só a diferença dos dias que faltam.
+                 *
+                 * E quando a diferença fica abaixo do mínimo do Asaas (R$ 5) —
+                 * um upgrade a três dias da renovação, por exemplo —, o plano
+                 * entra **sem cobrança**: forçar R$ 5 por uma diferença de R$ 3
+                 * é cobrar a mais para respeitar um limite do gateway, e a
+                 * diferença some na renovação cheia, que é logo ali.
+                 */
+                const proporcional =
+                    direcao === 'upgrade' && isPlanId(assinatura?.plan)
+                        ? diferencaProporcional({
+                            atual: assinatura.plan,
+                            novo: plan,
+                            adicionais: unidades.adicionais,
+                            inicioDoCiclo: assinatura.currentPeriodStart,
+                            fimDoCiclo: assinatura.currentPeriodEnd,
+                            agora: new Date(),
+                        })
+                        : null
+
+                if (proporcional?.abaixoDoMinimo && assinatura?.asaasSubscriptionId) {
+                    const { notas } = await aplicarPlano({
+                        accountId,
+                        workspaceId: workspaceUser.workspaceId,
+                        plan,
+                    })
+
+                    try {
+                        await descreverAssinatura({
+                            accountId,
+                            subscriptionId: assinatura.asaasSubscriptionId,
+                            value: mensalidade(plan, unidades.adicionais),
+                        })
+                    } catch (erro) {
+                        console.error(`[CHANGE_PLAN] valor da assinatura não atualizado: ${String(erro)}`)
+                    }
+
+                    return NextResponse.json({
+                        success: true,
+                        pago: false,
+                        message:
+                            `Plano alterado para ${planConfig.name} sem cobrança: faltam ` +
+                            `${proporcional.diasRestantes} dia(s) para a renovação e a diferença ` +
+                            `ficou abaixo do mínimo.` + (notas.length ? ` ${notas.join('; ')}.` : ''),
+                    })
+                }
+
                 try {
                     const { link } = await criarCheckoutDePlano({
                         accountId,
                         plan,
                         adicionais: unidades.adicionais,
                         asaasCustomerId: conta.asaasCustomerId,
+                        ...(proporcional ? { valorProporcional: proporcional.valor } : {}),
                         pagador: {
                             name: conta.name,
                             cpfCnpj: conta.cpfCnpj,
@@ -331,7 +458,10 @@ export async function POST(request: NextRequest) {
                         pago: true,
                         /** A tela manda o pagador para cá. */
                         link,
-                        message: `Abrindo o pagamento do ${planConfig.name}.`,
+                        message: proporcional
+                            ? `Abrindo o pagamento da diferença até a renovação ` +
+                              `(${proporcional.diasRestantes} dia(s)).`
+                            : `Abrindo o pagamento do ${planConfig.name}.`,
                     })
                 } catch (erro) {
                     console.error('[CHANGE_PLAN] falha ao criar checkout', erro)

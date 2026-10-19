@@ -11,6 +11,7 @@
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
 import { limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
+import { diferencaProporcional, direcaoDaTroca, mensalidade } from '@/lib/billing/troca-de-plano'
 
 let fails = 0
 function eq(label: string, got: unknown, want: unknown) {
@@ -187,6 +188,66 @@ eq('e ainda leva menos números',
 
 // Teto de unidades continua saindo da mesma conta, agora derivado.
 eq('o teto de unidades acompanha', tetoDeUnidades('advanced', 2), 5)
+
+console.log('\n— trocar de plano no meio de um ciclo pago')
+
+eq('mensalidade soma os adicionais', mensalidade('flow', 2), 970)
+eq('Multiclínica com 2 adicionais', mensalidade('advanced', 2), 1470)
+
+eq('primeira contratação', direcaoDaTroca(null, 'flow'), 'primeira')
+eq('subir é upgrade', direcaoDaTroca('flow', 'advanced'), 'upgrade')
+eq('descer é downgrade', direcaoDaTroca('advanced', 'flow'), 'downgrade')
+eq('mesmo plano não é troca', direcaoDaTroca('pro', 'pro'), 'igual')
+
+// Um ciclo de 30 dias com 15 pela frente: metade da diferença.
+const inicio = new Date('2026-10-18T12:00:00-03:00')
+const fim = new Date('2026-11-17T12:00:00-03:00')
+const meio = new Date('2026-11-02T12:00:00-03:00')
+
+eq(
+    'upgrade na metade do ciclo cobra metade da diferença',
+    diferencaProporcional({ atual: 'flow', novo: 'advanced', adicionais: 0, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }).valor,
+    250
+)
+
+// Descer não gera cobrança nem devolução: o cliente usa o que pagou.
+eq(
+    'downgrade não cobra',
+    diferencaProporcional({ atual: 'advanced', novo: 'flow', adicionais: 2, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }).valor,
+    0
+)
+
+// Adicional não entra na diferença: ele não muda com o plano.
+eq(
+    'o adicional não muda a diferença do upgrade',
+    diferencaProporcional({ atual: 'flow', novo: 'advanced', adicionais: 3, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }).valor,
+    250
+)
+
+// Um dia restante ainda cobra: 300 de diferença em 30 dias dá R$ 10, acima do
+// mínimo do Asaas. Com os preços de hoje, o piso só é alcançado no fim exato.
+eq(
+    'um dia restante cobra um trinta avos',
+    diferencaProporcional({ atual: 'pro', novo: 'advanced', adicionais: 0, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: new Date('2026-11-16T12:00:00-03:00') }).valor,
+    10
+)
+
+/**
+ * Trocar no instante da virada: não há dias a proporcionalizar, então não se
+ * cobra nada e o preço novo entra com o ciclo seguinte. É o caso que a trava do
+ * mínimo existe para atender.
+ */
+const naVirada = diferencaProporcional({ atual: 'flow', novo: 'pro', adicionais: 0, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: fim })
+eq('upgrade no instante da virada não cobra', naVirada.valor, 0)
+eq('e diz que foi o mínimo', naVirada.abaixoDoMinimo, true)
+eq('com zero dias restantes', naVirada.diasRestantes, 0)
+
+// Sem período gravado — assinatura antiga — assume ciclo cheio.
+eq(
+    'sem período, cobra a diferença integral',
+    diferencaProporcional({ atual: 'flow', novo: 'pro', adicionais: 0, inicioDoCiclo: null, fimDoCiclo: null, agora: meio }).valor,
+    200
+)
 
 console.log(fails === 0 ? '\nTodos passaram.' : `\n${fails} falharam.`)
 process.exit(fails === 0 ? 0 : 1)

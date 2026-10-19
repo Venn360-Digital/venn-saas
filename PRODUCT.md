@@ -461,6 +461,37 @@ onde o plano foi trocado deixaria a conta acima do plano pelo caminho mais
 simples que existe — descer de plano numa unidade e manter os agentes da outra.
 O agente que sobrevive é o mais antigo **da conta**.
 
+### Trocar de plano no meio de um ciclo pago
+
+Decidido em 2026-10-19, depois que três trocas em duas horas geraram três
+cobranças de mês cheio. Toda troca criava um checkout novo com vencimento no
+dia, e o período já pago simplesmente não era considerado.
+
+| Situação | O que acontece |
+|---|---|
+| Primeira contratação | checkout recorrente, cobra o mês, cria a assinatura |
+| **Subir** | cobra **só a diferença** dos dias que faltam, e entrega na hora |
+| **Descer** | **não cobra nada**; o plano muda no registro e o preço na renovação |
+
+**Descer não tira o que foi pago.** Todos os recursos do plano superior
+continuam valendo até a renovação: `plan` muda na hora, e os tetos pagos — que a
+assinatura guarda em cópia — ficam de pé até a virada. Não há "plano agendado"
+para ninguém manter; a leitura usa o maior entre a cópia e a tabela do plano.
+
+**Na virada, o cron aplica o plano novo para valer**, inclusive para baixo: é
+ali que um Multiclínica (6 números) virando Digital com dois adicionais (3)
+desconecta três linhas. Fazer isso na hora da troca tiraria do cliente dias que
+ele pagou.
+
+**Subir entrega na hora porque foi pago na hora.** A diferença é proporcional
+aos dias restantes, cobrada como avulsa — que aceita Pix, ao contrário da
+recorrência. Abaixo do mínimo do Asaas (R$ 5) o plano entra sem cobrança: com os
+preços de hoje isso só acontece na virada exata.
+
+E o ganho estrutural: **sem assinatura nova, não há assinatura órfã.** A
+cobrança dobrada de 2026-10-19 deixa de ser possível por construção em toda
+troca, em vez de depender de cancelar a anterior.
+
 ### Descer de plano com unidades demais é recusado
 
 Multiclínica com três unidades não vira Digital. A saída não é apagar unidade —

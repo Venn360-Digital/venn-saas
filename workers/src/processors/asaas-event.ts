@@ -2,7 +2,8 @@ import type { Job } from 'bullmq'
 
 import prisma from '@/lib/prisma'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
-import { vincularContaAoAsaas } from '@/lib/asaas/vincular'
+import { descreverAssinatura, vincularContaAoAsaas } from '@/lib/asaas/vincular'
+import { mensalidade } from '@/lib/billing/troca-de-plano'
 import { isPlanId } from '@/lib/plan-limits'
 import { createLogger } from '../logger'
 import type { AsaasEventJob } from '../queues'
@@ -298,7 +299,7 @@ async function tratarCheckout(
 
     const tentativa = await prisma.asaasCheckout.findUnique({
         where: { id: ref },
-        select: { id: true, accountId: true, plan: true, status: true, appliedAt: true },
+        select: { id: true, accountId: true, plan: true, status: true, appliedAt: true, kind: true },
     })
 
     if (!tentativa) {
@@ -364,6 +365,67 @@ async function tratarCheckout(
 
     if (!unidade) {
         log.error(`conta ${tentativa.accountId} não tem nenhuma unidade; plano não aplicado`)
+        return
+    }
+
+    /**
+     * Upgrade proporcional: a assinatura já existe, só o valor muda.
+     *
+     * Não há assinatura nova para procurar — procurar criaria o risco de
+     * encontrar outra coisa — e não há cliente novo para descobrir. O que falta
+     * é aplicar o plano (o cliente pagou a diferença e recebe na hora) e dizer
+     * ao Asaas quanto cobrar a partir do próximo ciclo.
+     */
+    if (tentativa.kind === 'proporcional') {
+        const unidade = await prisma.workspace.findFirst({
+            where: { accountId: tentativa.accountId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+        })
+        if (!unidade) {
+            log.error(`conta ${tentativa.accountId} não tem unidade; plano não aplicado`)
+            return
+        }
+
+        const { notas } = await aplicarPlano({
+            accountId: tentativa.accountId,
+            workspaceId: unidade.id,
+            plan: tentativa.plan,
+        })
+
+        await prisma.asaasCheckout.update({
+            where: { id: tentativa.id },
+            data: { appliedAt: new Date() },
+        })
+
+        const assinatura = await prisma.subscription.findUnique({
+            where: { accountId: tentativa.accountId },
+            select: { asaasSubscriptionId: true },
+        })
+
+        if (assinatura?.asaasSubscriptionId) {
+            const adicionais = await prisma.unitAddon.count({
+                where: { accountId: tentativa.accountId },
+            })
+            try {
+                await descreverAssinatura({
+                    accountId: tentativa.accountId,
+                    subscriptionId: assinatura.asaasSubscriptionId,
+                    value: mensalidade(tentativa.plan, adicionais),
+                })
+            } catch (erro) {
+                log.error(
+                    `ATENÇÃO: conta ${tentativa.accountId} subiu para ${tentativa.plan} mas a ` +
+                        `assinatura ${assinatura.asaasSubscriptionId} continua com o valor antigo. ` +
+                        `Ajuste no painel antes do próximo vencimento. Erro: ${String(erro)}`
+                )
+            }
+        }
+
+        log.info(
+            `upgrade proporcional aplicado: conta ${tentativa.accountId} em ${tentativa.plan}` +
+                (notas.length ? ` — ${notas.join('; ')}` : '')
+        )
         return
     }
 

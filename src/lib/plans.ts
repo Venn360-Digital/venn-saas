@@ -20,7 +20,7 @@ import {
  * connections are created.
  */
 
-import { PLAN_LIMITS, PLAN_NAMES, type PlanId, type PlanLimits } from '@/lib/plan-limits'
+import { PLAN_LIMITS, PLAN_NAMES, PLAN_PRICES, PRECO_ADICIONAL, type PlanId, type PlanLimits } from '@/lib/plan-limits'
 import { InstagramIcon, WhatsAppIcon } from '@/components/shared/BrandIcons'
 import { Globe } from 'lucide-react'
 
@@ -184,7 +184,7 @@ export const PLANS: Record<PlanId, Plan> = {
         name: PLAN_NAMES.flow,
         description:
             'Para clínicas que precisam conectar pacientes, WhatsApp e atendimento em um só lugar.',
-        price: 390,
+        price: PLAN_PRICES.flow,
         limits: PLAN_LIMITS.flow,
         features: [
             { text: '1 unidade (clínica)', strong: true },
@@ -204,7 +204,7 @@ export const PLANS: Record<PlanId, Plan> = {
         name: PLAN_NAMES.pro,
         description:
             'Para clínicas que precisam distribuir conversas, ampliar o atendimento e administrar mais canais.',
-        price: 590,
+        price: PLAN_PRICES.pro,
         badge: 'Mais escolhido',
         limits: PLAN_LIMITS.pro,
         features: [
@@ -227,7 +227,7 @@ export const PLANS: Record<PlanId, Plan> = {
         name: PLAN_NAMES.advanced,
         description:
             'Para clínicas com operações maiores, múltiplas unidades e maior fluxo de pacientes.',
-        price: 890,
+        price: PLAN_PRICES.advanced,
         limits: PLAN_LIMITS.advanced,
         features: [
             { text: '3 unidades (clínicas)', strong: true },
@@ -317,7 +317,7 @@ export function creditPackFor(credits: unknown): CreditPack | undefined {
  * números. O plano ganha em dinheiro **e** em capacidade.
  */
 export const UNIDADE_ADICIONAL = {
-    price: 290,
+    price: PRECO_ADICIONAL,
     name: 'Unidade adicional',
     pitch:
         'Mais uma clínica na mesma conta — com agenda, pacientes e conversas próprios, ' +

@@ -245,6 +245,15 @@ async function descricaoDaAssinatura(accountId: string): Promise<string> {
 export async function descreverAssinatura(opcoes: {
     accountId: string
     subscriptionId: string
+    /**
+     * O novo valor mensal, quando a troca de plano mudou o preço.
+     *
+     * **Sem `updatePendingPayments`** quando há valor: a cobrança deste mês já
+     * foi paga, e mexer nela seria reescrever o que o cliente pagou. O valor
+     * novo vale da próxima em diante — que é exatamente o que "o preço muda na
+     * renovação" significa.
+     */
+    value?: number
 }): Promise<void> {
     const description = await descricaoDaAssinatura(opcoes.accountId)
 
@@ -253,7 +262,9 @@ export async function descreverAssinatura(opcoes: {
         body: {
             description,
             externalReference: opcoes.accountId,
-            updatePendingPayments: true,
+            ...(opcoes.value !== undefined
+                ? { value: opcoes.value, updatePendingPayments: false }
+                : { updatePendingPayments: true }),
         },
     })
 }

@@ -94,6 +94,22 @@ export const PLAN_NAMES: Record<PlanId, string> = {
     advanced: 'Plano Multiclínica',
 }
 
+/**
+ * O preço mensal de cada plano, e o do adicional.
+ *
+ * Aqui pela mesma razão dos nomes: o **worker** precisa deles para recalcular o
+ * valor da assinatura numa troca de plano, e `plans.ts` arrasta ícones do
+ * Lucide. `plans.ts` lê daqui, então o preço continua tendo um lugar só.
+ */
+export const PLAN_PRICES: Record<PlanId, number> = {
+    flow: 390,
+    pro: 590,
+    advanced: 890,
+}
+
+/** A unidade adicional, por mês. Ver `ADICIONAL_INCLUI` para o que ela traz. */
+export const PRECO_ADICIONAL = 290
+
 /** O nome do plano, caindo no de entrada quando o id não é reconhecido. */
 export function planNameFor(id: string | null | undefined): string {
     return PLAN_NAMES[isPlanId(id) ? id : 'flow']

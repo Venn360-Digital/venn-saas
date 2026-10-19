@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { RENEWAL_DAYS } from '@/lib/billing'
 import { limitesEfetivos } from '@/lib/plan-limits'
+import { applyPlanLimits } from '@/lib/limits'
 import { createLogger } from '../../logger'
 
 const log = createLogger('CRON:CREDITS')
@@ -115,6 +116,23 @@ export async function runCreditsReset(): Promise<void> {
             )
         }
 
+        /**
+         * A renovação é onde o downgrade finalmente acontece.
+         *
+         * Descer de plano muda `plan` na hora e **deixa os tetos pagos de pé**
+         * até aqui — é assim que "os recursos do plano superior valem até a
+         * renovação" funciona sem plano agendado. Na virada, os tetos passam a
+         * ser os do plano vigente, para baixo inclusive.
+         *
+         * Por isso o `Math.max` saiu: ele existia para preservar teto concedido
+         * à mão, e com ele nenhum downgrade jamais tomaria efeito — a conta
+         * ficaria para sempre com a capacidade do plano mais caro que já teve.
+         */
+        const antes = {
+            agentes: subscription.maxAgents,
+            numeros: subscription.maxWhatsAppNumbers,
+        }
+
         await prisma.subscription.update({
             where: { id: subscription.id },
             data: {
@@ -124,13 +142,41 @@ export async function runCreditsReset(): Promise<void> {
                 credits: tabela.credits,
                 maxMessages: tabela.maxMessages,
                 maxSpokenReplies: tabela.maxSpokenReplies,
-                maxAgents: Math.max(subscription.maxAgents, tabela.maxAgents),
-                maxWhatsAppNumbers: Math.max(
-                    subscription.maxWhatsAppNumbers,
-                    tabela.maxWhatsAppNumbers
-                ),
+                maxAgents: tabela.maxAgents,
+                maxWhatsAppNumbers: tabela.maxWhatsAppNumbers,
             },
         })
+
+        /**
+         * E só agora o excedente é desligado.
+         *
+         * É o momento em que o Multiclínica (6 números) virando Digital com dois
+         * adicionais (3) desconecta três linhas. Fazer isso na hora da troca
+         * tiraria do cliente dias que ele pagou; fazer aqui é cumprir o que foi
+         * contratado, no dia em que passa a valer.
+         *
+         * Só roda quando algum teto **caiu**: na renovação comum nada muda, e
+         * varrer agentes de toda conta todo mês é trabalho para nada.
+         */
+        if (tabela.maxAgents < antes.agentes || tabela.maxWhatsAppNumbers < antes.numeros) {
+            const unidade = await prisma.workspace.findFirst({
+                where: { accountId: subscription.accountId },
+                orderBy: { createdAt: 'asc' },
+                select: { id: true },
+            })
+
+            if (unidade) {
+                const ajuste = await applyPlanLimits(unidade.id, {
+                    maxAgents: tabela.maxAgents,
+                    maxWhatsAppNumbers: tabela.maxWhatsAppNumbers,
+                })
+                log.info(
+                    `conta ${subscription.accountId} ajustada ao plano novo: ` +
+                        `${ajuste.agentsPaused} agente(s) pausado(s), ` +
+                        `${ajuste.numbersPaused} número(s) desconectado(s)`
+                )
+            }
+        }
 
         const mudouFranquia = subscription.credits !== tabela.credits
         log.info(
