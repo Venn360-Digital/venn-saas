@@ -647,7 +647,9 @@ ninguém sabe qual está certo.
 | Documento de cobrança | **CPF ou CNPJ**, e vem da **conta** (`accounts.cpfCnpj`) |
 | Unidade adicional | **recorrente**: soma R$ 290 à mensalidade enquanto existir |
 | Crédito avulso | **compra única**, 90 dias de validade |
-| Unidade comprada no meio do mês | **proporcional até a renovação**, depois ciclos cheios — se o Asaas permitir |
+| Unidade comprada no meio do mês | **proporcional até a renovação**, depois ciclos cheios (implantado na fase 3) |
+| O que o adicional inclui | 1 unidade, 1 agente, 1 número — **crédito não** |
+| Cancelar adicional | direito do cliente; vale até a renovação |
 | Venn360 | **vitalícia** (`billingExempt`): é a conta de teste do produto |
 | Implante Ja | cobrada **a partir de 27/10/2026** (`billingStartsAt`) |
 
@@ -667,6 +669,57 @@ A consequência é que o cliente precisa de um jeito de **cancelar adicional**,
 assim como já pode cancelar o plano. Isso é da fase 4 (ciclo de vida), junto do
 cancelamento da assinatura — e é a primeira vez que a fase 4 ganha escopo que
 não veio de inadimplência.
+
+### Como o adicional é cobrado (fase 3, 2026-10-19)
+
+**Uma cobrança avulsa agora, e a renovação somada ao plano.**
+
+O que se cobra no ato é o **proporcional aos dias que faltam** do ciclo já pago
+— a unidade passa a valer no pagamento, e cobrar R$ 290 cheios no dia 28 seria
+cobrar duas vezes os mesmos dois dias. Para os ciclos seguintes, o valor da
+assinatura que já existe é atualizado (`PUT /subscriptions/{id}`), e por isso a
+clínica continua recebendo **uma fatura por mês**. Criar uma segunda assinatura
+para o adicional é o que produziria duas cobranças — foi a dúvida certa do
+Andre, e é a razão de a sincronia de valor existir.
+
+Crédito e unidade vão no **mesmo checkout**, porque a tela vende os dois no
+mesmo diálogo e o cliente clica uma vez. Por ser avulsa, a cobrança aceita
+**Pix e cartão**; a recorrência continua sendo cartão e só cartão, que é limite
+do Asaas, não escolha nossa.
+
+**O adicional não traz crédito** (decisão de 2026-10-19): 10.000 avulsos custam
+R$ 49, então expandir sai por R$ 290 + R$ 49 = R$ 339, abaixo dos R$ 390 de uma
+assinatura Digital nova. Embutir franquia no adicional daria de graça o que já
+se compra — e abriria uma terceira origem de crédito para a clínica entender. O
+adicional traz **capacidade**: a unidade, 1 agente e 1 número.
+
+Duas situações não passam pelo gateway: **conta isenta** (vitalícia ou antes da
+data de início) e **cesta abaixo de R$ 5**, que é o mínimo que o Asaas aceita
+por cobrança. Nas duas a entrega é imediata e não há o que cobrar.
+
+### O ciclo de vida (fase 4, 2026-10-19)
+
+**Atraso não corta na hora.** A cobrança vencida abre a carência — 3 dias no
+cartão, 2 no Pix, contados do dia do vencimento, e o dia inteiro vale. Quem
+corta é uma tarefa diária, no dia em que ela termina.
+
+**O corte é somente-leitura**, o mesmo da avaliação vencida (§3): mensagem
+continua chegando, histórico continua inteiro e exportável, a guia de plano
+continua aberta para que pagar seja sempre possível. **O WhatsApp não é
+desconectado** — derrubar a linha por três dias de atraso custa à clínica o
+relacionamento com os pacientes dela. Pagar restaura na hora, inclusive para
+quem já foi cortado.
+
+**Cancelar o plano cancela no gateway**, e nessa ordem: primeiro o `DELETE` da
+recorrência, depois o registro aqui. Se o gateway recusar, nada muda — ficar
+cancelado aqui e cobrado lá é o pior dos dois mundos. O acesso vale até o fim
+do ciclo pago.
+
+**Cancelar adicional é ação do cliente**, nunca efeito colateral de um upgrade.
+Não é retroativo: a unidade vale até a renovação e o valor da recorrência desce
+para os ciclos seguintes. E é **recusado** quando deixaria a conta acima do
+teto: pausar agente e desconectar número são reversíveis, "pausar uma clínica"
+não é — a tela diz quantas sobram e a decisão de excluir fica com quem é dono.
 
 ### Por que checkout hospedado, e não tokenização
 
