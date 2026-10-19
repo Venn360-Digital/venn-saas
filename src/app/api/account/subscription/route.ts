@@ -275,6 +275,7 @@ export async function POST(request: NextRequest) {
                     select: {
                         name: true,
                         cpfCnpj: true,
+                        asaasCustomerId: true,
                         postalCode: true,
                         address: true,
                         addressNumber: true,
@@ -311,6 +312,7 @@ export async function POST(request: NextRequest) {
                         accountId,
                         plan,
                         adicionais: unidades.adicionais,
+                        asaasCustomerId: conta.asaasCustomerId,
                         pagador: {
                             name: conta.name,
                             cpfCnpj: conta.cpfCnpj,

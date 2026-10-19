@@ -73,6 +73,24 @@ export async function vincularContaAoAsaas(opcoes: {
         )
     }
 
+    /**
+     * A assinatura que esta conta tinha **antes** desta ativação.
+     *
+     * Lida agora, antes de ser sobrescrita, porque é ela que precisa ser
+     * cancelada: trocar de plano no checkout **cria** uma assinatura e não
+     * encerra a anterior. Sem isto, a clínica é cobrada duas vezes no mês
+     * seguinte — medido na conta de teste: R$ 970 do Digital e R$ 1.470 do
+     * Multiclínica, as duas com vencimento em 18/11.
+     *
+     * Guardar o id daqui, e não procurar pelas assinaturas do cliente, é o que
+     * funciona mesmo quando a anterior ficou sob **outro** cliente no Asaas —
+     * o que acontecia enquanto cada checkout criava um cliente novo.
+     */
+    const anterior = await prisma.subscription.findUnique({
+        where: { accountId },
+        select: { asaasSubscriptionId: true },
+    })
+
     const assinaturas = await asaas<Lista<AssinaturaDoAsaas>>(
         `/subscriptions?customer=${encodeURIComponent(cliente.id)}&limit=10`
     )
@@ -114,6 +132,31 @@ export async function vincularContaAoAsaas(opcoes: {
                     : {}),
             },
         })
+
+        /**
+         * A anterior é encerrada, e isso vem **antes** da descrição.
+         *
+         * Duas assinaturas ativas para a mesma conta é cobrança dobrada no mês
+         * seguinte — o defeito mais caro que apareceu nesta integração. Se
+         * falhar, o erro é registrado alto: é o tipo de pendência que alguém
+         * precisa resolver à mão, no painel, antes do próximo vencimento.
+         */
+        if (anterior?.asaasSubscriptionId && anterior.asaasSubscriptionId !== ativa.id) {
+            try {
+                await asaas(`/subscriptions/${anterior.asaasSubscriptionId}`, { method: 'DELETE' })
+                console.info(
+                    `[ASAAS_VINCULAR] assinatura anterior ${anterior.asaasSubscriptionId} ` +
+                        `encerrada; fica a ${ativa.id}`
+                )
+            } catch (erro) {
+                console.error(
+                    `[ASAAS_VINCULAR] ATENÇÃO: não consegui encerrar a assinatura anterior ` +
+                        `${anterior.asaasSubscriptionId} da conta ${accountId}. ` +
+                        `Ela e a nova (${ativa.id}) vão cobrar no mesmo mês. ` +
+                        `Cancele no painel do Asaas. Erro: ${String(erro)}`
+                )
+            }
+        }
 
         /**
          * A descrição e a referência, por fora do vínculo.

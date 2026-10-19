@@ -90,10 +90,20 @@ export async function criarCheckoutDePlano(opcoes: {
     plan: PlanId
     adicionais: number
     pagador: DadosDoPagador
+    /**
+     * O cliente que esta conta já tem no Asaas, quando tem.
+     *
+     * **Reusar é obrigatório, não otimização.** `customerData` cria um cliente
+     * novo a cada checkout, mesmo com o mesmo CNPJ: três pagamentos de teste
+     * deixaram três "Venn360" no painel, e num ERP isso vira o mesmo cliente
+     * contado três vezes. Com o id em mãos, mandamos `customer` e o Asaas
+     * aproveita o que existe.
+     */
+    asaasCustomerId?: string | null
     /** Para onde o Asaas devolve o pagador. Sem rota, sem volta. */
     baseUrl: string
 }): Promise<{ link: string; checkoutId: string }> {
-    const { accountId, plan, adicionais, pagador, baseUrl } = opcoes
+    const { accountId, plan, adicionais, pagador, asaasCustomerId, baseUrl } = opcoes
 
     const valor = mensalidadeDoPlano(plan, adicionais)
     const planConfig = PLANS[plan]
@@ -169,7 +179,25 @@ export async function criarCheckoutDePlano(opcoes: {
                         value: valor,
                     },
                 ],
-                ...(dadosCompletos(pagador) ? { customerData: dadosCompletos(pagador) } : {}),
+                /**
+                 * Cliente conhecido entra por id; desconhecido, por dados.
+                 *
+                 * Só o primeiro checkout de uma conta manda `customerData` — e
+                 * é ele que cria o cliente no Asaas. Do segundo em diante existe
+                 * `asaasCustomerId`, e mandar os dados de novo criaria um
+                 * cliente duplicado com o mesmo documento.
+                 *
+                 * A busca por CNPJ **não** serve para o primeiro: o CNPJ de uma
+                 * clínica pode já estar no Asaas do Andre sob outro nome — foi o
+                 * caso da própria Venn360, cujo documento também pertence a um
+                 * cliente "Avant Empresarial" criado em 2025. Ligar a cobrança
+                 * ao registro errado é pior que criar um certo.
+                 */
+                ...(asaasCustomerId
+                    ? { customer: asaasCustomerId }
+                    : dadosCompletos(pagador)
+                      ? { customerData: dadosCompletos(pagador) }
+                      : {}),
                 subscription: {
                     cycle: 'MONTHLY',
                     nextDueDate: hoje,
