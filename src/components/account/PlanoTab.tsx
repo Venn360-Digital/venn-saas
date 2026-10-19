@@ -116,6 +116,15 @@ export function PlanoTab() {
     const janelaDoPagamento = useRef<Window | null>(null)
     /** Enquanto o cliente está na janela do Asaas. */
     const [pagando, setPagando] = useState(false)
+    /**
+     * Qual plano está sendo contratado agora.
+     *
+     * É o alvo da espera: a tela relê até a assinatura **ser este plano**. A
+     * condição anterior era "até ficar ativa", e ela nunca disparava numa troca
+     * de plano — a assinatura já estava ativa no plano velho, então a releitura
+     * encerrava antes de começar e o rodapé seguia mostrando o plano anterior.
+     */
+    const [planoEmContratacao, setPlanoEmContratacao] = useState<string | null>(null)
     const [processing, setProcessing] = useState(false)
     /**
      * O aviso de avaliação, dispensado nesta sessão.
@@ -184,10 +193,25 @@ export function PlanoTab() {
          * Conta isenta não paga e não usa janela nenhuma; ela é fechada logo
          * abaixo, no desfecho sem link.
          */
+        /**
+         * Centrada na tela, e grande o bastante para o formulário do cartão.
+         *
+         * Sem `left`/`top` o navegador abre no canto superior esquerdo, que foi
+         * o que o Andre viu: uma janelinha encolhida num canto parece erro, não
+         * pagamento. As coordenadas saem da **janela atual** e não da tela, para
+         * acertar quem usa dois monitores — `screenX` é a posição do navegador
+         * no conjunto, e abrir centrado na tela 1 enquanto a pessoa trabalha na
+         * tela 2 é perder a janela de vista.
+         */
+        const largura = 560
+        const altura = Math.min(880, Math.max(640, window.screen.availHeight - 80))
+        const esquerda = Math.round(window.screenX + (window.outerWidth - largura) / 2)
+        const topo = Math.round(window.screenY + Math.max(0, (window.outerHeight - altura) / 2))
+
         janelaDoPagamento.current = window.open(
             '',
             'odontobox-pagamento',
-            'width=520,height=760,noopener=no'
+            `width=${largura},height=${altura},left=${esquerda},top=${topo},noopener=no`
         )
 
         setProcessing(true)
@@ -223,6 +247,7 @@ export function PlanoTab() {
                     if (janelaDoPagamento.current && !janelaDoPagamento.current.closed) {
                         janelaDoPagamento.current.location.href = data.link
                         setShowPlanModal(false)
+                        setPlanoEmContratacao(plano)
                         setPagando(true)
                         return
                     }
@@ -395,6 +420,18 @@ export function PlanoTab() {
             setPagando(false)
             janelaDoPagamento.current = null
 
+            /**
+             * O rodapé da sidebar lê a assinatura por conta própria e só relê
+             * quando este evento toca.
+             *
+             * Faltava aqui, e foi o que o Andre viu: a guia Plano mostrava
+             * "Digital, alterado com sucesso" enquanto o rodapé continuava
+             * dizendo "Prime, 30.000 créditos" — o estado de antes do
+             * pagamento, intacto desde o carregamento da página. O caminho
+             * antigo, de redirecionamento, avisava; o da janela não.
+             */
+            window.dispatchEvent(new Event(BILLING_UPDATED))
+
             if (dado.status === 'processando') {
                 // Não ativa nada: quem ativa é o webhook. Isto só põe a tela no
                 // estado de espera e começa a reler.
@@ -415,6 +452,7 @@ export function PlanoTab() {
                 // Fechou sem avisar: pode ter pago e fechado rápido. Reler é
                 // mais barato que perguntar, e o webhook decide de qualquer forma.
                 void loadSubscription()
+                window.dispatchEvent(new Event(BILLING_UPDATED))
             }
         }, 1_000)
 
@@ -434,7 +472,24 @@ export function PlanoTab() {
      */
     useEffect(() => {
         if (retornoDoPagamento !== 'processando') return
-        if (subscription?.status === 'active') return
+
+        /**
+         * Para quando o plano pago **chegou**, e não quando a assinatura está
+         * ativa.
+         *
+         * A condição anterior era `status === 'active'`, e numa troca de plano
+         * ela já era verdadeira antes do pagamento: a releitura encerrava antes
+         * de começar, e o rodapé ficava com o plano velho até alguém recarregar
+         * a página. Sem alvo — contratação vinda de outro lugar — vale a regra
+         * antiga, que é melhor que nenhuma.
+         */
+        const chegou = planoEmContratacao
+            ? subscription?.plan === planoEmContratacao
+            : subscription?.status === 'active'
+        if (chegou) {
+            setPlanoEmContratacao(null)
+            return
+        }
 
         let tentativas = 0
         const timer = setInterval(() => {
@@ -448,7 +503,7 @@ export function PlanoTab() {
         }, 5_000)
 
         return () => clearInterval(timer)
-    }, [retornoDoPagamento, subscription?.status, loadSubscription])
+    }, [retornoDoPagamento, subscription?.status, subscription?.plan, planoEmContratacao, loadSubscription])
 
     const pacotes = subscription?.creditPacks ?? []
     const pacote = pacoteEscolhido ? pacotes.find((p) => p.credits === pacoteEscolhido) : undefined
