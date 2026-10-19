@@ -827,6 +827,16 @@ sessão — ao lado do som, dos avisos e do tema. **Um seletor para a mesma cois
 em dois lugares é o que um dia discorda de si mesmo.** A marca ficou com a
 identidade (logo da conta), o Topbar com o contexto (nome da unidade).
 
+**O que o layout carrega é dado de sessão, e troca de usuário exige recarga.**
+Desde que a marca passou a ser renderizada no servidor, o layout do dashboard
+sabe quem está logado — e aí dois caches guardam isso sem saber que é de alguém:
+o **Router Cache** do Next, que reusa o RSC do layout numa navegação de cliente,
+e qualquer **estado de módulo** no cliente, que sobrevive a ela. Entrar e sair
+fazem recarga inteira (`window.location.assign`), e o cache de `useUnidades`
+aceita a semente do servidor por cima do que tem guardado. Foi assim que as
+unidades de uma conta apareceram no cabeçalho de outra, em 2026-10-19: os dados
+nunca se misturaram no servidor — a tela mostrava um objeto da sessão anterior.
+
 **Um `h1` por tela.** Sempre no `PageHeader`, sempre `text-h1`. Título dentro de
 coluna — o "Conversas" da lista do chat, o "Novo agente" do assistente — é
 `text-h3`, porque não é o título da página.
