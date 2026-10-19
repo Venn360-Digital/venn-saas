@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BILLING_UPDATED } from '@/components/layout/AppSidebar'
+import { CancelarAssinaturaCard } from '@/components/account/CancelarAssinaturaCard'
 
 /**
  * Uma célula de consumo: rótulo, "usado de total", barra fina e a validade.
@@ -1367,6 +1368,15 @@ export function PlanoTab() {
                     </div>
                 </SettingsBand>
             ) : null}
+
+            {/* E no fim da guia, o que não tem volta.
+                Voltou para cá a pedido do Andre: ele tentou no rodapé de
+                Alterar unidades (confundia) e na Conta da Clínica, e o lugar
+                que ficou é este — o fim da guia onde se vê o que se paga.
+                Cartão próprio, com borda vermelha, longe da pilha de "alterar"
+                e "comprar": a diferença entre trocar o cartão e encerrar a
+                conta não pode depender de reparar numa cor de texto. */}
+            <CancelarAssinaturaCard />
 
             {/* ALTERAR UNIDADES.
                 Cenário 1 do comp de 2026-10-19, escolhido pelo Andre.
