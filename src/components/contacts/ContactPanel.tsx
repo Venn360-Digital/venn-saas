@@ -72,10 +72,53 @@ interface Detail {
     conversations: {
         id: string
         channel: string
+        /** A linha por onde ela entrou, quando há linha gravada. */
+        linha: { channel: string; label: string | null; phoneNumber: string | null } | null
         status: string
         lastMessageAt: string | null
         agent: { id: string; name: string } | null
     }[]
+}
+
+/**
+ * Por onde o paciente entrou, em uma linha.
+ *
+ * Fato técnico, nunca editável — o oposto de Origem, que é marketing e a
+ * pessoa corrige. Os dois moram lado a lado na ficha desde 2026-10-20, a
+ * pedido do Andre: a ficha dizia por que o paciente veio e calava por onde.
+ *
+ * Mostra o apelido ou o número da linha quando o canal tem várias (WhatsApp);
+ * para os que têm uma só, o nome do canal já diz tudo.
+ */
+const CANAL_NA_FICHA: Record<string, string> = {
+    whatsapp_qr: 'WhatsApp',
+    whatsapp_business: 'WhatsApp API oficial',
+    instagram: 'Instagram',
+    site: 'Site',
+    telegram: 'Telegram',
+    mercadolivre: 'Mercado Livre',
+}
+
+function porOndeEntrou(conv: {
+    channel: string
+    linha: { channel: string; label: string | null; phoneNumber: string | null } | null
+} | null): string | null {
+    if (!conv) return null
+
+    if (conv.linha) {
+        const canal = CANAL_NA_FICHA[conv.linha.channel] ?? conv.linha.channel
+        const apelido = conv.linha.label?.trim()
+        const numero = conv.linha.phoneNumber
+        if (apelido) return `${canal} · ${apelido}`
+        if (numero) return `${canal} · ${numero}`
+        return canal
+    }
+
+    // Sem linha gravada — conversa aberta pela recepção, ou histórico antigo.
+    if (conv.channel === 'instagram') return 'Instagram'
+    if (conv.channel === 'web') return 'Site'
+    if (conv.channel === 'whatsapp') return 'WhatsApp'
+    return null
 }
 
 function initials(name: string | null): string {
@@ -372,6 +415,17 @@ export function ContactPanel({
                                 onCreate={createOrigin}
                             />
                         </Field>
+                        {/* Por onde entrou: fato, não escolha.
+                          * Sem campo editável de propósito — ninguém digita
+                          * canal, o sistema grava. Fica ao lado de Origem para
+                          * a diferença ficar visível: uma é por onde, a outra
+                          * é por quê. */}
+                        {porOndeEntrou(lastConversation) ? (
+                            <Field label="Canal">
+                                <p className="px-2 text-sm">{porOndeEntrou(lastConversation)}</p>
+                            </Field>
+                        ) : null}
+
                         {/* Como a ficha nasceu — não é origem, e por isso não
                           * divide mais campo com ela. */}
                         <Field label="Cadastro">

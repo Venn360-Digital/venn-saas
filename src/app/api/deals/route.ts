@@ -33,7 +33,28 @@ const dealSchema = z.object({
 
 const dealInclude = {
     contact: {
-        select: { id: true, name: true, phone: true, avatar: true }
+        select: {
+            id: true,
+            name: true,
+            phone: true,
+            avatar: true,
+            /**
+             * Por onde este paciente entrou — a conversa mais recente dele.
+             *
+             * Fato técnico, e o negócio não tinha como mostrá-lo: ele guarda
+             * origem e mídia (marketing, editáveis) e nada dizia o canal. Vem
+             * pelo paciente porque é dele que o negócio nasce, e `take: 1`
+             * porque a pergunta é "por onde ele chegou da última vez".
+             */
+            conversations: {
+                select: {
+                    channel: true,
+                    integration: { select: { channel: true, label: true, phoneNumber: true } },
+                },
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+            },
+        }
     },
     owner: {
         select: { id: true, name: true, email: true, avatar: true }
@@ -60,7 +81,7 @@ const dealInclude = {
         take: 1,
         select: { id: true, title: true, type: true, dueDate: true, startTime: true },
     },
-}
+} satisfies import('@prisma/client').Prisma.DealInclude
 
 // GET - List deals with optional filters
 export async function GET(request: NextRequest) {

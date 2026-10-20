@@ -670,6 +670,10 @@ model AgentIntegration {
   /// ficha nova: a origem de quem já é paciente não se reescreve porque ele
   /// voltou por outro anuncio.
   defaultOriginId String?
+  /// A mídia que esta linha semeia — a campanha ou a peça que mandou o
+  /// paciente para cá. Fecha o par com `defaultOriginId`: origem é de quem veio
+  /// o lead, mídia é o detalhe dentro dela (PRODUCT.md §10).
+  defaultMediaId  String?
 
   // Status da conexão
   status String @default("disconnected") // "connected" | "disconnected" | "pending" | "error"
@@ -688,6 +692,7 @@ model AgentIntegration {
   agent         Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
   department    Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   defaultOrigin Origin?        @relation(fields: [defaultOriginId], references: [id], onDelete: SetNull)
+  defaultMedia  Media?         @relation(fields: [defaultMediaId], references: [id], onDelete: SetNull)
   conversations Conversation[]
 
   /// Sem `@@unique([agentId, channel])`: um agente atende por N números.
@@ -701,6 +706,7 @@ model AgentIntegration {
   @@index([agentId, channel])
   @@index([departmentId])
   @@index([defaultOriginId])
+  @@index([defaultMediaId])
   @@index([publicKey])
   @@map("agent_integrations")
 }
@@ -1075,6 +1081,8 @@ model Media {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deals     Deal[]
+  /// As linhas que semeiam esta mídia.
+  lines     AgentIntegration[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])

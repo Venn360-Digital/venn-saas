@@ -112,6 +112,16 @@ const ESTADO: Record<string, { rotulo: string; classe: string }> = {
     },
 }
 
+/** Como cada canal se chama na tela de atribuição. */
+const CANAL_DA_LINHA: Record<string, string> = {
+    whatsapp_qr: 'WhatsApp',
+    whatsapp_business: 'WhatsApp API oficial',
+    instagram: 'Instagram',
+    site: 'Site',
+    telegram: 'Telegram',
+    mercadolivre: 'Mercado Livre',
+}
+
 /** O nome da linha na tela: o apelido, senão o número, senão "Linha nova". */
 function nomeDaLinha(line: Line): string {
     if (line.label?.trim()) return line.label.trim()
@@ -123,6 +133,24 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [lines, setLines] = useState<Line[]>([])
     const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
     const [origins, setOrigins] = useState<{ id: string; name: string }[]>([])
+    const [medias, setMedias] = useState<{ id: string; name: string }[]>([])
+    /**
+     * Todas as linhas do agente, de qualquer canal, para a atribuição.
+     *
+     * A lista de cima é só do WhatsApp QR — é a rota dela. Origem e mídia,
+     * porém, valem para Instagram, canal oficial e widget do site: a coluna
+     * sempre foi do `AgentIntegration`, e só a tela limitava.
+     */
+    const [linhasDeAtribuicao, setLinhasDeAtribuicao] = useState<
+        {
+            id: string
+            channel: string
+            label: string | null
+            phoneNumber: string | null
+            defaultOriginId: string | null
+            defaultMediaId: string | null
+        }[]
+    >([])
     const [limit, setLimit] = useState<LineLimit | null>(null)
     const [loading, setLoading] = useState(Boolean(agentId))
     const [ocupada, setOcupada] = useState<string | null>(null)
@@ -152,9 +180,45 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
         }
     }, [agentId])
 
+    const carregarAtribuicao = useCallback(async () => {
+        if (!agentId) return
+        try {
+            const [linhas, listaDeMidias] = await Promise.all([
+                fetch(`/api/agents/${agentId}/integrations/marketing`).then((r) =>
+                    r.ok ? r.json() : null
+                ),
+                fetch('/api/medias').then((r) => (r.ok ? r.json() : [])),
+            ])
+            setLinhasDeAtribuicao(linhas?.linhas ?? [])
+            setMedias(Array.isArray(listaDeMidias) ? listaDeMidias : [])
+        } catch {
+            // Sem a lista, a seção de atribuição não aparece. O resto da aba
+            // continua inteiro: conectar número é o que importa aqui.
+        }
+    }, [agentId])
+
+    /** Grava o par da linha e recarrega, para o seletor refletir o gravado. */
+    const atribuir = useCallback(
+        async (integrationId: string, patch: { defaultOriginId?: string | null; defaultMediaId?: string | null }) => {
+            const res = await fetch(`/api/agents/${agentId}/integrations/marketing`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ integrationId, ...patch }),
+            })
+            if (!res.ok) {
+                const corpo = await res.json().catch(() => ({}))
+                toast.error(corpo.error ?? 'Não foi possível salvar')
+                return
+            }
+            await carregarAtribuicao()
+        },
+        [agentId, carregarAtribuicao]
+    )
+
     useEffect(() => {
         void carregar()
-    }, [carregar])
+        void carregarAtribuicao()
+    }, [carregar, carregarAtribuicao])
 
     const carregarSite = useCallback(async () => {
         if (!agentId) return
@@ -399,40 +463,6 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                         </SelectContent>
                                                     </Select>
                                                 ) : null}
-                                                {/* Que origem esta linha semeia.
-                                                    É o que separa duas linhas do
-                                                    mesmo canal: o número da V4 e o
-                                                    do Nando são os dois WhatsApp, e
-                                                    quem trouxe o paciente é o número
-                                                    para onde o anúncio mandou. Só
-                                                    aparece quando há origens
-                                                    cadastradas — sem lista, o seletor
-                                                    não oferece nada. */}
-                                                {origins.length > 0 ? (
-                                                    <Select
-                                                        value={line.defaultOriginId ?? 'none'}
-                                                        onValueChange={(v) =>
-                                                            void ajustar(line, {
-                                                                defaultOriginId: v === 'none' ? null : v,
-                                                            })
-                                                        }
-                                                    >
-                                                        <SelectTrigger
-                                                            aria-label={`Origem semeada por ${nomeDaLinha(line)}`}
-                                                            className="h-8 w-[10.5rem] text-xs"
-                                                        >
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="none">Sem origem</SelectItem>
-                                                            {origins.map((o) => (
-                                                                <SelectItem key={o.id} value={o.id}>
-                                                                    {o.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                ) : null}
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -604,6 +634,101 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                     />
                 )}
             </SettingsCard>
+
+            {/* ATRIBUIÇÃO — origem e mídia por linha, de qualquer canal.
+                Estava só na linha do WhatsApp QR, porque a rota era a dele; a
+                coluna sempre foi do `AgentIntegration`. Aqui as duas valem
+                para Instagram, canal oficial e widget do site também.
+
+                Juntas numa seção, e não dentro de cada cartão de canal: é uma
+                tabela de de-para — qual linha semeia o quê — e lida assim ela
+                se confere de relance. */}
+            {linhasDeAtribuicao.length > 0 && (origins.length > 0 || medias.length > 0) ? (
+                <SettingsCard
+                    title="De onde vem cada linha"
+                    description="O que a linha semeia na ficha que nasce por ela. Vale só para ficha nova — o que já entrou não é reescrito."
+                >
+                    <div className="flex flex-col gap-3">
+                        {linhasDeAtribuicao.map((linha, i) => (
+                            <div
+                                key={linha.id}
+                                className={cn(
+                                    'flex flex-wrap items-center justify-between gap-3',
+                                    i > 0 && 'border-t border-border pt-3'
+                                )}
+                            >
+                                <div className="min-w-[10rem]">
+                                    <p className="text-sm font-medium">
+                                        {linha.label?.trim() ||
+                                            (linha.phoneNumber
+                                                ? formatPhone(linha.phoneNumber)
+                                                : CANAL_DA_LINHA[linha.channel] ?? 'Linha')}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {CANAL_DA_LINHA[linha.channel] ?? linha.channel}
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {origins.length > 0 ? (
+                                        <Select
+                                            value={linha.defaultOriginId ?? 'none'}
+                                            disabled={!canManage}
+                                            onValueChange={(v) =>
+                                                void atribuir(linha.id, {
+                                                    defaultOriginId: v === 'none' ? null : v,
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                aria-label={`Origem semeada por ${linha.label ?? linha.channel}`}
+                                                className="h-8 w-[10.5rem] text-xs"
+                                            >
+                                                <SelectValue placeholder="Origem" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">Sem origem</SelectItem>
+                                                {origins.map((o) => (
+                                                    <SelectItem key={o.id} value={o.id}>
+                                                        {o.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : null}
+
+                                    {medias.length > 0 ? (
+                                        <Select
+                                            value={linha.defaultMediaId ?? 'none'}
+                                            disabled={!canManage}
+                                            onValueChange={(v) =>
+                                                void atribuir(linha.id, {
+                                                    defaultMediaId: v === 'none' ? null : v,
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                aria-label={`Mídia semeada por ${linha.label ?? linha.channel}`}
+                                                className="h-8 w-[10.5rem] text-xs"
+                                            >
+                                                <SelectValue placeholder="Mídia" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">Sem mídia</SelectItem>
+                                                {medias.map((m) => (
+                                                    <SelectItem key={m.id} value={m.id}>
+                                                        {m.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </SettingsCard>
+            ) : null}
 
             <SettingsCard
                 title="Outros canais"

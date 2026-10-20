@@ -57,12 +57,24 @@ export interface ResolveContactInput {
  * distingue, a conversa não distingue, e o que distingue é o número para onde
  * o anúncio da agência mandou o paciente.
  */
-async function origemDaLinha(integrationId: string): Promise<string | null> {
+async function marketingDaLinha(
+    integrationId: string
+): Promise<{ originId: string | null; mediaId: string | null }> {
     const linha = await prisma.agentIntegration.findUnique({
         where: { id: integrationId },
-        select: { defaultOriginId: true },
+        select: { defaultOriginId: true, defaultMediaId: true },
     })
-    return linha?.defaultOriginId ?? null
+    return {
+        originId: linha?.defaultOriginId ?? null,
+        /**
+         * A mídia entra junto desde 2026-10-20.
+         *
+         * Origem diz **de quem** veio o lead (a agência, o indicador); mídia
+         * diz **o quê** o trouxe (a campanha, a peça). A linha é quem sabe as
+         * duas: ela é o número para onde aquele anúncio manda.
+         */
+        mediaId: linha?.defaultMediaId ?? null,
+    }
 }
 
 /**
@@ -104,7 +116,8 @@ async function resolveContact(input: ResolveContactInput): Promise<Contact> {
                 // `inbound`: ele escreveu primeiro. Antes era `whatsapp`, que é
                 // o canal — e o canal já está na conversa, gravado na linha.
                 createdVia: 'inbound',
-                originId: await origemDaLinha(integrationId),
+                /** A ficha guarda origem; mídia é do negócio (ver `Media`). */
+                originId: (await marketingDaLinha(integrationId)).originId,
             },
         })
     }
@@ -156,7 +169,7 @@ async function resolveInstagramContact(
                 name: pushName || NOME_PROVISORIO_INSTAGRAM,
                 avatar: profilePicUrl ?? null,
                 createdVia: 'inbound',
-                originId: await origemDaLinha(integrationId),
+                originId: (await marketingDaLinha(integrationId)).originId,
             },
         })
     }
@@ -180,7 +193,12 @@ async function resolveInstagramContact(
  *
  * Non-fatal: a workspace with no pipeline stages yet simply gets no deal.
  */
-async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<void> {
+async function ensureOpenDeal(
+    workspaceId: string,
+    contact: Contact,
+    /** A mídia que a linha semeia, quando ela semeia alguma. */
+    mediaId: string | null
+): Promise<void> {
     const openDeal = await prisma.deal.findFirst({
         where: { contactId: contact.id, workspaceId, status: 'open' },
         select: { id: true },
@@ -215,6 +233,13 @@ async function ensureOpenDeal(workspaceId: string, contact: Contact): Promise<vo
             title: `Novo paciente - ${contact.name || contact.phone || contact.instagramId}`,
             stageId: firstStage.id,
             originId: contact.originId,
+            /**
+             * A mídia vem da **linha**, não da ficha: `Media` pende do negócio,
+             * porque a mesma pessoa pode voltar por outra campanha e cada
+             * negócio guarda a sua. A ficha guarda só a origem, que é de quem
+             * ela veio da primeira vez.
+             */
+            mediaId,
             status: 'open',
             // `userId` nulo: não foi pessoa nenhuma que moveu, foi a mensagem
             // do paciente chegando.
@@ -355,7 +380,11 @@ export async function resolveInboundContext(input: {
             const contact = await resolveContact({ workspaceId, identity, integrationId, pushName, profilePicUrl })
 
             try {
-                await ensureOpenDeal(workspaceId, contact)
+                await ensureOpenDeal(
+                    workspaceId,
+                    contact,
+                    (await marketingDaLinha(integrationId)).mediaId
+                )
             } catch (error) {
                 // A missing deal must not cost us the message.
                 log.error(`failed to auto-create deal for contact ${contact.id}`, error)

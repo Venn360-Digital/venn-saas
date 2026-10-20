@@ -35,6 +35,42 @@ import { type DealLike } from '@/lib/deal-health'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 
+/**
+ * Por onde o paciente entrou, em uma linha.
+ *
+ * Fato técnico e não editável — o oposto de Origem e Mídia, que são marketing
+ * e a pessoa corrige. Os três passam a morar lado a lado desde 2026-10-20: o
+ * negócio dizia por que o paciente veio e calava por onde.
+ */
+const CANAL_NO_NEGOCIO: Record<string, string> = {
+    whatsapp_qr: 'WhatsApp',
+    whatsapp_business: 'WhatsApp API oficial',
+    instagram: 'Instagram',
+    site: 'Site',
+    telegram: 'Telegram',
+    mercadolivre: 'Mercado Livre',
+}
+
+function canalDoNegocio(deal: { contact?: PanelDeal['contact'] }): string | null {
+    const conversa = deal.contact?.conversations?.[0]
+    if (!conversa) return null
+
+    if (conversa.integration) {
+        const canal = CANAL_NO_NEGOCIO[conversa.integration.channel] ?? conversa.integration.channel
+        const apelido = conversa.integration.label?.trim()
+        if (apelido) return `${canal} · ${apelido}`
+        if (conversa.integration.phoneNumber) {
+            return `${canal} · ${formatPhone(conversa.integration.phoneNumber)}`
+        }
+        return canal
+    }
+
+    if (conversa.channel === 'instagram') return 'Instagram'
+    if (conversa.channel === 'web') return 'Site'
+    if (conversa.channel === 'whatsapp') return 'WhatsApp'
+    return null
+}
+
 export interface PanelDeal extends DealLike {
     id: string
     title: string
@@ -42,7 +78,16 @@ export interface PanelDeal extends DealLike {
     status: string
     notes?: string | null
     stage?: { name: string; color: string } | null
-    contact: { id: string; name: string | null; phone: string | null } | null
+    contact: {
+        id: string
+        name: string | null
+        phone: string | null
+        /** A última conversa dele, para a ficha dizer por onde ele entrou. */
+        conversations?: {
+            channel: string
+            integration: { channel: string; label: string | null; phoneNumber: string | null } | null
+        }[]
+    } | null
     owner: { id: string; name: string | null } | null
     origin: { id: string; name: string } | null
     media: { id: string; name: string } | null
@@ -379,6 +424,18 @@ export function DealPanel<T extends PanelDeal>({
                                     onCreate={(name) => createLookup('medias', name, 'mediaId', (o) => setExtraMedias((p) => [...p, o]))}
                                 />
                             </div>
+                            {/* E por onde ele entrou — fato, sem campo.
+                                Ninguém digita canal: o sistema grava na
+                                conversa. Fica ao lado de Origem e Mídia para a
+                                diferença ficar visível de relance. */}
+                            {canalDoNegocio(deal) ? (
+                                <div className="col-span-2">
+                                    <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                        Canal
+                                    </Label>
+                                    <p className="mt-1 px-2 text-sm">{canalDoNegocio(deal)}</p>
+                                </div>
+                            ) : null}
                         </div>
 
                         <div className="border-t border-border pt-3">

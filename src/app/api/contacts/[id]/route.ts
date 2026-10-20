@@ -54,6 +54,23 @@ export async function GET(
                         updatedAt: true,
                         lastMessageAt: true,
                         agent: { select: { id: true, name: true } },
+                        /**
+                         * A linha por onde a conversa entrou.
+                         *
+                         * É o fato técnico que a ficha não contava: a tela
+                         * mostrava **origem** (marketing, editável) e o
+                         * paciente podia ter chegado por qualquer canal sem
+                         * que isso aparecesse. Vem da conversa porque é dela —
+                         * a mesma pessoa pode voltar por outro número.
+                         */
+                        integration: {
+                            select: {
+                                id: true,
+                                channel: true,
+                                label: true,
+                                phoneNumber: true,
+                            },
+                        },
                         tags: {
                             include: { tag: { select: { id: true, name: true, color: true } } }
                         },
@@ -95,6 +112,13 @@ export async function GET(
             conversations: contact.conversations.map(c => ({
                 id: c.id,
                 channel: c.channel,
+                linha: c.integration
+                    ? {
+                          channel: c.integration.channel,
+                          label: c.integration.label,
+                          phoneNumber: c.integration.phoneNumber,
+                      }
+                    : null,
                 status: c.status,
                 agentName: c.agent?.name || null,
                 messageCount: c._count.messages,

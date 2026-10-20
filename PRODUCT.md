@@ -312,7 +312,8 @@ do sistema, e tudo que é visibilidade sobe por ela.
 agência que trouxe o lead. **Nenhum canal entrega esse dado** — o WhatsApp não
 conta de onde a pessoa veio. Logo, origem só chega de duas formas:
 
-1. **Semeada pela linha.** `AgentIntegration.defaultOriginId`. É o que separa
+1. **Semeada pela linha.** `AgentIntegration.defaultOriginId` — e, desde
+   2026-10-20, também `defaultMediaId`. É o que separa
    duas linhas do mesmo canal: o WhatsApp QR da V4 e o do Nando são os dois
    `whatsapp_qr`, e quem trouxe o paciente é o número para onde o anúncio
    mandou. A ficha nova nasce com a origem da linha, sem ninguém digitar.
@@ -338,6 +339,30 @@ para marketing.
 - **Como a ficha nasceu é outro campo** (`createdVia`: `manual`, `import`,
   `ligacao`, `inbound`), e não divide espaço com origem. É o que responde "quem
   digitou isto?", não "o que trouxe este paciente?".
+
+### A linha semeia origem **e** mídia, em qualquer canal
+
+Fechado em 2026-10-20, depois de o Andre propor preencher Origem com o canal
+("WA 3131918001", "Instagram", "site"). **Não é o caminho**: Origem viraria
+cópia do Canal, que o sistema já grava sozinho e com mais precisão, e o
+relatório de aquisição passaria a responder "do WhatsApp" para quase 100% das
+fichas — por onde elas escrevem, não o que as trouxe. Pior, apagaria a única
+distinção que importa: duas linhas do mesmo canal, a da agência e a do
+indicador.
+
+O que o pedido tinha de certo era o **preenchimento automático**, e ele já
+existia pela metade. Agora está inteiro:
+
+- a linha semeia **origem** e **mídia** — cadastrar o número do anúncio uma vez
+  faz toda ficha nascer com "V4" e "Campanha Implante Set/26";
+- o par vale para **toda linha**, não só a do WhatsApp QR: a coluna sempre foi
+  do `AgentIntegration`, e era a tela que só expunha um canal;
+- mídia pende do **negócio**, não da ficha: a mesma pessoa pode voltar por
+  outra campanha, e cada negócio guarda a sua.
+
+E o **Canal passa a aparecer nas duas fichas** — paciente e negócio —, como
+fato, sem campo editável: ninguém digita canal. Fica ao lado de Origem para a
+diferença ficar visível: uma diz por onde, a outra diz por quê.
 
 ### Um nível, não três
 
