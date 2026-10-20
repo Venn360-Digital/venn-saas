@@ -987,16 +987,6 @@ export function PlanoTab() {
                   } — até lá, nada é cobrado.`
             : null
 
-    /**
-     * A cobrança que ainda dá para pagar — é por ela que um cartão novo entra.
-     *
-     * `CANCELED` fica de fora, e isso não é detalhe: cobrança apagada no Asaas
-     * mantém `PENDING` lá e vira `CANCELED` aqui. Sem o filtro, a tela oferecia
-     * "pagar com outro cartão" e o link abria uma página morta.
-     */
-    const faturaEmAberto =
-        cobrancas.find((c) => c.status === 'OVERDUE' || c.status === 'PENDING')?.invoiceUrl ?? null
-
     const emAtraso = subscription?.status === 'past_due'
     const carenciaAte = subscription?.graceEndsAt
         ? new Date(subscription.graceEndsAt).toLocaleDateString('pt-BR', {
@@ -2208,6 +2198,7 @@ export function PlanoTab() {
                 title="Forma de pagamento"
                 description="O cartão que cobra a mensalidade, e como pagar o resto."
                 submitLabel="Tornar padrão"
+                hideAgain
                 submitDisabled={!cartaoEscolhido || processing}
                 submitting={processing}
                 onSubmit={() => { void handleSetCard() }}
@@ -2262,7 +2253,14 @@ export function PlanoTab() {
                         ) : (
                             <div className="mt-3 rounded-lg border border-dashed border-input p-5 text-center">
                                 <CreditCard className="mx-auto size-8 text-muted-foreground" />
-                                <p className="mt-2 text-sm font-medium">Nenhum cartão conhecido ainda</p>
+                                <p className="mt-2 text-sm font-medium">
+                                    Nenhum cartão guardado ainda
+                                </p>
+                                <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
+                                    O cartão é guardado no primeiro pagamento com ele, na página do
+                                    Asaas. Depois disso aparece aqui, e você escolhe qual cobra a
+                                    mensalidade.
+                                </p>
                             </div>
                         )}
 
@@ -2270,69 +2268,6 @@ export function PlanoTab() {
                             A frase é curta de propósito: quem abre esta tela
                             quer trocar o cartão, não ler sobre PCI. O que ela
                             precisa saber é **como** o cartão novo entra. */}
-                        {/* COMO UM CARTÃO NOVO ENTRA.
-                            Não há campo de número aqui, e não é limitação de
-                            prazo: o número do cartão nunca passa por esta
-                            aplicação (ver PRODUCT.md §13). O cartão se cadastra
-                            **pagando** — é assim que o Asaas nos devolve um
-                            token, e é com o token que a troca acontece.
-
-                            Quando existe cobrança em aberto, o caminho é um
-                            clique; quando não existe, a frase diz quando vai
-                            existir, em vez de prometer um botão que não há. */}
-                        <div className="mt-3 rounded-lg bg-muted p-3">
-                            <p className="text-xs font-semibold">Adicionar outro cartão</p>
-                            {faturaEmAberto ? (
-                                <>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        Pague a cobrança em aberto com o cartão novo: ele passa a
-                                        aparecer nesta lista e pode virar o padrão.
-                                    </p>
-                                    <a
-                                        href={faturaEmAberto}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mt-2 inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 text-[13px] font-semibold hover:bg-accent"
-                                    >
-                                        <CreditCard className="size-4" />
-                                        Pagar com outro cartão
-                                    </a>
-                                </>
-                            ) : (
-                                <>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        Não há cobrança em aberto agora, e é pagando que um cartão
-                                        entra. Acontece sozinho na próxima vez que você pagar
-                                        alguma coisa — a renovação{renovaEm ? ` de ${renovaEm}` : ''},
-                                        um pacote de crédito ou uma unidade adicional: escolha
-                                        &ldquo;cartão de crédito&rdquo; na página do Asaas e use o
-                                        cartão que quiser.
-                                    </p>
-                                    {/* Um atalho para o momento em que isso é
-                                        possível, em vez de um botão que não tem
-                                        o que fazer. */}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="mt-2"
-                                        disabled={!podeComprarAdicionais}
-                                        onClick={() => {
-                                            setShowPaymentModal(false)
-                                            setPacoteEscolhido(null)
-                                            setUnidadesEscolhidas(0)
-                                            setShowCreditsModal(true)
-                                        }}
-                                    >
-                                        <Plus className="size-4" />
-                                        Comprar adicionais
-                                    </Button>
-                                </>
-                            )}
-                            <p className="mt-2 text-[11px] text-muted-foreground">
-                                O número do cartão nunca passa pelo OdontoBox360 — quem o recebe é
-                                a página do Asaas.
-                            </p>
-                        </div>
                     </div>
 
                     {/* AS COMPRAS AVULSAS: Pix e cartão. Boleto não existe no
