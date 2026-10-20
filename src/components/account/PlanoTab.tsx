@@ -152,6 +152,8 @@ interface SubscriptionData {
         adicionais: number
         /** Contratações já canceladas que ainda valem até a renovação. */
         cancelados: number
+        /** As que a próxima fatura vai cobrar: as que não foram canceladas. */
+        cobraveis: number
         /** O teto depois da renovação, quando as canceladas saírem. */
         maxDepois: number
         /** Quantas clínicas dá para abrir sem criar uma que não caiba depois. */
@@ -845,7 +847,18 @@ export function PlanoTab() {
     const u = subscription?.unidades
 
     /** Quanto os adicionais de unidade somam por mês. */
-    const mensalDosAdicionais = (u?.adicionais ?? 0) * UNIDADE_ADICIONAL.price
+    /**
+     * O que os adicionais somam **na próxima fatura**.
+     *
+     * Conta `cobraveis`, não `adicionais`: a contratação cancelada continua
+     * valendo até a renovação — capacidade — e não entra na cobrança seguinte,
+     * que é exatamente a renovação em que ela deixa de existir.
+     *
+     * Contava errado, e a tela anunciava R$ 1.550 para quem tinha acabado de
+     * cancelar uma das quatro contratações. O servidor já cobrava certo; era a
+     * tela que somava capacidade no lugar de cobrança.
+     */
+    const mensalDosAdicionais = (u?.cobraveis ?? 0) * UNIDADE_ADICIONAL.price
 
     /** O que a compra em aberto custa, separado por natureza. */
     const aPagarAgora = pacote?.price ?? 0
@@ -1254,11 +1267,15 @@ export function PlanoTab() {
                             </p>
                             <p className="num text-sm font-semibold">{formatPrice(precoDoPlano)}</p>
                         </div>
-                        {(u?.adicionais ?? 0) > 0 ? (
+                        {(u?.cobraveis ?? 0) > 0 ? (
                             <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border py-2">
                                 <p className="text-sm">
-                                    {u?.adicionais} unidade{u?.adicionais === 1 ? '' : 's'} adicional
-                                    {u?.adicionais === 1 ? '' : 'is'}
+                                    {/* O extrato explica **esta** cobrança, então
+                                        enumera o que ela cobra. A cancelada
+                                        aparece em Meus adicionais, com o estado
+                                        e a data dela. */}
+                                    {u?.cobraveis} unidade{u?.cobraveis === 1 ? '' : 's'} adicional
+                                    {u?.cobraveis === 1 ? '' : 'is'}
                                     <span className="text-muted-foreground">
                                         {' · '}1 agente e 1 número cada
                                     </span>
