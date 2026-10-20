@@ -270,6 +270,16 @@ export function PlanoTab() {
     const [cartaoEscolhido, setCartaoEscolhido] = useState<string | null>(null)
     const [showUnidadesModal, setShowUnidadesModal] = useState(false)
     const [showFaturasModal, setShowFaturasModal] = useState(false)
+    /**
+     * O passo de confirmação da compra.
+     *
+     * Existe porque o botão de comprar virou "Cobrar ••••4444" e ninguém
+     * entendia o que ia acontecer — o Andre foi direto: escolher o adicional e
+     * confirmar o pagamento são dois momentos, e o segundo precisa mostrar
+     * onde vai cobrar antes de cobrar.
+     */
+    const [confirmandoCompra, setConfirmandoCompra] = useState(false)
+    const [cartaoDaCompra, setCartaoDaCompra] = useState<string | null>(null)
     const [unidadesLista, setUnidadesLista] = useState<UnidadeDaConta[]>([])
     const [mexendoNaUnidade, setMexendoNaUnidade] = useState<string | null>(null)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
@@ -1586,6 +1596,127 @@ export function PlanoTab() {
                 </div>
             </RecordDialog>
 
+            {/* CONFIRMAR A COMPRA — onde se vê quem paga antes de pagar.
+                O botão de comprar chegou a dizer "Cobrar ••••4444", e o Andre
+                não entendeu o que ia acontecer: escolher o adicional e
+                autorizar a cobrança são dois momentos. Este é o segundo, em
+                primeiro plano, e ele mostra o cartão antes de usá-lo. */}
+            <RecordDialog
+                open={confirmandoCompra}
+                onOpenChange={(open) => {
+                    setConfirmandoCompra(open)
+                }}
+                title="Confirmar compra"
+                description="Confira o que está levando e onde vai pagar."
+                hideAgain
+                submitLabel={regimeSemCobranca ? 'Confirmar' : 'Confirmar e pagar'}
+                submitting={processing}
+                onSubmit={() => {
+                    setConfirmandoCompra(false)
+                    void handleBuyAddons(cartaoDaCompra ?? undefined)
+                }}
+            >
+                <div className="col-span-2 space-y-4">
+                    <div className="divide-y divide-border rounded-lg border border-border">
+                        {pacote ? (
+                            <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                                <p className="text-sm">
+                                    {pacote.credits.toLocaleString('pt-BR')} créditos de IA
+                                    <span className="block text-xs text-muted-foreground">
+                                        compra única, válidos por 90 dias
+                                    </span>
+                                </p>
+                                <p className="num text-sm font-semibold">
+                                    {formatPrice(pacote.price)}
+                                </p>
+                            </div>
+                        ) : null}
+                        {unidadesEscolhidas > 0 ? (
+                            <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                                <p className="text-sm">
+                                    {unidadesEscolhidas} unidade
+                                    {unidadesEscolhidas === 1 ? '' : 's'} adicional
+                                    {unidadesEscolhidas === 1 ? '' : 'is'}
+                                    <span className="block text-xs text-muted-foreground">
+                                        soma à mensalidade enquanto existir
+                                    </span>
+                                </p>
+                                <p className="num text-sm font-semibold">
+                                    {formatPrice(aPagarPorMes)}
+                                    <span className="font-normal text-muted-foreground">/mês</span>
+                                </p>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {regimeSemCobranca ? (
+                        <p className="rounded-md bg-info-subtle px-3 py-2 text-xs font-medium leading-snug text-info-subtle-foreground">
+                            {regimeSemCobranca} O adicional entra na hora, sem cobrança.
+                        </p>
+                    ) : (
+                        <div>
+                            <p className="text-sm font-semibold">Onde vai pagar</p>
+
+                            {(subscription?.cartoes?.length ?? 0) > 0 ? (
+                                <div className="mt-2 divide-y divide-border overflow-hidden rounded-lg border border-border">
+                                    {subscription?.cartoes?.map((c) => (
+                                        <label
+                                            key={c.id}
+                                            className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent"
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="cartao-da-compra"
+                                                className="accent-primary"
+                                                checked={cartaoDaCompra === c.asaasToken}
+                                                onChange={() => setCartaoDaCompra(c.asaasToken)}
+                                            />
+                                            <CreditCard className="size-4 text-muted-foreground" />
+                                            <span className="text-sm">
+                                                {c.brand ?? 'Cartão'}{' '}
+                                                <span className="num text-muted-foreground">
+                                                    ••••{c.last4 ?? '????'}
+                                                </span>
+                                            </span>
+                                            {c.isDefault ? (
+                                                <span className="ml-auto rounded-full bg-success-subtle px-2 py-0.5 text-[11px] font-semibold text-success-subtle-foreground">
+                                                    padrão
+                                                </span>
+                                            ) : null}
+                                        </label>
+                                    ))}
+
+                                    {/* A outra forma é uma opção da mesma lista,
+                                        e não um link perdido: as duas respondem
+                                        a mesma pergunta. */}
+                                    <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent">
+                                        <input
+                                            type="radio"
+                                            name="cartao-da-compra"
+                                            className="accent-primary"
+                                            checked={cartaoDaCompra === null}
+                                            onChange={() => setCartaoDaCompra(null)}
+                                        />
+                                        <Plus className="size-4 text-muted-foreground" />
+                                        <span className="text-sm">
+                                            Pix ou outro cartão
+                                            <span className="block text-xs text-muted-foreground">
+                                                abre a página de pagamento do Asaas
+                                            </span>
+                                        </span>
+                                    </label>
+                                </div>
+                            ) : (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Você escolhe Pix ou cartão na página do Asaas. O cartão usado
+                                    fica guardado, e a próxima compra passa a ser de um clique.
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </RecordDialog>
+
             {/* ALTERAR UNIDADES.
                 Cenário 1 do comp de 2026-10-19, escolhido pelo Andre.
 
@@ -2024,17 +2155,12 @@ export function PlanoTab() {
                 onOpenChange={setShowCreditsModal}
                 title="Comprar adicionais"
                 description="Dois adicionais, de naturezas diferentes: crédito é compra única, válida por 90 dias; unidade soma à mensalidade enquanto existir. Pode levar um, o outro, ou os dois."
-                submitLabel={
-                    cartaoSugerido && !regimeSemCobranca
-                        ? `Cobrar ••••${cartaoSugerido.last4 ?? ''}`
-                        : 'Comprar adicionais'
-                }
+                submitLabel="Comprar"
                 submitDisabled={!pacote && unidadesEscolhidas === 0}
                 hideAgain
                 onSubmit={() => {
-                    /* O envio do diálogo é o caminho recomendado: cartão
-                       salvo quando existe, checkout quando não. */
-                    void handleBuyAddons(cartaoSugerido?.asaasToken)
+                    setCartaoDaCompra(cartaoSugerido?.asaasToken ?? null)
+                    setConfirmandoCompra(true)
                 }}
                 submitting={processing}
                 summary={
@@ -2083,30 +2209,9 @@ export function PlanoTab() {
                                 <CreditCard className="size-3.5" /> •••• {subscription.paymentMethod.last4}
                             </p>
                         ) : null}
-                        {regimeSemCobranca ? null : cartaoSugerido ? (
-                            <>
-                                {/* O cartão salvo é o caminho curto: uma
-                                    chamada, sem redigitar número. A página do
-                                    Asaas não o sugere — ela não sabe o que nós
-                                    sabemos —, então quem sugere é esta tela. */}
-                                <p className="num flex items-center gap-2 text-[11px] text-muted-foreground">
-                                    <CreditCard className="size-3.5" />
-                                    {cartaoSugerido.brand ?? 'Cartão'} ••••{cartaoSugerido.last4}
-                                    {cartaoSugerido.isDefault ? ' · padrão' : ''}
-                                </p>
-                                <button
-                                    type="button"
-                                    disabled={processing || (!pacote && unidadesEscolhidas === 0)}
-                                    onClick={() => void handleBuyAddons()}
-                                    className="w-fit text-[11px] font-semibold text-primary-subtle-foreground underline-offset-2 hover:underline disabled:opacity-50"
-                                >
-                                    Pagar de outra forma (Pix ou outro cartão)
-                                </button>
-                            </>
-                        ) : (
+                        {regimeSemCobranca ? null : (
                             <p className="text-[11px] leading-snug text-muted-foreground">
-                                Você escolhe Pix ou cartão na página do Asaas. O cartão usado fica
-                                guardado para a próxima compra ser de um clique.
+                                A forma de pagamento é escolhida no passo seguinte.
                             </p>
                         )}
                     </>
