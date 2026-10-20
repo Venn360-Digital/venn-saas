@@ -15,6 +15,7 @@
     "lint:colors": "node scripts/lint-colors.mjs",
     "prebuild": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/check-widget.mjs",
     "check:period": "tsx --conditions=react-server scripts/check-period.ts",
+    "check:operacao": "tsx --conditions=react-server scripts/check-operacao.ts",
     "test:availability": "tsx scripts/test-availability.ts",
     "check:widget": "node scripts/check-widget.mjs",
     "lint:workspace": "node scripts/lint-workspace.mjs"

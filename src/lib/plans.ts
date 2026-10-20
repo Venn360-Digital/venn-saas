@@ -1,11 +1,3 @@
-import {
-    BadgeCheck,
-    Facebook,
-    Instagram,
-    QrCode,
-    type LucideIcon,
-} from 'lucide-react'
-
 /**
  * The commercial plans, defined once.
  *
@@ -28,34 +20,23 @@ import { Globe } from 'lucide-react'
 // `plan-limits.ts`, que o worker também lê.
 export { type PlanId }
 
-export interface Channel {
-    id: string
-    label: string
-    icon: LucideIcon
-}
-
-/** Every plan connects the same channels; what differs is how many numbers. */
 /**
- * Os canais que o plano promete mas o produto ainda não atende.
+ * **Havia uma segunda lista de canais aqui, técnica, e ela foi removida em
+ * 2026-10-20.** `PLAN_CHANNELS` e `CANAIS_EM_DESENVOLVIMENTO` existiam para o
+ * painel, ao lado de `REDES_DO_PLANO`, que é a comercial — e as duas
+ * divergiram, como duas listas da mesma coisa sempre divergem.
  *
- * A tela nunca diz "não configurado" para eles: não é falta de configurar, é
- * falta de existir — e um aviso desses manda a clínica procurar um botão que
- * não está lá.
+ * O que elas discordavam era grave na tela: a técnica trazia o Facebook, que
+ * saiu do produto em 2026-10-16, e tratava WhatsApp API e Instagram como
+ * ligáveis agora, enquanto a comercial os marca `emBreve` porque a revisão da
+ * Meta não saiu. O painel então contava, para um Plano Digital, quatro canais
+ * — somando WhatsApp API, Instagram e o site, que é do Prime para cima — e
+ * ainda pintava de vermelho a linha da Meta como se tivesse caído.
  *
- * Sobrou **só o Facebook**. O WhatsApp oficial saiu quando ganhou botão, em
- * 2026-10-16, e o Instagram saiu quando ganhou o dele — a partir daí o certo é
- * dizer "não configurado", porque há exatamente onde clicar. Deixá-los aqui
- * faria o painel anunciar como futuro um canal que a clínica pode ligar agora.
+ * Agora há uma lista só: `REDES_DO_PLANO`, filtrada por `redesDoPlano(plano)`.
+ * Quem precisa do nome da coluna no banco traduz na própria tela — é o que o
+ * painel faz com `CANAL_NO_BANCO`.
  */
-export const CANAIS_EM_DESENVOLVIMENTO = new Set(['facebook'])
-
-export const PLAN_CHANNELS: Channel[] = [
-    { id: 'whatsapp_qr', label: 'WhatsApp QR-Code', icon: QrCode },
-    { id: 'whatsapp_api', label: 'WhatsApp API Oficial', icon: BadgeCheck },
-    { id: 'instagram', label: 'Instagram', icon: Instagram },
-    { id: 'facebook', label: 'Facebook', icon: Facebook },
-]
-
 export interface PlanFeature {
     text: string
     /** Em negrito no cartão. Para o item que vende o plano. */

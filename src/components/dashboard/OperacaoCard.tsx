@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
 import prisma from '@/lib/prisma'
-import { CANAIS_EM_DESENVOLVIMENTO, PLAN_CHANNELS } from '@/lib/plans'
+import { getWorkspaceLimits } from '@/lib/limits'
+import { isPlanId } from '@/lib/plan-limits'
+import { REDES_DO_PLANO, redesDoPlano } from '@/lib/plans'
 import { cn } from '@/lib/utils'
 
 /**
@@ -16,6 +18,10 @@ import { cn } from '@/lib/utils'
  * O estado é lido do banco a cada abertura, nunca de texto guardado: linha
  * conectada é `status = "connected"` na integração do agente, e agente no ar é
  * `isActive` sem pausa por limite de plano.
+ *
+ * **Quais canais aparecem é decisão do plano**, não da tabela de integrações.
+ * O "x de y no ar" só pode somar o que a assinatura desta clínica inclui e o
+ * produto já entrega — senão a clínica lê como perda o que nunca foi dela.
  */
 
 type Tom = 'ok' | 'fora' | 'neutro'
@@ -37,16 +43,24 @@ interface Operacao {
     canaisTotal: number
 }
 
-/** O canal do plano e a coluna `channel` da integração não se chamam igual. */
-const CANAL_NO_BANCO: Record<string, string> = {
-    whatsapp_qr: 'whatsapp_qr',
-    whatsapp_api: 'whatsapp_business',
-    instagram: 'instagram',
-    facebook: 'facebook',
+/**
+ * A rede comercial e a coluna `channel` da integração não se chamam igual.
+ *
+ * A lista que manda aqui é a **comercial** (`REDES_DO_PLANO`), não a técnica.
+ * Era a técnica, e o cartão contava canal que este plano não vende: um Digital
+ * aparecia com "1 de 4 no ar" somando WhatsApp API, Instagram e site, que ele
+ * não tem. O Andre leu os 4 como quatro WhatsApps em 2026-10-20, e a leitura
+ * dele é a natural — o cartão é que estava respondendo outra pergunta.
+ */
+const CANAL_NO_BANCO: Record<string, string[]> = {
+    whatsapp: ['whatsapp_qr'],
+    whatsapp_api: ['whatsapp_business'],
+    instagram: ['instagram'],
+    site: ['site'],
 }
 
 export async function lerOperacao(workspaceId: string): Promise<Operacao> {
-    const [agentes, integracoes] = await Promise.all([
+    const [agentes, integracoes, limites] = await Promise.all([
         prisma.agent.findMany({
             where: { workspaceId },
             orderBy: { createdAt: 'asc' },
@@ -54,8 +68,9 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
         }),
         prisma.agentIntegration.findMany({
             where: { agent: { workspaceId } },
-            select: { channel: true, status: true },
+            select: { channel: true, status: true, phoneNumber: true },
         }),
+        getWorkspaceLimits(workspaceId),
     ])
 
     const linhasDeAgente: Linha[] = agentes.map((a) => ({
@@ -64,42 +79,64 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
         tom: a.pausedByLimit ? 'fora' : a.isActive ? 'ok' : 'neutro',
     }))
 
-    const canais: Linha[] = PLAN_CHANNELS.map((canal) => {
-        const doCanal = integracoes.filter((i) => i.channel === CANAL_NO_BANCO[canal.id])
-        const conectadas = doCanal.filter((i) => i.status === 'connected').length
+    /** As redes que **este** plano vende, para separá-las das que ele não tem. */
+    const plano = isPlanId(limites.planId) ? limites.planId : 'flow'
+    const doPlano = new Set(redesDoPlano(plano).map((r) => r.id))
 
-        // Canal que o produto ainda não atende não é "não configurado": é
-        // "em breve". Dizer o contrário manda a clínica procurar um botão de
-        // ligar que não existe.
-        if (doCanal.length === 0 && CANAIS_EM_DESENVOLVIMENTO.has(canal.id)) {
-            return { nome: canal.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }
+    const canais = REDES_DO_PLANO.map((rede): Linha | null => {
+        const colunas = CANAL_NO_BANCO[rede.id] ?? []
+        const registros = integracoes.filter((i) => colunas.includes(i.channel))
+        const conectadas = registros.filter((i) => i.status === 'connected').length
+
+        /**
+         * Linha de verdade é a que já pareou — conectada, ou com número
+         * gravado. É a mesma regra do `HOLDS_A_SLOT` de `lib/limits.ts`, e ela
+         * existe aqui pelo mesmo motivo: registro vazio que nunca pareou não é
+         * linha fora do ar, é vaga que ninguém usou. Contá-lo pintava de
+         * vermelho a linha da Meta que só esperava a revisão do aplicativo.
+         */
+        const reais = registros.filter((i) => i.status === 'connected' || i.phoneNumber).length
+
+        // O que o produto ainda não entrega é "em breve", e não conta no "x de
+        // y": dizer "não configurado" manda a clínica procurar um botão de
+        // ligar que não existe. Uma linha já conectada passa por cima do aviso
+        // — se está no ar, "em breve" seria mentira.
+        if (rede.emBreve && conectadas === 0) {
+            return { nome: rede.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }
         }
-        // Sem nenhum registro o canal nunca foi ligado. Dizer "fora do ar" aí
-        // seria alarme falso: não caiu, ainda não existe.
-        if (doCanal.length === 0) {
-            return { nome: canal.label, rotulo: 'Não configurado', tom: 'neutro' }
+
+        /**
+         * Rede fora do plano só aparece se estiver no ar.
+         *
+         * O registro sobrevive a uma descida de plano, e desenhá-lo apagado
+         * cobraria da clínica um canal que a assinatura dela não inclui. Se
+         * ainda estiver conectado, aparece: esconder algo que está atendendo
+         * seria pior.
+         */
+        if (!doPlano.has(rede.id)) {
+            if (conectadas === 0) return null
+            return { nome: rede.label, rotulo: 'No ar', tom: 'ok' }
+        }
+
+        if (reais === 0) {
+            return { nome: rede.label, rotulo: 'Não configurado', tom: 'neutro' }
         }
         if (conectadas === 0) {
-            return { nome: canal.label, rotulo: 'Fora do ar', tom: 'fora' }
+            return { nome: rede.label, rotulo: 'Fora do ar', tom: 'fora' }
         }
-        return {
-            nome: canal.label,
-            rotulo: doCanal.length > 1 ? `${conectadas} de ${doCanal.length} no ar` : 'No ar',
-            tom: 'ok',
+        /**
+         * Linha caída pinta o canal, mesmo com outra no ar.
+         *
+         * O cabeçalho conta canal e a linha conta número, e por isso o cartão
+         * chegou a dizer "2 de 2 no ar" com um WhatsApp fora. Uma linha
+         * derrubada é paciente escrevendo para um número que não responde —
+         * precisa de alarme, não de média.
+         */
+        if (conectadas < reais) {
+            return { nome: rede.label, rotulo: `${conectadas} de ${reais} no ar`, tom: 'fora' }
         }
-    })
-
-    // O site não está entre os canais do plano, mas é um canal de verdade e tem
-    // estado — some do cartão enquanto ninguém o ligou.
-    const site = integracoes.filter((i) => i.channel === 'site')
-    if (site.length > 0) {
-        const ligado = site.some((i) => i.status === 'connected')
-        canais.push({
-            nome: 'Site da clínica',
-            rotulo: ligado ? 'No ar' : 'Desligado',
-            tom: ligado ? 'ok' : 'neutro',
-        })
-    }
+        return { nome: rede.label, rotulo: 'No ar', tom: 'ok' }
+    }).filter((l): l is Linha => l !== null)
 
     return {
         agentes: linhasDeAgente,
