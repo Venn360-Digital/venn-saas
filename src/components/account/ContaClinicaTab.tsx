@@ -448,7 +448,14 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         ) : undefined
                     }
                 >
-                    <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
+                    {/* Nome, documento e marca na mesma linha.
+                        A logomarca morava no fim da faixa, numa área de soltar
+                        de 96px com duas linhas de texto embaixo — ~140px de
+                        altura para um controle que se usa uma vez na vida da
+                        conta. Subiu para junto do documento, compacta: o campo
+                        continua clicável e mostra a marca atual, e a tela
+                        encurtou. */}
+                    <div className="grid max-w-4xl gap-4 sm:grid-cols-[1fr_1fr_auto]">
                         <FormField
                             label="Nome da conta"
                             htmlFor="conta-nome"
@@ -478,6 +485,44 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                 onChange={(digitos) => setFormConta((p) => ({ ...p, cpfCnpj: digitos }))}
                             />
                         </FormField>
+
+                        <FormField
+                            label="Logomarca"
+                            hint="Substitui a do OdontoBox360 no cabeçalho. Até 160 × 25 px."
+                        >
+                            <button
+                                type="button"
+                                onClick={escolherImagem}
+                                disabled={!conta?.souMaster}
+                                className="flex h-9 w-56 items-center justify-center gap-2 rounded-md border border-dashed border-input bg-background px-3 outline-none transition-colors hover:border-border-strong focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {formConta.logo ? (
+                                    /* data URL gravado na conta, não um arquivo
+                                       do projeto: o otimizador do Next não tem
+                                       o que fazer com ele. */
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={formConta.logo}
+                                        alt="Logomarca da clínica"
+                                        className="max-h-6 max-w-[150px] object-contain"
+                                    />
+                                ) : (
+                                    <>
+                                        <Upload className="size-4 text-muted-foreground" />
+                                        <span className="text-sm text-muted-foreground">
+                                            Escolher a imagem
+                                        </span>
+                                    </>
+                                )}
+                            </button>
+                            <input
+                                ref={arquivo}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={trocarImagem}
+                            />
+                        </FormField>
                     </div>
 
                     {/* O endereço de **cobrança** — o de quem paga, não o da
@@ -490,7 +535,13 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         Endereço de cobrança
                     </p>
 
-                    <div className="grid max-w-3xl gap-4 sm:grid-cols-6">
+                    {/* Duas linhas, não três.
+                        Em doze colunas os campos cabem pelo que cada um pede:
+                        CEP e número são curtos, logradouro é o longo, e o
+                        telefone precisa de espaço para "(31) 99999-9999". Em
+                        seis colunas, qualquer arranjo de duas linhas espremia
+                        um deles. */}
+                    <div className="grid max-w-4xl gap-4 sm:grid-cols-12">
                         <FormField
                             label="CEP"
                             htmlFor="conta-cep"
@@ -511,7 +562,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                             />
                         </FormField>
 
-                        <FormField label="Logradouro" htmlFor="conta-logradouro" className="sm:col-span-4">
+                        <FormField label="Logradouro" htmlFor="conta-logradouro" className="sm:col-span-6">
                             <Input
                                 id="conta-logradouro"
                                 value={formConta.address}
@@ -522,7 +573,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                             />
                         </FormField>
 
-                        <FormField label="Número" htmlFor="conta-numero" className="sm:col-span-1">
+                        <FormField label="Número" htmlFor="conta-numero" className="sm:col-span-2">
                             <Input
                                 id="conta-numero"
                                 value={formConta.addressNumber}
@@ -553,7 +604,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                             />
                         </FormField>
 
-                        <FormField label="Cidade" htmlFor="conta-cidade" className="sm:col-span-3">
+                        <FormField label="Cidade" htmlFor="conta-cidade" className="sm:col-span-4">
                             <Input
                                 id="conta-cidade"
                                 value={formConta.city}
@@ -579,7 +630,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         <FormField
                             label="Telefone de cobrança"
                             htmlFor="conta-telefone"
-                            className="sm:col-span-2"
+                            className="sm:col-span-4"
                             hint="Com DDD."
                         >
                             <PhoneInput
@@ -593,50 +644,6 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         </FormField>
                     </div>
 
-                    <div className="mt-4">
-                        <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">
-                            Logomarca — substitui a do OdontoBox360 no cabeçalho do sistema. Até
-                            160 × 25 px.
-                        </p>
-                        {/* A área de soltar não precisa da largura da tela: sem
-                            moldura, um alvo de ponta a ponta viraria uma faixa
-                            vazia de 1400px. */}
-                        <button
-                            type="button"
-                            onClick={escolherImagem}
-                            disabled={!conta?.souMaster}
-                            className="flex h-24 w-full max-w-md flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border bg-background outline-none transition-colors hover:border-border-strong focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            {formConta.logo ? (
-                                /* data URL gravado na conta, não um arquivo do
-                                   projeto: o otimizador do Next não tem o que
-                                   fazer com ele. */
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={formConta.logo}
-                                    alt="Logomarca da clínica"
-                                    className="max-h-16 max-w-[160px] object-contain"
-                                />
-                            ) : (
-                                <>
-                                    <Upload className="size-6 text-muted-foreground" />
-                                    <span className="text-sm text-muted-foreground">
-                                        Escolher a imagem
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                        PNG com fundo transparente fica melhor
-                                    </span>
-                                </>
-                            )}
-                        </button>
-                        <input
-                            ref={arquivo}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={trocarImagem}
-                        />
-                    </div>
                 </SettingsBand>
 
                 <SettingsBand
