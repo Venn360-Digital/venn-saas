@@ -1238,8 +1238,8 @@ export async function POST(request: NextRequest) {
                             error:
                                 `Você tem ${unidades.used} unidade${unidades.used === 1 ? '' : 's'} cadastrada${unidades.used === 1 ? '' : 's'} e, ` +
                                 `cancelando ${quantas} contratação, caberiam ${tetoDepois}. ` +
-                                `Suspenda ${unidades.used - tetoDepois} unidade${unidades.used - tetoDepois === 1 ? '' : 's'} antes — ` +
-                                'suspender tira a clínica do ar sem apagar nada.',
+                                'Cancelar a contratação de uma unidade em funcionamento, ' +
+                                'com agentes e conversas, é feito pelo suporte.',
                         },
                         { status: 409 }
                     )

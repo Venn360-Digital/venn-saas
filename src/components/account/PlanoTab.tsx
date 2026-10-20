@@ -13,8 +13,6 @@ import {
     ArrowUpDown,
     Building2,
     Lock,
-    PauseCircle,
-    PlayCircle,
     Check,
     CreditCard,
     Gift,
@@ -281,7 +279,6 @@ export function PlanoTab() {
     const [confirmandoCompra, setConfirmandoCompra] = useState(false)
     const [cartaoDaCompra, setCartaoDaCompra] = useState<string | null>(null)
     const [unidadesLista, setUnidadesLista] = useState<UnidadeDaConta[]>([])
-    const [mexendoNaUnidade, setMexendoNaUnidade] = useState<string | null>(null)
     const [comprandoAdicionais, setComprandoAdicionais] = useState<{
         adicionais: number
         avulso: number
@@ -368,33 +365,6 @@ export function PlanoTab() {
             // Sem a lista o diálogo mostra o que já sabe pela assinatura.
         }
     }, [])
-
-    /** Suspende ou reativa uma unidade, e recarrega o que isso muda. */
-    const mexerNaUnidade = useCallback(
-        async (workspaceId: string, acao: 'suspender' | 'reativar') => {
-            setMexendoNaUnidade(workspaceId)
-            try {
-                const res = await fetch('/api/account/workspaces', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ workspaceId, acao }),
-                })
-                const data = await res.json()
-                if (res.ok) {
-                    toast.success(data.message)
-                    await Promise.all([loadUnidades(), loadSubscription()])
-                    window.dispatchEvent(new Event(BILLING_UPDATED))
-                } else {
-                    toast.error(data.error || 'Não foi possível concluir')
-                }
-            } catch {
-                toast.error('Não foi possível concluir')
-            } finally {
-                setMexendoNaUnidade(null)
-            }
-        },
-        [loadUnidades, loadSubscription]
-    )
 
     /**
      * Cancela — ou restaura — uma contratação de unidade adicional.
@@ -1760,20 +1730,22 @@ export function PlanoTab() {
                     </div>
 
                     <div className="space-y-2.5">
+                        {/* A CLÍNICA CADASTRADA — sem botão nenhum.
+                            Havia "Suspender" aqui, e o Andre tirou com a razão
+                            certa: unidade implantada, com agentes, canais e
+                            conversas, não sai do ar por um clique numa tela de
+                            contratação. Quem precisa encerrar uma unidade em
+                            funcionamento fala com o suporte, que é o que o FAQ
+                            passa a orientar. */}
                         {unidadesLista.map((unidade, indice) => {
-                            /* A primeira da conta é a principal: ela é a conta,
-                               e não se suspende. A ordem vem do servidor, por
-                               data de criação. */
+                            /* A primeira da conta é a principal. A ordem vem do
+                               servidor, por data de criação. */
                             const principal = indice === 0
-                            const suspensa = Boolean(unidade.suspendedAt)
 
                             return (
                                 <div
                                     key={unidade.id}
-                                    className={cn(
-                                        'rounded-lg border border-border p-4',
-                                        suspensa && 'bg-muted'
-                                    )}
+                                    className="rounded-lg border border-border p-4"
                                 >
                                     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                                         <div className="flex flex-wrap items-center gap-2">
@@ -1782,10 +1754,6 @@ export function PlanoTab() {
                                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
                                                     <Lock className="size-3" />
                                                     Protegida pela conta — {planLabel || 'plano'}
-                                                </span>
-                                            ) : suspensa ? (
-                                                <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-xs font-semibold text-warning-subtle-foreground">
-                                                    suspensa
                                                 </span>
                                             ) : (
                                                 <>
@@ -1799,43 +1767,18 @@ export function PlanoTab() {
                                             )}
                                         </div>
 
-                                        {!principal ? (
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="num text-sm text-muted-foreground">
+                                        <span className="num text-sm text-muted-foreground">
+                                            {principal ? (
+                                                'incluída no plano'
+                                            ) : (
+                                                <>
                                                     <strong className="text-foreground">
                                                         {formatPrice(UNIDADE_ADICIONAL.price)}
                                                     </strong>
                                                     /mês
-                                                </span>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={mexendoNaUnidade === unidade.id}
-                                                    onClick={() =>
-                                                        void mexerNaUnidade(
-                                                            unidade.id,
-                                                            suspensa ? 'reativar' : 'suspender'
-                                                        )
-                                                    }
-                                                >
-                                                    {suspensa ? (
-                                                        <>
-                                                            <PlayCircle className="size-4" />
-                                                            Reativar
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <PauseCircle className="size-4" />
-                                                            Suspender
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <span className="num text-sm text-muted-foreground">
-                                                incluída no plano
-                                            </span>
-                                        )}
+                                                </>
+                                            )}
+                                        </span>
                                     </div>
 
                                     <div className="mt-3 grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-md border border-border sm:grid-cols-4 sm:divide-y-0">
@@ -1853,30 +1796,14 @@ export function PlanoTab() {
                                             </div>
                                         ))}
                                     </div>
-
-                                    <p className="mt-2.5 text-xs text-muted-foreground">
-                                        {principal
-                                            ? 'É a primeira unidade da conta e não pode ser suspensa. Para encerrar tudo, cancele a assinatura.'
-                                            : suspensa
-                                              ? 'Fora do ar desde ' +
-                                                new Date(unidade.suspendedAt as string).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) +
-                                                '. Nada foi apagado, e a contratação que ela ocupava pode ser cancelada.'
-                                              : 'Para cancelar esta contratação, suspenda a unidade antes.'}
-                                    </p>
                                 </div>
                             )
                         })}
 
-                        {/* A CONTRATADA SEM CLÍNICA.
-                            É a linha que a homologação do Andre expôs: 3
-                            contratadas e 2 cadastradas. Contratar e cadastrar
-                            são coisas diferentes, e é aqui que a diferença
-                            aparece com preço.
-
-                            O vocabulário é o do negócio, não o de estacionamento:
-                            "vaga livre" e "devolver a vaga" saíram a pedido
-                            dele. Contrata-se uma unidade adicional; cadastra-se
-                            a clínica que a ocupa; cancela-se a contratação. */}
+                        {/* A CONTRATADA SEM CLÍNICA, e a cancelada.
+                            Os textos são os do Andre, literais: contratar e
+                            cadastrar são coisas diferentes, e cada cartão diz
+                            em uma linha o que fazer com aquela contratação. */}
                         {Array.from({ length: Math.max(0, u?.livres ?? 0) }).map((_, i) => (
                             <div
                                 key={`disponivel-${i}`}
@@ -1884,15 +1811,9 @@ export function PlanoTab() {
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        {/* Contratação, não unidade. A clínica
-                                            não nasce do contrato — nasce de um
-                                            clique em Nova unidade. Chamar a
-                                            linha vazia de "unidade" é o mesmo
-                                            embaralhamento que esta tela existe
-                                            para desfazer. */}
-                                        <span className="font-semibold">Contratação adicional</span>
+                                        <span className="font-semibold">Unidade adicional</span>
                                         <span className="rounded-full bg-success-subtle px-2.5 py-1 text-xs font-semibold text-success-subtle-foreground">
-                                            livre para uma clínica
+                                            Disponível
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1908,34 +1829,33 @@ export function PlanoTab() {
                                             disabled={processing}
                                             onClick={() => void mexerNaContratacao('cancel-addon')}
                                         >
-                                            Cancelar contratação
+                                            Cancelar
                                         </Button>
                                     </div>
                                 </div>
                                 <p className="mt-2.5 text-xs text-muted-foreground">
-                                    Você paga por esta contratação e ainda não criou a clínica que
-                                    vai ocupá-la. Crie em Conta da Clínica → Nova unidade — ou
-                                    cancele a contratação, e a mensalidade cai na renovação
-                                    {renovaEm ? `, em ${renovaEm}` : ''}.
+                                    Crie em{' '}
+                                    <a
+                                        href="/gerenciamento/conta?tab=empresa"
+                                        className="font-medium text-primary-subtle-foreground underline underline-offset-2"
+                                    >
+                                        Conta da Clínica → Nova unidade
+                                    </a>
+                                    {renovaEm ? ` — Renova em ${renovaEm}` : ''}
                                 </p>
                             </div>
                         ))}
 
-                        {/* A CANCELADA QUE AINDA VALE.
-                            Cancelar não é instantâneo — o ciclo foi pago —, e
-                            foi justamente isso que fez o Andre clicar duas
-                            vezes: a tela não mudava. Agora ela muda, mostra até
-                            quando vale, e oferece desfazer enquanto dá. */}
                         {Array.from({ length: Math.max(0, u?.cancelados ?? 0) }).map((_, i) => (
                             <div
                                 key={`cancelada-${i}`}
-                                className="rounded-lg border border-dashed border-border p-4 opacity-90"
+                                className="rounded-lg border border-dashed border-border p-4"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-semibold">Contratação adicional</span>
+                                        <span className="font-semibold">Unidade adicional</span>
                                         <span className="rounded-full bg-destructive-subtle px-2.5 py-1 text-xs font-semibold text-destructive-subtle-foreground">
-                                            cancelada
+                                            Cancelada
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1953,10 +1873,8 @@ export function PlanoTab() {
                                     </div>
                                 </div>
                                 <p className="mt-2.5 text-xs text-muted-foreground">
-                                    Continua valendo até {renovaEm ?? 'a renovação'}, porque o ciclo
-                                    já está pago — e dá para abrir uma clínica nela até lá, embora
-                                    ela perca a vaga na virada. A partir daí deixa de ser cobrada e
-                                    o teto da conta diminui. Restaurar não custa nada.
+                                    Contratação válida até {renovaEm ?? 'a renovação'}. Após esse
+                                    período o cancelamento será efetivado sem gerar novos custos.
                                 </p>
                             </div>
                         ))}
