@@ -5,19 +5,17 @@ import {
     BadgeCheck,
     Facebook,
     Globe,
-    Instagram,
     Loader2,
     Pencil,
     Plus,
-    Power,
     QrCode,
-    RefreshCw,
     Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
     Select,
     SelectContent,
@@ -95,29 +93,77 @@ const OUTROS_CANAIS = [
     },
 ]
 
-const ESTADO: Record<string, { rotulo: string; classe: string }> = {
-    connected: {
-        rotulo: 'No ar',
-        classe: 'bg-success-subtle text-success-subtle-foreground',
-    },
-    pending: {
-        rotulo: 'Pareando',
-        classe: 'bg-warning-subtle text-warning-subtle-foreground',
-    },
-    error: {
-        rotulo: 'Com erro',
-        classe: 'bg-destructive-subtle text-destructive-subtle-foreground',
-    },
-    disconnected: {
-        rotulo: 'Desconectada',
-        classe: 'bg-muted text-muted-foreground',
-    },
-}
 
 
 /** O nome da linha na tela: o apelido, senão o número, senão "Linha sem número". */
 function nomeDaLinha(line: Line): string {
     return apelidoDaLinha(line, 'Linha sem número')
+}
+
+/**
+ * O comando da linha — o mesmo em todos os canais da tela.
+ *
+ * A guia tinha seis jeitos de dizer duas coisas: "Conectar", "Reconectar",
+ * "Desconectar", "Desligado", "Não conectado" e "Desconectada". O Andre
+ * padronizou em 2026-10-20: **uma chave, no fim da linha, e duas palavras** —
+ * No ar e Fora do ar. Vale para WhatsApp QR, site, canal oficial e Instagram.
+ *
+ * **O terceiro estado não é de repouso, é a travessia.** Desligar é nosso e
+ * vale no clique; ligar nem sempre — uma linha que nunca pareou precisa de QR
+ * Code no celular, e a Meta pode levar um minuto. Uma chave que acende e volta
+ * sozinha para cinza lê como defeito do sistema, não como "não deu certo".
+ * Então enquanto a resposta não vem ela não acende: fica desabilitada, com o
+ * giro ao lado e dizendo o que espera.
+ *
+ * A largura mínima prende as chaves na mesma vertical de linha para linha e de
+ * cartão para cartão. Sem ela, "Fora do ar" empurra o interruptor para um lado
+ * e "No ar" para outro, e a coluna deixa de ser coluna.
+ */
+function Chave({
+    estado,
+    rotulo,
+    nome,
+    disabled,
+    onChange,
+}: {
+    estado: 'ok' | 'fora' | 'indo'
+    /** O que a chave espera, quando está em travessia. */
+    rotulo?: string
+    /** O nome da linha, para quem lê a tela com leitor de tela. */
+    nome: string
+    disabled?: boolean
+    onChange: (ligar: boolean) => void
+}) {
+    const texto = estado === 'indo' ? (rotulo ?? 'Aguardando…') : estado === 'ok' ? 'No ar' : 'Fora do ar'
+
+    return (
+        <span className="flex min-w-[7rem] items-center justify-end gap-2">
+            {estado === 'indo' ? (
+                <Loader2 className="size-3 shrink-0 animate-spin text-warning-subtle-foreground" />
+            ) : null}
+            <span
+                className={cn(
+                    'whitespace-nowrap text-[11px]',
+                    estado === 'ok' && 'font-semibold text-success-subtle-foreground',
+                    estado === 'indo' && 'font-semibold text-warning-subtle-foreground',
+                    estado === 'fora' && 'text-muted-foreground'
+                )}
+            >
+                {texto}
+            </span>
+            <Switch
+                checked={estado === 'ok'}
+                disabled={disabled || estado === 'indo'}
+                onCheckedChange={onChange}
+                aria-label={`${estado === 'ok' ? 'Desligar' : 'Ligar'} ${nome}`}
+            />
+        </span>
+    )
+}
+
+/** O fio que separa mexer na linha de ligar a linha. */
+function Fio() {
+    return <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
 }
 
 interface Escolha {
@@ -128,71 +174,96 @@ interface Escolha {
 }
 
 /**
- * Fila, Origem e Mídia — **dentro da linha a que pertencem**.
+ * O seletor de uma decisão da linha — fila, origem ou mídia.
  *
  * Origem e mídia moravam num cartão à parte, "De onde vem cada linha", montado
- * como tabela de de-para. A ideia era que uma tabela se confere de relance; na
- * prática ela obrigava a procurar a mesma linha duas vezes na tela, uma para
- * conectar e outra para dizer o que ela semeia — e a fila, que é da mesma
- * natureza, ficava num terceiro lugar, espremida entre os botões da linha.
- * O Andre apontou em 2026-10-20: é junto do canal que isso se lê.
+ * como tabela de de-para; a fila ficava espremida entre os botões da linha. São
+ * três perguntas da mesma natureza — decisão **sobre** a linha, não ação sobre
+ * ela —, e ficavam em três lugares. O Andre juntou as três junto do canal em
+ * 2026-10-20, e elas viraram colunas.
  *
- * Os três são decisão sobre a linha, não ação sobre ela. Por isso descem para
- * baixo do nome, em grade, e deixam a direita só para o que **faz** alguma
- * coisa — conectar, renomear, remover.
- *
- * Cada campo some quando não há o que escolher: clínica sem departamento não
- * tem fila a decidir, e um seletor com uma opção só é pergunta sem resposta.
+ * Some quando não há o que escolher: clínica sem departamento não tem fila a
+ * decidir, e um seletor com uma opção só é pergunta sem resposta.
  */
-function Atribuicao({
+function SeletorDaLinha({
+    rotulo,
     nome,
     canManage,
-    campos,
+    escolha,
 }: {
-    /** O nome da linha, para os rótulos de leitor de tela. */
+    rotulo: string
     nome: string
     canManage: boolean
-    campos: { rotulo: string; escolha: Escolha | null }[]
+    escolha: Escolha
 }) {
-    const presentes = campos.filter(
-        (c): c is { rotulo: string; escolha: Escolha } =>
-            c.escolha !== null && c.escolha.opcoes.length > 0
-    )
-
-    if (presentes.length === 0) return null
-
     return (
-        <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {presentes.map(({ rotulo, escolha }) => (
-                <div key={rotulo} className="min-w-0 max-w-[12rem]">
-                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {rotulo}
-                    </span>
-                    <Select
-                        value={escolha.valor ?? 'none'}
-                        disabled={!canManage}
-                        onValueChange={(v) => escolha.onChange(v === 'none' ? null : v)}
+        <td className="px-2.5 py-2 align-middle">
+            {escolha.opcoes.length === 0 ? (
+                <span className="text-[11px] text-muted-foreground">—</span>
+            ) : (
+                <Select
+                    value={escolha.valor ?? 'none'}
+                    disabled={!canManage}
+                    onValueChange={(v) => escolha.onChange(v === 'none' ? null : v)}
+                >
+                    <SelectTrigger
+                        aria-label={`${rotulo} de ${nome}`}
+                        className="h-8 w-full max-w-[11rem] text-xs"
                     >
-                        <SelectTrigger
-                            aria-label={`${rotulo} de ${nome}`}
-                            className="h-8 w-full text-xs"
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">{escolha.vazio}</SelectItem>
-                            {escolha.opcoes.map((o) => (
-                                <SelectItem key={o.id} value={o.id}>
-                                    {o.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            ))}
-        </div>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">{escolha.vazio}</SelectItem>
+                        {escolha.opcoes.map((o) => (
+                            <SelectItem key={o.id} value={o.id}>
+                                {o.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
+        </td>
     )
 }
+
+/** O mesmo seletor fora da tabela, para os canais de linha única. */
+function SeletorSolto({
+    rotulo,
+    nome,
+    canManage,
+    escolha,
+}: {
+    rotulo: string
+    nome: string
+    canManage: boolean
+    escolha: Escolha
+}) {
+    if (escolha.opcoes.length === 0) return null
+
+    return (
+        <Select
+            value={escolha.valor ?? 'none'}
+            disabled={!canManage}
+            onValueChange={(v) => escolha.onChange(v === 'none' ? null : v)}
+        >
+            <SelectTrigger
+                aria-label={`${rotulo} de ${nome}`}
+                className="h-8 w-[9.5rem] text-xs"
+            >
+                <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="none">{escolha.vazio}</SelectItem>
+                {escolha.opcoes.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                        {o.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    )
+}
+
 
 export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [lines, setLines] = useState<Line[]>([])
@@ -212,6 +283,8 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             channel: string
             label: string | null
             phoneNumber: string | null
+            /** Para a chave dos canais de linha única saber onde está. */
+            status: string
             defaultOriginId: string | null
             defaultMediaId: string | null
         }[]
@@ -319,6 +392,38 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
      * O registro nasce no servidor junto com a instância no provedor, porque o
      * nome dela é o id dele. Aqui só se abre o modal, que o POST atende.
      */
+    /**
+     * Liga e desliga um canal de linha única, pela rota dele.
+     *
+     * Uma função só para os dois canais da Meta porque a chave é uma só na
+     * tela: se cada canal tivesse o seu jeito de ligar, voltaríamos ao que o
+     * Andre chamou de sem padrão. O que muda entre eles é o endereço.
+     *
+     * **Não serve para conectar pela primeira vez.** Desligado sem linha
+     * nenhuma não é um booleano: é um OAuth inteiro, e quem o abre é o
+     * componente do canal. Ver o uso de `trigger` e `renderAcao`.
+     */
+    const alternarCanal = async (rota: 'meta' | 'instagram', ativo: boolean, nome: string) => {
+        setOcupada(rota)
+        try {
+            const res = await fetch(`/api/agents/${agentId}/integrations/${rota}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ativo }),
+            })
+            const corpo = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                toast.error(corpo.error ?? 'Não foi possível alterar o canal')
+                return
+            }
+            toast.success(`${nome} ${ativo ? 'está no ar' : 'saiu do ar'}`)
+            await carregarAtribuicao()
+            await carregar()
+        } finally {
+            setOcupada(null)
+        }
+    }
+
     const adicionar = () => setPareando('nova')
 
     const reconectar = (line: Line) => setPareando(line.id)
@@ -400,35 +505,44 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     /** A linha deste canal, quando existe — para pendurar a grade nela. */
     const linhaDoCanal = (channel: string) => linhasDeAtribuicao.find((l) => l.channel === channel)
 
-    /** A grade de origem e mídia de um canal de linha única. */
+    /**
+     * Origem e mídia de um canal de linha única, soltos na própria linha dele.
+     *
+     * Eles ficam **antes** da chave, nunca depois: a chave encerra a linha em
+     * todos os canais, e enfiar um seletor depois dela quebraria a vertical em
+     * que as oito chaves da tela se alinham.
+     */
     const atribuicaoDoCanal = (channel: string, nome: string) => {
-        const linha = linhaDoCanal(channel)
+        const linha = linhasDeAtribuicao.find((l) => l.channel === channel)
         if (!linha) return null
+
         return (
-            <Atribuicao
-                nome={nome}
-                canManage={canManage}
-                campos={[
-                    {
-                        rotulo: 'Origem',
-                        escolha: {
-                            valor: linha.defaultOriginId,
-                            opcoes: origins,
-                            vazio: 'Sem origem',
-                            onChange: (v) => void atribuir(linha.id, { defaultOriginId: v }),
-                        },
-                    },
-                    {
-                        rotulo: 'Mídia',
-                        escolha: {
-                            valor: linha.defaultMediaId,
-                            opcoes: medias,
-                            vazio: 'Sem mídia',
-                            onChange: (v) => void atribuir(linha.id, { defaultMediaId: v }),
-                        },
-                    },
-                ]}
-            />
+            <>
+                <SeletorSolto
+                    rotulo="Origem"
+                    nome={nome}
+                    canManage={canManage}
+                    escolha={{
+                        valor: linha.defaultOriginId,
+                        opcoes: origins,
+                        vazio: 'Sem origem',
+                        onChange: (v: string | null) =>
+                            void atribuir(linha.id, { defaultOriginId: v }),
+                    }}
+                />
+                <SeletorSolto
+                    rotulo="Mídia"
+                    nome={nome}
+                    canManage={canManage}
+                    escolha={{
+                        valor: linha.defaultMediaId,
+                        opcoes: medias,
+                        vazio: 'Sem mídia',
+                        onChange: (v: string | null) =>
+                            void atribuir(linha.id, { defaultMediaId: v }),
+                    }}
+                />
+            </>
         )
     }
 
@@ -449,41 +563,43 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
         <div className="flex flex-col gap-4">
             <SettingsCard
                 title="Linhas de WhatsApp"
-                description="Cada linha é um número. Um agente pode atender por vários — uma por unidade, por exemplo — e cada conversa responde pela linha por onde ela entrou. A fila diz quem vê essas conversas em Conversas: o departamento escolhido, ou todo mundo na fila geral."
+                description="Cada linha é um número; a conversa responde pela linha por onde entrou. A fila diz quem vê essas conversas: o departamento escolhido, ou todo mundo na fila geral."
+                /*
+                 * A ação primária sobe para o cabeçalho, ao lado do medidor.
+                 *
+                 * Era um rodapé inteiro só para ela, com uma frase à esquerda e
+                 * o botão encostado na ponta — e de tão separado do resto ele
+                 * parecia solto na tela (o Andre, 2026-10-20). No cabeçalho ele
+                 * fica junto da informação com que conversa: quantas vagas
+                 * sobram no plano.
+                 */
                 aside={
-                    limit ? (
-                        <span className="num text-xs text-muted-foreground">
-                            {limit.used} de {limit.max} no plano
-                        </span>
-                    ) : null
-                }
-                footer={
-                    canManage ? (
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-xs text-muted-foreground">
-                                {semVaga
-                                    ? 'O plano está no limite de números. Mude de plano em Gerenciamento → Conta para conectar mais.'
-                                    : 'Conectar pede a leitura de um QR Code no aparelho que tem o número.'}
-                            </p>
-                            <Button size="sm" onClick={adicionar} disabled={semVaga}>
+                    <div className="flex items-center gap-3">
+                        {limit ? (
+                            <span className="num whitespace-nowrap text-xs text-muted-foreground">
+                                {limit.used} de {limit.max} no plano
+                            </span>
+                        ) : null}
+                        {canManage ? (
+                            <Button size="sm" className="h-8" onClick={adicionar} disabled={semVaga}>
                                 <Plus className="size-4" />
                                 Adicionar número
                             </Button>
-                        </div>
-                    ) : (
-                        <p className="text-xs text-muted-foreground">
-                            Conectar e desconectar números é do dono ou do administrador da clínica.
-                        </p>
-                    )
+                        ) : null}
+                    </div>
                 }
+                /* `p-0` com um respiro só em cima: a tabela desenha as próprias
+                   bordas e precisa encostar nas laterais do cartão, mas colada
+                   no cabeçalho ela vira continuação dele. */
+                contentClassName="p-0 pt-3"
             >
                 {loading ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 px-5 py-4 text-xs text-muted-foreground">
                         <Loader2 className="size-4 animate-spin" />
                         Carregando as linhas…
                     </div>
                 ) : lines.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 py-6 text-center">
+                    <div className="flex flex-col items-center gap-2 px-5 py-6 text-center">
                         <QrCode className="size-8 text-muted-foreground/40" aria-hidden="true" />
                         <p className="text-[13px] font-semibold">Nenhum número conectado</p>
                         <p className="max-w-sm text-xs text-muted-foreground">
@@ -492,154 +608,198 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                         </p>
                     </div>
                 ) : (
-                    <div className="flex flex-col divide-y divide-border">
-                        {lines.map((line) => {
-                            const estado = ESTADO[line.status] ?? ESTADO.disconnected
-                            const trabalhando = ocupada === line.id
-                            return (
-                                <div key={line.id} className="py-3 first:pt-0 last:pb-0">
-                                    <SettingsRow
-                                        title={
-                                            canManage && renomeando === line.id ? (
-                                                <Input
-                                                    autoFocus
-                                                    value={rascunho}
-                                                    maxLength={60}
-                                                    placeholder="Unidade Centro"
-                                                    className="h-8 max-w-xs"
-                                                    onChange={(e) => setRascunho(e.target.value)}
-                                                    onBlur={() => void renomear(line)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') void renomear(line)
-                                                        if (e.key === 'Escape') setRenomeando(null)
-                                                    }}
-                                                />
-                                            ) : (
-                                                <span className="flex items-center gap-2">
-                                                    {nomeDaLinha(line)}
-                                                    <span
-                                                        className={cn(
-                                                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                                            estado.classe
-                                                        )}
-                                                    >
-                                                        {estado.rotulo}
-                                                    </span>
-                                                </span>
-                                            )
-                                        }
-                                        description={
-                                            line.errorMessage ? (
-                                                <span className="text-destructive-subtle-foreground">
-                                                    {line.errorMessage}
-                                                </span>
-                                            ) : line.label && line.phoneNumber ? (
-                                                <span className="num">{formatPhone(line.phoneNumber)}</span>
-                                            ) : line.paired ? (
-                                                'Já pareada; reconectar não pede QR Code novo.'
-                                            ) : (
-                                                'Ainda não pareada.'
-                                            )
-                                        }
-                                        action={
-                                            !canManage ? null : (
-                                            <div className="flex items-center gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    aria-label={`Renomear ${nomeDaLinha(line)}`}
-                                                    onClick={() => {
-                                                        setRascunho(line.label ?? '')
-                                                        setRenomeando(line.id)
-                                                    }}
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </Button>
-                                                {line.status === 'connected' ? (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        disabled={trabalhando}
-                                                        onClick={() => setADesconectar(line)}
-                                                    >
-                                                        {trabalhando ? (
-                                                            <Loader2 className="size-4 animate-spin" />
-                                                        ) : (
-                                                            <Power className="size-4" />
-                                                        )}
-                                                        Desconectar
-                                                    </Button>
+                    /*
+                     * TABELA, E NÃO UMA LISTA DE FICHAS.
+                     *
+                     * Cada linha carregava três seletores empilhados sob o
+                     * nome, com os rótulos repetidos linha a linha: com seis
+                     * números isso são dezoito rótulos e seis blocos de dupla
+                     * altura, e a guia só rolava. Em coluna o rótulo é dito uma
+                     * vez, no cabeçalho.
+                     *
+                     * `overflow-x-auto` porque o índice de 208px come largura:
+                     * em tela estreita a tabela rola dentro do cartão em vez de
+                     * espremer os seletores até o texto sumir.
+                     */
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[46rem] border-collapse text-left">
+                            <thead>
+                                <tr className="border-b border-border">
+                                    {['Linha', 'Fila', 'Origem', 'Mídia'].map((c) => (
+                                        <th
+                                            key={c}
+                                            className="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground first:pl-5"
+                                        >
+                                            {c}
+                                        </th>
+                                    ))}
+                                    <th className="px-2.5 pb-1.5 pr-5 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        Estado
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {lines.map((line) => {
+                                    const trabalhando = ocupada === line.id
+                                    const estado: 'ok' | 'fora' | 'indo' =
+                                        line.status === 'connected'
+                                            ? 'ok'
+                                            : line.status === 'pending' || trabalhando
+                                              ? 'indo'
+                                              : 'fora'
+
+                                    return (
+                                        <tr
+                                            key={line.id}
+                                            className="border-b border-border last:border-b-0"
+                                        >
+                                            <td className="px-2.5 py-2 pl-5 align-middle">
+                                                {canManage && renomeando === line.id ? (
+                                                    <Input
+                                                        autoFocus
+                                                        value={rascunho}
+                                                        maxLength={60}
+                                                        placeholder="Unidade Centro"
+                                                        className="h-8 max-w-[12rem]"
+                                                        onChange={(e) => setRascunho(e.target.value)}
+                                                        onBlur={() => void renomear(line)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') void renomear(line)
+                                                            if (e.key === 'Escape') setRenomeando(null)
+                                                        }}
+                                                    />
                                                 ) : (
                                                     <>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={trabalhando}
-                                                            onClick={() => reconectar(line)}
+                                                        <p className="whitespace-nowrap text-[13px] font-semibold">
+                                                            {nomeDaLinha(line)}
+                                                        </p>
+                                                        {/* O erro do provedor vale mais que o
+                                                            número: é ele que diz por que a
+                                                            linha não está no ar. */}
+                                                        <p
+                                                            className={cn(
+                                                                'num text-[11px]',
+                                                                line.errorMessage
+                                                                    ? 'text-destructive-subtle-foreground'
+                                                                    : 'text-muted-foreground'
+                                                            )}
                                                         >
-                                                            <RefreshCw className="size-4" />
-                                                            {line.paired ? 'Reconectar' : 'Conectar'}
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            aria-label={`Remover ${nomeDaLinha(line)}`}
-                                                            disabled={trabalhando}
-                                                            onClick={() => setARemover(line)}
-                                                        >
-                                                            <Trash2 className="size-4 text-destructive-subtle-foreground" />
-                                                        </Button>
+                                                            {line.errorMessage ||
+                                                                (line.phoneNumber
+                                                                    ? formatPhone(line.phoneNumber)
+                                                                    : line.paired
+                                                                      ? 'Já pareada'
+                                                                      : 'Ainda não pareada')}
+                                                        </p>
                                                     </>
                                                 )}
-                                            </div>
-                                            )
-                                        }
-                                    />
+                                            </td>
 
-                                    {/* O que esta linha decide: a fila que vê as
-                                        conversas dela, e o par que ela semeia na
-                                        ficha de quem escreve por ela. */}
-                                    <Atribuicao
-                                        nome={nomeDaLinha(line)}
-                                        canManage={canManage}
-                                        campos={[
-                                            {
-                                                rotulo: 'Fila',
-                                                escolha: {
+                                            <SeletorDaLinha
+                                                rotulo="Fila"
+                                                nome={nomeDaLinha(line)}
+                                                canManage={canManage}
+                                                escolha={{
                                                     valor: line.departmentId,
                                                     opcoes: departments,
                                                     vazio: 'Fila geral',
                                                     onChange: (v) =>
                                                         void ajustar(line, { departmentId: v }),
-                                                },
-                                            },
-                                            {
-                                                rotulo: 'Origem',
-                                                escolha: {
+                                                }}
+                                            />
+                                            <SeletorDaLinha
+                                                rotulo="Origem"
+                                                nome={nomeDaLinha(line)}
+                                                canManage={canManage}
+                                                escolha={{
                                                     valor: atribuicaoDe(line.id)?.defaultOriginId ?? null,
                                                     opcoes: origins,
                                                     vazio: 'Sem origem',
                                                     onChange: (v) =>
                                                         void atribuir(line.id, { defaultOriginId: v }),
-                                                },
-                                            },
-                                            {
-                                                rotulo: 'Mídia',
-                                                escolha: {
+                                                }}
+                                            />
+                                            <SeletorDaLinha
+                                                rotulo="Mídia"
+                                                nome={nomeDaLinha(line)}
+                                                canManage={canManage}
+                                                escolha={{
                                                     valor: atribuicaoDe(line.id)?.defaultMediaId ?? null,
                                                     opcoes: medias,
                                                     vazio: 'Sem mídia',
                                                     onChange: (v) =>
                                                         void atribuir(line.id, { defaultMediaId: v }),
-                                                },
-                                            },
-                                        ]}
-                                    />
-                                </div>
-                            )
-                        })}
+                                                }}
+                                            />
+
+                                            <td className="px-2.5 py-2 pr-5 align-middle">
+                                                <div className="flex items-center justify-end gap-2.5">
+                                                    {canManage ? (
+                                                        <>
+                                                            <span className="flex items-center gap-0.5">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="size-7"
+                                                                    aria-label={`Renomear ${nomeDaLinha(line)}`}
+                                                                    onClick={() => {
+                                                                        setRascunho(line.label ?? '')
+                                                                        setRenomeando(line.id)
+                                                                    }}
+                                                                >
+                                                                    <Pencil className="size-3.5" />
+                                                                </Button>
+                                                                {/* A lixeira só existe na linha
+                                                                    fora do ar: com a chave ao
+                                                                    lado, apagar por engano um
+                                                                    número conectado fica barato
+                                                                    demais. Desligue, depois
+                                                                    remova. */}
+                                                                {line.status !== 'connected' ? (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="size-7"
+                                                                        aria-label={`Remover ${nomeDaLinha(line)}`}
+                                                                        disabled={trabalhando}
+                                                                        onClick={() => setARemover(line)}
+                                                                    >
+                                                                        <Trash2 className="size-3.5 text-destructive-subtle-foreground" />
+                                                                    </Button>
+                                                                ) : null}
+                                                            </span>
+                                                            <Fio />
+                                                        </>
+                                                    ) : null}
+                                                    <Chave
+                                                        estado={estado}
+                                                        rotulo={trabalhando ? 'Desligando…' : 'Lendo QR…'}
+                                                        nome={nomeDaLinha(line)}
+                                                        disabled={!canManage}
+                                                        onChange={(ligar) =>
+                                                            ligar ? reconectar(line) : setADesconectar(line)
+                                                        }
+                                                    />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 )}
+
+                {!canManage ? (
+                    <p className="px-5 pb-4 text-xs text-muted-foreground">
+                        Conectar e desconectar números é do dono ou do administrador da clínica.
+                    </p>
+                ) : semVaga ? (
+                    <p className="px-5 pb-4 text-xs text-muted-foreground">
+                        O plano está no limite de números. Mude de plano em Gerenciamento → Conta
+                        para conectar mais.
+                    </p>
+                ) : null}
             </SettingsCard>
 
             {/*
@@ -659,80 +819,68 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             */}
             <SettingsCard
                 title="Outros canais"
-                description="Além das linhas lidas por QR Code. O número oficial da Meta ocupa vaga do plano como qualquer outro; site e Instagram não ocupam — o que eles consomem é crédito de IA, por mensagem."
+                description="O número oficial da Meta ocupa vaga do plano como qualquer outro; site e Instagram não ocupam — o que eles consomem é crédito de IA, por mensagem."
+                contentClassName="p-0 pt-2"
             >
                 <div className="flex flex-col divide-y divide-border">
                     {/* O SITE */}
-                    <div className="py-3 first:pt-0 last:pb-0">
+                    <div className="px-5 py-2.5">
                         <SettingsRow
                             title={
                                 <span className="flex items-center gap-2">
                                     <Globe className="size-4 text-muted-foreground" aria-hidden="true" />
                                     Site da clínica
-                                    <span
-                                        className={cn(
-                                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                                            site?.connected
-                                                ? 'bg-success-subtle text-success-subtle-foreground'
-                                                : 'bg-muted text-muted-foreground'
-                                        )}
-                                    >
-                                        {site?.connected ? 'No ar' : 'Desligado'}
-                                    </span>
                                 </span>
                             }
-                            description="Uma bolha de conversa nas páginas do site."
+                            description={
+                                site?.connected
+                                    ? undefined
+                                    : 'Uma bolha de conversa nas páginas do site.'
+                            }
                             action={
-                                canManage ? (
-                                    <Button
-                                        variant={site?.connected ? 'outline' : 'default'}
-                                        size="sm"
-                                        disabled={ligandoSite}
-                                        onClick={() => void alternarSite(!site?.connected)}
-                                    >
-                                        {ligandoSite ? (
-                                            <Loader2 className="size-4 animate-spin" />
-                                        ) : (
-                                            <Power className="size-4" />
-                                        )}
-                                        {site?.connected ? 'Desligar o widget' : 'Ligar o widget'}
-                                    </Button>
-                                ) : null
+                                <div className="flex items-center gap-2.5">
+                                    {site?.connected
+                                        ? atribuicaoDoCanal('site', 'Site da clínica')
+                                        : null}
+                                    {site?.connected ? <Fio /> : null}
+                                    <Chave
+                                        estado={
+                                            ligandoSite ? 'indo' : site?.connected ? 'ok' : 'fora'
+                                        }
+                                        rotulo="Aguardando…"
+                                        nome="o widget do site"
+                                        disabled={!canManage}
+                                        onChange={(ligar) => void alternarSite(ligar)}
+                                    />
+                                </div>
                             }
                         />
 
                         {/* O trecho só existe depois de ligado, e é a única coisa
                             desta tela que a clínica leva para fora daqui. */}
                         {site?.connected && site.snippet ? (
-                            <div className="mt-2.5 flex flex-col gap-1.5">
-                                <p className="text-xs text-muted-foreground">
-                                    Cole no site, antes de <code>&lt;/body&gt;</code>. Uma vez só —
-                                    desligar e religar aqui não muda o código.
-                                </p>
-                                <div className="flex items-start gap-2">
-                                    <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-muted/50 p-2.5 text-[11px] leading-relaxed">
-                                        {site.snippet}
-                                    </code>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            void navigator.clipboard.writeText(site.snippet ?? '')
-                                            setCopiado(true)
-                                            setTimeout(() => setCopiado(false), 2000)
-                                        }}
-                                    >
-                                        {copiado ? 'Copiado' : 'Copiar'}
-                                    </Button>
-                                </div>
+                            <div className="mt-2 flex items-start gap-2">
+                                <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-muted/50 p-2 text-[10.5px] leading-relaxed">
+                                    {site.snippet}
+                                </code>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8"
+                                    onClick={() => {
+                                        void navigator.clipboard.writeText(site.snippet ?? '')
+                                        setCopiado(true)
+                                        setTimeout(() => setCopiado(false), 2000)
+                                    }}
+                                >
+                                    {copiado ? 'Copiado' : 'Copiar'}
+                                </Button>
                             </div>
                         ) : null}
-
-                        {atribuicaoDoCanal('site', 'Site da clínica')}
                     </div>
 
                     {/* O WHATSAPP OFICIAL, PELA META */}
-                    <div className="py-3 first:pt-0 last:pb-0">
+                    <div className="px-5 py-2.5">
                         <SettingsRow
                             title={
                                 <span className="flex items-center gap-2">
@@ -740,10 +888,62 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                     WhatsApp API Oficial
                                 </span>
                             }
-                            description="Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado. A clínica escolhe o próprio número numa janela da Meta; nenhuma credencial passa por aqui."
+                            description="Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado."
                             action={
                                 canManage ? (
-                                    <MetaEmbeddedSignup agentId={agentId} onConectado={() => void carregar()} />
+                                    <div className="flex items-center gap-2.5">
+                                        {linhaDoCanal('whatsapp_business')
+                                            ? atribuicaoDoCanal(
+                                                  'whatsapp_business',
+                                                  'WhatsApp API Oficial'
+                                              )
+                                            : null}
+                                        {linhaDoCanal('whatsapp_business') ? <Fio /> : null}
+                                        {/*
+                                         * A chave é a mesma dos outros canais; o que
+                                         * muda é o que ela faz quando acende. Com
+                                         * linha, é um PATCH. Sem linha, é o Embedded
+                                         * Signup inteiro — e quem o abre é o
+                                         * componente da Meta, por isso ele empresta
+                                         * o gatilho em vez de desenhar botão.
+                                         */}
+                                        <MetaEmbeddedSignup
+                                            agentId={agentId}
+                                            onConectado={() => {
+                                                void carregar()
+                                                void carregarAtribuicao()
+                                            }}
+                                            trigger={({ abrir, ocupado, pronto }) => {
+                                                const linha = linhaDoCanal('whatsapp_business')
+                                                const noAr = linha?.status === 'connected'
+                                                return (
+                                                    <Chave
+                                                        estado={
+                                                            ocupado || ocupada === 'meta'
+                                                                ? 'indo'
+                                                                : noAr
+                                                                  ? 'ok'
+                                                                  : 'fora'
+                                                        }
+                                                        rotulo="Aguardando a Meta…"
+                                                        nome="o WhatsApp API Oficial"
+                                                        disabled={!pronto}
+                                                        onChange={(ligar) => {
+                                                            if (!linha) {
+                                                                abrir()
+                                                                return
+                                                            }
+                                                            void alternarCanal(
+                                                                'meta',
+                                                                ligar,
+                                                                'O WhatsApp API Oficial'
+                                                            )
+                                                        }}
+                                                    />
+                                                )
+                                            }}
+                                        />
+                                    </div>
                                 ) : (
                                     <span className="text-[11px] text-muted-foreground">
                                         Só o administrador conecta
@@ -751,53 +951,63 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                 )
                             }
                         />
-                        {atribuicaoDoCanal('whatsapp_business', 'WhatsApp API Oficial')}
                     </div>
 
                     {/* O INSTAGRAM VAI DIRETO À META: não há Evolution no
                         caminho, porque ele não tem canal de Instagram — e
                         também não teria o que fazer ali, já que a API de Direct
-                        é aberta e gratuita. O componente desenha a própria
-                        linha, e não só o botão: a orientação de preparo depende
-                        de já estar conectado, e esse estado mora lá dentro. */}
-                    <div className="py-3 first:pt-0 last:pb-0">
-                        {agentId ? (
-                            <InstagramConnect agentId={agentId} canManage={canManage} />
-                        ) : (
-                            <SettingsRow
-                                title={
-                                    <span className="flex items-center gap-2">
-                                        <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
-                                        Instagram Direct
-                                    </span>
-                                }
-                                description="O Direct da conta profissional da clínica."
-                                action={
-                                    <span className="text-[11px] text-muted-foreground">
-                                        Salve o agente primeiro
-                                    </span>
-                                }
-                            />
-                        )}
-                        {atribuicaoDoCanal('instagram', 'Instagram Direct')}
+                        é aberta e gratuita. O componente desenha a linha e
+                        guarda os preparos e a confirmação de desligar; a chave
+                        é nossa, para ficar igual às outras. */}
+                    <div className="px-5 py-2.5">
+                        <InstagramConnect
+                            agentId={agentId}
+                            canManage={canManage}
+                            renderAcao={({ conectado, carregando, configurado, conectar, desligar }) => (
+                                <div className="flex items-center gap-2.5">
+                                    {conectado
+                                        ? atribuicaoDoCanal('instagram', 'Instagram Direct')
+                                        : null}
+                                    {conectado ? <Fio /> : null}
+                                    <Chave
+                                        estado={carregando ? 'indo' : conectado ? 'ok' : 'fora'}
+                                        rotulo="Abrindo a Meta…"
+                                        nome="o Instagram Direct"
+                                        disabled={!canManage || configurado !== true}
+                                        onChange={(ligar) => (ligar ? conectar() : desligar())}
+                                    />
+                                </div>
+                            )}
+                        />
                     </div>
 
-                    {/* O QUE AINDA NÃO EXISTE, dito como tal e sem botão. */}
+                    {/* O QUE AINDA NÃO EXISTE: a chave fica, apagada. Chave que
+                        não se move diz "existe, mas não agora" melhor que um
+                        botão cinza — e mantém a vertical das outras sete. */}
                     {OUTROS_CANAIS.map((canal) => {
                         const Icone = canal.icon
                         return (
-                            <div key={canal.id} className="py-3 first:pt-0 last:pb-0">
+                            <div key={canal.id} className="px-5 py-2.5">
                                 <SettingsRow
                                     title={
                                         <span className="flex items-center gap-2">
                                             <Icone className="size-4 text-muted-foreground" aria-hidden="true" />
                                             {canal.name}
-                                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                                                Em breve
-                                            </span>
                                         </span>
                                     }
                                     description={canal.description}
+                                    action={
+                                        <span className="flex min-w-[7rem] items-center justify-end gap-2">
+                                            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+                                                Em breve
+                                            </span>
+                                            <Switch
+                                                checked={false}
+                                                disabled
+                                                aria-label={`${canal.name} ainda não está disponível`}
+                                            />
+                                        </span>
+                                    }
                                 />
                             </div>
                         )
@@ -805,9 +1015,9 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                 </div>
             </SettingsCard>
 
-            {/* A ressalva vale para toda grade da tela, e por isso é dita uma
-                vez só aqui embaixo — repeti-la em cada linha era o que fazia o
-                cartão de atribuição precisar de uma descrição própria. */}
+            {/* A ressalva vale para toda a tela, e por isso é dita uma vez só
+                aqui embaixo — repeti-la em cada linha era o que fazia o cartão
+                de atribuição precisar de uma descrição própria. */}
             {origins.length > 0 || medias.length > 0 ? (
                 <p className="px-1 text-xs text-muted-foreground">
                     Origem e mídia valem só para ficha nova — o que já entrou não é reescrito.

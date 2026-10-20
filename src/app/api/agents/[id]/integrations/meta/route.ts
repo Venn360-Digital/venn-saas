@@ -7,6 +7,7 @@ import { canConnectWhatsApp } from '@/lib/limits'
 import {
     MetaOnboardingError,
     assinarContaAoApp,
+    desassinarContaDoApp,
     novoPin,
     registrarNumero,
     trocarCodigoPorToken,
@@ -147,4 +148,87 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             { status: 500 }
         )
     }
+}
+
+/**
+ * PATCH — liga e desliga o canal, sem desfazer a conexão.
+ *
+ * Nasceu com a chave de liga/desliga da guia Canais, em 2026-10-20: a tela
+ * passou a ter **um** comando para todos os canais, e este aqui só tinha o
+ * conectar. Uma chave que anda para um lado só é pior que botão nenhum.
+ *
+ * Desligar desassina a conta do nosso aplicativo — a Meta para de mandar
+ * evento — e deixa **tudo o mais de pé**: número registrado, token guardado,
+ * linha no lugar com o apelido, a fila e o par origem/mídia dela. Ligar de
+ * volta é uma chamada, não um Embedded Signup novo.
+ *
+ * O registro **não** é desfeito, por decisão do Andre: refazê-lo custa PIN,
+ * verificação e o risco de quebrar a coexistência com o aplicativo WhatsApp
+ * Business da clínica. Devolver o número é o que a remoção da linha faz.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id: agentId } = await params
+
+    const auth = await manageAgent(agentId)
+    if (!auth.ok) return auth.response
+
+    const corpo = (await request.json().catch(() => ({}))) as { ativo?: boolean }
+    if (typeof corpo.ativo !== 'boolean') {
+        return NextResponse.json({ error: 'Informe ativo: true ou false' }, { status: 400 })
+    }
+
+    const linha = await prisma.agentIntegration.findFirst({
+        where: { agentId, channel: 'whatsapp_business' },
+    })
+    if (!linha) {
+        return NextResponse.json({ error: 'Não há canal oficial conectado.' }, { status: 404 })
+    }
+
+    const config = (linha.config ?? {}) as { accessToken?: string; businessId?: string }
+    if (!config.accessToken || !config.businessId) {
+        return NextResponse.json(
+            { error: 'A conexão está incompleta. Reconecte pela Meta.' },
+            { status: 409 }
+        )
+    }
+
+    /**
+     * **Não há conferência de vaga aqui, e é de propósito.**
+     *
+     * A linha já existe, e linha existente já conta: `HOLDS_A_SLOT` conta quem
+     * tem número gravado, desligada ou não. `canConnectWhatsApp` sabe disso e
+     * isenta quem passa um `integrationId` que existe — chamá-la seria escrever
+     * uma checagem que sempre passa e fingir que protege algo.
+     *
+     * Quem corta linha acima do plano é `applyPlanLimits`, na troca de plano, e
+     * ele derruba a linha em vez de impedir que ela volte.
+     */
+    try {
+        if (corpo.ativo) {
+            await assinarContaAoApp(config.businessId, config.accessToken)
+        } else {
+            await desassinarContaDoApp(config.businessId, config.accessToken)
+        }
+    } catch (error) {
+        if (error instanceof MetaOnboardingError) {
+            console.error(`[META_ONBOARDING] ${error.passo}: ${error.detalhe}`)
+            return NextResponse.json(
+                { error: `A Meta recusou (${error.passo}): ${error.detalhe}` },
+                { status: 502 }
+            )
+        }
+        console.error('[META_ONBOARDING] falha ao alternar o canal', error)
+        return NextResponse.json({ error: 'Não foi possível alterar o canal.' }, { status: 500 })
+    }
+
+    await prisma.agentIntegration.update({
+        where: { id: linha.id },
+        data: {
+            status: corpo.ativo ? 'connected' : 'disconnected',
+            connectedAt: corpo.ativo ? new Date() : linha.connectedAt,
+            errorMessage: null,
+        },
+    })
+
+    return NextResponse.json({ success: true, status: corpo.ativo ? 'connected' : 'disconnected' })
 }

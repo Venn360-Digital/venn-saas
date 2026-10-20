@@ -106,6 +106,24 @@ export async function assinarContaAoApp(wabaId: string, token: string): Promise<
 }
 
 /**
+ * Desfaz a assinatura — é o que "desligar" significa neste canal.
+ *
+ * Sem a assinatura a Meta para de nos mandar evento, e é só isso que para: o
+ * número continua registrado no Cloud API, o token continua válido e a conta
+ * continua sendo da clínica. Desfazer o registro seria caro de refazer (PIN,
+ * verificação, e o risco de a coexistência com o aplicativo quebrar), e o
+ * Andre decidiu em 2026-10-20 que desligar não chega a tanto.
+ *
+ * É a mesma simetria do Instagram, onde `deleteInstance` também só desassina.
+ */
+export async function desassinarContaDoApp(wabaId: string, token: string): Promise<void> {
+    await graph('fim da assinatura da conta', `${GRAPH}/${wabaId}/subscribed_apps`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+    })
+}
+
+/**
  * Registra o número no Cloud API.
  *
  * **Tolera "já registrado"**, que é o caso da clínica vinda por coexistência —

@@ -29,9 +29,19 @@ import { useFacebookSdk } from '@/components/agents/creation/useFacebookSdk'
 interface Props {
     agentId: string
     onConectado: () => void
+    /**
+     * Quem desenha o gatilho, quando não é o botão padrão.
+     *
+     * A guia Canais passou a ter **uma chave** para todos os canais
+     * (2026-10-20), e um botão "Conectar" no meio delas quebraria o padrão.
+     * Em vez de um `comoChave?: boolean` que só esta tela usaria, o componente
+     * entrega o que sabe — abrir, se está ocupado, se o SDK já veio — e deixa
+     * a tela desenhar. O que ele guarda para si é o fluxo da Meta.
+     */
+    trigger?: (estado: { abrir: () => void; ocupado: boolean; pronto: boolean }) => React.ReactNode
 }
 
-export function MetaEmbeddedSignup({ agentId, onConectado }: Props) {
+export function MetaEmbeddedSignup({ agentId, onConectado, trigger }: Props) {
     const [config, setConfig] = useState<{ appId: string; configId: string } | null>(null)
     const [carregando, setCarregando] = useState(false)
 
@@ -157,6 +167,8 @@ export function MetaEmbeddedSignup({ agentId, onConectado }: Props) {
             </span>
         )
     }
+
+    if (trigger) return <>{trigger({ abrir, ocupado: carregando, pronto: sdkPronto })}</>
 
     return (
         <Button size="sm" className="h-8 gap-1.5" onClick={abrir} disabled={!sdkPronto || carregando}>

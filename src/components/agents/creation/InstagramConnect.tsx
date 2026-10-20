@@ -46,6 +46,22 @@ interface Conta {
 interface Props {
     agentId: string
     canManage: boolean
+    /**
+     * Quem desenha a ação da linha, quando não é o botão padrão.
+     *
+     * A guia Canais passou a ter **uma chave** no fim de toda linha
+     * (2026-10-20). O componente continua dono do que é dele — o diálogo da
+     * Meta, os preparos, a confirmação de desligar — e entrega o estado para
+     * a tela desenhar o comando no padrão dela.
+     */
+    renderAcao?: (estado: {
+        conectado: boolean
+        carregando: boolean
+        /** `null` enquanto não se sabe; `false` quando a plataforma não tem o app. */
+        configurado: boolean | null
+        conectar: () => void
+        desligar: () => void
+    }) => React.ReactNode
 }
 
 /**
@@ -153,7 +169,7 @@ function LembreteDeAcesso() {
     )
 }
 
-export function InstagramConnect({ agentId, canManage }: Props) {
+export function InstagramConnect({ agentId, canManage, renderAcao }: Props) {
     const [configurado, setConfigurado] = useState<boolean | null>(null)
     const [conta, setConta] = useState<Conta | null>(null)
     const [carregando, setCarregando] = useState(false)
@@ -262,6 +278,16 @@ export function InstagramConnect({ agentId, canManage }: Props) {
 
     /** O botão ou o estado — o que couber no momento. */
     const acao = (() => {
+        if (renderAcao) {
+            return renderAcao({
+                conectado,
+                carregando,
+                configurado,
+                conectar: () => void conectar(),
+                desligar: () => setADesligar(true),
+            })
+        }
+
         if (configurado === false) {
             return (
                 <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
@@ -320,10 +346,10 @@ export function InstagramConnect({ agentId, canManage }: Props) {
                 title={
                     <span className="flex items-center gap-2">
                         <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
-                        Conectar pela Meta
+                        Instagram Direct
                     </span>
                 }
-                description="A clínica escolhe a própria conta numa janela da Meta. Nenhuma credencial passa por aqui."
+                description="O Direct da conta profissional da clínica. A conta é escolhida numa janela da Meta; nenhuma credencial passa por aqui."
                 action={acao}
             />
 

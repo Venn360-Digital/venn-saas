@@ -94,3 +94,88 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await prisma.agentIntegration.delete({ where: { id: linha.id } })
     return NextResponse.json({ success: true })
 }
+
+/**
+ * PATCH — liga e desliga a conta, sem desconectá-la.
+ *
+ * A diferença para o `DELETE` logo acima é o que sobra depois. Os dois
+ * desassinam a conta do nosso aplicativo, que é o que faz a Meta parar de
+ * mandar evento; o `DELETE` então **apaga a linha**, e com ela o apelido, a
+ * fila e o par origem/mídia que a clínica configurou. Desligar não apaga nada:
+ * a linha fica, com tudo no lugar, e religar é uma chamada.
+ *
+ * Nasceu com a chave de liga/desliga da guia Canais, em 2026-10-20. Antes dela
+ * a tela só sabia conectar e remover, e "parar por uns dias" não existia como
+ * ideia — quem quisesse isso tinha de remover e refazer o OAuth depois.
+ *
+ * **O token não é revogado em nenhum dos dois casos.** Quem revoga é a clínica,
+ * nas configurações dela; fazer isso por ela seria mexer onde não fomos
+ * convidados. Ver `instagramDirect.deleteInstance`.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id: agentId } = await params
+
+    const auth = await manageAgent(agentId)
+    if (!auth.ok) return auth.response
+
+    const corpo = (await request.json().catch(() => ({}))) as { ativo?: boolean }
+    if (typeof corpo.ativo !== 'boolean') {
+        return NextResponse.json({ error: 'Informe ativo: true ou false' }, { status: 400 })
+    }
+
+    const linha = await prisma.agentIntegration.findFirst({
+        where: { agentId, channel: 'instagram' },
+    })
+    if (!linha) {
+        return NextResponse.json({ error: 'Não há conta de Instagram conectada.' }, { status: 404 })
+    }
+
+    const config = (linha.config ?? {}) as { instagram?: { accessToken?: string } }
+    const token = config.instagram?.accessToken
+    if (!token) {
+        return NextResponse.json(
+            { error: 'A conexão está incompleta. Conecte a conta de novo.' },
+            { status: 409 }
+        )
+    }
+
+    const { instagramDirect } = await import('@/lib/instagram/provider')
+    const { readIntegrationConfig } = await import('@/lib/whatsapp')
+    const { assinarConta } = await import('@/lib/instagram/login')
+
+    try {
+        if (corpo.ativo) {
+            await assinarConta(token)
+        } else {
+            await instagramDirect.deleteInstance(readIntegrationConfig(linha))
+        }
+    } catch (error) {
+        /**
+         * Desligar segue em frente quando a Meta recusa; ligar, não.
+         *
+         * Se a assinatura já não existe — a clínica revogou o acesso por fora,
+         * o token venceu —, desassinar responde erro, e insistir deixaria a
+         * chave presa em "No ar" para um canal que não recebe mais nada. Já o
+         * ligar que falha **tem** de falhar na tela: acender a chave sem a
+         * assinatura é prometer mensagem que nunca vai chegar.
+         */
+        console.warn('[INSTAGRAM_ONBOARDING] falha ao alternar a conta', error)
+        if (corpo.ativo) {
+            return NextResponse.json(
+                { error: 'A Meta recusou religar a conta. Conecte-a de novo.' },
+                { status: 502 }
+            )
+        }
+    }
+
+    await prisma.agentIntegration.update({
+        where: { id: linha.id },
+        data: {
+            status: corpo.ativo ? 'connected' : 'disconnected',
+            connectedAt: corpo.ativo ? new Date() : linha.connectedAt,
+            errorMessage: null,
+        },
+    })
+
+    return NextResponse.json({ success: true, status: corpo.ativo ? 'connected' : 'disconnected' })
+}
