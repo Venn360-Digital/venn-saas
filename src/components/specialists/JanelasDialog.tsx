@@ -1,17 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
+import { RecordDialog } from '@/components/shared/RecordDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -24,7 +17,6 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 
 /**
  * A grade de horários de um especialista.
@@ -162,16 +154,29 @@ export function JanelasDialog({
 
     const semProcedimentos = procedimentos.length === 0
 
+    /**
+     * A moldura é a do sistema, não um `Dialog` solto.
+     *
+     * Esta tela nasceu com `DialogContent` próprio — outra largura, sem o
+     * rodapé preso, sem a legenda de Esc · ⌘↵ — e por isso lia como uma tela
+     * de outro produto. O Andre apontou em 2026-10-20. `RecordDialog` traz a
+     * geometria fechada na Tela 01 (DESIGN.md §5): cabeçalho e rodapé presos,
+     * só o conteúdo rola, e o envio com verbo e objeto.
+     */
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
-                <DialogHeader>
-                    <DialogTitle>Janelas de atendimento</DialogTitle>
-                    <DialogDescription>
-                        As faixas em que o especialista atende. Marque quais o agente de IA pode
-                        preencher sozinho — e quais procedimentos cabem em cada uma.
-                    </DialogDescription>
-                </DialogHeader>
+        <RecordDialog
+            open={open}
+            onOpenChange={onOpenChange}
+            title="Janelas de atendimento"
+            description="As faixas em que o especialista atende. Marque quais o agente de IA pode preencher sozinho — e quais procedimentos cabem em cada uma."
+            size="wide"
+            hideAgain
+            submitLabel="Salvar grade"
+            submitDisabled={!escolhido}
+            submitting={salvando}
+            onSubmit={() => void salvar()}
+        >
+            <div className="col-span-2 flex flex-col gap-3">
 
                 {!specialistId ? (
                     <div className="flex items-center gap-2">
@@ -340,16 +345,7 @@ export function JanelasDialog({
                     </div>
                 )}
 
-                <DialogFooter className={cn('gap-2', !escolhido && 'hidden')}>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancelar
-                    </Button>
-                    <Button onClick={() => void salvar()} disabled={salvando}>
-                        {salvando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                        {salvando ? 'Salvando…' : 'Salvar grade'}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </RecordDialog>
     )
 }

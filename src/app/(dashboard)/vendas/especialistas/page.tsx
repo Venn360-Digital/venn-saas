@@ -15,6 +15,8 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { JanelasDialog } from '@/components/specialists/JanelasDialog'
+import { EspecialistaPanel } from '@/components/specialists/EspecialistaPanel'
+import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { usePermissions } from '@/hooks/usePermissions'
 import { normalizeSearch } from '@/lib/search'
 import { PICKER_RAMP } from '@/lib/palette'
@@ -57,6 +59,8 @@ export default function EspecialistasPage() {
     const [busca, setBusca] = useState('')
 
     const [dialogoAberto, setDialogoAberto] = useState(false)
+    /** A ficha aberta. Clicar na linha abre ela, não a grade (Tela 01). */
+    const [fichaDe, setFichaDe] = useState<string | null>(null)
     const [editandoId, setEditandoId] = useState<string | null>(null)
     const [form, setForm] = useState({ name: '', specialty: '', color: CORES[0], isActive: true })
     const [erro, setErro] = useState<string | null>(null)
@@ -151,6 +155,10 @@ export default function EspecialistasPage() {
         await carregar()
     }
 
+    const ids = visiveis.map((e) => e.id)
+    usePanelKeys(fichaDe, ids, setFichaDe)
+    const aberto = visiveis.find((e) => e.id === fichaDe) ?? null
+
     const colunas: Column<Especialista>[] = [
         {
             id: 'name',
@@ -196,6 +204,27 @@ export default function EspecialistasPage() {
     return (
         <>
             <IndexFrame
+                aside={
+                    aberto ? (
+                        <EspecialistaPanel
+                            key={aberto.id}
+                            item={aberto}
+                            canEdit={canEdit}
+                            onClose={() => setFichaDe(null)}
+                            {...panelNeighbours(fichaDe, ids, setFichaDe)}
+                            onChanged={() => void carregar()}
+                            onEditFull={(id) => {
+                                const x = itens.find((i) => i.id === id)
+                                if (x) abrirEdicao(x)
+                            }}
+                            onDelete={(id) => {
+                                const x = itens.find((i) => i.id === id)
+                                if (x) setExcluindo(x)
+                            }}
+                            onJanelas={(id) => setJanelasDe(id)}
+                        />
+                    ) : null
+                }
                 title="Especialistas"
                 primary={
                     canEdit ? (
@@ -214,16 +243,18 @@ export default function EspecialistasPage() {
                     rows={visiveis}
                     getRowId={(e) => e.id}
                     loading={loading}
-                    onRowClick={(e) => canEdit && setJanelasDe(e.id)}
+                    onRowClick={(e) => setFichaDe(e.id)}
                     rowActions={
                         canEdit
                             ? (e) => (
                                   <RowActions label={`Ações de ${e.name}`}>
+                                      {/* "Abrir ficha" e não "Editar": o lápis
+                                          mora no rodapé da ficha (Tela 01). */}
+                                      <RowActionItem icon={Pencil} onClick={() => setFichaDe(e.id)}>
+                                          Abrir ficha
+                                      </RowActionItem>
                                       <RowActionItem icon={CalendarClock} onClick={() => setJanelasDe(e.id)}>
                                           Janelas de atendimento
-                                      </RowActionItem>
-                                      <RowActionItem icon={Pencil} onClick={() => abrirEdicao(e)}>
-                                          Editar
                                       </RowActionItem>
                                       <RowActionItem icon={Trash2} destructive onClick={() => setExcluindo(e)}>
                                           Excluir
@@ -240,7 +271,7 @@ export default function EspecialistasPage() {
                 onOpenChange={setDialogoAberto}
                 title={editandoId ? 'Editar especialista' : 'Novo especialista'}
                 description="Quem executa os procedimentos. Os horários dele se definem depois, em Janelas."
-                submitLabel={editandoId ? 'Salvar' : 'Criar especialista'}
+                submitLabel={editandoId ? 'Salvar especialista' : 'Criar especialista'}
                 hideAgain={Boolean(editandoId)}
                 submitting={salvando}
                 onSubmit={salvar}
