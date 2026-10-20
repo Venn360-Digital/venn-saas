@@ -24,21 +24,32 @@ export function mensalidadeDoPlano(plan: PlanId, adicionais: number): number {
 }
 
 /**
- * Os meios aceitos numa cobrança **avulsa**.
+ * Os meios aceitos numa cobrança **avulsa**: Pix e cartão.
  *
- * Boleto entrou em 2026-10-19, a pedido do Andre, e reverte a decisão de
- * 2026-10-18 de deixá-lo fora. A razão de ter ficado fora era a recorrência:
- * boleto não cobra sozinho todo mês. Em compra única esse argumento não existe
- * — e clínica que paga fornecedor por boleto é a regra, não a exceção.
+ * **Boleto não existe no Checkout**, e isso é medido, não suposto. Ele entrou
+ * aqui em 2026-10-19 a pedido do Andre e quebrou a compra de crédito com "O
+ * campo billingTypes é inválido". As tentativas, contra o sandbox:
  *
- * O preço é a demora: boleto compensa em um a três dias úteis, e a entrega
- * acontece na confirmação. Quem precisa do crédito hoje paga no Pix, que
- * confirma em segundos. A tela diz isso.
+ * | billingTypes | resposta |
+ * |---|---|
+ * | `['PIX','CREDIT_CARD']` | checkout criado |
+ * | `['PIX','CREDIT_CARD','BOLETO']` | `invalid_object` |
+ * | `['BOLETO']` | `invalid_object` |
+ * | `['PIX','CREDIT_CARD','BANK_SLIP']` | `parse_error` — valor desconhecido |
  *
- * A **recorrência** continua sendo cartão e só cartão, que é limite do Asaas e
- * não escolha nossa: cobrar sozinho todo mês exige credencial guardada.
+ * O `parse_error` do último é o que fecha a conclusão: `BOLETO` **é** um valor
+ * conhecido do enum (passou do parser) e mesmo assim é recusado pelo Checkout.
+ * Não é nome errado; é meio não suportado nesse endpoint.
+ *
+ * Boleto por aqui, se for desejado, precisa de outro caminho: criar a cobrança
+ * direto (`POST /v3/payments` com `billingType: BOLETO`) e mandar o pagador
+ * para o `bankSlipUrl` — com a entrega presa ao `externalReference` do
+ * pagamento em vez do checkout.
+ *
+ * A **recorrência** continua sendo cartão e só cartão, que também é limite do
+ * Asaas: cobrar sozinho todo mês exige credencial guardada.
  */
-const AVULSO = ['PIX', 'CREDIT_CARD', 'BOLETO'] as const
+const AVULSO = ['PIX', 'CREDIT_CARD'] as const
 
 interface RespostaCheckout {
     id: string

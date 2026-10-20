@@ -2220,8 +2220,8 @@ export function PlanoTab() {
                     <div>
                         <p className="text-sm font-semibold">Mensalidade</p>
                         <p className="text-xs text-muted-foreground">
-                            A cobrança que se repete todo mês vai no cartão de crédito — Pix e
-                            boleto não cobram sozinhos.
+                            A cobrança que se repete todo mês vai no cartão de crédito — Pix não
+                            cobra sozinho.
                         </p>
 
                         {(subscription?.cartoes?.length ?? 0) > 0 ? (
@@ -2335,16 +2335,15 @@ export function PlanoTab() {
                         </div>
                     </div>
 
-                    {/* AS COMPRAS AVULSAS: três meios, e a diferença entre eles
-                        é tempo. Dizer isso aqui evita a pergunta "comprei e
-                        não recebi" de quem pagou boleto. */}
+                    {/* AS COMPRAS AVULSAS: Pix e cartão. Boleto não existe no
+                        Checkout do Asaas — medido, ver `AVULSO` em
+                        `lib/asaas/checkout.ts`. */}
                     <div className="rounded-lg border border-border p-4">
                         <p className="text-sm font-semibold">Créditos e unidades adicionais</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            Compra única aceita <strong>Pix</strong>, <strong>cartão</strong> e{' '}
-                            <strong>boleto</strong> — você escolhe na hora de pagar. Pix e cartão
-                            confirmam em segundos; boleto leva de um a três dias úteis, e a entrega
-                            acontece quando o pagamento confirma.
+                            Compra única aceita <strong>Pix</strong> e <strong>cartão</strong> —
+                            você escolhe na hora de pagar, e os dois confirmam em segundos. A
+                            entrega acontece quando o pagamento confirma.
                         </p>
                     </div>
                 </div>
