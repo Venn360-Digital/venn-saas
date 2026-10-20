@@ -1180,28 +1180,23 @@ export function PlanoTab() {
                             )}
                         </div>
                     </div>
+                    {/* A ordem é a do Andre: forma, plano, faturas.
+                        Vai do que se mexe com mais frequência para o que só se
+                        consulta — e "alterar unidades" saiu daqui para a faixa
+                        de adicionais, ao lado de "comprar", que é onde o
+                        assunto mora. */}
                     <div className="flex flex-wrap gap-2 sm:justify-end">
                         <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
                             <CreditCard className="size-4" />
-                            Alterar forma
-                        </Button>
-                        <Button variant="outline" onClick={() => setShowFaturasModal(true)}>
-                            <Receipt className="size-4" />
-                            Ver faturas
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                void loadUnidades()
-                                setShowUnidadesModal(true)
-                            }}
-                        >
-                            <Building2 className="size-4" />
-                            Alterar unidades
+                            Forma de pagamento
                         </Button>
                         <Button variant="outline" onClick={() => setShowPlanModal(true)}>
                             <ArrowUpDown className="size-4" />
                             {isTrialing || !temPlano ? 'Contratar plano' : 'Alterar plano'}
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowFaturasModal(true)}>
+                            <Receipt className="size-4" />
+                            Ver faturas
                         </Button>
                     </div>
                 </div>
@@ -1371,18 +1366,30 @@ export function PlanoTab() {
                                 ? regimeSemCobranca ?? '\u00A0'
                                 : 'Exige plano ativo. Na avaliação, a franquia é a do plano que você escolher.'}
                         </p>
-                        <Button
-                            variant="outline"
-                            disabled={!podeComprarAdicionais}
-                            onClick={() => {
-                                setPacoteEscolhido(null)
-                                setUnidadesEscolhidas(0)
-                                setShowCreditsModal(true)
-                            }}
-                        >
-                            <Plus className="size-4" />
-                            Comprar adicionais
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    void loadUnidades()
+                                    setShowUnidadesModal(true)
+                                }}
+                            >
+                                <Building2 className="size-4" />
+                                Alterar unidades
+                            </Button>
+                            <Button
+                                variant="outline"
+                                disabled={!podeComprarAdicionais}
+                                onClick={() => {
+                                    setPacoteEscolhido(null)
+                                    setUnidadesEscolhidas(0)
+                                    setShowCreditsModal(true)
+                                }}
+                            >
+                                <Plus className="size-4" />
+                                Comprar adicionais
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </SettingsBand>
