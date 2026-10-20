@@ -1322,7 +1322,12 @@ export function PlanoTab() {
                 parte, cada um com a sua regra de validade. Separado a pedido do
                 Andre em 2026-10-19. */}
             <SettingsBand title="Meus adicionais">
-                <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
+                {/* Fio inteiro entre cada adicional dizia "outro bloco", e
+                    eles são itens da mesma lista. Passa a ser o tracejado do
+                    extrato da assinatura, com o mesmo respiro — as duas faixas
+                    enumeram contratos, e enumerar duas vezes de formas
+                    diferentes faz parecer que uma coisa é diferente da outra. */}
+                <div className="max-w-5xl rounded-lg border border-border">
                     {(subscription?.contratosDeUnidade?.length ?? 0) === 0 &&
                     (subscription?.lotesDeCredito?.length ?? 0) === 0 ? (
                         <p className="px-5 py-4 text-sm text-muted-foreground">
@@ -1338,6 +1343,7 @@ export function PlanoTab() {
                         apontou. Agora o título diz o que é e o subtítulo é
                         padrão; o que varia entre linhas é só a data e o estado,
                         que é o que de fato varia. */}
+                    <div className="px-5 py-4 empty:hidden">
                     {subscription?.contratosDeUnidade?.map((c) => {
                         const cancelada = Boolean(c.canceledAt)
                         const ate = c.endsAt
@@ -1349,7 +1355,7 @@ export function PlanoTab() {
                         return (
                             <div
                                 key={c.id}
-                                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4"
+                                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-dashed border-border py-2 first:border-t-0 first:pt-0"
                             >
                                 <div>
                                     <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
@@ -1383,7 +1389,7 @@ export function PlanoTab() {
                     {subscription?.lotesDeCredito?.map((l) => (
                         <div
                             key={l.id}
-                            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4"
+                            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-dashed border-border py-2 first:border-t-0 first:pt-0"
                         >
                             <div>
                                 <p className="text-sm font-medium">
@@ -1405,8 +1411,9 @@ export function PlanoTab() {
                             </p>
                         </div>
                     ))}
+                    </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
                         <p className="text-xs text-muted-foreground">
                             {podeComprarAdicionais
                                 ? regimeSemCobranca ?? '\u00A0'
