@@ -146,6 +146,21 @@ export async function vincularContaAoAsaas(opcoes: {
         if (anterior?.asaasSubscriptionId && anterior.asaasSubscriptionId !== ativa.id) {
             try {
                 await asaas(`/subscriptions/${anterior.asaasSubscriptionId}`, { method: 'DELETE' })
+
+                /**
+                 * O espelho acompanha: apagar a assinatura apaga as cobranças
+                 * futuras dela, e uma linha "em aberto" que não existe mais faz
+                 * a tela oferecer um pagamento impossível.
+                 */
+                await prisma.invoice.updateMany({
+                    where: {
+                        accountId,
+                        asaasSubscriptionId: anterior.asaasSubscriptionId,
+                        status: { in: ['PENDING', 'OVERDUE'] },
+                    },
+                    data: { status: 'CANCELED' },
+                })
+
                 console.info(
                     `[ASAAS_VINCULAR] assinatura anterior ${anterior.asaasSubscriptionId} ` +
                         `encerrada; fica a ${ativa.id}`

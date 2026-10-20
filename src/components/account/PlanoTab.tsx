@@ -987,7 +987,13 @@ export function PlanoTab() {
                   } — até lá, nada é cobrado.`
             : null
 
-    /** A cobrança que ainda dá para pagar — é por ela que um cartão novo entra. */
+    /**
+     * A cobrança que ainda dá para pagar — é por ela que um cartão novo entra.
+     *
+     * `CANCELED` fica de fora, e isso não é detalhe: cobrança apagada no Asaas
+     * mantém `PENDING` lá e vira `CANCELED` aqui. Sem o filtro, a tela oferecia
+     * "pagar com outro cartão" e o link abria uma página morta.
+     */
     const faturaEmAberto =
         cobrancas.find((c) => c.status === 'OVERDUE' || c.status === 'PENDING')?.invoiceUrl ?? null
 
@@ -2286,12 +2292,34 @@ export function PlanoTab() {
                                     </a>
                                 </>
                             ) : (
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                    Sem cobrança em aberto agora. Na próxima — a renovação de{' '}
-                                    {renovaEm ?? 'cada mês'} — escolha &ldquo;cartão de
-                                    crédito&rdquo; na página do Asaas e use o cartão que quiser:
-                                    ele aparece aqui depois.
-                                </p>
+                                <>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Não há cobrança em aberto agora, e é pagando que um cartão
+                                        entra. Acontece sozinho na próxima vez que você pagar
+                                        alguma coisa — a renovação{renovaEm ? ` de ${renovaEm}` : ''},
+                                        um pacote de crédito ou uma unidade adicional: escolha
+                                        &ldquo;cartão de crédito&rdquo; na página do Asaas e use o
+                                        cartão que quiser.
+                                    </p>
+                                    {/* Um atalho para o momento em que isso é
+                                        possível, em vez de um botão que não tem
+                                        o que fazer. */}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-2"
+                                        disabled={!podeComprarAdicionais}
+                                        onClick={() => {
+                                            setShowPaymentModal(false)
+                                            setPacoteEscolhido(null)
+                                            setUnidadesEscolhidas(0)
+                                            setShowCreditsModal(true)
+                                        }}
+                                    >
+                                        <Plus className="size-4" />
+                                        Comprar adicionais
+                                    </Button>
+                                </>
                             )}
                             <p className="mt-2 text-[11px] text-muted-foreground">
                                 O número do cartão nunca passa pelo OdontoBox360 — quem o recebe é

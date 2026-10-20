@@ -1300,6 +1300,24 @@ export async function POST(request: NextRequest) {
                 const fimDoCiclo = assinatura?.currentPeriodEnd ?? new Date()
 
                 await prisma.$transaction(async (tx) => {
+                    /**
+                     * As cobranças futuras daquela assinatura morreram com ela
+                     * no Asaas, e o espelho tem de acompanhar **agora**: o
+                     * evento `PAYMENT_DELETED` pode não vir, e uma cobrança
+                     * "em aberto" que não existe mais faz a tela oferecer um
+                     * pagamento impossível.
+                     */
+                    if (assinatura?.asaasSubscriptionId) {
+                        await tx.invoice.updateMany({
+                            where: {
+                                accountId,
+                                asaasSubscriptionId: assinatura.asaasSubscriptionId,
+                                status: { in: ['PENDING', 'OVERDUE'] },
+                            },
+                            data: { status: 'CANCELED' },
+                        })
+                    }
+
                     await tx.subscription.updateMany({
                         where: { accountId },
                         data: {

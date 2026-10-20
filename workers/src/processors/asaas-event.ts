@@ -46,6 +46,8 @@ const log = createLogger('ASAAS_EVENT')
 /** O que o Asaas manda dentro de `payment`, do que nos interessa. */
 interface PagamentoDoAsaas {
     creditCard?: CartaoDoAsaas
+    /** O Asaas marca assim a cobrança removida — inclusive junto com a assinatura. */
+    deleted?: boolean
     id?: string
     subscription?: string
     customer?: string
@@ -242,7 +244,18 @@ async function espelharCobranca(
          * R$ 290.
          */
         kind: p.subscription ? 'subscription' : 'detached',
-        status: p.status ?? event.replace('PAYMENT_', ''),
+        /**
+         * Cobrança apagada é **cancelada** no espelho, não "pendente".
+         *
+         * O Asaas mantém `status: PENDING` numa cobrança removida e marca
+         * `deleted: true` — e remover uma assinatura remove as cobranças
+         * futuras dela. Espelhar o status cru deixava a tela oferecendo
+         * "pagar" numa cobrança que não existe mais, e o link abria uma página
+         * morta. Foi o que o Andre encontrou ao tentar cadastrar um cartão.
+         */
+        status: p.deleted || event === 'PAYMENT_DELETED'
+            ? 'CANCELED'
+            : (p.status ?? event.replace('PAYMENT_', '')),
         billingType: p.billingType ?? null,
         valueCents,
         /**
