@@ -149,7 +149,7 @@ export function CancelarAssinaturaCard() {
                     description="Esta ação não tem volta."
                 >
                     <SettingsRow
-                        title="O acesso continua até o fim do período já pago"
+                        title="O acesso continua até o fim do período da assinatura."
                         description="Depois dessa data os agentes param de responder e os números de WhatsApp são desconectados. As conversas e o histórico de mensagens continuam guardados."
                         action={
                             <Button variant="destructive" onClick={() => setAberto(true)}>

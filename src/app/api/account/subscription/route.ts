@@ -25,7 +25,7 @@ function baseDaAplicacao(request: NextRequest): string {
 }
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, unidadesDaConta } from '@/lib/account'
+import { accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@/lib/account'
 import { createClient } from '@/lib/supabase/server'
 
 
@@ -174,6 +174,36 @@ export async function GET() {
              * isso só na mensagem de sucesso faz quem testa concluir que o
              * gateway falhou.
              */
+            /**
+             * Os adicionais **um a um**, para a faixa poder enfileirá-los.
+             *
+             * Antes iam só as contagens, e a tela escrevia uma frase por grupo
+             * — "3 contratações de unidade", "10.000 créditos avulsos". Com
+             * duas compras de crédito em datas diferentes, a frase precisava
+             * escolher uma validade e escondia a outra. Cada contrato é uma
+             * linha porque cada contrato tem a sua data.
+             */
+            contratosDeUnidade: accountId
+                ? await prisma.unitAddon.findMany({
+                      where: { accountId, ...adicionaisVivos() },
+                      orderBy: { createdAt: 'asc' },
+                      select: {
+                          id: true,
+                          createdAt: true,
+                          canceledAt: true,
+                          endsAt: true,
+                          priceCents: true,
+                      },
+                  })
+                : [],
+            lotesDeCredito: await prisma.creditPurchase.findMany({
+                where: {
+                    ...daContaDaUnidade(workspaceUser.workspaceId),
+                    expiresAt: { gt: new Date() },
+                },
+                orderBy: { expiresAt: 'asc' },
+                select: { id: true, amount: true, used: true, expiresAt: true },
+            }),
             regime: accountId
                 ? await regimeDaConta(accountId)
                 : { precisaPagar: true, motivo: null, a_partir_de: null },
@@ -443,7 +473,7 @@ export async function POST(request: NextRequest) {
                         {
                             error:
                                 'Antes de contratar, informe o CPF ou CNPJ de cobrança em ' +
-                                'Gerenciamento → Conta → Conta da Clínica.',
+                                'Gerenciamento → Conta → Assinatura → Comprar adicionais.',
                             faltaDocumento: true,
                         },
                         { status: 409 }

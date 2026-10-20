@@ -296,9 +296,9 @@ export async function POST(request: NextRequest) {
                             ? `Você tem ${error.canceladas} contratação${error.canceladas === 1 ? '' : 'ões'} adicional${error.canceladas === 1 ? '' : 'is'} cancelada${error.canceladas === 1 ? '' : 's'}, ` +
                               `que vale${error.canceladas === 1 ? '' : 'm'} só até ${ate}. ` +
                               `Criar uma clínica agora deixaria ela sem contratação depois dessa data. ` +
-                              `Restaure a contratação em Plano → Alterar unidades, ou contrate outra.`
+                              `Restaure a contratação em Assinatura → Alterar adicionais, ou contrate outra.`
                             : `Seu plano cabe ${error.max} unidade${error.max === 1 ? '' : 's'} e você já tem ${error.existentes}. ` +
-                              `Contrate uma unidade adicional em Gerenciamento → Conta → Conta da Clínica.`,
+                              `Contrate uma unidade adicional em Gerenciamento → Conta → Assinatura → Comprar adicionais.`,
                 },
                 { status: 402 }
             )

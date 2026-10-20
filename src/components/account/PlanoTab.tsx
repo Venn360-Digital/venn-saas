@@ -108,6 +108,16 @@ interface SubscriptionData {
     currentPeriodEnd: string | null
     /** Até quando a clínica tem para pagar, quando há cobrança vencida. */
     graceEndsAt?: string | null
+    /** Cada contratação de unidade viva, para a faixa enfileirá-las. */
+    contratosDeUnidade?: {
+        id: string
+        createdAt: string
+        canceledAt: string | null
+        endsAt: string | null
+        priceCents: number
+    }[]
+    /** Cada lote de crédito avulso ainda válido. */
+    lotesDeCredito?: { id: string; amount: number; used: number; expiresAt: string }[]
     /** Se esta conta é cobrada, e desde quando. */
     regime?: {
         precisaPagar: boolean
@@ -956,9 +966,6 @@ export function PlanoTab() {
      * protege quem sabe dela: avisar "em atraso" sem dizer até quando é susto
      * sem instrução.
      */
-    /** O avulso comprado, para a faixa de adicionais. */
-    const creditoAvulso = subscription?.creditos?.purchased.total ?? 0
-
     /**
      * Quando esta conta **não** será cobrada, e por quê.
      *
@@ -1310,7 +1317,8 @@ export function PlanoTab() {
                 Andre em 2026-10-19. */}
             <SettingsBand title="Meus adicionais">
                 <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
-                    {(u?.adicionais ?? 0) === 0 && creditoAvulso === 0 ? (
+                    {(subscription?.contratosDeUnidade?.length ?? 0) === 0 &&
+                    (subscription?.lotesDeCredito?.length ?? 0) === 0 ? (
                         <p className="px-5 py-4 text-sm text-muted-foreground">
                             Nenhum adicional contratado. O plano sozinho já dá conta — e, se
                             faltar, dá para comprar crédito ou mais uma unidade sem trocar de
@@ -1318,47 +1326,79 @@ export function PlanoTab() {
                         </p>
                     ) : null}
 
-                    {(u?.adicionais ?? 0) > 0 ? (
-                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4">
+                    {/* UM CONTRATO POR LINHA, e o mesmo texto em todos.
+                        Cada linha tinha uma frase própria, e frases diferentes
+                        para a mesma coisa confundem — foi o que o Andre
+                        apontou. Agora o título diz o que é e o subtítulo é
+                        padrão; o que varia entre linhas é só a data e o estado,
+                        que é o que de fato varia. */}
+                    {subscription?.contratosDeUnidade?.map((c) => {
+                        const cancelada = Boolean(c.canceledAt)
+                        const ate = c.endsAt
+                            ? new Date(c.endsAt).toLocaleDateString('pt-BR', {
+                                  timeZone: 'America/Sao_Paulo',
+                              })
+                            : null
+
+                        return (
+                            <div
+                                key={c.id}
+                                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4"
+                            >
+                                <div>
+                                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                                        Contratação de unidade
+                                        {cancelada ? (
+                                            <span className="rounded-full bg-destructive-subtle px-2 py-0.5 text-[11px] font-semibold text-destructive-subtle-foreground">
+                                                cancelada{ate ? ` · vale até ${ate}` : ''}
+                                            </span>
+                                        ) : null}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        1 unidade = 1 novo agente de IA + 1 novo número de WhatsApp
+                                    </p>
+                                </div>
+                                <p
+                                    className={cn(
+                                        'num text-sm font-semibold',
+                                        cancelada && 'text-muted-foreground line-through'
+                                    )}
+                                >
+                                    {formatPrice(c.priceCents / 100)}
+                                    <span className="font-normal text-muted-foreground">/mês</span>
+                                </p>
+                            </div>
+                        )
+                    })}
+
+                    {/* E cada compra de crédito na sua linha, porque cada uma
+                        tem a sua validade: uma frase só teria de escolher uma
+                        data e esconder as outras. */}
+                    {subscription?.lotesDeCredito?.map((l) => (
+                        <div
+                            key={l.id}
+                            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-4"
+                        >
                             <div>
                                 <p className="text-sm font-medium">
-                                    {u?.adicionais} contratação
-                                    {u?.adicionais === 1 ? '' : 'ões'} de unidade
+                                    Contratação de créditos avulsos
                                 </p>
-                                <p className="text-xs text-muted-foreground">
-                                    Cada uma soma 1 agente e 1 número, e cabe uma clínica.
-                                    {(u?.cancelados ?? 0) > 0
-                                        ? ` ${u?.cancelados} cancelada${u?.cancelados === 1 ? '' : 's'}, válida${u?.cancelados === 1 ? '' : 's'} até ${renovaEm ?? 'a renovação'}.`
-                                        : ''}
+                                <p className="num text-xs text-muted-foreground">
+                                    Créditos válidos até{' '}
+                                    {new Date(l.expiresAt).toLocaleDateString('pt-BR', {
+                                        timeZone: 'America/Sao_Paulo',
+                                    })}
                                 </p>
                             </div>
                             <p className="num text-sm font-semibold">
-                                {formatPrice(mensalDosAdicionais)}
-                                <span className="font-normal text-muted-foreground">/mês</span>
+                                {Math.max(0, l.amount - l.used).toLocaleString('pt-BR')}
+                                <span className="font-normal text-muted-foreground">
+                                    {' '}
+                                    de {l.amount.toLocaleString('pt-BR')}
+                                </span>
                             </p>
                         </div>
-                    ) : null}
-
-                    {creditoAvulso > 0 ? (
-                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4">
-                            <div>
-                                <p className="text-sm font-medium">
-                                    <span className="num">
-                                        {creditoAvulso.toLocaleString('pt-BR')}
-                                    </span>{' '}
-                                    créditos avulsos
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    Compra única{venceEm ? `, válida até ${venceEm}` : ''}. Gasta-se
-                                    depois da franquia do plano.
-                                </p>
-                            </div>
-                            <p className="num text-sm font-semibold text-muted-foreground">
-                                {(subscription?.creditos?.purchased.remaining ?? 0).toLocaleString('pt-BR')}{' '}
-                                <span className="font-normal">disponíveis</span>
-                            </p>
-                        </div>
-                    ) : null}
+                    ))}
 
                     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                         <p className="text-xs text-muted-foreground">
@@ -1375,7 +1415,7 @@ export function PlanoTab() {
                                 }}
                             >
                                 <Building2 className="size-4" />
-                                Alterar unidades
+                                Alterar adicionais
                             </Button>
                             <Button
                                 variant="outline"
@@ -1508,7 +1548,7 @@ export function PlanoTab() {
             <RecordDialog
                 open={showUnidadesModal}
                 onOpenChange={setShowUnidadesModal}
-                title="Alterar unidades"
+                title="Alterar adicionais"
                 hideAgain
                 submitLabel="Fechar"
                 onSubmit={() => setShowUnidadesModal(false)}
