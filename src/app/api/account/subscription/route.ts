@@ -3,6 +3,7 @@ import { currentMembership } from '@/lib/auth/workspace'
 import { canBuyAddons, getBillingState, spokenRepliesLeft } from '@/lib/billing'
 import { isPlanId, limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
 import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@/lib/asaas/checkout'
+import { cobrarNoCartaoSalvo } from '@/lib/asaas/cobranca-no-cartao'
 import { regimeDaConta } from '@/lib/asaas/cobranca'
 import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
 import { AsaasError, asaas } from '@/lib/asaas/client'
@@ -845,6 +846,136 @@ export async function POST(request: NextRequest) {
                         },
                         { status: 409 }
                     )
+                }
+
+                /**
+                 * Cartão já conhecido: cobra direto, sem checkout.
+                 *
+                 * A página do Asaas não sugere o cartão salvo — ela não sabe o
+                 * que nós sabemos — e o cliente redigitava o número a cada
+                 * compra. Com o token guardado, a compra vira uma chamada e o
+                 * PAN continua fora daqui.
+                 *
+                 * O token vem da tela, então é entrada não confiável: tem de
+                 * ser um cartão **desta conta**.
+                 */
+                const tokenPedido = typeof data.cardToken === 'string' ? data.cardToken : ''
+
+                if (tokenPedido) {
+                    const cartao = await prisma.paymentCard.findFirst({
+                        where: { accountId, asaasToken: tokenPedido },
+                        select: { asaasToken: true, brand: true, last4: true },
+                    })
+
+                    if (!cartao) {
+                        return NextResponse.json(
+                            { error: 'Cartão não encontrado nesta conta.' },
+                            { status: 404 }
+                        )
+                    }
+
+                    if (!conta.asaasCustomerId) {
+                        return NextResponse.json(
+                            {
+                                error:
+                                    'Esta conta ainda não está ligada ao gateway. ' +
+                                    'Use o checkout desta vez.',
+                            },
+                            { status: 409 }
+                        )
+                    }
+
+                    try {
+                        const cobranca = await cobrarNoCartaoSalvo({
+                            accountId,
+                            workspaceId: workspaceUser.workspaceId,
+                            plan: planoVigente,
+                            asaasCustomerId: conta.asaasCustomerId,
+                            creditCardToken: cartao.asaasToken,
+                            valor: totalDaCesta,
+                            descricao: resumoDaCesta(
+                                pack ?? null,
+                                unidadesPedidas,
+                                unidadesDepois.max
+                            ),
+                            pacote: pack ? { credits: pack.credits, price: pack.price } : null,
+                            unidades: unidadesPedidas,
+                        })
+
+                        /**
+                         * Cartão confirma na hora, então a entrega acontece
+                         * aqui — com a mesma trava do webhook (`appliedAt`),
+                         * que é quem cuida do caso em que o Asaas devolve
+                         * pendente e confirma depois.
+                         */
+                        if (cobranca.confirmado) {
+                            const entregue = await aplicarAdicionais({
+                                accountId,
+                                workspaceId: workspaceUser.workspaceId,
+                                packCredits: pack?.credits ?? null,
+                                packPriceCents: pack ? Math.round(pack.price * 100) : null,
+                                units: unidadesPedidas,
+                            })
+
+                            await prisma.asaasCheckout.update({
+                                where: { id: cobranca.tentativaId },
+                                data: { appliedAt: new Date() },
+                            })
+
+                            if (entregue.unidadesAdicionadas > 0 && assinatura?.asaasSubscriptionId) {
+                                try {
+                                    await sincronizarValorDaAssinatura(
+                                        accountId,
+                                        assinatura.asaasSubscriptionId
+                                    )
+                                } catch (erro) {
+                                    console.error(
+                                        `[BUY_ADDONS] ATENÇÃO: conta ${accountId} comprou unidade ` +
+                                            `no cartão salvo e a mensalidade não subiu. ${String(erro)}`
+                                    )
+                                }
+                            }
+
+                            const [depois, unidades] = await Promise.all([
+                                getBillingState(workspaceUser.workspaceId),
+                                unidadesDaConta(accountId),
+                            ])
+
+                            return NextResponse.json({
+                                success: true,
+                                pago: false,
+                                message:
+                                    `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max)} ` +
+                                    `Cobrado ${formatPrice(totalDaCesta)} no ${cartao.brand ?? 'cartão'} ` +
+                                    `••••${cartao.last4 ?? ''}.`,
+                                creditsAdded: entregue.creditosAdicionados,
+                                unidadesAdicionadas: entregue.unidadesAdicionadas,
+                                newTotal: depois.credits.available,
+                                unidades,
+                            })
+                        }
+
+                        return NextResponse.json({
+                            success: true,
+                            pago: false,
+                            message:
+                                `Cobrança de ${formatPrice(totalDaCesta)} enviada ao cartão ` +
+                                `••••${cartao.last4 ?? ''}. Assim que o banco confirmar, o ` +
+                                'adicional entra — a tela se atualiza sozinha.',
+                            unidades: unidadesDepois,
+                        })
+                    } catch (erro) {
+                        console.error('[BUY_ADDONS] cartão salvo recusado', erro)
+                        return NextResponse.json(
+                            {
+                                error:
+                                    erro instanceof AsaasError
+                                        ? `O cartão foi recusado: ${erro.detalhe}`
+                                        : 'Não foi possível cobrar o cartão salvo.',
+                            },
+                            { status: 502 }
+                        )
+                    }
                 }
 
                 try {

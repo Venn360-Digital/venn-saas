@@ -603,7 +603,45 @@ export function PlanoTab() {
      * Conta isenta e cesta abaixo do mínimo do gateway continuam entrando na
      * hora, sem janela: nos dois casos não há nada a cobrar.
      */
-    const handleBuyAddons = async () => {
+    const handleBuyAddons = async (comCartao?: string) => {
+        /**
+         * Pagando no cartão salvo não há janela: a cobrança acontece no
+         * servidor e volta pronta. Abrir uma janela em branco aqui deixaria um
+         * pop-up órfão esperando um endereço que não vem.
+         */
+        if (comCartao) {
+            setProcessing(true)
+            try {
+                const res = await fetch('/api/account/subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'buy-addons',
+                        credits: pacoteEscolhido ?? undefined,
+                        units: unidadesEscolhidas,
+                        cardToken: comCartao,
+                    }),
+                })
+                const data = await res.json()
+
+                if (res.ok) {
+                    toast.success(data.message)
+                    setShowCreditsModal(false)
+                    setPacoteEscolhido(null)
+                    setUnidadesEscolhidas(0)
+                    await loadSubscription()
+                    window.dispatchEvent(new Event(BILLING_UPDATED))
+                } else {
+                    toast.error(data.error || 'Não foi possível cobrar o cartão')
+                }
+            } catch {
+                toast.error('Não foi possível cobrar o cartão')
+            } finally {
+                setProcessing(false)
+            }
+            return
+        }
+
         const largura = 560
         const altura = Math.min(880, Math.max(640, window.screen.availHeight - 80))
         const esquerda = Math.round(window.screenX + (window.outerWidth - largura) / 2)
@@ -974,6 +1012,16 @@ export function PlanoTab() {
      * sem cobrar — comportamento correto — e a tela só dizia isso depois, na
      * mensagem de sucesso. Quem testa cobrança lê "comprei sem pagar".
      */
+    /**
+     * O cartão que a compra vai sugerir: o padrão, ou o último usado.
+     *
+     * A página do Asaas não sugere cartão salvo — ela não sabe o que nós
+     * sabemos —, e o cliente redigitava o número a cada pacote de crédito. Foi
+     * o que o Andre notou depois da primeira compra.
+     */
+    const cartaoSugerido =
+        subscription?.cartoes?.find((c) => c.isDefault) ?? subscription?.cartoes?.[0] ?? null
+
     const regimeSemCobranca =
         subscription?.regime && !subscription.regime.precisaPagar
             ? subscription.regime.motivo === 'vitalicia'
@@ -1976,10 +2024,18 @@ export function PlanoTab() {
                 onOpenChange={setShowCreditsModal}
                 title="Comprar adicionais"
                 description="Dois adicionais, de naturezas diferentes: crédito é compra única, válida por 90 dias; unidade soma à mensalidade enquanto existir. Pode levar um, o outro, ou os dois."
-                submitLabel="Comprar adicionais"
+                submitLabel={
+                    cartaoSugerido && !regimeSemCobranca
+                        ? `Cobrar ••••${cartaoSugerido.last4 ?? ''}`
+                        : 'Comprar adicionais'
+                }
                 submitDisabled={!pacote && unidadesEscolhidas === 0}
                 hideAgain
-                onSubmit={handleBuyAddons}
+                onSubmit={() => {
+                    /* O envio do diálogo é o caminho recomendado: cartão
+                       salvo quando existe, checkout quando não. */
+                    void handleBuyAddons(cartaoSugerido?.asaasToken)
+                }}
                 submitting={processing}
                 summary={
                     <>
@@ -2027,14 +2083,31 @@ export function PlanoTab() {
                                 <CreditCard className="size-3.5" /> •••• {subscription.paymentMethod.last4}
                             </p>
                         ) : null}
-                        {regimeSemCobranca ? null : (
-                            <button
-                                type="button"
-                                onClick={() => { setShowCreditsModal(false); setShowPaymentModal(true) }}
-                                className="w-fit text-[11px] font-semibold text-primary-subtle-foreground underline-offset-2 hover:underline"
-                            >
-                                Pagar de outra forma
-                            </button>
+                        {regimeSemCobranca ? null : cartaoSugerido ? (
+                            <>
+                                {/* O cartão salvo é o caminho curto: uma
+                                    chamada, sem redigitar número. A página do
+                                    Asaas não o sugere — ela não sabe o que nós
+                                    sabemos —, então quem sugere é esta tela. */}
+                                <p className="num flex items-center gap-2 text-[11px] text-muted-foreground">
+                                    <CreditCard className="size-3.5" />
+                                    {cartaoSugerido.brand ?? 'Cartão'} ••••{cartaoSugerido.last4}
+                                    {cartaoSugerido.isDefault ? ' · padrão' : ''}
+                                </p>
+                                <button
+                                    type="button"
+                                    disabled={processing || (!pacote && unidadesEscolhidas === 0)}
+                                    onClick={() => void handleBuyAddons()}
+                                    className="w-fit text-[11px] font-semibold text-primary-subtle-foreground underline-offset-2 hover:underline disabled:opacity-50"
+                                >
+                                    Pagar de outra forma (Pix ou outro cartão)
+                                </button>
+                            </>
+                        ) : (
+                            <p className="text-[11px] leading-snug text-muted-foreground">
+                                Você escolhe Pix ou cartão na página do Asaas. O cartão usado fica
+                                guardado para a próxima compra ser de um clique.
+                            </p>
                         )}
                     </>
                 }

@@ -330,6 +330,85 @@ async function espelharCobranca(
 
     await reagirAoStatusDaCobranca(contaResolvida.id, dados)
     await guardarCartao(contaResolvida.id, p.creditCard)
+    await entregarCestaDoPagamento(p, dados.status)
+}
+
+/**
+ * A cesta comprada **direto no cartão salvo**, entregue quando confirma.
+ *
+ * Esse caminho não passa por checkout — e portanto não gera `CHECKOUT_PAID`,
+ * que é onde a entrega mora. O que liga o pagamento à cesta é o
+ * `externalReference`, que a cobrança leva desde a criação.
+ *
+ * Quase sempre a rota já entregou, porque cartão confirma na resposta da
+ * própria chamada. Isto cobre o resto: cobrança que nasce pendente e confirma
+ * depois, e a retentativa de um evento que chegou antes da hora. A trava é a
+ * mesma de sempre — `appliedAt` —, então entregar duas vezes não acontece.
+ */
+async function entregarCestaDoPagamento(
+    p: PagamentoDoAsaas,
+    status: string
+): Promise<void> {
+    if (status !== 'CONFIRMED' && status !== 'RECEIVED') return
+    if (!p.externalReference) return
+
+    const tentativa = await prisma.asaasCheckout.findUnique({
+        where: { id: p.externalReference },
+        select: {
+            id: true,
+            kind: true,
+            accountId: true,
+            workspaceId: true,
+            packCredits: true,
+            packPriceCents: true,
+            units: true,
+            appliedAt: true,
+        },
+    })
+
+    if (!tentativa || tentativa.kind !== 'adicionais' || tentativa.appliedAt) return
+    if (!tentativa.workspaceId) {
+        log.error(`tentativa ${tentativa.id} de adicionais sem unidade de origem`)
+        return
+    }
+
+    const entregue = await aplicarAdicionais({
+        accountId: tentativa.accountId,
+        workspaceId: tentativa.workspaceId,
+        packCredits: tentativa.packCredits,
+        packPriceCents: tentativa.packPriceCents,
+        units: tentativa.units,
+    })
+
+    await prisma.asaasCheckout.update({
+        where: { id: tentativa.id },
+        data: { appliedAt: new Date(), status: 'PAID', paidAt: new Date() },
+    })
+
+    log.info(
+        `pagamento ${p.id} entregou a cesta ${tentativa.id}: ` +
+            `${entregue.creditosAdicionados} créditos e ${entregue.unidadesAdicionadas} unidade(s)`
+    )
+
+    if (entregue.unidadesAdicionadas > 0) {
+        const assinatura = await prisma.subscription.findUnique({
+            where: { accountId: tentativa.accountId },
+            select: { asaasSubscriptionId: true },
+        })
+
+        if (assinatura?.asaasSubscriptionId) {
+            const valor = await sincronizarValorDaAssinatura(
+                tentativa.accountId,
+                assinatura.asaasSubscriptionId
+            )
+            log.info(`mensalidade da conta ${tentativa.accountId} agora é R$ ${valor.toFixed(2)}`)
+        } else {
+            log.error(
+                `conta ${tentativa.accountId} comprou unidade sem assinatura no Asaas; ` +
+                    'a mensalidade não subiu'
+            )
+        }
+    }
 }
 
 /**
