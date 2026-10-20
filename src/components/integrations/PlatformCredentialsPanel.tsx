@@ -34,6 +34,18 @@ interface ProviderRow {
  */
 export function PlatformCredentialsPanel() {
     const [rows, setRows] = useState<ProviderRow[] | null>(null)
+    /**
+     * O estado da fila de webhooks do Asaas.
+     *
+     * Fica aqui porque é aqui que a chave dele é administrada — e porque é a
+     * única informação desta integração que não dá sintoma em lugar nenhum: a
+     * fila deles para depois de 15 falhas seguidas e os eventos somem em
+     * silêncio.
+     */
+    const [webhookDoAsaas, setWebhookDoAsaas] = useState<{
+        ok: boolean
+        problemas: string[]
+    } | null>(null)
     const [visible, setVisible] = useState(false)
     const [open, setOpen] = useState<string | null>(null)
     const [clientId, setClientId] = useState('')
@@ -47,6 +59,7 @@ export function PlatformCredentialsPanel() {
             const data = await res.json()
             setVisible(Boolean(data.isPlatformAdmin))
             setRows(data.providers ?? [])
+            setWebhookDoAsaas(data.asaasWebhook ?? null)
         } catch { /* a seção simplesmente não aparece */ }
     }
 
@@ -154,6 +167,31 @@ export function PlatformCredentialsPanel() {
                                 {row.configured ? 'Alterar' : 'Registrar'}
                             </Button>
                         </div>
+
+                        {/* A fila do Asaas, na linha do Asaas. */}
+                        {row.provider === 'asaas' && webhookDoAsaas && !webhookDoAsaas.ok ? (
+                            <div className="mt-2 rounded-md bg-destructive-subtle px-3 py-2">
+                                <p className="text-[11px] font-semibold text-destructive-subtle-foreground">
+                                    A fila de webhooks precisa de atenção
+                                </p>
+                                <ul className="mt-1 space-y-0.5">
+                                    {webhookDoAsaas.problemas.map((problema) => (
+                                        <li
+                                            key={problema}
+                                            className="text-[11px] leading-snug text-destructive-subtle-foreground"
+                                        >
+                                            {problema}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : null}
+
+                        {row.provider === 'asaas' && webhookDoAsaas?.ok ? (
+                            <p className="mt-2 text-[11px] text-muted-foreground">
+                                Fila de webhooks saudável — nenhuma entrega penalizada.
+                            </p>
+                        ) : null}
 
                         {open === row.provider ? (
                             <div className={cn('mt-3 space-y-3 rounded-lg bg-muted/40 p-3')}>

@@ -145,6 +145,7 @@ export type CronJobName =
     | 'auto-follow-up'
     | 'instagram-token-refresh'
     | 'billing-dunning'
+    | 'billing-reconcile'
 
 export interface CronJob {
     task: CronJobName

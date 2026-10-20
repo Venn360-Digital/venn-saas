@@ -54,6 +54,11 @@ const SCHEDULES: Schedule[] = [
     // dia basta — a carência é contada em dias, e cortar às 5h ou às 9h não
     // muda nada para quem não pagou em três dias.
     { task: 'billing-dunning', pattern: '27 5 * * *' },
+    // Depois do corte, e uma vez por dia: a conciliação lê a API do Asaas
+    // conta por conta, e é a rotina mais cara do dia. Às 5h47 ela encontra o
+    // período já virado (3h13) e o corte já decidido (5h27), então o que ela
+    // conserta é o que de fato ficou para trás.
+    { task: 'billing-reconcile', pattern: '47 5 * * *' },
 ]
 
 /**

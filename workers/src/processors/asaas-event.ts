@@ -45,7 +45,7 @@ const log = createLogger('ASAAS_EVENT')
  */
 
 /** O que o Asaas manda dentro de `payment`, do que nos interessa. */
-interface PagamentoDoAsaas {
+export interface PagamentoDoAsaas {
     creditCard?: CartaoDoAsaas
     /** O Asaas marca assim a cobrança removida — inclusive junto com a assinatura. */
     deleted?: boolean
@@ -151,7 +151,7 @@ export async function processAsaasEvent(job: Job<AsaasEventJob>): Promise<void> 
  * que não é do OdontoBox360. Falhar aqui faria o evento retentar oito vezes e
  * acabar na fila de falhas sem ter nada de errado.
  */
-async function espelharCobranca(
+export async function espelharCobranca(
     event: string,
     payload: { payment?: PagamentoDoAsaas },
     /** Quando **este** evento chegou. É o que ordena as escritas. */

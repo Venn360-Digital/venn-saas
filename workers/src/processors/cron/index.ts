@@ -13,6 +13,7 @@ import { runDailyBriefing } from './daily-briefing'
 import { runAutoFollowUp } from './auto-follow-up'
 import { runInstagramTokenRefresh } from './instagram-token-refresh'
 import { runBillingDunning } from './billing-dunning'
+import { runBillingReconcile } from './billing-reconcile'
 
 const log = createLogger('CRON')
 
@@ -29,6 +30,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     'auto-follow-up': runAutoFollowUp,
     'instagram-token-refresh': runInstagramTokenRefresh,
     'billing-dunning': runBillingDunning,
+    'billing-reconcile': runBillingReconcile,
 }
 
 export async function processCron(job: Job<CronJob>): Promise<void> {

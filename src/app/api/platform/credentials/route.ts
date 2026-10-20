@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { PLATFORM_PROVIDERS, ambienteDaChave, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials, temSegredoDuplo } from '@/lib/platform-credentials'
 
 import { platformSecretName, vaultSecretExists } from '@/lib/vault'
+import { estadoDoWebhook } from '@/lib/asaas/vigia'
 
 const KNOWN = new Set<string>(PLATFORM_PROVIDERS.map((p) => p.provider))
 
@@ -85,7 +86,29 @@ export async function GET() {
         })
     )
 
-    return NextResponse.json({ isPlatformAdmin: Boolean(admin), providers })
+    /**
+     * O estado da fila de webhooks do Asaas, só para quem administra.
+     *
+     * É a informação que não dá sintoma em lugar nenhum: a fila deles para
+     * depois de 15 falhas seguidas e os eventos deixam de chegar em silêncio.
+     * A conciliação da madrugada conserta o estrago; esta linha é para o Andre
+     * **ver** que aconteceu, no lugar onde ele já administra a chave.
+     *
+     * Falhar aqui não derruba a tela: sem Asaas configurado, ou com a API fora,
+     * a tela mostra as credenciais como sempre e omite esta linha.
+     */
+    let asaasWebhook: { ok: boolean; problemas: string[] } | null = null
+
+    if (admin) {
+        try {
+            const estado = await estadoDoWebhook()
+            asaasWebhook = { ok: estado.ok, problemas: estado.problemas }
+        } catch {
+            asaasWebhook = null
+        }
+    }
+
+    return NextResponse.json({ isPlatformAdmin: Boolean(admin), providers, asaasWebhook })
 }
 
 /** PUT — register or replace one provider's application credentials. */
