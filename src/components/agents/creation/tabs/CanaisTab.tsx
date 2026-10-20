@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
     BadgeCheck,
     Facebook,
+    Globe,
     Instagram,
     Loader2,
     Pencil,
@@ -113,19 +114,84 @@ const ESTADO: Record<string, { rotulo: string; classe: string }> = {
     },
 }
 
-/** Como cada canal se chama na tela de atribuição. */
-const CANAL_DA_LINHA: Record<string, string> = {
-    whatsapp_qr: 'WhatsApp',
-    whatsapp_business: 'WhatsApp API oficial',
-    instagram: 'Instagram',
-    site: 'Site',
-    telegram: 'Telegram',
-    mercadolivre: 'Mercado Livre',
-}
 
 /** O nome da linha na tela: o apelido, senão o número, senão "Linha sem número". */
 function nomeDaLinha(line: Line): string {
     return apelidoDaLinha(line, 'Linha sem número')
+}
+
+interface Escolha {
+    valor: string | null
+    opcoes: { id: string; name: string }[]
+    vazio: string
+    onChange: (v: string | null) => void
+}
+
+/**
+ * Fila, Origem e Mídia — **dentro da linha a que pertencem**.
+ *
+ * Origem e mídia moravam num cartão à parte, "De onde vem cada linha", montado
+ * como tabela de de-para. A ideia era que uma tabela se confere de relance; na
+ * prática ela obrigava a procurar a mesma linha duas vezes na tela, uma para
+ * conectar e outra para dizer o que ela semeia — e a fila, que é da mesma
+ * natureza, ficava num terceiro lugar, espremida entre os botões da linha.
+ * O Andre apontou em 2026-10-20: é junto do canal que isso se lê.
+ *
+ * Os três são decisão sobre a linha, não ação sobre ela. Por isso descem para
+ * baixo do nome, em grade, e deixam a direita só para o que **faz** alguma
+ * coisa — conectar, renomear, remover.
+ *
+ * Cada campo some quando não há o que escolher: clínica sem departamento não
+ * tem fila a decidir, e um seletor com uma opção só é pergunta sem resposta.
+ */
+function Atribuicao({
+    nome,
+    canManage,
+    campos,
+}: {
+    /** O nome da linha, para os rótulos de leitor de tela. */
+    nome: string
+    canManage: boolean
+    campos: { rotulo: string; escolha: Escolha | null }[]
+}) {
+    const presentes = campos.filter(
+        (c): c is { rotulo: string; escolha: Escolha } =>
+            c.escolha !== null && c.escolha.opcoes.length > 0
+    )
+
+    if (presentes.length === 0) return null
+
+    return (
+        <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {presentes.map(({ rotulo, escolha }) => (
+                <div key={rotulo} className="min-w-0 max-w-[12rem]">
+                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {rotulo}
+                    </span>
+                    <Select
+                        value={escolha.valor ?? 'none'}
+                        disabled={!canManage}
+                        onValueChange={(v) => escolha.onChange(v === 'none' ? null : v)}
+                    >
+                        <SelectTrigger
+                            aria-label={`${rotulo} de ${nome}`}
+                            className="h-8 w-full text-xs"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">{escolha.vazio}</SelectItem>
+                            {escolha.opcoes.map((o) => (
+                                <SelectItem key={o.id} value={o.id}>
+                                    {o.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            ))}
+        </div>
+    )
 }
 
 export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
@@ -321,6 +387,51 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
 
     const semVaga = limit !== null && limit.remaining <= 0
 
+    /**
+     * O par origem/mídia de uma linha, qualquer que seja o canal dela.
+     *
+     * Vem de outra rota que a lista de linhas do WhatsApp — `marketing` serve
+     * todos os canais, `whatsapp` serve só o QR —, então o casamento é por id.
+     * Linha recém-criada pode ainda não estar na segunda lista; `undefined` é
+     * resposta legítima, e a grade apenas nasce vazia.
+     */
+    const atribuicaoDe = (id: string) => linhasDeAtribuicao.find((l) => l.id === id)
+
+    /** A linha deste canal, quando existe — para pendurar a grade nela. */
+    const linhaDoCanal = (channel: string) => linhasDeAtribuicao.find((l) => l.channel === channel)
+
+    /** A grade de origem e mídia de um canal de linha única. */
+    const atribuicaoDoCanal = (channel: string, nome: string) => {
+        const linha = linhaDoCanal(channel)
+        if (!linha) return null
+        return (
+            <Atribuicao
+                nome={nome}
+                canManage={canManage}
+                campos={[
+                    {
+                        rotulo: 'Origem',
+                        escolha: {
+                            valor: linha.defaultOriginId,
+                            opcoes: origins,
+                            vazio: 'Sem origem',
+                            onChange: (v) => void atribuir(linha.id, { defaultOriginId: v }),
+                        },
+                    },
+                    {
+                        rotulo: 'Mídia',
+                        escolha: {
+                            valor: linha.defaultMediaId,
+                            opcoes: medias,
+                            vazio: 'Sem mídia',
+                            onChange: (v) => void atribuir(linha.id, { defaultMediaId: v }),
+                        },
+                    },
+                ]}
+            />
+        )
+    }
+
     if (!agentId) {
         return (
             <SettingsCard
@@ -433,35 +544,6 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                         action={
                                             !canManage ? null : (
                                             <div className="flex items-center gap-1">
-                                                {/* De quem é a fila desta linha. Só
-                                                    aparece quando a clínica tem
-                                                    departamentos — sem eles o seletor
-                                                    não decide nada. */}
-                                                {departments.length > 0 ? (
-                                                    <Select
-                                                        value={line.departmentId ?? 'none'}
-                                                        onValueChange={(v) =>
-                                                            void ajustar(line, {
-                                                                departmentId: v === 'none' ? null : v,
-                                                            })
-                                                        }
-                                                    >
-                                                        <SelectTrigger
-                                                            aria-label={`Fila de ${nomeDaLinha(line)}`}
-                                                            className="h-8 w-[10.5rem] text-xs"
-                                                        >
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="none">Fila geral</SelectItem>
-                                                            {departments.map((d) => (
-                                                                <SelectItem key={d.id} value={d.id}>
-                                                                    {d.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                ) : null}
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -513,6 +595,46 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                             )
                                         }
                                     />
+
+                                    {/* O que esta linha decide: a fila que vê as
+                                        conversas dela, e o par que ela semeia na
+                                        ficha de quem escreve por ela. */}
+                                    <Atribuicao
+                                        nome={nomeDaLinha(line)}
+                                        canManage={canManage}
+                                        campos={[
+                                            {
+                                                rotulo: 'Fila',
+                                                escolha: {
+                                                    valor: line.departmentId,
+                                                    opcoes: departments,
+                                                    vazio: 'Fila geral',
+                                                    onChange: (v) =>
+                                                        void ajustar(line, { departmentId: v }),
+                                                },
+                                            },
+                                            {
+                                                rotulo: 'Origem',
+                                                escolha: {
+                                                    valor: atribuicaoDe(line.id)?.defaultOriginId ?? null,
+                                                    opcoes: origins,
+                                                    vazio: 'Sem origem',
+                                                    onChange: (v) =>
+                                                        void atribuir(line.id, { defaultOriginId: v }),
+                                                },
+                                            },
+                                            {
+                                                rotulo: 'Mídia',
+                                                escolha: {
+                                                    valor: atribuicaoDe(line.id)?.defaultMediaId ?? null,
+                                                    opcoes: medias,
+                                                    vazio: 'Sem mídia',
+                                                    onChange: (v) =>
+                                                        void atribuir(line.id, { defaultMediaId: v }),
+                                                },
+                                            },
+                                        ]}
+                                    />
                                 </div>
                             )
                         })}
@@ -520,243 +642,177 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                 )}
             </SettingsCard>
 
-            <SettingsCard
-                title="Site da clínica"
-                description="Uma bolha de conversa nas páginas do site. Diferente do WhatsApp, não ocupa número do plano — o que ele consome é crédito de IA, por mensagem."
-                aside={
-                    <span
-                        className={cn(
-                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                            site?.connected
-                                ? 'bg-success-subtle text-success-subtle-foreground'
-                                : 'bg-muted text-muted-foreground'
-                        )}
-                    >
-                        {site?.connected ? 'No ar' : 'Desligado'}
-                    </span>
-                }
-                footer={
-                    canManage ? (
-                        <Button
-                            variant={site?.connected ? 'outline' : 'default'}
-                            size="sm"
-                            disabled={ligandoSite}
-                            onClick={() => void alternarSite(!site?.connected)}
-                        >
-                            {site?.connected ? 'Desligar o widget' : 'Ligar o widget'}
-                        </Button>
-                    ) : null
-                }
-            >
-                {site?.connected && site.snippet ? (
-                    <div className="flex flex-col gap-2">
-                        <p className="text-xs text-muted-foreground">
-                            Cole este trecho no site, antes de <code>&lt;/body&gt;</code>. Uma vez
-                            só — desligar e religar aqui não muda o código.
-                        </p>
-                        <div className="flex items-start gap-2">
-                            <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-muted/50 p-2.5 text-[11px] leading-relaxed">
-                                {site.snippet}
-                            </code>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    void navigator.clipboard.writeText(site.snippet ?? '')
-                                    setCopiado(true)
-                                    setTimeout(() => setCopiado(false), 2000)
-                                }}
-                            >
-                                {copiado ? 'Copiado' : 'Copiar'}
-                            </Button>
-                        </div>
-                    </div>
-                ) : (
-                    <p className="text-xs text-muted-foreground">
-                        Ligue para gerar o código que vai no site.
-                    </p>
-                )}
-            </SettingsCard>
+            {/*
+                UM CARTÃO PARA OS DEMAIS CANAIS, E UMA LINHA PARA CADA UM.
 
-            {/* O WhatsApp oficial ganhou cartão próprio: ele conecta de verdade
-                agora, e deixá-lo entre os "em breve" seria esconder o botão. */}
-            <SettingsCard
-                title="WhatsApp API Oficial"
-                description="Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado."
-            >
-                <SettingsRow
-                    title={
-                        <span className="flex items-center gap-2">
-                            <BadgeCheck className="size-4 text-muted-foreground" aria-hidden="true" />
-                            Conectar pela Meta
-                        </span>
-                    }
-                    description="A clínica escolhe o próprio número numa janela da Meta. Nenhuma credencial passa por aqui."
-                    action={
-                        canManage ? (
-                            <MetaEmbeddedSignup agentId={agentId} onConectado={() => void carregar()} />
-                        ) : (
-                            <span className="text-[11px] text-muted-foreground">
-                                Só o administrador conecta
-                            </span>
-                        )
-                    }
-                />
-            </SettingsCard>
+                Eram quatro cartões — site, WhatsApp oficial, Instagram e
+                Messenger —, cada um para abrigar **uma linha só**: moldura a
+                mais, conteúdo de menos, e quatro desenhos diferentes para a
+                mesma pergunta ("está ligado? como ligo?"). O Andre chamou a
+                tela de sem padrão em 2026-10-20, e a causa era essa.
 
-            {/* O Instagram vai direto à Meta: não há Evolution no caminho,
-                porque ele não tem canal de Instagram — e também não teria o que
-                fazer ali, já que a API de Direct é aberta e gratuita. */}
-            <SettingsCard
-                title="Instagram"
-                description="O Direct da conta profissional da clínica. Não ocupa número do plano — o que ele consome é crédito de IA, por mensagem."
-            >
-                {/* O componente desenha a linha inteira, e não só o botão: a
-                    orientação de preparo depende de já estar conectado ou não,
-                    e esse estado mora lá dentro. */}
-                {agentId ? (
-                    <InstagramConnect agentId={agentId} canManage={canManage} />
-                ) : (
-                    <SettingsRow
-                        title={
-                            <span className="flex items-center gap-2">
-                                <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
-                                Conectar pela Meta
-                            </span>
-                        }
-                        description="A clínica escolhe a própria conta numa janela da Meta. Nenhuma credencial passa por aqui."
-                        action={
-                            <span className="text-[11px] text-muted-foreground">
-                                Salve o agente primeiro
-                            </span>
-                        }
-                    />
-                )}
-            </SettingsCard>
-
-            {/* ATRIBUIÇÃO — origem e mídia por linha, de qualquer canal.
-                Estava só na linha do WhatsApp QR, porque a rota era a dele; a
-                coluna sempre foi do `AgentIntegration`. Aqui as duas valem
-                para Instagram, canal oficial e widget do site também.
-
-                Juntas numa seção, e não dentro de cada cartão de canal: é uma
-                tabela de de-para — qual linha semeia o quê — e lida assim ela
-                se confere de relance. */}
-            {linhasDeAtribuicao.length > 0 && (origins.length > 0 || medias.length > 0) ? (
-                <SettingsCard
-                    title="De onde vem cada linha"
-                    description="O que a linha semeia na ficha que nasce por ela. Vale só para ficha nova — o que já entrou não é reescrito."
-                >
-                    <div className="flex flex-col gap-3">
-                        {linhasDeAtribuicao.map((linha, i) => (
-                            <div
-                                key={linha.id}
-                                className={cn(
-                                    'flex flex-wrap items-center justify-between gap-3',
-                                    i > 0 && 'border-t border-border pt-3'
-                                )}
-                            >
-                                <div className="min-w-[10rem]">
-                                    <p className="text-sm font-medium">
-                                        {linha.label?.trim() ||
-                                            (linha.phoneNumber
-                                                ? formatPhone(linha.phoneNumber)
-                                                : CANAL_DA_LINHA[linha.channel] ?? 'Linha')}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {CANAL_DA_LINHA[linha.channel] ?? linha.channel}
-                                    </p>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2">
-                                    {origins.length > 0 ? (
-                                        <Select
-                                            value={linha.defaultOriginId ?? 'none'}
-                                            disabled={!canManage}
-                                            onValueChange={(v) =>
-                                                void atribuir(linha.id, {
-                                                    defaultOriginId: v === 'none' ? null : v,
-                                                })
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                aria-label={`Origem semeada por ${linha.label ?? linha.channel}`}
-                                                className="h-8 w-[10.5rem] text-xs"
-                                            >
-                                                <SelectValue placeholder="Origem" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">Sem origem</SelectItem>
-                                                {origins.map((o) => (
-                                                    <SelectItem key={o.id} value={o.id}>
-                                                        {o.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    ) : null}
-
-                                    {medias.length > 0 ? (
-                                        <Select
-                                            value={linha.defaultMediaId ?? 'none'}
-                                            disabled={!canManage}
-                                            onValueChange={(v) =>
-                                                void atribuir(linha.id, {
-                                                    defaultMediaId: v === 'none' ? null : v,
-                                                })
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                aria-label={`Mídia semeada por ${linha.label ?? linha.channel}`}
-                                                className="h-8 w-[10.5rem] text-xs"
-                                            >
-                                                <SelectValue placeholder="Mídia" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">Sem mídia</SelectItem>
-                                                {medias.map((m) => (
-                                                    <SelectItem key={m.id} value={m.id}>
-                                                        {m.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    ) : null}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </SettingsCard>
-            ) : null}
-
+                A anatomia agora é a mesma em todos, inclusive no WhatsApp
+                acima: **nome e estado à esquerda, o que fazer à direita, o que
+                a linha decide embaixo**. O botão do widget em particular
+                estava sozinho no rodapé do cartão dele, que é o único lugar da
+                tela onde a §5 do DESIGN.md não manda pôr ação de linha.
+            */}
             <SettingsCard
                 title="Outros canais"
-                description="Em desenvolvimento. Nenhum deles aparece como conectado enquanto não atender de verdade."
+                description="Além das linhas lidas por QR Code. O número oficial da Meta ocupa vaga do plano como qualquer outro; site e Instagram não ocupam — o que eles consomem é crédito de IA, por mensagem."
             >
-                <div className="flex flex-col gap-4">
-                    {OUTROS_CANAIS.map((canal, i) => {
+                <div className="flex flex-col divide-y divide-border">
+                    {/* O SITE */}
+                    <div className="py-3 first:pt-0 last:pb-0">
+                        <SettingsRow
+                            title={
+                                <span className="flex items-center gap-2">
+                                    <Globe className="size-4 text-muted-foreground" aria-hidden="true" />
+                                    Site da clínica
+                                    <span
+                                        className={cn(
+                                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                            site?.connected
+                                                ? 'bg-success-subtle text-success-subtle-foreground'
+                                                : 'bg-muted text-muted-foreground'
+                                        )}
+                                    >
+                                        {site?.connected ? 'No ar' : 'Desligado'}
+                                    </span>
+                                </span>
+                            }
+                            description="Uma bolha de conversa nas páginas do site."
+                            action={
+                                canManage ? (
+                                    <Button
+                                        variant={site?.connected ? 'outline' : 'default'}
+                                        size="sm"
+                                        disabled={ligandoSite}
+                                        onClick={() => void alternarSite(!site?.connected)}
+                                    >
+                                        {ligandoSite ? (
+                                            <Loader2 className="size-4 animate-spin" />
+                                        ) : (
+                                            <Power className="size-4" />
+                                        )}
+                                        {site?.connected ? 'Desligar o widget' : 'Ligar o widget'}
+                                    </Button>
+                                ) : null
+                            }
+                        />
+
+                        {/* O trecho só existe depois de ligado, e é a única coisa
+                            desta tela que a clínica leva para fora daqui. */}
+                        {site?.connected && site.snippet ? (
+                            <div className="mt-2.5 flex flex-col gap-1.5">
+                                <p className="text-xs text-muted-foreground">
+                                    Cole no site, antes de <code>&lt;/body&gt;</code>. Uma vez só —
+                                    desligar e religar aqui não muda o código.
+                                </p>
+                                <div className="flex items-start gap-2">
+                                    <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-muted/50 p-2.5 text-[11px] leading-relaxed">
+                                        {site.snippet}
+                                    </code>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            void navigator.clipboard.writeText(site.snippet ?? '')
+                                            setCopiado(true)
+                                            setTimeout(() => setCopiado(false), 2000)
+                                        }}
+                                    >
+                                        {copiado ? 'Copiado' : 'Copiar'}
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {atribuicaoDoCanal('site', 'Site da clínica')}
+                    </div>
+
+                    {/* O WHATSAPP OFICIAL, PELA META */}
+                    <div className="py-3 first:pt-0 last:pb-0">
+                        <SettingsRow
+                            title={
+                                <span className="flex items-center gap-2">
+                                    <BadgeCheck className="size-4 text-muted-foreground" aria-hidden="true" />
+                                    WhatsApp API Oficial
+                                </span>
+                            }
+                            description="Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado. A clínica escolhe o próprio número numa janela da Meta; nenhuma credencial passa por aqui."
+                            action={
+                                canManage ? (
+                                    <MetaEmbeddedSignup agentId={agentId} onConectado={() => void carregar()} />
+                                ) : (
+                                    <span className="text-[11px] text-muted-foreground">
+                                        Só o administrador conecta
+                                    </span>
+                                )
+                            }
+                        />
+                        {atribuicaoDoCanal('whatsapp_business', 'WhatsApp API Oficial')}
+                    </div>
+
+                    {/* O INSTAGRAM VAI DIRETO À META: não há Evolution no
+                        caminho, porque ele não tem canal de Instagram — e
+                        também não teria o que fazer ali, já que a API de Direct
+                        é aberta e gratuita. O componente desenha a própria
+                        linha, e não só o botão: a orientação de preparo depende
+                        de já estar conectado, e esse estado mora lá dentro. */}
+                    <div className="py-3 first:pt-0 last:pb-0">
+                        {agentId ? (
+                            <InstagramConnect agentId={agentId} canManage={canManage} />
+                        ) : (
+                            <SettingsRow
+                                title={
+                                    <span className="flex items-center gap-2">
+                                        <Instagram className="size-4 text-muted-foreground" aria-hidden="true" />
+                                        Instagram Direct
+                                    </span>
+                                }
+                                description="O Direct da conta profissional da clínica."
+                                action={
+                                    <span className="text-[11px] text-muted-foreground">
+                                        Salve o agente primeiro
+                                    </span>
+                                }
+                            />
+                        )}
+                        {atribuicaoDoCanal('instagram', 'Instagram Direct')}
+                    </div>
+
+                    {/* O QUE AINDA NÃO EXISTE, dito como tal e sem botão. */}
+                    {OUTROS_CANAIS.map((canal) => {
                         const Icone = canal.icon
                         return (
-                            <div key={canal.id} className={cn(i > 0 && 'border-t border-border pt-4')}>
+                            <div key={canal.id} className="py-3 first:pt-0 last:pb-0">
                                 <SettingsRow
                                     title={
                                         <span className="flex items-center gap-2">
                                             <Icone className="size-4 text-muted-foreground" aria-hidden="true" />
                                             {canal.name}
+                                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                                Em breve
+                                            </span>
                                         </span>
                                     }
                                     description={canal.description}
-                                    action={
-                                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                                            Em breve
-                                        </span>
-                                    }
                                 />
                             </div>
                         )
                     })}
                 </div>
             </SettingsCard>
+
+            {/* A ressalva vale para toda grade da tela, e por isso é dita uma
+                vez só aqui embaixo — repeti-la em cada linha era o que fazia o
+                cartão de atribuição precisar de uma descrição própria. */}
+            {origins.length > 0 || medias.length > 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">
+                    Origem e mídia valem só para ficha nova — o que já entrou não é reescrito.
+                </p>
+            ) : null}
 
             {pareando ? (
                 <WhatsAppQRModal
