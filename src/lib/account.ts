@@ -81,6 +81,16 @@ export interface Unidades {
     /** Dessas, quantas já foram canceladas e valem só até a renovação. */
     cancelados: number
     /**
+     * As que a **próxima fatura** vai cobrar: as que não foram canceladas.
+     *
+     * Separado de `adicionais` porque as duas contagens respondem perguntas
+     * diferentes e já divergiram em produção: capacidade pergunta "ainda
+     * vale?", cobrança pergunta "foi cancelado?". Cobrar pela primeira põe o
+     * adicional cancelado na fatura seguinte, que é justamente a renovação em
+     * que ele deixa de existir.
+     */
+    cobraveis: number
+    /**
      * O teto **depois da renovação**, quando as canceladas deixarem de valer.
      *
      * Sem este número a tela conta uma meia-verdade: "2 de 4" é o teto de
@@ -170,6 +180,7 @@ export async function unidadesDaConta(accountId: string): Promise<Unidades> {
         doPlano,
         adicionais,
         cancelados,
+        cobraveis: Math.max(0, adicionais - cancelados),
         maxDepois,
         livres: Math.max(0, Math.min(max, maxDepois) - used),
     }

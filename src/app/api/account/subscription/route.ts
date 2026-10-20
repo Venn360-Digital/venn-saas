@@ -295,7 +295,14 @@ export async function POST(request: NextRequest) {
                  * tem pacientes, agenda e conversas.
                  */
                 const unidades = await unidadesDaConta(accountId)
-                const cabe = tetoDeUnidades(plan, unidades.adicionais)
+                /**
+                 * O teto que importa aqui é o **de depois da renovação**, e por
+                 * isso conta só o que não foi cancelado: descer de plano com um
+                 * adicional cancelado de pé passaria na conferência de hoje e
+                 * deixaria uma clínica sem vaga na virada — quando o plano
+                 * menor e o fim do adicional chegam juntos.
+                 */
+                const cabe = tetoDeUnidades(plan, unidades.cobraveis)
                 if (unidades.used > cabe) {
                     return NextResponse.json(
                         {
@@ -384,7 +391,7 @@ export async function POST(request: NextRequest) {
                         await descreverAssinatura({
                             accountId,
                             subscriptionId: assinatura.asaasSubscriptionId,
-                            value: mensalidade(plan, unidades.adicionais),
+                            value: mensalidade(plan, unidades.cobraveis),
                         })
                     } catch (erro) {
                         console.error(
@@ -466,7 +473,15 @@ export async function POST(request: NextRequest) {
                         ? diferencaProporcional({
                             atual: assinatura.plan,
                             novo: plan,
-                            adicionais: unidades.adicionais,
+                            /**
+                             * Cobrança conta o que **não foi cancelado**.
+                             *
+                             * `adicionais` inclui o cancelado que ainda vale
+                             * até a renovação — capacidade, não fatura. Com ele
+                             * aqui, a assinatura nasceria cobrando um adicional
+                             * que morre na primeira renovação dela.
+                             */
+                            adicionais: unidades.cobraveis,
                             inicioDoCiclo: assinatura.currentPeriodStart,
                             fimDoCiclo: assinatura.currentPeriodEnd,
                             agora: new Date(),
@@ -484,7 +499,7 @@ export async function POST(request: NextRequest) {
                         await descreverAssinatura({
                             accountId,
                             subscriptionId: assinatura.asaasSubscriptionId,
-                            value: mensalidade(plan, unidades.adicionais),
+                            value: mensalidade(plan, unidades.cobraveis),
                         })
                     } catch (erro) {
                         console.error(`[CHANGE_PLAN] valor da assinatura não atualizado: ${String(erro)}`)
@@ -504,7 +519,7 @@ export async function POST(request: NextRequest) {
                     const { link } = await criarCheckoutDePlano({
                         accountId,
                         plan,
-                        adicionais: unidades.adicionais,
+                        adicionais: unidades.cobraveis,
                         asaasCustomerId: conta.asaasCustomerId,
                         ...(proporcional ? { valorProporcional: proporcional.valor } : {}),
                         pagador: {
