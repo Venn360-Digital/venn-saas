@@ -12,6 +12,8 @@ import { IndexFrame } from '@/components/shared/IndexFrame'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
+import { Pagination } from '@/components/shared/Pagination'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { JanelasDialog } from '@/components/specialists/JanelasDialog'
@@ -61,6 +63,17 @@ export default function EspecialistasPage() {
     const [dialogoAberto, setDialogoAberto] = useState(false)
     /** A ficha aberta. Clicar na linha abre ela, não a grade (Tela 01). */
     const [fichaDe, setFichaDe] = useState<string | null>(null)
+    /** As linhas marcadas, para a `BulkBar` do rodapé. */
+    const [marcados, setMarcados] = useState<string[]>([])
+    const [excluindoLote, setExcluindoLote] = useState(false)
+    /**
+     * A paginação é do cliente: a API devolve a lista inteira.
+     *
+     * O rodapé existe de qualquer forma — é o que a Tela 01 manda, e é onde
+     * mora a contagem ("1–7 de 7"), que o cabeçalho não carrega.
+     */
+    const [pagina, setPagina] = useState(1)
+    const [porPagina, setPorPagina] = useState(20)
     const [editandoId, setEditandoId] = useState<string | null>(null)
     const [form, setForm] = useState({ name: '', specialty: '', color: CORES[0], isActive: true })
     const [erro, setErro] = useState<string | null>(null)
@@ -155,9 +168,37 @@ export default function EspecialistasPage() {
         await carregar()
     }
 
-    const ids = visiveis.map((e) => e.id)
+    /** Volta para a primeira página quando a busca muda o conjunto. */
+    useEffect(() => {
+        setPagina(1)
+    }, [busca])
+
+    const totalPaginas = Math.max(1, Math.ceil(visiveis.length / porPagina))
+    const paginaAtual = Math.min(pagina, totalPaginas)
+    const naPagina = visiveis.slice((paginaAtual - 1) * porPagina, paginaAtual * porPagina)
+
+    /**
+     * As setas da ficha andam pelo que está **na página**.
+     *
+     * Navegar para um registro que a tabela não mostra deixaria a ficha aberta
+     * sobre uma lista que não a contém — e a seta seguinte não teria para onde
+     * voltar.
+     */
+    const ids = naPagina.map((e) => e.id)
     usePanelKeys(fichaDe, ids, setFichaDe)
-    const aberto = visiveis.find((e) => e.id === fichaDe) ?? null
+    const aberto = naPagina.find((e) => e.id === fichaDe) ?? null
+
+    const excluirMarcados = async () => {
+        const ok = await deleteEach(marcados, (id) => `/api/specialists/${id}`)
+        if (ok > 0) {
+            toast.success(`${ok} especialista${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
+        }
+        if (ok < marcados.length) {
+            toast.error(`${marcados.length - ok} não puderam ser excluídos`)
+        }
+        setMarcados([])
+        await carregar()
+    }
 
     const colunas: Column<Especialista>[] = [
         {
@@ -239,8 +280,32 @@ export default function EspecialistasPage() {
             >
                 <DataTable
                     frame
+                    selectable={canEdit}
+                    selected={marcados}
+                    onSelectedChange={setMarcados}
+                    bulkActions={(ids) => (
+                        <BulkBar
+                            count={ids.length}
+                            noun={['especialista', 'especialistas']}
+                            onDelete={() => setExcluindoLote(true)}
+                            onClear={() => setMarcados([])}
+                        />
+                    )}
+                    footer={
+                        <Pagination
+                            page={paginaAtual}
+                            totalPages={totalPaginas}
+                            total={visiveis.length}
+                            limit={porPagina}
+                            onPageChange={setPagina}
+                            onLimitChange={(limite) => {
+                                setPorPagina(limite)
+                                setPagina(1)
+                            }}
+                        />
+                    }
                     columns={colunas}
-                    rows={visiveis}
+                    rows={naPagina}
                     getRowId={(e) => e.id}
                     loading={loading}
                     onRowClick={(e) => setFichaDe(e.id)}
@@ -340,6 +405,18 @@ export default function EspecialistasPage() {
                 confirmLabel="Excluir"
                 destructive
                 onConfirm={excluir}
+            />
+
+            {/* O alerta do lote diz o que se perde, como o individual —
+                "tem certeza?" não informa nada (Tela 01, §6). */}
+            <ConfirmDialog
+                open={excluindoLote}
+                onOpenChange={(aberto) => !aberto && setExcluindoLote(false)}
+                title={`Excluir ${marcados.length} ${marcados.length === 1 ? 'especialista' : 'especialistas'}`}
+                description="Quem tiver compromisso na agenda é desativado em vez de excluído — ele continua explicando o que já atendeu."
+                confirmLabel="Excluir"
+                destructive
+                onConfirm={() => void excluirMarcados()}
             />
 
             <JanelasDialog
