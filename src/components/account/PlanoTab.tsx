@@ -1196,7 +1196,7 @@ export function PlanoTab() {
                     valor: mostrava R$ 580,00 dos adicionais e calava a
                     mensalidade. Agora a primeira linha é a resposta da primeira
                     pergunta de quem abre uma tela de assinatura. */}
-                <div className="grid gap-4 px-5 pb-3 pt-5 sm:grid-cols-[1fr_auto] sm:items-start">
+                <div className="px-5 pb-3 pt-5">
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                             {isTrialing ? 'Primeira cobrança' : 'Próxima cobrança'}
@@ -1223,25 +1223,6 @@ export function PlanoTab() {
                                 <span className="text-h3 font-semibold">Nenhum plano contratado</span>
                             )}
                         </div>
-                    </div>
-                    {/* A ordem é a do Andre: forma, plano, faturas.
-                        Vai do que se mexe com mais frequência para o que só se
-                        consulta — e "alterar unidades" saiu daqui para a faixa
-                        de adicionais, ao lado de "comprar", que é onde o
-                        assunto mora. */}
-                    <div className="flex flex-wrap gap-2 sm:justify-end">
-                        <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
-                            <CreditCard className="size-4" />
-                            Forma de pagamento
-                        </Button>
-                        <Button variant="outline" onClick={() => setShowPlanModal(true)}>
-                            <ArrowUpDown className="size-4" />
-                            {isTrialing || !temPlano ? 'Contratar plano' : 'Alterar plano'}
-                        </Button>
-                        <Button variant="outline" onClick={() => setShowFaturasModal(true)}>
-                            <Receipt className="size-4" />
-                            Ver faturas
-                        </Button>
                     </div>
                 </div>
 
@@ -1345,6 +1326,30 @@ export function PlanoTab() {
                         nota={descricaoCurtaDasUnidades}
                         semBarra
                     />
+                </div>
+
+                {/* OS BOTÕES NO RODAPÉ, como na faixa de adicionais.
+                    Estavam no topo, ao lado do valor, e o olho batia neles
+                    antes de ler o que eles mudam. No fim do contêiner valem
+                    para tudo o que está acima — e as duas faixas passam a ter
+                    a mesma forma, que foi o que o Andre pediu: ação no fim do
+                    contêiner, sempre.
+
+                    A ordem é a dele: forma, plano, faturas — do que se mexe
+                    com mais frequência para o que só se consulta. */}
+                <div className="flex flex-wrap gap-2 border-t border-border px-5 py-4 sm:justify-end">
+                    <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
+                        <CreditCard className="size-4" />
+                        Forma de pagamento
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowPlanModal(true)}>
+                        <ArrowUpDown className="size-4" />
+                        {isTrialing || !temPlano ? 'Contratar plano' : 'Alterar plano'}
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowFaturasModal(true)}>
+                        <Receipt className="size-4" />
+                        Ver faturas
+                    </Button>
                 </div>
 
               </div>
