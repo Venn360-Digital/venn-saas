@@ -302,7 +302,11 @@ export default function ProdutosServicosPage() {
                         onDelete={(id) => { const p = products.find((x) => x.id === id); if (p) setDeleting(p) }}
                     />
                 ) : null}
-                title="Serviços e procedimentos"
+                /* O nome da tela acompanha o menu e a trilha: os três
+                   discordando é pior que um nome amplo demais. O catálogo
+                   continua guardando produto e serviço — quem diz isso é a
+                   etiqueta de cada linha. */
+                title="Procedimentos"
                 primary={
                     canEdit ? (
                         <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>

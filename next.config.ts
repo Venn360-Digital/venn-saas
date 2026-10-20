@@ -28,6 +28,14 @@ const nextConfig: NextConfig = {
         destination: '/vendas/pacientes',
         permanent: true,
       },
+      {
+        // E a de procedimentos morava em /vendas/servicos até 2026-10-20.
+        // Mesma razão: "serviço" era a palavra de software, e a clínica chama
+        // de procedimento. Link guardado continua chegando.
+        source: '/vendas/servicos',
+        destination: '/vendas/procedimentos',
+        permanent: true,
+      },
     ]
   },
 };

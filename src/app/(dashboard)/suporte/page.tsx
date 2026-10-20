@@ -144,7 +144,7 @@ const PASSOS = [
             'Escolha o serviço ou procedimento. A duração dele define o tamanho do bloco.',
             'Confirme. O paciente entra na agenda e o compromisso aparece na ficha dele.',
         ],
-        nota: 'A duração vem do cadastro em Vendas → Serviços e procedimentos. Se o bloco sair do tamanho errado, é lá que se corrige — num lugar só, para todos os compromissos futuros.',
+        nota: 'A duração vem do cadastro em Vendas → Procedimentos. Se o bloco sair do tamanho errado, é lá que se corrige — num lugar só, para todos os compromissos futuros.',
     },
     {
         id: 'fila',
@@ -196,9 +196,9 @@ const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
         ],
     },
     {
-        grupo: 'Agenda e serviços',
+        grupo: 'Agenda e procedimentos',
         itens: [
-            { p: 'De onde sai a duração de um compromisso?', r: 'Do item cadastrado em Vendas → Serviços e procedimentos. Avaliação 30 minutos, implante 120 — e é isso que impede o agente de encaixar uma cirurgia no buraco de uma consulta.' },
+            { p: 'De onde sai a duração de um compromisso?', r: 'Do item cadastrado em Vendas → Procedimentos. Avaliação 30 minutos, implante 120 — e é isso que impede o agente de encaixar uma cirurgia no buraco de uma consulta.' },
             { p: 'Como marco que a clínica atende num feriado?', r: 'Conta → Agenda da clínica. Os feriados nacionais já vêm bloqueando; desligue o que a clínica atende. A decisão vale para todos os especialistas.' },
             { p: 'Como cadastro um recesso ou fechamento?', r: 'Na mesma tela, em Novo fechamento: nome, data de início e fim. Pode ser o dia todo ou só um pedaço — dedetização das 14h às 18h, por exemplo.' },
             { p: 'Qual a diferença entre serviço, procedimento e produto?', r: 'Serviço e procedimento ocupam cadeira e por isso têm duração; produto é mercadoria e não entra na agenda. A diferença entre serviço e procedimento é de catálogo, para a clínica se organizar.' },
