@@ -159,8 +159,8 @@ async function conferirValorDasAssinaturas(): Promise<void> {
 /**
  * Tentativa aberta há mais de um dia é tentativa morta.
  *
- * O checkout nasce com 24 horas de validade (`minutesToExpire: 1440`), e quem
- * a fecha é o `CHECKOUT_EXPIRED`. Sem o evento ela fica `ACTIVE` para sempre —
+ * O checkout nasce com 60 minutos de validade (`minutesToExpire`), e quem a
+ * fecha é o `CHECKOUT_EXPIRED`. Sem o evento ela fica `ACTIVE` para sempre —
  * e a tela oferece "pagamento em andamento" para uma página que o Asaas já
  * descartou.
  *
@@ -169,7 +169,8 @@ async function conferirValorDasAssinaturas(): Promise<void> {
  * história.
  */
 async function fecharTentativasPenduradas(): Promise<void> {
-    const limite = new Date(Date.now() - 26 * 3_600_000)
+    /** Duas horas: o checkout expira em 60 minutos, e o resto é folga. */
+    const limite = new Date(Date.now() - 2 * 3_600_000)
 
     const { count } = await prisma.asaasCheckout.updateMany({
         where: { status: 'ACTIVE', appliedAt: null, createdAt: { lt: limite } },

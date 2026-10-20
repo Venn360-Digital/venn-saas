@@ -115,25 +115,44 @@ export async function vincularContaAoAsaas(opcoes: {
 
     if (ativa) {
         /**
-         * A renovação passa a ser a **do Asaas**, não a nossa conta de 30 dias.
+         * **Quem manda na data de renovação é o OdontoBox360.**
          *
-         * `currentPeriodEnd` nascia de `renovaçãoDate()` — hoje + 30 dias — e o
-         * Asaas cobra pelo ciclo mensal dele, que cai no mesmo dia do mês
-         * seguinte. As duas datas divergiam em um ou dois dias, e a nossa é a
-         * que aparece na tela: anunciaríamos uma data e cobraríamos outra.
+         * Decisão do Andre em 2026-10-20, e ela inverte o que estava aqui: por
+         * dois dias a tela passou a mostrar a data do gateway, porque as duas
+         * divergiam e anunciar uma e cobrar outra é pior que qualquer
+         * alternativa.
          *
-         * Quem cobra é quem decide quando. A partir daqui a tela mostra a data
-         * do gateway.
+         * Divergir elas vão divergir de qualquer jeito — o nosso ciclo é de 30
+         * dias contados da contratação (PRODUCT.md §2) e o deles é o mesmo dia
+         * do mês seguinte. O que mudou é quem cede: agora o gateway recebe a
+         * **nossa** data por `PUT`, medido contra o sandbox em 2026-10-20.
+         *
+         * A razão é de produto, não de gosto: o ciclo de 30 dias é o que zera
+         * a franquia de crédito, o que preserva o teto pago no downgrade e o
+         * que a renovação do cron usa. Fazer a cobrança seguir o produto é uma
+         * chamada; fazer o produto seguir a cobrança seria reescrever três
+         * regras.
          */
         await prisma.subscription.updateMany({
             where: { accountId },
-            data: {
-                asaasSubscriptionId: ativa.id,
-                ...(ativa.nextDueDate
-                    ? { currentPeriodEnd: new Date(`${ativa.nextDueDate}T12:00:00-03:00`) }
-                    : {}),
-            },
+            data: { asaasSubscriptionId: ativa.id },
         })
+
+        const nosso = await prisma.subscription.findUnique({
+            where: { accountId },
+            select: { currentPeriodEnd: true },
+        })
+
+        if (nosso?.currentPeriodEnd) {
+            try {
+                await alinharVencimento(ativa.id, nosso.currentPeriodEnd)
+            } catch (erro) {
+                console.warn(
+                    `[ASAAS_VINCULAR] a assinatura ${ativa.id} ficou com a data do gateway: ` +
+                        String(erro)
+                )
+            }
+        }
 
         /**
          * A anterior é encerrada, e isso vem **antes** da descrição.
@@ -327,4 +346,25 @@ export async function sincronizarValorDaAssinatura(
     await descreverAssinatura({ accountId, subscriptionId, value: valor })
 
     return valor
+}
+
+/**
+ * Põe o vencimento da recorrência na **nossa** data.
+ *
+ * `nextDueDate` é a data da próxima cobrança no Asaas, e aceita ser movida por
+ * `PUT` — medido contra o sandbox em 2026-10-20, com a data indo de 23/10 para
+ * 09/11 na resposta.
+ *
+ * `updatePendingPayments: false` porque a cobrança já gerada deste ciclo pode
+ * estar paga, e reescrevê-la seria mexer no que o cliente pagou. O que se
+ * ajusta é a próxima.
+ */
+export async function alinharVencimento(subscriptionId: string, quando: Date): Promise<void> {
+    /** "AAAA-MM-DD" no calendário de São Paulo, que é o da clínica. */
+    const dia = quando.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+
+    await asaas(`/subscriptions/${subscriptionId}`, {
+        method: 'PUT',
+        body: { nextDueDate: dia, updatePendingPayments: false },
+    })
 }

@@ -13,6 +13,7 @@ import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
 import { mensalidade } from '@/lib/billing/troca-de-plano'
 import { isPlanId } from '@/lib/plan-limits'
 import { fimDaCarencia } from '@/lib/billing/inadimplencia'
+import { sendBillingEmail } from '@/lib/email/billing'
 import { createLogger } from '../logger'
 import type { AsaasEventJob } from '../queues'
 
@@ -508,6 +509,43 @@ async function ligarPeloDocumento(customerId: string): Promise<{ id: string } | 
     return { id: conta.id }
 }
 
+/** R$ 1.260,00 — o mesmo formato da tela, porque o e-mail fala da mesma conta. */
+function formatarReais(valor: number): string {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
+}
+
+/**
+ * Manda o aviso para o MASTER da conta.
+ *
+ * A unidade entra porque `sendBillingEmail` amarra o registro de envio a ela;
+ * o destinatário, porém, é o responsável pela **conta** — com três clínicas na
+ * mesma assinatura, "o dono do workspace" deixa de ter resposta única.
+ *
+ * Falhar aqui não desfaz nada: o atraso já está gravado e o corte já
+ * aconteceu. Um aviso perdido é recuperável; travar a cobrança por causa de um
+ * e-mail não seria.
+ */
+async function avisarPorEmail(
+    accountId: string,
+    kind: 'payment_overdue' | 'access_suspended',
+    scope: string,
+    context: Record<string, unknown>
+): Promise<void> {
+    try {
+        const unidade = await prisma.workspace.findFirst({
+            where: { accountId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+        })
+
+        if (!unidade) return
+
+        await sendBillingEmail({ workspaceId: unidade.id, accountId, kind, scope, context })
+    } catch (erro) {
+        log.error(`aviso "${kind}" da conta ${accountId} não foi enviado: ${String(erro)}`)
+    }
+}
+
 /**
  * O que o status de uma cobrança faz com a assinatura.
  *
@@ -526,7 +564,13 @@ async function ligarPeloDocumento(customerId: string): Promise<{ id: string } | 
  */
 async function reagirAoStatusDaCobranca(
     accountId: string,
-    dados: { kind: string; status: string; billingType: string | null; dueDate: Date }
+    dados: {
+        kind: string
+        status: string
+        billingType: string | null
+        dueDate: Date
+        valueCents: number
+    }
 ): Promise<void> {
     if (dados.kind !== 'subscription') return
 
@@ -559,6 +603,22 @@ async function reagirAoStatusDaCobranca(
                 `${graceEndsAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} ` +
                 `(${dados.billingType ?? 'sem meio'})`
         )
+
+        /**
+         * E o cliente fica sabendo — pela única via que alcança quem não está
+         * com o sistema aberto.
+         *
+         * O aviso leva o **prazo**: atraso sem data é susto, com data é
+         * instrução. O `scope` é o dia do vencimento, então o Asaas reenviando
+         * `PAYMENT_OVERDUE` todo dia não vira um e-mail por dia — a trava de
+         * duplicata do `sendBillingEmail` cuida disso.
+         */
+        await avisarPorEmail(accountId, 'payment_overdue', dados.dueDate.toISOString().slice(0, 10), {
+            valor: formatarReais(dados.valueCents / 100),
+            vencimento: dados.dueDate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+            ate: graceEndsAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+        })
+
         return
     }
 

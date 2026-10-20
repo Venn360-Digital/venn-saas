@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { sendBillingEmail } from '@/lib/email/billing'
 import { createLogger } from '../../logger'
 
 const log = createLogger('CRON:DUNNING')
@@ -59,9 +60,46 @@ async function cortarCarenciaVencida(agora: Date): Promise<void> {
             `conta ${assinatura.accountId} em somente-leitura: carência venceu em ` +
                 `${assinatura.graceEndsAt?.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
         )
+
+        /**
+         * O corte avisa — e é o aviso que mais importa dos dois.
+         *
+         * Quem foi cortado descobre pelo sistema não enviar mensagem, e aí já
+         * está no meio de um atendimento. O e-mail chega antes de alguém
+         * tentar, diz o que **não** se perdeu (nada) e o que destrava (pagar).
+         *
+         * `scope` é a data da carência: um corte, um e-mail. Se a conta for
+         * cortada de novo num ciclo futuro, a data muda e o aviso volta.
+         */
+        await avisarCorte(
+            assinatura.accountId,
+            assinatura.graceEndsAt?.toISOString().slice(0, 10) ?? 'sem-data'
+        )
     }
 
     log.info(`${vencidas.length} conta(s) cortada(s) por atraso`)
+}
+
+/** O aviso de corte, para o MASTER da conta. */
+async function avisarCorte(accountId: string, scope: string): Promise<void> {
+    try {
+        const unidade = await prisma.workspace.findFirst({
+            where: { accountId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+        })
+
+        if (!unidade) return
+
+        await sendBillingEmail({
+            workspaceId: unidade.id,
+            accountId,
+            kind: 'access_suspended',
+            scope,
+        })
+    } catch (erro) {
+        log.error(`aviso de corte da conta ${accountId} não foi enviado: ${String(erro)}`)
+    }
 }
 
 /**

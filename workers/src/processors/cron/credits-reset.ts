@@ -3,6 +3,7 @@ import { adicionaisVivos } from '@/lib/account'
 import { RENEWAL_DAYS } from '@/lib/billing'
 import { limitesEfetivos } from '@/lib/plan-limits'
 import { applyPlanLimits } from '@/lib/limits'
+import { alinharVencimento } from '@/lib/asaas/vincular'
 import { createLogger } from '../../logger'
 
 const log = createLogger('CRON:CREDITS')
@@ -70,6 +71,8 @@ export async function runCreditsReset(): Promise<void> {
             maxSpokenReplies: true,
             maxAgents: true,
             maxWhatsAppNumbers: true,
+            /** Para alinhar o vencimento no gateway com o período novo. */
+            asaasSubscriptionId: true,
         },
     })
 
@@ -79,6 +82,7 @@ export async function runCreditsReset(): Promise<void> {
     }
 
     for (const subscription of due) {
+        const { asaasSubscriptionId } = subscription
         // Advance from the old boundary rather than from "now", so a late run
         // does not shift the workspace's anniversary forward.
         let periodStart = subscription.currentPeriodEnd ?? now
@@ -147,6 +151,35 @@ export async function runCreditsReset(): Promise<void> {
                 maxWhatsAppNumbers: tabela.maxWhatsAppNumbers,
             },
         })
+
+        /**
+         * E o gateway recebe a **nossa** data.
+         *
+         * Quem manda na renovação é o OdontoBox360 (decisão do Andre em
+         * 2026-10-20): o ciclo de 30 dias contados da contratação é o que zera
+         * a franquia, preserva o teto pago no downgrade e marca o fim do
+         * período na tela. O Asaas cobraria no mesmo dia do mês seguinte, e as
+         * duas datas se afastariam um pouco a cada mês — a clínica veria uma
+         * data e seria cobrada noutra.
+         *
+         * Falhar aqui não desfaz a renovação: o período já virou e o cliente
+         * já tem o que renovou. Fica o aviso, e a conciliação da madrugada
+         * conserta.
+         */
+        if (asaasSubscriptionId) {
+            try {
+                await alinharVencimento(asaasSubscriptionId, periodEnd)
+                log.info(
+                    `conta ${subscription.accountId}: vencimento no Asaas alinhado para ` +
+                        periodEnd.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                )
+            } catch (erro) {
+                log.error(
+                    `conta ${subscription.accountId}: não consegui alinhar o vencimento no ` +
+                        `Asaas (${String(erro)}). A cobrança pode cair em outra data.`
+                )
+            }
+        }
 
         /**
          * E só agora o excedente é desligado.

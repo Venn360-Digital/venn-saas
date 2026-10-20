@@ -109,7 +109,7 @@ function dadosCompletos(p: DadosDoPagador): Record<string, string> | null {
  * sobraria um checkout pago no Asaas que o nosso webhook não saberia a quem
  * atribuir, e isso é dinheiro recebido sem dono.
  *
- * `minutesToExpire` em 24 horas: checkout que fica aberto por uma semana é
+ * `minutesToExpire` em 60 minutos: checkout que fica aberto o dia todo é
  * cobrança que o cliente esqueceu que começou. Expirado, a tela oferece
  * contratar de novo.
  */
@@ -198,7 +198,17 @@ export async function criarCheckoutDePlano(opcoes: {
                  */
                 billingTypes: proporcional ? AVULSO : ['CREDIT_CARD'],
                 chargeTypes: proporcional ? ['DETACHED'] : ['RECURRENT'],
-                minutesToExpire: 1440,
+                /**
+                 * Uma hora, e não um dia.
+                 *
+                 * Decisão do Andre em 2026-10-20. Checkout aberto por 24h é
+                 * cobrança que o cliente esqueceu que começou — e, enquanto
+                 * ele vive, a tela anuncia "pagamento em andamento" para uma
+                 * página que ninguém vai abrir de novo. Em 60 minutos ou se
+                 * paga ou se desiste, e desistir é barato: contratar de novo é
+                 * um clique.
+                 */
+                minutesToExpire: 60,
                 /** Como o webhook descobre qual conta e qual plano foram pagos. */
                 externalReference: tentativa.id,
                 /**
@@ -377,7 +387,17 @@ export async function criarCheckoutDeAdicionais(opcoes: {
             body: {
                 billingTypes: AVULSO,
                 chargeTypes: ['DETACHED'],
-                minutesToExpire: 1440,
+                /**
+                 * Uma hora, e não um dia.
+                 *
+                 * Decisão do Andre em 2026-10-20. Checkout aberto por 24h é
+                 * cobrança que o cliente esqueceu que começou — e, enquanto
+                 * ele vive, a tela anuncia "pagamento em andamento" para uma
+                 * página que ninguém vai abrir de novo. Em 60 minutos ou se
+                 * paga ou se desiste, e desistir é barato: contratar de novo é
+                 * um clique.
+                 */
+                minutesToExpire: 60,
                 externalReference: tentativa.id,
                 callback: {
                     successUrl: `${baseUrl}/pagamento/retorno?status=processando`,

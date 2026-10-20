@@ -18,6 +18,10 @@ export type BillingEmailKind =
     | 'credits_80'
     | 'retention_60'
     | 'retention_7'
+    /** Cobrança vencida: começou a carência, e ela tem data. */
+    | 'payment_overdue'
+    /** A carência acabou e a clínica ficou em somente-leitura. */
+    | 'access_suspended'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://odontobox.venn360.com'
 const PLANS_URL = `${APP_URL}/gerenciamento/conta?tab=plano`
@@ -56,6 +60,35 @@ function copyFor(
                 ],
                 cta: 'Ver planos',
                 tone: 'neutral',
+            }
+        case 'payment_overdue':
+            return {
+                subject: 'Cobrança vencida · OdontoBox360',
+                headline: 'Sua mensalidade está em aberto',
+                body: [
+                    `A cobrança de ${context.valor as string} venceu em ${context.vencimento as string}.`,
+                    /* A carência é o que esta mensagem existe para contar. Um
+                       aviso de atraso sem prazo vira susto; com prazo, vira
+                       instrução — e o cliente sabe que ainda dá tempo. */
+                    `Você tem até ${context.ate as string} para pagar sem interrupção. Depois dessa data a clínica fica em somente-leitura: as mensagens continuam chegando e o histórico fica inteiro, mas o envio e o agente param.`,
+                    'Se já pagou nas últimas horas, pode ignorar — a confirmação do banco leva alguns minutos.',
+                ],
+                cta: 'Ver a fatura',
+                tone: 'urgent',
+            }
+        case 'access_suspended':
+            return {
+                subject: 'Atendimento pausado por falta de pagamento · OdontoBox360',
+                headline: 'A clínica está em somente-leitura',
+                body: [
+                    'A cobrança em aberto passou do prazo e o envio de mensagens foi pausado. O agente parou de responder, e os números de WhatsApp continuam conectados.',
+                    /* O que **não** se perde é a parte que acalma, e é
+                       verdade: o corte não apaga nada nem desconecta linha. */
+                    'Nada foi apagado: conversas, pacientes, agenda e histórico continuam inteiros e exportáveis.',
+                    'Pagar restaura tudo na hora, sem reconectar nada.',
+                ],
+                cta: 'Pagar agora',
+                tone: 'urgent',
             }
         case 'trial_day_6':
             return {
