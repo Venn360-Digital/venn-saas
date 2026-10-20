@@ -3,6 +3,7 @@ import { ArrowUpRight } from 'lucide-react'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceLimits } from '@/lib/limits'
+import { apelidoDaLinha } from '@/lib/linha'
 import { isPlanId } from '@/lib/plan-limits'
 import { REDES_DO_PLANO, redesDoPlano } from '@/lib/plans'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,14 @@ import { cn } from '@/lib/utils'
 type Tom = 'ok' | 'fora' | 'neutro'
 
 interface Linha {
+    /**
+     * Chave da lista, e ela não pode ser o nome.
+     *
+     * Duas linhas do mesmo canal podem se chamar igual — duas sem apelido e
+     * sem número pareado, ou dois apelidos repetidos, que nada impede. Com o
+     * nome como chave o React descartaria uma das duas em silêncio.
+     */
+    id: string
     nome: string
     rotulo: string
     tom: Tom
@@ -68,12 +77,14 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
         }),
         prisma.agentIntegration.findMany({
             where: { agent: { workspaceId } },
-            select: { channel: true, status: true, phoneNumber: true },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, channel: true, status: true, phoneNumber: true, label: true },
         }),
         getWorkspaceLimits(workspaceId),
     ])
 
     const linhasDeAgente: Linha[] = agentes.map((a) => ({
+        id: a.id,
         nome: a.name,
         rotulo: a.pausedByLimit ? 'Acima do plano' : a.isActive ? 'No ar' : 'Pausado',
         tom: a.pausedByLimit ? 'fora' : a.isActive ? 'ok' : 'neutro',
@@ -83,7 +94,18 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
     const plano = isPlanId(limites.planId) ? limites.planId : 'flow'
     const doPlano = new Set(redesDoPlano(plano).map((r) => r.id))
 
-    const canais = REDES_DO_PLANO.map((rede): Linha | null => {
+    /**
+     * **Uma linha da lista por número, não por canal.**
+     *
+     * O cartão resumia o canal inteiro — "3 de 6 no ar" numa única linha
+     * "WhatsApp" — e com isso escondia exatamente o que faz alguém agir: qual
+     * número caiu. Numa Multiclínica com seis linhas, saber que três estão
+     * fora não ajuda ninguém a ligar para a recepção certa. Decisão do Andre
+     * em 2026-10-20, e o formato é o que as fichas já usam:
+     * `WhatsApp · Unidade Centro`, com o apelido da linha e, na falta dele, o
+     * número.
+     */
+    const canais = REDES_DO_PLANO.flatMap((rede): Linha[] => {
         const colunas = CANAL_NO_BANCO[rede.id] ?? []
         const registros = integracoes.filter((i) => colunas.includes(i.channel))
         const conectadas = registros.filter((i) => i.status === 'connected').length
@@ -95,14 +117,14 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
          * linha fora do ar, é vaga que ninguém usou. Contá-lo pintava de
          * vermelho a linha da Meta que só esperava a revisão do aplicativo.
          */
-        const reais = registros.filter((i) => i.status === 'connected' || i.phoneNumber).length
+        const reais = registros.filter((i) => i.status === 'connected' || i.phoneNumber)
 
         // O que o produto ainda não entrega é "em breve", e não conta no "x de
         // y": dizer "não configurado" manda a clínica procurar um botão de
         // ligar que não existe. Uma linha já conectada passa por cima do aviso
         // — se está no ar, "em breve" seria mentira.
         if (rede.emBreve && conectadas === 0) {
-            return { nome: rede.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }
+            return [{ id: rede.id, nome: rede.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }]
         }
 
         /**
@@ -113,30 +135,25 @@ export async function lerOperacao(workspaceId: string): Promise<Operacao> {
          * ainda estiver conectado, aparece: esconder algo que está atendendo
          * seria pior.
          */
-        if (!doPlano.has(rede.id)) {
-            if (conectadas === 0) return null
-            return { nome: rede.label, rotulo: 'No ar', tom: 'ok' }
+        if (!doPlano.has(rede.id) && conectadas === 0) return []
+
+        // Canal sem nenhuma linha pareada fica numa linha só: não há número
+        // para nomear, e "0 de 0" não é informação.
+        if (reais.length === 0) {
+            return [{ id: rede.id, nome: rede.label, rotulo: 'Não configurado', tom: 'neutro' }]
         }
 
-        if (reais === 0) {
-            return { nome: rede.label, rotulo: 'Não configurado', tom: 'neutro' }
-        }
-        if (conectadas === 0) {
-            return { nome: rede.label, rotulo: 'Fora do ar', tom: 'fora' }
-        }
-        /**
-         * Linha caída pinta o canal, mesmo com outra no ar.
-         *
-         * O cabeçalho conta canal e a linha conta número, e por isso o cartão
-         * chegou a dizer "2 de 2 no ar" com um WhatsApp fora. Uma linha
-         * derrubada é paciente escrevendo para um número que não responde —
-         * precisa de alarme, não de média.
-         */
-        if (conectadas < reais) {
-            return { nome: rede.label, rotulo: `${conectadas} de ${reais} no ar`, tom: 'fora' }
-        }
-        return { nome: rede.label, rotulo: 'No ar', tom: 'ok' }
-    }).filter((l): l is Linha => l !== null)
+        return reais.map((linha) => {
+            const apelido = apelidoDaLinha(linha)
+            const noAr = linha.status === 'connected'
+            return {
+                id: linha.id,
+                nome: apelido ? `${rede.label} · ${apelido}` : rede.label,
+                rotulo: noAr ? 'No ar' : 'Fora do ar',
+                tom: noAr ? 'ok' : 'fora',
+            }
+        })
+    })
 
     return {
         agentes: linhasDeAgente,
@@ -211,7 +228,7 @@ function Grupo({
             ) : (
                 <ul className="space-y-1.5">
                     {linhas.map((linha) => (
-                        <li key={linha.nome} className="flex items-center justify-between gap-3">
+                        <li key={linha.id} className="flex items-center justify-between gap-3">
                             <span className="min-w-0 truncate text-[13px]">{linha.nome}</span>
                             <Selo tom={linha.tom}>{linha.rotulo}</Selo>
                         </li>

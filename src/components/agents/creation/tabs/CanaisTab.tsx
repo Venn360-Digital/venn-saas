@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { InstagramConnect } from '@/components/agents/creation/InstagramConnect'
 import { MetaEmbeddedSignup } from '@/components/agents/creation/MetaEmbeddedSignup'
+import { apelidoDaLinha } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { WhatsAppQRModal } from '../WhatsAppQRModal'
@@ -122,11 +123,9 @@ const CANAL_DA_LINHA: Record<string, string> = {
     mercadolivre: 'Mercado Livre',
 }
 
-/** O nome da linha na tela: o apelido, senão o número, senão "Linha nova". */
+/** O nome da linha na tela: o apelido, senão o número, senão "Linha sem número". */
 function nomeDaLinha(line: Line): string {
-    if (line.label?.trim()) return line.label.trim()
-    if (line.phoneNumber) return formatPhone(line.phoneNumber)
-    return 'Linha sem número'
+    return apelidoDaLinha(line, 'Linha sem número')
 }
 
 export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {

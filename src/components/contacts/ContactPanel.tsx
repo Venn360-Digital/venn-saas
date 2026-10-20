@@ -32,6 +32,7 @@ import { InlineField } from '@/components/shared/InlineField'
 import { RecordPanel } from '@/components/shared/RecordPanel'
 import { PickField, type PickOption } from '@/components/shared/PickField'
 import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
+import { canalComApelido } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
 import { createdViaLabel } from '@/lib/created-via'
 import { cn } from '@/lib/utils'
@@ -90,14 +91,6 @@ interface Detail {
  * Mostra o apelido ou o número da linha quando o canal tem várias (WhatsApp);
  * para os que têm uma só, o nome do canal já diz tudo.
  */
-const CANAL_NA_FICHA: Record<string, string> = {
-    whatsapp_qr: 'WhatsApp',
-    whatsapp_business: 'WhatsApp API oficial',
-    instagram: 'Instagram',
-    site: 'Site',
-    telegram: 'Telegram',
-    mercadolivre: 'Mercado Livre',
-}
 
 function porOndeEntrou(conv: {
     channel: string
@@ -105,14 +98,7 @@ function porOndeEntrou(conv: {
 } | null): string | null {
     if (!conv) return null
 
-    if (conv.linha) {
-        const canal = CANAL_NA_FICHA[conv.linha.channel] ?? conv.linha.channel
-        const apelido = conv.linha.label?.trim()
-        const numero = conv.linha.phoneNumber
-        if (apelido) return `${canal} · ${apelido}`
-        if (numero) return `${canal} · ${numero}`
-        return canal
-    }
+    if (conv.linha) return canalComApelido(conv.linha.channel, conv.linha)
 
     // Sem linha gravada — conversa aberta pela recepção, ou histórico antigo.
     if (conv.channel === 'instagram') return 'Instagram'

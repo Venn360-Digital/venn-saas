@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
+import { apelidoDaLinha } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
 import { prettyPhone } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
@@ -142,7 +143,7 @@ interface TagItem {
 
 /** Como uma linha se chama na tela: o apelido, senão o número formatado. */
 function nomeDaLinha(line: { label: string | null; phoneNumber: string | null }): string {
-    return line.label?.trim() || (line.phoneNumber ? formatPhone(line.phoneNumber) : 'sem número')
+    return apelidoDaLinha(line, 'sem número')
 }
 
 /**

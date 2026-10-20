@@ -32,6 +32,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type DealLike } from '@/lib/deal-health'
+import { canalComApelido } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 
@@ -42,27 +43,13 @@ import { cn } from '@/lib/utils'
  * e a pessoa corrige. Os três passam a morar lado a lado desde 2026-10-20: o
  * negócio dizia por que o paciente veio e calava por onde.
  */
-const CANAL_NO_NEGOCIO: Record<string, string> = {
-    whatsapp_qr: 'WhatsApp',
-    whatsapp_business: 'WhatsApp API oficial',
-    instagram: 'Instagram',
-    site: 'Site',
-    telegram: 'Telegram',
-    mercadolivre: 'Mercado Livre',
-}
 
 function canalDoNegocio(deal: { contact?: PanelDeal['contact'] }): string | null {
     const conversa = deal.contact?.conversations?.[0]
     if (!conversa) return null
 
     if (conversa.integration) {
-        const canal = CANAL_NO_NEGOCIO[conversa.integration.channel] ?? conversa.integration.channel
-        const apelido = conversa.integration.label?.trim()
-        if (apelido) return `${canal} · ${apelido}`
-        if (conversa.integration.phoneNumber) {
-            return `${canal} · ${formatPhone(conversa.integration.phoneNumber)}`
-        }
-        return canal
+        return canalComApelido(conversa.integration.channel, conversa.integration)
     }
 
     if (conversa.channel === 'instagram') return 'Instagram'

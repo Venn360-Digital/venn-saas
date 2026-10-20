@@ -12,14 +12,18 @@
 
 import { REDES_DO_PLANO, redesDoPlano } from '../src/lib/plans'
 import { isPlanId, type PlanId } from '../src/lib/plan-limits'
+import { apelidoDaLinha } from '../src/lib/linha'
 
 interface Integracao {
+    id: string
     channel: string
     status: string
     phoneNumber: string | null
+    label?: string | null
 }
 
 interface Linha {
+    id: string
     nome: string
     rotulo: string
     tom: 'ok' | 'fora' | 'neutro'
@@ -39,26 +43,30 @@ function canaisDe(integracoes: Integracao[], planId: string | null) {
     const plano: PlanId = isPlanId(planId) ? planId : 'flow'
     const doPlano = new Set(redesDoPlano(plano).map((r) => r.id))
 
-    const canais = REDES_DO_PLANO.map((rede): Linha | null => {
+    const canais = REDES_DO_PLANO.flatMap((rede): Linha[] => {
         const colunas = CANAL_NO_BANCO[rede.id] ?? []
         const registros = integracoes.filter((i) => colunas.includes(i.channel))
         const conectadas = registros.filter((i) => i.status === 'connected').length
-        const reais = registros.filter((i) => i.status === 'connected' || i.phoneNumber).length
+        const reais = registros.filter((i) => i.status === 'connected' || i.phoneNumber)
 
         if (rede.emBreve && conectadas === 0) {
-            return { nome: rede.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }
+            return [{ id: rede.id, nome: rede.label, rotulo: 'Em breve', tom: 'neutro', futuro: true }]
         }
-        if (!doPlano.has(rede.id)) {
-            if (conectadas === 0) return null
-            return { nome: rede.label, rotulo: 'No ar', tom: 'ok' }
+        if (!doPlano.has(rede.id) && conectadas === 0) return []
+        if (reais.length === 0) {
+            return [{ id: rede.id, nome: rede.label, rotulo: 'Não configurado', tom: 'neutro' }]
         }
-        if (reais === 0) return { nome: rede.label, rotulo: 'Não configurado', tom: 'neutro' }
-        if (conectadas === 0) return { nome: rede.label, rotulo: 'Fora do ar', tom: 'fora' }
-        if (conectadas < reais) {
-            return { nome: rede.label, rotulo: `${conectadas} de ${reais} no ar`, tom: 'fora' }
-        }
-        return { nome: rede.label, rotulo: 'No ar', tom: 'ok' }
-    }).filter((l): l is Linha => l !== null)
+        return reais.map((linha) => {
+            const apelido = apelidoDaLinha(linha)
+            const noAr = linha.status === 'connected'
+            return {
+                id: linha.id,
+                nome: apelido ? `${rede.label} · ${apelido}` : rede.label,
+                rotulo: noAr ? 'No ar' : 'Fora do ar',
+                tom: noAr ? ('ok' as const) : ('fora' as const),
+            }
+        })
+    })
 
     return {
         canais,
@@ -74,9 +82,9 @@ const cenarios: { nome: string; plano: string | null; linhas: Integracao[]; espe
         nome: 'Digital com um WhatsApp pareado, canal da Meta e site de teste',
         plano: 'flow',
         linhas: [
-            { channel: 'site', status: 'disconnected', phoneNumber: null },
-            { channel: 'whatsapp_business', status: 'disconnected', phoneNumber: null },
-            { channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001' },
+            { id: 'a', channel: 'site', status: 'disconnected', phoneNumber: null },
+            { id: 'b', channel: 'whatsapp_business', status: 'disconnected', phoneNumber: null },
+            { id: 'c', channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001' },
         ],
         espera: '1 de 1 no ar',
     },
@@ -84,14 +92,16 @@ const cenarios: { nome: string; plano: string | null; linhas: Integracao[]; espe
         // O WhatsApp da clínica caiu. É o alarme que o cartão existe para dar.
         nome: 'Digital com o WhatsApp fora do ar',
         plano: 'flow',
-        linhas: [{ channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553131918001' }],
+        linhas: [
+            { id: 'a', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553131918001' },
+        ],
         espera: '0 de 1 no ar',
     },
     {
         // Registro criado e nunca pareado não é queda: é vaga vazia.
         nome: 'Digital com a linha criada e nunca pareada',
         plano: 'flow',
-        linhas: [{ channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: null }],
+        linhas: [{ id: 'a', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: null }],
         espera: '0 de 1 no ar',
     },
     {
@@ -101,27 +111,49 @@ const cenarios: { nome: string; plano: string | null; linhas: Integracao[]; espe
         espera: '0 de 1 no ar',
     },
     {
+        // A pergunta do Andre em 2026-10-20: seis linhas, uma no ar. Cada número
+        // tem a sua linha na lista, e é por ela que se sabe qual recepção avisar.
+        nome: 'Multiclínica com seis WhatsApps, um no ar',
+        plano: 'advanced',
+        linhas: [
+            { id: '1', channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001', label: 'WA Centro' },
+            { id: '2', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553188501161', label: 'WA Savassi' },
+            { id: '3', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553131570120', label: null },
+            { id: '4', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553199887766', label: 'WA Buritis' },
+            { id: '5', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553133221100', label: null },
+            { id: '6', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553197654321', label: 'WA Pampulha' },
+        ],
+        // Sete, e não seis: o Multiclínica também vende o site da clínica, que
+        // esta aqui não ligou. Ele entra como "Não configurado" e conta.
+        espera: '1 de 7 no ar',
+    },
+    {
         // O site é do Prime para cima, e lá ele conta.
         nome: 'Prime com site ligado e dois WhatsApps, um fora',
         plano: 'pro',
         linhas: [
-            { channel: 'site', status: 'connected', phoneNumber: null },
-            { channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001' },
-            { channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553188501161' },
+            { id: 'a', channel: 'site', status: 'connected', phoneNumber: null },
+            { id: 'b', channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001' },
+            { id: 'c', channel: 'whatsapp_qr', status: 'disconnected', phoneNumber: '553188501161' },
         ],
-        espera: '1 de 2 no ar',
+        espera: '2 de 3 no ar',
     },
     {
         // Desceu de plano com o site ligado: aparece, porque está atendendo.
         nome: 'Digital com o site ainda ligado de um plano anterior',
         plano: 'flow',
         linhas: [
-            { channel: 'site', status: 'connected', phoneNumber: null },
-            { channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001' },
+            { id: 'a', channel: 'site', status: 'connected', phoneNumber: null },
+            { id: 'b', channel: 'whatsapp_qr', status: 'connected', phoneNumber: '553131918001' },
         ],
         espera: '2 de 2 no ar',
     },
 ]
+
+/** Duas linhas da lista nunca podem dividir a mesma chave do React. */
+function chavesUnicas(linhas: Linha[]): boolean {
+    return new Set(linhas.map((l) => l.id)).size === linhas.length
+}
 
 let falhas = 0
 
@@ -144,6 +176,10 @@ for (const c of cenarios) {
     if (vermelhos.length > 0 && pareadas === 0) {
         falhas++
         console.log(`✗ ${c.nome}: alarme sem linha pareada atrás`)
+    }
+    if (!chavesUnicas(canais)) {
+        falhas++
+        console.log(`✗ ${c.nome}: duas linhas com a mesma chave`)
     }
 }
 
