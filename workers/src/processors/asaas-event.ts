@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
 
 import prisma from '@/lib/prisma'
+import { asaas } from '@/lib/asaas/client'
 import { adicionaisVivos } from '@/lib/account'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
 import {
@@ -199,7 +200,26 @@ async function espelharCobranca(
             })
             : null)
 
-    if (!conta) {
+    /**
+     * Última tentativa antes de desistir: **o documento**.
+     *
+     * O cliente pode ser novo no Asaas e ainda desconhecido aqui — é o que
+     * acontece quando a conta compra um adicional sem ter assinatura: o
+     * checkout cria um cliente lá, e nada liga esse id à conta daqui. Sem este
+     * caminho, todo evento daquele cliente fica órfão **e** a próxima compra
+     * cria mais um cliente, repetindo o problema dos três "Venn360" que já
+     * custou caro.
+     *
+     * O documento é a chave determinística, a mesma que
+     * `vincularContaAoAsaas` usa do outro lado. Comparado por dígitos porque o
+     * nosso pode estar formatado e o deles vem limpo.
+     */
+    const contaPorDocumento =
+        !conta && p.customer ? await ligarPeloDocumento(p.customer) : null
+
+    const contaResolvida = conta ?? contaPorDocumento
+
+    if (!contaResolvida) {
         /**
          * Não conhecemos — mas pode ser só questão de segundos.
          *
@@ -233,7 +253,7 @@ async function espelharCobranca(
     const pago = p.paymentDate ?? p.clientPaymentDate ?? null
 
     const dados = {
-        accountId: conta.id,
+        accountId: contaResolvida.id,
         asaasSubscriptionId: p.subscription ?? null,
         /**
          * Nesta fase todo espelho nasce como `subscription`.
@@ -306,10 +326,10 @@ async function espelharCobranca(
         update: { ...dados, lastEventAt: receivedAt },
     })
 
-    log.info(`${event} espelhado: cobrança ${p.id}, conta ${conta.id}, status ${dados.status}`)
+    log.info(`${event} espelhado: cobrança ${p.id}, conta ${contaResolvida.id}, status ${dados.status}`)
 
-    await reagirAoStatusDaCobranca(conta.id, dados)
-    await guardarCartao(conta.id, p.creditCard)
+    await reagirAoStatusDaCobranca(contaResolvida.id, dados)
+    await guardarCartao(contaResolvida.id, p.creditCard)
 }
 
 /**
@@ -350,6 +370,63 @@ async function guardarCartao(
         `cartão ${cartao.creditCardBrand ?? '?'} ••••${cartao.creditCardNumber ?? '????'} ` +
             `guardado para a conta ${accountId}`
     )
+}
+
+/**
+ * Liga um cliente do Asaas à conta daqui pelo **documento**.
+ *
+ * Busca o cliente lá, lê o CPF/CNPJ dele e procura a conta com o mesmo
+ * documento. Achando, grava o `asaasCustomerId` — e a partir daí todo evento
+ * daquele cliente chega com dono, e o próximo checkout reusa o cliente em vez
+ * de criar outro.
+ *
+ * Só liga conta que **ainda não tem** cliente: se a conta já aponta para outro
+ * id, duas coisas podem estar acontecendo (duplicata no Asaas ou documento
+ * repetido entre contas) e nenhuma delas se resolve sobrescrevendo em
+ * silêncio. Fica o aviso no log.
+ */
+async function ligarPeloDocumento(customerId: string): Promise<{ id: string } | null> {
+    let documento: string | null = null
+
+    try {
+        const cliente = await asaas<{ cpfCnpj?: string }>(`/customers/${customerId}`)
+        documento = cliente.cpfCnpj ?? null
+    } catch (erro) {
+        log.warn(`não consegui ler o cliente ${customerId} no Asaas: ${String(erro)}`)
+        return null
+    }
+
+    if (!documento) return null
+
+    const digitos = (v: string) => v.replace(/\D/g, '')
+    const alvo = digitos(documento)
+
+    const candidatas = await prisma.account.findMany({
+        where: { cpfCnpj: { not: null } },
+        select: { id: true, name: true, cpfCnpj: true, asaasCustomerId: true },
+    })
+
+    const conta = candidatas.find((c) => c.cpfCnpj && digitos(c.cpfCnpj) === alvo)
+    if (!conta) return null
+
+    if (conta.asaasCustomerId && conta.asaasCustomerId !== customerId) {
+        log.warn(
+            `conta ${conta.name} já aponta para ${conta.asaasCustomerId} e chegou evento de ` +
+                `${customerId} com o mesmo documento. Provável cliente duplicado no Asaas; ` +
+                'nada foi sobrescrito.'
+        )
+        return { id: conta.id }
+    }
+
+    if (!conta.asaasCustomerId) {
+        await prisma.account.update({
+            where: { id: conta.id },
+            data: { asaasCustomerId: customerId },
+        })
+        log.info(`conta ${conta.name} ligada ao cliente ${customerId} pelo documento`)
+    }
+
+    return { id: conta.id }
 }
 
 /**
