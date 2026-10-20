@@ -39,6 +39,7 @@ import {
     RotateCcw,
     Route,
     Search,
+    SlidersHorizontal,
     Smartphone,
     Unplug,
     Send,
@@ -97,7 +98,7 @@ import { TagPicker } from '@/components/shared/TagPicker'
 import { TagChip } from '@/components/shared/TagChip'
 import { PanelField, PanelSection, RecordPanel } from '@/components/shared/RecordPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { QueueMeter, type QueueCounts } from '@/components/shared/QueueMeter'
+import { waitedFor, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
     DealJourney,
     type JourneyEntry,
@@ -1930,138 +1931,225 @@ export default function ConversasPage() {
                     selectedConversation ? "hidden" : "flex",
                     panel ? "md:hidden xl:flex" : "md:flex"
                 )}>
-                    {/* Header */}
-                    <div className="p-4 border-b">
-                        {/* O + é do cabeçalho da coluna, não da conversa aberta:
-                            é a lista que ganha um item. Rótulo com verbo porque um
-                            "+" solto aqui seria lido como "nova mensagem". */}
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                            <h1 className="text-h3">Conversas</h1>
-                            <Button size="sm" className="gap-1.5" onClick={() => setIntakeOpen(true)}>
-                                <Plus className="size-3.5" />
-                                Novo atendimento
-                            </Button>
-                        </div>
-                        {queue ? <QueueMeter counts={queue} className="mb-3" /> : null}
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    {/* O CABEÇALHO DA COLUNA, em três faixas de 36px.
+                        Eram cinco faixas somando ~296px: título, medidor de
+                        fila em três linhas, busca, abas, "Ver", linha e
+                        agente. Numa tela de 900px a primeira conversa começava
+                        perto da metade da coluna — foi o que o Andre apontou.
+
+                        Nada se perdeu: as contagens da fila foram para as
+                        abas, que é onde elas já tinham nome; a espera mais
+                        antiga e as resolvidas de hoje viraram a linha de
+                        apoio à direita do filtro; linha e agente entraram num
+                        popover que só existe quando há mais de uma opção. O
+                        que saiu foi a barra do medidor — ela desenhava os
+                        mesmos três números que agora estão escritos. */}
+                    <div className="flex items-center gap-2 border-b p-3">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                             <Input
-                                placeholder="Buscar por nome, telefone ou mensagem..."
+                                placeholder="Buscar paciente ou mensagem"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 bg-muted/50 h-9"
+                                className="h-8 bg-muted/50 pl-8 text-xs"
                             />
                         </div>
+                        {/* O rótulo virou dica: em 320px, "Novo atendimento"
+                            ao lado da busca empurrava a busca para 150px. O
+                            `aria-label` mantém o nome para quem navega por
+                            leitor de tela. */}
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    size="icon"
+                                    className="size-8 shrink-0"
+                                    aria-label="Novo atendimento"
+                                    onClick={() => setIntakeOpen(true)}
+                                >
+                                    <Plus className="size-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Novo atendimento</TooltipContent>
+                        </Tooltip>
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex px-3 py-2 gap-1 border-b">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => {
-                                    setActiveTab(tab.id)
-                                    setLoading(true)
-                                }}
-                                className={cn(
-                                    'flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
-                                    activeTab === tab.id
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'text-muted-foreground hover:bg-muted/50'
+                    {/* As abas carregam a contagem que o medidor mostrava. */}
+                    <div className="flex gap-1 border-b px-3 py-1.5">
+                        {tabs.map((tab) => {
+                            const contagem =
+                                tab.id === 'waiting'
+                                    ? (queue?.waiting ?? 0)
+                                    : tab.id === 'active'
+                                      ? (queue?.active ?? 0)
+                                      : null
+
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => {
+                                        setActiveTab(tab.id)
+                                        setLoading(true)
+                                    }}
+                                    className={cn(
+                                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                                        activeTab === tab.id
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'text-muted-foreground hover:bg-muted/50'
+                                    )}
+                                >
+                                    {tab.label}
+                                    {contagem ? (
+                                        <span
+                                            className={cn(
+                                                'num rounded-full px-1.5 text-[10px] font-bold',
+                                                activeTab === tab.id
+                                                    ? 'bg-primary-foreground/15'
+                                                    : tab.id === 'waiting'
+                                                      ? 'bg-warning-subtle text-warning-subtle-foreground'
+                                                      : 'bg-muted text-muted-foreground'
+                                            )}
+                                        >
+                                            {contagem}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {/* Uma faixa de filtro, não três. */}
+                    <div className="flex items-center gap-2 border-b px-3 py-1.5">
+                        <div className="flex shrink-0 rounded-md bg-muted/60 p-0.5">
+                            {[
+                                { id: false, label: 'Todas' },
+                                { id: true, label: 'Minhas' },
+                            ].map((opcao) => (
+                                <button
+                                    key={String(opcao.id)}
+                                    onClick={() => {
+                                        setOnlyMine(opcao.id)
+                                        setLoading(true)
+                                    }}
+                                    className={cn(
+                                        'rounded px-2 py-0.5 text-[11px] font-medium transition-colors',
+                                        onlyMine === opcao.id
+                                            ? 'bg-card text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    )}
+                                >
+                                    {opcao.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Linha e agente só existem quando há o que escolher —
+                            com um de cada, o seletor não decide nada. O ponto
+                            no gatilho diz que há filtro ligado sem precisar
+                            abrir. */}
+                        {lines.length > 1 || agents.length > 1 ? (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <button
+                                        className={cn(
+                                            'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                                            lineFilter !== 'all' || agentFilter !== 'all'
+                                                ? 'bg-primary-subtle text-primary-subtle-foreground'
+                                                : 'text-muted-foreground hover:bg-muted/50'
+                                        )}
+                                        aria-label="Filtrar por linha ou agente"
+                                    >
+                                        <SlidersHorizontal className="size-3.5" />
+                                        Filtros
+                                    </button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-64 space-y-3 p-3">
+                                    {lines.length > 1 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Linha
+                                            </p>
+                                            <Select
+                                                value={lineFilter}
+                                                onValueChange={(v) => {
+                                                    setLineFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por linha de WhatsApp"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as linhas</SelectItem>
+                                                    {lines.map((l) => (
+                                                        <SelectItem key={l.id} value={l.id}>
+                                                            {nomeDaLinha(l)}
+                                                            {l.agentName ? ` · ${l.agentName}` : ''}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="none">Sem linha definida</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {agents.length > 1 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Agente
+                                            </p>
+                                            <Select
+                                                value={agentFilter}
+                                                onValueChange={(v) => {
+                                                    setAgentFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por agente"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todos os agentes</SelectItem>
+                                                    {agents.map((a) => (
+                                                        <SelectItem key={a.id} value={a.id}>
+                                                            {a.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="none">Sem agente</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+                                </PopoverContent>
+                            </Popover>
+                        ) : null}
+
+                        {/* A espera mais antiga é o número que decide se a
+                            recepção está dando conta — ele não podia sair
+                            junto com o medidor. */}
+                        {queue ? (
+                            <span className="ml-auto truncate text-right text-[11px] text-muted-foreground">
+                                {queue.oldestWaitingAt ? (
+                                    <>
+                                        espera há{' '}
+                                        <span className="num font-semibold text-warning-subtle-foreground">
+                                            {waitedFor(queue.oldestWaitingAt)}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="num">{queue.closedToday}</span> resolvidas
+                                        hoje
+                                    </>
                                 )}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
+                            </span>
+                        ) : null}
                     </div>
-
-                    {/* Filter toggle: Todas / Só minhas */}
-                    <div className="flex items-center gap-2 px-3 py-2 border-b">
-                        <span className="text-[11px] text-muted-foreground">Ver:</span>
-                        <button
-                            onClick={() => { setOnlyMine(false); setLoading(true) }}
-                            className={cn(
-                                'px-2.5 py-1 text-[11px] rounded-md font-medium transition-colors',
-                                !onlyMine
-                                    ? 'bg-muted text-foreground'
-                                    : 'text-muted-foreground hover:bg-muted/50'
-                            )}
-                        >
-                            Todas
-                        </button>
-                        <button
-                            onClick={() => { setOnlyMine(true); setLoading(true) }}
-                            className={cn(
-                                'px-2.5 py-1 text-[11px] rounded-md font-medium transition-colors',
-                                onlyMine
-                                    ? 'bg-muted text-foreground'
-                                    : 'text-muted-foreground hover:bg-muted/50'
-                            )}
-                        >
-                            Só minhas
-                        </button>
-
-                    </div>
-
-                    {/* O seletor de linha ganha a sua própria faixa, e só
-                        aparece quando há mais de uma linha: numa coluna de
-                        320px ele não cabe ao lado de "Todas / Só minhas" sem
-                        quebrar o rótulo no meio, e com uma linha só não decide
-                        nada. */}
-                    {lines.length > 1 ? (
-                        <div className="flex items-center gap-2 px-3 py-2 border-b">
-                            <span className="shrink-0 text-[11px] text-muted-foreground">Linha:</span>
-                            <Select
-                                value={lineFilter}
-                                onValueChange={(v) => { setLineFilter(v); setLoading(true) }}
-                            >
-                                <SelectTrigger
-                                    aria-label="Filtrar por linha de WhatsApp"
-                                    className="h-7 flex-1 text-[11px]"
-                                >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas as linhas</SelectItem>
-                                    {lines.map((l) => (
-                                        <SelectItem key={l.id} value={l.id}>
-                                            {nomeDaLinha(l)}
-                                            {l.agentName ? ` · ${l.agentName}` : ''}
-                                        </SelectItem>
-                                    ))}
-                                    <SelectItem value="none">Sem linha definida</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    ) : null}
-
-                    {/* Por agente, e pelo mesmo critério do de linha: só aparece
-                        com mais de um, porque com um só ele não decide nada.
-                        Filtrar por agente é pegar todas as linhas dele de uma
-                        vez — o que o seletor de linha não faz. */}
-                    {agents.length > 1 ? (
-                        <div className="flex items-center gap-2 px-3 py-2 border-b">
-                            <span className="shrink-0 text-[11px] text-muted-foreground">Agente:</span>
-                            <Select
-                                value={agentFilter}
-                                onValueChange={(v) => { setAgentFilter(v); setLoading(true) }}
-                            >
-                                <SelectTrigger
-                                    aria-label="Filtrar por agente"
-                                    className="h-7 flex-1 text-[11px]"
-                                >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os agentes</SelectItem>
-                                    {agents.map((a) => (
-                                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                                    ))}
-                                    <SelectItem value="none">Sem agente</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    ) : null}
 
                     {/* Conversations List */}
                     <div className="flex-1 overflow-y-auto">

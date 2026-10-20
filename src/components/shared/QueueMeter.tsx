@@ -68,7 +68,14 @@ export function QueueMeter({ counts, className }: { counts: QueueCounts; classNa
 }
 
 /** "12 min", "2 h 10", "3 d" — short enough to sit on one line. */
-function waitedFor(iso: string) {
+/**
+ * Há quanto tempo a mais antiga espera, em texto curto.
+ *
+ * Exportado desde 2026-10-20: o cabeçalho da fila deixou de desenhar o medidor
+ * — ele custava três linhas numa coluna de 320px — mas este número ficou, que
+ * é o que diz se a recepção está dando conta.
+ */
+export function waitedFor(iso: string) {
     const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
     if (minutes < 60) return `${minutes} min`
     const hours = Math.floor(minutes / 60)
