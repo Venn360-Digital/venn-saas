@@ -14,14 +14,27 @@
 #
 # OS DOIS BANCOS NÃO SÃO IGUAIS, E É A COISA MAIS IMPORTANTE AQUI
 #
-#   evogo_auth   a licença. Copiar é inofensivo a qualquer momento.
-#   evogo_users  as credenciais de aparelho do whatsmeow. Copiar enquanto o
-#                Evolution Go da VPS está no ar é PERIGOSO: o WhatsApp aceita
-#                uma conexão por aparelho vinculado, os dois processos se
-#                derrubam em laço, e o fim provável é o aparelho ser
-#                DESVINCULADO — número de clínica fora do ar.
+# CORRIGIDO EM 2026-10-21. Este cabeçalho afirmava o OPOSTO do que a máquina
+# tem, e o padrão do script copiava justamente o banco perigoso chamando-o de
+# inofensivo. A dedução antiga ("a licença mora em evogo_auth") nunca foi
+# medida; o diagnóstico mediu:
 #
-# Por isso o padrão leva só `evogo_auth`, e `evogo_users` exige `--sessoes` mais
+#   evogo_auth   AS CREDENCIAIS DE APARELHO do whatsmeow — 18 tabelas
+#                `whatsmeow_*`, com `whatsmeow_device` (4 aparelhos),
+#                `whatsmeow_sessions` (172) e 63 mil contatos. O nome engana:
+#                "auth" aqui é a autenticação do APARELHO no WhatsApp, não a
+#                licença do produto. É `POSTGRES_AUTH_DB` no compose.
+#
+#                Copiar enquanto o Evolution Go da VPS está no ar é PERIGOSO:
+#                o WhatsApp aceita uma conexão por aparelho vinculado, os dois
+#                processos se derrubam em laço, e o fim provável é o aparelho
+#                ser DESVINCULADO — número de clínica fora do ar.
+#
+#   evogo_users  o estado do PRODUTO: `runtime_configs` (4), `instances` (2),
+#                `labels` (1). É aqui que a licença/`api_key` mora, e copiar é
+#                inofensivo a qualquer momento.
+#
+# Por isso o padrão leva só `evogo_users`, e `evogo_auth` exige `--sessoes` mais
 # uma confirmação digitada. E mesmo com as sessões copiadas, o destino só pode
 # subir com `CONNECT_ON_STARTUP=true` depois de o `evolution-go` da VPS parar.
 #
@@ -31,8 +44,8 @@
 #   export VPS=root@157.254.207.42
 #
 #   sh infra/scripts/levar-licenca.sh                  # diagnóstico, não escreve
-#   sh infra/scripts/levar-licenca.sh --aplicar        # leva evogo_auth
-#   sh infra/scripts/levar-licenca.sh --aplicar --sessoes   # + evogo_users
+#   sh infra/scripts/levar-licenca.sh --aplicar        # leva evogo_users
+#   sh infra/scripts/levar-licenca.sh --aplicar --sessoes   # + evogo_auth
 #
 # O dump nunca toca disco: vai do contêiner da VPS direto para o Neon, por
 # stdout. O disco da VPS está a 87 % e o dump não precisa dele.
@@ -91,7 +104,7 @@ fi
 if [ "$SESSOES" -eq 1 ]; then
     cat <<'AVISO'
 
-ATENÇÃO — copiar evogo_users leva credencial de aparelho.
+ATENÇÃO — copiar evogo_auth leva credencial de aparelho.
 Se o `evolution-go` da VPS estiver no ar e o destino subir com
 CONNECT_ON_STARTUP=true, os dois disputam o mesmo aparelho e o WhatsApp pode
 DESVINCULAR o número da clínica.
@@ -118,8 +131,8 @@ levar() {
     " && echo "   $banco: ok"
 }
 
-levar evogo_auth
-[ "$SESSOES" -eq 1 ] && levar evogo_users
+levar evogo_users
+[ "$SESSOES" -eq 1 ] && levar evogo_auth
 
 cat <<'FIM'
 
@@ -127,6 +140,6 @@ cat <<'FIM'
 Subir o destino e chamar /instance/create. Deixou de responder 503
 LICENSE_REQUIRED? A licença atravessou.
 
-Se ainda responder 503, a licença não estava em evogo_auth: olhe o diagnóstico
-acima e repita com --sessoes.
+Se ainda responder 503, a licença não estava em evogo_users: olhe o diagnóstico
+acima e repita com --sessoes — lendo o aviso, porque evogo_auth leva aparelho.
 FIM
