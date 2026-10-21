@@ -27,6 +27,22 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.ambiente }}
 
+    # ⚠️ O MENU DE AMBIENTE NÃO ESCOLHE O BANCO, e o padrão dele é `staging`.
+    #
+    # `secrets.DATABASE_URL_DIRECT` resolve para o segredo do AMBIENTE quando
+    # ele existe, e cai no segredo do REPOSITÓRIO quando não existe. Em
+    # 2026-10-21 os ambientes `Preview` e `Production` têm 0 segredos, então o
+    # do repositório vale nos dois casos — e ele aponta para `production`.
+    #
+    # Efeito: escolher `staging` no menu aplica migration em PRODUÇÃO. A dupla
+    # tranca (Environment + confirmação `APLICAR`) não protege disso, porque
+    # nenhuma das duas olha para qual banco é.
+    #
+    # O conserto é definir `DATABASE_URL_DIRECT` em cada Environment, pelo
+    # painel do GitHub, apontando cada um para o branch Neon correspondente.
+    # Enquanto isso não for feito, trate o menu como decoração e confira o
+    # destino antes de rodar.
+
     steps:
       - name: Conferir a confirmação
         # Segunda tranca, além do Environment. O menu de ambiente tem `staging`
@@ -50,7 +66,16 @@ jobs:
           # O endpoint **direto**, não o pooled: migração precisa de conexão
           # direta.
           DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
-        run: npx prisma migrate status
+        # `|| true` porque `migrate status` SAI COM 1 quando há migration
+        # pendente — e pendente é exatamente a situação em que este workflow é
+        # chamado. Sem isto o job morre aqui e o passo "Aplicar" nunca roda:
+        # medido em 2026-10-21, ao tentar criar o esquema do branch
+        # `production`, que estava com 0 tabelas.
+        #
+        # Este passo é informativo, não é tranca. A tranca é a confirmação
+        # `APLICAR` acima; e se o banco estiver inalcançável, quem falha alto é
+        # o `migrate deploy` do passo seguinte.
+        run: npx prisma migrate status || true
 
       - name: Aplicar
         env:
