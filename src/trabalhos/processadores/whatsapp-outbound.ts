@@ -5,7 +5,7 @@ import type { MediaKind, SendOptions } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'
 import type { WhatsAppOutboundJob } from '@/lib/queue/definitions'
 import { findIntegrationById, providerFor } from '@/trabalhos/servicos/integration'
-import { avisarStatusDaMensagem } from '@/lib/outbox/avisar'
+import { avisarStatusDaMensagem , publicarAgora } from '@/lib/outbox/avisar'
 
 const log = createLogger('OUTBOUND')
 
@@ -151,6 +151,7 @@ export async function processWhatsAppOutbound(
             }
         })
 
+        publicarAgora()
         log.info(`sent message ${messageId} to ${to} via ${provider.name}`)
     } catch (error) {
         // Vem da entrega, não do payload: o Queues não expõe "tentativas

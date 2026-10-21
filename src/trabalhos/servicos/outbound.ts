@@ -2,7 +2,7 @@ import prisma from '@/lib/prisma'
 import { QUEUE } from '@/lib/queue/definitions'
 import { emitAgentEvent } from './webhook-events'
 import { enfileirar } from '@/trabalhos/filas'
-import { avisarMensagemNova } from '@/lib/outbox/avisar'
+import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
 
 export interface EnqueueOutboundTextInput {
     conversationId: string
@@ -77,6 +77,8 @@ export async function enqueueOutboundText(
 
         return criada
     })
+
+    publicarAgora()
 
     if (integrationId) {
         // Um envio por linha de mensagem, para que um enfileiramento repetido

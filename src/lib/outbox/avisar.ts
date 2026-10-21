@@ -79,3 +79,45 @@ export async function avisarConversaAlterada(
         payload: { conversationId: dados.conversationId },
     })
 }
+
+/**
+ * Publica agora o que está pendente, sem esperar a varredura.
+ *
+ * **Por que isto é obrigatório e não otimização.** A varredura da outbox pega o
+ * disparo `* * * * *`, e Cron Triggers têm granularidade de um minuto. Sem um
+ * caminho imediato, uma mensagem de paciente levaria **até 60 segundos** para
+ * chegar à tela — ou seja, o polling de 15 s que este caminho veio substituir
+ * ganharia dele, sempre. O tempo real seria enfeite caro.
+ *
+ * Então são dois caminhos para o mesmo evento, e os dois são necessários:
+ *
+ *   - **este**, imediato, logo depois do `commit`, é o que entrega rápido;
+ *   - **a varredura**, de minuto, é a rede: pega o que este perdeu porque o
+ *     isolate morreu, a sala estava indisponível, ou a publicação falhou.
+ *
+ * Entregar duas vezes é de graça: a sala descarta repetido por id, e o cliente
+ * também. É exatamente para isso que o id existe.
+ */
+export type PublicadorImediato = () => Promise<void>
+
+let imediato: PublicadorImediato | null = null
+
+export function registrarPublicadorImediato(p: PublicadorImediato): void {
+    imediato = p
+}
+
+/**
+ * Dispara a publicação e **não espera**.
+ *
+ * `void` de propósito: quem acabou de gravar a mensagem não deve esperar o
+ * fan-out para responder ao atendente. E não lança — o evento já está na
+ * outbox, então o pior caso é a varredura entregá-lo no minuto seguinte, que é
+ * o comportamento de antes desta função existir.
+ */
+export function publicarAgora(): void {
+    if (!imediato) return
+
+    void imediato().catch((erro) => {
+        console.error('[OUTBOX] publicação imediata falhou; a varredura pega:', erro)
+    })
+}

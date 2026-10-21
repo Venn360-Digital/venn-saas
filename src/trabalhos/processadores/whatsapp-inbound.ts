@@ -22,7 +22,7 @@ import { findIntegrationByRef, providerFor, touchIntegration } from '@/trabalhos
 import { readPreferences } from '@/trabalhos/servicos/prompt'
 import { applyAgentRules } from '@/trabalhos/servicos/rules'
 import { emitAgentEvent } from '@/trabalhos/servicos/webhook-events'
-import { avisarMensagemNova } from '@/lib/outbox/avisar'
+import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
 
 const log = createLogger('INBOUND')
 
@@ -250,6 +250,10 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
 
               return criada
           })
+
+    // Logo depois do commit: a varredura é de minuto, e mensagem de paciente
+    // não pode esperar um minuto para aparecer na tela.
+    publicarAgora()
 
     // `previous` was read before the insert, so its absence means this message
     // opened the thread.

@@ -4,7 +4,7 @@ import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/
 import { phoneFromConfig } from '@/lib/conversation-line'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '@prisma/client'
-import { avisarConversaAlterada } from '@/lib/outbox/avisar'
+import { avisarConversaAlterada , publicarAgora } from '@/lib/outbox/avisar'
 
 // GET: Get conversation details with messages
 export async function GET(
@@ -377,6 +377,8 @@ export async function PATCH(
 
             return alterada
         })
+
+        publicarAgora()
 
         // When assigning/transferring, set the user as deal owner for the contact's open deal
         if ((action === 'assign' || action === 'transfer') && conversation.contactId) {

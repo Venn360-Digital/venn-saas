@@ -318,6 +318,37 @@ async function main() {
         ok(`contrato: a tela não usa "${uso}"`, !tela.includes(uso))
     }
 
+
+    // ========================================== emissão + publicação imediata
+
+    /**
+     * Quem grava aviso tem de disparar a publicação imediata.
+     *
+     * A varredura da outbox pega o disparo `* * * * *`, e Cron Triggers têm
+     * granularidade de um minuto. Um ponto de emissão sem `publicarAgora()`
+     * não falha: o evento é gravado, entregue na varredura, e chega **até 60 s
+     * depois** — perdendo do polling de 15 s que este caminho veio substituir.
+     * O tempo real continuaria "funcionando", só devagar o bastante para não
+     * servir, e ninguém veria erro.
+     */
+    const { execSync } = await import('node:child_process')
+    const emissores = execSync(
+        "grep -rl 'avisarMensagemNova\\|avisarStatusDaMensagem\\|avisarConversaAlterada' src --include=*.ts --include=*.tsx | grep -v 'outbox/avisar.ts' || true",
+        { encoding: 'utf8' }
+    )
+        .split('\n')
+        .filter(Boolean)
+
+    ok('emissão: há pontos de emissão', emissores.length > 0, `${emissores.length} arquivo(s)`)
+
+    for (const arquivo of emissores) {
+        const conteudo = fs.readFileSync(arquivo, 'utf8')
+        ok(
+            `emissão: ${arquivo.split('/').slice(-2).join('/')} publica imediatamente`,
+            conteudo.includes('publicarAgora()')
+        )
+    }
+
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)
 }

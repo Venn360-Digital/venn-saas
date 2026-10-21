@@ -15,7 +15,7 @@ import { QUEUE, type WhatsAppEventJob } from '@/lib/queue/definitions'
 import { findContactByJid, syncContactProfile } from '@/trabalhos/servicos/avatar'
 import { findIntegrationByRef, providerFor } from '@/trabalhos/servicos/integration'
 import { enfileirar } from '@/trabalhos/filas'
-import { avisarStatusDaMensagem } from '@/lib/outbox/avisar'
+import { avisarStatusDaMensagem , publicarAgora } from '@/lib/outbox/avisar'
 
 /** Measured: the forced logout lands ~105 s after PairSuccess; sync is done by ~15 s. */
 const RECYCLE_DELAY_MS = 20_000
@@ -172,6 +172,7 @@ async function handleAck(event: NormalizedAck): Promise<void> {
         }
     })
 
+    publicarAgora()
     log.debug(`marked ${alvos.length} message(s) as ${event.status}`)
 }
 

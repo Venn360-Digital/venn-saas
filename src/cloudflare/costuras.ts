@@ -1,5 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { registrarPublicadorImediato } from '@/lib/outbox/avisar'
+import { publicarPendentes } from '@/lib/outbox'
+import { entregadorParaSalas } from './publicador'
 import { registrarDriver } from '@/lib/queue/driver'
 import { criarDriverCloudflare, type BindingsDeFila } from '@/lib/queue/driver-cloudflare'
 import { registrarAgenda } from '@/trabalhos/agenda'
@@ -109,6 +112,18 @@ export function registrarCosturas(env: EnvDasCosturas): void {
             })
         )
         if (!r.ok) throw new Error(`/publicar respondeu ${r.status}`)
+    })
+
+    /**
+     * O caminho imediato da outbox.
+     *
+     * A varredura de minuto continua existindo, no `scheduled` — mas ela é a
+     * rede, não a entrega. Com granularidade de um minuto, uma mensagem de
+     * paciente levaria até 60 s para chegar à tela, e o polling de 15 s
+     * ganharia do tempo real em todas as vezes.
+     */
+    registrarPublicadorImediato(async () => {
+        await publicarPendentes(entregadorParaSalas(env))
     })
 
     registrado = true

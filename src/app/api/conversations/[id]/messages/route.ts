@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
-import { avisarMensagemNova } from '@/lib/outbox/avisar'
+import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -197,6 +197,8 @@ export async function POST(
 
             return { message: criada }
         })
+
+        publicarAgora()
 
         /**
          * Para onde a resposta do atendente vai, pelo canal do fio.
