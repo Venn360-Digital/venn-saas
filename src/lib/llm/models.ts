@@ -72,7 +72,23 @@ export interface TtsModelInfo {
 }
 
 export const TTS_MODELS: TtsModelInfo[] = [
-    { id: 'gpt-4o-mini-tts', usdPerMillionChars: 3.0, acceptsInstructions: true },
+    /**
+     * **18, e não 3.** O 3 vinha de uma leitura errada da tabela da OpenAI.
+     *
+     * Eles cobram este modelo por **token de áudio** — US$ 12 por 1M de tokens
+     * de saída, ou ~US$ 0,015 por minuto falado —, e nenhum dos dois é
+     * caractere. A conversão é pela cadência: português corrido sai a cerca de
+     * 825 caracteres por minuto, então 1M de caracteres são ~1.212 minutos e
+     * ~US$ 18. Conferido contra a página de preços em 2026-10-20.
+     *
+     * O erro ficava invisível porque **este número não cobra ninguém**: o
+     * cliente paga 1 crédito por resposta entregue, falada ou escrita, e o
+     * dólar daqui só alimenta `usage_logs.costUsd`. Ele existe para a margem
+     * ser legível na hora de dimensionar plano — e, subestimado em seis vezes,
+     * era exatamente ali que mentia.
+     */
+    { id: 'gpt-4o-mini-tts', usdPerMillionChars: 18.0, acceptsInstructions: true },
+    /** Este a OpenAI cobra por caractere mesmo: US$ 15/1M, exato. */
     { id: 'tts-1', usdPerMillionChars: 15.0, acceptsInstructions: false },
 ]
 

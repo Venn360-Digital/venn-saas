@@ -129,10 +129,20 @@ export async function trackUsage(
  * O nosso custo real não se perde: continua em `usage_logs`, em dólar, por
  * chamada — que é onde margem se olha, não na carteira do cliente.
  *
- * **Áudio conta 2.** Resposta falada custa cerca de 34x uma escrita
- * (R$ 0,024 contra R$ 0,0007 nas medições de 2026-10-15). Cobrar 34 seria
- * absurdo comercialmente e cobrar 1 deixaria a margem exposta numa clínica que
- * adote áudio em tudo; 2 é legível e segura o custo.
+ * **Áudio conta 1, como tudo o mais — e o que o segura é o teto.**
+ *
+ * Este comentário já dizia "áudio conta 2", e o código nunca cobrou 2: a
+ * chamada em `ai-reply` sempre passou 1, mudando só o rótulo do log. Corrigido
+ * em 2026-10-20, a favor do código — a decisão que valeu está escrita no ponto
+ * do débito: com crédito abstrato, peso variável deixa a carteira
+ * imprevisível para quem olha a tela, e quem limita a fala é
+ * `maxSpokenReplies` (400 / 750 / 1.500 por plano).
+ *
+ * O risco que o peso cobriria continua real e vale medir de novo se a conta
+ * mudar: uma resposta falada custa a nós cerca de **34x** uma escrita
+ * (R$ 0,024 contra R$ 0,0007 nas medições de 2026-10-15; o custo da fala foi
+ * revisto para cima em 2026-10-20, ver `TTS_MODELS`). É o teto que impede que
+ * uma clínica com áudio em tudo coma a margem — não o preço do crédito.
  */
 export async function spendAiCredits(
     workspaceId: string,
