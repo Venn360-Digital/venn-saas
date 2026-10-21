@@ -24,6 +24,7 @@
     "check:storage": "tsx --conditions=react-server scripts/check-storage.ts",
     "check:auth": "tsx --conditions=react-server scripts/check-auth.ts",
     "migrar:usuarios": "tsx --conditions=react-server scripts/migrar-usuarios.ts",
+    "check:trabalhos": "tsx --conditions=react-server scripts/check-trabalhos.ts",
     "check:canal": "tsx --conditions=react-server scripts/check-canal.ts",
     "check:filas": "tsx --conditions=react-server scripts/check-filas.ts",
     "check:tempo-real": "tsx --conditions=react-server scripts/check-tempo-real.ts",

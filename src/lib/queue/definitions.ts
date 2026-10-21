@@ -239,3 +239,21 @@ export const DEFAULT_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
         backoff: { type: 'fixed', delay: 30_000 },
     },
 }
+
+/**
+ * Quantas entregas cada fila permite, contando a primeira.
+ *
+ * **Uma fonte, dois consumidores.** O `cloudflare.config.ts` precisa do número
+ * de *repetições* (`maxRetries`, que é isto menos um) e o consumidor precisa do
+ * total, para saber se está na última tentativa — é o que decide se o
+ * `whatsapp-outbound` marca a mensagem como falha no banco ou apenas deixa a
+ * retentativa acontecer.
+ *
+ * Escrito à mão nos dois lugares, isto se separa calado: o consumidor acharia
+ * que ainda há tentativa pela frente quando a plataforma já mandou a mensagem
+ * para a DLQ, e a mensagem ficaria "enviando" para sempre na tela do atendente.
+ * Derivado de `DEFAULT_JOB_OPTIONS`, não há como divergir.
+ */
+export const TENTATIVAS: Record<QueueName, number> = Object.fromEntries(
+    ALL_QUEUES.map((fila) => [fila, DEFAULT_JOB_OPTIONS[fila].attempts ?? 1])
+) as Record<QueueName, number>

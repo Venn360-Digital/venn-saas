@@ -99,6 +99,15 @@ export interface EventoDaSala {
     id: string
     tipo: string
     payload: unknown
+    /**
+     * Entregar só às conexões desta pessoa. Ausente = toda a sala.
+     *
+     * A sala é por workspace, então sem este campo todo evento alcança todas as
+     * abas da clínica. Para mensagem nova isso está certo — quem pode abrir a
+     * conversa pode saber que ela mudou. Para lembrete de atividade está errado:
+     * a atividade pertence a quem a tem.
+     */
+    paraUsuario?: string
 }
 
 export type Recuperacao =

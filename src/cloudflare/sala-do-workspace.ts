@@ -73,12 +73,15 @@ export class SalaDoWorkspace implements DurableObject {
             }
 
             this.historico = acrescentarAoHistorico(this.historico, evento)
-            const entregues = this.transmitir({
-                t: 'evt',
-                id: evento.id,
-                tipo: evento.tipo,
-                payload: evento.payload,
-            })
+            const entregues = this.transmitir(
+                {
+                    t: 'evt',
+                    id: evento.id,
+                    tipo: evento.tipo,
+                    payload: evento.payload,
+                },
+                evento.paraUsuario
+            )
 
             return Response.json({ ok: true, entregues })
         }
@@ -99,8 +102,21 @@ export class SalaDoWorkspace implements DurableObject {
             const par = new WebSocketPair()
             const [cliente, servidor] = Object.values(par)
 
-            // Hibernação: a plataforma assume o socket e nos acorda por mensagem.
-            this.state.acceptWebSocket(servidor)
+            /**
+             * Hibernação: a plataforma assume o socket e nos acorda por mensagem.
+             *
+             * A etiqueta é o id de quem conectou, e serve para endereçar evento
+             * a uma pessoa só (`paraUsuario`). É o mecanismo nativo, e é o único
+             * que **sobrevive à hibernação**: guardar o dono num `Map` em
+             * memória o perderia no primeiro período de ociosidade, e aí o
+             * lembrete de um atendente passaria a chegar a todos — uma falha de
+             * privacidade que apareceria horas depois do deploy, sem erro algum.
+             *
+             * `usuario` vem da rota do Worker que já resolveu a sessão; esta
+             * classe não tem como conferir, e não deveria.
+             */
+            const usuario = url.searchParams.get('usuario')
+            this.state.acceptWebSocket(servidor, usuario ? [usuario] : [])
 
             return new Response(null, { status: 101, webSocket: cliente })
         }
@@ -164,9 +180,17 @@ export class SalaDoWorkspace implements DurableObject {
         void ws
     }
 
-    /** Envia para todas as conexões. Devolve quantas receberam. */
-    private transmitir(mensagem: DoServidor): number {
-        const abertas = this.state.getWebSockets()
+    /**
+     * Envia para as conexões da sala. Devolve quantas receberam.
+     *
+     * Com `paraUsuario`, só para as conexões etiquetadas com aquele id —
+     * `getWebSockets(tag)` é filtro da própria plataforma, então a mensagem não
+     * chega nem a ser serializada para quem não deve recebê-la.
+     */
+    private transmitir(mensagem: DoServidor, paraUsuario?: string): number {
+        const abertas = paraUsuario
+            ? this.state.getWebSockets(paraUsuario)
+            : this.state.getWebSockets()
         let entregues = 0
 
         for (const ws of abertas) {

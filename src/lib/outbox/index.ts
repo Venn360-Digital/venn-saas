@@ -43,6 +43,13 @@ export type TipoDeEvento =
     | 'agente.status'
     /** Alguém está digitando. Efêmero: não vale repetir se chegar atrasado. */
     | 'digitando'
+    /**
+     * Lembrete de atividade, endereçado a **uma** pessoa.
+     *
+     * Efêmero e sempre com `paraUsuario`: atividade é do atendente que a tem, e
+     * mandá-la para a sala inteira mostraria a agenda de um para todos.
+     */
+    | 'lembrete'
 
 export interface EventoParaPublicar {
     workspaceId: string

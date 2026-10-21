@@ -4,10 +4,20 @@ import vinext from 'vinext/server/fetch-handler'
 
 import { ALL_QUEUES, QUEUE, type JobPayloads, type QueueName } from '@/lib/queue/definitions'
 import { consumirLote, exponencial, type Processador } from '@/lib/queue/consumidor'
+import { processWhatsAppInbound } from '@/trabalhos/processadores/whatsapp-inbound'
+import { processWhatsAppEvent } from '@/trabalhos/processadores/whatsapp-event'
+import { processWhatsAppOutbound } from '@/trabalhos/processadores/whatsapp-outbound'
+import { processAiReply } from '@/trabalhos/processadores/ai-reply'
+import { processRagIndex } from '@/trabalhos/processadores/rag-index'
+import { processAgentWebhook } from '@/trabalhos/processadores/agent-webhook'
+import { processAsaasEvent } from '@/trabalhos/processadores/asaas-event'
+import { processCron } from '@/trabalhos/processadores/cron'
+import { registrarCosturas, type EnvDasCosturas } from './costuras'
 import { aoSerAgendado } from './agendado'
 
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'
+export { TravaDeContato } from './trava-de-contato'
 
 /**
  * O ponto de entrada do Worker.
@@ -29,25 +39,26 @@ export { AgendaDaConversa } from './agenda-da-conversa'
 /**
  * Qual processador atende cada fila.
  *
- * `null` é **declaração de pendência**, não descuido: os processadores vivem em
- * `workers/src/processors/` e ainda não foram portados. Eles são o *trabalho* de
- * cada fila e mudam por motivo diferente da disciplina de consumo — que está
- * pronta e testada em `lib/queue/consumidor.ts`.
+ * Os oito vêm de `src/trabalhos/processadores/`, que é onde o *trabalho* mora —
+ * e mudou de lugar, não de conteúdo: o código é o mesmo que o processo
+ * `workers/` rodava, com quatro costuras trocadas (fila, registro, ambiente,
+ * trava). Essa separação é o que permitiu atravessar a migração sem reescrever
+ * a lógica de negócio.
  *
- * Fila sem processador **repete a mensagem e registra erro**, em vez de
- * confirmá-la. Confirmar seria descartar trabalho em silêncio; repetir a faz
- * acabar na DLQ depois das tentativas, onde é visível e recuperável. E nada
- * chega nelas antes do porte, porque nada no Worker as produz ainda.
+ * O tipo ainda admite `null` de propósito: uma fila nova entra aqui declarada e
+ * pendente, em vez de o `queue` quebrar em tempo de execução. Fila sem
+ * processador **repete a mensagem e registra erro**, nunca confirma — confirmar
+ * seria descartar trabalho em silêncio.
  */
 const PROCESSADORES: { [N in QueueName]: Processador<N> | null } = {
-    [QUEUE.WHATSAPP_INBOUND]: null,
-    [QUEUE.WHATSAPP_EVENT]: null,
-    [QUEUE.WHATSAPP_OUTBOUND]: null,
-    [QUEUE.AI_REPLY]: null,
-    [QUEUE.RAG_INDEX]: null,
-    [QUEUE.AGENT_WEBHOOK]: null,
-    [QUEUE.ASAAS_EVENT]: null,
-    [QUEUE.CRON]: null,
+    [QUEUE.WHATSAPP_INBOUND]: processWhatsAppInbound,
+    [QUEUE.WHATSAPP_EVENT]: processWhatsAppEvent,
+    [QUEUE.WHATSAPP_OUTBOUND]: processWhatsAppOutbound,
+    [QUEUE.AI_REPLY]: processAiReply,
+    [QUEUE.RAG_INDEX]: processRagIndex,
+    [QUEUE.AGENT_WEBHOOK]: processAgentWebhook,
+    [QUEUE.ASAAS_EVENT]: processAsaasEvent,
+    [QUEUE.CRON]: processCron,
 }
 
 /** De onde sai o id de dedup de cada fila. Ver `lib/queue/consumidor.ts`. */
@@ -60,6 +71,15 @@ const IDS_DE_DEDUP: Partial<{ [N in QueueName]: (p: JobPayloads[N]) => string | 
     [QUEUE.WHATSAPP_INBOUND]: (p) => p.inbound?.externalId,
     /** O id do evento do Asaas: nunca repetir operação financeira. */
     [QUEUE.ASAAS_EVENT]: (p) => p.eventRowId,
+    /**
+     * A linha da mensagem a enviar — um envio por mensagem.
+     *
+     * Isto era `jobId: send-<messageId>` no BullMQ, e era garantia de verdade:
+     * sem ela, um enfileiramento repetido manda **a mesma mensagem duas vezes
+     * ao paciente**. O Queues não deduplica no envio, então a garantia mudou de
+     * lugar e virou a tabela — e tem de estar aqui, senão sai calada.
+     */
+    [QUEUE.WHATSAPP_OUTBOUND]: (p) => p.messageId,
 }
 
 /** Onde insistir devagar faz diferença. O resto usa o `retry_delay` da fila. */
@@ -74,13 +94,17 @@ const POR_NOME_NA_CLOUDFLARE = new Map<string, QueueName>(
 )
 
 export default {
-    fetch(request: Request, env: unknown, ctx: ExecutionContext): Response | Promise<Response> {
+    fetch(request: Request, env: EnvDasCosturas, ctx: ExecutionContext): Response | Promise<Response> {
+        // Também no `fetch`: as rotas da aplicação enfileiram trabalho (webhook
+        // que chega, mensagem que o atendente envia), e sem as costuras
+        // registradas `enfileirar()` lançaria na primeira delas.
+        registrarCosturas(env)
         return vinext.fetch(request, env, ctx)
     },
 
-    async queue(lote: MessageBatch<unknown>, env: unknown, ctx: ExecutionContext): Promise<void> {
-        void env
+    async queue(lote: MessageBatch<unknown>, env: EnvDasCosturas, ctx: ExecutionContext): Promise<void> {
         void ctx
+        registrarCosturas(env)
 
         const fila = POR_NOME_NA_CLOUDFLARE.get(lote.queue)
 
@@ -133,9 +157,10 @@ export default {
 
     async scheduled(
         controller: ScheduledController,
-        env: Parameters<typeof aoSerAgendado>[1],
+        env: Parameters<typeof aoSerAgendado>[1] & EnvDasCosturas,
         ctx: ExecutionContext
     ): Promise<void> {
+        registrarCosturas(env)
         await aoSerAgendado(controller, env, ctx)
     },
 }

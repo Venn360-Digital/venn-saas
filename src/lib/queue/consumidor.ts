@@ -1,5 +1,5 @@
 import 'server-only'
-import type { JobPayloads, QueueName } from '@/lib/queue/definitions'
+import { TENTATIVAS, type JobPayloads, type QueueName } from '@/lib/queue/definitions'
 import { liberar, reservar } from '@/lib/queue/idempotencia'
 
 /**
@@ -56,8 +56,31 @@ export interface LoteDaFila<T> {
     readonly messages: readonly MensagemDaFila<T>[]
 }
 
+/**
+ * O pouco que o processador precisa saber sobre a entrega.
+ *
+ * Existe por um caso só, e concreto: o `whatsapp-outbound` marca a mensagem
+ * como falha no banco **na última tentativa**, para o atendente parar de ver
+ * "enviando". Sem saber que é a última, ou marca cedo (mensagem que ainda vai
+ * sair aparece como falha) ou nunca (mensagem morta na DLQ fica "enviando"
+ * para sempre).
+ *
+ * É deliberadamente isto e nada mais. Expor o objeto da mensagem deixaria o
+ * processador chamar `ack`/`retry` por conta própria, e a disciplina de consumo
+ * — a parte que este módulo existe para garantir — deixaria de valer.
+ */
+export interface ContextoDaEntrega {
+    /** Quantas vezes esta mensagem já foi entregue, contando esta. */
+    tentativa: number
+    /** Falhar agora manda para a DLQ: não há próxima. */
+    ultimaTentativa: boolean
+}
+
 /** O que um processador precisa fazer: o trabalho, e nada sobre o broker. */
-export type Processador<N extends QueueName> = (payload: JobPayloads[N]) => Promise<void>
+export type Processador<N extends QueueName> = (
+    payload: JobPayloads[N],
+    contexto: ContextoDaEntrega
+) => Promise<void>
 
 /**
  * De onde sai o id de deduplicação de cada fila.
@@ -126,7 +149,10 @@ export async function consumirLote<N extends QueueName>(
         }
 
         try {
-            await consumo.processar(mensagem.body)
+            await consumo.processar(mensagem.body, {
+                tentativa: mensagem.attempts,
+                ultimaTentativa: mensagem.attempts >= TENTATIVAS[consumo.fila],
+            })
             mensagem.ack()
             r.confirmados++
         } catch (erro) {

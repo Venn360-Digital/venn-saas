@@ -2,7 +2,7 @@ import { bindings, defineConfig, defineWorker, exports, triggers } from 'cf/conf
 
 import * as entrypoint from './src/cloudflare/entrada.ts' with { type: 'cf-worker' }
 import { cronsParaWrangler } from './src/lib/cron/agenda'
-import { ALL_QUEUES } from './src/lib/queue/definitions'
+import { ALL_QUEUES, TENTATIVAS } from './src/lib/queue/definitions'
 
 /**
  * A configuração do Worker do OdontoBox360.
@@ -29,7 +29,8 @@ const naConta = (fila: string) => `odontobox-${fila}`
  * As políticas de consumo, derivadas de `DEFAULT_JOB_OPTIONS` do BullMQ.
  *
  * `maxRetries` é `attempts - 1`: no BullMQ o número conta a tentativa inicial,
- * aqui conta só as repetições. Copiar faria cada fila tentar uma vez mais.
+ * aqui conta só as repetições, e vem de `TENTATIVAS[fila] - 1` — não é escrito
+ * neste arquivo.
  *
  * `retryDelay` é **fixo** no Queues — não há backoff exponencial de
  * configuração. Onde o crescimento importa, o consumidor pede a retentativa com
@@ -37,7 +38,6 @@ const naConta = (fila: string) => `odontobox-${fila}`
  */
 const CONSUMO = {
     'whatsapp-inbound': {
-        maxRetries: 4,
         retryDelay: 2,
         // Lote pequeno: cada mensagem grava contato, conversa e mídia. Lote
         // grande arriscaria o teto de CPU por um ganho inexistente — o volume é
@@ -46,14 +46,12 @@ const CONSUMO = {
         maxBatchTimeout: 2,
     },
     'whatsapp-event': {
-        maxRetries: 2,
         retryDelay: 1,
         // Recibo de entrega e presença: baratos, e vale agrupar.
         maxBatchSize: 25,
         maxBatchTimeout: 5,
     },
     'whatsapp-outbound': {
-        maxRetries: 4,
         retryDelay: 3,
         // Uma por vez: enviar é chamada ao provedor, e um lote que falha no meio
         // deixa parte enviada — com a retentativa reenviando o que já saiu.
@@ -61,30 +59,26 @@ const CONSUMO = {
         maxBatchSize: 1,
     },
     'ai-reply': {
-        maxRetries: 2,
         retryDelay: 5,
         // Uma por vez: cada uma é uma chamada de LLM.
         maxBatchSize: 1,
     },
     'rag-index': {
-        maxRetries: 2,
         retryDelay: 5,
         maxBatchSize: 1,
         // Indexar é CPU e chamada de embedding; deixar escalar livre disputaria
         // banco com o atendimento, que é o que importa.
         maxConcurrency: 2,
     },
-    'agent-webhook': { maxRetries: 3, retryDelay: 10, maxBatchSize: 5 },
+    'agent-webhook': {  retryDelay: 10, maxBatchSize: 5 },
     'asaas-event': {
         // Sete repetições: o evento já está gravado em `asaas_events`, então
         // reprocessar é barato e idempotente — e o que está em jogo é ativar
         // plano e creditar compra.
-        maxRetries: 7,
         retryDelay: 5,
         maxBatchSize: 5,
     },
     cron: {
-        maxRetries: 1,
         retryDelay: 30,
         maxBatchSize: 1,
         // Uma rotina por vez: duas varreduras de retenção em paralelo
@@ -118,6 +112,7 @@ export default defineConfig({
         exports: {
             SalaDoWorkspace: exports.durableObject({ storage: 'sqlite' }),
             AgendaDaConversa: exports.durableObject({ storage: 'sqlite' }),
+            TravaDeContato: exports.durableObject({ storage: 'sqlite' }),
         },
 
         env: {
@@ -135,6 +130,19 @@ export default defineConfig({
             SALA_DO_WORKSPACE: bindings.durableObject({
                 worker: NOME,
                 exportName: 'SalaDoWorkspace',
+            }),
+            /**
+             * A trava do passo "contato → negócio → conversa".
+             *
+             * Um objeto por contato, via `idFromName(chave)`. Substitui o
+             * `SET NX PX` no Redis, e a substituição é mais forte que o
+             * original: o Redis precisava de comando atômico porque atende em
+             * paralelo, e um Durable Object atende **um pedido por vez** por
+             * chave. Objeto sem trava ativa não guarda nada.
+             */
+            TRAVA_DE_CONTATO: bindings.durableObject({
+                worker: NOME,
+                exportName: 'TravaDeContato',
             }),
             AGENDA_DA_CONVERSA: bindings.durableObject({
                 worker: NOME,
@@ -211,6 +219,11 @@ export default defineConfig({
                 triggers.queue({
                     name: naConta(fila),
                     deadLetterQueue: `${naConta(fila)}-dlq`,
+                    // Derivado, nunca escrito à mão: `maxRetries` conta só as
+                    // repetições, e o consumidor precisa do total para saber se
+                    // está na última tentativa. Dois números escritos à parte se
+                    // separariam calados — ver `TENTATIVAS` em `definitions.ts`.
+                    maxRetries: TENTATIVAS[fila] - 1,
                     ...CONSUMO[fila],
                 })
             ),

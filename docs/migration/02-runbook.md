@@ -148,6 +148,24 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put RESEND_API_KEY
 ```
 
+> **⚠️ Os ajustes do agente não são segredos, e por isso é fácil esquecê-los.**
+> O trabalho de fila lê nove variáveis (`src/trabalhos/ambiente.ts`), e **sete
+> têm padrão**. Se a VPS tiver qualquer uma delas com valor diferente, o Worker
+> sobe sem erro e usa o padrão — o comportamento do agente muda em silêncio.
+>
+> | Variável | Padrão | O que muda se divergir |
+> | --- | --- | --- |
+> | `AI_HISTORY_LIMIT` | 20 | quantas mensagens o modelo vê de contexto |
+> | `AI_RAG_CHUNKS` | 4 | trechos de conhecimento no prompt (0 desliga o RAG) |
+> | `AGENT_SPEECH_MAX_CHARS` | 900 | acima disso a resposta vai como texto, não voz |
+> | `INBOUND_DEBOUNCE_SECONDS` | 4 | espera antes de responder uma rajada |
+> | `RECURRENCE_HORIZON_DAYS` | 60 | até onde a recorrência materializa atividades |
+> | `RETENTION_DELETION_ENABLED` | ausente | a retenção **só apaga** com a string `"true"` |
+> | `EVOLUTION_GO_RECYCLE_AFTER_PAIR` | `false` | mantém desligado: medido não funcionar |
+>
+> Conferir os valores na VPS **antes** do corte e declarar os que divergirem em
+> `vars` no `cloudflare.config.ts`. Não são segredos: vão como texto, versionados.
+
 Onde ler os cinco de plataforma, por túnel SSH no Studio ou por `psql`:
 
 ```sql
