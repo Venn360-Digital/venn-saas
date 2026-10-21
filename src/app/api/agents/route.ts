@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import prisma from '@/lib/prisma'
 import { assinaturaDaUnidade } from '@/lib/account'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 import { findModel } from '@/lib/llm/models'
 import {
@@ -75,8 +75,7 @@ const createAgentSchema = z.object({
 
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return new NextResponse('Unauthorized', { status: 401 })
@@ -134,8 +133,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return new NextResponse('Unauthorized', { status: 401 })
@@ -164,7 +162,7 @@ export async function POST(request: NextRequest) {
                         data: {
                             id: user.id,
                             email: user.email || '',
-                            name: user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário',
+                            name: user.nome || user.email?.split('@')[0] || 'Usuário',
                         }
                     })
                 }

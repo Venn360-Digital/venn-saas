@@ -40,6 +40,18 @@ export interface UsuarioDaSessao {
      * seria uma consulta a mais para um dado que a sessão já carrega.
      */
     email: string
+
+    /**
+     * O nome que o provedor de identidade conhece, quando conhece.
+     *
+     * Opcional porque **é** opcional: cadastro por e-mail e senha pode não ter
+     * nome, e OAuth sem escopo de perfil também não. Serve para um caso só —
+     * semear `User.name` quando a linha do banco ainda não existe (ver
+     * `api/agents/route.ts`) — e para esse caso um palpite do e-mail já é a
+     * alternativa. Depois de criada, a fonte do nome é o banco, não a sessão:
+     * quem edita o perfil não edita o provedor.
+     */
+    nome?: string
 }
 
 /**
@@ -57,12 +69,17 @@ export async function usuarioDaSessao(): Promise<UsuarioDaSessao | null> {
 
     if (!user?.id) return null
 
+    // `user_metadata` é a caixa de atributos livres do Supabase; no Better Auth o
+    // equivalente é o campo `name` da tabela de usuários. A diferença fica aqui.
+    const nome = (user.user_metadata as { name?: unknown } | undefined)?.name
+
     return {
         id: user.id,
         // O provedor tipa `email` como opcional porque admite conta sem e-mail
         // (telefone, OAuth sem escopo de e-mail). Aqui toda conta tem, e cair
         // para string vazia é melhor que propagar `undefined` por 80 rotas.
         email: user.email ?? '',
+        nome: typeof nome === 'string' && nome.trim() ? nome.trim() : undefined,
     }
 }
 

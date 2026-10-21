@@ -27,7 +27,7 @@ function baseDaAplicacao(request: NextRequest): string {
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@/lib/account'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 
 /**
@@ -263,8 +263,7 @@ function resumoDaCesta(
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })

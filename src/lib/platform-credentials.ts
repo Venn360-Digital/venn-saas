@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { platformSecretName, readVaultSecret, writeVaultSecret } from '@/lib/vault'
 
 /**
@@ -291,8 +291,7 @@ export interface PlatformAdmin {
  * permission list is a second thing to keep in sync, and it drifts.
  */
 export async function getPlatformAdmin(): Promise<PlatformAdmin | null> {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await usuarioDaSessao()
     if (!user) return null
 
     const membership = await prisma.workspaceUser.findFirst({
