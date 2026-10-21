@@ -33,12 +33,14 @@ rodado.**
 | build vinext | **BLOCKED** | `workerd` não roda em macOS 12.7.6; só no CI |
 | autenticação | **PASS** | cadastro, login, redefinição, troca de senha e criação por administrador, provados em `check:auth` |
 | multi-tenant | **NOT RUN** | — |
-| storage | **NOT RUN** | — |
+| storage | **BLOQUEADO** | mídia de paciente é clínica, e clínico não tem provedor aprovado; as 3 chamadoras degradam |
 | webhooks | **NOT RUN** | — |
 | tempo real | **PARCIAL** | lógica provada em `check:tempo-real`; os Durable Objects só no CI (o `workerd` não roda nesta máquina) |
 | IA / bloqueio de PHI | **NOT RUN** | — |
 | POC Evolution Go | **PARCIAL** | publicada e medida em 2026-10-21; 3 de 7 critérios fechados, 4 barrados pela ativação da licença — ver [`11`](11-poc-evolution-go.md) |
 | `check:canal` | **PASS** | 27 provas — janela do reinício, recusa de hibernar, vigia |
+| `check:trabalhos` | **PASS** | 60 provas — as costuras das filas, quem lança e quem não lança |
+| processadores de fila | **PASS** | os 8 ligados; 13 crons atrás do despacho |
 | backup / restore | **NOT RUN** | — |
 
 ## Pendências que nasceram desta fase
@@ -52,6 +54,8 @@ rodado.**
 | 5 | Branch protegida no Neon exige plano superior (`HTTP 422`) | baixa |
 | 6 | **A licença do Evolution Go precisa de ativação humana, e entra no caminho crítico do corte.** Contêiner novo responde 503 `LICENSE_REQUIRED` e nenhum QR nasce. A licença é gratuita; o ato não é automatizável (painel web). Caminho pronto: `/manager` sai pelo Worker, sem o túnel SSH que a VPS exigia | **alta** |
 | 7 | **O Evolution Go no pooler do Neon não está provado.** `/server/ok` fica verde sem banco — é o próprio sintoma de produção —, e a licença barrou antes de a migração de esquema rodar. Se o pooler não servir, o endpoint direto traz de volta o vazamento de conexões, com teto **mais baixo** que o dos 100 da VPS | **média** |
+| 9 | **Storage clínico fecha o porte das filas.** Mídia que o paciente manda, nota de voz do agente e foto de perfil são clínicas, e clínico sai por URL assinada de validade curta que **não se persiste** — a coluna de hoje guarda URL. Falta aprovar o provedor **e** trocar a coluna por referência (`provedor`/`bucket`/`chave`), com o endereço assinado na leitura | **alta** |
+| 10 | **Os ajustes do agente não são segredos e podem divergir em silêncio.** Sete das nove variáveis de `src/trabalhos/ambiente.ts` têm padrão: se a VPS tiver valor diferente, o Worker sobe sem erro e usa o padrão. Conferir antes do corte — ver o aviso em `02-runbook.md` A.5 | **média** |
 | 8 | O batimento da licença manda o **IP do servidor**, e em Containers ele muda a cada subida. O tier comunidade declara não ter limite de instância, mas isso é dependência de terceiro que não se afirma lendo documentação | baixa |
 
 ## Riscos abertos
@@ -93,6 +97,10 @@ que é um ato humano no caminho crítico.
       runbook. **Sem isso o WhatsApp de toda clínica cai depois do DNS**
 - [ ] VPS, volumes, dumps e credenciais **íntegros** e não removidos
 - [ ] crons convertidos para UTC e conferidos
+- [x] os 8 processadores de fila ligados, e os 13 crons com despacho
+- [ ] provedor de storage clínico aprovado **e** a coluna de URL trocada por
+      referência — é o que falta para o porte das filas estar completo
+- [ ] os sete ajustes com padrão conferidos contra a VPS (`02-runbook.md` A.5)
 - [ ] webhooks da Meta, Asaas e Evolution com as URLs novas anotadas
 - [ ] `main` protegida, PR obrigatório, produção com aprovação humana
 - [ ] nenhum segredo em commit, log ou artefato de CI
