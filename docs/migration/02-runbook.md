@@ -148,28 +148,113 @@ destino, objeto por objeto.
 
 ### A.5 Secrets
 
+São **17 segredos distintos**, declarados como `bindings.secret()` em
+`cloudflare.config.ts`. O Worker é `odontobox` — sempre com `--name`, porque o
+`wrangler.jsonc` da raiz não existe (o deploy sai pelo `cf`, não pelo wrangler).
+
+#### Por que a ORDEM importa
+
+`bindings.secret()` significa "herde o valor da versão anterior do Worker".
+Num Worker sem versão o deploy falha com:
+
+```
+[10057] cannot inherit bindings: no previous version exists
+```
+
+E a saída é boa: **`wrangler secret put` cria a primeira versão**. Então a ordem
+é segredos → migrations → deploy, nunca deploy primeiro.
+
+#### De onde vem cada valor
+
+| Grupo | Segredo | Onde buscar |
+| --- | --- | --- |
+| **Já na máquina** | `EVOLUTION_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_CLIENT_SECRET` | `.env` / `.env.local` locais |
+| **Na VPS** | `RESEND_API_KEY`, `EVOLUTION_GO_API_KEY`, `PLATFORM_ASAAS_CLIENT_ID`, `PLATFORM_ASAAS_CLIENT_SECRET`, `PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET`, `PLATFORM_META_MESSAGING_CLIENT_SECRET`, `PLATFORM_META_MESSAGING_VERIFY_TOKEN` | `/opt/app/compose/.env` ou `/opt/app/odontobox360/.env` |
+| **Gerar novo** | `BETTER_AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY` | comando abaixo |
+| **Criar na Cloudflare** | `PUBLIC_STORAGE_*` e `PRIVATE_STORAGE_*` (4) | R2 → Manage API tokens |
+| **Do Neon** | `DATABASE_URL` | branch **`production`**, não `staging` |
+
+**Recuperar os da VPS** (leitura, nomes e valores só no seu terminal):
+
 ```bash
-# [LOCAL] gerar a chave do cofre (32 bytes, base64)
+ssh root@157.254.207.42 "grep -E '^(RESEND_API_KEY|EVOLUTION_GO_API_KEY|PLATFORM_)' /opt/app/compose/.env /opt/app/odontobox360/.env 2>/dev/null"
+```
+
+**Gerar os dois novos:**
+
+```bash
+# a chave do cofre (32 bytes, base64)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# o segredo que assina a sessão do Better Auth
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-⚠️ Publicar no Worker, um por vez. **Os valores os lê o André**, no Studio por
-túnel SSH; nenhum passa por log, commit ou transcrição de sessão:
+> `TOKEN_ENCRYPTION_KEY` **pode ser nova com segurança hoje**, e isso foi
+> medido em 2026-10-21: `app_secrets` tem 0 linhas em `staging` e o branch
+> `production` não tem esquema. Não há nada cifrado para perder.
+>
+> **Deixa de ser verdade no momento em que a primeira credencial for gravada
+> pela tela.** A partir daí, gerar chave nova torna o cofre ilegível **sem dar
+> erro** — o decifrar falha item por item. E no corte, as linhas cifradas do
+> cofre da VPS não atravessam: elas usam a chave de lá. Ou re-cifrar na
+> migração, ou o cliente redigita as credenciais de integração.
+
+> `BETTER_AUTH_SECRET` nova é inofensiva: ela só assina sessão, e a decisão 5
+> já diz que sessão não é preservada no corte.
+
+**Os quatro do R2** saem de um par (Access Key ID + Secret Access Key) em
+*R2 → Manage API tokens*. **Dois tokens, não um**: a decisão 10 manda o
+isolamento estar na credencial, e aqui vale mais — vazar a chave do bucket
+público não pode alcançar arquivo clínico.
+
+| Token | Permissão | Alimenta |
+| --- | --- | --- |
+| público | Object Read & Write em `odontobox-public` | `PUBLIC_STORAGE_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` |
+| privado | Object Read & Write em `odontobox-private` | `PRIVATE_STORAGE_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` |
+
+#### Publicar, um por vez
+
+⚠️ **Os valores os lê o André.** O `wrangler secret put` pede o valor com
+entrada oculta: nenhum passa por log, commit, argumento de linha de comando
+(que apareceria em `ps`) ou transcrição de sessão.
 
 ```bash
-npx wrangler secret put TOKEN_ENCRYPTION_KEY
-npx wrangler secret put PLATFORM_ASAAS_CLIENT_ID
-npx wrangler secret put PLATFORM_ASAAS_CLIENT_SECRET
-npx wrangler secret put PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET
-npx wrangler secret put PLATFORM_META_MESSAGING_CLIENT_SECRET
-npx wrangler secret put PLATFORM_META_MESSAGING_VERIFY_TOKEN
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put EVOLUTION_GO_API_KEY
-npx wrangler secret put EVOLUTION_API_KEY
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put DATABASE_URL --name odontobox
+npx wrangler secret put TOKEN_ENCRYPTION_KEY --name odontobox
+npx wrangler secret put BETTER_AUTH_SECRET --name odontobox
+npx wrangler secret put OPENAI_API_KEY --name odontobox
+npx wrangler secret put RESEND_API_KEY --name odontobox
+npx wrangler secret put GOOGLE_CLIENT_SECRET --name odontobox
+npx wrangler secret put EVOLUTION_API_KEY --name odontobox
+npx wrangler secret put EVOLUTION_GO_API_KEY --name odontobox
+npx wrangler secret put PLATFORM_ASAAS_CLIENT_ID --name odontobox
+npx wrangler secret put PLATFORM_ASAAS_CLIENT_SECRET --name odontobox
+npx wrangler secret put PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET --name odontobox
+npx wrangler secret put PLATFORM_META_MESSAGING_CLIENT_SECRET --name odontobox
+npx wrangler secret put PLATFORM_META_MESSAGING_VERIFY_TOKEN --name odontobox
+npx wrangler secret put PUBLIC_STORAGE_ACCESS_KEY_ID --name odontobox
+npx wrangler secret put PUBLIC_STORAGE_SECRET_ACCESS_KEY --name odontobox
+npx wrangler secret put PRIVATE_STORAGE_ACCESS_KEY_ID --name odontobox
+npx wrangler secret put PRIVATE_STORAGE_SECRET_ACCESS_KEY --name odontobox
 ```
+
+Conferir a contagem ao fim — tem de dar 17, e nomes só:
+
+```bash
+npx wrangler secret list --name odontobox
+```
+
+#### Depois dos segredos, e antes de o app servir
+
+O branch `production` do Neon **não tem esquema** (medido 2026-10-21: 0
+tabelas; as 48 migrations foram aplicadas só em `staging`). Então:
+
+1. `DATABASE_URL_DIRECT` como segredo **do repositório** no GitHub, apontando
+   para o endpoint direto do branch `production`;
+2. rodar `migrate.yml` por `workflow_dispatch`, ambiente `production`,
+   escrevendo `APLICAR` para confirmar;
+3. só então o deploy produz um app que responde — antes disso ele sobe e falha
+   em toda consulta.
 
 > **⚠️ Os ajustes do agente não são segredos, e por isso é fácil esquecê-los.**
 > O trabalho de fila lê nove variáveis (`src/trabalhos/ambiente.ts`), e **sete
