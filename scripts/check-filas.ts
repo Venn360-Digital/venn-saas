@@ -12,6 +12,7 @@
  *
  *     DATABASE_URL='<homologação>' npm run check:filas
  */
+import { readFileSync } from 'node:fs'
 import prisma from '@/lib/prisma'
 import {
     gravarEvento,
@@ -75,6 +76,37 @@ async function main() {
     }
 
     ok('nenhum trigger repetido na configuração', cronsParaWrangler().length === new Set(cronsParaWrangler()).size)
+
+    /**
+     * A guarda contra divergência.
+     *
+     * O `wrangler.jsonc` carrega os padrões em UTC, e eles são **gerados** por
+     * `cronsParaWrangler()` a partir da intenção em BRT. Nada impede alguém de
+     * editar o arquivo à mão — e a divergência resultante não daria erro: os
+     * crons do arquivo é que valem, e a tabela do código passaria a ser ficção.
+     *
+     * Então o teste compara os dois. É o único jeito de a geração significar
+     * algo depois do commit que a escreveu.
+     */
+    const wrangler = readFileSync('wrangler.jsonc', 'utf8')
+        .replace(/^\s*\/\/.*$/gm, '')
+        .replace(/,(\s*[}\]])/g, '$1')
+    const cronsNoArquivo: string[] = JSON.parse(wrangler).triggers.crons
+    const cronsNoCodigo = cronsParaWrangler()
+
+    ok(
+        'o wrangler.jsonc tem os mesmos crons que a agenda gera',
+        JSON.stringify([...cronsNoArquivo].sort()) === JSON.stringify([...cronsNoCodigo].sort()),
+        `arquivo: ${cronsNoArquivo.length}, código: ${cronsNoCodigo.length}`
+    )
+    ok(
+        'e nenhum deles ficou em horário de Brasília por engano',
+        !cronsNoArquivo.includes('13 3 * * *') &&
+            !cronsNoArquivo.includes('0 7 * * *') &&
+            !cronsNoArquivo.includes('41 4 * * *') &&
+            !cronsNoArquivo.includes('27 5 * * *') &&
+            !cronsNoArquivo.includes('47 5 * * *')
+    )
     ok('o despacho encontra a rotina pelo padrão', rotinasDoDisparo('0 10 * * *').includes('follow-up'))
     ok('padrão desconhecido não despacha nada', rotinasDoDisparo('59 23 * * *').length === 0)
 

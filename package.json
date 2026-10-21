@@ -24,7 +24,9 @@
     "check:storage": "tsx --conditions=react-server scripts/check-storage.ts",
     "check:auth": "tsx --conditions=react-server scripts/check-auth.ts",
     "migrar:usuarios": "tsx --conditions=react-server scripts/migrar-usuarios.ts",
-    "check:filas": "tsx --conditions=react-server scripts/check-filas.ts"
+    "check:filas": "tsx --conditions=react-server scripts/check-filas.ts",
+    "check:tempo-real": "tsx --conditions=react-server scripts/check-tempo-real.ts",
+    "typecheck:cloudflare": "tsc --noEmit -p tsconfig.cloudflare.json"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",
@@ -72,6 +74,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "4.20251014.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

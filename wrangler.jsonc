@@ -1,0 +1,256 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  // ==========================================================================
+  // OdontoBox360 — configuração do Worker
+  // ==========================================================================
+  //
+  // NÃO ESTÁ PRONTA PARA PUBLICAR. O que falta está marcado com PENDENTE, e
+  // nada aqui foi provisionado na conta ainda — exceto os buckets R2, que
+  // existem.
+  //
+  // E não pode ser verificada nesta máquina: o `workerd` exige macOS 13.5+ e o
+  // Mac de desenvolvimento está em 12.7.6, então `wrangler dev` e qualquer
+  // validação que instancie Miniflare falham ao carregar a configuração, antes
+  // de compilar. A primeira verificação real deste arquivo é no CI.
+  // Ver `docs/migration/00-open-decisions.md` §1.
+
+  "name": "odontobox360",
+
+  // PENDENTE: o entrypoint é gerado pelo vinext, e o vinext ainda não foi
+  // instalado (etapa 7 do plano). Não inventar o caminho: `vinext init` diz
+  // qual é, e escrever um palpite aqui daria um erro de deploy confuso em vez
+  // de um erro claro de configuração ausente.
+  // "main": "<definido pelo vinext>",
+
+  "compatibility_date": "2026-10-21",
+
+  // Necessário pelo driver do banco e pelos poucos usos de `node:crypto` e
+  // `node:path` que o inventário encontrou.
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": { "enabled": true },
+
+  // ==========================================================================
+  // Durable Objects
+  // ==========================================================================
+  //
+  // Duas classes, e as duas são fronteira de isolamento por topologia — não por
+  // filtro. `SalaDoWorkspace` é por workspace: ninguém recebe evento de outra
+  // clínica porque não está no mesmo objeto. Depois da remoção do RLS
+  // (`01-compatibility.md` §13) isso pesa mais do que pesaria antes.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SALA_DO_WORKSPACE",
+        "class_name": "SalaDoWorkspace"
+      },
+      {
+        "name": "AGENDA_DA_CONVERSA",
+        "class_name": "AgendaDaConversa"
+      }
+    ]
+  },
+
+  // `new_sqlite_classes` e não `new_classes`: o backend SQLite é o recomendado
+  // para classes novas e é o único que suporta o armazenamento por objeto sem
+  // custo de chave-valor. As classes não guardam volume — a sala mantém o
+  // histórico em memória de propósito, e a agenda guarda três chaves.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["SalaDoWorkspace", "AgendaDaConversa"]
+    }
+  ],
+
+  // ==========================================================================
+  // Filas
+  // ==========================================================================
+  //
+  // Oito filas, não uma com discriminador. Dois motivos, os dois reais:
+  //
+  //   1. as políticas de retentativa divergem de propósito — `asaas-event`
+  //      insiste 8 vezes porque desistir deixa cliente pagando e sem acesso,
+  //      enquanto `whatsapp-event` tenta 3 porque é recibo de entrega e o
+  //      próximo evento corrige. Uma fila só obrigaria a política mais paciente
+  //      a valer para tudo;
+  //   2. bloqueio de cabeça de fila: uma indexação de RAG de documento grande
+  //      atrás de uma mensagem de WhatsApp atrasaria o atendimento.
+  //
+  // `max_retries` é `attempts - 1` do BullMQ: lá o número conta a tentativa
+  // inicial, aqui conta só as repetições. Copiar o número faria cada fila
+  // tentar uma vez mais do que hoje.
+  //
+  // `retry_delay` é FIXO no Queues — não há backoff exponencial de
+  // configuração. Os valores abaixo são o primeiro atraso do BullMQ; onde o
+  // crescimento importa, o consumidor pede a retentativa com o atraso que
+  // quiser (`message.retry({ delaySeconds })`).
+  //
+  // PENDENTE: nenhuma destas filas existe na conta. Criar com
+  // `wrangler queues create <nome>`. As DLQ são criadas sozinhas no deploy.
+  "queues": {
+    "producers": [
+      { "binding": "WHATSAPP_INBOUND", "queue": "odontobox-whatsapp-inbound" },
+      { "binding": "WHATSAPP_EVENT", "queue": "odontobox-whatsapp-event" },
+      { "binding": "WHATSAPP_OUTBOUND", "queue": "odontobox-whatsapp-outbound" },
+      { "binding": "AI_REPLY", "queue": "odontobox-ai-reply" },
+      { "binding": "RAG_INDEX", "queue": "odontobox-rag-index" },
+      { "binding": "AGENT_WEBHOOK", "queue": "odontobox-agent-webhook" },
+      { "binding": "ASAAS_EVENT", "queue": "odontobox-asaas-event" },
+      { "binding": "CRON", "queue": "odontobox-cron" }
+    ],
+    "consumers": [
+      {
+        "queue": "odontobox-whatsapp-inbound",
+        "max_retries": 4,
+        "retry_delay": 2,
+        // Lote pequeno: cada mensagem recebida grava contato, conversa e mídia.
+        // Lote grande arriscaria o teto de CPU do consumidor por um ganho que
+        // não existe — o volume é de mensagens de clínica, não de telemetria.
+        "max_batch_size": 5,
+        "max_batch_timeout": 2,
+        "dead_letter_queue": "odontobox-whatsapp-inbound-dlq"
+      },
+      {
+        "queue": "odontobox-whatsapp-event",
+        "max_retries": 2,
+        "retry_delay": 1,
+        // Recibo de entrega e presença: baratos, e vale agrupar.
+        "max_batch_size": 25,
+        "max_batch_timeout": 5,
+        "dead_letter_queue": "odontobox-whatsapp-event-dlq"
+      },
+      {
+        "queue": "odontobox-whatsapp-outbound",
+        "max_retries": 4,
+        "retry_delay": 3,
+        // Um por vez: enviar é chamada ao provedor, e um lote que falha no meio
+        // deixa parte enviada e parte não — com retentativa reenviando o que já
+        // saiu. Mensagem repetida para o paciente é pior que lentidão.
+        "max_batch_size": 1,
+        "dead_letter_queue": "odontobox-whatsapp-outbound-dlq"
+      },
+      {
+        "queue": "odontobox-ai-reply",
+        "max_retries": 2,
+        "retry_delay": 5,
+        // Um por vez: cada um é uma chamada de LLM, com o CPU e o custo que
+        // isso implica.
+        "max_batch_size": 1,
+        "dead_letter_queue": "odontobox-ai-reply-dlq"
+      },
+      {
+        "queue": "odontobox-rag-index",
+        "max_retries": 2,
+        "retry_delay": 5,
+        "max_batch_size": 1,
+        // Concorrência limitada: indexar é CPU e chamada de embedding, e deixar
+        // escalar livre disputaria banco com o atendimento, que é o que importa.
+        "max_concurrency": 2,
+        "dead_letter_queue": "odontobox-rag-index-dlq"
+      },
+      {
+        "queue": "odontobox-agent-webhook",
+        "max_retries": 3,
+        "retry_delay": 10,
+        "max_batch_size": 5,
+        "dead_letter_queue": "odontobox-agent-webhook-dlq"
+      },
+      {
+        "queue": "odontobox-asaas-event",
+        // Sete repetições: o evento já está gravado em `asaas_events`, então
+        // reprocessar é barato e idempotente — e o que está em jogo é ativar
+        // plano e creditar compra.
+        "max_retries": 7,
+        "retry_delay": 5,
+        "max_batch_size": 5,
+        "dead_letter_queue": "odontobox-asaas-event-dlq"
+      },
+      {
+        "queue": "odontobox-cron",
+        "max_retries": 1,
+        "retry_delay": 30,
+        "max_batch_size": 1,
+        // Uma rotina por vez. Duas varreduras de retenção em paralelo
+        // disputariam as mesmas linhas.
+        "max_concurrency": 1,
+        "dead_letter_queue": "odontobox-cron-dlq"
+      }
+    ]
+  },
+
+  // ==========================================================================
+  // Cron Triggers
+  // ==========================================================================
+  //
+  // EM UTC. Os horários do produto são de Brasília, e Cron Triggers não aceitam
+  // fuso — copiar os padrões do `scheduler.ts` faria o boletim das 7 h disparar
+  // às 4 h da manhã.
+  //
+  // Esta lista é GERADA por `cronsParaWrangler()` em `src/lib/cron/agenda.ts`, a
+  // partir da intenção declarada em BRT. Não edite à mão: `npm run check:filas`
+  // compara as duas e reprova se divergirem.
+  //
+  // Limite da conta: 250 no Workers Paid. Treze cabem com folga.
+  "triggers": {
+    "crons": [
+      "* * * * *",
+      "*/10 * * * *",
+      "0 10 * * *",
+      "13 6 * * *",
+      "17 * * * *",
+      "2 * * * *",
+      "21 * * * *",
+      "27 8 * * *",
+      "35 * * * *",
+      "41 7 * * *",
+      "47 8 * * *",
+      "48 * * * *",
+      "7 * * * *"
+    ]
+  },
+
+  // ==========================================================================
+  // R2 — somente conteúdo público
+  // ==========================================================================
+  //
+  // Os dois buckets existem (criados em 2026-10-21) e nasceram em `ENAM`, leste
+  // da América do Norte — é a prova concreta de que nada clínico pode ir para
+  // cá. O adaptador roteia pela classe do dado e **recusa** gravar classe
+  // clínica enquanto o provedor brasileiro não for aprovado.
+  //
+  // O binding fica declarado mas o adaptador NÃO o usa: ele fala S3, para que a
+  // mesma implementação sirva ao R2 e à Magalu. Ver
+  // `src/lib/storage/s3.ts` para o porquê.
+  "r2_buckets": [
+    {
+      "binding": "PUBLICO",
+      "bucket_name": "venn-odontobox360-publico-prod",
+      "preview_bucket_name": "venn-odontobox360-publico-stg"
+    }
+  ],
+
+  // ==========================================================================
+  // Variáveis
+  // ==========================================================================
+  //
+  // Só o que NÃO é segredo. Os segredos vão por `wrangler secret put` e estão
+  // listados em `docs/migration/02-runbook.md` §A.5 — nenhum deles aparece aqui
+  // nem no repositório.
+  "vars": {
+    "TZ": "America/Sao_Paulo",
+    "LOG_LEVEL": "info"
+  }
+
+  // PENDENTE, e cada um precisa de decisão ou provisionamento:
+  //
+  //   - `hyperdrive`: só depois de medir. O adaptador do Neon fala por
+  //     HTTP/WebSocket e o banco está em São Paulo; o ganho do Hyperdrive é
+  //     cache de conexão, e sem medição seria recurso pago por reflexo.
+  //   - `ai`: o AI Gateway é configurado por URL base, não por binding — mas o
+  //     gateway em si precisa ser criado na conta.
+  //   - `containers`: o Evolution Go, sujeito à POC. Se ela falhar no item
+  //     "sobrevive a período sem tráfego", ele não vem para cá.
+  //   - `send_email`: o Cloudflare Email Service, que fica para depois do
+  //     primeiro corte — o Resend segue atendendo.
+}
