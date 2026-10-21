@@ -4,16 +4,18 @@
 generator client {
   provider = "prisma-client-js"
 
-  // `driverAdapters` é o que permite o Prisma falar com o Postgres por um driver
-  // de JavaScript em vez do engine nativo — condição para rodar em Cloudflare
-  // Workers, que não carrega binário. Ver `src/lib/prisma.ts`.
+  // Os driver adapters — o que permite o Prisma falar com o Postgres por um
+  // driver de JavaScript em vez do engine nativo, condição para rodar em
+  // Cloudflare Workers, que não carrega binário — já são GA no 6.19.3 e saíram
+  // desta lista: declará-los aqui só imprime aviso de recurso obsoleto. Ver
+  // `src/lib/prisma.ts`.
   //
   // Ficamos no Prisma 6 de propósito: o 7 é melhor para Workers (sem engine
   // Rust, bundle menor), mas é **ESM only**, e o processo `workers/` compila em
   // CJS e precisa seguir de pé até as Queues e os Cron Triggers assumirem as 8
   // filas e os 14 crons. O 7 entra depois disso. Ver
   // `docs/migration/01-compatibility.md` §2.
-  previewFeatures = ["postgresqlExtensions", "driverAdapters"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
@@ -30,6 +32,14 @@ model User {
   termsAcceptances TermsAcceptance[]
   id               String            @id @default(cuid())
   email            String            @unique
+  /// Se o e-mail foi confirmado. Exigido pelo Better Auth.
+  ///
+  /// `false` por omissão, e a confirmação **não** é exigida para entrar no
+  /// primeiro corte: o cadastro está aberto de propósito desde 2026-10-07 para
+  /// homologação, e somar um fluxo de e-mail ao corte que já troca banco, cofre,
+  /// storage e identidade seria concentrar risco. Entra junto com o portão de
+  /// cadastro, antes do lançamento.
+  emailVerified    Boolean           @default(false)
   name             String?
   lastName         String? // Sobrenome
   phone            String? // WhatsApp
@@ -53,6 +63,14 @@ model User {
   activities  Activity[]
   deals       Deal[]
   specialists Specialist[]
+
+  /// Sessões e credenciais do Better Auth.
+  ///
+  /// `authAccounts` e não `accounts` porque `accounts` já é das contas de
+  /// cobrança — a colisão é o motivo de os modelos da biblioteca levarem
+  /// prefixo. Ver `src/lib/auth/better-auth.ts`.
+  authSessions AuthSession[]
+  authAccounts AuthAccount[]
 
   @@map("users")
 }
@@ -1859,4 +1877,88 @@ model AppSecret {
   updatedAt   DateTime @updatedAt
 
   @@map("app_secrets")
+}
+
+// ============================================
+// BETTER AUTH — os três modelos da biblioteca
+// ============================================
+//
+// Substituem o `auth.users`, `auth.sessions` e `auth.identities` do Supabase,
+// que viviam num schema próprio fora do alcance do Prisma. Agora são tabelas
+// comuns no mesmo banco — o que permite ao Worker resolver a sessão sem ida à
+// rede, e juntar usuário com `WorkspaceUser` numa consulta só.
+//
+// Os três levam prefixo `Auth` porque `Account` já existe neste schema e é a
+// conta que assina, com `name` obrigatório e dados de cobrança. O CLI do Better
+// Auth avisou que, sem o rename, "inserts into account will fail" — e afrouxar
+// `name` para resolver misturaria credencial de login com conta de cobrança na
+// mesma tabela.
+
+/// Uma sessão ativa. O cookie carrega `token`; o resto fica aqui.
+model AuthSession {
+  id        String   @id @default(cuid())
+  /// O valor que o cookie assinado carrega. Único: é a chave de busca.
+  token     String   @unique
+  expiresAt DateTime
+  /// Guardados para a pessoa poder reconhecer a sessão numa lista e encerrá-la.
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+/// Um método de autenticação ligado a um usuário.
+///
+/// Para e-mail e senha, `providerId` é "credential" e `password` guarda o hash —
+/// é a única coluna deste schema que guarda hash de senha, e é por isso que
+/// `User.hashedPassword` fica obsoleta (ver a migração).
+///
+/// Para OAuth, guarda os tokens do provedor. **Token de integração de workspace
+/// não vem para cá**: aquele é cifrado em `Integration.config` com a chave em
+/// Cloudflare Secrets, e é outro assunto — ver `src/lib/secrets/envelope.ts`.
+model AuthAccount {
+  id                    String    @id @default(cuid())
+  /// O id da pessoa junto ao provedor. Para credencial, é o próprio `userId`.
+  accountId             String
+  /// "credential" para e-mail e senha; "google", "apple"… para OAuth.
+  providerId            String
+  userId                String
+  /// Hash da senha. Nulo em conta de OAuth, que não tem senha.
+  password              String?
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([providerId, accountId])
+  @@map("auth_accounts")
+}
+
+/// Token de uso único: confirmação de e-mail, redefinição de senha, OTP.
+///
+/// `value` é o token e `identifier` é a que se refere (normalmente o e-mail).
+/// A linha é consumida no uso e expira sozinha — nada aqui é de longo prazo.
+model AuthVerification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("auth_verifications")
 }
