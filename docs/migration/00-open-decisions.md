@@ -145,3 +145,72 @@ Nada de reorganizar repositório sem aprovação.
 | CI/CD e proteção de branch | em aberto | `main` protegida, PR + checks, produção com aprovação |
 | Integrações por produto | em aberto | não habilitar escopo OAuth onde o produto não usa |
 | Meta Ads / Google Ads / Analytics | **não existem no código** | só adaptador documentado; não registrar app nem pedir permissão |
+
+---
+
+## O custo de CU é de duas coisas, e só uma é do Evolution
+
+Registrado em 2026-10-21, a partir da pergunta do André: "o problema de CU está
+relacionado a conexão com o banco 24/7. Isso é causado pelo Evolution API?"
+
+Separar as duas é o que abre as alternativas:
+
+| O que fica 24/7 | Por quê | É do Evolution? |
+| --- | --- | --- |
+| O **socket com o WhatsApp** | o canal QR é um aparelho vinculado, e aparelho vinculado tem de ficar conectado para receber | **não** — é do protocolo multi-device |
+| A **conexão com o Postgres** | o Evolution Go **vaza conexões**: 100 de 100 ociosas, acumuladas desde o dia anterior (medido 2026-10-14, `infra/scripts/wa-pool-guard.sh`) | **sim** — é defeito dele |
+
+Ou seja: parte dos ~US$ 19/mês de compute é pagar por um bug de terceiro. Um
+cliente que fechasse conexão ociosa deixaria o compute do Neon suspender entre
+as mensagens — e clínica não tem tráfego de WhatsApp das 21h às 7h.
+
+### As alternativas, da mais estrutural para a mais tática
+
+**1. Canal oficial da Meta (Cloud API) — elimina o problema, não o reduz.**
+
+Na Cloud API não há socket persistente: a Meta hospeda a conexão, a mensagem
+chega como **webhook** e o envio é uma chamada HTTPS. Não há processo sempre
+ligado. Isso dispensa de uma vez: o contêiner, o projeto Neon do Evolution, o
+pareamento por QR, o defeito dos 105 s, o vazamento de conexões, os dois vigias
+de shell e a licença.
+
+Dois poréns: depende da revisão da Meta (já submetida — ver
+[[canal-oficial-meta]]), e a Meta cobra por conversa, então o custo muda de
+forma, não desaparece.
+
+E um detalhe que vale dinheiro: **hoje o canal oficial passa pelo Evolution v2,
+que é contêiner — e não precisa.** A Cloud API é webhook e HTTPS; o
+`ChannelProvider` de `src/lib/whatsapp/` já é interface, então um cliente que
+fale direto com o Graph API da Meta entra como implementação nova atrás da
+mesma costura. Isso remove o contêiner e o banco `evolution_v2` do canal
+oficial.
+
+**2. Pooler dentro do contêiner — tático, e não depende da Meta.**
+
+Um `pgbouncer` ao lado do Evolution Go, com `server_idle_timeout` curto, absorve
+as conexões vazadas e fecha as de cima quando não há consulta. Aí o compute do
+Neon suspende de madrugada: de 180 para ~97,5 CU-hora, que **cabe na franquia
+free** ou custa US$ 10,33 no Launch.
+
+Custo: um processo a mais num contêiner de 256 MiB, e uma incógnita — não está
+provado que o Evolution Go funciona atrás de pooler (é a mesma pergunta aberta
+do pooler do Neon). Testável na POC.
+
+**3. Trocar a biblioteca do canal QR — não resolve.**
+
+whatsmeow, Baileys, qualquer uma: o socket persistente é do protocolo. E o
+Baileys já foi descartado neste projeto.
+
+**4. Provedor hospedado de QR (Z-API e afins) — move o custo e piora a posse.**
+
+Eles mantêm o socket e nos entregam webhook, o que elimina o nosso custo
+sempre-ligado e adiciona o deles. Mas põe um terceiro na posse da sessão de
+WhatsApp da clínica. Para dado clínico é troca pior.
+
+### Recomendação
+
+O caminho estrutural é o **1** — e ele já está em andamento, esperando a Meta. O
+caminho tático é o **2**, que vale enquanto o QR existir e é barato de testar.
+
+O que **não** se deve fazer é trocar de biblioteca ou de provedor de QR: o
+primeiro não muda nada e o segundo entrega a sessão a terceiro.
