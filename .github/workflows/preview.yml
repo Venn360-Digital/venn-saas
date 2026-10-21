@@ -46,6 +46,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Declarado no passo, não só no script: `vinext-cloudflare` é chamado
+          # direto por npx e também lê o next.config. Com `output: standalone`
+          # o vinext roda o passo standalone dele e procura a saída em `dist/`,
+          # enquanto o plugin da Cloudflare escreve em `.cloudflare/output/`.
+          BUILD_TARGET: cloudflare
         run: |
           # Nome do preview pelo número do PR: estável entre pushes, então a
           # URL não muda a cada commit e o comentário não precisa ser reescrito.

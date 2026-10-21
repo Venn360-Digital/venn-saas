@@ -68,6 +68,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # O destino Cloudflare exige `output` != standalone no next.config —
+          # ver o comentário lá. Declarado no passo porque todo comando aqui lê
+          # aquela config.
+          BUILD_TARGET: cloudflare
         run: |
           npm run build:vinext
           npm run deploy:vinext

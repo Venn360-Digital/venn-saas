@@ -1,9 +1,23 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Emits a self-contained server bundle under .next/standalone, which is what
-  // the Docker runtime stage copies instead of the whole node_modules tree.
-  output: "standalone",
+  /**
+   * Dois destinos querem valores OPOSTOS aqui, e por isso é condicional.
+   *
+   * VPS (padrão): `standalone` emite um servidor autocontido em
+   * `.next/standalone`, que é o que o `Dockerfile:91` copia em vez da árvore
+   * inteira de `node_modules`. A produção no ar depende disso.
+   *
+   * Cloudflare: `standalone` tem de estar DESLIGADO. O vinext lê este campo e,
+   * ao ver "standalone", roda o próprio passo standalone dele, que procura a
+   * saída em `dist/` — enquanto o `@cloudflare/vite-plugin` escreve em
+   * `.cloudflare/output/`. O build quebrava no fim, depois de ter compilado
+   * tudo, com "No build output found in …/dist. Run vite build first."
+   *
+   * O padrão é o da VPS de propósito: enquanto ela é a produção, esquecer a
+   * variável não pode quebrá-la. Os scripts `*:vinext` definem BUILD_TARGET.
+   */
+  output: process.env.BUILD_TARGET === "cloudflare" ? undefined : "standalone",
   serverExternalPackages: [
     '@langchain/openai',
     '@langchain/textsplitters',

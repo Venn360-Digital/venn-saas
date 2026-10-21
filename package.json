@@ -29,10 +29,10 @@
     "check:filas": "tsx --conditions=react-server scripts/check-filas.ts",
     "check:tempo-real": "tsx --conditions=react-server scripts/check-tempo-real.ts",
     "typecheck:cloudflare": "tsc --noEmit -p tsconfig.cloudflare.json",
-    "dev:vinext": "vite dev --port 3001",
-    "build:vinext": "vite build",
-    "start:vinext": "vite preview",
-    "deploy:vinext": "vinext-cloudflare deploy"
+    "dev:vinext": "BUILD_TARGET=cloudflare vite dev --port 3001",
+    "build:vinext": "BUILD_TARGET=cloudflare vite build",
+    "start:vinext": "BUILD_TARGET=cloudflare vite preview",
+    "deploy:vinext": "BUILD_TARGET=cloudflare vinext-cloudflare deploy"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",
