@@ -39,6 +39,16 @@ export type TipoDeEvento =
     | 'mensagem.nova'
     /** A conversa mudou: dono, status, não-lidas, etiqueta. */
     | 'conversa.alterada'
+    /**
+     * O selo de entrega de uma mensagem andou: enviada → entregue → lida.
+     *
+     * Tem tipo próprio, separado de `conversa.alterada`, por economia medida: o
+     * selo percorre três estados por mensagem enviada, e tratar isso como "a
+     * conversa mudou" faria a tela recarregar a conversa inteira três vezes por
+     * mensagem. Com tipo próprio, carrega `messageId` e `status` e a tela
+     * atualiza no lugar.
+     */
+    | 'mensagem.status'
     /** O agente mudou de estado: conectado, pareando, caído. */
     | 'agente.status'
     /** Alguém está digitando. Efêmero: não vale repetir se chegar atrasado. */

@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma'
 import { QUEUE } from '@/lib/queue/definitions'
 import { emitAgentEvent } from './webhook-events'
 import { enfileirar } from '@/trabalhos/filas'
+import { avisarMensagemNova } from '@/lib/outbox/avisar'
 
 export interface EnqueueOutboundTextInput {
     conversationId: string
@@ -25,29 +26,56 @@ export interface EnqueueOutboundTextInput {
 /**
  * Persist an outbound message and hand the actual send to the queue.
  *
- * Writing the row first is deliberate: the operator's inbox shows the message
- * immediately (Realtime picks up the insert) and the send is retried
- * independently, so a flaky provider call never loses the text.
+ * Gravar a linha primeiro é deliberado: a caixa da atendente mostra a mensagem
+ * na hora e o envio é retentado à parte, então um provedor instável nunca perde
+ * o texto.
+ *
+ * **O "na hora" mudou de mecanismo.** Antes era o `postgres_changes` do Supabase
+ * pegando o `insert` — a tela ficava viva por efeito colateral da replicação.
+ * O Neon não publica WAL para a Cloudflare, então agora é um aviso explícito na
+ * mesma transação. Sem ele, a resposta do agente só apareceria quando a
+ * atendente recarregasse: o caminho mais visível do produto, quebrado sem erro
+ * nenhum no log.
  */
 export async function enqueueOutboundText(
     input: EnqueueOutboundTextInput
 ): Promise<{ messageId: string }> {
     const { conversationId, content, integrationId, to, sentBy, agentId } = input
 
-    const message = await prisma.message.create({
-        data: {
-            conversationId,
-            direction: 'outbound',
-            content,
-            contentType: 'text',
-            sentBy,
-            status: 'pending',
-        },
-    })
+    const message = await prisma.$transaction(async (tx) => {
+        const criada = await tx.message.create({
+            data: {
+                conversationId,
+                direction: 'outbound',
+                content,
+                contentType: 'text',
+                sentBy,
+                status: 'pending',
+            },
+            // O workspace sai da própria escrita, em vez de uma consulta a mais:
+            // é caminho quente, uma resposta de agente por mensagem recebida.
+            select: {
+                id: true,
+                conversation: { select: { agent: { select: { workspaceId: true } } } },
+            },
+        })
 
-    await prisma.conversation.update({
-        where: { id: conversationId },
-        data: { lastMessageAt: new Date() },
+        await tx.conversation.update({
+            where: { id: conversationId },
+            data: { lastMessageAt: new Date() },
+        })
+
+        const workspaceId = criada.conversation?.agent?.workspaceId
+        if (workspaceId) {
+            await avisarMensagemNova(tx, {
+                workspaceId,
+                conversationId,
+                messageId: criada.id,
+                direction: 'outbound',
+            })
+        }
+
+        return criada
     })
 
     if (integrationId) {

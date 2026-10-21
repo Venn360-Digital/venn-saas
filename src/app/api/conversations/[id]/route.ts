@@ -4,6 +4,7 @@ import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/
 import { phoneFromConfig } from '@/lib/conversation-line'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '@prisma/client'
+import { avisarConversaAlterada } from '@/lib/outbox/avisar'
 
 // GET: Get conversation details with messages
 export async function GET(
@@ -355,9 +356,26 @@ export async function PATCH(
                 return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
         }
 
-        const updated = await prisma.conversation.update({
-            where: { id },
-            data: updateData,
+        /**
+         * Assumir, transferir, finalizar, reabrir — tudo passa por aqui, e tudo
+         * muda a linha na lista de **outras** pessoas.
+         *
+         * É o caso em que o aviso importa mais que nos demais: quem transferiu
+         * sabe o que fez, mas quem recebeu a conversa só descobre pelo aviso (ou
+         * pelo polling de 15 s, que é lento para uma fila de atendimento).
+         */
+        const updated = await prisma.$transaction(async (tx) => {
+            const alterada = await tx.conversation.update({
+                where: { id },
+                data: updateData,
+            })
+
+            await avisarConversaAlterada(tx, {
+                workspaceId: workspaceUser.workspaceId,
+                conversationId: id,
+            })
+
+            return alterada
         })
 
         // When assigning/transferring, set the user as deal owner for the contact's open deal

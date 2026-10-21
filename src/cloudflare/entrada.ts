@@ -12,6 +12,7 @@ import { processRagIndex } from '@/trabalhos/processadores/rag-index'
 import { processAgentWebhook } from '@/trabalhos/processadores/agent-webhook'
 import { processAsaasEvent } from '@/trabalhos/processadores/asaas-event'
 import { processCron } from '@/trabalhos/processadores/cron'
+import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
 import { aoSerAgendado } from './agendado'
 
@@ -99,6 +100,18 @@ export default {
         // que chega, mensagem que o atendente envia), e sem as costuras
         // registradas `enfileirar()` lançaria na primeira delas.
         registrarCosturas(env)
+
+        /**
+         * O WebSocket do tempo real é atendido **antes** do vinext.
+         *
+         * A resposta de um upgrade é um `101` com a propriedade `webSocket`,
+         * que é extensão do runtime da Cloudflare. Levá-la pelo roteamento do
+         * Next seria apostar que o embrulho de `Request`/`Response` preserva
+         * uma propriedade não-padrão — e o preço de a aposta dar errado é o
+         * chat não atualizar, com tudo funcionando em volta.
+         */
+        if (ehAperto(new URL(request.url))) return aperto(request, env)
+
         return vinext.fetch(request, env, ctx)
     },
 

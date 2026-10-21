@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
+import { avisarMensagemNova } from '@/lib/outbox/avisar'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -153,27 +154,48 @@ export async function POST(
             return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }
 
-        // Save message to DB
-        const message = await prisma.message.create({
-            data: {
-                conversationId,
-                direction: isInternal ? 'internal' : 'outbound',
-                content: textContent,
-                contentType,
-                mediaUrl: mediaUrl || undefined,
-                sentBy: user.id,
-                replyToId: replyToId || undefined,
-                isInternal,
-            }
-        })
+        /**
+         * Gravar a mensagem, mexer na conversa e avisar — tudo junto.
+         *
+         * Eram duas escritas soltas. Juntá-las resolve mais que o aviso: se o
+         * `update` da conversa falhasse depois do `create` da mensagem, a
+         * mensagem existia sem `lastMessageAt` novo, então a lista não subia a
+         * conversa e a atendente não via o que ela mesma acabou de mandar.
+         *
+         * Um aviso só, `mensagem.nova`, e não dois: ele já faz a tela recarregar
+         * a lista e a conversa aberta. Emitir `conversa.alterada` junto seria o
+         * dobro de fan-out para a mesma recarga.
+         */
+        const { message } = await prisma.$transaction(async (tx) => {
+            const criada = await tx.message.create({
+                data: {
+                    conversationId,
+                    direction: isInternal ? 'internal' : 'outbound',
+                    content: textContent,
+                    contentType,
+                    mediaUrl: mediaUrl || undefined,
+                    sentBy: user.id,
+                    replyToId: replyToId || undefined,
+                    isInternal,
+                }
+            })
 
-        // Update conversation
-        await prisma.conversation.update({
-            where: { id: conversationId },
-            data: {
-                lastMessageAt: new Date(),
-                assignedTo: conversation.assignedTo || user.id,
-            }
+            await tx.conversation.update({
+                where: { id: conversationId },
+                data: {
+                    lastMessageAt: new Date(),
+                    assignedTo: conversation.assignedTo || user.id,
+                }
+            })
+
+            await avisarMensagemNova(tx, {
+                workspaceId: workspaceUser.workspaceId,
+                conversationId,
+                messageId: criada.id,
+                direction: isInternal ? 'internal' : 'outbound',
+            })
+
+            return { message: criada }
         })
 
         /**

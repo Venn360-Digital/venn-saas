@@ -16,6 +16,7 @@
  *     npm run check:tempo-real
  */
 import { decidir, TETO_DA_RAJADA_MS } from '@/lib/realtime/debounce'
+import { assinar, verificar, BilheteInvalidoError, VALIDADE_SEGUNDOS } from '@/lib/realtime/bilhete'
 import {
     interpretar,
     decidirRecuperacao,
@@ -34,7 +35,7 @@ const ok = (nome: string, cond: boolean, extra = '') => {
 
 const T0 = 1_700_000_000_000
 
-function main() {
+async function main() {
     // ================================================================ debounce
 
     // Primeira mensagem: agenda, e a rajada começa agora.
@@ -184,8 +185,141 @@ function main() {
     ok('evento repetido é reconhecido', ehRepetido(hist, 'ev-2'))
     ok('evento novo não é repetido', !ehRepetido(hist, 'ev-99'))
 
+
+    // ============================================================== bilhete
+
+    /**
+     * O bilhete é o que autoriza abrir o socket, e é o único ponto deste
+     * caminho onde a falha é **silenciosa e grave**: aceitar um bilhete
+     * adulterado entrega os eventos de um workspace a quem não participa dele.
+     *
+     * Verificável aqui porque é só WebCrypto — nada de plataforma.
+     */
+    const SEGREDO = 'segredo-de-teste-com-tamanho-razoavel'
+    const T = 1_800_000_000_000
+
+    const pega = async (fn: () => Promise<unknown>) => {
+        try {
+            await fn()
+            return null
+        } catch (erro) {
+            return erro
+        }
+    }
+
+    const bilhete = await assinar({ workspaceId: 'w1', usuarioId: 'u1' }, SEGREDO, T)
+    const lidoDoBilhete = await verificar(bilhete, SEGREDO, T + 1_000)
+    ok('bilhete: ida e volta', lidoDoBilhete.workspaceId === 'w1' && lidoDoBilhete.usuarioId === 'u1')
+
+    /**
+     * O corpo é **assinado, não cifrado** — e este teste prova justamente isso,
+     * para que a propriedade fique registrada em vez de suposta.
+     *
+     * Escrevi antes que "nada vai em claro". Está errado: base64 é codificação,
+     * e quem tem o bilhete lê o workspace decodificando. Tudo bem, porque quem
+     * tem o bilhete é a pessoa autorizada, que já conhece o próprio workspace.
+     * O que o HMAC garante é integridade. O que isto impede é alguém **pôr
+     * segredo** aqui dentro confiando num sigilo que não existe.
+     */
+    const corpoLegivel = JSON.parse(
+        Buffer.from(bilhete.split('.')[0]!, 'base64url').toString('utf8')
+    ) as { w: string }
+    ok(
+        'bilhete: o corpo e legivel por quem o tem (assinado, nao cifrado)',
+        corpoLegivel.w === 'w1',
+        'por isso: nenhum segredo aqui dentro'
+    )
+
+    const outroSegredo = await pega(() => verificar(bilhete, SEGREDO + 'x', T + 1_000))
+    ok(
+        'bilhete: segredo errado recusa',
+        outroSegredo instanceof BilheteInvalidoError && outroSegredo.motivo === 'assinatura'
+    )
+
+    // O ataque que importa: corpo de outro workspace com assinatura válida de
+    // um bilhete legítimo. Sem verificar a assinatura ANTES de ler o corpo,
+    // isto passaria.
+    const doW2 = await assinar({ workspaceId: 'w2', usuarioId: 'u1' }, SEGREDO, T)
+    const costurado = doW2.split('.')[0] + '.' + bilhete.split('.')[1]
+    const adulterado = await pega(() => verificar(costurado, SEGREDO, T + 1_000))
+    ok('bilhete: corpo de outro workspace com assinatura alheia recusa', adulterado instanceof BilheteInvalidoError)
+
+    const vencido = await pega(() => verificar(bilhete, SEGREDO, T + VALIDADE_SEGUNDOS * 1_000 + 1))
+    ok('bilhete: vencido recusa', vencido instanceof BilheteInvalidoError && vencido.motivo === 'vencido')
+
+    const noLimite = await verificar(bilhete, SEGREDO, T + VALIDADE_SEGUNDOS * 1_000 - 1)
+    ok('bilhete: valido ate o ultimo milissegundo', noLimite.workspaceId === 'w1')
+
+    for (const ruim of ['', '.', 'semponto', 'corpo.', '.assinatura']) {
+        const erro = await pega(() => verificar(ruim, SEGREDO, T))
+        ok(`bilhete: formato "${ruim || '(vazio)'}" recusa`, erro instanceof BilheteInvalidoError)
+    }
+
+
+    // ================================================= contrato tela/emissores
+
+    /**
+     * As chaves que a tela lê têm de ser as chaves que os emissores escrevem.
+     *
+     * **Nada no compilador garante isso.** O payload é `Record<string, unknown>`
+     * dos dois lados: escrever `conversaId` num emissor em vez de
+     * `conversationId` grava o evento, entrega o evento, e a tela simplesmente
+     * não reage. Sem erro em lugar nenhum, com tudo em volta funcionando — o
+     * defeito mais caro de diagnosticar que este caminho admite.
+     *
+     * Por isso o contrato vive em `CHAVES` e este teste o confere nas duas
+     * direções.
+     */
+    const fs = await import('node:fs')
+    const tela = fs.readFileSync('src/app/(dashboard)/atendimento/conversas/page.tsx', 'utf8')
+    const { CHAVES } = await import('@/lib/outbox/avisar')
+
+    // Direção 1: tudo o que os emissores mandam é lido pela tela.
+    for (const [tipo, chaves] of Object.entries(CHAVES)) {
+        ok(`contrato: a tela trata "${tipo}"`, tela.includes(`tipo === '${tipo}'`))
+        for (const chave of chaves) {
+            // Com limite de palavra: `includes('payload.direction')` dá positivo
+            // em `payload.directionX`, e foi o que esta linha fez na primeira
+            // versão — um typo passou pela direção 1 e só a direção 2 o pegou.
+            ok(
+                `contrato: a tela lê payload.${chave} (de "${tipo}")`,
+                new RegExp(`payload\\.${chave}\\b`).test(tela)
+            )
+        }
+    }
+
+    // Direção 2: tudo o que a tela lê é declarado por algum emissor. Pega o
+    // typo no lado da tela, que a direção 1 não vê.
+    const declaradas = new Set(Object.values(CHAVES).flat() as string[])
+    // `digitando` é transmissão efêmera, não passa pelo outbox: as chaves dela
+    // vêm de `trabalhos/tempo-real.ts`, não de `CHAVES`.
+    for (const efemera of ['isTyping', 'source']) declaradas.add(efemera)
+
+    const lidas = new Set(
+        [...tela.matchAll(/payload\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]!)
+    )
+    const orfas = [...lidas].filter((c) => !declaradas.has(c))
+    ok(
+        'contrato: a tela não lê chave que ninguém emite',
+        orfas.length === 0,
+        orfas.length ? orfas.join(', ') : `${lidas.size} chave(s) conferida(s)`
+    )
+
+    /**
+     * A tela não pode ter voltado ao Supabase — mas o que se confere é **uso**,
+     * não menção.
+     *
+     * A primeira versão deste teste reprovava qualquer aparição da palavra, e
+     * reprovou os próprios comentários que explicam o que saiu dali e por quê.
+     * Esse registro é desejável: é o que impede alguém de "consertar" o tempo
+     * real voltando ao mecanismo antigo. O que não pode voltar é a chamada.
+     */
+    for (const uso of ['createClient(', 'supabase.channel', 'supabase.realtime', "'postgres_changes'"]) {
+        ok(`contrato: a tela não usa "${uso}"`, !tela.includes(uso))
+    }
+
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)
 }
 
-main()
+void main()

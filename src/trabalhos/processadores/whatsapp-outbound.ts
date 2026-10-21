@@ -5,6 +5,7 @@ import type { MediaKind, SendOptions } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'
 import type { WhatsAppOutboundJob } from '@/lib/queue/definitions'
 import { findIntegrationById, providerFor } from '@/trabalhos/servicos/integration'
+import { avisarStatusDaMensagem } from '@/lib/outbox/avisar'
 
 const log = createLogger('OUTBOUND')
 
@@ -127,9 +128,27 @@ export async function processWhatsAppOutbound(
                       options
                   )
 
-        await prisma.message.update({
-            where: { id: messageId },
-            data: { status: 'sent', externalId: result.externalId ?? null },
+        await prisma.$transaction(async (tx) => {
+            const atualizada = await tx.message.update({
+                where: { id: messageId },
+                data: { status: 'sent', externalId: result.externalId ?? null },
+                select: {
+                    conversationId: true,
+                    conversation: { select: { agent: { select: { workspaceId: true } } } },
+                },
+            })
+
+            // `pending` → `sent` é o primeiro selo que a atendente vê mudar. Os
+            // seguintes (entregue, lida) vêm pelos recibos, em `handleAck`.
+            const workspaceId = atualizada.conversation?.agent?.workspaceId
+            if (workspaceId) {
+                await avisarStatusDaMensagem(tx, {
+                    workspaceId,
+                    conversationId: atualizada.conversationId,
+                    messageId,
+                    status: 'sent',
+                })
+            }
         })
 
         log.info(`sent message ${messageId} to ${to} via ${provider.name}`)

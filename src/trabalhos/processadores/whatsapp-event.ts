@@ -15,6 +15,7 @@ import { QUEUE, type WhatsAppEventJob } from '@/lib/queue/definitions'
 import { findContactByJid, syncContactProfile } from '@/trabalhos/servicos/avatar'
 import { findIntegrationByRef, providerFor } from '@/trabalhos/servicos/integration'
 import { enfileirar } from '@/trabalhos/filas'
+import { avisarStatusDaMensagem } from '@/lib/outbox/avisar'
 
 /** Measured: the forced logout lands ~105 s after PairSuccess; sync is done by ~15 s. */
 const RECYCLE_DELAY_MS = 20_000
@@ -123,12 +124,55 @@ async function handleRecycle(event: NormalizedRecycle): Promise<void> {
 async function handleAck(event: NormalizedAck): Promise<void> {
     if (event.messageIds.length === 0) return
 
-    const updated = await prisma.message.updateMany({
+    /**
+     * Uma leitura antes da escrita, e ela paga por si.
+     *
+     * O `updateMany` por `externalId` não diz **quais** linhas tocou, e para
+     * avisar a tela é preciso saber a conversa e o workspace de cada uma.
+     * Sem o aviso, o selo de entrega (enviada → entregue → lida) só mudaria
+     * quando a atendente trocasse de conversa — regressão visível em relação
+     * ao que o Supabase Realtime fazia.
+     *
+     * Um `findMany` por lote de recibos, e o lote chega com até 25 (ver
+     * `CONSUMO` em `cloudflare.config.ts`). Recibo é barato e tagarela; isto
+     * continua barato.
+     */
+    const alvos = await prisma.message.findMany({
         where: { externalId: { in: event.messageIds } },
-        data: { status: event.status },
+        select: {
+            id: true,
+            conversationId: true,
+            conversation: { select: { agent: { select: { workspaceId: true } } } },
+        },
     })
 
-    log.debug(`marked ${updated.count} message(s) as ${event.status}`)
+    if (alvos.length === 0) {
+        log.debug(`nenhuma mensagem para os ${event.messageIds.length} recibo(s)`)
+        return
+    }
+
+    await prisma.$transaction(async (tx) => {
+        await tx.message.updateMany({
+            where: { id: { in: alvos.map((m) => m.id) } },
+            data: { status: event.status },
+        })
+
+        for (const alvo of alvos) {
+            const workspaceId = alvo.conversation?.agent?.workspaceId
+            // Sem workspace não há sala para avisar. Acontece em conversa cujo
+            // agente foi apagado; a atualização do selo vale, o aviso não.
+            if (!workspaceId) continue
+
+            await avisarStatusDaMensagem(tx, {
+                workspaceId,
+                conversationId: alvo.conversationId,
+                messageId: alvo.id,
+                status: event.status,
+            })
+        }
+    })
+
+    log.debug(`marked ${alvos.length} message(s) as ${event.status}`)
 }
 
 /** Keep `agent_integrations.status` in sync with the provider's socket state. */

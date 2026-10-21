@@ -22,6 +22,7 @@ import { findIntegrationByRef, providerFor, touchIntegration } from '@/trabalhos
 import { readPreferences } from '@/trabalhos/servicos/prompt'
 import { applyAgentRules } from '@/trabalhos/servicos/rules'
 import { emitAgentEvent } from '@/trabalhos/servicos/webhook-events'
+import { avisarMensagemNova } from '@/lib/outbox/avisar'
 
 const log = createLogger('INBOUND')
 
@@ -211,19 +212,43 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
         }
     }
 
+    /**
+     * A gravação e o aviso vão na **mesma transação**.
+     *
+     * É o padrão do outbox, e aqui ele vale mais do que em qualquer outro
+     * ponto: esta é a mensagem do paciente chegando. Gravar e falhar ao avisar
+     * deixaria a mensagem no banco e a tela da atendente sem ela até o polling
+     * de 15 s — e avisar sem gravar faria a tela buscar uma mensagem que não
+     * existe.
+     *
+     * Em retentativa (`existing`) **não avisa de novo**: o aviso já foi dado na
+     * primeira passagem, e repeti-lo tocaria o alerta sonoro outra vez para a
+     * mesma mensagem.
+     */
     const stored = existing
         ? existing
-        : await prisma.message.create({
-              data: {
+        : await prisma.$transaction(async (tx) => {
+              const criada = await tx.message.create({
+                  data: {
+                      conversationId: conversation.id,
+                      direction: 'inbound',
+                      content: decoded.content,
+                      contentType: decoded.contentType,
+                      mediaUrl,
+                      sentBy: 'user',
+                      externalId,
+                      transcript,
+                  },
+              })
+
+              await avisarMensagemNova(tx, {
+                  workspaceId: agent.workspaceId,
                   conversationId: conversation.id,
+                  messageId: criada.id,
                   direction: 'inbound',
-                  content: decoded.content,
-                  contentType: decoded.contentType,
-                  mediaUrl,
-                  sentBy: 'user',
-                  externalId,
-                  transcript,
-              },
+              })
+
+              return criada
           })
 
     // `previous` was read before the insert, so its absence means this message
