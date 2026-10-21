@@ -3,7 +3,7 @@
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getSession } from '@/lib/auth/cliente'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { EsqueletoDoFormulario } from '@/components/agents/creation/EsqueletoDoFormulario'
@@ -91,10 +91,9 @@ function NovoAgenteContent() {
 
     const fetchWorkspace = async () => {
         try {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
+            const { data: sessao } = await getSession()
 
-            if (user) {
+            if (sessao?.user) {
                 const response = await fetch('/api/workspaces')
                 if (response.ok) {
                     const workspaces = await response.json()

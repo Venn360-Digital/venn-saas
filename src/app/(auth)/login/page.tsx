@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
+import { requestPasswordReset, signIn, signUp } from '@/lib/auth/cliente'
 import { Logo } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,73 +51,100 @@ function LoginForm() {
         if (message) toast.error(message)
     }, [searchParams])
 
+    /**
+     * Traduz o código de erro do Better Auth.
+     *
+     * Por **código**, não por trecho de mensagem. O jeito antigo comparava
+     * `message.includes('Invalid login credentials')`, que é o texto em inglês
+     * de um fornecedor — ele muda de versão sem avisar, e quando muda a tela
+     * cai no ramo genérico e passa a mostrar a frase do fornecedor ao usuário.
+     */
+    function mensagemDe(codigo: string | undefined, fallback: string | undefined): string {
+        switch (codigo) {
+            case 'INVALID_EMAIL_OR_PASSWORD':
+                return 'E-mail ou senha incorretos. Confira e tente de novo.'
+            case 'USER_ALREADY_EXISTS':
+                return 'Esse e-mail já tem conta. Entre em vez de criar.'
+            case 'PASSWORD_TOO_SHORT':
+                return 'A senha precisa de pelo menos 8 caracteres.'
+            case 'EMAIL_NOT_VERIFIED':
+                return 'Confirme seu e-mail pelo link que enviamos antes de entrar.'
+            default:
+                return fallback || 'Não foi possível continuar'
+        }
+    }
+
     async function handleAuth(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
 
         try {
-            const supabase = createClient()
-
             if (isSignUp) {
-                const { error } = await supabase.auth.signUp({
+                const { error } = await signUp.email({
                     email,
                     password,
-                    options: {
-                        // Without this GoTrue falls back to SITE_URL, which has no
-                        // handler for the `?code=` it appends — the account would be
-                        // confirmed while the visitor landed logged out.
-                        emailRedirectTo: `${window.location.origin}/auth/callback`,
-                    },
+                    /**
+                     * O nome vem do e-mail, por ora.
+                     *
+                     * O formulário não pede nome e o onboarding pede logo em
+                     * seguida — então um palpite aqui vale mais que um campo a
+                     * mais numa tela que já tem dois. É o mesmo palpite que a
+                     * aplicação já fazia ao semear a linha de `users`.
+                     */
+                    name: email.split('@')[0] || email,
                 })
 
-                if (error) throw error
+                if (error) throw Object.assign(new Error(error.message), { code: error.code })
 
-                toast.success('Conta criada. Confirme pelo link que enviamos por e-mail.')
-                setMode('signin')
-            } else {
-                const { error } = await supabase.auth.signInWithPassword({ email, password })
-                if (error) throw error
-
-                // Checked through the API, which uses Prisma and so is not subject
-                // to RLS on the membership table.
-                const checkRes = await fetch('/api/auth/check-workspace')
-                const checkData = await checkRes.json()
-
-                if (!checkData.hasWorkspace) {
-                    // Onboarding comes first regardless of where they were headed.
-                    // Recarga inteira, não `router.push`: ver o comentário
-                    // logo abaixo, no caminho normal.
-                    window.location.assign('/onboarding')
-                } else {
-                    /**
-                     * Entrar recarrega a página inteira.
-                     *
-                     * `router.push` é navegação de cliente: o módulo JS da aba
-                     * sobrevive — com o cache da conta anterior dentro — e o
-                     * Router Cache do Next pode reusar o RSC do layout do
-                     * dashboard, que carrega **dados do usuário** desde a
-                     * correção do primeiro paint. Numa aba onde outra pessoa
-                     * esteve logada, isso mostra a conta dela.
-                     *
-                     * A aba reiniciar no login custa um recarregamento numa
-                     * ação que acontece uma vez por dia.
-                     */
-                    window.location.assign(redirectTo)
-                }
-
-                router.refresh()
+                /**
+                 * Cadastrar **já entra**.
+                 *
+                 * O Better Auth emite a sessão no próprio cadastro, e a
+                 * confirmação de e-mail não é exigida neste corte. Então não há
+                 * mais o passo de "confirme pelo link e depois entre" que o
+                 * GoTrue impunha — e mandar a pessoa de volta para a aba de
+                 * entrar, como antes, seria pedir que ela fizesse login numa
+                 * sessão que já está aberta.
+                 */
+                window.location.assign('/onboarding')
+                return
             }
+
+            const { error } = await signIn.email({ email, password })
+            if (error) throw Object.assign(new Error(error.message), { code: error.code })
+
+            // Checked through the API, which uses Prisma: the membership table
+            // is only ever read server-side.
+            const checkRes = await fetch('/api/auth/check-workspace')
+            const checkData = await checkRes.json()
+
+            if (!checkData.hasWorkspace) {
+                // Onboarding comes first regardless of where they were headed.
+                // Recarga inteira, não `router.push`: ver o comentário
+                // logo abaixo, no caminho normal.
+                window.location.assign('/onboarding')
+            } else {
+                /**
+                 * Entrar recarrega a página inteira.
+                 *
+                 * `router.push` é navegação de cliente: o módulo JS da aba
+                 * sobrevive — com o cache da conta anterior dentro — e o
+                 * Router Cache do Next pode reusar o RSC do layout do
+                 * dashboard, que carrega **dados do usuário** desde a
+                 * correção do primeiro paint. Numa aba onde outra pessoa
+                 * esteve logada, isso mostra a conta dela.
+                 *
+                 * A aba reiniciar no login custa um recarregamento numa
+                 * ação que acontece uma vez por dia.
+                 */
+                window.location.assign(redirectTo)
+            }
+
+            router.refresh()
         } catch (error) {
+            const codigo = (error as { code?: string })?.code
             const message = error instanceof Error ? error.message : ''
-            if (message.includes('Invalid login credentials')) {
-                toast.error('E-mail ou senha incorretos. Confira e tente de novo.')
-            } else if (message.includes('Email not confirmed')) {
-                toast.error('Confirme seu e-mail pelo link que enviamos antes de entrar.')
-            } else if (message.includes('User already registered')) {
-                toast.error('Esse e-mail já tem conta. Entre em vez de criar.')
-            } else {
-                toast.error(message || 'Não foi possível continuar')
-            }
+            toast.error(mensagemDe(codigo, message))
             console.error('[LOGIN]', error)
         } finally {
             setLoading(false)
@@ -131,12 +158,29 @@ function LoginForm() {
         }
         setResetting(true)
         try {
-            const supabase = createClient()
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/auth/callback?next=/gerenciamento/conta`,
+            const { error } = await requestPasswordReset({
+                email,
+                /**
+                 * A tela que recebe o token, não a que a pessoa queria.
+                 *
+                 * O caminho antigo mandava para `/auth/callback`, que era do
+                 * GoTrue e trocava um `?code=` por sessão. O Better Auth manda o
+                 * token direto no link, e quem o troca por senha nova é
+                 * `/nova-senha`.
+                 */
+                redirectTo: `${window.location.origin}/nova-senha`,
             })
             if (error) throw error
-            toast.success('Link de recuperação enviado. Confira seu e-mail.')
+
+            /**
+             * A mensagem não revela se o e-mail tem conta.
+             *
+             * "Enviado, confira seu e-mail" para um endereço que não existe é
+             * uma resposta deliberadamente igual à do que existe: a diferença
+             * entre as duas transformaria esta tela num verificador de quem é
+             * cliente da clínica.
+             */
+            toast.success('Se esse e-mail tiver conta, o link de recuperação chegou.')
         } catch (error) {
             console.error('[LOGIN] reset', error)
             toast.error('Não foi possível enviar o link')

@@ -21,7 +21,6 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'

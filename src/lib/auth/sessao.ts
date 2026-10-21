@@ -1,5 +1,6 @@
 import 'server-only'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth/better-auth'
 
 /**
  * Quem está pedindo — e o **único** lugar que sabe como isso é descoberto.
@@ -62,24 +63,23 @@ export interface UsuarioDaSessao {
  * erro usa `requireUsuario()`.
  */
 export async function usuarioDaSessao(): Promise<UsuarioDaSessao | null> {
-    const supabase = await createClient()
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    /**
+     * Uma consulta ao banco, não uma ida à rede.
+     *
+     * Era isto o que o Supabase cobrava: cada `auth.getUser()` saía para o
+     * serviço de identidade. Agora a sessão é linha em `auth_sessions`, no mesmo
+     * Postgres do resto — resolvida pelo cookie assinado, numa junção com
+     * `users`. É também o que torna o Worker viável: ida à rede por pedido, em
+     * borda, é latência que não se recupera.
+     */
+    const sessao = await auth.api.getSession({ headers: await headers() })
 
-    if (!user?.id) return null
-
-    // `user_metadata` é a caixa de atributos livres do Supabase; no Better Auth o
-    // equivalente é o campo `name` da tabela de usuários. A diferença fica aqui.
-    const nome = (user.user_metadata as { name?: unknown } | undefined)?.name
+    if (!sessao?.user?.id) return null
 
     return {
-        id: user.id,
-        // O provedor tipa `email` como opcional porque admite conta sem e-mail
-        // (telefone, OAuth sem escopo de e-mail). Aqui toda conta tem, e cair
-        // para string vazia é melhor que propagar `undefined` por 80 rotas.
-        email: user.email ?? '',
-        nome: typeof nome === 'string' && nome.trim() ? nome.trim() : undefined,
+        id: sessao.user.id,
+        email: sessao.user.email ?? '',
+        nome: sessao.user.name?.trim() || undefined,
     }
 }
 

@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 // GET /api/account/profile - Get current user profile
 export async function GET() {
     try {
         console.log('[PROFILE_GET] Starting...')
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
-        console.log('[PROFILE_GET] Auth result:', { userId: user?.id, error: authError?.message })
 
         if (!user) {
             console.log('[PROFILE_GET] No user found, returning 401')
@@ -46,10 +44,8 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
     try {
         console.log('[PROFILE_PATCH] Starting...')
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
-        console.log('[PROFILE_PATCH] Auth result:', { userId: user?.id, error: authError?.message })
 
         if (!user) {
             console.log('[PROFILE_PATCH] No user found, returning 401')

@@ -1,7 +1,7 @@
 import { planFor } from '@/lib/plans'
 import { TRIAL_CREDITS, trialEndFrom } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import prisma from '@/lib/prisma'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
 import { errorMessage } from '@/lib/prisma-errors'
@@ -12,13 +12,8 @@ export async function POST(request: NextRequest) {
         console.log('[ONBOARDING] Starting...')
 
         // Get authenticated user
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
-        if (authError) {
-            console.error('[ONBOARDING] Auth error:', authError)
-            return NextResponse.json({ error: 'Erro de autenticação' }, { status: 401 })
-        }
 
         if (!user) {
             console.error('[ONBOARDING] No user found')
@@ -53,7 +48,7 @@ export async function POST(request: NextRequest) {
                     data: {
                         id: user.id,
                         email: user.email!,
-                        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+                        name: user.nome || user.email?.split('@')[0] || 'User',
                     }
                 })
                 console.log('[ONBOARDING] User created:', dbUser.id)
@@ -185,7 +180,13 @@ export async function POST(request: NextRequest) {
             // onboarding — someone who signs up and completes the wizard a day
             // later should not get an extra day. It closes at 23:59 São Paulo on
             // the seventh full day.
-            const signedUpAt = user.created_at ? new Date(user.created_at) : new Date()
+            // `dbUser.createdAt` e não o timestamp do provedor de identidade.
+            // O Supabase expunha `user.created_at`; o Better Auth não expõe nada
+            // equivalente na sessão — e não precisa, porque a linha de `users`
+            // está aqui, na mesma transação, com o `createdAt` que o nosso banco
+            // escreveu. Deixa de depender de um campo de fornecedor para contar
+            // um prazo que é nosso.
+            const signedUpAt = dbUser.createdAt
             const trialEndsAt = trialEndFrom(signedUpAt)
 
             await tx.subscription.create({

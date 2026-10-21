@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/better-auth'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { Prisma } from '@prisma/client'
 import { normalizeSearch } from '@/lib/search'
 
@@ -31,8 +31,7 @@ const createUserSchema = z.object({
 export async function GET(request: NextRequest) {
     try {
         console.log('[USERS_GET] Starting...')
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -152,8 +151,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         console.log('[USERS_POST] Starting...')
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -194,37 +192,58 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Create user in Supabase Auth
-        const supabaseAdmin = createAdminClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
+        /**
+         * A credencial é criada à mão, e **não** por `signUpEmail`.
+         *
+         * `signUpEmail` emite sessão: ele faz login automático em quem acabou de
+         * se cadastrar. Aqui quem cadastra é o administrador, para outra pessoa —
+         * usar aquele caminho trocaria a sessão do administrador pela do usuário
+         * novo no meio do pedido. É um defeito que não daria erro: a tela
+         * continuaria funcionando, só pertencendo a outra conta.
+         *
+         * Então o hash sai de `ctx.password.hash`, que é a mesma função que o
+         * login usa para conferir, e as duas linhas nascem na mesma transação —
+         * usuário sem credencial é usuário que não entra, e credencial sem
+         * usuário é linha órfã que ainda autenticaria.
+         */
+        const ctx = await auth.$context
+        const hash = await ctx.password.hash(validatedData.password)
 
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email: validatedData.email,
-            password: validatedData.password,
-            email_confirm: true,
-        })
+        const newUser = await prisma.$transaction(async (tx) => {
+            const criado = await tx.user.create({
+                data: {
+                    email: validatedData.email,
+                    name: validatedData.name,
+                    lastName: validatedData.lastName,
+                    phone: validatedData.phone,
+                    /**
+                     * Criado por administrador conta como e-mail confirmado.
+                     *
+                     * Quem digitou o endereço foi alguém de dentro da clínica,
+                     * não um desconhecido — e exigir que a pessoa confirme um
+                     * e-mail que a chefia cadastrou só adiciona um passo que
+                     * ninguém entende.
+                     */
+                    emailVerified: true,
+                    // Sem cópia local da senha: a credencial é uma só, em
+                    // `auth_accounts`. Um segundo hash aqui só arrisca ser
+                    // tomado como o verdadeiro — foi o que já aconteceu nesta
+                    // base, ver `api/account/profile/password/route.ts`.
+                },
+            })
 
-        if (authError) {
-            console.error('[USERS_POST] Auth error:', authError)
-            return NextResponse.json(
-                { error: authError.message || 'Erro ao criar usuário' },
-                { status: 400 }
-            )
-        }
+            await tx.authAccount.create({
+                data: {
+                    userId: criado.id,
+                    // Para e-mail e senha, a biblioteca procura a credencial por
+                    // `providerId: 'credential'` e `accountId: <id do usuário>`.
+                    providerId: 'credential',
+                    accountId: criado.id,
+                    password: hash,
+                },
+            })
 
-        // Create user in database
-        const newUser = await prisma.user.create({
-            data: {
-                id: authData.user.id,
-                email: validatedData.email,
-                name: validatedData.name,
-                lastName: validatedData.lastName,
-                phone: validatedData.phone,
-                // No local password copy: Supabase Auth owns the credential, and a
-                // second hash here only risks being mistaken for authoritative.
-            }
+            return criado
         })
 
         // Create workspace user relationship

@@ -129,6 +129,53 @@ async function main() {
     })
     ok('e-mail repetido é recusado', !repetido.ok, `HTTP ${repetido.status}`)
 
+    // 9. A credencial criada À MÃO entra de verdade.
+    //
+    // `api/users/route.ts` cria usuário para outra pessoa, e por isso não pode
+    // usar `signUpEmail` — ele emitiria sessão e trocaria a do administrador.
+    // Então ele monta a linha e a credencial na mão, com `ctx.password.hash`.
+    // Isso só é seguro se o login aceitar o que aquele caminho escreve, e é
+    // exatamente o que esta prova confere: criar credencial que não autentica
+    // seria um defeito silencioso — o administrador veria "usuário criado" e a
+    // pessoa não entraria.
+    const { auth: _auth } = await import('@/lib/auth/better-auth')
+    const ctx = await _auth.$context
+    const senhaAdmin = 'criada-pelo-admin-12345'
+    const hash = await ctx.password.hash(senhaAdmin)
+
+    const porAdmin = await prisma.$transaction(async (tx) => {
+        const criado = await tx.user.create({
+            data: {
+                email: `admin-criou-${Date.now()}@odontobox360.test`,
+                name: 'Criada pelo Admin',
+                emailVerified: true,
+            },
+        })
+        await tx.authAccount.create({
+            data: {
+                userId: criado.id,
+                providerId: 'credential',
+                accountId: criado.id,
+                password: hash,
+            },
+        })
+        return criado
+    })
+
+    const loginAdmin = await auth.api.signInEmail({
+        body: { email: porAdmin.email, password: senhaAdmin },
+        asResponse: true,
+    })
+    ok('credencial criada à mão autentica', loginAdmin.ok, `HTTP ${loginAdmin.status}`)
+
+    const loginAdminErrado = await auth.api.signInEmail({
+        body: { email: porAdmin.email, password: 'outra-senha-qualquer' },
+        asResponse: true,
+    })
+    ok('e recusa senha errada', !loginAdminErrado.ok, `HTTP ${loginAdminErrado.status}`)
+
+    await prisma.user.delete({ where: { id: porAdmin.id } })
+
     // Limpeza. CASCADE leva sessões e credenciais junto — conferir que leva.
     await prisma.user.delete({ where: { id: usuario!.id } })
     ok(
