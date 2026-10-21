@@ -17,7 +17,7 @@ Legenda de veredito:
 | --- | --- | --- | --- |
 | App Next.js 16 | Node em Docker | Workers via **vinext** | AJUSTE |
 | Banco | Supabase PG 17.6 self-hosted | **Neon PG 18, São Paulo** | OK |
-| Driver do banco | Prisma 5.10 padrão | Prisma 6 + driver adapter | AJUSTE |
+| Driver do banco | Prisma 5.22 padrão | **Prisma 6.19.3 + adapter Neon** | AJUSTE |
 | Autenticação | Supabase Auth | **Better Auth** (biblioteca) | REESCRITA |
 | Cofre de segredos | `supabase_vault` | Cloudflare Secrets + AES-GCM no Neon | REESCRITA |
 | Storage público | Supabase Storage | **R2** | AJUSTE |
@@ -107,9 +107,37 @@ A branch `production` tem `suspend_timeout_seconds: 0` (sem scale-to-zero) e
 autoscaling 0,25–2 CU. Para Workers, usar o **endpoint pooled** (PgBouncer do
 Neon) na `DATABASE_URL` e o direto só para migrations.
 
-**Hyperdrive**: avaliar, não adotar por reflexo. O banco está em São Paulo e os
-Workers executam na borda; o ganho do Hyperdrive é cache de conexão e de query.
-Medir antes. Só faz sentido depois que o app rodar em Workers.
+### Prisma: 6.19.3 agora, 7 depois — e por que não 7 já
+
+A última estável do Prisma é **7.10.1**, e ela é a melhor para Workers: sem
+engine Rust, bundle menor. Mas o salto de 5.22 para 7 traz quatro mudanças de
+uma vez — gerador `prisma-client` com `output` obrigatório, import de caminho
+próprio em **47 arquivos**, `prisma.config.ts`, e **ESM only**.
+
+O ESM é o que decide. O processo `workers/` compila em **CJS**
+(`format: ['cjs']` no `tsup.config.ts`) e precisa continuar funcionando durante
+toda a transição — ele é quem roda as 8 filas e os 14 crons até as Queues e os
+Cron Triggers assumirem.
+
+Então: **6.19.3 agora**. Os driver adapters já são GA, `prisma-client-js` e os
+imports de `@prisma/client` continuam válidos — os 47 arquivos **não mudam** —, e
+o build CJS segue de pé. O Prisma 7 entra depois do corte, quando `workers/`
+tiver sido substituído e o conflito de ESM tiver deixado de existir.
+
+### Driver: adapter do Neon, não Hyperdrive
+
+`@prisma/adapter-neon` + `@neondatabase/serverless` fala com o Neon por
+HTTP/WebSocket, sem socket TCP e sem Hyperdrive. É o caminho mais curto para
+Workers.
+
+`@prisma/adapter-pg` fica instalado em paralelo para o que **não** é Neon:
+desenvolvimento local contra Postgres comum e a VPS durante a transição. A
+escolha é pelo host da `DATABASE_URL`, não por variável separada — uma coisa a
+menos para configurar errado.
+
+**Hyperdrive**: avaliar, não adotar por reflexo. O ganho dele é cache de conexão
+e de query, e com o adapter do Neon por HTTP o problema que ele resolve quase
+não existe. Medir antes, e só depois que o app rodar em Workers.
 
 ### Ação recomendada no Neon
 
@@ -463,3 +491,84 @@ rotas. A ordem que minimiza retrabalho:
 
 O storage sensível e o corte de DNS ficam fora dessa lista: dependem de
 aprovação, não de código.
+
+---
+
+## 13. RLS: o controle sai junto com a exposição que ele compensava
+
+Descoberto **tentando**, não lendo: `prisma migrate deploy` contra o Neon falhou
+na migração `20261006000000_enable_rls` com `schema "auth" does not exist`.
+
+### O que aquela migração era
+
+O comentário dela explica o desenho inteiro, e vale citar a estrutura: RLS
+habilitado nas **27** tabelas, política de `SELECT` em apenas duas
+(`conversations` e `messages`), e `REPLICA IDENTITY FULL` nessas duas.
+
+A razão declarada: o PostgREST do Supabase expõe o schema `public` ao papel
+`anon`, e **a chave anon viaja dentro do bundle do navegador**. Sem RLS,
+`GET /rest/v1/contacts` com aquela chave devolveria a tabela de contatos inteira
+a qualquer pessoa que abrisse o app. As duas políticas existiam porque o
+`postgres_changes` do Realtime avalia RLS **como o assinante**, e sem política
+permissiva ele entrega silêncio — uma tela que nunca atualiza e não registra
+erro.
+
+### Por que nada disso sobrevive, e por que isso não é perda
+
+Cada premissa desaparece com o Supabase:
+
+| Premissa | No Neon + Cloudflare |
+| --- | --- |
+| `auth.uid()` | não existe; com Better Auth a sessão é resolvida **pela aplicação** e nunca chega ao banco |
+| PostgREST expondo `public` ao `anon` | não há. A Data API do Neon é opt-in e não está provisionada |
+| chave anon no navegador | não há |
+| `postgres_changes` avaliando RLS como assinante | o tempo real passa a ser Durable Object, autorizado **no handshake, pelo servidor** |
+| `REPLICA IDENTITY FULL` | puro WAL extra: `messages` é atualizada a cada recibo de entrega, e ninguém decodifica esse WAL |
+
+> Retirar o RLS aqui **não é** abrir mão de defesa em profundidade por
+> conveniência. É retirar um controle compensatório junto com a exposição que ele
+> compensava. A porta que ele trancava deixa de existir no mesmo movimento.
+
+Portar seria pior do que remover: exigiria inventar um mecanismo novo — variável
+de sessão por pedido, algo como `SET LOCAL app.workspace_id` — para substituir
+`auth.uid()`. Isso é maquinaria de segurança nova e não testada, cuja única
+função seria guardar uma porta que não existe mais, e cujo modo de falha é
+silencioso: um `SET` esquecido devolve vazio em vez de erro.
+
+### O que foi feito
+
+A migração foi tornada **portável** em vez de removida:
+
+- `ENABLE ROW LEVEL SECURITY` nas 27 tabelas **continua rodando em todo lugar**.
+  No Neon a aplicação conecta como dona das tabelas, que ignora RLS, então é
+  inofensivo — e mantém negar-por-omissão para qualquer papel futuro que não seja
+  o dono. Barato, e falha na direção certa.
+- a função de associação, as duas políticas, a publicação e o `REPLICA IDENTITY`
+  ficam condicionados à existência do schema `auth`. No Supabase o comportamento
+  é idêntico ao de antes; no Neon viram no-op.
+
+Medido na branch de homologação do Neon por `npm run check:neon`: **27 tabelas
+com RLS, 0 políticas, `current_workspace_ids` ausente.** A migração condicional
+caiu no ramo certo — e é por isso que o teste confere o que **não** deve existir,
+não só o que deve.
+
+### Onde a defesa de inquilino fica agora
+
+Em `src/lib/auth/workspace.ts`, validando `workspaceId` no servidor a cada
+pedido, com `isActive` conferido e papel aplicado — que é onde ela sempre esteve
+de fato. O `lint:workspace` do projeto já impede que uma rota resolva workspace
+por conta própria, e ele continua passando.
+
+**Consequência a aceitar explicitamente:** a segunda linha de defesa que o RLS
+dava contra um defeito de aplicação sai. O comentário original afirmava que ele,
+sozinho, teria bloqueado os seis defeitos de vazamento entre inquilinos que a
+auditoria encontrou. Com uma via de acesso só — a aplicação —, o preço de um
+defeito de autorização sobe. Isso torna os **testes multi-tenant da Fase 5
+obrigatórios**, não desejáveis.
+
+### Nota sobre o checksum
+
+Editar uma migração já aplicada muda o checksum que o `_prisma_migrations` da
+VPS guarda. Isso é aceitável porque a VPS passa a ser **origem somente leitura**
+e nenhum `migrate deploy` roda mais contra ela. No Neon o checksum novo foi
+registrado de forma consistente desde o início.

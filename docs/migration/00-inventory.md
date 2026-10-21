@@ -74,7 +74,7 @@ colide e vai confundir quem ler depois. Compila com `tsup`, roda com
 
 | Dependência | Versão | Papel |
 | --- | --- | --- |
-| `@prisma/client` / `prisma` | ^5.10.2 | ORM, driver padrão (sem driver adapters) |
+| `@prisma/client` / `prisma` | declarado `^5.10.2`, **resolvido 5.22.0** | ORM, driver padrão (sem driver adapters) |
 | `@supabase/supabase-js`, `@supabase/ssr`, `@supabase/auth-helpers-nextjs` | — | auth, storage, realtime |
 | `bullmq` + `ioredis` | ^6.3.11 / ^6.0.0 | filas e cron, sobre Redis |
 | `openai` | ^6.17.0 | chat, embeddings, TTS, transcrição |
@@ -410,12 +410,15 @@ no sentido fácil.
 | 4 | BullMQ + ioredis + 14 crons: não há Redis em Workers; é reescrita para Queues + Cron Triggers, não porte | **alta** |
 | 5 | Mídia de conversa é clínica sensível e o provedor brasileiro ainda não foi escolhido — bloqueia a migração dos arquivos | **alta** |
 | 6 | Evolution Go já falha em manter sessão na VPS; em Containers com scale-to-zero é pior | **alta** |
-| 7 | Prisma 5.10 sem driver adapters não roda em Workers | média |
+| 7 | Prisma 5.22 sem driver adapters não roda em Workers | média |
 | 8 | Disco da VPS a 87 % — cuidado ao escrever dump lá | média |
 | 9 | `WEBHOOK_URL` vs `WEBHOOK_BASE_URL` divergem entre código e exemplo | média |
 | 10 | Branch `production` do Neon não está protegida | baixa |
 | 11 | MCP de Code Mode da Cloudflare falhando; MCP do GitHub não conecta | baixa (há contorno) |
 | 12 | `bcryptjs` declarada e sem uso | baixa |
+| 13 | A migração `enable_rls` depende de `auth.uid()` e **não roda no Neon** — resolvido, ver `01-compatibility.md` §13 | **resolvido** |
+| 14 | Branch protegida no Neon exige plano superior (`HTTP 422` ao tentar) | baixa |
+| 15 | `next` com CVE crítico (HTTP request smuggling em rewrites) e `handlebars` crítico via LangChain | média |
 
 ## 14. O que não foi possível confirmar
 

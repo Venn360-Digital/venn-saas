@@ -2,8 +2,18 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
+
+  // `driverAdapters` é o que permite o Prisma falar com o Postgres por um driver
+  // de JavaScript em vez do engine nativo — condição para rodar em Cloudflare
+  // Workers, que não carrega binário. Ver `src/lib/prisma.ts`.
+  //
+  // Ficamos no Prisma 6 de propósito: o 7 é melhor para Workers (sem engine
+  // Rust, bundle menor), mas é **ESM only**, e o processo `workers/` compila em
+  // CJS e precisa seguir de pé até as Queues e os Cron Triggers assumirem as 8
+  // filas e os 14 crons. O 7 entra depois disso. Ver
+  // `docs/migration/01-compatibility.md` §2.
+  previewFeatures = ["postgresqlExtensions", "driverAdapters"]
 }
 
 datasource db {

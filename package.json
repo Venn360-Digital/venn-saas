@@ -19,7 +19,8 @@
     "test:availability": "tsx scripts/test-availability.ts",
     "check:widget": "node scripts/check-widget.mjs",
     "lint:workspace": "node scripts/lint-workspace.mjs",
-    "check:cofre": "tsx --conditions=react-server scripts/check-cofre.ts"
+    "check:cofre": "tsx --conditions=react-server scripts/check-cofre.ts",
+    "check:neon": "tsx --conditions=react-server scripts/check-neon.ts"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",
@@ -31,7 +32,10 @@
     "@langchain/core": "^1.1.18",
     "@langchain/openai": "^1.2.4",
     "@langchain/textsplitters": "^1.0.1",
-    "@prisma/client": "^5.10.2",
+    "@neondatabase/serverless": "1.2.0",
+    "@prisma/adapter-neon": "6.19.3",
+    "@prisma/adapter-pg": "6.19.3",
+    "@prisma/client": "6.19.3",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.93.3",
@@ -51,6 +55,7 @@
     "next-themes": "^0.4.6",
     "openai": "^6.17.0",
     "pdf-parse": "^2.4.5",
+    "pg": "8.16.3",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-day-picker": "^10.0.2",
@@ -69,7 +74,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "prisma": "^5.10.2",
+    "prisma": "6.19.3",
     "tailwindcss": "^4",
     "tsup": "^8.5.1",
     "tsx": "^4.23.15",

@@ -1,3 +1,46 @@
+-- ---------------------------------------------------------------------------
+-- NOTA DE PORTABILIDADE — acrescentada em 2026-10-21, na migração para Neon
+-- ---------------------------------------------------------------------------
+-- Tudo abaixo foi escrito para o Supabase, e **cada parte** depende de algo que
+-- só existe lá. No Neon esta migração falhava na primeira linha de SQL com
+-- `schema "auth" does not exist`, e foi assim que isto apareceu.
+--
+-- O que cada premissa era, e o que acontece com ela:
+--
+--   `auth.uid()`          — função do Supabase Auth. Não existe no Neon, e com o
+--                           Better Auth a sessão não chega ao banco: ela é
+--                           resolvida pela aplicação. Impossível de portar como
+--                           está.
+--   PostgREST + chave anon — a razão de ser do RLS aqui. O Neon não expõe REST
+--                           sobre `public` (a Data API é opt-in e não está
+--                           provisionada) e não há chave anon no navegador. A
+--                           porta que o RLS trancava deixa de existir.
+--   `postgres_changes`    — avaliava RLS como o assinante, e é por isso que
+--                           `conversations` e `messages` ganharam política. O
+--                           tempo real passa a ser Durable Objects, autorizados
+--                           no handshake **pelo servidor**, por sessão e
+--                           workspaceId.
+--   `REPLICA IDENTITY FULL` — existia para o Realtime poder avaliar RLS em
+--                           UPDATE/DELETE, ao custo de WAL extra em cada recibo
+--                           de entrega de mensagem. No Neon esse custo compra
+--                           zero.
+--
+-- **O que foi preservado, e por quê.** O `ENABLE ROW LEVEL SECURITY` nas 27
+-- tabelas continua rodando em todo lugar. No Neon a aplicação conecta como dona
+-- das tabelas, que ignora RLS, então habilitar é inofensivo — e mantém a
+-- postura de negar por omissão para qualquer papel futuro que não seja o dono.
+-- É barato e falha na direção certa.
+--
+-- **O que foi condicionado.** A função de associação, as duas políticas, a
+-- publicação e o `REPLICA IDENTITY` só se aplicam onde o schema `auth` existe,
+-- ou seja, no Supabase. No Neon viram no-op, e a defesa de inquilino fica onde
+-- ela sempre esteve de verdade: `src/lib/auth/workspace.ts`, validando
+-- workspaceId no servidor a cada pedido.
+--
+-- Isto NÃO é abrir mão de defesa em profundidade por conveniência: é retirar um
+-- controle junto com a exposição que ele compensava. Ver
+-- `docs/migration/01-compatibility.md` §13.
+
 -- Row Level Security for every application table.
 --
 -- Why this is not optional. PostgREST exposes the `public` schema to the `anon`
@@ -39,21 +82,30 @@
 -- own RLS. STABLE lets the planner call it once per statement rather than per row.
 -- An explicit search_path keeps a caller from shadowing `public` with their own
 -- schema, which is the standard hazard of SECURITY DEFINER.
-CREATE OR REPLACE FUNCTION public.current_workspace_ids()
-RETURNS SETOF text
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT wu."workspaceId"
-  FROM public.workspace_users wu
-  WHERE wu."userId" = auth.uid()::text
-    AND wu."isActive" = true
-$$;
+-- Condicionada: o corpo chama `auth.uid()`, e `CREATE FUNCTION` em SQL valida o
+-- corpo na criação, então nem declarar é possível sem o schema `auth`.
+DO $outer$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth') THEN
+    EXECUTE $cria$
+      CREATE OR REPLACE FUNCTION public.current_workspace_ids()
+      RETURNS SETOF text
+      LANGUAGE sql
+      STABLE
+      SECURITY DEFINER
+      SET search_path = public
+      AS $corpo$
+        SELECT wu."workspaceId"
+        FROM public.workspace_users wu
+        WHERE wu."userId" = auth.uid()::text
+          AND wu."isActive" = true
+      $corpo$
+    $cria$;
 
-REVOKE ALL ON FUNCTION public.current_workspace_ids() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.current_workspace_ids() TO authenticated;
+    EXECUTE 'REVOKE ALL ON FUNCTION public.current_workspace_ids() FROM PUBLIC';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.current_workspace_ids() TO authenticated';
+  END IF;
+END $outer$;
 
 -- ---------------------------------------------------------------------------
 -- Enable RLS everywhere, with no policy
@@ -80,19 +132,30 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- The two tables the inbox subscribes to
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS conversations_member_select ON public.conversations;
-CREATE POLICY conversations_member_select ON public.conversations
-  FOR SELECT TO authenticated
-  USING ("workspaceId" IN (SELECT public.current_workspace_ids()));
+-- Condicionadas: ambas chamam `current_workspace_ids()`, que só existe onde
+-- `auth` existe. E o papel `authenticated` é do Supabase: no Neon ele não há.
+DO $outer$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth') THEN
+    EXECUTE 'DROP POLICY IF EXISTS conversations_member_select ON public.conversations';
+    EXECUTE $pol$
+      CREATE POLICY conversations_member_select ON public.conversations
+        FOR SELECT TO authenticated
+        USING ("workspaceId" IN (SELECT public.current_workspace_ids()))
+    $pol$;
 
-DROP POLICY IF EXISTS messages_member_select ON public.messages;
-CREATE POLICY messages_member_select ON public.messages
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.conversations c
-    WHERE c.id = messages."conversationId"
-      AND c."workspaceId" IN (SELECT public.current_workspace_ids())
-  ));
+    EXECUTE 'DROP POLICY IF EXISTS messages_member_select ON public.messages';
+    EXECUTE $pol$
+      CREATE POLICY messages_member_select ON public.messages
+        FOR SELECT TO authenticated
+        USING (EXISTS (
+          SELECT 1 FROM public.conversations c
+          WHERE c.id = messages."conversationId"
+            AND c."workspaceId" IN (SELECT public.current_workspace_ids())
+        ))
+    $pol$;
+  END IF;
+END $outer$;
 
 -- ---------------------------------------------------------------------------
 -- Realtime publication
@@ -123,5 +186,13 @@ END $$;
 -- reads any other column — `messages` reads conversationId — cannot be evaluated
 -- and the event is dropped. The cost is extra WAL per update, accepted knowingly:
 -- `messages` is updated on every delivery receipt.
-ALTER TABLE public.conversations REPLICA IDENTITY FULL;
-ALTER TABLE public.messages REPLICA IDENTITY FULL;
+-- Condicionado à publicação do Realtime. Sem ela, `REPLICA IDENTITY FULL` é só
+-- WAL extra em cada UPDATE de `messages` — e `messages` é atualizada a cada
+-- recibo de entrega.
+DO $outer$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    EXECUTE 'ALTER TABLE public.conversations REPLICA IDENTITY FULL';
+    EXECUTE 'ALTER TABLE public.messages REPLICA IDENTITY FULL';
+  END IF;
+END $outer$;
