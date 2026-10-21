@@ -21,221 +21,258 @@ import { sendEmail } from '@/lib/email/send'
  * existe e **não** gera id: quem gera é o `@default(cuid())` do Prisma, para
  * quem chegar agora, e quem já existe mantém o UUID.
  */
-export const auth = betterAuth({
-    database: prismaAdapter(prisma, { provider: 'postgresql' }),
+/**
+ * Construída **sob demanda**, não na carga do módulo.
+ *
+ * `betterAuth()` valida a configuração ao ser chamada — inclusive exige
+ * `BETTER_AUTH_SECRET`, e com razão: segredo de assinatura com valor padrão é
+ * sessão forjável. Mas no escopo do módulo isso acontecia durante o
+ * `next build`, que importa toda rota para análise estática e não tem segredo
+ * nenhum. O build imprimia cinco `BetterAuthError` e terminava com êxito — que
+ * é o pior desfecho possível, porque treina quem lê o log a ignorar erro.
+ *
+ * Preguiçosa resolve dois problemas de uma vez: o build deixa de depender de um
+ * segredo que ele não usa, e o Worker deixa de pagar a construção no arranque
+ * frio de uma requisição que talvez nem toque autenticação.
+ */
+let instancia: ReturnType<typeof construir> | null = null
 
-    /**
-     * `BETTER_AUTH_SECRET` assina os cookies de sessão.
-     *
-     * Em produção vem do Cloudflare Secrets. Sem ele a biblioteca recusa subir,
-     * que é o comportamento certo — segredo de assinatura com valor padrão é
-     * sessão forjável.
-     */
-    secret: process.env.BETTER_AUTH_SECRET,
-    baseURL: process.env.NEXT_PUBLIC_APP_URL,
+export function getAuth(): ReturnType<typeof construir> {
+    instancia ??= construir()
+    return instancia
+}
 
-    user: {
+function construir() {
+    return betterAuth({
+        database: prismaAdapter(prisma, { provider: 'postgresql' }),
+
         /**
-         * O modelo do Prisma, não o nome da tabela — o adapter fala com o
-         * Prisma, e o `@@map("users")` já cuida do nome no banco.
+         * `BETTER_AUTH_SECRET` assina os cookies de sessão.
+         *
+         * Em produção vem do Cloudflare Secrets. Sem ele a biblioteca recusa subir,
+         * que é o comportamento certo — segredo de assinatura com valor padrão é
+         * sessão forjável.
          */
-        modelName: 'User',
-        fields: {
-            // O Better Auth chama de `image` o que este schema chama de
-            // `avatar`. Mapear em vez de renomear a coluna: `avatar` aparece em
-            // tela, em rota e no adaptador de storage.
-            image: 'avatar',
+        secret: process.env.BETTER_AUTH_SECRET,
+        baseURL: process.env.NEXT_PUBLIC_APP_URL,
+
+        user: {
+            /**
+             * O modelo do Prisma, não o nome da tabela — o adapter fala com o
+             * Prisma, e o `@@map("users")` já cuida do nome no banco.
+             */
+            modelName: 'User',
+            fields: {
+                // O Better Auth chama de `image` o que este schema chama de
+                // `avatar`. Mapear em vez de renomear a coluna: `avatar` aparece em
+                // tela, em rota e no adaptador de storage.
+                image: 'avatar',
+            },
         },
-    },
-
-    /**
-     * Os três modelos próprios da biblioteca, renomeados — e o do meio é um
-     * conserto, não estilo.
-     *
-     * **`Account` já existe neste schema e é outra coisa.** Aqui `Account` é a
-     * conta que assina: tem `name` obrigatório, CNPJ, endereço de cobrança,
-     * `asaasCustomerId`. O `Account` do Better Auth é o par credencial-provedor
-     * de um usuário — onde mora o hash da senha. Deixar os dois no mesmo modelo
-     * é o que o próprio CLI apontou ao gerar o schema:
-     *
-     *     Required columns Better Auth never writes
-     *       account.name
-     *     Inserts into account will fail.
-     *
-     * Ou seja: todo cadastro falharia, porque a biblioteca não tem o que
-     * escrever em `name` e a coluna é obrigatória. E se `name` fosse afrouxado
-     * para resolver, o resultado seria pior — credencial de login e conta de
-     * cobrança misturadas na mesma tabela, com `ownerUserId` apontando para
-     * linha de senha.
-     *
-     * `Session` e `Verification` não colidem com nada hoje, mas ganham o mesmo
-     * prefixo: as três são da biblioteca, e o prefixo diz isso sem precisar
-     * abrir o arquivo.
-     */
-    session: {
-        modelName: 'AuthSession',
 
         /**
-         * Oito horas, renovada a cada hora de uso.
+         * Os três modelos próprios da biblioteca, renomeados — e o do meio é um
+         * conserto, não estilo.
          *
-         * O padrão da biblioteca é **sete dias**. Numa clínica o computador da
-         * recepção é compartilhado e fica ligado: sete dias significa que quem
-         * sentar nele amanhã continua logado como a atendente de ontem, com
-         * acesso a prontuário.
+         * **`Account` já existe neste schema e é outra coisa.** Aqui `Account` é a
+         * conta que assina: tem `name` obrigatório, CNPJ, endereço de cobrança,
+         * `asaasCustomerId`. O `Account` do Better Auth é o par credencial-provedor
+         * de um usuário — onde mora o hash da senha. Deixar os dois no mesmo modelo
+         * é o que o próprio CLI apontou ao gerar o schema:
          *
-         * Com `updateAge` de uma hora, quem está trabalhando tem a sessão
-         * renovada sozinha e não é interrompido — então na prática isto é um
-         * limite de **oito horas de inatividade**, não de jornada. A máquina
-         * deixada ligada à noite desloga; quem passa o dia inteiro na tela, não.
+         *     Required columns Better Auth never writes
+         *       account.name
+         *     Inserts into account will fail.
          *
-         * É um número, e muda em uma linha se a operação pedir outro.
+         * Ou seja: todo cadastro falharia, porque a biblioteca não tem o que
+         * escrever em `name` e a coluna é obrigatória. E se `name` fosse afrouxado
+         * para resolver, o resultado seria pior — credencial de login e conta de
+         * cobrança misturadas na mesma tabela, com `ownerUserId` apontando para
+         * linha de senha.
+         *
+         * `Session` e `Verification` não colidem com nada hoje, mas ganham o mesmo
+         * prefixo: as três são da biblioteca, e o prefixo diz isso sem precisar
+         * abrir o arquivo.
          */
-        expiresIn: 60 * 60 * 8,
-        updateAge: 60 * 60,
-    },
-    account: { modelName: 'AuthAccount' },
-    verification: { modelName: 'AuthVerification' },
-
-    emailAndPassword: {
-        enabled: true,
-        /**
-         * Sem verificação de e-mail no primeiro corte.
-         *
-         * O cadastro está aberto de propósito desde 2026-10-07 para homologação,
-         * e exigir verificação agora somaria um fluxo de e-mail ao corte que já
-         * troca banco, cofre, storage e identidade. Entra junto com o portão de
-         * cadastro, antes do lançamento.
-         */
-        requireEmailVerification: false,
-        minPasswordLength: 8,
-
-        /**
-         * O e-mail de redefinição de senha.
-         *
-         * **Sem isto o botão "esqueci minha senha" não faz nada** — a biblioteca
-         * grava o token e chama este gancho para entregá-lo; sem gancho, o token
-         * fica no banco e a pessoa nunca recebe o link. Foi o estado em que esta
-         * configuração nasceu, e é por isso que ele vem junto e não depois.
-         *
-         * O `url` já vem montado com o `redirectTo` que a tela de login passou e
-         * com o token na query — `/nova-senha?token=…`, que é quem o gasta.
-         */
-        sendResetPassword: async ({ user, url }) => {
-            const resultado = await sendEmail({
-                to: user.email,
-                subject: 'Redefinir sua senha — OdontoBox360',
-                html: renderEmail({
-                    headline: 'Redefinir sua senha',
-                    body: [
-                        'Alguém — provavelmente você — pediu para trocar a senha desta conta.',
-                        'O link vale por uma hora e serve uma vez só.',
-                        'Se não foi você, ignore este e-mail. A senha atual continua valendo e nada muda.',
-                    ],
-                    cta: { texto: 'Escolher nova senha', url },
-                    rodape: 'Se o botão não abrir, copie e cole este endereço no navegador: ' + url,
-                }),
-            })
+        session: {
+            modelName: 'AuthSession',
 
             /**
-             * Falha de envio: registrada em ERRO, e **só**.
+             * Oito horas, renovada a cada hora de uso.
              *
-             * Medido em 2026-10-21: a biblioteca chama este gancho por
-             * `runInBackgroundOrAwait`, então o que se lança aqui **não** chega à
-             * resposta HTTP — `requestPasswordReset` devolve 200 de qualquer
-             * forma. Lançar daria a falsa impressão de que a tela saberia; não
-             * daria.
+             * O padrão da biblioteca é **sete dias**. Numa clínica o computador da
+             * recepção é compartilhado e fica ligado: sete dias significa que quem
+             * sentar nele amanhã continua logado como a atendente de ontem, com
+             * acesso a prontuário.
              *
-             * Então a tela diz "se esse e-mail tiver conta, o link chegou" — que
-             * é verdade sobre o que ela sabe, e é deliberadamente igual para
-             * e-mail que não existe, para não virar um verificador de quem é
-             * cliente da clínica.
+             * Com `updateAge` de uma hora, quem está trabalhando tem a sessão
+             * renovada sozinha e não é interrompido — então na prática isto é um
+             * limite de **oito horas de inatividade**, não de jornada. A máquina
+             * deixada ligada à noite desloga; quem passa o dia inteiro na tela, não.
              *
-             * **A consequência operacional, dita em voz alta:** falha de entrega
-             * é invisível para quem pediu e aparece só nesta linha de log. Antes
-             * do lançamento isto precisa de um sinal — contador de falha de envio
-             * na vigia de integrações, que já existe para o Asaas. Registrado em
-             * `docs/migration/03-go-no-go.md`.
+             * É um número, e muda em uma linha se a operação pedir outro.
              */
-            if (!resultado.ok) {
-                console.error('[AUTH] falha ao enviar redefinição de senha:', resultado.error)
-            }
+            expiresIn: 60 * 60 * 8,
+            updateAge: 60 * 60,
         },
+        account: { modelName: 'AuthAccount' },
+        verification: { modelName: 'AuthVerification' },
 
-        /**
-         * Uma hora de validade.
-         *
-         * O padrão da biblioteca é maior. Uma hora é tempo de abrir o e-mail e
-         * não é tempo de o link ficar válido numa caixa de entrada compartilhada
-         * da recepção — que é o cenário real numa clínica.
-         */
-        resetPasswordTokenExpiresIn: 3600,
-    },
-
-    /**
-     * O limite de requisições, **em banco** e não em memória.
-     *
-     * Este é o único item desta configuração que estaria errado em produção se
-     * fosse deixado no padrão, e o motivo é o destino: a biblioteca liga o
-     * limite sozinha em produção, mas com `storage: "memory"` — que é
-     * literalmente um `new Map()` no módulo (conferido em
-     * `api/rate-limiter/index.mjs`).
-     *
-     * Em Cloudflare Workers isso não limita nada. Cada isolate carrega o módulo
-     * de novo e tem o próprio mapa; os isolates são muitos, espalhados por colo,
-     * e descartados com frequência. O limite efetivo passaria a ser
-     * "100 por janela **por isolate**", que para quem tenta adivinhar senha é o
-     * mesmo que não haver limite — e `/sign-in/email` é endpoint público.
-     *
-     * Em banco o contador é um só, compartilhado por todos os isolates, e vive
-     * no mesmo Postgres que a sessão.
-     */
-    rateLimit: {
-        enabled: true,
-        storage: 'database',
-        modelName: 'AuthRateLimit',
-
-        /** O padrão geral, para o que não tem regra própria. */
-        window: 10,
-        max: 100,
-
-        /**
-         * Os endpoints que um atacante repetiria, com limite apertado.
-         *
-         * O padrão de 100 em 10 s é razoável para uso normal e generoso demais
-         * para adivinhação: a 100 tentativas por 10 segundos, uma lista de dez
-         * mil senhas comuns passa em menos de vinte minutos.
-         */
-        customRules: {
-            // Entrar: 10 tentativas por minuto. Quem erra a senha tenta três
-            // vezes, não dez — e quem tenta dez por minuto não é a pessoa.
-            '/sign-in/email': { window: 60, max: 10 },
-            // Pedir redefinição: 5 por hora. Protege a conta e protege a nossa
-            // reputação de remetente, que um disparo em massa queimaria.
-            '/request-password-reset': { window: 3600, max: 5 },
-            '/forget-password': { window: 3600, max: 5 },
-            // Gastar token de redefinição: 10 por hora. Adivinhar token é
-            // inviável por entropia, mas o limite fecha a porta de vez.
-            '/reset-password': { window: 3600, max: 10 },
-            // Cadastrar: 5 por hora. O cadastro está aberto para homologação
-            // (ver `public-signup-open`), e sem limite isso é um criador de
-            // contas em massa.
-            '/sign-up/email': { window: 3600, max: 5 },
-            // Trocar senha exige a atual: é um oráculo de senha se não limitado.
-            '/change-password': { window: 600, max: 10 },
-        },
-    },
-
-    advanced: {
-        database: {
+        emailAndPassword: {
+            enabled: true,
             /**
-             * O banco gera os ids, não a biblioteca.
+             * Sem verificação de e-mail no primeiro corte.
              *
-             * É o que preserva os UUID existentes e o que mantém `cuid()` como a
-             * forma dos novos, igual ao resto do schema. Ver a nota do módulo.
+             * O cadastro está aberto de propósito desde 2026-10-07 para homologação,
+             * e exigir verificação agora somaria um fluxo de e-mail ao corte que já
+             * troca banco, cofre, storage e identidade. Entra junto com o portão de
+             * cadastro, antes do lançamento.
              */
-            generateId: false,
+            requireEmailVerification: false,
+            minPasswordLength: 8,
+
+            /**
+             * O e-mail de redefinição de senha.
+             *
+             * **Sem isto o botão "esqueci minha senha" não faz nada** — a biblioteca
+             * grava o token e chama este gancho para entregá-lo; sem gancho, o token
+             * fica no banco e a pessoa nunca recebe o link. Foi o estado em que esta
+             * configuração nasceu, e é por isso que ele vem junto e não depois.
+             *
+             * O `url` já vem montado com o `redirectTo` que a tela de login passou e
+             * com o token na query — `/nova-senha?token=…`, que é quem o gasta.
+             */
+            sendResetPassword: async ({ user, url }) => {
+                const resultado = await sendEmail({
+                    to: user.email,
+                    subject: 'Redefinir sua senha — OdontoBox360',
+                    html: renderEmail({
+                        headline: 'Redefinir sua senha',
+                        body: [
+                            'Alguém — provavelmente você — pediu para trocar a senha desta conta.',
+                            'O link vale por uma hora e serve uma vez só.',
+                            'Se não foi você, ignore este e-mail. A senha atual continua valendo e nada muda.',
+                        ],
+                        cta: { texto: 'Escolher nova senha', url },
+                        rodape: 'Se o botão não abrir, copie e cole este endereço no navegador: ' + url,
+                    }),
+                })
+
+                /**
+                 * Falha de envio: registrada em ERRO, e **só**.
+                 *
+                 * Medido em 2026-10-21: a biblioteca chama este gancho por
+                 * `runInBackgroundOrAwait`, então o que se lança aqui **não** chega à
+                 * resposta HTTP — `requestPasswordReset` devolve 200 de qualquer
+                 * forma. Lançar daria a falsa impressão de que a tela saberia; não
+                 * daria.
+                 *
+                 * Então a tela diz "se esse e-mail tiver conta, o link chegou" — que
+                 * é verdade sobre o que ela sabe, e é deliberadamente igual para
+                 * e-mail que não existe, para não virar um verificador de quem é
+                 * cliente da clínica.
+                 *
+                 * **A consequência operacional, dita em voz alta:** falha de entrega
+                 * é invisível para quem pediu e aparece só nesta linha de log. Antes
+                 * do lançamento isto precisa de um sinal — contador de falha de envio
+                 * na vigia de integrações, que já existe para o Asaas. Registrado em
+                 * `docs/migration/03-go-no-go.md`.
+                 */
+                if (!resultado.ok) {
+                    console.error('[AUTH] falha ao enviar redefinição de senha:', resultado.error)
+                }
+            },
+
+            /**
+             * Uma hora de validade.
+             *
+             * O padrão da biblioteca é maior. Uma hora é tempo de abrir o e-mail e
+             * não é tempo de o link ficar válido numa caixa de entrada compartilhada
+             * da recepção — que é o cenário real numa clínica.
+             */
+            resetPasswordTokenExpiresIn: 3600,
         },
+
+        /**
+         * O limite de requisições, **em banco** e não em memória.
+         *
+         * Este é o único item desta configuração que estaria errado em produção se
+         * fosse deixado no padrão, e o motivo é o destino: a biblioteca liga o
+         * limite sozinha em produção, mas com `storage: "memory"` — que é
+         * literalmente um `new Map()` no módulo (conferido em
+         * `api/rate-limiter/index.mjs`).
+         *
+         * Em Cloudflare Workers isso não limita nada. Cada isolate carrega o módulo
+         * de novo e tem o próprio mapa; os isolates são muitos, espalhados por colo,
+         * e descartados com frequência. O limite efetivo passaria a ser
+         * "100 por janela **por isolate**", que para quem tenta adivinhar senha é o
+         * mesmo que não haver limite — e `/sign-in/email` é endpoint público.
+         *
+         * Em banco o contador é um só, compartilhado por todos os isolates, e vive
+         * no mesmo Postgres que a sessão.
+         */
+        rateLimit: {
+            enabled: true,
+            storage: 'database',
+            modelName: 'AuthRateLimit',
+
+            /** O padrão geral, para o que não tem regra própria. */
+            window: 10,
+            max: 100,
+
+            /**
+             * Os endpoints que um atacante repetiria, com limite apertado.
+             *
+             * O padrão de 100 em 10 s é razoável para uso normal e generoso demais
+             * para adivinhação: a 100 tentativas por 10 segundos, uma lista de dez
+             * mil senhas comuns passa em menos de vinte minutos.
+             */
+            customRules: {
+                // Entrar: 10 tentativas por minuto. Quem erra a senha tenta três
+                // vezes, não dez — e quem tenta dez por minuto não é a pessoa.
+                '/sign-in/email': { window: 60, max: 10 },
+                // Pedir redefinição: 5 por hora. Protege a conta e protege a nossa
+                // reputação de remetente, que um disparo em massa queimaria.
+                '/request-password-reset': { window: 3600, max: 5 },
+                '/forget-password': { window: 3600, max: 5 },
+                // Gastar token de redefinição: 10 por hora. Adivinhar token é
+                // inviável por entropia, mas o limite fecha a porta de vez.
+                '/reset-password': { window: 3600, max: 10 },
+                // Cadastrar: 5 por hora. O cadastro está aberto para homologação
+                // (ver `public-signup-open`), e sem limite isso é um criador de
+                // contas em massa.
+                '/sign-up/email': { window: 3600, max: 5 },
+                // Trocar senha exige a atual: é um oráculo de senha se não limitado.
+                '/change-password': { window: 600, max: 10 },
+            },
+        },
+
+        advanced: {
+            database: {
+                /**
+                 * O banco gera os ids, não a biblioteca.
+                 *
+                 * É o que preserva os UUID existentes e o que mantém `cuid()` como a
+                 * forma dos novos, igual ao resto do schema. Ver a nota do módulo.
+                 */
+                generateId: false,
+            },
+        },
+    })
+}
+
+/**
+ * Compatibilidade para quem já importava `auth`.
+ *
+ * `Proxy` e não `getAuth()` chamado aqui: chamar na carga do módulo anularia a
+ * preguiça inteira. O proxy repassa cada acesso para a instância, construída na
+ * primeira vez que alguém lê uma propriedade — que é, na prática, a primeira
+ * requisição que precisa de autenticação.
+ */
+export const auth = new Proxy({} as ReturnType<typeof construir>, {
+    get(_alvo, prop, receptor) {
+        return Reflect.get(getAuth(), prop, receptor)
     },
 })
 
-export type Sessao = typeof auth.$Infer.Session
+export type Sessao = ReturnType<typeof construir>['$Infer']['Session']

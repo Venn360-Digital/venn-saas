@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server'
 import { aplicarPortao } from '@/lib/auth/middleware'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     return await aplicarPortao(request)
 }
 
