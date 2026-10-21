@@ -251,11 +251,45 @@ export default defineConfig({
              * S3, para que a mesma implementação sirva ao R2 e à Magalu. Ver
              * `src/lib/storage/s3.ts`.
              */
-            PUBLICO: bindings.r2({ name: 'venn-odontobox360-publico-prod' }),
+            /**
+             * `odontobox-public`, e o nome é o que o André pediu em 2026-10-21.
+             *
+             * Era `venn-odontobox360-publico-prod`, da convenção
+             * `venn-<produto>-<classe>-<ambiente>`. A troca saiu de graça porque
+             * os dois buckets estavam com 0 objetos — conferido antes de mexer.
+             * O bucket antigo ficou órfão e pode ser apagado.
+             */
+            PUBLICO: bindings.r2({ name: 'odontobox-public' }),
 
             // Variáveis, só o que não é segredo.
             TZ: bindings.text('America/Sao_Paulo'),
             LOG_LEVEL: bindings.text('info'),
+
+            /**
+             * Os buckets do adaptador de storage, por NOME.
+             *
+             * Faltavam, e a falta não aparecia no deploy. `lerConfig` em
+             * `src/lib/storage/index.ts` exige QUATRO variáveis por provedor —
+             * `_ENDPOINT`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_BUCKET` —
+             * e só as duas chaves estavam declaradas. Com as outras duas
+             * ausentes o adaptador lança `ProvedorNaoConfiguradoError` no
+             * primeiro upload, em produção, não na publicação.
+             *
+             * Nome de bucket não é segredo (já está neste arquivo, no binding
+             * `PUBLICO` acima), então entra como texto. O endpoint vai como
+             * segredo logo abaixo, porque carrega o ID da conta — que o André
+             * guarda como segredo no GitHub, e eu respeito a mesma classificação.
+             */
+            PUBLIC_STORAGE_BUCKET: bindings.text('odontobox-public'),
+            PRIVATE_STORAGE_BUCKET: bindings.text('odontobox-private'),
+
+            /**
+             * `auto` é o que o R2 espera como região da API S3. `lerConfig` a
+             * trata como opcional, mas o SDK assina a requisição com ela — e
+             * assinatura com região errada falha em tempo de execução.
+             */
+            PUBLIC_STORAGE_REGION: bindings.text('auto'),
+            PRIVATE_STORAGE_REGION: bindings.text('auto'),
 
             /**
              * Os segredos, declarados sem valor.
@@ -271,12 +305,37 @@ export default defineConfig({
             RESEND_API_KEY: bindings.secret(),
             EVOLUTION_GO_API_KEY: bindings.secret(),
             EVOLUTION_API_KEY: bindings.secret(),
-            GOOGLE_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
-            PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_META_MESSAGING_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_META_MESSAGING_VERIFY_TOKEN: bindings.secret(),
+            /**
+             * `GOOGLE_CLIENT_SECRET` saiu em 2026-10-21: é resquício, e nada o
+             * lê. O `src/lib/google-oauth-client.ts` registra, no próprio
+             * cabeçalho, que "none of it comes from the environment any more" —
+             * as credenciais do app Google vêm de `platform_credentials` ou da
+             * linha de integração do workspace.
+             *
+             * Exigi-lo aqui obrigaria a inventar um valor para publicar: ele
+             * não existe no ambiente da VPS, conferido em 2026-10-21.
+             */
+            /**
+             * Os `PLATFORM_*` saíram daqui em 2026-10-21, e não é economia de
+             * configuração — é correção.
+             *
+             * Essas são as credenciais do app OAuth da plataforma, e por
+             * desenho elas moram no COFRE, registradas uma vez por provedor na
+             * tela (`src/lib/platform-credentials.ts`). O cofre dá precedência
+             * ao ambiente e, justamente por isso, `writeVaultSecret` RECUSA
+             * gravar o que está no ambiente — `SegredoDeAmbienteError`.
+             *
+             * Ou seja: declará-las aqui as tornaria somente-leitura e a tela de
+             * registro passaria a dar erro ao salvar. Quem as quer no ambiente
+             * está escolhendo não poder mais trocá-las pelo produto.
+             *
+             * Eram: PLATFORM_ASAAS_CLIENT_ID, PLATFORM_ASAAS_CLIENT_SECRET,
+             * PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET,
+             * PLATFORM_META_MESSAGING_CLIENT_SECRET e
+             * PLATFORM_META_MESSAGING_VERIFY_TOKEN. Depois do deploy, registre
+             * pela tela — a tabela `app_secrets` do branch `production` nasce
+             * vazia.
+             */
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
 
@@ -294,6 +353,17 @@ export default defineConfig({
              */
             PRIVATE_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PRIVATE_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
+
+            /**
+             * Os endpoints da API S3 do R2 — `https://<ID_DA_CONTA>.r2.cloudflarestorage.com`.
+             *
+             * Segredo e não texto porque carregam o ID da conta, que o André
+             * mantém como segredo (`CLOUDFLARE_ACCOUNT_ID` no GitHub). Os dois
+             * recebem o MESMO valor: o endpoint é da conta, não do bucket — o
+             * bucket entra pelo `_BUCKET` acima.
+             */
+            PUBLIC_STORAGE_ENDPOINT: bindings.secret(),
+            PRIVATE_STORAGE_ENDPOINT: bindings.secret(),
         },
 
         ...(EH_PREVIEW ? {} : { triggers: GATILHOS }),
