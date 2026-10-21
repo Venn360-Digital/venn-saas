@@ -59,7 +59,38 @@ E há um ganho junto com a correção: como o estado do whatsmeow mora em Postgr
 e não em volume, **migrar os dois bancos preserva os pareamentos**. O
 re-pareamento deixa de ser um passo obrigatório do corte e passa a ser plano B.
 
-### 1.3 O heartbeat da licença manda o IP do servidor
+### 1.3 Levar a licença cria um risco novo, e ele é grave
+
+Trazer a ativação da VPS resolve o 1.1 sem registrar nada de novo — a VPS já
+está ativada, e a licença mora no Postgres. Mas os dois bancos do Evolution Go
+**não têm o mesmo peso**:
+
+| Banco | O que guarda | Copiar é |
+| --- | --- | --- |
+| `evogo_auth` | a licença | inofensivo a qualquer momento |
+| `evogo_users` | credenciais de aparelho do whatsmeow | **perigoso com a VPS no ar** |
+
+O WhatsApp aceita **uma conexão por aparelho vinculado**. Dois Evolution Go
+sobre o mesmo `evogo_users`, os dois com `CONNECT_ON_STARTUP=true`, disputam o
+mesmo aparelho: um derruba o outro em laço, e o desfecho provável é o WhatsApp
+**desvincular o aparelho** — número da clínica fora do ar, exigindo justamente o
+re-pareamento que levar as sessões existia para evitar.
+
+Isso tem duas consequências, e as duas já estão aplicadas:
+
+1. **No corte**, o passo 3 passa a parar o `evolution-go` junto com `app` e
+   `worker`. Não custa indisponibilidade extra — o WhatsApp já está fora do ar
+   no passo 3 — e sem isso o passo 5b viraria o defeito que ele veio consertar.
+   É um risco que **a própria correção do dump criou**: enquanto as sessões não
+   atravessavam, não havia com o que conflitar.
+2. **Na POC**, `CONNECT_ON_STARTUP` virou a variável `REATAR_SESSOES`, e o
+   padrão é **`false`**. A POC passou a poder apontar para base restaurada da
+   VPS; com isto ligado, um teste tiraria número de clínica do ar.
+
+O `infra/scripts/levar-licenca.sh` reflete a assimetria: leva `evogo_auth` por
+padrão, e `evogo_users` só com `--sessoes` mais uma confirmação digitada.
+
+### 1.4 O heartbeat da licença manda o IP do servidor
 
 `infra/README.md` registra que a instância ativada envia batimentos periódicos
 com "versão, contadores agregados, funcionalidades ativas, **IP do servidor**".
@@ -208,7 +239,8 @@ aqui ele entra como webhook pela porta da frente.
 
 | Pergunta | Como se responde | Quem |
 | --- | --- | --- |
-| A ativação sobrevive a contêiner novo? | Ativar e subir um segundo contêiner apontando ao mesmo `evogo_auth` | depois da ativação |
+| A licença atravessa da VPS para o Neon? | `infra/scripts/levar-licenca.sh` — **bloqueado**: o classificador de permissões barra SSH nesta sessão | precisa de permissão ou da mão do André |
+| A licença está em `evogo_auth` ou em `evogo_users`? | O diagnóstico do script responde (contagem por tabela). Hoje é **dedução**, de o serviço não ter volume e a ativação sobreviver a recriação | junto com o acima |
 | O Evolution Go funciona no **pooler** do Neon? | **Não provado.** `/server/ok` fica verde sem banco — é o próprio sintoma de produção. A licença barrou antes de a migração de esquema rodar | depois da ativação |
 | O vazamento de conexões mata o Neon? | 112 conexões a 0,25 CU. Se o pooler servir, ele absorve; se não, o teto é mais baixo que o da VPS | depois da ativação |
 | Os 105 s acontecem aqui? | Parear e observar o diário | André + aparelho |

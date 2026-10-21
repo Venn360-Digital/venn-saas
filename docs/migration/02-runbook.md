@@ -264,7 +264,7 @@ executar.
 | --- | --- | --- | --- |
 | 1 | Avisar os 3 usuários | — | — |
 | 2 | Baixar TTL do DNS de `odontobox.venn360.com` para 60 s — **≥ 1 h antes** | 1 min | voltar o TTL |
-| 3 | Pôr a VPS em manutenção: `docker compose stop app worker` (**não** `down -v`) | 1 min | `start` |
+| 3 | Pôr a VPS em manutenção: `docker compose stop app worker evolution-go` (**não** `down -v`) | 1 min | `start` |
 | 4 | Dump final (A.3) | ~2 min | — |
 | 5 | Restaurar dados no Neon `production` | ~5 min | truncar e repetir |
 | 5b | Restaurar `evogo_auth` e `evogo_users` no Neon — **a licença e os pareamentos vêm aqui** | ~3 min | truncar e repetir |
@@ -290,6 +290,26 @@ executar.
 > **Passo 5, nunca:** `pg_restore --clean`, `DROP`, `TRUNCATE` em base cuja
 > identidade não foi conferida. Antes de restaurar, confirmar que a URL é a
 > branch `production` do projeto `polished-shape-42069569` e nenhuma outra.
+
+> **⚠️ `evolution-go` entra no passo 3, e é o passo 5b que obriga.**
+> Enquanto o dump não levava `evogo_users`, parar só `app` e `worker` bastava: a
+> infra nova subia sem sessão nenhuma, e não havia com o que conflitar. Levar as
+> sessões muda isso — **dois processos com a mesma credencial de aparelho** é o
+> pior caso possível aqui.
+>
+> O WhatsApp aceita **uma conexão por aparelho vinculado**. Com o Evolution Go
+> da VPS no ar e o novo subindo com `CONNECT_ON_STARTUP=true` sobre as mesmas
+> credenciais, os dois disputam o mesmo aparelho: um derruba o outro em laço, e
+> o desfecho provável é o WhatsApp **desvincular o aparelho** — tirando o número
+> da clínica do ar e exigindo exatamente o re-pareamento que o 5b existe para
+> evitar.
+>
+> Parar o `evolution-go` não custa indisponibilidade extra: o WhatsApp já está
+> fora do ar no passo 3, porque `app` e `worker` pararam.
+>
+> **Regra geral, não só do corte:** nunca dois Evolution Go apontando para o
+> mesmo `evogo_users` com `CONNECT_ON_STARTUP=true`. Para ambiente de teste
+> sobre credencial real, o valor é `false`.
 
 > **Passo 8b é o que não se pode pular.** A licença do Evolution Go e todo
 > pareamento de clínica moram nos dois bancos do passo 5b. Se o 5b falhar em

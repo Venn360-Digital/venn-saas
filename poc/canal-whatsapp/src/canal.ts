@@ -16,6 +16,14 @@ export interface Ambiente {
     EVOGO_USERS_DB: string
     WEBHOOK_BASE_URL: string
     POC_TOKEN: string
+    /**
+     * `'true'` reata as sessões gravadas ao subir.
+     *
+     * Padrão desligado de propósito: ver `CONNECT_ON_STARTUP` no construtor.
+     * Com credencial real no banco, ligar isto enquanto a VPS serve tira número
+     * de clínica do ar.
+     */
+    REATAR_SESSOES?: string
 }
 
 /**
@@ -120,10 +128,25 @@ export class CanalWhatsApp extends Container<Ambiente> {
             WEBHOOKFILES: 'true',
             MINIO_ENABLED: 'false',
 
-            // Reatar as sessões ao subir. É o que torna o reinício um contorno
-            // viável em vez de uma perda de sessão, e o que faz o item 5
-            // (sobreviver a reinício) depender de configuração, não de sorte.
-            CONNECT_ON_STARTUP: 'true',
+            /**
+             * Reatar as sessões ao subir.
+             *
+             * Em produção é `true`, e é o que torna o reinício um contorno
+             * viável em vez de uma perda de sessão — o item 5 do roteiro
+             * depende disto, não de sorte.
+             *
+             * **Na POC é `false` por padrão, e isso não é cautela genérica.**
+             * A partir do momento em que esta POC aponta para um `evogo_users`
+             * com credencial real, `true` faria este contêiner disputar o
+             * aparelho com o Evolution Go que está no ar na VPS. O WhatsApp
+             * aceita uma conexão por aparelho vinculado: os dois se derrubariam
+             * em laço, e o desfecho provável é o aparelho ser **desvinculado** —
+             * o número da clínica fora do ar, por causa de um teste.
+             *
+             * Só vale `true` aqui quando o `evolution-go` da VPS estiver
+             * parado — ou seja, dentro da janela do corte.
+             */
+            CONNECT_ON_STARTUP: this.env.REATAR_SESSOES === 'true' ? 'true' : 'false',
 
             WADEBUG: 'INFO',
             LOGTYPE: 'json',

@@ -43,7 +43,20 @@
 
     "vars": {
         // Preenchido depois do primeiro `deploy`, quando a URL existe.
-        "WEBHOOK_BASE_URL": "https://poc-canal-whatsapp.andre-7ee.workers.dev"
+        "WEBHOOK_BASE_URL": "https://poc-canal-whatsapp.andre-7ee.workers.dev",
+
+        // Reatar sessões gravadas ao subir. **Fica desligado.**
+        //
+        // A POC passou a apontar para um `evogo_auth` restaurado da VPS, que
+        // carrega a licença real — e, na mesma base, as credenciais de aparelho
+        // das clínicas. Com isto em "true", este contêiner disputaria o aparelho
+        // com o Evolution Go que está no ar: o WhatsApp aceita uma conexão por
+        // aparelho vinculado, os dois se derrubam em laço, e o fim provável é o
+        // aparelho desvinculado — número de clínica fora do ar por causa de um
+        // teste.
+        //
+        // Só muda para "true" com o `evolution-go` da VPS parado.
+        "REATAR_SESSOES": "false"
     }
 
     // Segredos por `wrangler secret put`, nunca aqui:
