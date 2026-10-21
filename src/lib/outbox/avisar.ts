@@ -18,17 +18,12 @@ import { gravarEvento } from './index'
 export type ClienteDeOutbox = Pick<Prisma.TransactionClient, 'outboxEvent'>
 
 /**
- * As chaves que a tela lê. Exportadas para o teste poder conferir.
+ * As chaves que a tela lê — reexportadas de `./chaves`, que é módulo puro.
  *
- * Não é decoração: é o contrato entre `page.tsx` e os emissores, e ele não tem
- * como ser verificado pelo compilador — o payload é `Record<string, …>` dos
- * dois lados.
+ * A declaração saiu daqui porque este arquivo arrasta o Prisma por `./index`, e
+ * o teste que confere o contrato não precisa de banco. Ver `chaves.ts`.
  */
-export const CHAVES = {
-    'mensagem.nova': ['conversationId', 'messageId', 'direction'],
-    'mensagem.status': ['conversationId', 'messageId', 'status'],
-    'conversa.alterada': ['conversationId'],
-} as const
+export { CHAVES } from './chaves'
 
 /**
  * Mensagem nova numa conversa.

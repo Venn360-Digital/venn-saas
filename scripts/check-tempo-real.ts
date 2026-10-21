@@ -272,7 +272,9 @@ async function main() {
      */
     const fs = await import('node:fs')
     const tela = fs.readFileSync('src/app/(dashboard)/atendimento/conversas/page.tsx', 'utf8')
-    const { CHAVES } = await import('@/lib/outbox/avisar')
+    // De `chaves`, não de `avisar`: aquele importa o Prisma por `./index`, que
+    // lança na carga sem DATABASE_URL — e este teste roda sem banco.
+    const { CHAVES } = await import('@/lib/outbox/chaves')
 
     // Direção 1: tudo o que os emissores mandam é lido pela tela.
     for (const [tipo, chaves] of Object.entries(CHAVES)) {
