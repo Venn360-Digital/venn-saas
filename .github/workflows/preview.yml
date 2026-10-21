@@ -52,12 +52,25 @@ jobs:
           # enquanto o plugin da Cloudflare escreve em `.cloudflare/output/`.
           BUILD_TARGET: cloudflare
         run: |
+          # `pipefail` NÃO é padrão no shell do Actions (ele roda `bash -e`), e
+          # sem ele o `| tee` abaixo engolia a falha: em pipeline o status é do
+          # ÚLTIMO comando, e `tee` sempre sucede. Resultado medido em
+          # 2026-10-21: `cf previews deploy failed with exit code 1` por falta de
+          # CLOUDFLARE_API_TOKEN, e o passo ficou ✓ e o job verde. Luz verde num
+          # deploy que não aconteceu é pior do que falhar.
+          set -o pipefail
+
           # Nome do preview pelo número do PR: estável entre pushes, então a
           # URL não muda a cada commit e o comentário não precisa ser reescrito.
           npm run build:vinext
           npx vinext-cloudflare previews deploy "pr-${{ github.event.pull_request.number }}" | tee saida.txt
 
-          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' saida.txt | head -1)
+          # `|| true` aqui é deliberado e não contradiz o pipefail acima: com
+          # pipefail ligado, `grep | head` falha de duas formas legítimas — grep
+          # sai 1 quando não casa, e leva SIGPIPE quando o `head` fecha antes.
+          # Nenhuma das duas é falha de deploy. Quem decide é o passo seguinte,
+          # que só comenta se a URL existir.
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' saida.txt | head -1 || true)
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
 
       - name: Comentar a URL no PR
