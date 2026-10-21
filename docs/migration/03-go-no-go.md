@@ -37,7 +37,8 @@ rodado.**
 | webhooks | **NOT RUN** | — |
 | tempo real | **PARCIAL** | lógica provada em `check:tempo-real`; os Durable Objects só no CI (o `workerd` não roda nesta máquina) |
 | IA / bloqueio de PHI | **NOT RUN** | — |
-| POC Evolution Go | **NOT RUN** | exige Containers (custo) |
+| POC Evolution Go | **PARCIAL** | publicada e medida em 2026-10-21; 3 de 7 critérios fechados, 4 barrados pela ativação da licença — ver [`11`](11-poc-evolution-go.md) |
+| `check:canal` | **PASS** | 27 provas — janela do reinício, recusa de hibernar, vigia |
 | backup / restore | **NOT RUN** | — |
 
 ## Pendências que nasceram desta fase
@@ -49,11 +50,17 @@ rodado.**
 | 3 | Confirmação de e-mail está **desligada** (`requireEmailVerification: false`), coerente com o cadastro aberto para homologação. Entra junto com o portão de cadastro | baixa |
 | 4 | Dependências: `next` com CVE crítico (HTTP request smuggling em rewrites) e `handlebars` crítico via LangChain. Atualizar antes do corte | **média** |
 | 5 | Branch protegida no Neon exige plano superior (`HTTP 422`) | baixa |
+| 6 | **A licença do Evolution Go precisa de ativação humana, e entra no caminho crítico do corte.** Contêiner novo responde 503 `LICENSE_REQUIRED` e nenhum QR nasce. A licença é gratuita; o ato não é automatizável (painel web). Caminho pronto: `/manager` sai pelo Worker, sem o túnel SSH que a VPS exigia | **alta** |
+| 7 | **O Evolution Go no pooler do Neon não está provado.** `/server/ok` fica verde sem banco — é o próprio sintoma de produção —, e a licença barrou antes de a migração de esquema rodar. Se o pooler não servir, o endpoint direto traz de volta o vazamento de conexões, com teto **mais baixo** que o dos 100 da VPS | **média** |
+| 8 | O batimento da licença manda o **IP do servidor**, e em Containers ele muda a cada subida. O tier comunidade declara não ter limite de instância, mas isso é dependência de terceiro que não se afirma lendo documentação | baixa |
 
 ## Riscos abertos
 Ver [`00-open-decisions.md`](00-open-decisions.md) Parte 1. Os quatro vermelhos:
-build local impossível, storage clínico sem provedor aprovado, Evolution Go sem
-POC, recursos da Cloudflare não provisionados.
+build local impossível, storage clínico sem provedor aprovado, recursos da
+Cloudflare não provisionados. O quarto — "Evolution Go sem POC" — sai da lista:
+a POC rodou, e o risco que ela carregava (scale-to-zero) está resolvido. No
+lugar dele entra um risco menor e de outra natureza: a **ativação da licença**,
+que é um ato humano no caminho crítico.
 
 ## Custo a aprovar
 *(a estimar quando os recursos forem dimensionados)*
@@ -65,7 +72,8 @@ POC, recursos da Cloudflare não provisionados.
 | R2 | arredondamento com 5,7 MB |
 | Magalu `br-se1` | R$ 0,10/GiB + R$ 0,10/GiB de saída, requisição grátis |
 | Queues, Durable Objects | a estimar por volume |
-| Containers (Evolution Go) | **o item que pode dominar a conta** — depende da política de execução |
+| Containers (Evolution Go) | **medido**: `lite` sempre ligado, US$ 1,74 por workspace pareado/mês (US$ 21 a dez, US$ 108 a cinquenta). Workspace sem pareamento dorme e não cobra |
+| Neon — compute sem suspender | o canal de WhatsApp mantém conexões abertas, então o compute **nunca suspende**: ~182 CU-h/mês a 0,25 CU |
 
 ## Checklist do gate
 
@@ -75,7 +83,14 @@ POC, recursos da Cloudflare não provisionados.
 - [ ] provedor de storage clínico **aprovado**
 - [ ] evidência de que o R2 contém **apenas** público/não sensível
 - [ ] IA bloqueia PHI/PII identificável, e usa BYOK sem Unified Billing
-- [ ] POC do Evolution Go passou nos 7 critérios — em especial o **6**
+- [x] POC do Evolution Go: o critério **6** está resolvido — recusar o sono é
+      caminho documentado, e o arranque a frio de 25–40 s mostra que é
+      obrigatório, não opcional. **Não** é preciso hospedar o Evolution Go fora
+      da Cloudflare
+- [ ] licença do Evolution Go **ativada** no destino (ato do André) e os
+      critérios 1, 2, 3 e 5 fechados com um aparelho de teste
+- [ ] o dump do corte inclui `evogo_auth` e `evogo_users` — passos 5b e 8b do
+      runbook. **Sem isso o WhatsApp de toda clínica cai depois do DNS**
 - [ ] VPS, volumes, dumps e credenciais **íntegros** e não removidos
 - [ ] crons convertidos para UTC e conferidos
 - [ ] webhooks da Meta, Asaas e Evolution com as URLs novas anotadas
