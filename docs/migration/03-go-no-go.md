@@ -23,9 +23,12 @@ rodado.**
 | `lint:workspace` | **PASS** | nenhuma rota resolve workspace por conta própria |
 | `check:widget` | **PASS** | — |
 | `check:cofre` | **PASS** | 14 provas, incluindo adulteração rejeitada |
+| `check:neon` | **PASS** | 26 provas contra o Neon São Paulo |
+| `check:storage` | **PASS** | 15 provas; ciclo R2 em **SKIP** (falta token de API) |
+| `check:auth` | **PASS** | 33 provas contra o Neon |
 | `build` | **NOT RUN** | — |
 | build vinext | **BLOCKED** | `workerd` não roda em macOS 12.7.6; só no CI |
-| autenticação | **NOT RUN** | Better Auth não implementado |
+| autenticação | **PASS** | cadastro, login, redefinição, troca de senha e criação por administrador, provados em `check:auth` |
 | multi-tenant | **NOT RUN** | — |
 | storage | **NOT RUN** | — |
 | webhooks | **NOT RUN** | — |
@@ -33,6 +36,16 @@ rodado.**
 | IA / bloqueio de PHI | **NOT RUN** | — |
 | POC Evolution Go | **NOT RUN** | exige Containers (custo) |
 | backup / restore | **NOT RUN** | — |
+
+## Pendências que nasceram desta fase
+
+| # | Pendência | Gravidade |
+| --- | --- | --- |
+| 1 | **Falha de entrega de e-mail é invisível.** O gancho `sendResetPassword` roda em segundo plano: o que ele lança não chega à resposta HTTP, e `requestPasswordReset` devolve 200 mesmo quando o envio falha. Hoje o único sinal é uma linha de log. Precisa de contador na vigia de integrações — a mesma que já existe para o Asaas — antes do lançamento | **média** |
+| 2 | `users.hashedPassword` ficou obsoleta e **não** foi removida: enquanto o Supabase Auth ainda atender, apagá-la seria apagar o caminho de volta. Migração própria, depois do corte | baixa |
+| 3 | Confirmação de e-mail está **desligada** (`requireEmailVerification: false`), coerente com o cadastro aberto para homologação. Entra junto com o portão de cadastro | baixa |
+| 4 | Dependências: `next` com CVE crítico (HTTP request smuggling em rewrites) e `handlebars` crítico via LangChain. Atualizar antes do corte | **média** |
+| 5 | Branch protegida no Neon exige plano superior (`HTTP 422`) | baixa |
 
 ## Riscos abertos
 Ver [`00-open-decisions.md`](00-open-decisions.md) Parte 1. Os quatro vermelhos:
@@ -65,6 +78,8 @@ POC, recursos da Cloudflare não provisionados.
 - [ ] webhooks da Meta, Asaas e Evolution com as URLs novas anotadas
 - [ ] `main` protegida, PR obrigatório, produção com aprovação humana
 - [ ] nenhum segredo em commit, log ou artefato de CI
+- [ ] `npm run migrar:usuarios --aplicar` rodado, e os 3 links entregues
+- [ ] auditoria de segurança (`/security-audit`) executada e achados tratados
 
 ## Parar aqui
 

@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { sendEmail } from './send'
+import { renderEmail } from '@/lib/email/layout'
 
 /**
  * The billing notices: trial running out, trial over, credits nearly spent.
@@ -154,36 +155,21 @@ function copyFor(
     }
 }
 
-/** Same shell as the auth e-mails: tables, inline styles, bulletproof button. */
+/**
+ * A casca saiu daqui para `email/layout.ts`.
+ *
+ * Ela estava duplicada com os e-mails de autenticação — o comentário antigo
+ * dizia isso — e o e-mail de redefinição de senha do Better Auth precisava dela.
+ * Duas cópias de 25 linhas de tabela inline divergem na primeira correção feita
+ * só em uma.
+ */
 function render(copy: Copy): string {
-    const accent = copy.tone === 'urgent' ? '#c62828' : '#a7f3d0'
-    return `<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${copy.headline}</title></head>
-<body style="margin:0;padding:0;background-color:#f8fbfd;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f8fbfd;"><tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
-<tr><td align="center" style="padding-bottom:28px;">
-<img src="${APP_URL}/logos/logo-wordmark-light.png" width="150" height="50" alt="OdontoBox360" style="display:block;border:0;width:150px;height:auto;">
-</td></tr>
-<tr><td style="background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="width:44px;height:3px;background-color:${accent};border-radius:2px;font-size:0;line-height:0;">&nbsp;</td></tr></table>
-<h1 style="margin:22px 0 0;font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;">${copy.headline}</h1>
-${copy.body
-    .map(
-        (p) =>
-            `<p style="margin:14px 0 0;font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;">${p}</p>`
-    )
-    .join('\n')}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:30px 0 0;"><tr>
-<td align="center" bgcolor="#06b6d4" style="border-radius:10px;">
-<a href="${PLANS_URL}" target="_blank" style="display:inline-block;padding:14px 30px;font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;">${copy.cta}</a>
-</td></tr></table>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 0;"><tr><td style="height:1px;background-color:#dce7ec;font-size:0;line-height:0;">&nbsp;</td></tr></table>
-<p style="margin:20px 0 0;font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;">Qualquer dúvida, é só responder este e-mail.</p>
-</td></tr>
-<tr><td align="center" style="padding:24px 8px 0;">
-<p style="margin:0;font-family:'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;">OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p>
-</td></tr></table></td></tr></table></body></html>`
+    return renderEmail({
+        headline: copy.headline,
+        body: copy.body,
+        cta: { texto: copy.cta, url: PLANS_URL },
+        tone: copy.tone,
+    })
 }
 
 export async function sendBillingEmail(input: {

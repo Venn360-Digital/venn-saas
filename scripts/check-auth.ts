@@ -129,6 +129,62 @@ async function main() {
     })
     ok('e-mail repetido é recusado', !repetido.ok, `HTTP ${repetido.status}`)
 
+    // 8b. O ciclo completo de redefinição de senha.
+    //
+    // O token não vai para o `value`: ele vai para o `identifier`, na forma
+    // `reset-password:<token>` — e `value` guarda o id do usuário. Descoberto
+    // sondando, porque errar isto faria o script de corte gerar links que não
+    // abrem.
+    const emailReset = `reset-${Date.now()}@odontobox360.test`
+    await auth.api.signUpEmail({
+        body: { email: emailReset, password: 'senha-inicial-12345', name: 'Reset' },
+        asResponse: true,
+    })
+
+    const pedido = await auth.api.requestPasswordReset({
+        body: { email: emailReset, redirectTo: 'http://localhost:3000/nova-senha' },
+        asResponse: true,
+    })
+    ok('requestPasswordReset responde 200', pedido.ok, `HTTP ${pedido.status}`)
+
+    const verif = await prisma.authVerification.findFirst({
+        where: { identifier: { startsWith: 'reset-password:' } },
+        orderBy: { createdAt: 'desc' },
+    })
+    ok('token gravado em auth_verifications', verif !== null)
+
+    const minutos = verif ? Math.round((verif.expiresAt.getTime() - Date.now()) / 60000) : 0
+    ok('validade é de uma hora', minutos >= 55 && minutos <= 60, `${minutos} min`)
+
+    const token = verif!.identifier.replace('reset-password:', '')
+    const novaSenha = 'senha-redefinida-12345'
+    const trocou = await auth.api.resetPassword({
+        body: { newPassword: novaSenha, token },
+        asResponse: true,
+    })
+    ok('resetPassword aceita o token', trocou.ok, `HTTP ${trocou.status}`)
+
+    const comNova = await auth.api.signInEmail({
+        body: { email: emailReset, password: novaSenha },
+        asResponse: true,
+    })
+    ok('senha nova entra', comNova.ok, `HTTP ${comNova.status}`)
+
+    const comAntiga = await auth.api.signInEmail({
+        body: { email: emailReset, password: 'senha-inicial-12345' },
+        asResponse: true,
+    })
+    ok('senha antiga deixa de entrar', !comAntiga.ok, `HTTP ${comAntiga.status}`)
+
+    // Uso único: o mesmo token não serve duas vezes.
+    const reusado = await auth.api.resetPassword({
+        body: { newPassword: 'mais-uma-senha-12345', token },
+        asResponse: true,
+    })
+    ok('token é de uso único', !reusado.ok, `HTTP ${reusado.status}`)
+
+    await prisma.user.deleteMany({ where: { email: emailReset } })
+
     // 9. A credencial criada À MÃO entra de verdade.
     //
     // `api/users/route.ts` cria usuário para outra pessoa, e por isso não pode

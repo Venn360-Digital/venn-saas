@@ -2,6 +2,8 @@ import 'server-only'
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
 import prisma from '@/lib/prisma'
+import { renderEmail } from '@/lib/email/layout'
+import { sendEmail } from '@/lib/email/send'
 
 /**
  * O Better Auth, montado sobre o schema que já existe.
@@ -86,6 +88,67 @@ export const auth = betterAuth({
          */
         requireEmailVerification: false,
         minPasswordLength: 8,
+
+        /**
+         * O e-mail de redefinição de senha.
+         *
+         * **Sem isto o botão "esqueci minha senha" não faz nada** — a biblioteca
+         * grava o token e chama este gancho para entregá-lo; sem gancho, o token
+         * fica no banco e a pessoa nunca recebe o link. Foi o estado em que esta
+         * configuração nasceu, e é por isso que ele vem junto e não depois.
+         *
+         * O `url` já vem montado com o `redirectTo` que a tela de login passou e
+         * com o token na query — `/nova-senha?token=…`, que é quem o gasta.
+         */
+        sendResetPassword: async ({ user, url }) => {
+            const resultado = await sendEmail({
+                to: user.email,
+                subject: 'Redefinir sua senha — OdontoBox360',
+                html: renderEmail({
+                    headline: 'Redefinir sua senha',
+                    body: [
+                        'Alguém — provavelmente você — pediu para trocar a senha desta conta.',
+                        'O link vale por uma hora e serve uma vez só.',
+                        'Se não foi você, ignore este e-mail. A senha atual continua valendo e nada muda.',
+                    ],
+                    cta: { texto: 'Escolher nova senha', url },
+                    rodape: 'Se o botão não abrir, copie e cole este endereço no navegador: ' + url,
+                }),
+            })
+
+            /**
+             * Falha de envio: registrada em ERRO, e **só**.
+             *
+             * Medido em 2026-10-21: a biblioteca chama este gancho por
+             * `runInBackgroundOrAwait`, então o que se lança aqui **não** chega à
+             * resposta HTTP — `requestPasswordReset` devolve 200 de qualquer
+             * forma. Lançar daria a falsa impressão de que a tela saberia; não
+             * daria.
+             *
+             * Então a tela diz "se esse e-mail tiver conta, o link chegou" — que
+             * é verdade sobre o que ela sabe, e é deliberadamente igual para
+             * e-mail que não existe, para não virar um verificador de quem é
+             * cliente da clínica.
+             *
+             * **A consequência operacional, dita em voz alta:** falha de entrega
+             * é invisível para quem pediu e aparece só nesta linha de log. Antes
+             * do lançamento isto precisa de um sinal — contador de falha de envio
+             * na vigia de integrações, que já existe para o Asaas. Registrado em
+             * `docs/migration/03-go-no-go.md`.
+             */
+            if (!resultado.ok) {
+                console.error('[AUTH] falha ao enviar redefinição de senha:', resultado.error)
+            }
+        },
+
+        /**
+         * Uma hora de validade.
+         *
+         * O padrão da biblioteca é maior. Uma hora é tempo de abrir o e-mail e
+         * não é tempo de o link ficar válido numa caixa de entrada compartilhada
+         * da recepção — que é o cenário real numa clínica.
+         */
+        resetPasswordTokenExpiresIn: 3600,
     },
 
     advanced: {

@@ -178,7 +178,7 @@ autorizado.
 
 Mínimo para passar adiante:
 
-- [ ] login, cadastro, recuperação, troca de senha, logout
+- [ ] login, cadastro, recuperação, troca de senha, logout — **`npm run check:auth` cobre os cinco**; o que falta é na tela
 - [ ] callback OAuth do Google Calendar
 - [ ] **multi-tenant**: usuário do workspace A não lê, altera, apaga nem gera URL
       assinada para arquivo do workspace B
@@ -231,12 +231,20 @@ executar.
 | 6 | Conferir `count(*)` tabela por tabela contra a origem | ~5 min | — |
 | 7 | Copiar os arquivos **públicos** para o R2 | ~2 min | — |
 | 8 | Publicar o Worker a partir do commit aprovado | ~5 min | republicar o anterior |
-| 9 | Fumaça em produção: login, abrir conversa, enviar mensagem | ~10 min | — |
+| 9 | `npm run migrar:usuarios --aplicar` — gera um link de definição de senha por usuário | ~2 min | nenhuma credencial foi tocada; repetir gera links novos |
+| 9b | Fumaça em produção: login com um dos links, abrir conversa, enviar mensagem | ~10 min | — |
 | 10 | Apontar o DNS para o Worker | 1 min | **voltar o registro** |
 | 11 | Reapontar os webhooks (Meta, Asaas, Evolution) para o domínio novo | ~10 min | voltar as URLs |
 | 12 | Observar 30 min | 30 min | — |
 
-**Soma: ~1 h 15 min**, com folga dentro das 2 h.
+**Soma: ~1 h 17 min**, com folga dentro das 2 h.
+
+> **Sobre os usuários.** Os hashes do GoTrue são bcrypt e o Better Auth usa
+> scrypt: hash não se desconverte, e carregar verificação de bcrypt legado para
+> **três** pessoas seria complexidade permanente por um ganho de um dia. O passo
+> 9 gera um link de uma hora, de uso único, por pessoa — nenhuma senha trafega,
+> e quem escolhe é a própria pessoa. Provado ponta a ponta: usuário sem
+> credencial → link → senha definida → login funcionando.
 
 > **Passo 5, nunca:** `pg_restore --clean`, `DROP`, `TRUNCATE` em base cuja
 > identidade não foi conferida. Antes de restaurar, confirmar que a URL é a
