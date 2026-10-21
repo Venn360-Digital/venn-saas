@@ -283,9 +283,25 @@ bases do Evolution ficarem no mesmo projeto do banco da aplicação, as conexõe
 dele prendem o compute **da aplicação** acordado — e por volta do dia 16 o
 projeto inteiro é suspenso. Não é o WhatsApp que cai: é o sistema.
 
-Então são dois projetos por necessidade, não por elegância. E o projeto da
-aplicação, separado, pode suspender fora do horário comercial e caber na própria
-franquia.
+Então são dois projetos por necessidade, não por elegância.
+
+> **Correção.** Escrevi aqui que "o projeto da aplicação, separado, pode
+> suspender fora do horário comercial e caber na própria franquia". **Está
+> errado como o sistema está configurado.** O Neon documenta que *scheduled jobs
+> (like cron tasks)* também prendem o compute acordado, e o Worker tem um
+> disparo `* * * * *` — `activity-reminders` mais a varredura da outbox. O
+> projeto da aplicação fica 24/7 pelo mesmo motivo, e estoura a franquia pelo
+> mesmo caminho.
+>
+> A diferença é que no Evolution isso é **inevitável** (conexão aberta do
+> whatsmeow) e na aplicação é **escolha**: restringir o disparo a horário
+> comercial derruba de 180 para 97,5 CU-hora.
+>
+> | Projeto | O que prende acordado | Evitável? | CU-hora | Launch |
+> | --- | --- | --- | --- | --- |
+> | Evolution | conexões do whatsmeow | não | 180 | US$ 19,08 |
+> | Aplicação, como está | cron `* * * * *` | — | 180 | US$ 19,08 |
+> | Aplicação, cron 7h–20h | cron em horário comercial | sim | **97,5** | US$ 10,33 |
 
 ### A conta do canal de WhatsApp, fechada
 
