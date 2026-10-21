@@ -261,6 +261,50 @@ abertas, e **o compute do Neon nunca suspende**. A 0,25 CU são ~182 CU-h/mês.
 Medido hoje: o compute de `production` estava `idle` e o de `staging` `active`,
 justamente porque a POC estava conectada.
 
+### O compute do Neon não cabe no plano free, e isso decide a arquitetura
+
+Medido em 2026-10-21, com os números da
+[página de planos](https://neon.com/docs/introduction/plans):
+
+| | |
+| --- | --- |
+| Compute mínimo sempre ligado | 0,25 CU × 730 h = **182,5 CU-hora/mês** |
+| Franquia do plano free | **100 CU-hora por projeto** |
+| Resultado | esgota por volta do **dia 16** |
+| O que acontece ao esgotar | o compute é **suspenso** até o mês virar — não é cobrado, é desligado |
+| No plano Launch | US$ 0,106/CU-hora, sem franquia → **US$ 19,34/mês** |
+
+O Evolution Go mantém conexões de Postgres abertas enquanto tem sessão pareada,
+e conexão aberta impede o compute de suspender. Então para uma clínica no ar o
+compute fica 24/7, e 24/7 não cabe em 100 CU-hora.
+
+**Isto é mais forte que o argumento de segurança para separar os bancos.** Se as
+bases do Evolution ficarem no mesmo projeto do banco da aplicação, as conexões
+dele prendem o compute **da aplicação** acordado — e por volta do dia 16 o
+projeto inteiro é suspenso. Não é o WhatsApp que cai: é o sistema.
+
+Então são dois projetos por necessidade, não por elegância. E o projeto da
+aplicação, separado, pode suspender fora do horário comercial e caber na própria
+franquia.
+
+### A conta do canal de WhatsApp, fechada
+
+| Clínicas pareadas | Contêiner (`lite`) | Neon (Launch) | Total |
+| --- | --- | --- | --- |
+| 1 | US$ 1,74 | US$ 19,34 | **US$ 21,08** |
+| 5 | US$ 10,15 | US$ 19,34 | **US$ 29,49** |
+| 10 | US$ 21,02 | US$ 19,34 | **US$ 40,36** |
+| 25 | US$ 53,64 | US$ 19,34 | **US$ 72,98** |
+
+O compute do Neon é **custo fixo**, compartilhado por todas as clínicas — o que
+faz a conta escalar melhor do que a tabela só dos contêineres sugeria. O que
+cresce por clínica é o contêiner.
+
+> **Decisão que é do André:** o canal de WhatsApp exige o plano Launch do Neon.
+> Não há caminho free — a suspensão no dia 16 tiraria o WhatsApp (ou o sistema)
+> do ar no meio do mês, em silêncio. US$ 19,34/mês é o piso do componente,
+> independente do número de clínicas.
+
 **Onde a conta vira:** por workspace, `lite` ganha da VPS até algo entre 15 e 25
 clínicas pareadas. Depois disso o modelo compartilhado (um contêiner para todos,
 como na VPS hoje) fica mais barato — ao preço de voltar a ter o raio de alcance

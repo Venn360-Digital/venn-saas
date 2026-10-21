@@ -55,6 +55,7 @@ rodado.**
 | 6 | **A licença do Evolution Go precisa de ativação humana, e entra no caminho crítico do corte.** Contêiner novo responde 503 `LICENSE_REQUIRED` e nenhum QR nasce. A licença é gratuita; o ato não é automatizável (painel web). Caminho pronto: `/manager` sai pelo Worker, sem o túnel SSH que a VPS exigia | **alta** |
 | 7 | **O Evolution Go no pooler do Neon não está provado.** `/server/ok` fica verde sem banco — é o próprio sintoma de produção —, e a licença barrou antes de a migração de esquema rodar. Se o pooler não servir, o endpoint direto traz de volta o vazamento de conexões, com teto **mais baixo** que o dos 100 da VPS | **média** |
 | 9 | **Storage clínico fecha o porte das filas.** Mídia que o paciente manda, nota de voz do agente e foto de perfil são clínicas, e clínico sai por URL assinada de validade curta que **não se persiste** — a coluna de hoje guarda URL. Falta aprovar o provedor **e** trocar a coluna por referência (`provedor`/`bucket`/`chave`), com o endereço assinado na leitura | **alta** |
+| 11 | **O plano do Neon precisa subir para Launch.** O canal de WhatsApp mantém conexão aberta 24/7, e isso não cabe nos 100 CU-hora/projeto do free — o compute é suspenso no meio do mês, em silêncio. Decisão de custo do André: ~US$ 19,34/mês | **alta** |
 | 10 | **Os ajustes do agente não são segredos e podem divergir em silêncio.** Sete das nove variáveis de `src/trabalhos/ambiente.ts` têm padrão: se a VPS tiver valor diferente, o Worker sobe sem erro e usa o padrão. Conferir antes do corte — ver o aviso em `02-runbook.md` A.5 | **média** |
 | 8 | O batimento da licença manda o **IP do servidor**, e em Containers ele muda a cada subida. O tier comunidade declara não ter limite de instância, mas isso é dependência de terceiro que não se afirma lendo documentação | baixa |
 
@@ -77,7 +78,7 @@ que é um ato humano no caminho crítico.
 | Magalu `br-se1` | R$ 0,10/GiB + R$ 0,10/GiB de saída, requisição grátis |
 | Queues, Durable Objects | a estimar por volume |
 | Containers (Evolution Go) | **medido**: `lite` sempre ligado, US$ 1,74 por workspace pareado/mês (US$ 21 a dez, US$ 108 a cinquenta). Workspace sem pareamento dorme e não cobra |
-| Neon — compute sem suspender | o canal de WhatsApp mantém conexões abertas, então o compute **nunca suspende**: ~182 CU-h/mês a 0,25 CU |
+| Neon — compute sem suspender | **US$ 19,34/mês, e exige o plano Launch.** 182,5 CU-h/mês contra 100 de franquia free *por projeto*: no free o compute é **suspenso por volta do dia 16**. E se as bases do Evolution ficarem no projeto da aplicação, quem é suspenso é o sistema, não só o WhatsApp |
 
 ## Checklist do gate
 
