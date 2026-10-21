@@ -40,6 +40,8 @@
     "node_modules",
     "workers",
     "infra",
-    "src/cloudflare"
+    "src/cloudflare",
+    "cloudflare.config.ts",
+    "vite.config.ts"
   ]
 }

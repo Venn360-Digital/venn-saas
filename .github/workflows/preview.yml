@@ -1,0 +1,78 @@
+name: Preview
+
+# Preview por PR. É o que permite experimentar o Worker de verdade antes de
+# qualquer coisa chegar a `main` — e, nesta migração, é o **único** lugar onde o
+# Worker roda, porque o `workerd` não roda na máquina de desenvolvimento.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Para comentar a URL no PR.
+  pull-requests: write
+
+jobs:
+  preview:
+    name: Publicar preview
+    runs-on: ubuntu-latest
+
+    # PR de fork **não** publica. Fork não recebe segredo por padrão, e mesmo
+    # que recebesse, publicar código de terceiro com a credencial da conta é o
+    # caminho clássico para comprometer uma conta de CI.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+
+    # O ambiente de preview carrega o token de escopo reduzido e a URL do banco
+    # de homologação. **Nunca** os de produção — ver `deploy.yml`.
+    environment:
+      name: preview
+      url: ${{ steps.publicar.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Publicar
+        id: publicar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Nome do preview pelo número do PR: estável entre pushes, então a
+          # URL não muda a cada commit e o comentário não precisa ser reescrito.
+          npm run build:vinext
+          npx vinext-cloudflare previews deploy "pr-${{ github.event.pull_request.number }}" | tee saida.txt
+
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' saida.txt | head -1)
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Comentar a URL no PR
+        if: steps.publicar.outputs.url != ''
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const url = '${{ steps.publicar.outputs.url }}'
+            const marca = '<!-- preview-odontobox -->'
+            const corpo = `${marca}\n**Preview:** ${url}\n\nBanco: branch de homologação do Neon. Não é produção.`
+
+            // Edita o comentário anterior em vez de somar um novo: um PR com
+            // dez pushes teria dez comentários idênticos.
+            const { data: comentarios } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number,
+            })
+            const meu = comentarios.find((c) => c.body?.includes(marca))
+
+            if (meu) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: meu.id, body: corpo })
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body: corpo })
+            }

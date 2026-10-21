@@ -24,6 +24,10 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    // `cloudflare.config.ts` importa a entrada com extensão explícita e o
+    // atributo `with { type: "cf-worker" }` — é a forma que o `cf` exige para
+    // saber qual módulo é o Worker.
+    "allowImportingTsExtensions": true,
     // `node` junto dos tipos da Cloudflare: o código compartilhado em
     // `src/lib/` lê `process.env`, que **existe** em Workers com
     // `nodejs_compat` ligado (ver `compatibility_flags` no wrangler.jsonc) mas
@@ -37,6 +41,6 @@
       "server-only": ["./workers/src/shims/server-only.ts"]
     }
   },
-  "include": ["src/cloudflare/**/*.ts"],
+  "include": ["src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
   "exclude": ["node_modules"]
 }

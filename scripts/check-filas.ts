@@ -79,37 +79,34 @@ async function main() {
     ok('nenhum trigger repetido na configuração', cronsParaWrangler().length === new Set(cronsParaWrangler()).size)
 
     /**
-     * A guarda contra divergência.
+     * A guarda contra divergência — mudou de forma, e para melhor.
      *
-     * O `wrangler.jsonc` carrega os padrões em UTC, e eles são **gerados** por
-     * `cronsParaWrangler()` a partir da intenção em BRT. Nada impede alguém de
-     * editar o arquivo à mão — e a divergência resultante não daria erro: os
-     * crons do arquivo é que valem, e a tabela do código passaria a ser ficção.
+     * Enquanto a configuração era `wrangler.jsonc`, os padrões em UTC estavam
+     * **duplicados**: a agenda os gerava e o JSON os repetia. A guarda comparava
+     * os dois, porque a divergência não daria erro — valeria o JSON, e a tabela
+     * do código passaria a ser ficção. Provei a guarda introduzindo a regressão
+     * exata que ela pegava.
      *
-     * Então o teste compara os dois. É o único jeito de a geração significar
-     * algo depois do commit que a escreveu.
+     * Com `cloudflare.config.ts` a duplicação **deixou de existir**: a
+     * configuração é TypeScript e chama `cronsParaWrangler()` direto. Não há
+     * duas listas para divergir.
+     *
+     * O que sobra para guardar é o que alguém ainda pode fazer: substituir a
+     * chamada por uma lista literal — "só para ver", ou para ajustar um horário
+     * sem mexer na agenda. Então o teste confere que a chamada está lá, e que
+     * não há padrão de hora fixa escrito à mão no arquivo.
      */
-    const wrangler = readFileSync('wrangler.jsonc', 'utf8')
-        .replace(/^\s*\/\/.*$/gm, '')
-        .replace(/,(\s*[}\]])/g, '$1')
-    const cronsNoArquivo: string[] = JSON.parse(wrangler).triggers.crons
-    const cronsNoCodigo = cronsParaWrangler()
+    const config = readFileSync('cloudflare.config.ts', 'utf8')
 
     ok(
-        'o wrangler.jsonc tem os mesmos crons que a agenda gera',
-        JSON.stringify([...cronsNoArquivo].sort()) === JSON.stringify([...cronsNoCodigo].sort()),
-        `arquivo: ${cronsNoArquivo.length}, código: ${cronsNoCodigo.length}`
+        'a configuração gera os crons pela agenda, não os lista à mão',
+        config.includes('cronsParaWrangler()')
     )
     ok(
-        'e nenhum deles ficou em horário de Brasília por engano',
-        !cronsNoArquivo.includes('13 3 * * *') &&
-            !cronsNoArquivo.includes('0 7 * * *') &&
-            !cronsNoArquivo.includes('41 4 * * *') &&
-            !cronsNoArquivo.includes('27 5 * * *') &&
-            !cronsNoArquivo.includes('47 5 * * *')
+        'e não há padrão de hora fixa escrito literalmente nela',
+        !/triggers\.scheduled\(\{\s*schedule:\s*['"`]\d/.test(config),
+        'um `schedule: "13 3 ..."` literal escaparia da conversão de fuso'
     )
-    ok('o despacho encontra a rotina pelo padrão', rotinasDoDisparo('0 10 * * *').includes('follow-up'))
-    ok('padrão desconhecido não despacha nada', rotinasDoDisparo('59 23 * * *').length === 0)
 
     // ================================================================== outbox
 
