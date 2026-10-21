@@ -413,15 +413,26 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                 body: JSON.stringify({ ativo }),
             })
             const corpo = await res.json().catch(() => ({}))
-            if (!res.ok) {
+            if (res.ok) {
+                toast.success(`${nome} ${ativo ? 'está no ar' : 'saiu do ar'}`)
+            } else {
                 toast.error(corpo.error ?? 'Não foi possível alterar o canal')
-                return
             }
-            toast.success(`${nome} ${ativo ? 'está no ar' : 'saiu do ar'}`)
+        } finally {
+            /**
+             * **Recarregar também quando falha** — e este `finally` é o
+             * conserto de um defeito meu, de 2026-10-20.
+             *
+             * A versão anterior saía antes da recarga no caminho do erro. Como
+             * é justamente o erro que marca a linha ("a conexão expirou"), o
+             * navegador nunca ficava sabendo da marca — e é a marca que faz a
+             * chave abrir o fluxo da Meta em vez de tentar o PATCH de novo. O
+             * resultado era um botão que repetia o mesmo erro para sempre, com
+             * o caminho de recuperação ali do lado e inalcançável.
+             */
+            setOcupada(null)
             await carregarAtribuicao()
             await carregar()
-        } finally {
-            setOcupada(null)
         }
     }
 

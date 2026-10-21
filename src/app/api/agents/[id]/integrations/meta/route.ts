@@ -242,11 +242,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                     errorMessage: 'A conexão com a Meta expirou. Reconecte o número.',
                 },
             })
+            /**
+             * A frase diz o **próximo clique**, não só o diagnóstico.
+             *
+             * "Reconecte pela Meta" descreve o que precisa acontecer e deixa a
+             * pessoa procurando onde — e não há onde: o caminho é a mesma
+             * chave que ela acabou de clicar, agora que a linha ficou marcada.
+             * O Andre clicou, leu a frase e esperou a janela da Meta abrir
+             * sozinha (2026-10-20). Ela não abre, e não pode: a janela da Meta
+             * é um popup, e popup que não nasce de um clique direto é barrado
+             * pelo navegador.
+             */
             return NextResponse.json(
                 {
                     error:
-                        'A conexão com a Meta expirou. Reconecte o número pela Meta — ' +
-                        'o histórico e as conversas ficam.',
+                        'A conexão com a Meta expirou. Clique na chave de novo para ' +
+                        'reconectar o número — o histórico e as conversas ficam.',
                 },
                 { status: 409 }
             )
