@@ -80,7 +80,7 @@ nada clínico vai para lá. No Postgres só `storage_provider`, `bucket`,
 | Peça | Uso |
 | --- | --- |
 | **Queues** | as 8 filas; retentativa e DLQ |
-| **Cron Triggers** | os 14 crons — **em UTC**, convertidos de BRT |
+| **Cron Triggers** | os 13 crons — **em UTC**, convertidos de BRT |
 | **Workflows** | só o longo e durável: `rag-index` de documento grande, `billing-reconcile` |
 | **Durable Objects** | tempo real, trava distribuída, debounce do `ai-reply` |
 

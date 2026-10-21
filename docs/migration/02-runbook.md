@@ -190,7 +190,7 @@ Mínimo para passar adiante:
 - [ ] webhook da Meta: aperto de mão com o `verifyToken` vindo do secret
 - [ ] WhatsApp: recebe, grava, responde
 - [ ] tempo real: mensagem nova aparece sem recarregar; reconexão funciona
-- [ ] os 14 crons disparam **no horário certo** — ver C.0
+- [ ] os 13 crons disparam **no horário certo** — ver C.0
 - [ ] IA: chamada com identificador de paciente é **bloqueada**, e a recusa é
       registrada sem registrar o conteúdo
 
@@ -269,7 +269,7 @@ desligamento.
 1. **Não desligar nada por 14 dias.** VPS, volumes, dumps e credenciais ficam
    íntegros. Prazo a confirmar com o André.
 2. Observar: taxa de erro do Worker, latência ao Neon, fila travada,
-   reconexão de WebSocket, os 14 crons disparando.
+   reconexão de WebSocket, os 13 crons disparando.
 3. Varrer o **histórico do git** por credencial antes de desligar a infra velha.
    Já apareceu senha de Postgres em texto puro commitada em outro projeto da
    Venn360; apagar o arquivo não tira do histórico.

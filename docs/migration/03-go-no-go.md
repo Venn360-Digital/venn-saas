@@ -26,13 +26,16 @@ rodado.**
 | `check:neon` | **PASS** | 26 provas contra o Neon São Paulo |
 | `check:storage` | **PASS** | 15 provas; ciclo R2 em **SKIP** (falta token de API) |
 | `check:auth` | **PASS** | 33 provas contra o Neon |
+| `check:filas` | **PASS** | 60 provas — outbox, dedup, fuso dos crons, disciplina de consumo |
+| `check:tempo-real` | **PASS** | 30 provas — debounce e protocolo, sem banco |
+| `typecheck:cloudflare` | **PASS** | Durable Objects contra os tipos reais da Cloudflare |
 | `build` | **NOT RUN** | — |
 | build vinext | **BLOCKED** | `workerd` não roda em macOS 12.7.6; só no CI |
 | autenticação | **PASS** | cadastro, login, redefinição, troca de senha e criação por administrador, provados em `check:auth` |
 | multi-tenant | **NOT RUN** | — |
 | storage | **NOT RUN** | — |
 | webhooks | **NOT RUN** | — |
-| tempo real | **NOT RUN** | — |
+| tempo real | **PARCIAL** | lógica provada em `check:tempo-real`; os Durable Objects só no CI (o `workerd` não roda nesta máquina) |
 | IA / bloqueio de PHI | **NOT RUN** | — |
 | POC Evolution Go | **NOT RUN** | exige Containers (custo) |
 | backup / restore | **NOT RUN** | — |

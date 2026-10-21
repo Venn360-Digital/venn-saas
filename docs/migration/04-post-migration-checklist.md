@@ -15,7 +15,7 @@
 
 ## Dia 1
 
-- [ ] os 14 crons dispararam **no horário certo** — a conversão BRT→UTC é a
+- [ ] os 13 crons dispararam **no horário certo** — a conversão BRT→UTC é a
       armadilha mais provável desta migração; conferir um a um
 - [ ] briefing diário chegou às 7 h de Brasília, não às 4 h
 - [ ] latência p95 ao Neon medida e anotada

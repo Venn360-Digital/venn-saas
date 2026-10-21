@@ -22,6 +22,7 @@ import {
     type EventoPendente,
 } from '@/lib/outbox'
 import { reservar, liberar, umaVezSo, podarChaves, chaveDeIdempotencia } from '@/lib/queue/idempotencia'
+import { consumirLote, exponencial, type LoteDaFila, type MensagemDaFila } from '@/lib/queue/consumidor'
 import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, PadraoNaoConversivelError, ROTINAS } from '@/lib/cron/agenda'
 
 let falhas = 0
@@ -276,6 +277,124 @@ async function main() {
     })
     const podaChaves = await podarChaves()
     ok('a poda apaga chave vencida', podaChaves.apagadas >= 1, `${podaChaves.apagadas}`)
+
+    // ====================================================== disciplina de consumo
+
+    /**
+     * Um lote de mentira que registra o que foi pedido.
+     *
+     * É o que permite provar a disciplina de `ack`/`retry` sem Cloudflare — e é
+     * justamente ela que o `workerd` me impediria de verificar nesta máquina.
+     */
+    type Registro = { acks: number; retries: Array<number | undefined> }
+    function loteFalso<T>(corpos: T[], tentativas = 1): { lote: LoteDaFila<T>; reg: Registro } {
+        const reg: Registro = { acks: 0, retries: [] }
+        const messages: MensagemDaFila<T>[] = corpos.map((body) => ({
+            body,
+            attempts: tentativas,
+            ack: () => { reg.acks++ },
+            retry: (o) => { reg.retries.push(o?.delaySeconds) },
+        }))
+        return { lote: { messages }, reg }
+    }
+
+    // Sucesso: confirma, não repete.
+    {
+        const { lote, reg } = loteFalso([{ eventRowId: 'a' }, { eventRowId: 'b' }])
+        const r = await consumirLote(lote, { fila: 'asaas-event', processar: async () => {} })
+        ok('sucesso confirma cada mensagem', reg.acks === 2 && reg.retries.length === 0)
+        ok('e conta os confirmados', r.confirmados === 2, JSON.stringify(r))
+    }
+
+    // Falha: repete, não confirma.
+    {
+        const { lote, reg } = loteFalso([{ eventRowId: 'c' }])
+        const r = await consumirLote(lote, {
+            fila: 'asaas-event',
+            processar: async () => { throw new Error('falhou') },
+        })
+        ok('falha pede retentativa', reg.retries.length === 1)
+        ok('e NÃO confirma', reg.acks === 0)
+        ok('e conta os retentados', r.retentados === 1)
+    }
+
+    /**
+     * Uma falha no meio do lote não leva as outras.
+     *
+     * É o motivo de não usar `batch.ackAll()`: ele é mais curto e confirmaria o
+     * lote inteiro quando uma mensagem no meio falhasse — nove processadas e uma
+     * perdida, sem sintoma nenhum.
+     */
+    {
+        const { lote, reg } = loteFalso([{ eventRowId: '1' }, { eventRowId: '2' }, { eventRowId: '3' }])
+        await consumirLote(lote, {
+            fila: 'asaas-event',
+            processar: async (p) => {
+                if (p.eventRowId === '2') throw new Error('só a do meio')
+            },
+        })
+        ok('falha no meio do lote não perde as outras', reg.acks === 2 && reg.retries.length === 1)
+    }
+
+    // Dedup: a repetição é confirmada SEM reprocessar.
+    {
+        const idWa = `wamid-consumo-${Date.now()}`
+        const corpo = { provider: 'evolution-go' as const, inbound: { externalId: idWa } as never, receivedAt: '' }
+        let processou = 0
+        const consumo = {
+            fila: 'whatsapp-inbound' as const,
+            processar: async () => { processou++ },
+            idDeDeduplicacao: () => idWa,
+        }
+
+        const a = loteFalso([corpo])
+        await consumirLote(a.lote, consumo)
+        const b = loteFalso([corpo])
+        const r2 = await consumirLote(b.lote, consumo)
+
+        ok('a primeira entrega processa', processou === 1)
+        ok('a segunda NÃO reprocessa', processou === 1, `${processou}`)
+        ok('e é confirmada, não retentada', b.reg.acks === 1 && b.reg.retries.length === 0)
+        ok('contada como repetida', r2.repetidos === 1, JSON.stringify(r2))
+
+        /**
+         * A regra 3: falhar tem de liberar a chave.
+         *
+         * Sem isto a retentativa seria descartada como duplicada e a mensagem
+         * morreria em silêncio — o defeito que o comentário de
+         * `enqueue-whatsapp.ts` registra ter acontecido com uma mensagem real.
+         */
+        const idFalha = `wamid-falha-${Date.now()}`
+        const c = loteFalso([corpo])
+        await consumirLote(c.lote, {
+            fila: 'whatsapp-inbound',
+            processar: async () => { throw new Error('falhou') },
+            idDeDeduplicacao: () => idFalha,
+        })
+        ok(
+            'falha libera a chave para a retentativa poder rodar',
+            await reservar('whatsapp-inbound', idFalha)
+        )
+
+        await prisma.processedMessage.deleteMany({ where: { fila: 'whatsapp-inbound' } })
+    }
+
+    // O backoff que o Queues não tem por configuração.
+    {
+        const b = exponencial(5, 300)
+        ok('backoff: 1a tentativa', b(1) === 5, `${b(1)}s`)
+        ok('backoff: 2a tentativa', b(2) === 10, `${b(2)}s`)
+        ok('backoff: 4a tentativa', b(4) === 40, `${b(4)}s`)
+        ok('backoff respeita o teto', b(20) === 300, `${b(20)}s`)
+
+        const { lote, reg } = loteFalso([{ eventRowId: 'x' }], 3)
+        await consumirLote(lote, {
+            fila: 'asaas-event',
+            processar: async () => { throw new Error('falhou') },
+            atrasoDaRetentativa: b,
+        })
+        ok('o atraso calculado é o pedido', reg.retries[0] === 20, `${reg.retries[0]}s`)
+    }
 
     // ================================================================= limpeza
 

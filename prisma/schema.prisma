@@ -13,7 +13,7 @@ generator client {
   // Ficamos no Prisma 6 de propósito: o 7 é melhor para Workers (sem engine
   // Rust, bundle menor), mas é **ESM only**, e o processo `workers/` compila em
   // CJS e precisa seguir de pé até as Queues e os Cron Triggers assumirem as 8
-  // filas e os 14 crons. O 7 entra depois disso. Ver
+  // filas e os 13 crons. O 7 entra depois disso. Ver
   // `docs/migration/01-compatibility.md` §2.
   previewFeatures = ["postgresqlExtensions"]
 }

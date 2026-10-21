@@ -223,7 +223,7 @@ que é esse o bucket usado pelas três services do worker.
 O contrato vive em `src/lib/queue/definitions.ts` (as rotas enfileiram sem
 importar nada de `workers/`), e `workers/` acrescenta a conexão.
 
-### Catorze crons
+### Treze crons
 
 De `workers/src/scheduler.ts`, em `America/Sao_Paulo`: `VERIFICADO`
 
@@ -407,7 +407,7 @@ no sentido fácil.
 | 1 | `supabase_vault` não existe no Neon e é dependência real de `src/lib/vault.ts` | **alta** |
 | 2 | macOS 12.7.6 não roda `workerd` (exige 13.5+): nenhum build, dev ou deploy de vinext roda nesta máquina — tudo tem de ser no CI | **alta** |
 | 3 | 59 arquivos e 87 chamadas `.auth.getUser` para reescrever em Better Auth | **alta** |
-| 4 | BullMQ + ioredis + 14 crons: não há Redis em Workers; é reescrita para Queues + Cron Triggers, não porte | **alta** |
+| 4 | BullMQ + ioredis + 13 crons: não há Redis em Workers; é reescrita para Queues + Cron Triggers, não porte | **alta** |
 | 5 | Mídia de conversa é clínica sensível e o provedor brasileiro ainda não foi escolhido — bloqueia a migração dos arquivos | **alta** |
 | 6 | Evolution Go já falha em manter sessão na VPS; em Containers com scale-to-zero é pior | **alta** |
 | 7 | Prisma 5.22 sem driver adapters não roda em Workers | média |

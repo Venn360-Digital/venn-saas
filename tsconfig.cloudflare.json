@@ -24,7 +24,13 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "types": ["@cloudflare/workers-types"],
+    // `node` junto dos tipos da Cloudflare: o código compartilhado em
+    // `src/lib/` lê `process.env`, que **existe** em Workers com
+    // `nodejs_compat` ligado (ver `compatibility_flags` no wrangler.jsonc) mas
+    // não é declarado pelos tipos do runtime. Sem isto, importar qualquer
+    // módulo de `lib/` aqui acusa `Cannot find name 'process'` — que seria um
+    // erro de tipagem descrevendo algo que funciona.
+    "types": ["@cloudflare/workers-types", "node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],

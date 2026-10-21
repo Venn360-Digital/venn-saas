@@ -109,3 +109,62 @@ remover o plano B junto com a estreia do plano A.
 - [ ] deploy do Worker: conexões reconectam sem perder evento
 - [ ] hibernação não derruba conexão ociosa
 - [ ] `ai-reply`: três mensagens em 5 s geram **uma** resposta
+
+---
+
+## Estado da implementação — 2026-10-21
+
+### Construído e provado
+
+| Peça | Onde | Provado por |
+| --- | --- | --- |
+| Tabela `outbox_events` com índice **parcial** no pendente | migração `20261021080000` | `check:filas` |
+| Gravação na mesma transação do dado | `src/lib/outbox/index.ts` | `check:filas` — inclui a prova de que transação revertida não deixa evento órfão |
+| Publicador com tentativa, desistência e poda | idem | `check:filas` |
+| Protocolo do WebSocket e recuperação de reconexão | `src/lib/realtime/protocolo.ts` | `check:tempo-real` |
+| Debounce da resposta do agente | `src/lib/realtime/debounce.ts` | `check:tempo-real` |
+| `SalaDoWorkspace` (fan-out por workspace) | `src/cloudflare/sala-do-workspace.ts` | typecheck com os tipos reais da Cloudflare |
+| `AgendaDaConversa` (debounce por alarme) | `src/cloudflare/agenda-da-conversa.ts` | idem |
+| Entrega outbox → sala, agrupada por workspace | `src/cloudflare/publicador.ts` | idem |
+
+### A restrição que decidiu a forma
+
+Os Durable Objects **não rodam nesta máquina**: o `workerd` exige macOS 13.5+ e
+o Mac de desenvolvimento está em 12.7.6. Não havia como executar uma linha
+daquelas classes.
+
+A saída foi tirar **toda decisão que pode errar** de dentro dos objetos e pôr em
+função pura, onde há teste — e deixar as classes sendo cascas que aplicam o que a
+função devolveu. Os dois pedaços que ganharam mais com isso são também os que
+erram mais em silêncio:
+
+- **a recuperação de reconexão**: entregar a lacuna errada deixa a tela num
+  estado que não corresponde ao banco, e ninguém percebe até alguém reclamar que
+  a conversa "sumiu";
+- **o debounce**: errar faz o agente não responder, sem erro em lugar nenhum.
+
+### Um defeito encontrado ao modelar, que o BullMQ também tem
+
+O debounce atual chama `changeDelay` a cada mensagem nova, **sem teto**. Quem
+manda mensagem a cada 3 s com debounce de 4 s empurra a resposta para sempre: ela
+nunca sai. Na prática ninguém digita assim por muito tempo — mas uma sequência de
+notas de voz, um paciente ansioso ou um bot do outro lado produzem exatamente
+esse padrão, e o sintoma é "o agente não respondeu".
+
+O desenho novo tem **teto de 30 s** contado da primeira mensagem da rajada.
+`check:tempo-real` simula 30 mensagens a cada 3 s e prova que o alarme para de
+ser empurrado.
+
+### Falta
+
+- **O cliente.** `src/app/(dashboard)/atendimento/conversas/page.tsx` ainda usa
+  Supabase Realtime. Trocar por WebSocket contra a sala é o próximo passo, e o
+  polling de 15 s fica como rede de segurança no primeiro corte.
+- **A rota de handshake**, que resolve a sessão, confere a participação no
+  workspace e encaminha para a sala. É onde a autorização acontece — a sala não
+  revalida, e não deveria: ela não tem como consultar o banco sem pagar uma
+  conexão por sala.
+- **A gravação dos eventos nos pontos de escrita.** A outbox existe e está
+  testada, mas nenhuma rota chama `gravarEvento()` ainda. Entra junto com o
+  porte dos processadores.
+- **A trava distribuída** (`workers/src/lock.ts`), que vira um Durable Object.

@@ -116,7 +116,7 @@ próprio em **47 arquivos**, `prisma.config.ts`, e **ESM only**.
 
 O ESM é o que decide. O processo `workers/` compila em **CJS**
 (`format: ['cjs']` no `tsup.config.ts`) e precisa continuar funcionando durante
-toda a transição — ele é quem roda as 8 filas e os 14 crons até as Queues e os
+toda a transição — ele é quem roda as 8 filas e os 13 crons até as Queues e os
 Cron Triggers assumirem.
 
 Então: **6.19.3 agora**. Os driver adapters já são GA, `prisma-client-js` e os
@@ -332,13 +332,29 @@ Pontos a reconstruir à mão, porque o BullMQ os dava de graça:
 > *at-least-once* e não tem debounce. A implementação natural é um Durable
 > Object por conversa, que já será criado para o tempo real — ver seção 7.
 
-### Cron: 14 schedulers → Cron Triggers
+### Cron: 13 schedulers → Cron Triggers
 
 Cron Triggers aceitam granularidade de minuto, então `* * * * *` de
-`activity-reminders` é expressável. Limite de triggers por Worker é baixo:
-a forma econômica é **um punhado de triggers que despacham por tarefa**,
-reaproveitando o `cron` que já existe como fila — o escalonamento de horários
-atual (`:07`, `:13`, `:17`, `:21`…) continua válido e segue no código.
+`activity-reminders` é expressável.
+
+**Correção de um palpite meu:** eu havia escrito que o limite de triggers era
+baixo e que isso exigiria um despachante. O limite real é **250 por conta** no
+Workers Paid (5 no Free) — conferido na documentação. As treze vão diretas, e o
+escalonamento de horários atual (`:07`, `:13`, `:17`, `:21`…) continua válido e
+segue no código.
+
+O que **de fato** exige despacho é outra coisa: o handler `scheduled` recebe o
+padrão que disparou e precisa descobrir qual rotina é. Isso é
+`rotinasDoDisparo()` em `src/lib/cron/agenda.ts`, e ele despacha **pelo padrão,
+nunca pelo relógio** — um disparo que chegue com segundos de atraso cai no minuto
+seguinte, e então a rotina do minuto não roda e a do seguinte roda duas vezes.
+
+Há também um teto que importa mais que a contagem: **o CPU de um Cron Trigger
+com intervalo menor que uma hora é de 30 segundos** (15 min para intervalo ≥ 1 h).
+A conciliação de cobrança lê a API do Asaas conta por conta e não cabe nisso — é
+por isso que o cron **enfileira** a rotina em vez de executá-la. O outro motivo é
+retentativa: rotina que falha num Cron Trigger não tem segunda chance; numa fila
+tem, com DLQ.
 
 Fuso: Cron Triggers rodam em **UTC**. Os padrões de hora fixa
 (`13 3 * * *`, `0 7 * * *`, `27 5 * * *`, `41 4 * * *`, `47 5 * * *`) estão
@@ -350,6 +366,23 @@ briefing das 7 h dispara às 4 h. Item de erro silencioso — está no runbook.
 Só para o que é longo e durável: a indexação RAG de um documento grande
 (`rag-index`) e a reconciliação de cobrança (`billing-reconcile`) são os
 candidatos. Não usar Workflows onde Queues basta.
+
+### O que já está construído  ✅
+
+| Peça | Onde | Provado por |
+| --- | --- | --- |
+| Outbox transacional | `src/lib/outbox/` | `check:filas` |
+| Deduplicação (o que o `jobId` dava) | `src/lib/queue/idempotencia.ts` | `check:filas` |
+| Agenda dos crons em UTC | `src/lib/cron/agenda.ts` | `check:filas` |
+| Disciplina de consumo (`ack`/`retry`/dedup) | `src/lib/queue/consumidor.ts` | `check:filas` |
+| Driver de fila, Cloudflare e BullMQ | `src/lib/queue/driver*.ts` | typecheck |
+| Handler agendado | `src/cloudflare/agendado.ts` | typecheck |
+| Publicador outbox → Durable Object | `src/cloudflare/publicador.ts` | typecheck |
+| `wrangler.jsonc` | raiz | `check:filas` compara os crons |
+
+**Falta:** portar os processadores de `workers/src/processors/` — eles são o
+*trabalho* de cada fila, e mudam por motivo diferente da disciplina de consumo,
+que é o que já está pronto e testado.
 
 ---
 
