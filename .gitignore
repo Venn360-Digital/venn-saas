@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Menos o exemplo. Ele documenta 36 variáveis por NOME e não carrega nenhum
+# valor — e, bloqueado pelo `.env*`, nunca chegou ao repositório: quem clonava
+# não recebia a documentação de configuração nenhuma. Conferido em 2026-10-21:
+# todo valor atribuído ali é placeholder, "" ou não-segredo.
+!.env.example
 
 # vercel
 .vercel
