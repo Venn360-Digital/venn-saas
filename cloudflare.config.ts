@@ -266,6 +266,32 @@ export default defineConfig({
             LOG_LEVEL: bindings.text('info'),
 
             /**
+             * Os buckets do adaptador de storage, por NOME.
+             *
+             * Faltavam, e a falta não aparecia no deploy. `lerConfig` em
+             * `src/lib/storage/index.ts` exige QUATRO variáveis por provedor —
+             * `_ENDPOINT`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_BUCKET` —
+             * e só as duas chaves estavam declaradas. Com as outras duas
+             * ausentes o adaptador lança `ProvedorNaoConfiguradoError` no
+             * primeiro upload, em produção, não na publicação.
+             *
+             * Nome de bucket não é segredo (já está neste arquivo, no binding
+             * `PUBLICO` acima), então entra como texto. O endpoint vai como
+             * segredo logo abaixo, porque carrega o ID da conta — que o André
+             * guarda como segredo no GitHub, e eu respeito a mesma classificação.
+             */
+            PUBLIC_STORAGE_BUCKET: bindings.text('odontobox-public'),
+            PRIVATE_STORAGE_BUCKET: bindings.text('odontobox-private'),
+
+            /**
+             * `auto` é o que o R2 espera como região da API S3. `lerConfig` a
+             * trata como opcional, mas o SDK assina a requisição com ela — e
+             * assinatura com região errada falha em tempo de execução.
+             */
+            PUBLIC_STORAGE_REGION: bindings.text('auto'),
+            PRIVATE_STORAGE_REGION: bindings.text('auto'),
+
+            /**
              * Os segredos, declarados sem valor.
              *
              * `bindings.secret()` diz que existe e que vem de fora — o valor
@@ -327,6 +353,17 @@ export default defineConfig({
              */
             PRIVATE_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PRIVATE_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
+
+            /**
+             * Os endpoints da API S3 do R2 — `https://<ID_DA_CONTA>.r2.cloudflarestorage.com`.
+             *
+             * Segredo e não texto porque carregam o ID da conta, que o André
+             * mantém como segredo (`CLOUDFLARE_ACCOUNT_ID` no GitHub). Os dois
+             * recebem o MESMO valor: o endpoint é da conta, não do bucket — o
+             * bucket entra pelo `_BUCKET` acima.
+             */
+            PUBLIC_STORAGE_ENDPOINT: bindings.secret(),
+            PRIVATE_STORAGE_ENDPOINT: bindings.secret(),
         },
 
         ...(EH_PREVIEW ? {} : { triggers: GATILHOS }),
