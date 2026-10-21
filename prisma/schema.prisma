@@ -1988,3 +1988,74 @@ model AuthRateLimit {
 
   @@map("auth_rate_limits")
 }
+
+// ============================================
+// FILAS E TEMPO REAL NA CLOUDFLARE
+// ============================================
+
+/// O evento a publicar, gravado na mesma transação do dado que o gerou.
+///
+/// **Por que isto existe.** O Supabase Realtime lia o WAL do Postgres: gravar a
+/// linha *era* publicar o evento. O Neon não publica WAL para a Cloudflare, e
+/// nenhuma configuração muda isso — então escrita no banco **não chega sozinha**
+/// ao Durable Object. Quem assume o contrário constrói um sistema que funciona
+/// em teste e perde eventos em produção.
+///
+/// **Por que na mesma transação, e não um `enqueue` depois do commit.** Publicar
+/// direto na fila dentro da rota parece mais simples e é errado: se o commit
+/// falhar depois do enqueue, o evento existe e o dado não — e o navegador recebe
+/// "tem mensagem nova" para uma mensagem que não foi gravada. Aqui as duas
+/// coisas são atômicas: ou existem as duas, ou nenhuma.
+///
+/// O publicador roda nos dois caminhos: chamada direta depois do commit, para
+/// latência, e uma varredura por Cron Trigger, para recuperar o que a chamada
+/// direta perdeu. O segundo é o que torna o primeiro dispensável em caso de
+/// falha.
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// `mensagem.nova`, `conversa.alterada`, `agente.status`…
+  tipo        String
+  /// **Identificadores, nunca conteúdo.**
+  ///
+  /// O evento diz "a conversa X tem mensagem nova"; o navegador busca o
+  /// conteúdo pela rota autenticada. Assim conteúdo clínico não transita por
+  /// fila nem aparece em log de fila — e o payload não precisa ser cifrado.
+  payload     Json
+  createdAt   DateTime  @default(now())
+  /// Nulo enquanto não publicado. É o índice parcial que a varredura usa.
+  publishedAt DateTime?
+  /// Quantas vezes a publicação foi tentada. Serve para parar de insistir.
+  tentativas  Int       @default(0)
+  /// O erro da última tentativa, para diagnóstico. Sem dado sensível.
+  ultimoErro  String?
+
+  @@index([createdAt])
+  @@index([workspaceId, createdAt])
+  @@map("outbox_events")
+}
+
+/// A deduplicação que o `jobId` do BullMQ dava de graça.
+///
+/// **A diferença que mais importa entre BullMQ e Cloudflare Queues.** O BullMQ
+/// aceita um id de job escolhido por nós e recusa um segundo job com o mesmo id
+/// — é assim que hoje um webhook reenviado pelo provedor não vira duas mensagens
+/// (ver `lib/queue/enqueue-whatsapp.ts`). **Cloudflare Queues não tem isso**, e
+/// entrega *at-least-once* por desenho: repetição é o normal, não a exceção.
+///
+/// Então a dedup desce para o banco, onde a unicidade é garantida pelo índice e
+/// não pela boa vontade do broker.
+///
+/// `expiraEm` existe para a tabela não crescer para sempre: a janela só precisa
+/// cobrir o tempo em que um provedor ainda pode reenviar o mesmo evento. A
+/// varredura de retenção apaga o que passou.
+model ProcessedMessage {
+  /// A chave de idempotência: `<fila>:<id externo>`. Única — é ela que deduplica.
+  chave     String   @id
+  fila      String
+  createdAt DateTime @default(now())
+  expiraEm  DateTime
+
+  @@index([expiraEm])
+  @@map("processed_messages")
+}

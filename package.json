@@ -23,7 +23,8 @@
     "check:neon": "tsx --conditions=react-server scripts/check-neon.ts",
     "check:storage": "tsx --conditions=react-server scripts/check-storage.ts",
     "check:auth": "tsx --conditions=react-server scripts/check-auth.ts",
-    "migrar:usuarios": "tsx --conditions=react-server scripts/migrar-usuarios.ts"
+    "migrar:usuarios": "tsx --conditions=react-server scripts/migrar-usuarios.ts",
+    "check:filas": "tsx --conditions=react-server scripts/check-filas.ts"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",
