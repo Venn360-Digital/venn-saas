@@ -279,12 +279,37 @@ export default defineConfig({
             RESEND_API_KEY: bindings.secret(),
             EVOLUTION_GO_API_KEY: bindings.secret(),
             EVOLUTION_API_KEY: bindings.secret(),
-            GOOGLE_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
-            PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_META_MESSAGING_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_META_MESSAGING_VERIFY_TOKEN: bindings.secret(),
+            /**
+             * `GOOGLE_CLIENT_SECRET` saiu em 2026-10-21: é resquício, e nada o
+             * lê. O `src/lib/google-oauth-client.ts` registra, no próprio
+             * cabeçalho, que "none of it comes from the environment any more" —
+             * as credenciais do app Google vêm de `platform_credentials` ou da
+             * linha de integração do workspace.
+             *
+             * Exigi-lo aqui obrigaria a inventar um valor para publicar: ele
+             * não existe no ambiente da VPS, conferido em 2026-10-21.
+             */
+            /**
+             * Os `PLATFORM_*` saíram daqui em 2026-10-21, e não é economia de
+             * configuração — é correção.
+             *
+             * Essas são as credenciais do app OAuth da plataforma, e por
+             * desenho elas moram no COFRE, registradas uma vez por provedor na
+             * tela (`src/lib/platform-credentials.ts`). O cofre dá precedência
+             * ao ambiente e, justamente por isso, `writeVaultSecret` RECUSA
+             * gravar o que está no ambiente — `SegredoDeAmbienteError`.
+             *
+             * Ou seja: declará-las aqui as tornaria somente-leitura e a tela de
+             * registro passaria a dar erro ao salvar. Quem as quer no ambiente
+             * está escolhendo não poder mais trocá-las pelo produto.
+             *
+             * Eram: PLATFORM_ASAAS_CLIENT_ID, PLATFORM_ASAAS_CLIENT_SECRET,
+             * PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET,
+             * PLATFORM_META_MESSAGING_CLIENT_SECRET e
+             * PLATFORM_META_MESSAGING_VERIFY_TOKEN. Depois do deploy, registre
+             * pela tela — a tabela `app_secrets` do branch `production` nasce
+             * vazia.
+             */
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
 
