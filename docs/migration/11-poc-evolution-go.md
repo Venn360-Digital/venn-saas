@@ -77,7 +77,7 @@ em [`00-open-decisions.md`](00-open-decisions.md) como pergunta ao fornecedor.
 
 | # | Critério | Situação |
 | --- | --- | --- |
-| 1 | Instância sobe e gera QR legível | 🟡 contêiner sobe e fica `healthy`; QR barrado pela licença |
+| 1 | Instância sobe e gera QR legível | 🟡 contêiner sobe e fica `healthy` em 25–40 s; QR barrado pela licença |
 | 2 | Pareia e **mantém** a sessão (os 105 s) | ⬜ depende da ativação e de um aparelho |
 | 3 | Recebe e emite webhooks | 🟡 caminho construído e tranca provada; evento real pendente |
 | 4 | Credenciais fora de disco efêmero | ✅ **provado por construção** |
@@ -117,15 +117,35 @@ como desconectado. Então não é "melhor não hibernar" — é **não pode**.
 - pareamento em curso → **permanece**;
 - sem sessão → **dorme**.
 
-É o que faz a conta seguir o número de clientes reais em vez do de cadastros.
+É o que faz a conta seguir o número de clientes reais em vez do de cadastros — e
+o ramo "dorme" foi **observado em produção da POC**, não só testado: dos cinco
+contêineres criados hoje, os que passaram do tempo sem pareamento desligaram
+sozinhos. Ver o diário abaixo.
 
-> **Um erro meu, encontrado aqui.** A primeira versão do vigia rondava a cada
-> 5 min consultando o contêiner, contra um `sleepAfter` de 10 min. Consulta ao
-> contêiner conta como atividade: a ronda **renovava o cronômetro** e mantinha de
-> pé — e cobrando — exatamente os contêineres que `decidirOcio` mandava dormir.
-> O vigia agora encerra quando não há sessão pareada, e volta pelo `onStart` da
-> próxima subida. Sem essa correção a POC teria "passado" enquanto a fatura
-> crescia em silêncio.
+> **Um erro meu, e o diário que o pegou.** A primeira versão do vigia rondava a
+> cada 5 min consultando o contêiner, contra um `sleepAfter` de 10 min. Consulta
+> ao contêiner conta como atividade: a ronda **renovava o cronômetro** e mantinha
+> de pé — e cobrando — exatamente os contêineres que `decidirOcio` mandava
+> dormir. Sem a correção a POC teria "passado" enquanto a fatura crescia.
+>
+> O diário do contêiner `poc-1` registra o defeito e a cura na mesma linha do
+> tempo, e serve como prova dos dois:
+>
+> ```
+> 12:28:43  contêiner de pé
+> 12:33:43  vigia: nada — sem sessão pareada      ← versão antiga: ronda e renova
+> 12:38:43  vigia: nada — sem sessão pareada      ← renova de novo
+> 12:43:43  vigia: encerrado — deixando hibernar  ← versão corrigida
+> 12:53:40  ócio: dormir — nada a perder e nada a pagar
+> 12:53:40  contêiner parou — código=0 razão=exit
+> ```
+>
+> Os **dez minutos exatos** entre a última ronda e o `ócio: dormir` são o
+> `sleepAfter` correndo sem ser renovado — ou seja, a medição confirma que a
+> ronda antiga de fato segurava o cronômetro, e que parar de rondar o soltou.
+> E `código=0 razão=exit` mostra que o Evolution Go trata o SIGTERM e sai
+> graciosamente, o que importa para o contorno: é o desligamento limpo que
+> devolve as conexões do Postgres.
 
 ### Critério 7 — custo
 
