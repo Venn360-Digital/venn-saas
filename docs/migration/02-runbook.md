@@ -72,11 +72,17 @@ ssh root@<vps> "docker exec supabase-db pg_dump -U postgres -Fc --no-owner --no-
 ssh root@<vps> "docker exec supabase-db pg_dump -U postgres --schema=auth --data-only postgres" \
   > ~/backups/odontobox-auth-$(date +%Y%m%d-%H%M).sql
 
-# [LOCAL] os DOIS bancos do Evolution Go — ver o aviso abaixo
-for b in evogo_auth evogo_users; do
-  ssh root@<vps> "docker exec supabase-db pg_dump -U postgres -Fc --no-owner --no-acl $b" \
+# [LOCAL] os TRÊS bancos do Evolution — e no contêiner `postgres`, não no
+# `supabase-db`: a credencial de sessão do WhatsApp mora numa instância separada
+# de propósito (ver `compose.staycloud.yaml`). Ver o aviso abaixo.
+for b in evogo_auth evogo_users evolution_v2; do
+  ssh root@<vps> "docker exec postgres pg_dump -U postgres -Fc --no-owner --no-acl $b" \
     > ~/backups/odontobox-$b-$(date +%Y%m%d-%H%M).dump
 done
+
+# [LOCAL] e o volume de sessões do v2, que nenhum pg_dump alcança
+ssh root@<vps> "docker run --rm -v odontobox360_evolution-v2-instances:/v:ro alpine tar -cf - -C /v ." \
+  > ~/backups/odontobox-v2-instances-$(date +%Y%m%d-%H%M).tar
 ```
 
 > **⚠️ Os dois bancos do Evolution Go, e por que quase ficaram de fora.**
@@ -89,10 +95,27 @@ done
 > | A ativação da licença (`evogo_auth`) | `/instance/create` responde 503 `LICENSE_REQUIRED` e nenhum QR nasce |
 > | O estado do whatsmeow (`evogo_users`) | **toda clínica tem de parear de novo**, uma por uma |
 >
-> O lado bom: como esse estado mora em Postgres e não em volume, levar os dois
-> bancos **preserva os pareamentos** — o re-pareamento deixa de ser passo
-> obrigatório e passa a ser plano B. Detalhes em
-> [`11-poc-evolution-go.md`](11-poc-evolution-go.md).
+> O lado bom: o estado do whatsmeow mora em Postgres e não em volume, então
+> levar os bancos **preserva os pareamentos** do canal QR — o re-pareamento
+> deixa de ser passo obrigatório e passa a ser plano B.
+>
+> **Mas são TRÊS bancos, e um volume.** A primeira versão deste aviso dizia
+> "os dois bancos" e generalizava para "o Evolution" uma propriedade que é só
+> do Evolution **Go**:
+>
+> | O que | Onde mora | O dump cobre? |
+> | --- | --- | --- |
+> | Licença do Go | `evogo_auth` | sim |
+> | Credencial de aparelho (whatsmeow) | `evogo_users` | sim |
+> | Instância do canal oficial da Meta | `evolution_v2` | sim, **se estiver na lista** |
+> | Sessões do Evolution v2 | volume `evolution-v2-instances` | **não** |
+>
+> O `evolution_v2` roda por padrão nesta VPS (o `profiles: ["business"]` existe
+> só em `compose.yaml`, que não é o arquivo implantado). E o volume do v2 é o
+> único estado de WhatsApp fora do Postgres nesta máquina — nenhum `pg_dump`
+> o alcança.
+>
+> Detalhes em [`11-poc-evolution-go.md`](11-poc-evolution-go.md).
 
 **Validação obrigatória — backup não conferido não é backup:**
 

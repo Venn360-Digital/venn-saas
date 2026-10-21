@@ -39,7 +39,34 @@ web (`/manager`), com login pela chave global. Está documentada em
 consequência para esta migração: **toda implantação nova do Evolution Go nasce
 inerte**, e nenhum passo do runbook ativava a nova.
 
-### 1.2 E isso abre um buraco no corte
+### 1.2 E tem saída por configuração — a licença não precisa migrar
+
+Do [`.env.example`](https://github.com/evolution-foundation/evolution-go/blob/main/.env.example)
+do projeto, literal:
+
+> `# License — headless auto-activation by email.`
+> `# Set this to the email you used in your first manual license registration.`
+> `# On startup, the service will silently call /v1/register/auto and skip the`
+> `# browser flow. Falls back to the manual flow if the email isn't registered yet.`
+> `# EVOLUTION_OPERATOR_EMAIL=operator@example.com`
+
+Isso muda o problema de categoria. A licença deixa de ser **estado num banco
+que precisa ser migrado** e passa a ser **configuração num segredo**:
+
+| | Antes | Com `EVOLUTION_OPERATOR_EMAIL` |
+| --- | --- | --- |
+| Ativar implantação nova | pessoa no `/manager`, por túnel SSH | sozinho, ao subir |
+| `evogo_auth` no corte | tem de ser migrado | **pode nascer vazio** |
+| Ato humano no caminho crítico | sim | **não** |
+
+Um registro manual ainda acontece **uma vez**, com um e-mail — e já aconteceu,
+porque a VPS está ativada. O que o e-mail faz é tornar esse registro
+reaproveitável por toda implantação seguinte.
+
+E preencher errado é inofensivo: cai no fluxo manual, que é o comportamento de
+hoje.
+
+### 1.2.1 E isso abre um buraco no corte
 
 O passo A.3 do [`02-runbook.md`](02-runbook.md) despeja **só o banco
 `postgres`**. O Evolution Go tem dois bancos próprios, `evogo_auth` e

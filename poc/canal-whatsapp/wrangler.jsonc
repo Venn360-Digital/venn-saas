@@ -56,7 +56,18 @@
         // teste.
         //
         // Só muda para "true" com o `evolution-go` da VPS parado.
-        "REATAR_SESSOES": "false"
+        "REATAR_SESSOES": "false",
+
+        // E-mail do primeiro registro manual da licença.
+        //
+        // Com ele o Evolution Go chama `/v1/register/auto` ao subir e dispensa
+        // o navegador. É segredo e não `vars` em produção — aqui fica como var
+        // porque e-mail de operador não é credencial, e deixá-lo visível na
+        // config é o que torna óbvio que ele existe.
+        //
+        // Vazio mantém o registro manual, então preencher errado não quebra:
+        // cai no fluxo antigo.
+        "EVOLUTION_OPERATOR_EMAIL": ""
     }
 
     // Segredos por `wrangler secret put`, nunca aqui:

@@ -24,6 +24,13 @@ export interface Ambiente {
      * de clínica do ar.
      */
     REATAR_SESSOES?: string
+    /**
+     * E-mail do primeiro registro manual da licença.
+     *
+     * Com ele o Evolution Go se ativa sozinho ao subir. É o que substitui tanto
+     * o passo humano no `/manager` quanto a migração do `evogo_auth`.
+     */
+    EVOLUTION_OPERATOR_EMAIL?: string
 }
 
 /**
@@ -147,6 +154,27 @@ export class CanalWhatsApp extends Container<Ambiente> {
              * parado — ou seja, dentro da janela do corte.
              */
             CONNECT_ON_STARTUP: this.env.REATAR_SESSOES === 'true' ? 'true' : 'false',
+
+            /**
+             * Ativação da licença **sem navegador**.
+             *
+             * Do `.env.example` do projeto, literal: "Set this to the email you
+             * used in your first manual license registration. On startup, the
+             * service will silently call /v1/register/auto and skip the browser
+             * flow. Falls back to the manual flow if the email isn't registered
+             * yet."
+             *
+             * É o que tira a ativação do caminho crítico do corte. Com isto, a
+             * licença deixa de ser **estado num banco que precisa ser migrado**
+             * e passa a ser **configuração num segredo** — e o `evogo_auth` do
+             * destino pode nascer vazio.
+             *
+             * Vazio aqui mantém o comportamento antigo (registro manual), então
+             * não configurar não quebra nada.
+             */
+            ...(env.EVOLUTION_OPERATOR_EMAIL
+                ? { EVOLUTION_OPERATOR_EMAIL: env.EVOLUTION_OPERATOR_EMAIL }
+                : {}),
 
             WADEBUG: 'INFO',
             LOGTYPE: 'json',
