@@ -67,7 +67,7 @@
         //
         // Vazio mantém o registro manual, então preencher errado não quebra:
         // cai no fluxo antigo.
-        "EVOLUTION_OPERATOR_EMAIL": ""
+        "EVOLUTION_OPERATOR_EMAIL": "andre@venn360.com"
     }
 
     // Segredos por `wrangler secret put`, nunca aqui:
