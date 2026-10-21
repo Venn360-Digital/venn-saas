@@ -79,3 +79,6 @@ __pycache__/
 
 # node_modules da POC do canal de WhatsApp — pacote próprio, instalado à parte.
 poc/*/node_modules/
+
+# Gerado pelo `next dev` (agentRules). Artefato, não fonte.
+AGENTS.md

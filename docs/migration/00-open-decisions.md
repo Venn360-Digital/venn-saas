@@ -28,17 +28,31 @@ Não é contornável por configuração. As saídas, e só há três:
 atual**, mas bloqueia o primeiro deploy — e o André precisa saber que o ciclo
 "testar em Workers" vai passar por *push*, não por terminal.
 
-### 2. Provedor de storage clínico — **BLOQUEIA mover arquivo sensível** 🔴
+### 2. Provedor de storage clínico — **DECIDIDO: R2** ✅
 
-Comparação feita em [`00-storage-brasil-options.md`](00-storage-brasil-options.md).
-Recomendação: **Magalu Cloud `br-se1` (São Paulo)** — R$ 0,10/GiB armazenado,
-R$ 0,10/GiB de saída, **requisição grátis**, cobrança em real, empresa e
-datacenter brasileiros.
+**Decisão do André em 2026-10-21: tudo no Cloudflare R2**, separado em dois
+buckets — `odontobox-public` e `odontobox-private`, ambos criados. A Magalu
+Cloud `br-se1` foi avaliada e **recusada**.
 
-**Precisa de:** aval para criar a conta e o bucket (custo contínuo).
+O que ficou registrado junto com a decisão, porque muda o que se pode afirmar:
+**o arquivo clínico não fica no Brasil.** O R2 não tem região na América do Sul
+e não existe jurisdição `br`; os buckets nasceram em `ENAM`. O André registrou
+que declara a residência no contrato de privacidade — a divergência com a
+documentação do fornecedor foi apontada e a decisão foi reafirmada. Ver o
+cabeçalho de [`00-storage-brasil-options.md`](00-storage-brasil-options.md).
 
-Enquanto não houver, a cópia na VPS permanece a fonte e **nada de clínico se
-move**. O corte pode acontecer antes disso — ver runbook.
+**Feito:** buckets criados; `provedorDa(CLINICO)` passou a devolver
+`r2-privado`; `PRIVATE_STORAGE_*` documentado; `check:storage` com 20 provas
+passando.
+
+**O que substitui este bloqueio, e é menor:**
+
+1. **Cifra na aplicação** antes do `put`, com a chave fora do bucket. É o que
+   sustenta a decisão agora que a localização não sustenta. Não implementada.
+2. **`Message.mediaUrl` guarda URL.** Para clínico a URL é assinada e vence em
+   10 minutos, então persistir uma faz a imagem dar 404 depois. **Isto impede
+   ligar o arquivamento clínico no caminho real** mesmo com o provedor decidido.
+3. **Token de API do R2** — as 2 provas de ciclo completo seguem em `SKIP`.
 
 ### 3. Evolution Go em Containers — **BLOQUEIA desligar a VPS** 🔴
 
@@ -85,12 +99,38 @@ possível confirmar pela API** — o MCP de Code Mode está falhando.
 > 2026-10-21 não funciona mais nem para leitura. Vale conferir a autorização do
 > conector.
 
-### 6. Divergência de variável a resolver ⚠️
+### 6. Variáveis de webhook — ~~divergência~~ **duas faltas espelhadas** ✅
 
-`.env.example` documenta `WEBHOOK_BASE_URL`; `.env` e `.env.local` reais usam
-`WEBHOOK_URL`. Um dos dois está errado, e isso precisa estar resolvido **antes**
-de montar os secrets de produção na Cloudflare — senão o webhook aponta para
-lugar nenhum e o sintoma aparece só quando chegar a primeira mensagem.
+**Resolvido em 2026-10-21.** O diagnóstico anterior estava errado: registrava
+"um dos dois está errado", e seguir aquilo apagaria uma variável legítima. Não
+há divergência — são **duas variáveis com consumidores distintos**:
+
+| Variável | Quem lê | Forma |
+| --- | --- | --- |
+| `WEBHOOK_BASE_URL` | o app, em `src/lib/whatsapp/index.ts` (`webhookUrlFor`) | **base sem caminho**; o app anexa `/api/webhooks/<provedor>` |
+| `WEBHOOK_URL` | o Compose, como `WEBHOOK_GLOBAL_URL` do Evolution v2 (`infra/compose.yaml:209`) | **URL completa, com caminho** |
+
+Cada arquivo tinha exatamente uma das duas — defeitos espelhados:
+
+- `.env` e `.env.local` tinham só `WEBHOOK_URL`. O app caía no fallback
+  `NEXT_PUBLIC_APP_URL` e montava `http://localhost:3000/api/webhooks/...` —
+  endereço que o contêiner do provedor **não alcança**. Defeito vivo, e com o
+  sintoma adiado até a primeira mensagem. Corrigido com a base do túnel que já
+  estava nos arquivos.
+- `.env.example` tinha só `WEBHOOK_BASE_URL`. Instalação nova dava
+  `WEBHOOK_GLOBAL_URL` **vazio** ao Evolution v2 — a mesma classe de bug que o
+  comentário de `DISABLED_FEATURES` em `infra/scripts/setup-env.mjs` descreve.
+  Corrigido documentando as duas, com quem lê cada uma.
+
+`infra/scripts/setup-env.mjs` já escrevia as duas, corretamente — era a única
+fonte coerente.
+
+**Consequência para o corte, que segue aberta:** os valores da VPS não
+sobrevivem à Cloudflare. `http://app:3000` existe por causa da rede do Compose;
+no Worker não há `app:3000`, então `WEBHOOK_BASE_URL` passa a ser a origem
+pública do Worker. E `WEBHOOK_URL` só continua existindo enquanto o Evolution v2
+existir — se o canal oficial falar direto com o Graph API, como recomendado na
+seção de custo de CU, essa variável sai junto com o contêiner.
 
 ---
 
@@ -114,6 +154,7 @@ alguma estiver errada.
 | 11 | **Um repositório por SaaS** (não monorepo) | Ver §3 |
 | 12 | `main` = produção, PR obrigatório, deploy de produção com **aprovação humana** | Ver [`08-github-versioning-ci-cd.md`](08-github-versioning-ci-cd.md) |
 | 13 | **Só o OdontoBox360 neste ciclo** | É o piloto; os outros replicam depois dos critérios de sucesso |
+| 14 | **Evolution em projeto Neon próprio, com uma base única** | Confirmado pelo André em 2026-10-21. Duas razões que apontam para o mesmo lado: a franquia do Neon é **por projeto**, então separar impede que o canal de WhatsApp suspenda o sistema inteiro; e preserva o isolamento de segurança que `compose.staycloud.yaml` já tinha (credencial de aparelho do whatsmeow não divide servidor com dado clínico). Custa de US$ 10 a 19/mês a mais que consolidar. Dentro do projeto, o mínimo: **1 base** no lugar de 3 |
 
 ### §3 — Repositórios: um por SaaS
 
@@ -138,8 +179,8 @@ Nada de reorganizar repositório sem aprovação.
 
 | Tema | Estado | Recomendação |
 | --- | --- | --- |
-| Storage clínico no Brasil | **aguardando aval** | Magalu `br-se1` |
-| Topologia do Evolution Go | **aguardando POC** | decidir só com o experimento; §3 da Parte 1 |
+| Storage clínico | **decidido 2026-10-21** | **R2, bucket `odontobox-private`.** Magalu recusada; o arquivo não fica no Brasil e isso está registrado |
+| Topologia do Evolution Go | **decidido 2026-10-21** | **projeto Neon separado, uma base só dentro dele.** A franquia do Neon é por projeto, então separar contém o raio de alcance: estourar derruba o WhatsApp, não o sistema. Provisionado como `odontobox-evolution`. Ver [`11`](11-poc-evolution-go.md) §1.3 |
 | Residência para os outros nichos (jurídico, intercâmbio) | em aberto | aplicar a mesma classificação; até decidir, R2 só recebe o claramente público |
 | Escopo do rollout | em aberto | só OdontoBox360 agora |
 | CI/CD e proteção de branch | em aberto | `main` protegida, PR + checks, produção com aprovação |
@@ -211,6 +252,19 @@ WhatsApp da clínica. Para dado clínico é troca pior.
 
 O caminho estrutural é o **1** — e ele já está em andamento, esperando a Meta. O
 caminho tático é o **2**, que vale enquanto o QR existir e é barato de testar.
+
+> **Atualização de 2026-10-21, com a topologia decidida.** Com os dois projetos
+> separados, o problema de CU se parte em dois pedaços independentes, e cada um
+> tem a sua saída:
+>
+> | Projeto | O que prende acordado | Saída | Resultado |
+> | --- | --- | --- | --- |
+> | `odontobox-evolution` | conexão do whatsmeow (inevitável enquanto houver QR) | pooler no contêiner (caminho 2), ou Cloud API (caminho 1) | hoje **exige Launch**, US$ 19,34 |
+> | `odontobox` (app) | o cron `* * * * *` (**escolha**) | restringir a `* 10-23 * * *` | 97,5 CU-h — **cabe na franquia free** |
+>
+> O que mudou de importante: a restrição do cron voltou a valer. Consolidado ela
+> não economizaria nada, porque a conexão do Evolution manteria o compute
+> compartilhado acordado de todo jeito.
 
 O que **não** se deve fazer é trocar de biblioteca ou de provedor de QR: o
 primeiro não muda nada e o segundo entrega a sessão a terceiro.

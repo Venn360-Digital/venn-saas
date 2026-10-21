@@ -107,11 +107,60 @@ Não é purismo. A credencial de aparelho do whatsmeow permite **assumir o
 WhatsApp da clínica** — mandar mensagem como ela, ler o que chega. Compartilhar
 servidor com o dado clínico significa que comprometer um alcança o outro.
 
-A correção é projeto Neon próprio para as duas bases. O preço é um compute a
+A correção seria projeto Neon próprio para as duas bases. O preço é um compute a
 mais sempre ligado (~US$ 25/mês a 0,25 CU, porque o Evolution Go mantém conexão
 aberta e o compute nunca suspende) e entra na conta de
-[§2 critério 7](#critério-7--custo). Decisão do André se quiser economizar isso
-aceitando o compartilhamento; o padrão é preservar o que já estava separado.
+[§2 critério 7](#critério-7--custo).
+
+> **Decisão do André, 2026-10-21: projeto separado, com uma base só dentro
+> dele.** Duas instruções que parecem opostas e não são — "o mínimo de bases
+> possível" vale *dentro* do projeto; o isolamento de projeto fica.
+>
+> O que decidiu, nas palavras dele: *"é melhor cair apenas a conexão do que o
+> sistema inteiro"*. **No Neon a franquia é por projeto**, então projeto
+> separado é o que contém o raio de alcance da falha. Se o EVO estourar, cai
+> **só o WhatsApp**; o app segue de pé. Consolidado, o mesmo evento suspende o
+> sistema inteiro — e é a única topologia que sobrevive a estar no plano free,
+> por acidente ou no mês em que o cartão falhar.
+>
+> O isolamento de segurança do comentário acima, portanto, **é preservado** —
+> não por purismo, mas porque a razão de disponibilidade aponta para o mesmo
+> lado.
+>
+> **Provisionado em 2026-10-21 17:11:**
+>
+> | | |
+> | --- | --- |
+> | Projeto | `odontobox-evolution` (`young-night-50184700`), São Paulo `aws-sa-east-1` |
+> | Compute | **0,25 CU fixo**, sem autoescala — teto de custo garantido em 182,5 CU-h |
+> | Branch | `main` (`br-billowing-grass-b6v6d6l3`) |
+> | Base | **uma só: `neondb`**, a padrão do projeto. Nada foi criado |
+>
+> Em número de bases o Evolution sai de **3 para 1**: `evogo_auth` + `evogo_users`
+> viram uma, e `evolution_v2` deixa de existir porque o canal oficial fala direto
+> com o Graph API.
+>
+> Os dois URIs da imagem (`POSTGRES_AUTH_DB`, `POSTGRES_USERS_DB`) apontam para a
+> mesma base: **não há mudança de código**, só os dois segredos `EVOGO_AUTH_DB` /
+> `EVOGO_USERS_DB` com o mesmo valor.
+>
+> **O que autoriza uma base só:** os esquemas são disjuntos. Medido nas bases da
+> POC — `evogo_auth` tem `poll_votes`; `evogo_users` tem `instances`, `labels`,
+> `messages`, `runtime_configs`. Nenhum nome em comum, então as cinco tabelas
+> convivem num `public` só.
+>
+> **O que ainda não está provado, e é o risco desta parte:** esse esquema nasceu
+> *antes* de a licença barrar a migração, e **sem nenhum pareamento**. Faltam as
+> tabelas do whatsmeow (prefixo `whatsmeow_`, colisão improvável) e o que a
+> ativação da licença criar do lado `auth` (nomes desconhecidos). Uma colisão
+> aqui **não** falha ruidosamente no pior caso: se a migração do segundo lado
+> encontrar a tabela já existente, pode reaproveitá-la em silêncio, e aí dois
+> estados lógicos dividem uma tabela física. `runtime_configs` é justamente um
+> nome plausível nos dois lados.
+>
+> **Conferir na ativação da licença:** contar as tabelas de `neondb` e comparar
+> com a soma das duas bases antigas. Se bater, está provado; se faltar, houve
+> reaproveitamento e as duas bases voltam.
 
 Dois detalhes do arquivo certo que também corrigem o relatório:
 
@@ -130,8 +179,24 @@ está ativada, e a licença mora no Postgres. Mas os dois bancos do Evolution Go
 
 | Banco | O que guarda | Copiar é |
 | --- | --- | --- |
-| `evogo_auth` | a licença | inofensivo a qualquer momento |
-| `evogo_users` | credenciais de aparelho do whatsmeow | **perigoso com a VPS no ar** |
+| `evogo_auth` | **credenciais de aparelho do whatsmeow** — 18 tabelas `whatsmeow_*`, 4 aparelhos, 172 sessões, 63 mil contatos | **perigoso com a VPS no ar** |
+| `evogo_users` | o estado do produto: `runtime_configs` (4), `instances` (2), `labels` (1) — e a licença | inofensivo a qualquer momento |
+
+> **Corrigido em 2026-10-21, e estava invertido.** Esta tabela dizia o oposto:
+> que a licença morava em `evogo_auth` e os aparelhos em `evogo_users`. Era
+> **dedução, não medição** — e o próprio documento admitia isso ("a hipótese é
+> `evogo_auth`, deduzida de o serviço não ter volume").
+>
+> O diagnóstico somente-leitura do `levar-licenca.sh` mediu, e o nome é que
+> engana: em `POSTGRES_AUTH_DB` o "auth" é a autenticação do **aparelho** no
+> WhatsApp, não a licença do produto.
+>
+> **A consequência era concreta e grave:** o script copiava `evogo_auth` **por
+> padrão**, chamando-o de inofensivo. Qualquer `--aplicar` teria levado as
+> credenciais dos 4 aparelhos e criado exatamente a disputa que o `--sessoes`
+> existia para impedir — número de clínica desvinculado. O script foi corrigido
+> na mesma rodada: o padrão passou a ser `evogo_users`, e `evogo_auth` exige
+> `--sessoes` mais confirmação digitada.
 
 O WhatsApp aceita **uma conexão por aparelho vinculado**. Dois Evolution Go
 sobre o mesmo `evogo_users`, os dois com `CONNECT_ON_STARTUP=true`, disputam o
@@ -150,8 +215,9 @@ Isso tem duas consequências, e as duas já estão aplicadas:
    padrão é **`false`**. A POC passou a poder apontar para base restaurada da
    VPS; com isto ligado, um teste tiraria número de clínica do ar.
 
-O `infra/scripts/levar-licenca.sh` reflete a assimetria: leva `evogo_auth` por
-padrão, e `evogo_users` só com `--sessoes` mais uma confirmação digitada.
+O `infra/scripts/levar-licenca.sh` reflete a assimetria — depois de corrigido:
+leva `evogo_users` por padrão, e `evogo_auth` só com `--sessoes` mais uma
+confirmação digitada.
 
 ### 1.5 O heartbeat da licença manda o IP do servidor
 
@@ -284,6 +350,26 @@ dele prendem o compute **da aplicação** acordado — e por volta do dia 16 o
 projeto inteiro é suspenso. Não é o WhatsApp que cai: é o sistema.
 
 Então são dois projetos por necessidade, não por elegância.
+
+> **Confirmado em 2026-10-21: são dois projetos, e o motivo é a franquia ser por
+> projeto.** O argumento acima se mantém, e ganhou a decisão — *"é melhor cair
+> apenas a conexão do que o sistema inteiro"*.
+>
+> | Topologia | Plano | Custo/mês | Se a franquia estourar |
+> | --- | --- | --- | --- |
+> | **2 projetos (decidido)** | Launch | **US$ 29,68** com o cron restrito, US$ 38,69 sem | cai **só o WhatsApp** |
+> | 1 projeto consolidado | Launch | US$ 19,34 | — (no Launch não há franquia) |
+> | 1 projeto consolidado | free | US$ 0 até o dia ~16 | **sistema inteiro suspenso** |
+>
+> Separar custa de **US$ 10 a US$ 19 por mês** a mais. O que se compra é o raio
+> de alcance: nenhum estouro de franquia, erro de plano ou falha de cobrança
+> derruba o sistema inteiro pelo caminho do Evolution.
+>
+> **E isto devolve a pendência 12 como alavanca real.** Com o projeto do app
+> separado, restringir o disparo a `* 10-23 * * *` faz o compute dele dormir de
+> madrugada outra vez: 97,5 CU-h em vez de 182,5. No Launch são US$ 10,33 em vez
+> de US$ 19,34; e se o plano continuar free, 97,5 **cabe na franquia de 100** — o
+> projeto do app sai de graça, e só o do Evolution precisa de Launch.
 
 > **Correção.** Escrevi aqui que "o projeto da aplicação, separado, pode
 > suspender fora do horário comercial e caber na própria franquia". **Está

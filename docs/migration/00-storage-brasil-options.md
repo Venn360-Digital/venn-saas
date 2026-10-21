@@ -1,5 +1,35 @@
 # 00 — Storage com residência no Brasil para arquivos clínicos
 
+> ## ⛔ RECUSADO — não siga a recomendação deste documento
+>
+> **Decisão do André em 2026-10-21: o arquivo clínico vai para o Cloudflare
+> R2**, no bucket `odontobox-private`. A Magalu Cloud `br-se1` recomendada
+> abaixo **não foi contratada**, e este documento fica apenas como registro da
+> pesquisa.
+>
+> **O que isso significa, em termos literais, porque alguém vai precisar saber:**
+> o arquivo clínico **não fica no Brasil**. Três fatos verificados na
+> documentação da Cloudflare em 2026-10-21:
+>
+> | Fato | Consequência |
+> | --- | --- |
+> | O R2 **não tem região na América do Sul** (`wnam`, `enam`, `weur`, `eeur`, `apac`, `oc`) | residência no Brasil não é alcançável, não é só "não garantida" |
+> | **Não existe jurisdição `br`** em Jurisdictional Restrictions (há `eu`, `us`, `fedramp`) | não há o mecanismo que a Cloudflare chama de garantia |
+> | Para São Paulo a própria Cloudflare recomenda a dica `enam` | o destino sugerido pelo fornecedor é a América do Norte |
+>
+> Os dois buckets criados responderam `"location":"ENAM"` na própria chamada de
+> criação.
+>
+> **O André registrou que vai declarar a residência no contrato de privacidade.**
+> Isso foi apontado como divergente da documentação do fornecedor e a decisão
+> foi mantida e reafirmada ("está decretado"). Fica aqui para que a decisão seja
+> rastreável a quem a tomou, não para ser refeita.
+>
+> **O controle que sustenta a escolha não é localização, é cifra:** cifrar na
+> aplicação antes do `put`, com a chave em Cloudflare Secrets, fora do bucket
+> (o cofre em `src/lib/secrets/envelope.ts` já tem a primitiva). **Ainda não
+> implementado** — é a pendência que substitui esta.
+
 **Pesquisado em** 2026-10-21. **Nenhum recurso foi criado nem contratado.**
 Este documento existe para que a escolha seja aprovada antes de qualquer conta.
 
