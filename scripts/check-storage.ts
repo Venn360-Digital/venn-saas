@@ -43,21 +43,19 @@ const skip = (nome: string, motivo: string) => {
 async function main() {
     // ---------------------------------------------------------------- lógica
 
-    ok('classe pública vai para o R2', provedorDa(CLASSES.PUBLICO) === 'r2')
+    ok('classe pública vai para o R2', provedorDa(CLASSES.PUBLICO) === 'r2-publico')
     ok('classe pública é gravável', podeGravar(CLASSES.PUBLICO))
 
-    // O coração disto: clínico NÃO pode cair no R2 enquanto o provedor
-    // brasileiro não for aprovado.
-    try {
-        provedorDa(CLASSES.CLINICO)
-        ok('classe clínica é recusada', false, 'não lançou')
-    } catch (e) {
-        ok(
-            'classe clínica é recusada enquanto o provedor BR não é aprovado',
-            e instanceof ClasseBloqueadaError && e.classe === CLASSES.CLINICO
-        )
-    }
-    ok('classe clínica não é gravável', !podeGravar(CLASSES.CLINICO))
+    // Decisão do André em 2026-10-21: o clínico vai para o R2, no bucket
+    // privado. A prova antiga afirmava o oposto — que a classe era recusada — e
+    // foi invertida junto com a decisão, não removida: o que importa provar
+    // agora é que clínico e público **não caem no mesmo bucket**.
+    ok('classe clínica vai para o R2 privado', provedorDa(CLASSES.CLINICO) === 'r2-privado')
+    ok('classe clínica é gravável', podeGravar(CLASSES.CLINICO))
+    ok(
+        'clínico e público são buckets distintos',
+        provedorDa(CLASSES.CLINICO) !== provedorDa(CLASSES.PUBLICO)
+    )
 
     try {
         provedorDa(CLASSES.NAO_CLASSIFICADO)
@@ -66,15 +64,43 @@ async function main() {
         ok('não classificado é recusado', e instanceof ClasseBloqueadaError)
     }
 
-    // E a recusa tem de valer no caminho de gravação, não só na consulta —
-    // senão `gravar` seria uma porta lateral.
+    // A recusa tem de valer no caminho de gravação, não só na consulta — senão
+    // `gravar` seria uma porta lateral. Vale para NAO_CLASSIFICADO, que é o
+    // bloqueio que sobrou.
     try {
-        await gravar(CLASSES.CLINICO, chaveDe('ws1', 'foto.jpg'), new Uint8Array(new ArrayBuffer(1)), {
-            contentType: 'image/jpeg',
-        })
-        ok('gravar() recusa classe clínica', false, 'gravou')
+        await gravar(
+            CLASSES.NAO_CLASSIFICADO,
+            chaveDe('ws1', 'laudo.pdf'),
+            new Uint8Array(new ArrayBuffer(1)),
+            { contentType: 'application/pdf' }
+        )
+        ok('gravar() recusa não classificado', false, 'gravou')
     } catch (e) {
-        ok('gravar() recusa classe clínica', e instanceof ClasseBloqueadaError)
+        ok('gravar() recusa não classificado', e instanceof ClasseBloqueadaError)
+    }
+
+    // E clínico, agora liberado, falha por **configuração** e não por política
+    // — distinção que importa: se um dia voltar a falhar por política, esta
+    // prova muda de lado e alguém é obrigado a ler o porquê.
+    if (!process.env.PRIVATE_STORAGE_BUCKET?.trim() || !process.env.PRIVATE_STORAGE_ENDPOINT?.trim()) {
+        try {
+            await gravar(
+                CLASSES.CLINICO,
+                chaveDe('ws1', 'foto.jpg'),
+                new Uint8Array(new ArrayBuffer(1)),
+                { contentType: 'image/jpeg' }
+            )
+            ok('clínico sem credencial falha por configuração', false, 'gravou')
+        } catch (e) {
+            ok(
+                'clínico sem credencial falha por configuração, não por política',
+                e instanceof Error &&
+                    e.name === 'ProvedorNaoConfiguradoError' &&
+                    !(e instanceof ClasseBloqueadaError)
+            )
+        }
+    } else {
+        skip('clínico sem credencial falha por configuração', 'PRIVATE_STORAGE_* configurado')
     }
 
     // ------------------------------------------------------------- chaves
@@ -124,7 +150,7 @@ async function main() {
         corpo.set(conteudo)
 
         const ref = await gravar(CLASSES.PUBLICO, chave, corpo, { contentType: 'text/plain' })
-        ok('gravou no R2', ref.provedor === 'r2' && ref.chave === chave)
+        ok('gravou no R2', ref.provedor === 'r2-publico' && ref.chave === chave)
         ok('referência carrega a classe', ref.classe === CLASSES.PUBLICO)
         ok('referência carrega o tamanho', ref.tamanho === corpo.byteLength)
         ok('existe() encontra', await existe(ref))

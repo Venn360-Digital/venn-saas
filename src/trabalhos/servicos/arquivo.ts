@@ -15,17 +15,19 @@ import { createLogger } from '@/trabalhos/registro'
  * uma dessas no banco faria a imagem do paciente dar 404 dez minutos depois de
  * chegar: pior do que não arquivar.
  *
- * Então enquanto o provedor brasileiro não estiver aprovado, `provedorDa`
- * recusa a classe clínica e esta função devolve `null`. As três chamadoras já
- * tratam `null` — era o caminho de "o Storage recusou" —, então a mensagem
- * continua chegando, sendo gravada e sendo respondida; só o anexo não é
- * arquivado.
+ * O provedor foi decidido em 2026-10-21: R2, bucket `odontobox-private`. A
+ * classe clínica **já não é recusada** — ver `lib/storage/classificacao.ts`.
  *
- * **O que falta para fechar**, e é um item só: aprovar o provedor
- * (`00-storage-brasil-options.md`) e trocar a coluna de URL por **referência**
- * (`provedor`/`bucket`/`chave`), com o endereço assinado na leitura. Enquanto
- * for coluna de URL, nenhum conteúdo clínico pode ser arquivado sem criar um
- * link que vence.
+ * **O que falta, e é o que impede ligar isto no caminho real:** a coluna
+ * `Message.mediaUrl` guarda URL, e para clínico a URL é assinada com validade
+ * de 10 minutos. Persistir uma dessas faz a imagem do paciente dar 404 dez
+ * minutos depois de chegar — pior do que não arquivar.
+ *
+ * Então **quem persiste o retorno precisa mudar antes**, de uma das duas
+ * formas: trocar a coluna por referência (`provedor`/`bucket`/`chave`, assinando
+ * na leitura), ou persistir um endereço interno estável servido por rota que
+ * assina sob demanda e confere a fronteira de inquilino. A segunda é menor e
+ * dispensa migração; nenhuma das duas está feita.
  */
 const log = createLogger('ARQUIVO')
 

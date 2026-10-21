@@ -27,9 +27,9 @@ export type { Classe, NomeDeProvedor, OpcoesDeGravacao, Referencia }
 /**
  * Os provedores, construídos sob demanda e guardados por isolate.
  *
- * Preguiçoso de propósito: a aplicação roda hoje com o provedor brasileiro
- * **não configurado**, e construir tudo na carga do módulo faria toda rota que
- * importa este arquivo falhar por causa de uma configuração que ela não usa.
+ * Preguiçoso de propósito: uma rota que só serve imagem pública não deve falhar
+ * porque as credenciais do bucket privado não estão no ambiente. Construir tudo
+ * na carga do módulo faria exatamente isso.
  */
 const instancias = new Map<NomeDeProvedor, ProvedorDeObjetos>()
 
@@ -68,8 +68,8 @@ function lerConfig(prefixo: string, nome: NomeDeProvedor) {
 
 /** O prefixo de ambiente de cada provedor. Nomes fixados em `docs/migration`. */
 const PREFIXO: Record<NomeDeProvedor, string> = {
-    r2: 'PUBLIC_STORAGE',
-    brasil: 'SENSITIVE_STORAGE',
+    'r2-publico': 'PUBLIC_STORAGE',
+    'r2-privado': 'PRIVATE_STORAGE',
 }
 
 function provedor(nome: NomeDeProvedor): { cliente: ProvedorDeObjetos; bucket: string } {
@@ -93,9 +93,9 @@ function provedor(nome: NomeDeProvedor): { cliente: ProvedorDeObjetos; bucket: s
 /**
  * Grava um objeto e devolve a referência para o banco.
  *
- * Lança `ClasseBloqueadaError` quando a classe não tem destino aprovado — e é
- * aqui que a decisão pendente do provedor brasileiro aparece como erro em vez de
- * virar arquivo clínico no R2.
+ * Lança `ClasseBloqueadaError` só para `NAO_CLASSIFICADO`: arquivo sem classe
+ * não é gravado, porque tratá-lo como público vazaria e como clínico esconderia
+ * que ninguém o classificou.
  */
 export async function gravar(
     classe: Classe,

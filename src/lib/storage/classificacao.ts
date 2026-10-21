@@ -43,8 +43,17 @@ export const CLASSES = {
 
 export type Classe = (typeof CLASSES)[keyof typeof CLASSES]
 
-/** Onde cada classe pode morar. */
-export type NomeDeProvedor = 'r2' | 'brasil'
+/**
+ * Onde cada classe pode morar.
+ *
+ * Os dois são R2 — a divisão é de **bucket**, não de empresa. Decisão do André
+ * em 2026-10-21: `odontobox-public` e `odontobox-private`.
+ *
+ * O nome diz `r2-` nos dois de propósito, para que ninguém leia `privado` como
+ * "em outro provedor, com residência no Brasil". Os buckets nasceram em `ENAM`
+ * — o R2 não tem região na América do Sul.
+ */
+export type NomeDeProvedor = 'r2-publico' | 'r2-privado'
 
 export class ClasseBloqueadaError extends Error {
     readonly classe: Classe
@@ -59,25 +68,31 @@ export class ClasseBloqueadaError extends Error {
 /**
  * O provedor de uma classe — ou a recusa, com o motivo.
  *
- * `CLINICO` está bloqueado por **decisão pendente**, não por defeito: o provedor
- * com residência contratual no Brasil está recomendado (Magalu Cloud `br-se1`) e
- * aguarda aprovação. Ver `docs/migration/00-storage-brasil-options.md`.
+ * **`CLINICO` deixou de ser bloqueio em 2026-10-21, por decisão do André:** o
+ * clínico vai para o R2, no bucket `odontobox-private`. A alternativa com
+ * residência brasileira (Magalu Cloud `br-se1`, em
+ * `docs/migration/00-storage-brasil-options.md`) foi avaliada e recusada.
  *
- * Enquanto isso, a cópia na VPS segue sendo a fonte desses arquivos, e tentar
- * gravar lança — em vez de cair no R2 por omissão, que é o modo de falha que
- * este módulo existe para impedir.
+ * O que isso significa, registrado para quem ler depois: **o arquivo clínico
+ * não fica no Brasil.** O R2 não tem região na América do Sul — as localizações
+ * são `wnam`, `enam`, `weur`, `eeur`, `apac` e `oc` — e não existe jurisdição
+ * `br` em Jurisdictional Restrictions (há `eu`, `us` e `fedramp`). Os dois
+ * buckets nasceram em `ENAM`, o que a própria API devolveu na criação.
+ *
+ * O controle que sustenta a decisão, portanto, **não é localização, é cifra**:
+ * ver a pendência de cifrar na aplicação antes do `put`, com a chave em
+ * Cloudflare Secrets, fora do bucket. Ainda **não implementada**.
+ *
+ * `NAO_CLASSIFICADO` segue bloqueado, e por outro motivo — disciplina de
+ * classificação, não residência.
  */
 export function provedorDa(classe: Classe): NomeDeProvedor {
     switch (classe) {
         case CLASSES.PUBLICO:
-            return 'r2'
+            return 'r2-publico'
 
         case CLASSES.CLINICO:
-            throw new ClasseBloqueadaError(
-                classe,
-                'o provedor com residência no Brasil ainda não foi aprovado; ' +
-                    'a cópia atual permanece a fonte e o R2 não garante residência física'
-            )
+            return 'r2-privado'
 
         case CLASSES.NAO_CLASSIFICADO:
             throw new ClasseBloqueadaError(
