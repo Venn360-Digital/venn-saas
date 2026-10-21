@@ -20,7 +20,8 @@
     "check:widget": "node scripts/check-widget.mjs",
     "lint:workspace": "node scripts/lint-workspace.mjs",
     "check:cofre": "tsx --conditions=react-server scripts/check-cofre.ts",
-    "check:neon": "tsx --conditions=react-server scripts/check-neon.ts"
+    "check:neon": "tsx --conditions=react-server scripts/check-neon.ts",
+    "check:storage": "tsx --conditions=react-server scripts/check-storage.ts"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",
@@ -40,6 +41,7 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.93.3",
     "@types/bcryptjs": "^2.4.6",
+    "aws4fetch": "1.0.20",
     "bcryptjs": "^3.0.3",
     "bullmq": "^6.3.11",
     "class-variance-authority": "^0.7.1",
