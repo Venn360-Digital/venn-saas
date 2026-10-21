@@ -51,6 +51,11 @@ jobs:
           # o vinext roda o passo standalone dele e procura a saída em `dist/`,
           # enquanto o plugin da Cloudflare escreve em `.cloudflare/output/`.
           BUILD_TARGET: cloudflare
+          # Preview não aceita o campo `triggers` — e não deveria aceitar:
+          # um Worker de preview com os consumidores de fila DISPUTARIA mensagem
+          # real com a produção, e os treze crons rodariam contra o banco real.
+          # Ver o comentário de EH_PREVIEW em `cloudflare.config.ts`.
+          CF_PREVIEW: '1'
         run: |
           # `pipefail` NÃO é padrão no shell do Actions (ele roda `bash -e`), e
           # sem ele o `| tee` abaixo engolia a falha: em pipeline o status é do

@@ -87,6 +87,62 @@ const CONSUMO = {
     },
 } as const
 
+/**
+ * Preview não aceita `triggers`, e isso é bom.
+ *
+ * Medido em 2026-10-21: `cf previews deploy` recusa com
+ * "Preview uploads from Build Output don't support the `triggers` field."
+ *
+ * Omitir no preview não é contorno, é o comportamento correto. Um Worker de
+ * preview com estes gatilhos **disputaria mensagem de fila real** com a
+ * produção (consumidor a mais na mesma fila, e cada mensagem é entregue a um
+ * só) e **dispararia os treze crons** contra o banco real — boletim, poda de
+ * retenção e corte de cobrança saindo de um PR. O preview serve para olhar
+ * tela, não para processar trabalho.
+ *
+ * `CF_PREVIEW` é declarado em `preview.yml`. Na ausência dele vale produção,
+ * de propósito: esquecer a variável não pode silenciar os gatilhos de quem
+ * atende cliente.
+ */
+const EH_PREVIEW = process.env.CF_PREVIEW === '1'
+
+const GATILHOS = [
+
+        /**
+         * Os oito consumidores.
+         *
+         * A DLQ é criada sozinha no deploy se não existir, e mensagem numa
+         * DLQ sem consumidor persiste quatro dias — tempo de alguém ver.
+         */
+        ...ALL_QUEUES.map((fila) =>
+            triggers.queue({
+                name: naConta(fila),
+                deadLetterQueue: `${naConta(fila)}-dlq`,
+                // Derivado, nunca escrito à mão: `maxRetries` conta só as
+                // repetições, e o consumidor precisa do total para saber se
+                // está na última tentativa. Dois números escritos à parte se
+                // separariam calados — ver `TENTATIVAS` em `definitions.ts`.
+                maxRetries: TENTATIVAS[fila] - 1,
+                ...CONSUMO[fila],
+            })
+        ),
+
+        /**
+         * Os treze crons, **em UTC**.
+         *
+         * A lista é gerada por `cronsParaWrangler()` a partir da intenção
+         * declarada em horário de Brasília. Cron Triggers não aceitam fuso:
+         * copiar os padrões do produto faria o boletim das 7 h disparar às
+         * 4 h da manhã, a poda de retenção à 1 h41 e o corte de cobrança às
+         * 2 h27 — tudo funcionando, tudo na hora errada, nada acusando erro.
+         *
+         * Gerada e não escrita à mão de propósito, e `npm run check:filas`
+         * compara as duas — porque a divergência não daria erro: valeria o
+         * que está aqui, e a tabela do código passaria a ser ficção.
+         */
+        ...cronsParaWrangler().map((schedule) => triggers.scheduled({ schedule })),
+]
+
 export default defineConfig({
     worker: defineWorker({
         name: NOME,
@@ -167,12 +223,18 @@ export default defineConfig({
             CRON: bindings.queue({ name: naConta('cron') }),
 
             /**
-             * R2 — **somente conteúdo público**.
+             * R2 — público **e**, desde 2026-10-21, clínico.
              *
-             * Os dois buckets existem e nasceram em `ENAM`, leste da América do
-             * Norte: é a prova concreta de que nada clínico pode ir para cá. O
-             * adaptador roteia pela classe do dado e recusa gravar classe
-             * clínica enquanto o provedor brasileiro não for aprovado.
+             * Este comentário dizia "somente conteúdo público" e que o clínico
+             * era recusado até um provedor brasileiro ser aprovado. **Mudou por
+             * decisão do André:** o clínico vai para `odontobox-private`, aqui
+             * no R2 mesmo.
+             *
+             * Os buckets nasceram em `ENAM`, leste da América do Norte — o R2
+             * não tem região na América do Sul e não existe jurisdição `br`.
+             * Então o arquivo clínico **não fica no Brasil**, e o controle que
+             * sustenta a escolha é cifra na aplicação, não localização. Ver
+             * `src/lib/storage/classificacao.ts`.
              *
              * O binding fica declarado mas o adaptador **não o usa**: ele fala
              * S3, para que a mesma implementação sirva ao R2 e à Magalu. Ver
@@ -206,43 +268,24 @@ export default defineConfig({
             PLATFORM_META_MESSAGING_VERIFY_TOKEN: bindings.secret(),
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
+
+            /**
+             * O bucket PRIVADO, `odontobox-private`.
+             *
+             * Entrou com a decisão de 2026-10-21 de levar o arquivo clínico
+             * para o R2. Sem estes dois o adaptador lança
+             * `ProvedorNaoConfiguradoError` em produção, e o sintoma aparece na
+             * primeira foto que um paciente mandar — não no deploy.
+             *
+             * Não é binding de R2 e sim segredo de S3 porque o adaptador fala
+             * API S3 (`src/lib/storage/s3.ts`), o que mantém a portabilidade
+             * para outro provedor sem reescrever o caminho de leitura.
+             */
+            PRIVATE_STORAGE_ACCESS_KEY_ID: bindings.secret(),
+            PRIVATE_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
         },
 
-        triggers: [
-            /**
-             * Os oito consumidores.
-             *
-             * A DLQ é criada sozinha no deploy se não existir, e mensagem numa
-             * DLQ sem consumidor persiste quatro dias — tempo de alguém ver.
-             */
-            ...ALL_QUEUES.map((fila) =>
-                triggers.queue({
-                    name: naConta(fila),
-                    deadLetterQueue: `${naConta(fila)}-dlq`,
-                    // Derivado, nunca escrito à mão: `maxRetries` conta só as
-                    // repetições, e o consumidor precisa do total para saber se
-                    // está na última tentativa. Dois números escritos à parte se
-                    // separariam calados — ver `TENTATIVAS` em `definitions.ts`.
-                    maxRetries: TENTATIVAS[fila] - 1,
-                    ...CONSUMO[fila],
-                })
-            ),
-
-            /**
-             * Os treze crons, **em UTC**.
-             *
-             * A lista é gerada por `cronsParaWrangler()` a partir da intenção
-             * declarada em horário de Brasília. Cron Triggers não aceitam fuso:
-             * copiar os padrões do produto faria o boletim das 7 h disparar às
-             * 4 h da manhã, a poda de retenção à 1 h41 e o corte de cobrança às
-             * 2 h27 — tudo funcionando, tudo na hora errada, nada acusando erro.
-             *
-             * Gerada e não escrita à mão de propósito, e `npm run check:filas`
-             * compara as duas — porque a divergência não daria erro: valeria o
-             * que está aqui, e a tabela do código passaria a ser ficção.
-             */
-            ...cronsParaWrangler().map((schedule) => triggers.scheduled({ schedule })),
-        ],
+        ...(EH_PREVIEW ? {} : { triggers: GATILHOS }),
     }),
 })
 
@@ -260,5 +303,7 @@ export default defineConfig({
  *     "sobrevive a período sem tráfego", ele não vem para cá;
  *   - **Cloudflare Email Service**, que fica para depois do primeiro corte — o
  *     Resend segue atendendo;
- *   - `SENSITIVE_STORAGE_*`, que depende da aprovação do provedor brasileiro.
+ *   - `SENSITIVE_STORAGE_*` **não entra mais**: a classe clínica foi para o
+ *     R2 em 2026-10-21 e as credenciais dela são `PRIVATE_STORAGE_*`, já
+ *     declaradas acima. O que falta nessa frente é a cifra na aplicação.
  */
