@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { SCHEDULABLE_CATEGORIES, isSchedulable } from '@/lib/product-categories'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { normalizeSearch } from '@/lib/search'
@@ -34,13 +33,6 @@ const productSchema = z.object({
 // GET - List products with pagination and search
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
@@ -107,13 +99,6 @@ export async function GET(request: NextRequest) {
 // POST - Create product
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {

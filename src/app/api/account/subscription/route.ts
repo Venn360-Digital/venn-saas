@@ -54,13 +54,6 @@ const PLANS = Object.fromEntries(
 // GET /api/account/subscription - Get subscription details
 export async function GET() {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
         const workspace = workspaceUser
             ? await prisma.workspace.findUnique({

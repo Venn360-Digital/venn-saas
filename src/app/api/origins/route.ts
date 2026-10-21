@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { isUniqueViolation } from '@/lib/prisma-errors'
 
 // GET - List origins for the workspace
 export async function GET() {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
@@ -29,10 +24,6 @@ export async function GET() {
 // POST - Create origin
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 

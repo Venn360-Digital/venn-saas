@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
 import { isUniqueViolation } from '@/lib/prisma-errors'
 import { normalizePhone } from '@/lib/phone'
 
@@ -10,10 +9,6 @@ import { normalizePhone } from '@/lib/phone'
 // Step 2 (commit):  { action: 'commit', contacts: [...], duplicateAction: 'skip' | 'update' }
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 

@@ -2,7 +2,6 @@ import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
 import { phoneVariants } from '@/lib/whatsapp/types'
@@ -21,13 +20,6 @@ const contactSchema = z.object({
 // GET - List contacts with pagination + advanced filters
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const auth = await getWorkspaceMember()
         if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
         const workspaceUser = auth.member
@@ -165,13 +157,6 @@ export async function GET(request: NextRequest) {
 // POST - Create contact
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
