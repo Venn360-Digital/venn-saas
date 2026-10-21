@@ -76,9 +76,21 @@ function deBase64(texto: string): Uint8Array<ArrayBuffer> {
  * guardar o `CryptoKey` evita repetir. O material em claro não fica retido: só o
  * handle, que é o que o WebCrypto expõe.
  */
-let chaveCache: { material: string; chave: Promise<CryptoKey> } | null = null
+/**
+ * O tipo da chave, **derivado** da própria API em vez de nomeado.
+ *
+ * `CryptoKey` é um nome global que vem de `lib.dom` ou de `lib.webworker`, e o
+ * `tsconfig` do processo `workers/` carrega só `["ES2022"]` — então nomeá-lo
+ * quebrava `npm run typecheck:workers`, que é o que este módulo tem de
+ * atravessar: ele é usado pelo app Next, pelo worker em Node e, depois do corte,
+ * pelo Worker da Cloudflare. `crypto.subtle` está tipado nos três; o nome do
+ * tipo de retorno não está em todos. Derivar é o que funciona em todos.
+ */
+type ChaveCripto = Awaited<ReturnType<typeof crypto.subtle.importKey>>
 
-function chave(): Promise<CryptoKey> {
+let chaveCache: { material: string; chave: Promise<ChaveCripto> } | null = null
+
+function chave(): Promise<ChaveCripto> {
     const material = process.env[CHAVE_ENV]?.trim()
     if (!material) throw new ChaveAusenteError()
 

@@ -7,9 +7,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     '@langchain/openai',
     '@langchain/textsplitters',
-    '@langchain/community',
+    // `@langchain/core` continua aqui: ele não é importado direto, mas é peer
+    // dos dois acima e faz require dinâmico que o bundler quebra. `langchain` e
+    // `@langchain/community` saíram da lista porque saíram do projeto — estavam
+    // declarados e nunca importados, e eram eles que traziam o handlebars com
+    // duas falhas críticas. Ver `docs/migration/10-auditoria-de-seguranca.md`.
     '@langchain/core',
-    'langchain',
     // Keeps BullMQ and ioredis out of the bundler: both resolve Lua scripts and
     // native bits at runtime.
     'bullmq',

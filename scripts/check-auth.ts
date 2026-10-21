@@ -32,6 +32,21 @@ const ok = (nome: string, cond: boolean, extra = '') => {
 }
 
 async function main() {
+    /**
+     * O contador do limite é zerado antes de começar.
+     *
+     * O limite está **sempre ligado** na configuração, de propósito — não há
+     * interruptor de ambiente que o desligue, porque interruptor que desliga
+     * controle de segurança um dia fica desligado no lugar errado. A
+     * consequência é que a suíte consome quota: `/sign-up/email` admite 5 por
+     * hora, e rodar isto duas vezes seguidas bateria no teto.
+     *
+     * Zerar aqui também **prova que a tabela está em uso**: se o limite ainda
+     * fosse em memória, esta limpeza não teria efeito nenhum e o teste de
+     * estrangulamento mais abaixo falharia.
+     */
+    await prisma.authRateLimit.deleteMany({})
+
     const email = `prova-${Date.now()}@odontobox360.test`
     const senha = 'senha-de-prova-12345'
 
@@ -231,6 +246,69 @@ async function main() {
     ok('e recusa senha errada', !loginAdminErrado.ok, `HTTP ${loginAdminErrado.status}`)
 
     await prisma.user.delete({ where: { id: porAdmin.id } })
+
+    // 10. O limite de requisições estrangula de verdade, e **em banco**.
+    //
+    // Achado na auditoria: a biblioteca liga o limite sozinha em produção, mas
+    // com `storage: "memory"` — um `new Map()` no módulo. Em Workers cada
+    // isolate tem o seu, e eles são muitos e efêmeros, então o limite efetivo
+    // seria "N por isolate", que para quem adivinha senha é nenhum. Em banco o
+    // contador é um só.
+    await prisma.authRateLimit.deleteMany({})
+
+    const alvo = `limite-${Date.now()}@odontobox360.test`
+    await auth.api.signUpEmail({
+        body: { email: alvo, password: 'senha-do-alvo-12345', name: 'Alvo' },
+        asResponse: true,
+    })
+
+    /**
+     * Pelo `auth.handler`, e **não** por `auth.api.signInEmail`.
+     *
+     * Descoberto escrevendo este teste: chamar `auth.api.*` direto pula a cadeia
+     * HTTP da biblioteca, e o limitador vive nela. Doze tentativas por
+     * `auth.api` deram doze 401 e zero linhas no contador — o que parecia um
+     * limite que não funciona era um teste que não passava por ele.
+     *
+     * Importa além do teste: significa que o limite protege o que entra pela
+     * rota (`/api/auth/*`, via `toNextJsHandler`), e **não** protege chamadas
+     * internas de servidor. Está correto assim — chamada interna já vem de
+     * código nosso, autenticado antes —, mas é bom saber antes de alguém expor
+     * um endpoint próprio chamando `auth.api` e presumir que está limitado.
+     */
+    const pedirLogin = (senha: string) =>
+        auth.handler(
+            new Request('http://localhost:3000/api/auth/sign-in/email', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    // O limitador chaveia por IP; sem isto todas as tentativas
+                    // caem no mesmo bucket "desconhecido", que é o que se quer
+                    // aqui, mas melhor ser explícito.
+                    'x-forwarded-for': '203.0.113.7',
+                },
+                body: JSON.stringify({ email: alvo, password: senha }),
+            })
+        )
+
+    // `/sign-in/email` admite 10 por minuto. A décima primeira tem de ser 429.
+    let estatus = 0
+    for (let i = 0; i < 12; i++) {
+        const r = await pedirLogin(`errada-${i}`)
+        estatus = r.status
+        if (r.status === 429) break
+    }
+    ok('tentativas repetidas de login são estranguladas', estatus === 429, `parou em HTTP ${estatus}`)
+
+    const contadores = await prisma.authRateLimit.count()
+    ok('o contador vive no BANCO, não em memória', contadores > 0, `${contadores} linha(s)`)
+
+    const linha = await prisma.authRateLimit.findFirst({ select: { key: true, count: true } })
+    ok('a chave identifica rota e origem', (linha?.key?.length ?? 0) > 0, linha?.key)
+    ok('o contador passou do limite da regra', (linha?.count ?? 0) >= 10, `count=${linha?.count}`)
+
+    await prisma.user.deleteMany({ where: { email: alvo } })
+    await prisma.authRateLimit.deleteMany({})
 
     // Limpeza. CASCADE leva sessões e credenciais junto — conferir que leva.
     await prisma.user.delete({ where: { id: usuario!.id } })

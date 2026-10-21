@@ -72,7 +72,27 @@ export const auth = betterAuth({
      * prefixo: as três são da biblioteca, e o prefixo diz isso sem precisar
      * abrir o arquivo.
      */
-    session: { modelName: 'AuthSession' },
+    session: {
+        modelName: 'AuthSession',
+
+        /**
+         * Oito horas, renovada a cada hora de uso.
+         *
+         * O padrão da biblioteca é **sete dias**. Numa clínica o computador da
+         * recepção é compartilhado e fica ligado: sete dias significa que quem
+         * sentar nele amanhã continua logado como a atendente de ontem, com
+         * acesso a prontuário.
+         *
+         * Com `updateAge` de uma hora, quem está trabalhando tem a sessão
+         * renovada sozinha e não é interrompido — então na prática isto é um
+         * limite de **oito horas de inatividade**, não de jornada. A máquina
+         * deixada ligada à noite desloga; quem passa o dia inteiro na tela, não.
+         *
+         * É um número, e muda em uma linha se a operação pedir outro.
+         */
+        expiresIn: 60 * 60 * 8,
+        updateAge: 60 * 60,
+    },
     account: { modelName: 'AuthAccount' },
     verification: { modelName: 'AuthVerification' },
 
@@ -149,6 +169,60 @@ export const auth = betterAuth({
          * da recepção — que é o cenário real numa clínica.
          */
         resetPasswordTokenExpiresIn: 3600,
+    },
+
+    /**
+     * O limite de requisições, **em banco** e não em memória.
+     *
+     * Este é o único item desta configuração que estaria errado em produção se
+     * fosse deixado no padrão, e o motivo é o destino: a biblioteca liga o
+     * limite sozinha em produção, mas com `storage: "memory"` — que é
+     * literalmente um `new Map()` no módulo (conferido em
+     * `api/rate-limiter/index.mjs`).
+     *
+     * Em Cloudflare Workers isso não limita nada. Cada isolate carrega o módulo
+     * de novo e tem o próprio mapa; os isolates são muitos, espalhados por colo,
+     * e descartados com frequência. O limite efetivo passaria a ser
+     * "100 por janela **por isolate**", que para quem tenta adivinhar senha é o
+     * mesmo que não haver limite — e `/sign-in/email` é endpoint público.
+     *
+     * Em banco o contador é um só, compartilhado por todos os isolates, e vive
+     * no mesmo Postgres que a sessão.
+     */
+    rateLimit: {
+        enabled: true,
+        storage: 'database',
+        modelName: 'AuthRateLimit',
+
+        /** O padrão geral, para o que não tem regra própria. */
+        window: 10,
+        max: 100,
+
+        /**
+         * Os endpoints que um atacante repetiria, com limite apertado.
+         *
+         * O padrão de 100 em 10 s é razoável para uso normal e generoso demais
+         * para adivinhação: a 100 tentativas por 10 segundos, uma lista de dez
+         * mil senhas comuns passa em menos de vinte minutos.
+         */
+        customRules: {
+            // Entrar: 10 tentativas por minuto. Quem erra a senha tenta três
+            // vezes, não dez — e quem tenta dez por minuto não é a pessoa.
+            '/sign-in/email': { window: 60, max: 10 },
+            // Pedir redefinição: 5 por hora. Protege a conta e protege a nossa
+            // reputação de remetente, que um disparo em massa queimaria.
+            '/request-password-reset': { window: 3600, max: 5 },
+            '/forget-password': { window: 3600, max: 5 },
+            // Gastar token de redefinição: 10 por hora. Adivinhar token é
+            // inviável por entropia, mas o limite fecha a porta de vez.
+            '/reset-password': { window: 3600, max: 10 },
+            // Cadastrar: 5 por hora. O cadastro está aberto para homologação
+            // (ver `public-signup-open`), e sem limite isso é um criador de
+            // contas em massa.
+            '/sign-up/email': { window: 3600, max: 5 },
+            // Trocar senha exige a atual: é um oráculo de senha se não limitado.
+            '/change-password': { window: 600, max: 10 },
+        },
     },
 
     advanced: {

@@ -1962,3 +1962,29 @@ model AuthVerification {
   @@index([identifier])
   @@map("auth_verifications")
 }
+
+/// O contador do limite de requisições do Better Auth.
+///
+/// **Por que em banco e não em memória.** O padrão da biblioteca é um
+/// `new Map()` no módulo. Em Cloudflare Workers cada isolate carrega o módulo
+/// de novo e tem o próprio mapa — e os isolates são muitos, espalhados e
+/// efêmeros. O limite efetivo viraria "N por janela por isolate", que para quem
+/// adivinha senha é o mesmo que não haver limite. Ver
+/// `src/lib/auth/better-auth.ts`.
+///
+/// Linha curta e muito escrita: um `UPDATE` por requisição autenticável. Se o
+/// custo disso aparecer na conta do Neon, o próximo destino é Durable Object ou
+/// KV — não voltar para memória.
+model AuthRateLimit {
+  id          String @id @default(cuid())
+  /// Identifica quem está sendo limitado e em qual rota. Único: é a chave de busca.
+  key         String @unique
+  count       Int
+  /// Instante da última requisição, em milissegundos desde a época.
+  ///
+  /// `BigInt` e não `Int`: milissegundos desde 1970 passam de 2^31 desde 1971,
+  /// e um `Int` de 32 bits estouraria silenciosamente.
+  lastRequest BigInt
+
+  @@map("auth_rate_limits")
+}

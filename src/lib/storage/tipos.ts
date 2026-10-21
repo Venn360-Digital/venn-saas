@@ -70,8 +70,25 @@ export class ObjetoAusenteError extends Error {
  * montar chave, para que uma rota nova não possa esquecer.
  */
 export function chaveDe(workspaceId: string, ...partes: string[]): string {
-    if (!workspaceId.trim()) {
+    const inquilino = workspaceId.trim()
+
+    if (!inquilino) {
         throw new Error('chave de objeto sem workspaceId; a fronteira de inquilino é obrigatória')
+    }
+
+    /**
+     * O prefixo de inquilino é validado como as outras partes.
+     *
+     * Hoje ele sempre vem de `getWorkspaceMember()`, resolvido no servidor
+     * contra o banco — então não há caminho pelo qual um valor com `..` ou `/`
+     * chegue aqui. A conferência existe porque essa garantia é de **hoje**: a
+     * função aceita uma string, e o dia em que alguém a chamar com um id vindo
+     * de corpo de requisição ela precisa recusar sozinha, em vez de confiar que
+     * o chamador conferiu. É a parte que define a fronteira; é a última que deve
+     * depender de boa-fé.
+     */
+    if (inquilino.includes('/') || inquilino.includes('..')) {
+        throw new Error(`workspaceId inválido para chave de objeto: "${inquilino}"`)
     }
 
     const limpas = partes
@@ -93,5 +110,5 @@ export function chaveDe(workspaceId: string, ...partes: string[]): string {
         }
     }
 
-    return [workspaceId.trim(), ...limpas].join('/')
+    return [inquilino, ...limpas].join('/')
 }

@@ -28,12 +28,31 @@ import { NextResponse, type NextRequest } from 'next/server'
  * rota `/email/` não existe mais na aplicação, e manter a exceção seria deixar
  * um caminho público aberto por um motivo que deixou de existir.
  *
- * A consequência de ser otimista, dita em voz alta: um cookie **expirado ou
- * revogado** passa por este portão. Ele não passa da rota — a sessão não resolve
- * e vem 401 — então o efeito máximo é o shell do painel renderizar antes de a
- * primeira chamada falhar. É o mesmo desfecho de uma sessão que expira com a
- * aba aberta, que já acontecia. O que não pode passar é cookie **ausente**, e
- * isso é exatamente o que se verifica.
+ * A consequência de ser otimista, dita sem suavizar: `getSessionCookie`
+ * **não verifica assinatura nenhuma**. Conferido na implementação em
+ * `better-auth/dist/cookies/index.mjs` — ele lê o cabeçalho `cookie`, acha o
+ * nome esperado e devolve o valor. Então não é só um cookie expirado que passa
+ * por aqui: um cookie **inventado** passa.
+ *
+ * Por que isso ainda não é um vazamento, verificado página por página na
+ * auditoria de 2026-10-21:
+ *
+ *   - toda página servidora deste segmento chama `getWorkspaceMember()` e
+ *     redireciona quando ela falha;
+ *   - o layout do painel resolve a marca por `marcaDaSessao()`, que passa pela
+ *     mesma função e devolve `null`;
+ *   - as páginas de cliente buscam tudo por `/api/*`, e lá a sessão é resolvida
+ *     de verdade, contra `auth_sessions`.
+ *
+ * O efeito máximo de um cookie forjado é, portanto, carregar o esqueleto da
+ * interface e ser redirecionado ou receber 401. Nenhum dado de paciente
+ * atravessa.
+ *
+ * **Mas isso é uma invariante, não uma coincidência.** Ela se mantém enquanto
+ * nenhuma página deste segmento renderizar dado sem chamar
+ * `getWorkspaceMember()`. Uma página nova que leia o banco direto e confie no
+ * portão vazaria — e `scripts/lint-workspace.mjs` é o que impede isso de passar
+ * no build.
  */
 export async function aplicarPortao(request: NextRequest): Promise<NextResponse> {
     const cookieDeSessao = getSessionCookie(request)
@@ -46,8 +65,17 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
          * Os endpoints do próprio Better Auth: entrar, cadastrar, sair, pedir
          * redefinição. Precisam ser alcançáveis **sem** sessão — é o que eles
          * criam.
+         *
+         * **As duas exceções da exceção.** `/api/auth/me` e
+         * `/api/auth/check-workspace` são rotas da aplicação que por acaso moram
+         * sob este prefixo, e não há motivo para elas serem públicas. As duas
+         * conferem a sessão por conta própria — então deixá-las na regra larga
+         * não abriria nada hoje —, mas uma regra mais larga do que precisa é
+         * dívida: a terceira rota que alguém criar aqui talvez não confira.
          */
-        pathname.startsWith('/api/auth/') ||
+        (pathname.startsWith('/api/auth/') &&
+            !pathname.startsWith('/api/auth/me') &&
+            !pathname.startsWith('/api/auth/check-workspace')) ||
         pathname.startsWith('/login') ||
         pathname.startsWith('/register') ||
         pathname.startsWith('/nova-senha') ||

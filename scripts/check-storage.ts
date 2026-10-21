@@ -90,6 +90,13 @@ async function main() {
         ['só partes vazias', () => chaveDe('ws1', '', '  ')],
         ['escape com ..', () => chaveDe('ws1', '..', 'outro')],
         ['escape embutido', () => chaveDe('ws1', 'a/../../ws2')],
+        // O prefixo de inquilino é validado como as outras partes. Hoje ele vem
+        // sempre de getWorkspaceMember(), resolvido no servidor — mas a função
+        // aceita uma string, e é ela que define a fronteira: é a última que deve
+        // confiar que o chamador conferiu.
+        ['workspaceId com ..', () => chaveDe('ws1/..', 'a.png')],
+        ['workspaceId com barra', () => chaveDe('ws1/ws2', 'a.png')],
+        ['workspaceId tentando escapar', () => chaveDe('../outro-inquilino', 'a.png')],
     ] as const) {
         try {
             fn()
