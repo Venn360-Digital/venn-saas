@@ -251,7 +251,15 @@ export default defineConfig({
              * S3, para que a mesma implementação sirva ao R2 e à Magalu. Ver
              * `src/lib/storage/s3.ts`.
              */
-            PUBLICO: bindings.r2({ name: 'venn-odontobox360-publico-prod' }),
+            /**
+             * `odontobox-public`, e o nome é o que o André pediu em 2026-10-21.
+             *
+             * Era `venn-odontobox360-publico-prod`, da convenção
+             * `venn-<produto>-<classe>-<ambiente>`. A troca saiu de graça porque
+             * os dois buckets estavam com 0 objetos — conferido antes de mexer.
+             * O bucket antigo ficou órfão e pode ser apagado.
+             */
+            PUBLICO: bindings.r2({ name: 'odontobox-public' }),
 
             // Variáveis, só o que não é segredo.
             TZ: bindings.text('America/Sao_Paulo'),
