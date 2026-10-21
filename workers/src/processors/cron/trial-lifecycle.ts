@@ -5,6 +5,23 @@ import { createLogger } from '../../logger'
 const log = createLogger('CRON:TRIAL')
 
 /**
+ * O ciclo de avaliação a que um aviso pertence.
+ *
+ * `sendBillingEmail` é idempotente por `(unidade, tipo, escopo)`, e estes três
+ * avisos iam **sem escopo** — ou seja, uma vez na vida. Quando a avaliação de
+ * uma conta é estendida, ela ganha um fim novo e merece os avisos de novo; sem
+ * escopo, a clínica atravessava o segundo prazo em silêncio e era cortada sem
+ * ter sido avisada. Apareceu em 2026-10-20, ao esticar a avaliação de uma conta
+ * de teste para 30/10: os três avisos do ciclo anterior já estavam gravados.
+ *
+ * A data do fim identifica o ciclo porque é ela que muda quando ele muda. É a
+ * mesma chave que o aviso de corte por inadimplência usa (`billing-dunning`).
+ */
+function cicloDaAvaliacao(trialEndsAt: Date | null): string {
+    return trialEndsAt ? trialEndsAt.toISOString().slice(0, 10) : 'sem-data'
+}
+
+/**
  * Moves workspaces through the end of their trial, and warns before it happens.
  *
  * The warnings matter more than the cut-off. Silence followed by a sudden stop is
@@ -51,6 +68,7 @@ async function warnBeforeExpiry(now: Date): Promise<void> {
                 workspaceId: subscription.account.workspaces[0]?.id ?? '',
                 accountId: subscription.accountId,
                 kind,
+                scope: cicloDaAvaliacao(subscription.trialEndsAt),
                 context: { trialEndsAt: subscription.trialEndsAt },
             })
         }
@@ -75,7 +93,7 @@ async function markLapsed(now: Date): Promise<void> {
             trialEndsAt: { lte: now },
             readOnlySince: null,
         },
-        select: { id: true, accountId: true, account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } } },
+        select: { id: true, accountId: true, trialEndsAt: true, account: { select: { workspaces: { select: { id: true }, orderBy: { createdAt: 'asc' } } } } },
     })
 
     for (const subscription of lapsed) {
@@ -90,6 +108,7 @@ async function markLapsed(now: Date): Promise<void> {
             workspaceId: subscription.account.workspaces[0]?.id ?? '',
             accountId: subscription.accountId,
             kind: 'trial_ended',
+            scope: cicloDaAvaliacao(subscription.trialEndsAt),
         })
         log.info(`conta ${subscription.accountId} is read-only`)
     }
