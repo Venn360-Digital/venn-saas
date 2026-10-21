@@ -57,7 +57,14 @@ if [ "$APLICAR" -eq 1 ] && [ -z "${NEON_EVOGO_URL:-}" ]; then
     exit 2
 fi
 
-CT=supabase-db
+# O contêiner do Postgres do Evolution Go é `postgres`, **não** `supabase-db`.
+#
+# A diferença é deliberada e está no comentário de `compose.staycloud.yaml`:
+# credencial de sessão do WhatsApp é o alvo de maior valor da máquina e não
+# compartilha servidor com o dado clínico. Apontar para `supabase-db` dá
+# "database does not exist" — foi o que aconteceu na primeira tentativa, porque
+# eu havia lido `compose.yaml`, que é a variante que **não** roda lá.
+CT=${CT:-postgres}
 remoto() { ssh -o BatchMode=yes "$VPS" "$@"; }
 
 # ---------------------------------------------------------------- diagnóstico

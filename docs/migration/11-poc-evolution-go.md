@@ -59,7 +59,43 @@ E há um ganho junto com a correção: como o estado do whatsmeow mora em Postgr
 e não em volume, **migrar os dois bancos preserva os pareamentos**. O
 re-pareamento deixa de ser um passo obrigatório do corte e passa a ser plano B.
 
-### 1.3 Levar a licença cria um risco novo, e ele é grave
+### 1.3 As duas bases moram num Postgres separado, de propósito
+
+Descoberto em 2026-10-21, depois de o diagnóstico na VPS falhar com
+`database "evogo_auth" does not exist`. A causa foi minha: analisei
+`infra/compose.yaml`, e a VPS roda **`compose.staycloud.yaml`** — o primeiro é
+explicitamente a variante que não se implanta lá.
+
+O arquivo certo diz, em comentário:
+
+> as duas bases vivem na instância `postgres`, não na `supabase-db` — credenciais
+> de sessão do WhatsApp são o alvo de maior valor nesta máquina e não têm por que
+> compartilhar servidor com o dado clínico.
+
+É isolamento deliberado, e **o desenho da migração o desfazia em silêncio**:
+`evogo_auth` e `evogo_users` foram criados na mesma branch Neon do banco da
+aplicação. Funciona, e joga fora uma decisão de segurança que alguém tomou.
+
+Não é purismo. A credencial de aparelho do whatsmeow permite **assumir o
+WhatsApp da clínica** — mandar mensagem como ela, ler o que chega. Compartilhar
+servidor com o dado clínico significa que comprometer um alcança o outro.
+
+A correção é projeto Neon próprio para as duas bases. O preço é um compute a
+mais sempre ligado (~US$ 25/mês a 0,25 CU, porque o Evolution Go mantém conexão
+aberta e o compute nunca suspende) e entra na conta de
+[§2 critério 7](#critério-7--custo). Decisão do André se quiser economizar isso
+aceitando o compartilhamento; o padrão é preservar o que já estava separado.
+
+Dois detalhes do arquivo certo que também corrigem o relatório:
+
+- o limite de memória na VPS é **384 MB**, não ilimitado. A POC rodou `healthy`
+  em `lite` (256 MiB) **sem sessão pareada** — com uma sessão real, 256 MiB pode
+  não bastar, e aí a conta dobra para `basic`. Medir no pareamento.
+- o `LICENSE_REQUIRED` estava **documentado no compose desde sempre**. Eu o
+  apresentei como descoberta da POC; a POC descobriu a *consequência para o
+  corte*, não o fato.
+
+### 1.4 Levar a licença cria um risco novo, e ele é grave
 
 Trazer a ativação da VPS resolve o 1.1 sem registrar nada de novo — a VPS já
 está ativada, e a licença mora no Postgres. Mas os dois bancos do Evolution Go
@@ -90,7 +126,7 @@ Isso tem duas consequências, e as duas já estão aplicadas:
 O `infra/scripts/levar-licenca.sh` reflete a assimetria: leva `evogo_auth` por
 padrão, e `evogo_users` só com `--sessoes` mais uma confirmação digitada.
 
-### 1.4 O heartbeat da licença manda o IP do servidor
+### 1.5 O heartbeat da licença manda o IP do servidor
 
 `infra/README.md` registra que a instância ativada envia batimentos periódicos
 com "versão, contadores agregados, funcionalidades ativas, **IP do servidor**".
