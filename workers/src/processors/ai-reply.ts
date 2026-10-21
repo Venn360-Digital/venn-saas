@@ -1,4 +1,5 @@
 import { claimAutoNotice } from '@/lib/auto-notice'
+import { instrucaoDeFala, vozValida } from '@/lib/voz'
 import type { Job } from 'bullmq'
 import prisma from '@/lib/prisma'
 import { findIntegrationById, providerFor } from '../services/integration'
@@ -271,8 +272,13 @@ export async function processAiReply(job: Job<AiReplyJob>): Promise<void> {
     const fala = podeFalar
             ? await falar({
                   texto: content,
-                  voz: agent.voiceModel || 'nova',
-                  instrucoes: agent.voiceTraining,
+                  voz: vozValida(agent.voiceModel),
+                  /* Os dois parâmetros da aba Voz, e nada além deles —
+                     ver `lib/voz.ts`. */
+                  instrucoes: instrucaoDeFala({
+                      entonacao: agent.voiceTraining,
+                      tom: agent.voiceTone,
+                  }),
                   workspaceId,
                   conversationId,
               })

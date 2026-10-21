@@ -8,6 +8,7 @@ import {
     PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData,
     PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
 } from '@/types/agent-creation'
+import { ENTONACAO_PADRAO, VOZ_PADRAO } from '@/lib/voz'
 import { SETOR_PADRAO } from '@/components/agents/creation/tabs/TrabalhoTab'
 
 /**
@@ -49,8 +50,17 @@ export function useAgentCreation(workspaceId: string) {
         faqs: [],
     })
 
+    /**
+     * A voz nasce desligada, mas **já escolhida e já com entonação**.
+     *
+     * Ligar o interruptor não pode ser o momento de descobrir que falta
+     * configurar duas coisas. A voz padrão é a `coral` e o texto é o de
+     * `ENTONACAO_PADRAO` — ambos visíveis na aba, ambos editáveis.
+     */
     const [voz, setVoz] = useState<VozData>({
         voiceEnabled: false,
+        voiceModel: VOZ_PADRAO,
+        voiceTraining: ENTONACAO_PADRAO,
     })
 
     const [instrucoes, setInstrucoes] = useState<InstrucoesData>({

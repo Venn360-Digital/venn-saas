@@ -64,6 +64,15 @@ export async function falar(input: FalarInput): Promise<FalaGerada | null> {
         return null
     }
 
+    /**
+     * **O que está gravado no agente, e só isso.**
+     *
+     * Chegou a haver aqui uma âncora de língua embutida, somada por baixo ao
+     * que a clínica escrevera. O Andre recusou em 2026-10-20: a instrução de
+     * idioma mora na aba Voz, visível. Se o campo estiver vazio, o agente fala
+     * sem direção nenhuma — e é a tela que não deixa isso acontecer, semeando
+     * o padrão. Ver `lib/voz.ts`.
+     */
     const entonacao = instrucoes?.trim() || undefined
 
     for (const modelo of TTS_MODELS) {

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { VOZES, instrucaoDeFala, semearEntonacao, vozValida } from '@/lib/voz'
 
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -23,14 +24,6 @@ interface VozTabProps {
     onChange: (data: Partial<VozData>) => void
 }
 
-const voiceModels = [
-    { value: 'nova', label: 'Nova' },
-    { value: 'alloy', label: 'Alloy' },
-    { value: 'echo', label: 'Echo' },
-    { value: 'fable', label: 'Fable' },
-    { value: 'onyx', label: 'Onyx' },
-    { value: 'shimmer', label: 'Shimmer' },
-]
 
 export function VozTab({ data, onChange }: VozTabProps) {
     const [isPlaying, setIsPlaying] = useState(false)
@@ -65,8 +58,11 @@ export function VozTab({ data, onChange }: VozTabProps) {
                  * que é exatamente o que o paciente vai ouvir.
                  */
                 body: JSON.stringify({
-                    voice: data.voiceModel || 'nova',
-                    instructions: data.voiceTraining?.trim() || undefined,
+                    voice: vozValida(data.voiceModel),
+                    instructions: instrucaoDeFala({
+                        entonacao: semearEntonacao(data.voiceTraining),
+                        tom: data.voiceTone,
+                    }),
                 }),
             })
             if (!res.ok) {
@@ -139,7 +135,29 @@ export function VozTab({ data, onChange }: VozTabProps) {
                     </div>
                     <Switch
                         checked={data.voiceEnabled}
-                        onCheckedChange={(checked) => onChange({ voiceEnabled: checked })}
+                        /*
+                         * Ligar a voz **preenche a entonação**, não deixa o
+                         * campo vazio.
+                         *
+                         * Vazio, as vozes da OpenAI — treinadas em inglês —
+                         * liam o português com sotaque americano, e a clínica
+                         * não tinha como saber que precisava pedir o contrário.
+                         * A instrução de idioma mora aqui, visível e editável,
+                         * por decisão do Andre em 2026-10-20: frase que governa
+                         * como o agente soa e que ninguém vê é frase que não se
+                         * pode ajustar nem reprovar.
+                         */
+                        onCheckedChange={(checked) =>
+                            onChange(
+                                checked
+                                    ? {
+                                          voiceEnabled: true,
+                                          voiceModel: vozValida(data.voiceModel),
+                                          voiceTraining: semearEntonacao(data.voiceTraining),
+                                      }
+                                    : { voiceEnabled: false }
+                            )
+                        }
                     />
                 </div>
 
@@ -153,17 +171,26 @@ export function VozTab({ data, onChange }: VozTabProps) {
                         </Label>
                         <div className="flex gap-2">
                             <Select
-                                value={data.voiceModel}
+                                value={vozValida(data.voiceModel)}
                                 onValueChange={(value) => onChange({ voiceModel: value })}
                                 disabled={!data.voiceEnabled}
                             >
                                 <SelectTrigger id="voiceModel" className="flex-1">
-                                    <SelectValue placeholder="Nova" />
+                                    <SelectValue placeholder="Coral" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {voiceModels.map((model) => (
-                                        <SelectItem key={model.value} value={model.value}>
-                                            {model.label}
+                                    {/* A nota distingue as cinco vozes novas das
+                                        seis antigas: sem ela, a lista são onze
+                                        nomes próprios em inglês, e a clínica
+                                        escolhe por sorteio. */}
+                                    {VOZES.map((voz) => (
+                                        <SelectItem key={voz.id} value={voz.id}>
+                                            <span className="flex flex-col items-start">
+                                                <span>{voz.nome}</span>
+                                                <span className="text-[11px] text-muted-foreground">
+                                                    {voz.nota}
+                                                </span>
+                                            </span>
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -215,13 +242,17 @@ export function VozTab({ data, onChange }: VozTabProps) {
                     <p className="text-xs text-muted-foreground">
                         Descreva o jeito da fala — ritmo, calor, pausas. Não escreva aqui o
                         que o agente deve saber nem o que ele deve responder: isto muda só a
-                        entonação do áudio.
+                        entonação do áudio.{' '}
+                        <span className="font-medium text-foreground">
+                            O português do Brasil já está garantido
+                        </span>{' '}
+                        — não precisa pedir.
                     </p>
                     <Textarea
                         id="voiceTraining"
                         value={data.voiceTraining || ''}
                         onChange={(e) => onChange({ voiceTraining: e.target.value })}
-                        placeholder="Ex.: fale devagar, com simpatia e pausas curtas entre as frases."
+                        placeholder="Ex.: um pouco mais devagar, e mais calorosa ao confirmar o horário."
                         className="min-h-[120px]"
                         disabled={!data.voiceEnabled}
                     />

@@ -4,12 +4,13 @@ import { z } from 'zod'
 import { requireWritable } from '@/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
 import { TTS_MODELS } from '@/lib/llm/models'
+import { VOZES_IDS } from '@/lib/voz'
 
-/** As vozes que a tela oferece — a lista fechada evita gastar com palpite. */
-const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
 
 const schema = z.object({
-    voice: z.enum(VOICES),
+    /* A lista fechada evita gastar com palpite, e vem de `lib/voz.ts`:
+       tela e rota precisam oferecer exatamente as mesmas. */
+    voice: z.enum(VOZES_IDS),
     /**
      * Entonação — o campo `instructions` do modelo de fala.
      *
@@ -18,7 +19,7 @@ const schema = z.object({
      * dizendo "fale devagar". A amostra agora fala sempre a mesma frase, com a
      * entonação pedida — que é o que o paciente vai ouvir.
      */
-    instructions: z.string().trim().max(500).optional(),
+    instructions: z.string().trim().max(2000).optional(),
 })
 
 const FALLBACK = 'Olá! Sou o assistente da clínica. Como posso ajudar você hoje?'
@@ -103,6 +104,11 @@ export async function POST(request: NextRequest) {
 
             // Mandar `instructions` para quem não aceita é 400 num modelo que
             // funcionaria sem ele.
+            /*
+             * A amostra ouve exatamente o que está no campo — nada somado por
+             * baixo. Amostra e resposta de verdade não podem divergir, senão a
+             * clínica escolhe ouvindo uma coisa e entrega outra ao paciente.
+             */
             if (instructions && model.acceptsInstructions) body.instructions = instructions
 
             const response = await fetch('https://api.openai.com/v1/audio/speech', {
