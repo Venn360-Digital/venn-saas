@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 
 // PATCH - Update custom field definition
 export async function PATCH(
@@ -10,10 +9,6 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
@@ -54,10 +49,6 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const wu = await currentMembership()
         if (!wu) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 

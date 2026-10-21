@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 
 const quickResponseSchema = z.object({
@@ -15,13 +15,8 @@ export async function GET(request: NextRequest) {
     try {
         console.log('[QUICK_RESPONSES_GET] Starting...')
 
-        const supabase = await createClient()
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
-        if (authError) {
-            console.error('[QUICK_RESPONSES_GET] Auth error:', authError)
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
 
         if (!user) {
             console.log('[QUICK_RESPONSES_GET] No user found')
@@ -56,13 +51,6 @@ export async function GET(request: NextRequest) {
 // POST - Criar resposta rápida
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {

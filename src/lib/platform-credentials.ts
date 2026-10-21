@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { platformSecretName, readVaultSecret, writeVaultSecret } from '@/lib/vault'
 
 /**
@@ -136,39 +136,56 @@ export async function getPlatformCredentials(provider: string): Promise<OAuthApp
 }
 
 /**
- * O `.env` como **canal de entrada**, não como lugar de morada.
+ * O ambiente como primeira carga, numa base recém-criada.
  *
- * O Andre pediu para colar as chaves no `.env`, e o `.env` chega aos contêineres
- * por `env_file` — não exige mexer no compose. Mas o arquivo é texto puro no
- * mesmo disco do banco: serve para **injetar**, não para guardar.
+ * **O que mudou na ida para a Cloudflare.** Na VPS isto era "copiar do `.env`
+ * para o Vault", porque o `.env` era texto puro no mesmo disco do banco e
+ * servia para injetar, não para guardar. Em Workers o ambiente **é** o cofre:
+ * o segredo está em Cloudflare Secrets, cifrado em repouso e fora do bundle.
+ * Não há mais para onde copiá-lo, e `writeVaultSecret` recusa a tentativa de
+ * propósito — ver `lib/vault.ts`.
  *
- * Então, na primeira vez que o provedor é lido e nada está guardado, o valor do
- * ambiente é copiado para o Vault e para a coluna, e o log diz que já dá para
- * apagar do arquivo. Quem não apagar não fica pior do que estaria com o segredo
- * só no `.env`; quem apagar ganha o cofre inteiro.
+ * O que sobra para esta função é o que o ambiente **não** carrega: a linha de
+ * `platform_credentials`, que guarda o `clientId` público e o "quem alterou e
+ * quando" que a tela mostra. Num banco Neon novo essa linha não existe, e sem
+ * ela a tela diria "não configurado" com o segredo já publicado no Worker.
  *
- * Só semeia quando não há nada guardado: assim o que foi gravado pela tela de
- * administração nunca é sobrescrito por um `.env` esquecido.
+ * O `clientId` continua vindo de variável comum (`META_APP_ID`): ele é público,
+ * vai para o navegador dentro do SDK, e não é segredo para estar em secret.
  */
-const SEMENTES: Record<string, { id?: string; secret?: string }> = {
-    meta_messaging: { id: 'META_APP_ID', secret: 'META_APP_SECRET' },
-    instagram_login: { id: 'INSTAGRAM_APP_ID', secret: 'INSTAGRAM_APP_SECRET' },
+const SEMENTES: Record<string, { id?: string }> = {
+    meta_messaging: { id: 'META_APP_ID' },
+    instagram_login: { id: 'INSTAGRAM_APP_ID' },
 }
 
 async function semearDoAmbiente(provider: string): Promise<OAuthAppCredentials | null> {
     const nomes = SEMENTES[provider]
-    if (!nomes?.id || !nomes.secret) return null
+    if (!nomes?.id) return null
 
     const clientId = process.env[nomes.id]?.trim()
-    const clientSecret = process.env[nomes.secret]?.trim()
-    if (!clientId || !clientSecret) return null
+    if (!clientId) return null
 
-    await setPlatformCredentials(provider, { clientId, clientSecret }, 'env')
+    /**
+     * O segredo vem do cofre, que resolve em Cloudflare Secrets. Se não está
+     * publicado, não há o que semear: devolver metade da credencial faria o
+     * fluxo de OAuth falhar mais tarde, longe daqui.
+     */
+    const clientSecret = await readVaultSecret(platformSecretName(provider))
+    if (!clientSecret) return null
+
+    /**
+     * Grava **só a coluna**. O segredo já está no lugar certo, e mandá-lo para
+     * `setPlatformCredentials` aqui seria pedir uma gravação que o cofre recusa.
+     */
+    await prisma.platformCredential.upsert({
+        where: { provider },
+        create: { provider, credentials: { clientId }, updatedBy: 'ambiente' },
+        update: { credentials: { clientId }, updatedBy: 'ambiente' },
+    })
 
     console.warn(
-        `[PLATFORM_CREDENTIALS] ${provider} veio de ${nomes.id}/${nomes.secret} e foi ` +
-            'guardado cifrado no Vault. Pode apagar as duas linhas do .env — o ' +
-            'arquivo é texto puro no mesmo disco do banco.'
+        `[PLATFORM_CREDENTIALS] ${provider}: clientId lido de ${nomes.id} e gravado na coluna; ` +
+            `o segredo veio do Cloudflare Secrets (${platformSecretName(provider)}).`
     )
 
     return { clientId, clientSecret }
@@ -274,8 +291,7 @@ export interface PlatformAdmin {
  * permission list is a second thing to keep in sync, and it drifts.
  */
 export async function getPlatformAdmin(): Promise<PlatformAdmin | null> {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await usuarioDaSessao()
     if (!user) return null
 
     const membership = await prisma.workspaceUser.findFirst({

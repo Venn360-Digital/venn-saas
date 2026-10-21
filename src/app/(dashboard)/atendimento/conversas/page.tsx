@@ -8,7 +8,7 @@ import { prettyPhone } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
 import { usePermissions } from '@/hooks/usePermissions'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -107,24 +107,10 @@ import {
 } from '@/components/shared/DealJourney'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { createClient } from '@/lib/supabase/client'
+import { conectarTempoReal } from '@/lib/realtime/cliente'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
-
-/**
- * O recorte de `messages` que os handlers de realtime leem.
- *
- * O Supabase entrega `payload.new` como um registro sem forma — ele não conhece
- * o schema. Declarar os campos usados mantém o resto do handler verificado, e
- * um `status` renomeado no banco vira erro de compilação aqui.
- */
-interface RealtimeMessageRow {
-    id?: string
-    conversationId?: string
-    status?: string
-    direction?: string
-}
 
 /** Corpo do POST de mensagem; os dois últimos campos são condicionais. */
 interface SendMessageBody {
@@ -550,8 +536,6 @@ export default function ConversasPage() {
     const [nextCursor, setNextCursor] = useState<string | null>(null)
     const [loadingMore, setLoadingMore] = useState(false)
 
-    // Supabase realtime client
-    const supabase = useMemo(() => createClient(), [])
 
     // Attachment state
     const [attachment, setAttachment] = useState<File | null>(null)
@@ -961,151 +945,127 @@ export default function ConversasPage() {
     useEffect(() => { playNotificationSoundRef.current = playNotificationSound }, [playNotificationSound])
 
     /**
-     * O socket do Realtime autentica separado do resto do cliente.
+     * O tempo real, agora sobre o Durable Object da sala do workspace.
      *
-     * Sem isto ele conecta como `anon`, e a política RLS de `messages` concede
-     * SELECT apenas a `authenticated` — então o Postgres filtrava todos os
-     * eventos e nenhum chegava ao navegador. A lista de conversas parecia viva
-     * porque o polling de 15 s a atualizava; o chat aberto, que depende só do
-     * evento, nunca se mexia. Era preciso recarregar a página para ver uma
-     * mensagem que já estava no banco.
+     * **Saiu um bloco de autenticação inteiro.** O socket do Supabase Realtime
+     * autenticava separado do resto do cliente: sem `setAuth` ele conectava como
+     * `anon`, a RLS de `messages` filtrava tudo, e nenhum evento chegava — a
+     * lista parecia viva pelo polling de 15 s e o chat aberto nunca se mexia.
+     * Depois o token expirava e o canal emudecia no meio do turno. Aqui a
+     * autorização é um bilhete curto emitido por rota autenticada, e a
+     * reconexão pede outro: não há token para expirar no meio do caminho.
+     *
+     * **E saiu um defeito de escopo.** `postgres_changes` não filtrava por
+     * workspace, e a RLS liberava as linhas de toda unidade de que a pessoa
+     * participa — quem atende em duas clínicas ouvia o aviso sonoro da outra,
+     * sem nada aparecer na tela. A sala é endereçada por `workspaceId`: não é
+     * filtro aplicado depois, é o endereço do objeto. O `daquiMesmo` abaixo
+     * fica como segunda tranca, não como a primeira.
+     *
+     * O polling de 15 s **continua**, e de propósito: foi ele que manteve a
+     * lista utilizável nos meses em que o Realtime esteve mudo. Rede de borda
+     * cai; aviso perdido não pode virar tela errada.
      */
     useEffect(() => {
-        let cancelled = false
-
-        void supabase.auth.getSession().then(({ data }) => {
-            if (!cancelled && data.session) {
-                supabase.realtime.setAuth(data.session.access_token)
-            }
-        })
-
-        // O token expira; sem re-autenticar, o Realtime volta a emudecer depois
-        // de uma hora de turno.
-        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session) supabase.realtime.setAuth(session.access_token)
-        })
-
-        return () => {
-            cancelled = true
-            listener.subscription.unsubscribe()
-        }
-    }, [supabase])
-
-    // Initial fetch + Supabase Realtime subscription for conversations
-    useEffect(() => {
         fetchConversations()
-        let disposed = false
-        let retryTimer: ReturnType<typeof setTimeout> | null = null
 
-        // Subscribe to conversations table changes for realtime updates
-        const channel = supabase
-            .channel('conversations-realtime')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'conversations',
-            }, (payload) => {
-                console.warn('[REALTIME] conversations', payload.eventType, {
-                    id: (payload.new as { id?: string } | null)?.id,
-                    selected: selectedConversationRef.current,
-                })
-                // Refetch conversations list when any conversation changes
-                fetchConversations()
-                // Also refetch messages for the currently open conversation
-                // This is the RELIABLE event — fires when webhook updates conversation.lastMessageAt
-                if (selectedConversationRef.current) {
-                    fetchMessagesRef.current(selectedConversationRef.current)
-                    markAsReadRef.current(selectedConversationRef.current)
-                }
-            })
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-            }, (payload) => {
-                // Refetch conversations when new messages arrive (updates lastMessage + unreadCount)
-                fetchConversations()
-                // Also refetch messages if the new message belongs to the currently open conversation
-                const newMsg = payload.new as RealtimeMessageRow
-                console.warn('[REALTIME] messages INSERT', {
-                    conversationId: newMsg?.conversationId,
-                    selected: selectedConversationRef.current,
-                    direction: newMsg?.direction,
-                    willRefetch: Boolean(newMsg?.conversationId) && selectedConversationRef.current === newMsg?.conversationId,
-                })
+        const recarregarAberta = () => {
+            if (selectedConversationRef.current) {
+                fetchMessagesRef.current(selectedConversationRef.current)
+                markAsReadRef.current(selectedConversationRef.current)
+            }
+        }
 
-                // Só mensagem recebida avisa: o eco da que a própria atendente
-                // acabou de enviar tocaria o aviso no ouvido de quem a digitou.
-                // O gatilho antigo era o contador de não lidas subir — e ele
-                // não sobe quando a conversa está aberta, porque `markAsRead`
-                // zera na hora. Ou seja: o aviso nunca tocava exatamente no
-                // caso mais comum, com a atendente olhando o chat. O evento de
-                // mensagem recebida é o gatilho correto.
-                //
-                // **E tem de ser mensagem desta clínica.** A assinatura do
-                // Realtime não filtra por workspace, e a RLS libera as linhas de
-                // **toda** unidade de que a pessoa participa — não só a da
-                // sessão. Quem atende em duas clínicas ouvia o aviso da outra
-                // sem nada aparecer na tela, porque a lista é recarregada pelo
-                // servidor e vem escopada. A lista carregada é justamente a
-                // prova de que a conversa é daqui.
-                const daquiMesmo = conversationsRef.current.some(
-                    (c) => c.id === newMsg?.conversationId
-                )
-                if (newMsg?.direction === 'inbound' && daquiMesmo && soundEnabledRef.current) {
-                    playNotificationSoundRef.current()
+        const conexao = conectarTempoReal({
+            evento(tipo, payload) {
+                if (tipo === 'conversa.alterada') {
+                    fetchConversations()
+                    recarregarAberta()
+                    return
                 }
 
-                if (newMsg?.conversationId && selectedConversationRef.current === newMsg.conversationId) {
-                    fetchMessagesRef.current(newMsg.conversationId)
-                    markAsReadRef.current(newMsg.conversationId)
-                }
-            })
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'messages',
-            }, (payload) => {
-                // Update message status in real-time (e.g. sent → delivered → read)
-                const updated = payload.new as RealtimeMessageRow
-                if (updated?.conversationId && selectedConversationRef.current === updated.conversationId) {
-                    setMessages(prev => prev.map(m =>
-                        // `?? m.status`: um payload de UPDATE que não traga o
-                        // campo apagaria o selo de entrega da mensagem. Com
-                        // `any` isso gravava undefined sem reclamar.
-                        m.id === updated.id ? { ...m, status: updated.status ?? m.status } : m
-                    ))
-                }
-            })
-            .subscribe((status, error) => {
-                // Sem este callback um CHANNEL_ERROR é silencioso, e foi assim
-                // que o Realtime ficou meses mudo sem ninguém notar: o polling
-                // disfarçava o sintoma na lista e o chat simplesmente não
-                // atualizava.
-                const failed = status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || (status === 'CLOSED' && !disposed)
-                if (failed) {
-                    console.error('[REALTIME] canal de conversas:', status, error)
-                    // Um canal em erro não refaz o join sozinho. Recriar o canal
-                    // é o que devolve o chat ao vivo numa aba aberta há horas,
-                    // depois de o token do socket expirar ou a rede oscilar.
-                    if (!disposed && !retryTimer) {
-                        retryTimer = setTimeout(() => setRealtimeGeneration((g) => g + 1), 3000)
+                if (tipo === 'mensagem.nova') {
+                    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+                    fetchConversations()
+
+                    /**
+                     * Só mensagem recebida avisa: o eco da que a própria
+                     * atendente acabou de enviar tocaria o aviso no ouvido de
+                     * quem a digitou.
+                     *
+                     * O gatilho antigo era o contador de não lidas subir — e ele
+                     * não sobe com a conversa aberta, porque `markAsRead` zera
+                     * na hora. Ou seja: o aviso nunca tocava exatamente no caso
+                     * mais comum, com a atendente olhando o chat.
+                     */
+                    const daquiMesmo = conversationsRef.current.some((c) => c.id === conversationId)
+                    if (payload.direction === 'inbound' && daquiMesmo && soundEnabledRef.current) {
+                        playNotificationSoundRef.current()
                     }
-                } else {
-                    console.warn('[REALTIME] canal de conversas:', status)
-                }
-            })
 
-        // Fallback polling every 15s in case realtime misses something
+                    if (conversationId && selectedConversationRef.current === conversationId) {
+                        fetchMessagesRef.current(conversationId)
+                        markAsReadRef.current(conversationId)
+                    }
+                    return
+                }
+
+                if (tipo === 'digitando') {
+                    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+                    if (payload.source !== 'contact') return
+                    if (!conversationId || selectedConversationRef.current !== conversationId) return
+
+                    const digitando = payload.isTyping === true
+                    setContactTyping(digitando)
+
+                    // Sem garantia de um "parou de digitar": o provedor manda o
+                    // evento de início e às vezes nada depois. Indicador preso é
+                    // pior que indicador nenhum.
+                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+                    if (digitando) {
+                        typingTimeoutRef.current = setTimeout(() => setContactTyping(false), 4000)
+                    }
+                    return
+                }
+
+                if (tipo === 'mensagem.status') {
+                    const messageId = typeof payload.messageId === 'string' ? payload.messageId : null
+                    const status = typeof payload.status === 'string' ? payload.status : null
+                    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
+
+                    // Aplicado no lugar, sem buscar de novo: selo de entrega
+                    // percorre sent → delivered → read, e três recargas da
+                    // conversa inteira por mensagem enviada seria desperdício.
+                    if (messageId && status && selectedConversationRef.current === conversationId) {
+                        setMessages((prev) =>
+                            prev.map((m) => (m.id === messageId ? { ...m, status } : m))
+                        )
+                    }
+                }
+            },
+
+            /**
+             * "Busque tudo por HTTP": primeira conexão, ou lacuna maior que o
+             * histórico retido pela sala.
+             *
+             * É o caminho honesto — em vez de entregar parte dos eventos e
+             * deixar a tela num estado intermediário que ninguém sabe qual é,
+             * recarrega-se do servidor.
+             */
+            sincronizar() {
+                fetchConversations()
+                recarregarAberta()
+            },
+        })
+
+        // Rede continua caindo, e o aviso perdido não pode virar tela errada.
         pollRef.current = setInterval(fetchConversations, 15000)
 
         return () => {
-            disposed = true
-            if (retryTimer) clearTimeout(retryTimer)
-            supabase.removeChannel(channel)
+            conexao.fechar()
             if (pollRef.current) clearInterval(pollRef.current)
         }
-    }, [fetchConversations, supabase, realtimeGeneration])
+    }, [fetchConversations])
 
     // Ref to track the current selected conversation for realtime callbacks
     const selectedConversationRef = useRef<string | null>(null)
@@ -1157,32 +1117,17 @@ export default function ConversasPage() {
         }
     }, [conversations, selectedConversation, fetchMessages, markAsRead])
 
-    // Typing indicators subscription
-    useEffect(() => {
-        if (!selectedConversation) return
-
-        // Subscribe to typing indicators
-        const typingChannel = supabase
-            .channel(`typing:${selectedConversation}`)
-            .on('broadcast', { event: 'typing' }, (payload) => {
-                const { isTyping, source } = payload.payload || {}
-                if (source === 'contact') {
-                    setContactTyping(isTyping)
-                    // Auto-clear typing after 4 seconds
-                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-                    if (isTyping) {
-                        typingTimeoutRef.current = setTimeout(() => setContactTyping(false), 4000)
-                    }
-                }
-            })
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(typingChannel)
-            setContactTyping(false)
-        }
-    }, [selectedConversation, supabase])
-
+    /**
+     * O indicador de digitação some daqui.
+     *
+     * Era um **segundo canal**, por conversa, criado e destruído a cada troca de
+     * conversa aberta — um socket extra por clique. Agora é um evento
+     * `digitando` no mesmo socket da sala, tratado junto com os outros, e o
+     * filtro de "é da conversa aberta?" acontece no handler.
+     *
+     * O auto-clear de 4 s continua: o evento diz "está digitando" mas não há
+     * garantia de chegar um "parou", e um indicador preso é pior que nenhum.
+     */
     const visibleMessages = conversationSearch.trim()
         ? messages.filter((m) => {
               const q = conversationSearch.trim().toLowerCase()

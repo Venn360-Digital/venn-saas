@@ -2,17 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createdViaLabel } from '@/lib/created-via'
 import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
 
 // GET - Export contacts as CSV
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const auth = await getWorkspaceMember()
         if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
         const wu = auth.member

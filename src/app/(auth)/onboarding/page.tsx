@@ -5,7 +5,7 @@ import { TERMS_VERSION } from '@/lib/terms'
 import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { getSession } from '@/lib/auth/cliente'
 import { WhatsAppQRModal } from '@/components/agents/creation/WhatsAppQRModal'
 import { Step1Workspace } from '@/components/onboarding/Step1Workspace'
 import { Step2Plan } from '@/components/onboarding/Step2Plan'
@@ -35,8 +35,8 @@ export default function OnboardingPage() {
 
     const checkOnboarding = async () => {
         try {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
+            const { data: sessao } = await getSession()
+            const user = sessao?.user ?? null
 
             if (!user) {
                 router.push('/login')

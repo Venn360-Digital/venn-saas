@@ -3,7 +3,6 @@ import { currentMembership } from '@/lib/auth/workspace'
 import { Prisma } from '@prisma/client'
 
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
 import {
     GOOGLE_CALENDAR_PROVIDER,
     clientOf,
@@ -38,13 +37,6 @@ function asMetadata(value: unknown): GoogleMetadata {
 // GET - Get integration status
 export async function GET() {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
@@ -107,10 +99,6 @@ export async function GET() {
  */
 export async function PUT(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-
         const workspaceUser = await currentMembership()
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         if (!['OWNER', 'ADMIN'].includes(workspaceUser.role)) {
@@ -165,13 +153,6 @@ export async function PUT(request: NextRequest) {
 // DELETE - Disconnect Google Calendar
 export async function DELETE() {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {

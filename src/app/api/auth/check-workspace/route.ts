@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import prisma from '@/lib/prisma'
 
 /**
@@ -21,8 +21,7 @@ const TERMS_RECORDED_SINCE = new Date('2026-10-07T12:00:00Z')
 
 export async function GET() {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ hasWorkspace: false }, { status: 401 })

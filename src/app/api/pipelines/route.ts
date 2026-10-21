@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { Prisma } from '@prisma/client'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { searchTerms } from '@/lib/search'
@@ -11,13 +10,6 @@ import { periodWhere } from '@/lib/deal-filters'
 // GET - List pipeline stages with deals
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
@@ -155,13 +147,6 @@ export async function GET(request: NextRequest) {
 // POST - Create pipeline stage
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {

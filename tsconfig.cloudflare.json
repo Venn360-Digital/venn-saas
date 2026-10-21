@@ -1,0 +1,46 @@
+{
+  "//": [
+    "Os arquivos que rodam DENTRO do Worker da Cloudflare — Durable Objects,",
+    "consumidores de fila, handler agendado.",
+    "",
+    "Têm tsconfig próprio porque precisam de `@cloudflare/workers-types`, que",
+    "redefine globais (WebSocket, Request, Response) de forma incompatível com a",
+    "`lib: dom` do app Next. Misturar os dois faz o typecheck do app acusar",
+    "conflitos em arquivos que não têm nada a ver.",
+    "",
+    "`@cloudflare/workers-types` é pacote **só de tipos**: ele não carrega",
+    "runtime e não depende do workerd — então isto confere de verdade nesta",
+    "máquina, onde o workerd não roda (macOS 12.7.6, exige 13.5+). É o máximo de",
+    "verificação possível localmente para este código; o resto é o CI."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    // `cloudflare.config.ts` importa a entrada com extensão explícita e o
+    // atributo `with { type: "cf-worker" }` — é a forma que o `cf` exige para
+    // saber qual módulo é o Worker.
+    "allowImportingTsExtensions": true,
+    // `node` junto dos tipos da Cloudflare: o código compartilhado em
+    // `src/lib/` lê `process.env`, que **existe** em Workers com
+    // `nodejs_compat` ligado (ver `compatibility_flags` no wrangler.jsonc) mas
+    // não é declarado pelos tipos do runtime. Sem isto, importar qualquer
+    // módulo de `lib/` aqui acusa `Cannot find name 'process'` — que seria um
+    // erro de tipagem descrevendo algo que funciona.
+    "types": ["@cloudflare/workers-types", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "server-only": ["./workers/src/shims/server-only.ts"]
+    }
+  },
+  "include": ["src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
+  "exclude": ["node_modules"]
+}

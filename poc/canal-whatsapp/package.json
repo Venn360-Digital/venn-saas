@@ -1,0 +1,15 @@
+{
+  "name": "poc-canal-whatsapp",
+  "private": true,
+  "version": "0.0.0",
+  "description": "POC: Evolution Go em Cloudflare Containers — um contêiner por workspace",
+  "scripts": {
+    "ensaio": "wrangler deploy --dry-run",
+    "publicar": "wrangler deploy",
+    "tipos": "tsc --noEmit",
+    "registro": "wrangler tail --format pretty"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7"
+  }
+}

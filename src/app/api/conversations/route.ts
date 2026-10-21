@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '@prisma/client'
 import { searchTerms } from '@/lib/search'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
@@ -9,8 +9,7 @@ import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })

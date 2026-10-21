@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { resolveIntegration } from '@/lib/whatsapp'
 
 /**
@@ -18,10 +17,6 @@ export async function POST(
 ) {
     try {
         const { id: conversationId, messageId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-
         const workspaceUser = await currentMembership()
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
 

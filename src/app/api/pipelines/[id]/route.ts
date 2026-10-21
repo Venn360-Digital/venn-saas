@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '@prisma/client'
 
 // PATCH - Update a pipeline stage
@@ -11,10 +11,6 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
         const workspaceUser = await currentMembership()
         if (!workspaceUser) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
 
@@ -72,8 +68,7 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
         const workspaceUser = await currentMembership()

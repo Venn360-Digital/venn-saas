@@ -2,7 +2,6 @@ import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
@@ -12,13 +11,6 @@ import { normalizeSearch } from '@/lib/search'
 export async function GET(request: NextRequest) {
     try {
         console.log('[TAGS_GET] Starting...')
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {
@@ -75,13 +67,6 @@ const tagSchema = z.object({
 export async function POST(request: NextRequest) {
     try {
         console.log('[TAGS_POST] Starting...')
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const workspaceUser = await currentMembership()
 
         if (!workspaceUser) {

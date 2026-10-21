@@ -2,7 +2,19 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
+
+  // Os driver adapters — o que permite o Prisma falar com o Postgres por um
+  // driver de JavaScript em vez do engine nativo, condição para rodar em
+  // Cloudflare Workers, que não carrega binário — já são GA no 6.19.3 e saíram
+  // desta lista: declará-los aqui só imprime aviso de recurso obsoleto. Ver
+  // `src/lib/prisma.ts`.
+  //
+  // Ficamos no Prisma 6 de propósito: o 7 é melhor para Workers (sem engine
+  // Rust, bundle menor), mas é **ESM only**, e o processo `workers/` compila em
+  // CJS e precisa seguir de pé até as Queues e os Cron Triggers assumirem as 8
+  // filas e os 13 crons. O 7 entra depois disso. Ver
+  // `docs/migration/01-compatibility.md` §2.
   previewFeatures = ["postgresqlExtensions"]
 }
 
@@ -20,6 +32,14 @@ model User {
   termsAcceptances TermsAcceptance[]
   id               String            @id @default(cuid())
   email            String            @unique
+  /// Se o e-mail foi confirmado. Exigido pelo Better Auth.
+  ///
+  /// `false` por omissão, e a confirmação **não** é exigida para entrar no
+  /// primeiro corte: o cadastro está aberto de propósito desde 2026-10-07 para
+  /// homologação, e somar um fluxo de e-mail ao corte que já troca banco, cofre,
+  /// storage e identidade seria concentrar risco. Entra junto com o portão de
+  /// cadastro, antes do lançamento.
+  emailVerified    Boolean           @default(false)
   name             String?
   lastName         String? // Sobrenome
   phone            String? // WhatsApp
@@ -43,6 +63,14 @@ model User {
   activities  Activity[]
   deals       Deal[]
   specialists Specialist[]
+
+  /// Sessões e credenciais do Better Auth.
+  ///
+  /// `authAccounts` e não `accounts` porque `accounts` já é das contas de
+  /// cobrança — a colisão é o motivo de os modelos da biblioteca levarem
+  /// prefixo. Ver `src/lib/auth/better-auth.ts`.
+  authSessions AuthSession[]
+  authAccounts AuthAccount[]
 
   @@map("users")
 }
@@ -143,16 +171,16 @@ model Account {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner        User?         @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  owner        User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   workspaces   Workspace[]
   subscription Subscription?
   unitAddons   UnitAddon[]
   invoices     Invoice[]
   checkouts    AsaasCheckout[]
+  paymentCards PaymentCard[]
 
   @@index([ownerUserId])
   @@map("accounts")
-  paymentCards PaymentCard[]
 }
 
 /// Uma unidade comprada fora do que o plano inclui.
@@ -321,7 +349,7 @@ model PaymentCard {
 
   /// O que cobra a mensalidade hoje. Um por conta, garantido por índice único
   /// parcial — a rota sozinha não resolve duas abas marcando ao mesmo tempo.
-  isDefault  Boolean @default(false)
+  isDefault Boolean @default(false)
 
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
@@ -1079,7 +1107,7 @@ model Media {
   name        String
   createdAt   DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deals     Deal[]
   /// As linhas que semeiam esta mídia.
   lines     AgentIntegration[]
@@ -1386,12 +1414,12 @@ model Subscription {
   creditsUsed Int @default(0) // Créditos utilizados no mês
 
   // Billing
-  stripeId           String?
-  paymentMethod      Json? // { type, last4, brand }
-  trialStartsAt      DateTime? // O cadastro do proprietário, não o fim do onboarding
-  trialEndsAt        DateTime? // 23:59 do sétimo dia, fuso America/Sao_Paulo
+  stripeId      String?
+  paymentMethod Json? // { type, last4, brand }
+  trialStartsAt DateTime? // O cadastro do proprietário, não o fim do onboarding
+  trialEndsAt   DateTime? // 23:59 do sétimo dia, fuso America/Sao_Paulo
   /// Quando o workspace entrou em somente-leitura. Inicia a contagem de retenção.
-  readOnlySince      DateTime?
+  readOnlySince DateTime?
 
   /// Desde quando há cobrança vencida, e até quando a clínica tem para pagar.
   ///
@@ -1823,4 +1851,211 @@ model CustomFieldDefinition {
   @@unique([workspaceId, key])
   @@index([workspaceId])
   @@map("custom_field_definitions")
+}
+
+/// O cofre da aplicação, substituindo `supabase_vault`.
+///
+/// O Neon não tem `supabase_vault` nem `pgsodium` — conferido em
+/// `pg_available_extensions` do projeto `odontobox` em 2026-10-21 —, então a
+/// cifra deixa de ser do banco e passa a ser da aplicação: `value` guarda o
+/// envelope AES-256-GCM de `lib/secrets/envelope.ts`, e a chave vive em
+/// Cloudflare Secrets, fora deste banco.
+///
+/// **O que NÃO entra aqui.** Os cinco segredos de plataforma (apps da Meta, do
+/// Instagram e do Asaas) são globais e de valor fixo: são configuração de
+/// implantação e ficam em Cloudflare Secrets, lidos de `env`. Esta tabela é para
+/// o que a aplicação precisa **gravar** em tempo de execução — e para provedor
+/// novo que ainda não tenha secret publicado.
+model AppSecret {
+  id          String   @id @default(cuid())
+  /// O mesmo nome que o Vault usava: `platform:<provedor>:<campo>`.
+  name        String   @unique
+  /// Envelope `{ v, iv, ct }`. Nunca valor em claro.
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_secrets")
+}
+
+// ============================================
+// BETTER AUTH — os três modelos da biblioteca
+// ============================================
+//
+// Substituem o `auth.users`, `auth.sessions` e `auth.identities` do Supabase,
+// que viviam num schema próprio fora do alcance do Prisma. Agora são tabelas
+// comuns no mesmo banco — o que permite ao Worker resolver a sessão sem ida à
+// rede, e juntar usuário com `WorkspaceUser` numa consulta só.
+//
+// Os três levam prefixo `Auth` porque `Account` já existe neste schema e é a
+// conta que assina, com `name` obrigatório e dados de cobrança. O CLI do Better
+// Auth avisou que, sem o rename, "inserts into account will fail" — e afrouxar
+// `name` para resolver misturaria credencial de login com conta de cobrança na
+// mesma tabela.
+
+/// Uma sessão ativa. O cookie carrega `token`; o resto fica aqui.
+model AuthSession {
+  id        String   @id @default(cuid())
+  /// O valor que o cookie assinado carrega. Único: é a chave de busca.
+  token     String   @unique
+  expiresAt DateTime
+  /// Guardados para a pessoa poder reconhecer a sessão numa lista e encerrá-la.
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+/// Um método de autenticação ligado a um usuário.
+///
+/// Para e-mail e senha, `providerId` é "credential" e `password` guarda o hash —
+/// é a única coluna deste schema que guarda hash de senha, e é por isso que
+/// `User.hashedPassword` fica obsoleta (ver a migração).
+///
+/// Para OAuth, guarda os tokens do provedor. **Token de integração de workspace
+/// não vem para cá**: aquele é cifrado em `Integration.config` com a chave em
+/// Cloudflare Secrets, e é outro assunto — ver `src/lib/secrets/envelope.ts`.
+model AuthAccount {
+  id                    String    @id @default(cuid())
+  /// O id da pessoa junto ao provedor. Para credencial, é o próprio `userId`.
+  accountId             String
+  /// "credential" para e-mail e senha; "google", "apple"… para OAuth.
+  providerId            String
+  userId                String
+  /// Hash da senha. Nulo em conta de OAuth, que não tem senha.
+  password              String?
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([providerId, accountId])
+  @@map("auth_accounts")
+}
+
+/// Token de uso único: confirmação de e-mail, redefinição de senha, OTP.
+///
+/// `value` é o token e `identifier` é a que se refere (normalmente o e-mail).
+/// A linha é consumida no uso e expira sozinha — nada aqui é de longo prazo.
+model AuthVerification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("auth_verifications")
+}
+
+/// O contador do limite de requisições do Better Auth.
+///
+/// **Por que em banco e não em memória.** O padrão da biblioteca é um
+/// `new Map()` no módulo. Em Cloudflare Workers cada isolate carrega o módulo
+/// de novo e tem o próprio mapa — e os isolates são muitos, espalhados e
+/// efêmeros. O limite efetivo viraria "N por janela por isolate", que para quem
+/// adivinha senha é o mesmo que não haver limite. Ver
+/// `src/lib/auth/better-auth.ts`.
+///
+/// Linha curta e muito escrita: um `UPDATE` por requisição autenticável. Se o
+/// custo disso aparecer na conta do Neon, o próximo destino é Durable Object ou
+/// KV — não voltar para memória.
+model AuthRateLimit {
+  id          String @id @default(cuid())
+  /// Identifica quem está sendo limitado e em qual rota. Único: é a chave de busca.
+  key         String @unique
+  count       Int
+  /// Instante da última requisição, em milissegundos desde a época.
+  ///
+  /// `BigInt` e não `Int`: milissegundos desde 1970 passam de 2^31 desde 1971,
+  /// e um `Int` de 32 bits estouraria silenciosamente.
+  lastRequest BigInt
+
+  @@map("auth_rate_limits")
+}
+
+// ============================================
+// FILAS E TEMPO REAL NA CLOUDFLARE
+// ============================================
+
+/// O evento a publicar, gravado na mesma transação do dado que o gerou.
+///
+/// **Por que isto existe.** O Supabase Realtime lia o WAL do Postgres: gravar a
+/// linha *era* publicar o evento. O Neon não publica WAL para a Cloudflare, e
+/// nenhuma configuração muda isso — então escrita no banco **não chega sozinha**
+/// ao Durable Object. Quem assume o contrário constrói um sistema que funciona
+/// em teste e perde eventos em produção.
+///
+/// **Por que na mesma transação, e não um `enqueue` depois do commit.** Publicar
+/// direto na fila dentro da rota parece mais simples e é errado: se o commit
+/// falhar depois do enqueue, o evento existe e o dado não — e o navegador recebe
+/// "tem mensagem nova" para uma mensagem que não foi gravada. Aqui as duas
+/// coisas são atômicas: ou existem as duas, ou nenhuma.
+///
+/// O publicador roda nos dois caminhos: chamada direta depois do commit, para
+/// latência, e uma varredura por Cron Trigger, para recuperar o que a chamada
+/// direta perdeu. O segundo é o que torna o primeiro dispensável em caso de
+/// falha.
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// `mensagem.nova`, `conversa.alterada`, `agente.status`…
+  tipo        String
+  /// **Identificadores, nunca conteúdo.**
+  ///
+  /// O evento diz "a conversa X tem mensagem nova"; o navegador busca o
+  /// conteúdo pela rota autenticada. Assim conteúdo clínico não transita por
+  /// fila nem aparece em log de fila — e o payload não precisa ser cifrado.
+  payload     Json
+  createdAt   DateTime  @default(now())
+  /// Nulo enquanto não publicado. É o índice parcial que a varredura usa.
+  publishedAt DateTime?
+  /// Quantas vezes a publicação foi tentada. Serve para parar de insistir.
+  tentativas  Int       @default(0)
+  /// O erro da última tentativa, para diagnóstico. Sem dado sensível.
+  ultimoErro  String?
+
+  @@index([createdAt])
+  @@index([workspaceId, createdAt])
+  @@map("outbox_events")
+}
+
+/// A deduplicação que o `jobId` do BullMQ dava de graça.
+///
+/// **A diferença que mais importa entre BullMQ e Cloudflare Queues.** O BullMQ
+/// aceita um id de job escolhido por nós e recusa um segundo job com o mesmo id
+/// — é assim que hoje um webhook reenviado pelo provedor não vira duas mensagens
+/// (ver `lib/queue/enqueue-whatsapp.ts`). **Cloudflare Queues não tem isso**, e
+/// entrega *at-least-once* por desenho: repetição é o normal, não a exceção.
+///
+/// Então a dedup desce para o banco, onde a unicidade é garantida pelo índice e
+/// não pela boa vontade do broker.
+///
+/// `expiraEm` existe para a tabela não crescer para sempre: a janela só precisa
+/// cobrir o tempo em que um provedor ainda pode reenviar o mesmo evento. A
+/// varredura de retenção apaga o que passou.
+model ProcessedMessage {
+  /// A chave de idempotência: `<fila>:<id externo>`. Única — é ela que deduplica.
+  chave     String   @id
+  fila      String
+  createdAt DateTime @default(now())
+  expiraEm  DateTime
+
+  @@index([expiraEm])
+  @@map("processed_messages")
 }

@@ -1,7 +1,7 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { currentMembership, getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
 import { syncActivityToGoogleCalendar } from '@/lib/google-calendar'
 import { z } from 'zod'
@@ -154,8 +154,7 @@ export async function GET(request: NextRequest) {
 // POST - Create activity
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

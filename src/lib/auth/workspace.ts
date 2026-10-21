@@ -2,7 +2,7 @@ import 'server-only'
 import type { Prisma } from '@prisma/client'
 import { cookies } from 'next/headers'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 /**
  * O cookie que guarda qual unidade a pessoa está olhando.
@@ -92,8 +92,9 @@ export type AuthResult = { ok: true; member: WorkspaceMember } | AuthFailure
  * least stable until a workspace selector exists.
  */
 export async function getWorkspaceMember(): Promise<AuthResult> {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Quem é a pessoa sai de `lib/auth/sessao.ts`, que é o único lugar que sabe
+    // como isso é descoberto. Aqui só interessa o que ela pode.
+    const user = await usuarioDaSessao()
 
     if (!user) {
         return { ok: false, status: 401, error: 'Não autenticado' }

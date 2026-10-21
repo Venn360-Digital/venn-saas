@@ -1,27 +1,35 @@
+import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/better-auth'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 /**
- * Change the signed-in user's password.
+ * Troca a senha de quem está logado.
  *
- * The previous implementation only ever wrote `users.hashedPassword`, a bcrypt
- * hash that nothing authenticates against — login goes through Supabase Auth and
- * its own `auth.users` credential. So the endpoint reported success while the old
- * password kept working. It also skipped the current-password check whenever that
- * shadow hash was null, which is the case for anyone who signed up through the
- * login screen.
+ * Esta rota já teve dois defeitos sérios, e vale manter a história: a primeira
+ * versão só escrevia `users.hashedPassword`, um hash bcrypt contra o qual nada
+ * autenticava — o login ia pelo Supabase Auth e pela credencial dele —, então a
+ * rota respondia "senha alterada" enquanto a senha antiga continuava entrando.
+ * E ela pulava a conferência da senha atual sempre que aquele hash-sombra era
+ * nulo, que era o caso de todo mundo que se cadastrou pela tela de login.
  *
- * This now updates the credential Supabase actually checks, after verifying the
- * current password, and clears the shadow hash so no stale copy is left behind.
+ * **O que o Better Auth simplifica.** A versão seguinte consertava aquilo com um
+ * contorno: o `updateUser` do Supabase não conferia a senha antiga, então era
+ * preciso abrir um *segundo* cliente, descartável, só para tentar um login com a
+ * senha atual e ver se dava erro — e num cliente separado porque fazer o login
+ * no cliente do próprio pedido rotacionaria o cookie de sessão no meio dele.
+ *
+ * O `changePassword` do Better Auth confere a senha atual por desenho. O
+ * contorno inteiro sai: uma chamada, sem segundo cliente, sem login de
+ * verificação e sem risco de mexer na sessão do pedido.
  */
 export async function PATCH(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
-        if (!user?.email) {
+        if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
@@ -47,32 +55,31 @@ export async function PATCH(request: NextRequest) {
             )
         }
 
-        // Verify the current password on a throwaway client. Supabase's updateUser
-        // does not check the old password, and doing the sign-in on the request's
-        // own client would rotate the session cookie mid-request.
-        const verifier = createSupabaseClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            { auth: { persistSession: false, autoRefreshToken: false } }
-        )
-
-        const { error: verifyError } = await verifier.auth.signInWithPassword({
-            email: user.email,
-            password: currentPassword,
-        })
-
-        if (verifyError) {
-            return NextResponse.json({ error: 'Senha atual incorreta' }, { status: 400 })
-        }
-
-        const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
-
-        if (updateError) {
-            console.error('[PASSWORD_PATCH] Supabase update failed:', updateError.message)
-            return NextResponse.json(
-                { error: updateError.message || 'Erro ao alterar senha' },
-                { status: 400 }
-            )
+        /**
+         * `revokeOtherSessions` encerra as outras sessões.
+         *
+         * Trocar a senha é o que se faz quando se suspeita que alguém mais
+         * entrou. Deixar as sessões dessa pessoa abertas tornaria a troca
+         * inútil — e a sessão **deste** pedido é preservada, então quem trocou
+         * não é expulso da própria tela.
+         */
+        try {
+            await auth.api.changePassword({
+                body: { currentPassword, newPassword, revokeOtherSessions: true },
+                headers: await headers(),
+            })
+        } catch (erro) {
+            /**
+             * A biblioteca lança com o código; a senha errada é o caso comum e
+             * tem mensagem própria. O resto não vaza texto de fornecedor para a
+             * tela — vai para o log.
+             */
+            const codigo = (erro as { body?: { code?: string } })?.body?.code
+            if (codigo === 'INVALID_PASSWORD' || codigo === 'INVALID_EMAIL_OR_PASSWORD') {
+                return NextResponse.json({ error: 'Senha atual incorreta' }, { status: 400 })
+            }
+            console.error('[PASSWORD_PATCH] changePassword falhou:', codigo ?? erro)
+            return NextResponse.json({ error: 'Erro ao alterar senha' }, { status: 400 })
         }
 
         // Drop the shadow hash rather than updating it: keeping a second copy of a

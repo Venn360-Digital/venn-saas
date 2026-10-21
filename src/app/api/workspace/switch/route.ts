@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 
 import prisma from '@/lib/prisma'
 import { WORKSPACE_COOKIE } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 /**
  * Troca a unidade que a pessoa está olhando.
@@ -20,8 +20,7 @@ import { createClient } from '@/lib/supabase/server'
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
         if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
         const { workspaceId } = (await request.json().catch(() => ({}))) as { workspaceId?: string }

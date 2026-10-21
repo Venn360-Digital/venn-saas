@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 
 // Schema for updating a user
@@ -22,8 +22,7 @@ export async function GET(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -88,8 +87,7 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -251,8 +249,7 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })

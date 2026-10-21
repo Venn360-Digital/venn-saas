@@ -1,0 +1,85 @@
+name: Produção
+
+# Só por push em `main`, e **com aprovação humana**.
+#
+# A aprovação não está neste arquivo: ela vem do GitHub Environment
+# `production`, configurado com revisor obrigatório. É de propósito — um portão
+# que mora no YAML pode ser removido no mesmo PR que o atravessa.
+on:
+  push:
+    branches: [main]
+
+# Sem `cancel-in-progress`: cancelar um deploy no meio deixa o Worker em estado
+# indeterminado. O segundo espera o primeiro.
+concurrency:
+  group: producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    name: Verificar antes de publicar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run typecheck:cloudflare
+      - run: npm run typecheck:workers
+      - run: npm run lint
+      - run: |
+          npm run lint:colors
+          npm run lint:workspace
+          npm run check:widget
+          npm run check:cofre
+          npm run check:storage
+          npm run check:tempo-real
+      - run: npm run build
+      - run: npm run build:vinext
+
+  publicar:
+    name: Publicar
+    needs: verificar
+    runs-on: ubuntu-latest
+
+    # **O portão.** Este nome tem de existir em Settings → Environments com
+    # revisor obrigatório; sem isso o deploy sai sem aprovação.
+    environment:
+      name: production
+      url: https://odontobox.venn360.com
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Publicar o Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # O destino Cloudflare exige `output` != standalone no next.config —
+          # ver o comentário lá. Declarado no passo porque todo comando aqui lê
+          # aquela config.
+          BUILD_TARGET: cloudflare
+        run: |
+          npm run build:vinext
+          npm run deploy:vinext
+
+      # **Migração NÃO roda aqui.** Ela é `migrate.yml`, manual, de propósito:
+      # alterar o schema do banco não deve acontecer como efeito colateral de um
+      # merge. Quem publica código e quem altera banco são decisões diferentes,
+      # com reversões diferentes.
+      - name: Lembrete
+        run: |
+          echo "::notice::Worker publicado. Migração de banco NÃO rodou — use o workflow 'Migração' se houver migração nova."

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
@@ -23,8 +23,7 @@ const indexSchema = z.object({
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return new NextResponse('Unauthorized', { status: 401 })

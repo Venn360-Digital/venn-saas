@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PLATFORM_PROVIDERS, ambienteDaChave, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials, temSegredoDuplo } from '@/lib/platform-credentials'
 
-import { platformSecretName, vaultSecretExists } from '@/lib/vault'
+import { SegredoDeAmbienteError, platformSecretName, vaultSecretExists, vaultSecretOrigin } from '@/lib/vault'
 import { estadoDoWebhook } from '@/lib/asaas/vigia'
 
 const KNOWN = new Set<string>(PLATFORM_PROVIDERS.map((p) => p.provider))
@@ -64,11 +64,25 @@ export async function GET() {
              * dinheiro, não um id público. No lugar dela vai o ambiente, que é
              * derivado do prefixo e é o que o administrador precisa ver.
              */
+            /**
+             * De onde vem o segredo, para a tela não mentir.
+             *
+             * Depois da ida para a Cloudflare, os segredos de plataforma vivem
+             * em Cloudflare Secrets e a aplicação **não os grava** — ver
+             * `lib/vault.ts`. Sem este campo a tela ofereceria um botão de
+             * salvar que o servidor recusa, e o administrador descobriria isso
+             * no meio de uma rotação de credencial. Com ele, a tela diz
+             * "definido no ambiente" e esconde o formulário.
+             */
+            const origem = await vaultSecretOrigin(platformSecretName(p.provider))
+
             if (temSegredoDuplo(p.provider)) {
                 const temChave = await vaultSecretExists(platformSecretName(p.provider, 'clientId'))
                 return {
                     ...p,
                     configured: Boolean(temChave && temSegredo),
+                    origem,
+                    editavel: origem !== 'ambiente',
                     clientId: null,
                     ambiente: admin ? creds.ambiente ?? null : null,
                     updatedAt: row?.updatedAt ?? null,
@@ -79,6 +93,8 @@ export async function GET() {
             return {
                 ...p,
                 configured,
+                origem,
+                editavel: origem !== 'ambiente',
                 clientId: admin && creds.clientId ? creds.clientId : null,
                 ambiente: null,
                 updatedAt: row?.updatedAt ?? null,
@@ -150,6 +166,23 @@ export async function PUT(request: NextRequest) {
         )
     }
 
-    await setPlatformCredentials(provider, { clientId, clientSecret }, admin.userId)
+    /**
+     * Segredo definido no Cloudflare Secrets não se altera por aqui.
+     *
+     * `writeVaultSecret` recusa em vez de ignorar — gravar na tabela faria a
+     * tela dizer "salvo" enquanto a leitura continuaria vindo do ambiente, e o
+     * administrador iria embora acreditando ter rotacionado a credencial. 409
+     * porque é conflito de estado, não erro de preenchimento: os campos estão
+     * certos, o destino é que é imutável em tempo de execução.
+     */
+    try {
+        await setPlatformCredentials(provider, { clientId, clientSecret }, admin.userId)
+    } catch (erro) {
+        if (erro instanceof SegredoDeAmbienteError) {
+            return NextResponse.json({ error: erro.message, variavel: erro.variavel }, { status: 409 })
+        }
+        throw erro
+    }
+
     return NextResponse.json({ success: true })
 }

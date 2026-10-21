@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, contactScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
-import { createClient } from '@/lib/supabase/server'
 import { normalizePhone } from '@/lib/intake'
 
 // GET - Get contact details with full history
@@ -11,13 +10,6 @@ export async function GET(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const auth = await getWorkspaceMember()
         if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
         const workspaceUser = auth.member
@@ -151,13 +143,6 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const auth = await getWorkspaceMember()
         if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
         const workspaceUser = auth.member
@@ -234,13 +219,6 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
         const auth = await getWorkspaceMember()
         if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
         const workspaceUser = auth.member

@@ -21,7 +21,7 @@ import {
     SidebarMenuItem,
     useSidebar,
 } from '@/components/ui/sidebar'
-import { createClient } from '@/lib/supabase/client'
+import { signOut as encerrarSessao } from '@/lib/auth/cliente'
 import { esquecerUnidades } from '@/hooks/useUnidades'
 
 interface Me {
@@ -86,8 +86,7 @@ export function NavUser() {
          */
         await fetch('/api/workspace/switch', { method: 'DELETE' }).catch(() => {})
 
-        const supabase = createClient()
-        await supabase.auth.signOut()
+        await encerrarSessao()
 
         esquecerUnidades()
         window.location.assign('/login')
