@@ -93,8 +93,47 @@ declare global {
  * forma. Em desenvolvimento, guardado no global para que o recarregamento a
  * quente do Next não abra uma conexão nova a cada edição.
  */
-const prisma = globalThis.prismaGlobal ?? criarCliente()
+function obterCliente(): PrismaClient {
+    const existente = globalThis.prismaGlobal
+    if (existente) return existente
+
+    const cliente = criarCliente()
+    if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = cliente
+    return cliente
+}
+
+/**
+ * **Preguiçoso de propósito, e isto é o que faz o build existir.**
+ *
+ * Antes era `const prisma = globalThis.prismaGlobal ?? criarCliente()`, que
+ * instancia na CARGA do módulo. `criarCliente` lança quando `DATABASE_URL` não
+ * está definida — e aí `next build` quebrava no "Collecting page data", que
+ * importa cada rota para ler a configuração dela:
+ *
+ *   Failed to collect configuration for /api/account/invoices
+ *   [cause]: DATABASE_URL não está definida
+ *
+ * Buildar não precisa de banco, e exigir a variável no build estava errado em
+ * dois sentidos: no Workers a URL vem de Secrets em tempo de EXECUÇÃO, e o CI
+ * não tem nem deve ter credencial de banco para compilar. Com a criação movida
+ * para o primeiro acesso, a carga do módulo deixa de ter efeito.
+ *
+ * O `Proxy` existe para não mudar nenhum chamador: `prisma.user.findMany()`
+ * continua igual nos mais de cem pontos que o usam. Função é devolvida ligada
+ * ao cliente real, senão `this` se perde em `$transaction` e afins.
+ */
+const prisma = new Proxy({} as PrismaClient, {
+    get(_alvo, propriedade) {
+        const cliente = obterCliente()
+        const valor = Reflect.get(cliente as object, propriedade)
+        return typeof valor === 'function' ? valor.bind(cliente) : valor
+    },
+    has(_alvo, propriedade) {
+        return propriedade in (obterCliente() as object)
+    },
+    set(_alvo, propriedade, valor) {
+        return Reflect.set(obterCliente() as object, propriedade, valor)
+    },
+})
 
 export default prisma
-
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma

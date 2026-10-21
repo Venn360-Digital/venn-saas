@@ -29,7 +29,7 @@ rodado.**
 | `check:filas` | **PASS** | 60 provas — outbox, dedup, fuso dos crons, disciplina de consumo |
 | `check:tempo-real` | **PASS** | 30 provas — debounce e protocolo, sem banco |
 | `typecheck:cloudflare` | **PASS** | Durable Objects contra os tipos reais da Cloudflare |
-| `build` | **NOT RUN** | — |
+| `build` | **PASS** | `next build` em 2026-10-21, **sem `DATABASE_URL`** — a condição do CI. Exigia a variável até o cliente do Prisma virar preguiçoso; quebrava no "Collecting page data". Correção: o `build` nunca foi impossível nesta máquina — o que é impossível é o `vinext build` |
 | build vinext | **BLOCKED** | `workerd` não roda em macOS 12.7.6; só no CI |
 | autenticação | **PASS** | cadastro, login, redefinição, troca de senha e criação por administrador, provados em `check:auth` |
 | multi-tenant | **NOT RUN** | — |
