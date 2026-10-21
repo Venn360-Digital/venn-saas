@@ -20,7 +20,18 @@ import { ALL_QUEUES, TENTATIVAS } from './src/lib/queue/definitions.ts'
  * Ver `docs/migration/00-open-decisions.md` §1.
  */
 
-const NOME = 'venn-odontobox360'
+/**
+ * O nome do Worker, e ele é a IDENTIDADE do recurso na Cloudflare.
+ *
+ * Decisão do André em 2026-10-21: `odontobox`. Era `venn-odontobox360`, herdado
+ * do nome do pacote.
+ *
+ * **Tem de estar certo antes do primeiro deploy.** Não existe renomear Worker
+ * no Cloudflare: publicar com nome novo cria OUTRO Worker, e o antigo fica com
+ * os Durable Objects, as filas vinculadas e a rota. Trocar depois significa
+ * migrar estado de DO, não editar um campo.
+ */
+const NOME = 'odontobox'
 
 /** O nome da fila na conta, a partir do nome lógico. */
 const naConta = (fila: string) => `odontobox-${fila}`
