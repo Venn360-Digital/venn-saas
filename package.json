@@ -18,7 +18,8 @@
     "check:operacao": "tsx --conditions=react-server scripts/check-operacao.ts",
     "test:availability": "tsx scripts/test-availability.ts",
     "check:widget": "node scripts/check-widget.mjs",
-    "lint:workspace": "node scripts/lint-workspace.mjs"
+    "lint:workspace": "node scripts/lint-workspace.mjs",
+    "check:cofre": "tsx --conditions=react-server scripts/check-cofre.ts"
   },
   "dependencies": {
     "@capsizecss/metrics": "^3.6.2",

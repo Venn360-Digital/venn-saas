@@ -143,16 +143,16 @@ model Account {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner        User?         @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  owner        User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   workspaces   Workspace[]
   subscription Subscription?
   unitAddons   UnitAddon[]
   invoices     Invoice[]
   checkouts    AsaasCheckout[]
+  paymentCards PaymentCard[]
 
   @@index([ownerUserId])
   @@map("accounts")
-  paymentCards PaymentCard[]
 }
 
 /// Uma unidade comprada fora do que o plano inclui.
@@ -321,7 +321,7 @@ model PaymentCard {
 
   /// O que cobra a mensalidade hoje. Um por conta, garantido por índice único
   /// parcial — a rota sozinha não resolve duas abas marcando ao mesmo tempo.
-  isDefault  Boolean @default(false)
+  isDefault Boolean @default(false)
 
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
@@ -1079,7 +1079,7 @@ model Media {
   name        String
   createdAt   DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   deals     Deal[]
   /// As linhas que semeiam esta mídia.
   lines     AgentIntegration[]
@@ -1386,12 +1386,12 @@ model Subscription {
   creditsUsed Int @default(0) // Créditos utilizados no mês
 
   // Billing
-  stripeId           String?
-  paymentMethod      Json? // { type, last4, brand }
-  trialStartsAt      DateTime? // O cadastro do proprietário, não o fim do onboarding
-  trialEndsAt        DateTime? // 23:59 do sétimo dia, fuso America/Sao_Paulo
+  stripeId      String?
+  paymentMethod Json? // { type, last4, brand }
+  trialStartsAt DateTime? // O cadastro do proprietário, não o fim do onboarding
+  trialEndsAt   DateTime? // 23:59 do sétimo dia, fuso America/Sao_Paulo
   /// Quando o workspace entrou em somente-leitura. Inicia a contagem de retenção.
-  readOnlySince      DateTime?
+  readOnlySince DateTime?
 
   /// Desde quando há cobrança vencida, e até quando a clínica tem para pagar.
   ///
@@ -1823,4 +1823,30 @@ model CustomFieldDefinition {
   @@unique([workspaceId, key])
   @@index([workspaceId])
   @@map("custom_field_definitions")
+}
+
+/// O cofre da aplicação, substituindo `supabase_vault`.
+///
+/// O Neon não tem `supabase_vault` nem `pgsodium` — conferido em
+/// `pg_available_extensions` do projeto `odontobox` em 2026-10-21 —, então a
+/// cifra deixa de ser do banco e passa a ser da aplicação: `value` guarda o
+/// envelope AES-256-GCM de `lib/secrets/envelope.ts`, e a chave vive em
+/// Cloudflare Secrets, fora deste banco.
+///
+/// **O que NÃO entra aqui.** Os cinco segredos de plataforma (apps da Meta, do
+/// Instagram e do Asaas) são globais e de valor fixo: são configuração de
+/// implantação e ficam em Cloudflare Secrets, lidos de `env`. Esta tabela é para
+/// o que a aplicação precisa **gravar** em tempo de execução — e para provedor
+/// novo que ainda não tenha secret publicado.
+model AppSecret {
+  id          String   @id @default(cuid())
+  /// O mesmo nome que o Vault usava: `platform:<provedor>:<campo>`.
+  name        String   @unique
+  /// Envelope `{ v, iv, ct }`. Nunca valor em claro.
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("app_secrets")
 }
