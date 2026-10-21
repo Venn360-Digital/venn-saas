@@ -285,6 +285,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             phoneNumber: string | null
             /** Para a chave dos canais de linha única saber onde está. */
             status: string
+            errorMessage: string | null
             defaultOriginId: string | null
             defaultMediaId: string | null
         }[]
@@ -888,7 +889,23 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                     WhatsApp API Oficial
                                 </span>
                             }
-                            description="Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado."
+                            description={
+                                /*
+                                 * O erro vale mais que a descrição.
+                                 *
+                                 * "A conexão com a Meta expirou" é o que diz
+                                 * por que a chave não acende, e repetir a
+                                 * explicação do canal ali embaixo enterraria
+                                 * justamente isso.
+                                 */
+                                linhaDoCanal('whatsapp_business')?.errorMessage ? (
+                                    <span className="text-destructive-subtle-foreground">
+                                        {linhaDoCanal('whatsapp_business')?.errorMessage}
+                                    </span>
+                                ) : (
+                                    'Número verificado pela Meta, sem leitura de QR Code e sem depender de um celular ligado.'
+                                )
+                            }
                             action={
                                 canManage ? (
                                     <div className="flex items-center gap-2.5">
@@ -929,7 +946,20 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                         nome="o WhatsApp API Oficial"
                                                         disabled={!pronto}
                                                         onChange={(ligar) => {
-                                                            if (!linha) {
+                                                            /*
+                                                             * Sem linha, ou com
+                                                             * a linha marcada
+                                                             * com erro, ligar é
+                                                             * o fluxo da Meta
+                                                             * inteiro — não um
+                                                             * PATCH. É o caso do
+                                                             * token expirado:
+                                                             * religar sem
+                                                             * credencial nova
+                                                             * falharia de novo,
+                                                             * com a mesma frase.
+                                                             */
+                                                            if (!linha || (ligar && linha.errorMessage)) {
                                                                 abrir()
                                                                 return
                                                             }

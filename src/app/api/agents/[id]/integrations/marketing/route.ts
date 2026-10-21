@@ -56,6 +56,8 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
             label: true,
             phoneNumber: true,
             status: true,
+            /** O que impede a linha de estar no ar — a tela mostra ao lado dela. */
+            errorMessage: true,
             defaultOriginId: true,
             defaultMediaId: true,
         },

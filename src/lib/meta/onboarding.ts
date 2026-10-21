@@ -24,11 +24,30 @@ import { META_PROVIDER } from '@/lib/meta/webhook'
 export class MetaOnboardingError extends Error {
     constructor(
         readonly passo: string,
-        readonly detalhe: string
+        readonly detalhe: string,
+        /**
+         * O `error.code` da Meta, quando ela manda um.
+         *
+         * Existe por causa do **190**, que é "token inválido ou expirado" e é o
+         * único erro desta integração que tem conserto do lado da clínica:
+         * reconectar. Sem o código, quem chama só tem a frase em inglês da
+         * Meta para decidir — e decidir por `includes('expired')` quebra na
+         * primeira vez que eles reescrevem a mensagem.
+         */
+        readonly codigo?: number
     ) {
         super(`${passo}: ${detalhe}`)
         this.name = 'MetaOnboardingError'
     }
+}
+
+/**
+ * O token morreu — expirou, foi revogado, ou a clínica tirou o acesso.
+ *
+ * Code 190 cobre os três, e os três têm a mesma saída: reconectar pela Meta.
+ */
+export function tokenMorreu(erro: unknown): boolean {
+    return erro instanceof MetaOnboardingError && erro.codigo === 190
 }
 
 async function graph(
@@ -52,7 +71,8 @@ async function graph(
         const erro = (corpo.error ?? {}) as { message?: string; code?: number }
         throw new MetaOnboardingError(
             passo,
-            erro.message ?? `HTTP ${resposta.status}: ${texto.slice(0, 200)}`
+            erro.message ?? `HTTP ${resposta.status}: ${texto.slice(0, 200)}`,
+            erro.code
         )
     }
 
@@ -66,7 +86,43 @@ async function graph(
  * não expira como o temporário de 24 horas do painel, e é com ele que tudo o
  * mais é feito em nome dela.
  */
-export async function trocarCodigoPorToken(code: string): Promise<string> {
+export interface TokenDaConta {
+    token: string
+    /**
+     * Quando ele morre, em ISO — `null` quando não morre.
+     *
+     * Guardado junto da integração para que a tela possa avisar **antes**, em
+     * vez de a clínica descobrir pela mensagem que não chegou.
+     */
+    expiraEm: string | null
+}
+
+/**
+ * O que a Meta sabe sobre um token: de quem é, e até quando vale.
+ *
+ * `expires_at: 0` é a resposta para token que não expira — o do usuário de
+ * sistema de integração de negócio, que é o que o Embedded Signup deveria
+ * devolver. Qualquer outro número é prazo.
+ *
+ * A inspeção usa o **token do aplicativo** (`id|segredo`), não o que está sendo
+ * inspecionado: um token morto não consegue nem falar sobre si mesmo.
+ */
+async function prazoDoToken(token: string, app: { clientId: string; clientSecret: string }) {
+    const url = new URL(`${GRAPH}/debug_token`)
+    url.searchParams.set('input_token', token)
+    url.searchParams.set('access_token', `${app.clientId}|${app.clientSecret}`)
+
+    const corpo = await graph('inspeção do token', url.toString())
+    const dados = (corpo.data ?? {}) as { expires_at?: number; type?: string }
+
+    return {
+        /** Segundos desde a época; 0 ou ausente é "não expira". */
+        expiraEm: dados.expires_at && dados.expires_at > 0 ? dados.expires_at : null,
+        tipo: dados.type ?? null,
+    }
+}
+
+export async function trocarCodigoPorToken(code: string): Promise<TokenDaConta> {
     const app = await getPlatformCredentials(META_PROVIDER)
     if (!app) {
         throw new MetaOnboardingError(
@@ -81,13 +137,75 @@ export async function trocarCodigoPorToken(code: string): Promise<string> {
     url.searchParams.set('code', code)
 
     const corpo = await graph('troca do código', url.toString())
-    const token = corpo.access_token
 
-    if (typeof token !== 'string' || !token) {
+    if (typeof corpo.access_token !== 'string' || !corpo.access_token) {
         throw new MetaOnboardingError('troca do código', 'a Meta não devolveu token')
     }
 
-    return token
+    let token: string = corpo.access_token
+
+    /**
+     * **O token nem sempre é o que este arquivo dizia que era.**
+     *
+     * O comentário aqui afirmava que o Embedded Signup devolve o token do
+     * usuário de sistema, que não expira. Em 2026-10-20 o Andre ligou a chave
+     * do canal oficial e a Meta respondeu "Session has expired on Friday,
+     * 16-Oct-26 15:00:00" — o mesmo dia da conexão. Ou seja: veio um token de
+     * usuário, de poucas horas, e a conexão estava morta desde então sem que
+     * nada na tela dissesse isso.
+     *
+     * Pode ter sido o aplicativo ainda em desenvolvimento, à espera da revisão
+     * da Meta; pode ser o fluxo. **Não dá para saber sem outra conexão real**,
+     * e por isso aqui não se aposta: pergunta-se. Se o token tem prazo, ele é
+     * trocado pelo de longa duração (~60 dias); se não tem, a troca é pulada,
+     * porque trocar um token de sistema por outro não faz sentido e a Meta
+     * recusa.
+     *
+     * O prazo é devolvido junto para ser gravado — é o que permite avisar
+     * antes, em vez de a clínica descobrir pela mensagem que não chegou.
+     */
+    /**
+     * **A inspeção não pode derrubar a conexão.**
+     *
+     * Ela é diagnóstico, não requisito: se `debug_token` recusar — aplicativo
+     * sem permissão, Graph fora do ar —, o token que acabou de ser emitido
+     * continua válido e a clínica continua conectando. Deixar o `throw` subir
+     * aqui trocaria um canal que morre em horas por um canal que nunca nasce,
+     * que é um defeito pior do que o que esta inspeção veio resolver.
+     */
+    let prazo: { expiraEm: number | null; tipo: string | null }
+    try {
+        prazo = await prazoDoToken(token, app)
+    } catch (erro) {
+        console.warn('[META_ONBOARDING] não foi possível inspecionar o token', erro)
+        prazo = { expiraEm: null, tipo: null }
+    }
+
+    if (prazo.expiraEm) {
+        const troca = new URL(`${GRAPH}/oauth/access_token`)
+        troca.searchParams.set('grant_type', 'fb_exchange_token')
+        troca.searchParams.set('client_id', app.clientId)
+        troca.searchParams.set('client_secret', app.clientSecret)
+        troca.searchParams.set('fb_exchange_token', token)
+
+        try {
+            const longo = await graph('token de longa duração', troca.toString())
+            if (typeof longo.access_token === 'string' && longo.access_token) {
+                token = longo.access_token
+                prazo = await prazoDoToken(token, app)
+            }
+        } catch (erro) {
+            // Falhar aqui não derruba a conexão: o token curto funciona hoje, e
+            // recusar agora deixaria a clínica sem canal nenhum. O prazo gravado
+            // é o do curto, e é ele que vai disparar o aviso.
+            console.warn('[META_ONBOARDING] não foi possível alongar o token', erro)
+        }
+    }
+
+    return {
+        token,
+        expiraEm: prazo.expiraEm ? new Date(prazo.expiraEm * 1000).toISOString() : null,
+    }
 }
 
 /**

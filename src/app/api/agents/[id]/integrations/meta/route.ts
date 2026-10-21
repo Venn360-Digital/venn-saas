@@ -7,6 +7,7 @@ import { canConnectWhatsApp } from '@/lib/limits'
 import {
     MetaOnboardingError,
     assinarContaAoApp,
+    tokenMorreu,
     desassinarContaDoApp,
     novoPin,
     registrarNumero,
@@ -86,8 +87,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const instanceName = `odontobox_${workspaceId}_${dados.phoneNumberId}`
 
     try {
-        // 1 — trinta segundos; nada vem antes disto.
-        const token = await trocarCodigoPorToken(dados.code)
+        // 1 — trinta segundos; nada vem antes disto. A troca já devolve o
+        //     token alongado, quando o que a Meta deu tinha prazo.
+        const { token, expiraEm } = await trocarCodigoPorToken(dados.code)
 
         // 2 — sem isto, silêncio.
         await assinarContaAoApp(dados.wabaId, token)
@@ -117,6 +119,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 config: {
                     instanceName,
                     accessToken: token,
+                    /**
+                     * Quando o token morre — `null` quando não morre.
+                     *
+                     * Gravado desde 2026-10-20, quando um token de poucas horas
+                     * ficou guardado como se fosse eterno e o canal morreu em
+                     * silêncio no mesmo dia. Com a data, a tela pode avisar
+                     * antes; sem ela, o primeiro sinal é a mensagem que não
+                     * chega.
+                     */
+                    tokenExpiraEm: expiraEm,
                     phoneNumberId: dados.phoneNumberId,
                     businessId: dados.wabaId,
                     // Guardado porque um registro futuro no mesmo número falha
@@ -210,6 +222,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             await desassinarContaDoApp(config.businessId, config.accessToken)
         }
     } catch (error) {
+        /**
+         * Token morto tem conserto, e a tela precisa dizer qual é.
+         *
+         * A primeira versão desta rota devolvia o inglês da Meta direto:
+         * "Error validating access token: Session has expired on Friday,
+         * 16-Oct-26 15:00:00 PDT". Para quem atende numa clínica isso não é
+         * uma instrução, é um susto — e a instrução cabe em uma frase.
+         *
+         * A linha é marcada junto, porque o problema não começou no clique: o
+         * canal já estava morto, e sem a marca ele volta a parecer apenas
+         * "Fora do ar", que é um estado de onde se sai ligando a chave.
+         */
+        if (tokenMorreu(error)) {
+            await prisma.agentIntegration.update({
+                where: { id: linha.id },
+                data: {
+                    status: 'disconnected',
+                    errorMessage: 'A conexão com a Meta expirou. Reconecte o número.',
+                },
+            })
+            return NextResponse.json(
+                {
+                    error:
+                        'A conexão com a Meta expirou. Reconecte o número pela Meta — ' +
+                        'o histórico e as conversas ficam.',
+                },
+                { status: 409 }
+            )
+        }
+
         if (error instanceof MetaOnboardingError) {
             console.error(`[META_ONBOARDING] ${error.passo}: ${error.detalhe}`)
             return NextResponse.json(
