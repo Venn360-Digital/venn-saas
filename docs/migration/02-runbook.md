@@ -71,7 +71,28 @@ ssh root@<vps> "docker exec supabase-db pg_dump -U postgres -Fc --no-owner --no-
 # [LOCAL] e os papéis/auth, em texto, para consulta
 ssh root@<vps> "docker exec supabase-db pg_dump -U postgres --schema=auth --data-only postgres" \
   > ~/backups/odontobox-auth-$(date +%Y%m%d-%H%M).sql
+
+# [LOCAL] os DOIS bancos do Evolution Go — ver o aviso abaixo
+for b in evogo_auth evogo_users; do
+  ssh root@<vps> "docker exec supabase-db pg_dump -U postgres -Fc --no-owner --no-acl $b" \
+    > ~/backups/odontobox-$b-$(date +%Y%m%d-%H%M).dump
+done
 ```
+
+> **⚠️ Os dois bancos do Evolution Go, e por que quase ficaram de fora.**
+> Até a POC de 2026-10-21 este passo despejava **só** `postgres`. O Evolution Go
+> tem dois bancos próprios, e deixá-los para trás custa duas coisas que só
+> aparecem **depois** do DNS apontado:
+>
+> | O que fica para trás | Sintoma |
+> | --- | --- |
+> | A ativação da licença (`evogo_auth`) | `/instance/create` responde 503 `LICENSE_REQUIRED` e nenhum QR nasce |
+> | O estado do whatsmeow (`evogo_users`) | **toda clínica tem de parear de novo**, uma por uma |
+>
+> O lado bom: como esse estado mora em Postgres e não em volume, levar os dois
+> bancos **preserva os pareamentos** — o re-pareamento deixa de ser passo
+> obrigatório e passa a ser plano B. Detalhes em
+> [`11-poc-evolution-go.md`](11-poc-evolution-go.md).
 
 **Validação obrigatória — backup não conferido não é backup:**
 
@@ -228,16 +249,18 @@ executar.
 | 3 | Pôr a VPS em manutenção: `docker compose stop app worker` (**não** `down -v`) | 1 min | `start` |
 | 4 | Dump final (A.3) | ~2 min | — |
 | 5 | Restaurar dados no Neon `production` | ~5 min | truncar e repetir |
+| 5b | Restaurar `evogo_auth` e `evogo_users` no Neon — **a licença e os pareamentos vêm aqui** | ~3 min | truncar e repetir |
 | 6 | Conferir `count(*)` tabela por tabela contra a origem | ~5 min | — |
 | 7 | Copiar os arquivos **públicos** para o R2 | ~2 min | — |
 | 8 | Publicar o Worker a partir do commit aprovado | ~5 min | republicar o anterior |
+| 8b | WhatsApp: `/instance/create` responde (licença veio) e as sessões voltaram **sem QR** | ~5 min | re-parear — precisa de janela própria |
 | 9 | `npm run migrar:usuarios --aplicar` — gera um link de definição de senha por usuário | ~2 min | nenhuma credencial foi tocada; repetir gera links novos |
 | 9b | Fumaça em produção: login com um dos links, abrir conversa, enviar mensagem | ~10 min | — |
 | 10 | Apontar o DNS para o Worker | 1 min | **voltar o registro** |
 | 11 | Reapontar os webhooks (Meta, Asaas, Evolution) para o domínio novo | ~10 min | voltar as URLs |
 | 12 | Observar 30 min | 30 min | — |
 
-**Soma: ~1 h 17 min**, com folga dentro das 2 h.
+**Soma: ~1 h 25 min**, com folga dentro das 2 h.
 
 > **Sobre os usuários.** Os hashes do GoTrue são bcrypt e o Better Auth usa
 > scrypt: hash não se desconverte, e carregar verificação de bcrypt legado para
@@ -250,6 +273,12 @@ executar.
 > identidade não foi conferida. Antes de restaurar, confirmar que a URL é a
 > branch `production` do projeto `polished-shape-42069569` e nenhuma outra.
 
+> **Passo 8b é o que não se pode pular.** A licença do Evolution Go e todo
+> pareamento de clínica moram nos dois bancos do passo 5b. Se o 5b falhar em
+> silêncio, o 8b é onde se descobre — e se descobrir depois do passo 10 significa
+> clínica no ar novo sem WhatsApp. Se as sessões não voltarem, re-parear é uma
+> janela própria, não cabe nos 30 min de observação.
+>
 > **Passo 11 é o esquecido.** O webhook da Meta e o do Asaas apontam para o
 > domínio antigo. Se o DNS mudar e os webhooks não, a mensagem para de chegar e
 > o sintoma é "o WhatsApp parou", não "o webhook está errado".

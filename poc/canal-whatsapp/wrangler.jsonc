@@ -1,0 +1,54 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "poc-canal-whatsapp",
+    "main": "src/index.ts",
+    "compatibility_date": "2026-10-21",
+    "observability": { "enabled": true },
+
+    "containers": [
+        {
+            "class_name": "CanalWhatsApp",
+
+            // Imagem pública do Docker Hub, fixada por versão.
+            //
+            // Duas razões para não apontar para um Dockerfile: não há Docker
+            // nesta máquina, e uma referência de registro dispensa Docker no
+            // momento de publicar — é o que torna esta POC publicável daqui.
+            //
+            // E fixada, não `:latest`: a VPS roda `:latest` há meses, que hoje
+            // é idêntico a 0.7.2 pelo digest (sha256:6fa601464bd76d3d…), mas
+            // numa atualização do autor o comportamento muda sem ninguém pedir.
+            // Existe um 0.7.2-beta de 2026-10-01 que pode ter corrigido o laço
+            // de QR; vale testar na POC, não em produção.
+            "image": "docker.io/evoapicloud/evolution-go:0.7.2",
+
+            // 256 MiB / 1/16 vCPU / 2 GB. O menor que existe, de propósito: a
+            // imagem tem 86 MB e o processo é um Go esperando soquete. Se não
+            // couber, a própria falha é a medição que decide subir para `basic`
+            // — e é uma diferença de quatro vezes na conta mensal.
+            "instance_type": "lite",
+
+            // Teto da POC. Limita o estrago e a fatura enquanto se mede.
+            "max_instances": 5
+        }
+    ],
+
+    "durable_objects": {
+        "bindings": [{ "name": "CANAL", "class_name": "CanalWhatsApp" }]
+    },
+
+    "exports": {
+        "CanalWhatsApp": { "type": "durable-object", "storage": "sqlite" }
+    },
+
+    "vars": {
+        // Preenchido depois do primeiro `deploy`, quando a URL existe.
+        "WEBHOOK_BASE_URL": "https://poc-canal-whatsapp.andre-7ee.workers.dev"
+    }
+
+    // Segredos por `wrangler secret put`, nunca aqui:
+    //   EVOLUTION_GO_API_KEY  chave global do Evolution Go
+    //   EVOGO_AUTH_DB         Postgres do whatsmeow (Neon)
+    //   EVOGO_USERS_DB        Postgres de usuários do Evolution Go (Neon)
+    //   POC_TOKEN             tranca de tudo o que este Worker expõe
+}

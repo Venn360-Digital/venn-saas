@@ -76,3 +76,6 @@ __pycache__/
 /dist/
 .vinext/
 .cloudflare/
+
+# node_modules da POC do canal de WhatsApp — pacote próprio, instalado à parte.
+poc/*/node_modules/
