@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { readInstagramEvent } from '@/lib/instagram/webhook'
+import { readWhatsAppCloudEvent } from '@/lib/whatsapp/envelopes'
 import {
     ehEventoDeInstagram,
     metaAppSecrets,
@@ -156,13 +157,29 @@ export async function POST(request: NextRequest) {
     }
 
     /**
-     * WhatsApp aqui é só prova de vida.
+     * WhatsApp oficial, direto da Meta — sem Evolution no meio.
      *
-     * O canal oficial do WhatsApp não entra por esta porta: no painel da Meta a
-     * URL do produto WhatsApp aponta para o Evolution v2, que traduz e nos
-     * entrega em `/api/webhooks/evolution`. O que sobra neste caminho é o evento
-     * de teste do painel e o `account_update` da conta — úteis no log, sem nada
-     * para enfileirar.
+     * Desde 2026-10-22 o canal oficial fala direto com a Graph API, e o inbound
+     * entra por aqui em vez de ser traduzido pelo Evolution v2. `account_update`
+     * e o `ping` de teste do painel viram lista vazia e param no 200 abaixo —
+     * não há o que enfileirar neles.
+     *
+     * Falhar alto numa fila fora do ar é o certo, igual ao Instagram: a Meta
+     * reenvia por sete dias, e responder 200 descartaria a mensagem do paciente.
      */
-    return NextResponse.json({ received: true })
+    try {
+        const eventos = readWhatsAppCloudEvent(corpo)
+        if (eventos.length === 0) return NextResponse.json({ received: true })
+
+        const resultado = await enqueueNormalizedEvents('meta-whatsapp', eventos)
+        return NextResponse.json({ received: true, ...resultado })
+    } catch (error) {
+        if (error instanceof MissingRedisUrlError) {
+            console.error('[META_WEBHOOK] REDIS_URL não está configurada')
+            return NextResponse.json({ error: 'Queue unavailable' }, { status: 503 })
+        }
+
+        console.error('[META_WEBHOOK] falha ao enfileirar evento do WhatsApp', error)
+        return NextResponse.json({ error: 'Enqueue failed' }, { status: 500 })
+    }
 }

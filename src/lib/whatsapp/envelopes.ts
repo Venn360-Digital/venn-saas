@@ -8,8 +8,8 @@ import { type ChannelProviderName, toMsisdn } from './types'
  *
  *   Evolution Go   { event: "Message", data: { Info: {...}, Message: {...} },
  *                    instanceId, instanceToken }
- *   Evolution v2   { event: "messages.upsert", instance: "name",
- *                    data: { key: {...}, message: {...} } }
+ *   Meta Cloud API { object: "whatsapp_business_account",
+ *                    entry: [{ id: wabaId, changes: [{ value: {...} }] }] }
  *
  * Normalising at the edge is what keeps the worker from branching on provider in
  * every processor.
@@ -33,6 +33,15 @@ export interface InstanceRef {
      * diferentes se achando pela mesma chave.
      */
     igAccountId?: string
+    /**
+     * WhatsApp oficial (Cloud API): o `phone_number_id` do número da clínica.
+     *
+     * Como o `igAccountId`, é id de conta e não nome de instância: a Meta dá uma
+     * URL de webhook por produto, e é este id — gravado em `config.phoneNumberId`
+     * no onboarding — que leva cada evento ao workspace. Campo próprio para não
+     * se confundir com o `instanceName` do Evolution, que era outra coisa.
+     */
+    phoneNumberId?: string
 }
 
 /** The provider-neutral event kinds the worker handles. */
@@ -299,132 +308,198 @@ function readGoMimetype(message: WhatsAppMessagePayload | undefined): string | u
 }
 
 // ---------------------------------------------------------------------------
-// Evolution API v2 (official Meta Cloud API channel)
+// Meta Cloud API (WhatsApp oficial, direto — sem Evolution)
 // ---------------------------------------------------------------------------
+//
+// O inbound do WhatsApp oficial passou a entrar direto da Meta, sem o Evolution
+// v2 no meio. O envelope é o do Cloud API:
+//
+//   { object: "whatsapp_business_account",
+//     entry: [{ id: <waba_id>,
+//       changes: [{ field: "messages",
+//         value: { metadata: { phone_number_id }, contacts: [...],
+//                  messages: [...], statuses: [...] } }] }] }
+//
+// Quem identifica a clínica é `metadata.phone_number_id` — gravado em
+// `config.phoneNumberId` no onboarding. A Meta agrupa vários `entry`, e cada
+// `value` pode trazer mensagens E recibos, então a função devolve lista.
+//
+// Puro de propósito: nenhuma IO, para ser conferido contra um corpo gravado.
 
-interface V2Envelope {
-    event?: string
-    instance?: string
-    data?: unknown
+interface CloudContact {
+    wa_id?: string
+    profile?: { name?: string }
 }
 
-interface V2Key {
+interface CloudMedia {
     id?: string
-    remoteJid?: string
-    fromMe?: boolean
+    mime_type?: string
+    caption?: string
+    filename?: string
 }
 
-/** v2 ack codes, numeric or symbolic depending on the release. */
-function v2AckStatus(status: unknown): NormalizedAck['status'] | null {
+interface CloudMessage {
+    from?: string
+    id?: string
+    type?: string
+    text?: { body?: string }
+    image?: CloudMedia
+    video?: CloudMedia
+    audio?: CloudMedia
+    document?: CloudMedia
+    sticker?: CloudMedia
+    reaction?: { message_id?: string; emoji?: string }
+    location?: { latitude?: number; longitude?: number; name?: string }
+    button?: { text?: string }
+    interactive?: {
+        button_reply?: { title?: string }
+        list_reply?: { title?: string }
+    }
+    errors?: unknown
+}
+
+interface CloudStatus {
+    id?: string
+    status?: string
+    recipient_id?: string
+}
+
+interface CloudValue {
+    metadata?: { phone_number_id?: string }
+    contacts?: CloudContact[]
+    messages?: CloudMessage[]
+    statuses?: CloudStatus[]
+}
+
+/**
+ * Traduz o tipo do Cloud API para o payload canônico que `decodeMessage` lê.
+ *
+ * O payload canônico é o do whatsmeow (`conversation`, `imageMessage`…), e o
+ * Cloud API não o fala — ele manda `{ type, text: { body } }`,
+ * `{ type: "image", image: { id, caption } }`, etc. Mapear aqui na borda é o que
+ * mantém o worker sem um `if` por canal, igual aos outros três provedores.
+ *
+ * **Mídia não tem URL aqui**, só `id`: por isso o payload de mídia vai sem
+ * `url`, e `decodeMessage` devolve `mediaUrl: null`. A busca dos bytes é a
+ * segunda etapa, por `downloadPayload` + `MetaWhatsAppProvider.downloadMedia`.
+ */
+function cloudPayload(message: CloudMessage): WhatsAppMessagePayload {
+    switch (message.type) {
+        case 'text':
+            return { conversation: message.text?.body ?? '' }
+        case 'image':
+            return { imageMessage: { caption: message.image?.caption ?? '' } }
+        case 'video':
+            return { videoMessage: { caption: message.video?.caption ?? '' } }
+        case 'audio':
+            return { audioMessage: {} }
+        case 'document':
+            return { documentMessage: { fileName: message.document?.filename ?? 'Documento' } }
+        case 'sticker':
+            return { stickerMessage: {} }
+        case 'reaction':
+            return { reactionMessage: { text: message.reaction?.emoji ?? '' } }
+        case 'location':
+            return {
+                locationMessage: {
+                    degreesLatitude: String(message.location?.latitude ?? ''),
+                    degreesLongitude: String(message.location?.longitude ?? ''),
+                },
+            }
+        case 'button':
+            // Resposta a um template com botões: o texto do botão é a resposta.
+            return { conversation: message.button?.text ?? '' }
+        case 'interactive':
+            return {
+                conversation:
+                    message.interactive?.button_reply?.title ??
+                    message.interactive?.list_reply?.title ??
+                    '',
+            }
+        default:
+            return { conversation: `[Tipo não suportado: ${message.type ?? 'sem tipo'}]` }
+    }
+}
+
+/** O `id` de mídia para a busca de bytes, quando a mensagem é de mídia. */
+function cloudDownloadPayload(message: CloudMessage): Record<string, unknown> | undefined {
+    const media =
+        message.image ?? message.video ?? message.audio ?? message.document ?? message.sticker
+    if (!media?.id) return undefined
+    return { mediaId: media.id, mimetype: media.mime_type }
+}
+
+function cloudAckStatus(status: string | undefined): NormalizedAck['status'] | null {
     switch (status) {
-        case 'SERVER_ACK':
-        case 2:
+        case 'sent':
             return 'sent'
-        case 'DELIVERY_ACK':
-        case 3:
+        case 'delivered':
             return 'delivered'
-        case 'READ':
-        case 'PLAYED':
-        case 4:
-        case 5:
+        case 'read':
             return 'read'
+        // "failed" não é recibo de entrega: é erro, e vira log no worker, não ack.
         default:
             return null
     }
 }
 
-export function readEvolutionV2Event(body: unknown): AnyNormalizedEvent[] {
-    const envelope = (body ?? {}) as V2Envelope
-    const rawEvent = envelope.event ?? 'unknown'
+export function readWhatsAppCloudEvent(body: unknown): AnyNormalizedEvent[] {
+    const raiz = (body ?? {}) as { entry?: unknown }
+    if (!Array.isArray(raiz.entry)) return []
 
-    const base: NormalizedEvent = {
-        provider: 'evolution-v2',
-        kind: 'unknown',
-        rawEvent,
-        instance: { instanceName: envelope.instance },
-    }
+    const eventos: AnyNormalizedEvent[] = []
 
-    switch (rawEvent) {
-        case 'messages.upsert': {
-            const data = (envelope.data ?? {}) as Record<string, unknown>
-            const key = (data.key ?? {}) as V2Key
-            const remoteJid = key.remoteJid ?? ''
+    for (const bruto of raiz.entry) {
+        const entry = (bruto ?? {}) as { changes?: unknown }
+        if (!Array.isArray(entry.changes)) continue
 
-            return [
-                {
+        for (const mudanca of entry.changes) {
+            const value = ((mudanca as { value?: CloudValue })?.value ?? {}) as CloudValue
+            const phoneNumberId = value.metadata?.phone_number_id
+
+            // Sem o número não há como achar o workspace: inútil enfileirar.
+            if (!phoneNumberId) continue
+
+            const base: NormalizedEvent = {
+                provider: 'meta-whatsapp',
+                kind: 'unknown',
+                rawEvent: 'whatsapp.messages',
+                instance: { phoneNumberId },
+            }
+
+            // O nome do perfil vem numa lista à parte, casada por wa_id.
+            const nomePorWaId = new Map<string, string>()
+            for (const c of value.contacts ?? []) {
+                if (c.wa_id && c.profile?.name) nomePorWaId.set(c.wa_id, c.profile.name)
+            }
+
+            for (const message of value.messages ?? []) {
+                const from = message.from ?? ''
+                eventos.push({
                     ...base,
                     kind: 'message',
-                    externalId: key.id,
-                    chatJid: remoteJid,
-                    fromMe: Boolean(key.fromMe),
-                    isGroup: remoteJid.endsWith('@g.us'),
-                    pushName: typeof data.pushName === 'string' ? data.pushName : undefined,
-                    profilePicUrl:
-                        typeof data.profilePicUrl === 'string' ? data.profilePicUrl : undefined,
-                    message: data.message as WhatsAppMessagePayload | undefined,
-                    // v2 never inlines media; the bytes need a follow-up call.
-                    downloadPayload: { key, message: data.message },
-                },
-            ]
+                    externalId: message.id,
+                    /**
+                     * O número cru, sem sufixo. O Cloud API não usa JID — o `from`
+                     * é o MSISDN. `toMsisdn` o atravessa sem mexer (não há `@`),
+                     * então o resto do caminho segue sem exceção.
+                     */
+                    chatJid: from,
+                    fromMe: false,
+                    isGroup: false,
+                    pushName: nomePorWaId.get(from),
+                    message: cloudPayload(message),
+                    downloadPayload: cloudDownloadPayload(message),
+                })
+            }
+
+            for (const status of value.statuses ?? []) {
+                const s = cloudAckStatus(status.status)
+                if (!status.id || !s) continue
+                eventos.push({ ...base, kind: 'message.ack', messageIds: [status.id], status: s })
+            }
         }
-
-        case 'messages.update': {
-            // v2 batches receipts; one normalized ack per entry.
-            const updates = Array.isArray(envelope.data) ? envelope.data : [envelope.data]
-
-            return updates.flatMap((update) => {
-                const entry = (update ?? {}) as Record<string, unknown> & { key?: V2Key }
-                const id = (entry.keyId as string) || entry.key?.id
-                const status = v2AckStatus(entry.status)
-                if (!id || !status) return []
-                return [{ ...base, kind: 'message.ack' as const, messageIds: [id], status }]
-            })
-        }
-
-        case 'send.message': {
-            const data = (envelope.data ?? {}) as Record<string, unknown>
-            const key = (data.key ?? {}) as V2Key
-            if (!key.id || !key.fromMe) return [{ ...base, kind: 'unknown' }]
-            return [
-                { ...base, kind: 'message.sent', externalId: key.id, chatJid: key.remoteJid },
-            ]
-        }
-
-        case 'connection.update': {
-            const data = (envelope.data ?? {}) as { state?: string }
-            const state =
-                data.state === 'open'
-                    ? ('connected' as const)
-                    : data.state === 'close'
-                      ? ('disconnected' as const)
-                      : ('connecting' as const)
-            return [{ ...base, kind: 'connection', state }]
-        }
-
-        case 'presence.update': {
-            const data = (envelope.data ?? {}) as Record<string, unknown>
-            const jid =
-                (typeof data.id === 'string' && data.id) ||
-                (typeof data.remoteJid === 'string' && data.remoteJid) ||
-                ''
-
-            const presences = data.presences as
-                | Record<string, { lastKnownPresence?: string } | undefined>
-                | undefined
-            const chatPresences = data.chatPresences as
-                | Array<{ lastKnownPresence?: string }>
-                | undefined
-
-            const presence =
-                presences?.[jid]?.lastKnownPresence ||
-                (typeof data.presence === 'string' ? data.presence : '') ||
-                chatPresences?.[0]?.lastKnownPresence ||
-                ''
-
-            return [{ ...base, kind: 'presence', chatJid: jid, isTyping: presence === 'composing' }]
-        }
-
-        default:
-            return [{ ...base, kind: 'unknown' }]
     }
+
+    return eventos
 }

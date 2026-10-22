@@ -3,16 +3,16 @@
  *
  * Two implementations sit behind it:
  *   - `evolution-go`  — Evolution Go (whatsmeow). Powers the QR channel.
- *   - `evolution-v2`  — Evolution API v2, restricted to WHATSAPP-BUSINESS, the
- *                       official Meta Cloud API. Baileys is deliberately not used.
+ *   - `meta-whatsapp` — Meta Cloud API, falando DIRETO com a Graph API, sem
+ *                       contêiner. Serve o canal oficial (whatsapp_business).
  *
- * The two differ more than a base URL: Evolution Go has no instance in the path
- * (the per-instance token selects it), returns a `{data, message}` envelope, and
- * emits whatsmeow-shaped webhook events. Everything provider-specific is confined
- * to the implementations; callers only see this interface.
+ * Eles diferem mais que uma URL: o Evolution Go tem socket e instância; o
+ * meta-whatsapp não tem nenhum dos dois (a Meta hospeda tudo) e o inbound chega
+ * por webhook da própria Meta. Tudo que é específico de provedor fica nas
+ * implementações; quem chama só vê esta interface.
  */
 
-export type ChannelProviderName = 'evolution-go' | 'evolution-v2' | 'meta-instagram'
+export type ChannelProviderName = 'evolution-go' | 'meta-whatsapp' | 'meta-instagram'
 
 /** `AgentIntegration.channel` values that carry WhatsApp. */
 export type WhatsAppChannel = 'whatsapp_qr' | 'whatsapp_business'
@@ -31,14 +31,15 @@ export type MessagingChannel = WhatsAppChannel | 'instagram'
  */
 export const WHATSAPP_PROVIDER: Record<WhatsAppChannel, ChannelProviderName> = {
     whatsapp_qr: 'evolution-go',
-    whatsapp_business: 'evolution-v2',
+    whatsapp_business: 'meta-whatsapp',
 }
 
 /**
  * Which implementation serves which channel.
  *
- * The QR channel moved from Evolution API v2 (Baileys) to Evolution Go
- * (whatsmeow); v2 is kept only for the official Business Cloud API.
+ * O canal QR é Evolution Go (whatsmeow); o oficial (whatsapp_business) fala
+ * direto com a Graph API da Meta. O Evolution API v2 foi aposentado — ele era
+ * um contêiner que só reescrevia JSON entre nós e a mesma Graph.
  *
  * O Instagram vai **direto à Meta**, sem intermediário: o Evolution não tem
  * canal de Instagram (medido em 2026-10-16: `grep -ri instagram` no repositório
@@ -74,6 +75,25 @@ export interface InstanceCredentials {
     phoneNumber?: string
     /** Presente só nas linhas de Instagram. Ver `InstagramCredentials`. */
     instagram?: InstagramCredentials
+    /** Presente só no canal oficial (whatsapp_business). Ver `BusinessCredentials`. */
+    business?: BusinessCredentials
+}
+
+/**
+ * Credenciais da Meta para uma linha oficial (Cloud API).
+ *
+ * Coletadas por integração no onboarding (`src/lib/meta/onboarding.ts`) e
+ * guardadas em `AgentIntegration.config.business`. Era definido em
+ * `evolution-v2.ts`; mudou de casa quando o v2 foi aposentado, porque quem as
+ * usa agora é o `meta-whatsapp`.
+ */
+export interface BusinessCredentials {
+    /** Token de acesso da Meta (alongado no onboarding). */
+    accessToken: string
+    /** O id do número no app da Meta, não o número discável. */
+    phoneNumberId: string
+    /** O id da conta de negócio do WhatsApp (WABA). */
+    businessId: string
 }
 
 /**

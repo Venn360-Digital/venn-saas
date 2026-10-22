@@ -70,6 +70,7 @@ jobs:
           npm run check:cofre
           npm run check:storage
           npm run check:tempo-real
+          npm run check:envelopes
 
       - name: Build
         run: npm run build

@@ -304,7 +304,6 @@ export default defineConfig({
             OPENAI_API_KEY: bindings.secret(),
             RESEND_API_KEY: bindings.secret(),
             EVOLUTION_GO_API_KEY: bindings.secret(),
-            EVOLUTION_API_KEY: bindings.secret(),
             /**
              * `GOOGLE_CLIENT_SECRET` saiu em 2026-10-21: é resquício, e nada o
              * lê. O `src/lib/google-oauth-client.ts` registra, no próprio
