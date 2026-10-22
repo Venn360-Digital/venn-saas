@@ -15,6 +15,8 @@ export interface Ambiente {
     EVOGO_AUTH_DB: string
     EVOGO_USERS_DB: string
     WEBHOOK_BASE_URL: string
+    /** Para onde o DO repassa os eventos — o webhook do app. */
+    APP_WEBHOOK_URL: string
     POC_TOKEN: string
     /**
      * `'true'` reata as sessões gravadas ao subir.
@@ -45,6 +47,8 @@ const CHAVE = {
     /** Nome e token da instância do Evolution Go que este contêiner serve. */
     INSTANCIA: 'instancia',
     TOKEN: 'token',
+    /** O nome da sala (id da integração), que o Worker passa no header. */
+    SALA: 'sala',
     JID: 'jid',
     /**
      * Sticky: setado quando `loggedIn` é visto `true`, limpo só no logout real.
@@ -385,32 +389,14 @@ export class CanalWhatsApp extends Container<Ambiente> {
      * o único jeito de endereçá-la.
      */
     private async garantirInstancia(): Promise<string> {
+        // Quem cria a instância é o APP (proxyada por aqui, e o token é farejado
+        // no `/instance/create`). O DO só a ADOTA — então aqui ele devolve o
+        // token guardado ou falha, sem criar nada por conta própria. Criar aqui
+        // faria o DO ter uma instância que o app não conhece, e o webhook dela
+        // nunca acharia a integração.
         const guardado = await this.ctx.storage.get<string>(CHAVE.TOKEN)
         if (guardado) return guardado
-
-        const nome = `ws-${this.ctx.id.toString().slice(0, 12)}`
-        const token = crypto.randomUUID()
-
-        const r = await this.containerFetch('http://localhost/instance/create', {
-            method: 'POST',
-            headers: { apikey: this.env.EVOLUTION_GO_API_KEY, 'content-type': 'application/json' },
-            body: JSON.stringify({ name: nome, token }),
-        })
-        if (!r.ok) {
-            // O corpo carrega a causa real — o Evolution Go roda a migração do
-            // próprio esquema aqui, e é por isso que `/server/ok` pode estar
-            // verde enquanto este caminho falha.
-            const dito = await r.text().catch(() => '')
-            throw new Error(`/instance/create respondeu ${r.status}: ${dito.slice(0, 400)}`)
-        }
-
-        const corpo = (await r.json().catch(() => ({}))) as { data?: { name?: string; token?: string } }
-        const efetivo = corpo.data?.token ?? token
-
-        await this.ctx.storage.put(CHAVE.INSTANCIA, corpo.data?.name ?? nome)
-        await this.ctx.storage.put(CHAVE.TOKEN, efetivo)
-        await this.registrar('instância criada', corpo.data?.name ?? nome)
-        return efetivo
+        throw new Error('instância não adotada: o app ainda não criou a linha neste contêiner')
     }
 
     private async consultarInstancia(): Promise<{
@@ -451,7 +437,7 @@ export class CanalWhatsApp extends Container<Ambiente> {
                 headers: { apikey: token, 'content-type': 'application/json' },
                 body: JSON.stringify({
                     immediate: true,
-                    webhookUrl: this.webhook(),
+                    webhookUrl: await this.webhook(),
                     subscribe: EVENTOS_ASSINADOS,
                 }),
             })
@@ -468,8 +454,11 @@ export class CanalWhatsApp extends Container<Ambiente> {
      * log —, mas a alternativa é um endpoint público que aceita evento de
      * qualquer um, e na POC ele dispara reinício de contêiner.
      */
-    private webhook(): string {
-        return `${this.env.WEBHOOK_BASE_URL}/entrada/${this.env.POC_TOKEN}/${this.ctx.id.toString()}`
+    private async webhook(): Promise<string> {
+        // A sala (id da integração) vem do header que o Worker põe; na ausência
+        // dela cai no id do objeto, que ao menos roteia de volta para cá.
+        const sala = (await this.ctx.storage.get<string>(CHAVE.SALA)) ?? this.ctx.id.toString()
+        return `${this.env.WEBHOOK_BASE_URL}/entrada/${this.env.POC_TOKEN}/${sala}`
     }
 
     // ----------------------------------------------------------- roteamento
@@ -517,39 +506,53 @@ export class CanalWhatsApp extends Container<Ambiente> {
             return Response.json((await this.ctx.storage.get<LinhaDoDiario[]>(CHAVE.DIARIO)) ?? [])
         }
 
-        if (url.pathname === '/poc/pareie' && pedido.method === 'POST') {
-            const token = await this.garantirInstancia()
-            const conectar = await this.containerFetch('http://localhost/instance/connect', {
-                method: 'POST',
-                headers: { apikey: token, 'content-type': 'application/json' },
-                body: JSON.stringify({
-                    immediate: true,
-                    webhookUrl: this.webhook(),
-                    subscribe: EVENTOS_ASSINADOS,
-                }),
-            })
-            if (!conectar.ok) {
-                return Response.json({ erro: `/instance/connect respondeu ${conectar.status}` }, { status: 502 })
-            }
-            await this.registrar('conectado', 'aguardando leitura do QR')
-
-            const qr = await this.containerFetch('http://localhost/instance/qr', { headers: { apikey: token } })
-            const corpo = (await qr.json().catch(() => ({}))) as { data?: Record<string, unknown> }
-            const d = corpo.data ?? (corpo as Record<string, unknown>)
-            const cru = (d.qrcode ?? d.Qrcode) as string | undefined
-            return Response.json({
-                qrcode: cru ? (cru.startsWith('data:') ? cru : `data:image/png;base64,${cru}`) : null,
-                code: (d.code ?? d.Code) ?? null,
-            })
-        }
-
         if (url.pathname === '/poc/pareou' && pedido.method === 'POST') {
             await this.pareou()
             return Response.json({ ok: true })
         }
 
-        // Tudo o mais é o Evolution Go. `fetch` (e não `containerFetch`) seria
-        // recursão; e é por aqui que o contêiner sobe na primeira chamada.
+        // --- API do Evolution Go, pela sala do app ----------------------
+        //
+        // O Worker põe `x-evo-sala`; o DO a guarda para saber o próprio nome —
+        // é com ela que monta o webhook e se endereça na reconexão.
+        const salaHeader = pedido.headers.get('x-evo-sala')
+        if (salaHeader && !(await this.ctx.storage.get<string>(CHAVE.SALA))) {
+            await this.ctx.storage.put(CHAVE.SALA, salaHeader)
+        }
+
+        // `/instance/connect`: o DO REESCREVE o `webhookUrl` para o SEU
+        // `/entrada`, para o segredo do webhook nunca sair daqui. O app manda o
+        // que mandar; o que vale é o deste contêiner.
+        if (url.pathname === '/instance/connect' && pedido.method === 'POST') {
+            const corpo = (await pedido.json().catch(() => ({}))) as Record<string, unknown>
+            corpo.webhookUrl = await this.webhook()
+            corpo.subscribe = EVENTOS_ASSINADOS
+            corpo.immediate = corpo.immediate ?? true
+            return this.containerFetch('http://localhost/instance/connect', {
+                method: 'POST',
+                headers: { apikey: pedido.headers.get('apikey') ?? '', 'content-type': 'application/json' },
+                body: JSON.stringify(corpo),
+            })
+        }
+
+        // `/instance/create`: proxia e FAREJA o token no corpo da resposta, para
+        // a vigia (consultar/reconectar) poder agir depois sem o app reenviá-lo.
+        if (url.pathname === '/instance/create' && pedido.method === 'POST') {
+            const r = await this.containerFetch(pedido)
+            try {
+                const corpo = (await r.clone().json()) as { data?: { name?: string; token?: string } }
+                if (corpo.data?.token) {
+                    await this.ctx.storage.put(CHAVE.TOKEN, corpo.data.token)
+                    await this.ctx.storage.put(CHAVE.INSTANCIA, corpo.data.name ?? '')
+                    await this.registrar('instância adotada', corpo.data.name ?? '')
+                }
+            } catch {
+                // corpo não-JSON (erro, 503 de licença…): nada a farejar.
+            }
+            return r
+        }
+
+        // Tudo o mais (envio, status, qr, mídia…) proxia direto.
         return this.containerFetch(pedido)
     }
 }

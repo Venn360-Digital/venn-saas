@@ -20,21 +20,24 @@ export function iguais(a: string, b: string): boolean {
     return diferenca === 0
 }
 
-/** As três naturezas de requisição que este Worker atende. */
-export type Rota = 'webhook' | 'manager' | 'api'
+/** As duas naturezas de requisição que este Worker atende. */
+export type Rota = 'webhook' | 'api'
 
 /**
- * Classifica pelo caminho, e a ordem importa.
+ * Classifica pelo caminho.
  *
- * `/entrada/` é primeiro porque é o único cuja autorização vem do próprio
- * caminho (o Evolution Go não assina os webhooks que emite, então o segredo
- * viaja na URL). `/manager` é a ativação da licença, atrás do token de pessoa.
- * Todo o resto é a API do Evolution Go, que chega pelo service binding do app.
+ * `/entrada/` é o webhook do Evolution Go — autorização no próprio caminho,
+ * porque ele não assina o que emite. Todo o resto é a API do Evolution Go
+ * (inclusive `/license/*`), que chega pelo service binding do app, guardada por
+ * gateway+sala.
+ *
+ * O `/manager` e o SPA de ativação saíram: a licença é ativada pelo servidor
+ * (`GET /license/activate?code=…`), e publicar a API administrativa inteira
+ * atrás de um proxy de cookie era o que o próprio código marcava como "não pode
+ * ir para produção".
  */
 export function classificarRota(pathname: string): Rota {
-    if (pathname.startsWith('/entrada/')) return 'webhook'
-    if (pathname === '/manager' || pathname.startsWith('/manager/')) return 'manager'
-    return 'api'
+    return pathname.startsWith('/entrada/') ? 'webhook' : 'api'
 }
 
 /**
