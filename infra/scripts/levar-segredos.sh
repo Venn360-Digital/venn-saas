@@ -51,7 +51,7 @@ APLICAR=0
 #   GOOGLE_CLIENT_SECRET   resquício. Nada o lê — ver o cabeçalho de
 #                          `src/lib/google-oauth-client.ts`.
 #   PUBLIC/PRIVATE_STORAGE_*  tokens de API do R2, criados no painel.
-CHAVES="OPENAI_API_KEY EVOLUTION_API_KEY EVOLUTION_GO_API_KEY"
+CHAVES="OPENAI_API_KEY EVOLUTION_GO_API_KEY"
 
 PADRAO=$(echo "$CHAVES" | tr ' ' '|')
 TMP=$(mktemp)

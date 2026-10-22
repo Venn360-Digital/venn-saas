@@ -29,9 +29,9 @@ const AGENT_INCLUDE = {
  * Find the integration a webhook event belongs to.
  *
  * The providers identify instances differently: Evolution Go sends `instanceId`
- * and `instanceToken` (no name at all), while Evolution v2 sends only the instance
- * name. Both end up in the same `config` JSON, so each key is tried in order of how
- * strongly it identifies the row.
+ * and `instanceToken` (no name at all), while the Meta channels (WhatsApp oficial
+ * e Instagram) send an account id — phone_number_id ou igAccountId. Todos caem no
+ * mesmo `config` JSON, e cada chave é tentada na ordem em que identifica a linha.
  *
  * O Instagram entra por um quarto caminho, o id da conta profissional: a Meta dá
  * **uma URL de webhook por produto**, então os eventos de todas as clínicas
@@ -47,6 +47,12 @@ export async function findIntegrationByRef(
     if (ref.instanceName) candidates.push({ path: ['instanceName'], value: ref.instanceName })
     if (ref.igAccountId) {
         candidates.push({ path: ['instagram', 'igAccountId'], value: ref.igAccountId })
+    }
+    // WhatsApp oficial: o inbound vem da Meta na mesma porta de todas as
+    // clínicas, e é o phone_number_id (gravado em config.phoneNumberId) que diz
+    // de quem é. Como o igAccountId do Instagram, é id de conta, não instância.
+    if (ref.phoneNumberId) {
+        candidates.push({ path: ['phoneNumberId'], value: ref.phoneNumberId })
     }
 
     for (const { path, value } of candidates) {

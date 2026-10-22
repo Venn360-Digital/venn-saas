@@ -1,7 +1,7 @@
 import type { AgentIntegration, Prisma } from '#prisma'
 import { instagramDirect } from '@/lib/instagram/provider'
 import { evolutionGo } from './evolution-go'
-import { evolutionV2, type BusinessCredentials } from './evolution-v2'
+import { metaWhatsApp } from './meta-whatsapp'
 import {
     CHANNEL_PROVIDER,
     WHATSAPP_PROVIDER,
@@ -14,7 +14,7 @@ import {
 export * from './types'
 export * from './envelopes'
 export { EvolutionGoProvider, evolutionGo, SUBSCRIBED_EVENTS } from './evolution-go'
-export { EvolutionV2Provider, evolutionV2, type BusinessCredentials } from './evolution-v2'
+export { MetaWhatsAppProvider, metaWhatsApp } from './meta-whatsapp'
 export {
     decodeMessage,
     type ContentType,
@@ -25,7 +25,7 @@ export {
 
 const PROVIDERS: Record<ChannelProviderName, ChannelProvider> = {
     'evolution-go': evolutionGo,
-    'evolution-v2': evolutionV2,
+    'meta-whatsapp': metaWhatsApp,
     'meta-instagram': instagramDirect,
 }
 
@@ -58,8 +58,8 @@ export function hasProvider(channel: string): boolean {
 /**
  * Resolve the implementation that serves an integration's channel.
  *
- * `whatsapp_qr` is Evolution Go (whatsmeow); `whatsapp_business` is Evolution v2
- * against Meta's Cloud API.
+ * `whatsapp_qr` is Evolution Go (whatsmeow); `whatsapp_business` is meta-whatsapp,
+ * talking directly to Meta's Cloud API.
  */
 export function providerForChannel(channel: string): ChannelProvider {
     if (!hasProvider(channel)) {
@@ -68,11 +68,14 @@ export function providerForChannel(channel: string): ChannelProvider {
     return getProvider(CHANNEL_PROVIDER[channel as keyof typeof CHANNEL_PROVIDER])
 }
 
-/** Shape of what we keep in `AgentIntegration.config`. */
-export interface IntegrationConfig extends InstanceCredentials {
-    /** Meta credentials, for the Business channel only. */
-    business?: BusinessCredentials
-}
+/**
+ * Shape of what we keep in `AgentIntegration.config`.
+ *
+ * É `InstanceCredentials` sem acréscimo: `business` (canal oficial) e
+ * `instagram` já moram lá. Antes declarava `business` aqui porque o tipo vinha
+ * do `evolution-v2.ts`; com o v2 aposentado, ele passou para `types.ts`.
+ */
+export type IntegrationConfig = InstanceCredentials
 
 export function readIntegrationConfig(integration: AgentIntegration): IntegrationConfig {
     const config = (integration.config ?? {}) as Partial<IntegrationConfig>
@@ -105,6 +108,7 @@ export function readIntegrationConfig(integration: AgentIntegration): Integratio
         phoneNumber: config.phoneNumber,
         business: config.business,
     }
+    // (business segue aqui: o canal oficial o lê de config.business)
 }
 
 
@@ -164,12 +168,13 @@ export function webhookUrlFor(providerName: ChannelProviderName): string {
      * quem procurar o webhook do Instagram ache o caminho em vez de concluir
      * que não existe.
      */
+    /**
+     * O WhatsApp oficial e o Instagram compartilham `/api/webhooks/meta`: os dois
+     * são produtos da Meta, que posta na mesma porta e nós roteamos por id de
+     * conta. Só o Evolution Go tem porta própria, porque é quem tem instância.
+     */
     const path =
-        providerName === 'evolution-go'
-            ? '/api/webhooks/evolution-go'
-            : providerName === 'meta-instagram'
-              ? '/api/webhooks/meta'
-              : '/api/webhooks/evolution'
+        providerName === 'evolution-go' ? '/api/webhooks/evolution-go' : '/api/webhooks/meta'
 
     return `${base}${path}`
 }

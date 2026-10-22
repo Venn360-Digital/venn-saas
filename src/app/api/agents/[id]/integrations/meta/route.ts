@@ -13,7 +13,6 @@ import {
     registrarNumero,
     trocarCodigoPorToken,
 } from '@/lib/meta/onboarding'
-import { evolutionV2, webhookUrlFor } from '@/lib/whatsapp'
 
 export const runtime = 'nodejs'
 
@@ -97,18 +96,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         // 3 — coexistência já vem registrada.
         const registro = await registrarNumero(dados.phoneNumberId, token, pin)
 
-        // 4 — o provedor que fala com a Meta daqui para frente.
-        await evolutionV2.createInstance(
-            instanceName,
-            {
-                accessToken: token,
-                phoneNumberId: dados.phoneNumberId,
-                businessId: dados.wabaId,
-            },
-            webhookUrlFor('evolution-v2')
-        )
-
-        // 5 — a ponte entre o evento que chega e o workspace.
+        /**
+         * Não há passo de provedor aqui, e essa é a mudança de 2026-10-22.
+         *
+         * Antes este ponto chamava `evolutionV2.createInstance` — um contêiner
+         * que passaria a reescrever JSON entre nós e a Graph. Agora falamos
+         * direto com a Meta (`meta-whatsapp`), e o que "conecta" o número já
+         * aconteceu no passo 2: `assinarContaAoApp` faz a Meta postar os eventos
+         * desta conta no nosso webhook de aplicativo (`/api/webhooks/meta`).
+         * Então entre o registro e gravar a linha não sobra nada a fazer.
+         *
+         * O `config.business` é o que o provedor lê para enviar; o
+         * `config.phoneNumberId` é por onde o inbound acha esta linha.
+         */
         const integracao = await prisma.agentIntegration.create({
             data: {
                 agentId,
@@ -119,6 +119,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 config: {
                     instanceName,
                     accessToken: token,
+                    business: {
+                        accessToken: token,
+                        phoneNumberId: dados.phoneNumberId,
+                        businessId: dados.wabaId,
+                    },
                     /**
                      * Quando o token morre — `null` quando não morre.
                      *

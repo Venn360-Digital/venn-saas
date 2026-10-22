@@ -41,6 +41,7 @@ jobs:
           npm run check:cofre
           npm run check:storage
           npm run check:tempo-real
+          npm run check:envelopes
       - run: npm run build
       - run: npm run build:vinext
 
