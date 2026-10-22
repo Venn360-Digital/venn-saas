@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { accountIdOf, assinaturaDaUnidade, unidadesDaConta, type Unidades } from '@/lib/account'
 import { limitesEfetivos, planNameFor } from '@/lib/plan-limits'

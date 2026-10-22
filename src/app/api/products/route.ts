@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { SCHEDULABLE_CATEGORIES, isSchedulable } from '@/lib/product-categories'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
 
 const productSchema = z.object({

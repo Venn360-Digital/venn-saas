@@ -1,20 +1,38 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+/**
+ * DOIS clientes gerados, e não é duplicação — é exigência medida.
+ *
+ * O cliente com `runtime = "workerd"` importa o engine wasm e **só funciona
+ * dentro de um bundler que resolva esse import**. Em Node ele falha com
+ * "The loaded wasm module was unexpectedly `undefined` or `null` once loaded"
+ * (medido em 2026-10-22). O inverso também vale: o de Node não serve ao Worker.
+ *
+ * O gerador antigo (`prisma-client-js`) não resolvia isso de jeito nenhum: o
+ * wasm dele mora dentro de `node_modules` e o plugin Vite da Cloudflare não o
+ * empacotava — o deploy subia sem `.wasm` e toda consulta morria em
+ * `PrismaClientInitializationError`. No gerador novo o wasm é emitido DENTRO da
+ * saída, como arquivo do projeto, e o bundler o vê.
+ *
+ * Quem escolhe entre os dois é o campo `imports` do `package.json`, pela
+ * condição `workerd`. Ver `#prisma` lá.
+ */
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "esm"
 
-  // Os driver adapters — o que permite o Prisma falar com o Postgres por um
-  // driver de JavaScript em vez do engine nativo, condição para rodar em
-  // Cloudflare Workers, que não carrega binário — já são GA no 6.19.3 e saíram
-  // desta lista: declará-los aqui só imprime aviso de recurso obsoleto. Ver
-  // `src/lib/prisma.ts`.
-  //
-  // Ficamos no Prisma 6 de propósito: o 7 é melhor para Workers (sem engine
-  // Rust, bundle menor), mas é **ESM only**, e o processo `workers/` compila em
-  // CJS e precisa seguir de pé até as Queues e os Cron Triggers assumirem as 8
-  // filas e os 13 crons. O 7 entra depois disso. Ver
-  // `docs/migration/01-compatibility.md` §2.
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+generator clientWorkerd {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma-workerd"
+  runtime      = "workerd"
+  moduleFormat = "esm"
+
   previewFeatures = ["postgresqlExtensions"]
 }
 

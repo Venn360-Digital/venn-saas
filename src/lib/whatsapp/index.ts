@@ -1,4 +1,4 @@
-import type { AgentIntegration, Prisma } from '@prisma/client'
+import type { AgentIntegration, Prisma } from '#prisma'
 import { instagramDirect } from '@/lib/instagram/provider'
 import { evolutionGo } from './evolution-go'
 import { evolutionV2, type BusinessCredentials } from './evolution-v2'

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'

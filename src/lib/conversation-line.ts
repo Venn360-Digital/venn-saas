@@ -1,4 +1,4 @@
-import type { AgentIntegration } from '@prisma/client'
+import type { AgentIntegration } from '#prisma'
 import prisma from '@/lib/prisma'
 
 /**

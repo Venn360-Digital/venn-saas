@@ -1,4 +1,4 @@
-import type { Contact, Conversation } from '@prisma/client'
+import type { Contact, Conversation } from '#prisma'
 import prisma from '@/lib/prisma'
 import { phoneVariants } from '@/lib/whatsapp/types'
 import { withLock } from '@/trabalhos/trava'

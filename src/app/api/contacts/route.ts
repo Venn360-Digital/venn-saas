@@ -1,7 +1,7 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
 import { phoneVariants } from '@/lib/whatsapp/types'

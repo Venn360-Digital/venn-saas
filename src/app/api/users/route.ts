@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { auth } from '@/lib/auth/better-auth'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
 
 // Schema for creating a new user

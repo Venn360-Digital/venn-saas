@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '#prisma'
 import { cookies } from 'next/headers'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'

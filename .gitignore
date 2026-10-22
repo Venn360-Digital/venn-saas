@@ -82,3 +82,7 @@ poc/*/node_modules/
 
 # Gerado pelo `next dev` (agentRules). Artefato, não fonte.
 AGENTS.md
+
+# Clientes do Prisma, gerados por `prisma generate` (dois runtimes).
+# Carregam o engine nativo de ~21 MB cada: artefato, nunca fonte.
+src/generated/

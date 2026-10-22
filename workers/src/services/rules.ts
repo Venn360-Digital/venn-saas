@@ -1,4 +1,4 @@
-import type { Agent } from '@prisma/client'
+import type { Agent } from '#prisma'
 import prisma from '@/lib/prisma'
 import { RuleEvaluator } from '@/lib/rules/evaluator'
 import { RuleExecutor } from '@/lib/rules/executor'

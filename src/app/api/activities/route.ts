@@ -5,7 +5,7 @@ import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { currentMembership, getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
 import { syncActivityToGoogleCalendar } from '@/lib/google-calendar'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
 
 const activitySchema = z.object({

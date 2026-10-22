@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { renovarToken } from '@/lib/instagram/login'
 import type { InstagramCredentials } from '@/lib/whatsapp'

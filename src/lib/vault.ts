@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { definidoNoAmbiente, nomeDeAmbiente, segredoDeAmbiente } from '@/lib/secrets/ambiente'
 import { cifrar, decifrar } from '@/lib/secrets/envelope'

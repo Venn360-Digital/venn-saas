@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { phoneFromConfig } from '@/lib/conversation-line'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { avisarConversaAlterada , publicarAgora } from '@/lib/outbox/avisar'
 
 // GET: Get conversation details with messages

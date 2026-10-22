@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '#prisma'
 
 /**
  * As três perguntas que a clínica faz todo dia ao funil.
