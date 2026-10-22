@@ -309,6 +309,22 @@ export interface ChannelProvider {
         credentials: InstanceCredentials,
         raw: Record<string, unknown>
     ): Promise<DownloadedMedia | null>
+
+    /**
+     * Confirma leitura das mensagens recebidas (os checks azuis).
+     *
+     * Opcional, porque nem todo provedor precisa: o Cloud API da Meta hospeda a
+     * sessão e já confirma a entrega sozinho. O Evolution Go/whatsmeow, não —
+     * medido em 2026-10-22, com o aparelho primário da clínica desligado o
+     * recibo de entrega automático **não dispara**, e o paciente vê um check só,
+     * como se a clínica não tivesse recebido (mesmo já estando no app). Chamado
+     * quando o agente abre e lê a conversa, então o check reflete a verdade.
+     */
+    markRead?(
+        credentials: InstanceCredentials,
+        to: string,
+        messageIds: string[]
+    ): Promise<void>
 }
 
 /** Thrown for a non-2xx provider response, so callers can read the status. */

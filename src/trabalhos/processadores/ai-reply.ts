@@ -201,6 +201,29 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
         return
     }
 
+    // Confirma leitura ao paciente quando o agente abre a conversa.
+    //
+    // Honesto — o agente leu — e é o que faz o check virar azul mesmo com o
+    // aparelho da clínica desligado: sem isto, o recibo de entrega automático do
+    // whatsmeow não dispara e o paciente vê um check só, como se a clínica não
+    // tivesse recebido (medido 2026-10-22). Melhor-esforço, nunca fatal; e no-op
+    // nos provedores sem `markRead` (o Cloud API da Meta já confirma sozinho).
+    if (integration && to) {
+        try {
+            const ultimaRecebida = await prisma.message.findFirst({
+                where: { conversationId, direction: 'inbound', externalId: { not: null } },
+                orderBy: { createdAt: 'desc' },
+                select: { externalId: true },
+            })
+            if (ultimaRecebida?.externalId) {
+                const { provider, credentials } = providerFor(integration)
+                await provider.markRead?.(credentials, to, [ultimaRecebida.externalId])
+            }
+        } catch (error) {
+            log.debug('could not mark read', error)
+        }
+    }
+
     // Typing indicator while the model works. Cosmetic, never fatal.
     if (prefs.showTypingIndicator && integration) {
         try {

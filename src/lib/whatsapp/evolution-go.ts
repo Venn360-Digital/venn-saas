@@ -593,6 +593,22 @@ export class EvolutionGoProvider implements ChannelProvider {
         })
     }
 
+    /**
+     * POST /message/markread — confirma leitura (checks azuis).
+     *
+     * `id` é **array** de propósito: medido em 2026-10-22, o struct recusa string
+     * (`cannot unmarshal string into []string`). Marcar a última recebida já
+     * cobre as anteriores do mesmo chat. Resolve o "um check só" quando o aparelho
+     * primário da clínica está desligado — ver `ChannelProvider.markRead`.
+     */
+    async markRead(credentials: InstanceCredentials, to: string, messageIds: string[]): Promise<void> {
+        if (messageIds.length === 0) return
+        await this.request<unknown>('/message/markread', this.salaDe(credentials), this.tokenOf(credentials, '/message/markread'), {
+            method: 'POST',
+            body: JSON.stringify({ number: normalizeNumber(to), id: messageIds }),
+        })
+    }
+
     async sendPresence(
         credentials: InstanceCredentials,
         to: string,
