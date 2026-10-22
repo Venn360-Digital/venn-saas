@@ -1,7 +1,13 @@
 import prisma from '@/lib/prisma'
 import { getBillingState, spendCredits } from '@/lib/billing'
 import { LLMProviderName } from '@/types/llm'
-import { Decimal } from '@prisma/client/runtime/library'
+/**
+ * `Decimal` sai do cliente gerado, não de `@prisma/client/runtime/library`.
+ *
+ * Com o gerador novo, o runtime depende do destino (Node ou workerd), e apontar
+ * para um caminho fixo dentro de `@prisma/client` amarraria este arquivo a um
+ * dos dois. `Prisma.Decimal` é reexportado pelos dois clientes.
+ */
 import { Prisma } from '#prisma'
 import { findModel, findTtsModel } from './models'
 
@@ -95,7 +101,7 @@ export async function trackUsage(
             promptTokens: usage.promptTokens,
             completionTokens: usage.completionTokens,
             totalTokens: usage.totalTokens,
-            costUsd: new Decimal(costUsd),
+            costUsd: new Prisma.Decimal(costUsd),
             metadata: context.metadata as Prisma.InputJsonValue ?? undefined,
         }
     })
@@ -221,7 +227,7 @@ export async function trackSpeechUsage(
             promptTokens: 0,
             completionTokens: 0,
             totalTokens: 0,
-            costUsd: new Decimal(costUsd),
+            costUsd: new Prisma.Decimal(costUsd),
             metadata: {
                 ...(context.metadata ?? {}),
                 kind: 'tts',
