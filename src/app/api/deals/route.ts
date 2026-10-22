@@ -81,7 +81,7 @@ const dealInclude = {
         take: 1,
         select: { id: true, title: true, type: true, dueDate: true, startTime: true },
     },
-} satisfies import('@prisma/client').Prisma.DealInclude
+} satisfies import('#prisma').Prisma.DealInclude
 
 // GET - List deals with optional filters
 export async function GET(request: NextRequest) {
