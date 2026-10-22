@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createdViaLabel } from '@/lib/created-via'
 import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
 
 // GET - Export contacts as CSV

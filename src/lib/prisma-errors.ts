@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 
 /**
  * Reconhecimento de erros do Prisma, tipado.

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import prisma from '@/lib/prisma'
 import { manageAgent } from '@/lib/auth/agent'
 import { lineName, phoneFromConfig } from '@/lib/conversation-line'
-import type { AgentIntegration } from '@prisma/client'
+import type { AgentIntegration } from '#prisma'
 import {
     CHANNEL_PROVIDER,
     ChannelProviderError,

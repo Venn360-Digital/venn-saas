@@ -1,5 +1,5 @@
 import { addDays, addMonths, addWeeks, addYears, isAfter, startOfDay } from 'date-fns'
-import type { Activity } from '@prisma/client'
+import type { Activity } from '#prisma'
 import prisma from '@/lib/prisma'
 import { env } from '../../env'
 import { createLogger } from '../../logger'

@@ -1,4 +1,4 @@
-import type { Agent } from '@prisma/client'
+import type { Agent } from '#prisma'
 import type { ConversationContext } from './conversation-context'
 import {
     type AgentPreferences,

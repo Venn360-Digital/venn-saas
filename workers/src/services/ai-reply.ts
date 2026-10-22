@@ -1,4 +1,4 @@
-import type { Agent, Message } from '@prisma/client'
+import type { Agent, Message } from '#prisma'
 import prisma from '@/lib/prisma'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'

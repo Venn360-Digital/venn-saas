@@ -2,7 +2,7 @@ import prisma from '@/lib/prisma'
 import { getBillingState, spendCredits } from '@/lib/billing'
 import { LLMProviderName } from '@/types/llm'
 import { Decimal } from '@prisma/client/runtime/library'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { findModel, findTtsModel } from './models'
 
 

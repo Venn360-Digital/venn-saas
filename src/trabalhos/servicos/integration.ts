@@ -1,4 +1,4 @@
-import type { Account, Agent, AgentIntegration, Subscription, Workspace } from '@prisma/client'
+import type { Account, Agent, AgentIntegration, Subscription, Workspace } from '#prisma'
 import prisma from '@/lib/prisma'
 import {
     type IntegrationConfig,

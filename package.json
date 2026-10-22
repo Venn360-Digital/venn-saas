@@ -2,6 +2,12 @@
   "name": "venn.odontobox360",
   "version": "0.1.0",
   "private": true,
+  "imports": {
+    "#prisma": {
+      "workerd": "./src/generated/prisma-workerd/client.ts",
+      "default": "./src/generated/prisma/client.ts"
+    }
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",

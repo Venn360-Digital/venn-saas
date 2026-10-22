@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'

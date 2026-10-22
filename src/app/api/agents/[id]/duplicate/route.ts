@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { assinaturaDaUnidade } from '@/lib/account'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '#prisma'
 
 // POST - Duplicar agente
 export async function POST(

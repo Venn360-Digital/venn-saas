@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '#prisma'
 
 /**
  * O período, aplicado ao campo que a pergunta pede.
