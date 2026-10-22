@@ -259,6 +259,20 @@ export default defineConfig({
              * os dois buckets estavam com 0 objetos — conferido antes de mexer.
              * O bucket antigo ficou órfão e pode ser apagado.
              */
+            /**
+             * O canal QR do WhatsApp — o contêiner do Evolution Go, em outro
+             * Worker (`odontobox-evolution`, hoje ainda `poc-canal-whatsapp`).
+             *
+             * Service binding e não URL pública: a API administrativa do
+             * Evolution Go (criar instância, parear número) não pode ficar
+             * exposta na internet atrás de um token. O binding é interno —
+             * chamada Worker→Worker que não sai da Cloudflare — e é a própria
+             * fronteira de autorização. O app ainda manda `x-evo-gateway` (a
+             * chave global) como defesa em profundidade e `x-evo-sala` (o id da
+             * integração) para rotear ao contêiner certo.
+             */
+            EVOLUTION_GO: bindings.worker({ worker: 'poc-canal-whatsapp' }),
+
             PUBLICO: bindings.r2({ name: 'odontobox-public' }),
 
             // Variáveis, só o que não é segredo.
