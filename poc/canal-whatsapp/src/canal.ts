@@ -17,6 +17,17 @@ export interface Ambiente {
     WEBHOOK_BASE_URL: string
     /** Para onde o DO repassa os eventos — o webhook do app. */
     APP_WEBHOOK_URL: string
+    /**
+     * Service binding para o Worker do app (`odontobox`).
+     *
+     * O repasse de evento vai por aqui, não por `fetch` público do
+     * `APP_WEBHOOK_URL`: um Worker buscando o `workers.dev` de outro Worker da
+     * MESMA conta não atravessa de forma confiável (a borda trata como laço de
+     * mesma zona), e o evento se perdia calado — medido em 2026-10-22. O binding
+     * é o caminho que a Cloudflare recomenda, e o mesmo que a direção
+     * app→contêiner já usa. Opcional: sem ele, cai no `fetch` público.
+     */
+    APP?: Fetcher
     POC_TOKEN: string
     /**
      * `'true'` reata as sessões gravadas ao subir.
@@ -61,6 +72,17 @@ const CHAVE = {
     PAREOU_EM: 'pareouEm',
     ULTIMO_REINICIO: 'ultimoReinicio',
     FALHAS: 'falhas',
+    /**
+     * Se o webhook já foi (re)armado NESTA subida do contêiner.
+     *
+     * Resetado no `onStart`: o webhook do Evolution Go mora na requisição de
+     * `/instance/connect` e **não sobrevive ao restart** (medido 2026-10-22) — a
+     * sessão volta saudável, mas sem webhook, e o inbound para calado porque o
+     * vigia só re-arma quando o socket cai. Ver `rearmarWebhook`.
+     */
+    WEBHOOK_ARMADO: 'webhookArmado',
+    /** Quando o contêiner subiu — teto de tempo para o re-arme desistir. */
+    BOOT_EM: 'bootEm',
     DIARIO: 'diario',
 } as const
 
@@ -206,9 +228,15 @@ export class CanalWhatsApp extends Container<Ambiente> {
 
     override async onStart(): Promise<void> {
         await this.registrar('contêiner de pé')
+        // Contêiner novo: o webhook do Evolution Go não sobrevive ao restart, e
+        // precisa ser re-aplicado assim que a sessão logar (ver WEBHOOK_ARMADO).
+        await this.ctx.storage.put(CHAVE.WEBHOOK_ARMADO, false)
+        await this.ctx.storage.put(CHAVE.BOOT_EM, Date.now())
         // O vigia é reagendado a cada subida: um contêiner novo não herda o
         // agendamento do anterior.
         await this.schedule(VIGIA.INTERVALO_MS / 1000, 'ronda')
+        // E o re-arme do webhook logo após subir, sem esperar a ronda (até 5 min).
+        await this.schedule(40, 'rearmarWebhook')
     }
 
     override async onStop({ exitCode, reason }: { exitCode: number; reason: string }): Promise<void> {
@@ -250,6 +278,36 @@ export class CanalWhatsApp extends Container<Ambiente> {
         await this.ctx.storage.put(CHAVE.PAREOU_EM, Date.now())
         await this.registrar('PairSuccess recebido', 'janela de reinício aberta')
         await this.schedule(1, 'avaliarReinicio')
+    }
+
+    /**
+     * Re-arma o webhook logo após a subida do contêiner.
+     *
+     * O webhook some no restart (ver `armarWebhook`), e o vigia só re-arma no
+     * socket caído — numa reconexão saudável ele nunca perceberia, e o inbound
+     * pararia calado com a sessão de pé. Agendado pelo `onStart`: espera a sessão
+     * logar e re-arma uma vez. Desiste após ~5 min (o `ronda` é a rede), para não
+     * ficar acordando um contêiner que não tem sessão a defender.
+     */
+    async rearmarWebhook(): Promise<void> {
+        if (await this.ctx.storage.get<boolean>(CHAVE.WEBHOOK_ARMADO)) return
+        // Sem instância adotada não há webhook a armar.
+        if (!(await this.ctx.storage.get<string>(CHAVE.TOKEN))) return
+
+        const estado = await this.consultarInstancia()
+        if (!estado.loggedIn) {
+            const bootEm = (await this.ctx.storage.get<number>(CHAVE.BOOT_EM)) ?? 0
+            if (Date.now() - bootEm < 5 * 60_000) await this.schedule(20, 'rearmarWebhook')
+            return
+        }
+
+        try {
+            await this.armarWebhook()
+            await this.ctx.storage.put(CHAVE.WEBHOOK_ARMADO, true)
+            await this.registrar('webhook re-armado', 'após subida do contêiner')
+        } catch (erro) {
+            await this.registrar('re-armar webhook falhou', String(erro))
+        }
     }
 
     /**
@@ -324,6 +382,20 @@ export class CanalWhatsApp extends Container<Ambiente> {
                 pareado = Date.now()
                 await this.ctx.storage.put(CHAVE.PAREADO, pareado)
                 await this.registrar('vigia: sessão pareada detectada', 'loggedIn=true')
+            }
+
+            // Rede de segurança do re-arme pós-restart: se `rearmarWebhook` não
+            // deu conta (desistiu após 5 min, ou a sessão demorou a voltar), o
+            // vigia re-arma na primeira ronda em que a vir logada. O webhook some
+            // no restart e sem ele o inbound para calado — ver WEBHOOK_ARMADO.
+            if (!(await this.ctx.storage.get<boolean>(CHAVE.WEBHOOK_ARMADO))) {
+                try {
+                    await this.armarWebhook()
+                    await this.ctx.storage.put(CHAVE.WEBHOOK_ARMADO, true)
+                    await this.registrar('webhook re-armado', 'pelo vigia')
+                } catch (erro) {
+                    await this.registrar('re-armar webhook falhou', String(erro))
+                }
             }
         }
 
@@ -429,18 +501,31 @@ export class CanalWhatsApp extends Container<Ambiente> {
         }
     }
 
+    /**
+     * Aplica o webhook (e a assinatura) no Evolution Go via `/instance/connect`.
+     *
+     * É o único lugar onde o webhook é definido — e ele **não sobrevive ao
+     * restart** do contêiner (mora na requisição, não no banco; medido
+     * 2026-10-22). Por isso não serve só à reconexão de socket caído: o contêiner
+     * também re-aplica ao subir (ver `rearmarWebhook`/`ronda`). Em sessão logada,
+     * reemitir o connect re-arma o webhook sem derrubar a sessão (medido).
+     */
+    private async armarWebhook(): Promise<void> {
+        const token = await this.garantirInstancia()
+        await this.containerFetch('http://localhost/instance/connect', {
+            method: 'POST',
+            headers: { apikey: token, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                immediate: true,
+                webhookUrl: await this.webhook(),
+                subscribe: EVENTOS_ASSINADOS,
+            }),
+        })
+    }
+
     private async reconectar(): Promise<void> {
         try {
-            const token = await this.garantirInstancia()
-            await this.containerFetch('http://localhost/instance/connect', {
-                method: 'POST',
-                headers: { apikey: token, 'content-type': 'application/json' },
-                body: JSON.stringify({
-                    immediate: true,
-                    webhookUrl: await this.webhook(),
-                    subscribe: EVENTOS_ASSINADOS,
-                }),
-            })
+            await this.armarWebhook()
         } catch (erro) {
             await this.registrar('reconexão falhou', String(erro))
         }
