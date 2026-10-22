@@ -148,6 +148,19 @@ export function resolveIntegration(integration: AgentIntegration): {
  * provider cannot reach localhost.
  */
 export function webhookUrlFor(providerName: ChannelProviderName): string {
+    /**
+     * O canal QR (evolution-go) NÃO usa esta URL.
+     *
+     * O Worker do contêiner reescreve o `webhookUrl` no `/instance/connect` para
+     * o seu próprio `/entrada`, onde o segredo mora (ver `canal.ts`). Então o
+     * app não precisa — nem deve — montar a URL aqui: exigir `WEBHOOK_BASE_URL`
+     * num Worker que não o tem quebrava o connect (medido 2026-10-22). O valor é
+     * descartado pelo contêiner; o placeholder só satisfaz a assinatura.
+     */
+    if (providerName === 'evolution-go') {
+        return 'https://reescrito-pelo-container.invalid/entrada'
+    }
+
     const base = (process.env.WEBHOOK_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '').replace(
         /\/$/,
         ''
@@ -173,8 +186,6 @@ export function webhookUrlFor(providerName: ChannelProviderName): string {
      * são produtos da Meta, que posta na mesma porta e nós roteamos por id de
      * conta. Só o Evolution Go tem porta própria, porque é quem tem instância.
      */
-    const path =
-        providerName === 'evolution-go' ? '/api/webhooks/evolution-go' : '/api/webhooks/meta'
-
-    return `${base}${path}`
+    // Aqui só chegam os provedores Meta (o evolution-go retornou acima).
+    return `${base}/api/webhooks/meta`
 }
