@@ -59,11 +59,6 @@ const CONDICOES_DO_WORKER = ["workerd", "worker", "module", "import", "default"]
  */
 const RESOLVE_DO_WORKER = {
   conditions: CONDICOES_DO_WORKER,
-  alias: {
-    "@/lib/prisma-adapters": fileURLToPath(
-      new URL("./src/lib/prisma-adapters.workerd.ts", import.meta.url),
-    ),
-  },
 };
 
 export default defineConfig({
@@ -76,6 +71,30 @@ export default defineConfig({
       },
     }),
   ],
+
+  /**
+   * Alias na RAIZ, e de especificador **bare** — as duas coisas de propósito.
+   *
+   * Na raiz porque este arquivo é lido **somente** pelo build da Cloudflare
+   * (`build:vinext`). A VPS compila por `next build`, que lê o
+   * `next.config.ts` e nunca este — então trocar o driver aqui não alcança a
+   * produção que está no ar.
+   *
+   * Bare porque a tentativa anterior falhou: eu havia aliasado
+   * `@/lib/prisma-adapters` no nível do ambiente, e não pegou — o `@` do vinext
+   * resolve antes, e o alias nunca via o especificador. `@prisma/adapter-pg`
+   * não passa por essa resolução.
+   *
+   * É o mesmo padrão que `workers/tsup.config.ts` já usa para trocar
+   * `server-only` por um shim.
+   */
+  resolve: {
+    alias: {
+      "@prisma/adapter-pg": fileURLToPath(
+        new URL("./src/lib/shims/adapter-pg-vazio.ts", import.meta.url),
+      ),
+    },
+  },
 
   environments: {
     rsc: { resolve: RESOLVE_DO_WORKER },
