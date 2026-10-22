@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaNeon } from '@prisma/adapter-neon'
-import { PrismaPg } from '@prisma/adapter-pg'
+
+import { criarAdapter } from '@/lib/prisma-adapters'
 
 /**
  * O cliente do Prisma, agora sobre um **driver adapter**.
@@ -49,15 +49,6 @@ function schemaDaUrl(url: string): string | undefined {
     return process.env.SUPABASE_DB_SCHEMA?.trim() || undefined
 }
 
-/** Se a URL aponta para o Neon. */
-function ehNeon(url: string): boolean {
-    try {
-        return new URL(url).hostname.endsWith('.neon.tech')
-    } catch {
-        return false
-    }
-}
-
 function criarCliente(): PrismaClient {
     const url = process.env.DATABASE_URL
 
@@ -77,11 +68,14 @@ function criarCliente(): PrismaClient {
      * reconhece no startup packet do driver — e tirá-lo exigiria remontar a URL,
      * que é mais código e mais uma forma de errar.
      */
-    const adapter = ehNeon(url)
-        ? new PrismaNeon({ connectionString: url }, schema ? { schema } : undefined)
-        : new PrismaPg({ connectionString: url }, schema ? { schema } : undefined)
-
-    return new PrismaClient({ adapter })
+    /**
+     * A escolha do driver mora em `prisma-adapters`, e não aqui, por
+     * empacotamento: o `vite.config.ts` troca esse módulo pela variante
+     * `.workerd.ts` nos ambientes do Worker, que não traz o driver de Postgres
+     * comum. Com os dois no mesmo arquivo, a biblioteca `pg` entrava no bundle
+     * e o Worker não iniciava. Ver o cabeçalho de `prisma-adapters.ts`.
+     */
+    return new PrismaClient({ adapter: criarAdapter(url, schema) })
 }
 
 declare global {

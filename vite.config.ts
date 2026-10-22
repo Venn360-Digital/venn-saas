@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vite";
 import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
@@ -34,6 +36,36 @@ import { cloudflare } from "@cloudflare/vite-plugin";
  */
 const CONDICOES_DO_WORKER = ["workerd", "worker", "module", "import", "default"];
 
+/**
+ * O driver de Postgres comum fica FORA do bundle do Worker.
+ *
+ * Medido em 2026-10-21, depois de corrigir as condições acima: o deploy passou
+ * a falhar antes de o Worker subir, com
+ *
+ *     [code: 10021] validation error
+ *       at node_modules/pg/lib/index.js:25
+ *       at node_modules/@prisma/adapter-pg/dist/index.mjs:3
+ *
+ * `src/lib/prisma.ts` serve aos DOIS destinos e precisava dos dois drivers — o
+ * Worker fala com o Neon, o contêiner da VPS com o Postgres do Supabase
+ * auto-hospedado. Com os dois `import` estáticos juntos, o bundle do Worker
+ * levava a biblioteca `pg`, que executa código de Node na carga do módulo.
+ *
+ * Não havia saída de dentro do arquivo: `import()` dinâmico tornaria a criação
+ * do cliente assíncrona, e `prisma.ts` entrega os delegates por um `Proxy`
+ * síncrono; e marcar como `external` faria workerd falhar ao resolver o
+ * especificador. Então a escolha do driver saiu para um módulo próprio, com
+ * duas versões, e o bundler troca uma pela outra aqui.
+ */
+const RESOLVE_DO_WORKER = {
+  conditions: CONDICOES_DO_WORKER,
+  alias: {
+    "@/lib/prisma-adapters": fileURLToPath(
+      new URL("./src/lib/prisma-adapters.workerd.ts", import.meta.url),
+    ),
+  },
+};
+
 export default defineConfig({
   plugins: [
     vinext(),
@@ -46,7 +78,7 @@ export default defineConfig({
   ],
 
   environments: {
-    rsc: { resolve: { conditions: CONDICOES_DO_WORKER } },
-    ssr: { resolve: { conditions: CONDICOES_DO_WORKER } },
+    rsc: { resolve: RESOLVE_DO_WORKER },
+    ssr: { resolve: RESOLVE_DO_WORKER },
   },
 });
