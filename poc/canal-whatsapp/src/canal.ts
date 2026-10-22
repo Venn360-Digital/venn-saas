@@ -46,6 +46,14 @@ const CHAVE = {
     INSTANCIA: 'instancia',
     TOKEN: 'token',
     JID: 'jid',
+    /**
+     * Sticky: setado quando `loggedIn` é visto `true`, limpo só no logout real.
+     *
+     * Substitui `Boolean(jid)` como sinal de "há sessão a defender". Medido em
+     * 2026-10-22: o Evolution Go 0.7.2 devolve `loggedIn:true` com `JID:""`, e
+     * gatear pareamento no JID fazia a vigia hibernar uma sessão viva.
+     */
+    PAREADO: 'pareado',
     PAREOU_EM: 'pareouEm',
     ULTIMO_REINICIO: 'ultimoReinicio',
     FALHAS: 'falhas',
@@ -252,7 +260,10 @@ export class CanalWhatsApp extends Container<Ambiente> {
         if (pareouEm === undefined) return
 
         const estado = await this.consultarInstancia()
+        // O JID é guardado quando vem (serve à reconexão), mas o que marca
+        // "pareado" é o `loggedIn` — ver CHAVE.PAREADO.
         if (estado.jid) await this.ctx.storage.put(CHAVE.JID, estado.jid)
+        if (estado.loggedIn) await this.ctx.storage.put(CHAVE.PAREADO, Date.now())
 
         const decisao = decidirReinicio({
             desdeParearMs: Date.now() - pareouEm,
@@ -297,24 +308,43 @@ export class CanalWhatsApp extends Container<Ambiente> {
 
     /** Substitui `wa-guard.sh` e `wa-pool-guard.sh` — os dois, num só lugar. */
     async ronda(): Promise<void> {
-        const jid = await this.ctx.storage.get<string>(CHAVE.JID)
+        const estado = await this.consultarInstancia()
+
+        // O sinal de "há sessão a defender" é `loggedIn`, sticky em PAREADO — e
+        // **não** o JID, que o 0.7.2 não devolve (medido 2026-10-22). Enquanto
+        // logado, a sessão existe; só o logout de verdade a encerra.
+        let pareado = await this.ctx.storage.get<number>(CHAVE.PAREADO)
+        if (estado.respondeu && estado.loggedIn) {
+            if (estado.jid) await this.ctx.storage.put(CHAVE.JID, estado.jid)
+            if (!pareado) {
+                pareado = Date.now()
+                await this.ctx.storage.put(CHAVE.PAREADO, pareado)
+                await this.registrar('vigia: sessão pareada detectada', 'loggedIn=true')
+            }
+        }
+
+        // Logout de verdade: o contêiner respondeu e diz que não está logado,
+        // fora da janela de pareamento (essa é tratada por `avaliarReinicio`).
+        // Aí a sessão acabou — limpa e deixa hibernar, em vez de reconectar em
+        // laço um aparelho que o dono desvinculou.
+        if (pareado && estado.respondeu && !estado.loggedIn && !estado.socketAberto) {
+            await this.ctx.storage.delete(CHAVE.PAREADO)
+            await this.ctx.storage.delete(CHAVE.JID)
+            await this.registrar('vigia: sessão deslogou', 'hibernando — aparelho desvinculado')
+            return
+        }
 
         // Sem sessão pareada a ronda **encerra**, em vez de se reagendar.
         //
         // Não é economia de chamada: consultar o contêiner conta como atividade
         // e renova o cronômetro de ociosidade. Uma ronda a cada cinco minutos
         // contra um `sleepAfter` de dez manteria de pé — e cobrando — um
-        // contêiner que não serve ninguém, anulando exatamente o que
-        // `decidirOcio` existe para garantir.
-        //
-        // A ronda volta sozinha: `onStart` a reagenda na próxima subida, e a
-        // próxima subida é o primeiro pedido real.
-        if (!jid) {
+        // contêiner que não serve ninguém. A ronda volta sozinha: `onStart` a
+        // reagenda na próxima subida, e a próxima subida é o primeiro pedido.
+        if (!pareado) {
             await this.registrar('vigia: encerrado', 'sem sessão pareada; deixando o contêiner hibernar')
             return
         }
-
-        const estado = await this.consultarInstancia()
 
         const observado: EstadoObservado = !estado.respondeu
             ? 'sem-resposta'
@@ -328,7 +358,7 @@ export class CanalWhatsApp extends Container<Ambiente> {
         const ultimo = await this.ctx.storage.get<number>(CHAVE.ULTIMO_REINICIO)
         const decisao = decidirVigia({
             estado: observado,
-            temAparelhoPareado: Boolean(jid),
+            temAparelhoPareado: true,
             falhasSeguidas: falhas,
             desdeUltimoReinicioMs: ultimo === undefined ? null : Date.now() - ultimo,
         })
@@ -467,8 +497,8 @@ export class CanalWhatsApp extends Container<Ambiente> {
         const url = new URL(pedido.url)
 
         if (url.pathname === '/poc/estado') {
-            const [jid, ultimo, falhas, pareouEm] = await Promise.all([
-                this.ctx.storage.get<string>(CHAVE.JID),
+            const [pareado, ultimo, falhas, pareouEm] = await Promise.all([
+                this.ctx.storage.get<number>(CHAVE.PAREADO),
                 this.ctx.storage.get<number>(CHAVE.ULTIMO_REINICIO),
                 this.ctx.storage.get<number>(CHAVE.FALHAS),
                 this.ctx.storage.get<number>(CHAVE.PAREOU_EM),
@@ -476,7 +506,7 @@ export class CanalWhatsApp extends Container<Ambiente> {
             return Response.json({
                 contêiner: await this.getState(),
                 instância: await this.consultarInstancia(),
-                pareado: Boolean(jid),
+                pareado: Boolean(pareado),
                 pareandoDesde: pareouEm ? new Date(pareouEm).toISOString() : null,
                 últimoReinício: ultimo ? new Date(ultimo).toISOString() : null,
                 falhasSeguidas: falhas ?? 0,
