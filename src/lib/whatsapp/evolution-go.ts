@@ -15,6 +15,32 @@ import {
 } from './types'
 
 /**
+ * O gateway do canal QR — o service binding para o Worker `odontobox-evolution`.
+ *
+ * Registrado pela costura (`src/cloudflare/costuras.ts`), e guardado no módulo
+ * pelo mesmo motivo das outras: é o próprio binding, que a plataforma troca com
+ * o isolate. Nulo fora do Worker (dev local, VPS), onde o cliente cai no
+ * `EVOLUTION_GO_URL` por HTTP público.
+ */
+let gateway: { fetch(req: Request): Promise<Response> } | null = null
+export function registrarGatewayEvolutionGo(f: { fetch(req: Request): Promise<Response> }): void {
+    gateway = f
+}
+
+/**
+ * A sala do contêiner = o id da integração, do nome da instância
+ * (`odontobox_{id}_{carimbo}`). Mesma convenção do Worker (`roteamento.ts`),
+ * duplicada aqui porque o app não importa do projeto da POC. O id é cuid (sem
+ * `_`), então fica sempre na segunda parte.
+ */
+function salaDoNome(instanceName: string): string | null {
+    const partes = instanceName.split('_')
+    if (partes.length < 2 || partes[0] !== 'odontobox') return null
+    const id = partes[1]
+    return id && /^[a-z0-9]{20,40}$/i.test(id) ? id : null
+}
+
+/**
  * Evolution Go client (whatsmeow).
  *
  * Two things shape this file, both verified against the project's routes.go and
@@ -130,12 +156,11 @@ export class EvolutionGoProvider implements ChannelProvider {
      */
     private async request<T>(
         endpoint: string,
+        sala: string,
         apiKey: string,
         init: RequestInit = {},
         timeoutMs = DEFAULT_TIMEOUT_MS
     ): Promise<T> {
-        this.assertConfigured()
-
         if (!apiKey) {
             throw new Error(`Missing apikey for ${endpoint}`)
         }
@@ -143,16 +168,32 @@ export class EvolutionGoProvider implements ChannelProvider {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            apikey: apiKey,
+            ...(init.headers as Record<string, string> | undefined),
+        }
+
         try {
-            const response = await fetch(`${this.baseUrl}${endpoint}`, {
-                ...init,
-                headers: {
-                    'Content-Type': 'application/json',
-                    apikey: apiKey,
-                    ...init.headers,
-                },
-                signal: controller.signal,
-            })
+            let response: Response
+            if (gateway) {
+                // Pelo service binding: `x-evo-gateway` prova que a chamada é do
+                // app (defesa em profundidade), `x-evo-sala` roteia ao contêiner.
+                // O host da URL é fictício — o binding ignora o host.
+                if (!this.globalApiKey) throw new Error('EVOLUTION_GO_API_KEY is not set')
+                headers['x-evo-gateway'] = this.globalApiKey
+                headers['x-evo-sala'] = sala
+                response = await gateway.fetch(
+                    new Request(`http://evo${endpoint}`, { ...init, headers, signal: controller.signal })
+                )
+            } else {
+                this.assertConfigured()
+                response = await fetch(`${this.baseUrl}${endpoint}`, {
+                    ...init,
+                    headers,
+                    signal: controller.signal,
+                })
+            }
 
             if (!response.ok) {
                 throw new ChannelProviderError(
@@ -185,13 +226,25 @@ export class EvolutionGoProvider implements ChannelProvider {
         return credentials.token
     }
 
+    /** A sala (contêiner) desta linha: o id da integração, do instanceName. */
+    private salaDe(credentials: InstanceCredentials): string {
+        const sala = credentials.instanceName ? salaDoNome(credentials.instanceName) : null
+        if (!sala) {
+            throw new Error(`instanceName "${credentials.instanceName}" sem sala (id de integração)`)
+        }
+        return sala
+    }
+
     async createInstance(instanceName: string): Promise<CreatedInstance> {
+        const sala = salaDoNome(instanceName)
+        if (!sala) throw new Error(`instanceName "${instanceName}" sem sala (id de integração)`)
+
         // We generate the token rather than letting the server assign one, so the
         // value is known even if the response shape changes — losing it would
         // orphan the instance, since it is the only way to address it.
         const token = crypto.randomUUID()
 
-        const data = await this.request<CreateInstanceData>('/instance/create', this.globalApiKey, {
+        const data = await this.request<CreateInstanceData>('/instance/create', sala, this.globalApiKey, {
             method: 'POST',
             body: JSON.stringify({ name: instanceName, token }),
         })
@@ -211,7 +264,7 @@ export class EvolutionGoProvider implements ChannelProvider {
      * what the UI needs — it polls `getQrCode` straight after.
      */
     async connect(credentials: InstanceCredentials, webhookUrl: string): Promise<void> {
-        await this.request<unknown>('/instance/connect', this.tokenOf(credentials, '/instance/connect'), {
+        await this.request<unknown>('/instance/connect', this.salaDe(credentials), this.tokenOf(credentials, '/instance/connect'), {
             method: 'POST',
             body: JSON.stringify({
                 immediate: true,
@@ -222,7 +275,7 @@ export class EvolutionGoProvider implements ChannelProvider {
     }
 
     async getQrCode(credentials: InstanceCredentials): Promise<QrCode> {
-        const data = await this.request<QrData>('/instance/qr', this.tokenOf(credentials, '/instance/qr'))
+        const data = await this.request<QrData>('/instance/qr', this.salaDe(credentials), this.tokenOf(credentials, '/instance/qr'))
         return {
             base64: asDataUrl(data?.qrcode ?? data?.Qrcode),
             code: data?.code ?? data?.Code ?? null,
@@ -232,6 +285,7 @@ export class EvolutionGoProvider implements ChannelProvider {
     async getConnectionState(credentials: InstanceCredentials): Promise<ConnectionState> {
         const data = await this.request<StatusData>(
             '/instance/status',
+            this.salaDe(credentials),
             this.tokenOf(credentials, '/instance/status')
         )
 
@@ -273,7 +327,9 @@ export class EvolutionGoProvider implements ChannelProvider {
      * `/instance/all` is the only place it is exposed.
      */
     async findInstanceByName(instanceName: string): Promise<InstanceCredentials | null> {
-        const instances = await this.request<InstanceListItem[]>('/instance/all', this.globalApiKey)
+        const sala = salaDoNome(instanceName)
+        if (!sala) return null
+        const instances = await this.request<InstanceListItem[]>('/instance/all', sala, this.globalApiKey)
         const match = instances?.find((i) => i.name === instanceName)
         if (!match?.token) return null
 
@@ -287,7 +343,11 @@ export class EvolutionGoProvider implements ChannelProvider {
 
     async getOwnerJid(credentials: InstanceCredentials): Promise<string | undefined> {
         try {
-            const instances = await this.request<InstanceListItem[]>('/instance/all', this.globalApiKey)
+            const instances = await this.request<InstanceListItem[]>(
+                '/instance/all',
+                this.salaDe(credentials),
+                this.globalApiKey
+            )
             const match = instances?.find(
                 (i) => i.id === credentials.instanceId || i.name === credentials.instanceName
             )
@@ -303,7 +363,7 @@ export class EvolutionGoProvider implements ChannelProvider {
      * Answered 200 on this deployment; the session survives a reconnect by JID.
      */
     async disconnect(credentials: InstanceCredentials): Promise<void> {
-        await this.request<unknown>('/instance/disconnect', this.tokenOf(credentials, '/instance/disconnect'), {
+        await this.request<unknown>('/instance/disconnect', this.salaDe(credentials), this.tokenOf(credentials, '/instance/disconnect'), {
             method: 'POST',
             body: JSON.stringify({}),
         })
@@ -312,18 +372,25 @@ export class EvolutionGoProvider implements ChannelProvider {
     async deleteInstance(credentials: InstanceCredentials): Promise<void> {
         if (!credentials.instanceId) {
             // Deletion is addressed by id, so resolve it from the listing first.
-            const instances = await this.request<InstanceListItem[]>('/instance/all', this.globalApiKey)
+            const instances = await this.request<InstanceListItem[]>(
+                '/instance/all',
+                this.salaDe(credentials),
+                this.globalApiKey
+            )
             const match = instances?.find((i) => i.name === credentials.instanceName)
             if (!match?.id) return
-            await this.request<unknown>(`/instance/delete/${match.id}`, this.globalApiKey, {
+            await this.request<unknown>(`/instance/delete/${match.id}`, this.salaDe(credentials), this.globalApiKey, {
                 method: 'DELETE',
             })
             return
         }
 
-        await this.request<unknown>(`/instance/delete/${credentials.instanceId}`, this.globalApiKey, {
-            method: 'DELETE',
-        })
+        await this.request<unknown>(
+            `/instance/delete/${credentials.instanceId}`,
+            this.salaDe(credentials),
+            this.globalApiKey,
+            { method: 'DELETE' }
+        )
     }
 
     /**
@@ -374,6 +441,7 @@ export class EvolutionGoProvider implements ChannelProvider {
         try {
             const payload = await this.request<Record<string, unknown> | undefined>(
                 '/user/avatar',
+                this.salaDe(credentials),
                 this.tokenOf(credentials, '/user/avatar'),
                 { method: 'POST', body: JSON.stringify({ number: wanted, preview: false }) },
                 AVATAR_TIMEOUT_MS
@@ -404,6 +472,7 @@ export class EvolutionGoProvider implements ChannelProvider {
         try {
             const payload = await this.request<Record<string, unknown> | undefined>(
                 '/user/check',
+                this.salaDe(credentials),
                 this.tokenOf(credentials, '/user/check'),
                 { method: 'POST', body: JSON.stringify({ number: wanted, formatJid: true }) }
             )
@@ -463,7 +532,7 @@ export class EvolutionGoProvider implements ChannelProvider {
         to: string,
         text: string
     ): Promise<SendResult> {
-        const data = await this.request<SendData>('/send/text', this.tokenOf(credentials, '/send/text'), {
+        const data = await this.request<SendData>('/send/text', this.salaDe(credentials), this.tokenOf(credentials, '/send/text'), {
             method: 'POST',
             body: JSON.stringify({ number: normalizeNumber(to), text }),
         })
@@ -476,7 +545,7 @@ export class EvolutionGoProvider implements ChannelProvider {
         to: string,
         input: SendMediaInput
     ): Promise<SendResult> {
-        const data = await this.request<SendData>('/send/media', this.tokenOf(credentials, '/send/media'), {
+        const data = await this.request<SendData>('/send/media', this.salaDe(credentials), this.tokenOf(credentials, '/send/media'), {
             method: 'POST',
             body: JSON.stringify({
                 number: normalizeNumber(to),
@@ -495,7 +564,7 @@ export class EvolutionGoProvider implements ChannelProvider {
      * An empty reaction removes a previous one.
      */
     async react(credentials: InstanceCredentials, to: string, messageId: string, emoji: string): Promise<void> {
-        await this.request<unknown>('/message/react', this.tokenOf(credentials, '/message/react'), {
+        await this.request<unknown>('/message/react', this.salaDe(credentials), this.tokenOf(credentials, '/message/react'), {
             method: 'POST',
             body: JSON.stringify({ number: normalizeNumber(to), id: messageId, reaction: emoji }),
         })
@@ -506,7 +575,7 @@ export class EvolutionGoProvider implements ChannelProvider {
         to: string,
         presence: PresenceState
     ): Promise<void> {
-        await this.request<unknown>('/message/presence', this.tokenOf(credentials, '/message/presence'), {
+        await this.request<unknown>('/message/presence', this.salaDe(credentials), this.tokenOf(credentials, '/message/presence'), {
             method: 'POST',
             // O campo é `state`, não `presence`. Medido contra a instância:
             // com `presence` a resposta é 400 "state is required", e o
@@ -528,6 +597,7 @@ export class EvolutionGoProvider implements ChannelProvider {
     ): Promise<DownloadedMedia | null> {
         const data = await this.request<DownloadMediaData>(
             '/message/downloadmedia',
+            this.salaDe(credentials),
             this.tokenOf(credentials, '/message/downloadmedia'),
             { method: 'POST', body: JSON.stringify(raw) }
         )

@@ -42,8 +42,12 @@
     },
 
     "vars": {
-        // Preenchido depois do primeiro `deploy`, quando a URL existe.
+        // URL pública DESTE Worker — o Evolution Go posta o webhook aqui, no
+        // caminho /entrada/{segredo}/{sala}.
         "WEBHOOK_BASE_URL": "https://poc-canal-whatsapp.andre-7ee.workers.dev",
+
+        // Para onde o DO repassa cada evento — o webhook do app.
+        "APP_WEBHOOK_URL": "https://odontobox.andre-7ee.workers.dev/api/webhooks/evolution-go",
 
         // Reatar sessões gravadas ao subir. **Fica desligado.**
         //
