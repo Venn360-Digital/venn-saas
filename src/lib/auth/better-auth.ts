@@ -268,10 +268,42 @@ function construir() {
  * preguiça inteira. O proxy repassa cada acesso para a instância, construída na
  * primeira vez que alguém lê uma propriedade — que é, na prática, a primeira
  * requisição que precisa de autenticação.
+ *
+ * **O trap `has` não é decoração, e a falta dele derrubava o cadastro inteiro
+ * no Worker.** Medido em 2026-10-22: `/api/auth/sign-up/email` respondia 500 com
+ * `TypeError: e is not a function`.
+ *
+ * A causa: `toNextJsHandler(auth)` testa `'handler' in auth`, e o operador `in`
+ * usa o trap `has`. Sem ele a checagem cai no ALVO do proxy, que é `{}`
+ * literal — então `'handler' in auth` dava **false**, o `toNextJsHandler`
+ * concluía que o próprio `auth` era o handler, e devolvia `{ GET: auth, POST:
+ * auth }`. O vinext então chamava um objeto como se fosse função.
+ *
+ * O `bind` existe pelo mesmo motivo de fundo: `Reflect.get` devolve método
+ * **desligado**, e chamá-lo solto perde o `this` da instância. Com um proxy, o
+ * que não é repassado explicitamente não falha com erro claro — falha num
+ * lugar distante, com mensagem minificada.
  */
 export const auth = new Proxy({} as ReturnType<typeof construir>, {
-    get(_alvo, prop, receptor) {
-        return Reflect.get(getAuth(), prop, receptor)
+    get(_alvo, prop) {
+        const instancia = getAuth()
+        const valor = Reflect.get(instancia as object, prop)
+        return typeof valor === 'function' ? valor.bind(instancia) : valor
+    },
+
+    has(_alvo, prop) {
+        return prop in (getAuth() as object)
+    },
+
+    getOwnPropertyDescriptor(_alvo, prop) {
+        const d = Reflect.getOwnPropertyDescriptor(getAuth() as object, prop)
+        // `configurable: true` é exigência do invariante de Proxy: o alvo é `{}`
+        // e não tem a propriedade, então declará-la não-configurável lançaria.
+        return d ? { ...d, configurable: true } : undefined
+    },
+
+    ownKeys() {
+        return Reflect.ownKeys(getAuth() as object)
     },
 })
 
