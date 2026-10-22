@@ -55,6 +55,14 @@ function salaDoNome(instanceName: string): string | null {
  */
 
 const DEFAULT_TIMEOUT_MS = 20_000
+/**
+ * Timeout maior para as chamadas que acordam o contêiner.
+ *
+ * O arranque a frio do contêiner é de 25-40 s (medido, `containers-cloudflare`),
+ * e `create`/`connect`/`qr` são a primeira chamada de uma sala — a que paga esse
+ * tempo. Os 20 s do padrão abortavam no cold start (medido 2026-10-22).
+ */
+const COLD_START_TIMEOUT_MS = 60_000
 /** Foto de perfil: curto de propósito — quem não tem foto faz a consulta pendurar. */
 const AVATAR_TIMEOUT_MS = 8_000
 
@@ -244,10 +252,13 @@ export class EvolutionGoProvider implements ChannelProvider {
         // orphan the instance, since it is the only way to address it.
         const token = crypto.randomUUID()
 
-        const data = await this.request<CreateInstanceData>('/instance/create', sala, this.globalApiKey, {
-            method: 'POST',
-            body: JSON.stringify({ name: instanceName, token }),
-        })
+        const data = await this.request<CreateInstanceData>(
+            '/instance/create',
+            sala,
+            this.globalApiKey,
+            { method: 'POST', body: JSON.stringify({ name: instanceName, token }) },
+            COLD_START_TIMEOUT_MS
+        )
 
         return {
             instanceName: data?.name ?? instanceName,
@@ -264,18 +275,30 @@ export class EvolutionGoProvider implements ChannelProvider {
      * what the UI needs — it polls `getQrCode` straight after.
      */
     async connect(credentials: InstanceCredentials, webhookUrl: string): Promise<void> {
-        await this.request<unknown>('/instance/connect', this.salaDe(credentials), this.tokenOf(credentials, '/instance/connect'), {
-            method: 'POST',
-            body: JSON.stringify({
-                immediate: true,
-                webhookUrl,
-                subscribe: [...SUBSCRIBED_EVENTS],
-            }),
-        })
+        await this.request<unknown>(
+            '/instance/connect',
+            this.salaDe(credentials),
+            this.tokenOf(credentials, '/instance/connect'),
+            {
+                method: 'POST',
+                body: JSON.stringify({
+                    immediate: true,
+                    webhookUrl,
+                    subscribe: [...SUBSCRIBED_EVENTS],
+                }),
+            },
+            COLD_START_TIMEOUT_MS
+        )
     }
 
     async getQrCode(credentials: InstanceCredentials): Promise<QrCode> {
-        const data = await this.request<QrData>('/instance/qr', this.salaDe(credentials), this.tokenOf(credentials, '/instance/qr'))
+        const data = await this.request<QrData>(
+            '/instance/qr',
+            this.salaDe(credentials),
+            this.tokenOf(credentials, '/instance/qr'),
+            {},
+            COLD_START_TIMEOUT_MS
+        )
         return {
             base64: asDataUrl(data?.qrcode ?? data?.Qrcode),
             code: data?.code ?? data?.Code ?? null,
