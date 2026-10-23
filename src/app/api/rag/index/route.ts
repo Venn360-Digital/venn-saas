@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
-import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
+import { QUEUE } from '@/lib/queue/definitions'
+import { entregar } from '@/lib/queue/entregar'
 
 const indexSchema = z.object({
     agentId: z.string(),
@@ -46,30 +47,29 @@ export async function POST(request: NextRequest) {
 
         if (!hasAccess) return new NextResponse('Forbidden', { status: 403 })
 
-        const job = await getQueue(QUEUE.RAG_INDEX).add('index-document', {
-            agentId: data.agentId,
-            documentTitle: data.title,
-            content: data.content,
-            type: data.type,
-            url: data.url,
-            replaceExisting: data.replaceExisting ?? false,
-        })
+        // Pela costura, não por `getQueue()`: no Worker não há Redis, e a chamada
+        // direta lançava `MissingRedisUrlError` (medido em 2026-10-23). O id do
+        // job saiu da resposta porque o Queues não tem um — e nada o lia.
+        await entregar(
+            QUEUE.RAG_INDEX,
+            {
+                agentId: data.agentId,
+                documentTitle: data.title,
+                content: data.content,
+                type: data.type,
+                url: data.url,
+                replaceExisting: data.replaceExisting ?? false,
+            },
+            { nome: 'index-document' }
+        )
 
         return NextResponse.json(
-            {
-                success: true,
-                jobId: job.id,
-                message: 'Documento enviado para indexação.',
-            },
+            { success: true, message: 'Documento enviado para indexação.' },
             { status: 202 }
         )
     } catch (error) {
         if (error instanceof z.ZodError) {
             return new NextResponse(JSON.stringify(error.issues), { status: 400 })
-        }
-        if (error instanceof MissingRedisUrlError) {
-            console.error('[RAG_INDEX] REDIS_URL is not configured')
-            return new NextResponse('Queue unavailable', { status: 503 })
         }
         console.error('[RAG_INDEX]', error)
         return new NextResponse('Internal Error', { status: 500 })

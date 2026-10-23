@@ -15,7 +15,7 @@ import { processCron } from '@/trabalhos/processadores/cron'
 import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
 import { aoSerAgendado } from './agendado'
-import { escopoDoPrisma } from '@/lib/prisma'
+import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/prisma'
 
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'
@@ -96,7 +96,7 @@ const POR_NOME_NA_CLOUDFLARE = new Map<string, QueueName>(
 )
 
 export default {
-    fetch(request: Request, env: EnvDasCosturas, ctx: ExecutionContext): Response | Promise<Response> {
+    async fetch(request: Request, env: EnvDasCosturas, ctx: ExecutionContext): Promise<Response> {
         // Também no `fetch`: as rotas da aplicação enfileiram trabalho (webhook
         // que chega, mensagem que o atendente envia), e sem as costuras
         // registradas `enfileirar()` lançaria na primeira delas.
@@ -123,7 +123,9 @@ export default {
          * requisição não vale na seguinte (medido: 17 falhas em 20). O escopo é o
          * meio-termo, e a razão inteira está em `escopoDoPrisma`.
          */
-        return escopoDoPrisma.run({}, () => vinext.fetch(request, env, ctx))
+        const escopo: EscopoDoPrisma = {}
+        const resposta = await escopoDoPrisma.run(escopo, () => vinext.fetch(request, env, ctx))
+        return fecharAoTerminar(resposta, escopo, ctx)
     },
 
     async queue(lote: MessageBatch<unknown>, env: EnvDasCosturas, ctx: ExecutionContext): Promise<void> {
@@ -171,15 +173,22 @@ export default {
          * compilador estreitar — mais código, nenhuma verificação a mais, e um
          * lugar a mais para esquecer uma fila nova.
          */
-        // Um cliente de banco por lote — mesma razão do `fetch`.
-        await escopoDoPrisma.run({}, () =>
-            consumirLote(lote as never, {
-                fila,
-                processar,
-                idDeDeduplicacao: IDS_DE_DEDUP[fila],
-                atrasoDaRetentativa: BACKOFF[fila],
-            } as never)
-        )
+        // Um cliente de banco por lote — mesma razão do `fetch`. E fechado no
+        // `finally`: sem isso a invocação ficava pendurada ~10 s depois do
+        // trabalho (ver `descartarCliente`).
+        const escopo: EscopoDoPrisma = {}
+        try {
+            await escopoDoPrisma.run(escopo, () =>
+                consumirLote(lote as never, {
+                    fila,
+                    processar,
+                    idDeDeduplicacao: IDS_DE_DEDUP[fila],
+                    atrasoDaRetentativa: BACKOFF[fila],
+                } as never)
+            )
+        } finally {
+            await descartarCliente(escopo)
+        }
     },
 
     async scheduled(
@@ -188,7 +197,61 @@ export default {
         ctx: ExecutionContext
     ): Promise<void> {
         registrarCosturas(env)
-        // Um cliente de banco por disparo — mesma razão do `fetch`.
-        await escopoDoPrisma.run({}, () => aoSerAgendado(controller, env, ctx))
+        // Um cliente de banco por disparo — mesma razão do `fetch`, fechado
+        // no `finally` pela mesma razão do `queue`.
+        const escopo: EscopoDoPrisma = {}
+        try {
+            await escopoDoPrisma.run(escopo, () => aoSerAgendado(controller, env, ctx))
+        } finally {
+            await descartarCliente(escopo)
+        }
     },
+}
+
+/**
+ * Fecha o cliente do escopo quando a resposta **termina**, não quando o
+ * handler retorna.
+ *
+ * O handler devolve a `Response` antes de o corpo ser lido — RSC e qualquer
+ * rota que faça stream ainda estão consultando o banco enquanto os bytes saem.
+ * Fechar o pool no `return` cortaria essas consultas no meio. Então o corpo
+ * passa por um `TransformStream` que não altera nada e só usa o `flush`, que
+ * roda quando o último pedaço foi entregue, para fechar.
+ *
+ * Sem corpo (204, redirecionamento) não há o que esperar: fecha já. E o
+ * `waitUntil` segura a invocação até o fechamento acontecer — é um `end()` de
+ * WebSocket, milissegundos.
+ */
+function fecharAoTerminar(
+    resposta: Response,
+    escopo: EscopoDoPrisma,
+    ctx: ExecutionContext
+): Response {
+    if (!escopo.cliente) return resposta
+
+    if (!resposta.body) {
+        ctx.waitUntil(descartarCliente(escopo))
+        return resposta
+    }
+
+    let terminou: () => void = () => {}
+    const fim = new Promise<void>((resolve) => {
+        terminou = resolve
+    })
+    ctx.waitUntil(fim.then(() => descartarCliente(escopo)))
+
+    const corpo = resposta.body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+            flush() {
+                terminou()
+            },
+            // Cliente desconectou no meio: o `flush` não roda, e o pool
+            // ficaria aberto até o runtime desistir — o defeito original.
+            cancel() {
+                terminou()
+            },
+        })
+    )
+
+    return new Response(corpo, resposta)
 }
