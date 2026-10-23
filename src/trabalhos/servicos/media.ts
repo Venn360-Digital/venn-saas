@@ -78,7 +78,12 @@ export async function obterBytesDaMidia(
         return null
     }
 
-    return { base64: downloaded.base64, mimetype: downloaded.mimetype }
+    // O download do Evolution Go às vezes não informa o mimetype, e o fallback
+    // `application/octet-stream` fazia a foto ser gravada como
+    // `…_inbound.octet-stream` e servida com Content-Type genérico — o que a
+    // joga para a aba de arquivos em vez de abrir como imagem. O envelope do
+    // webhook trazia o tipo certo (`image/jpeg`): é ele o fallback.
+    return { base64: downloaded.base64, mimetype: downloaded.mimetype ?? input.mimetype }
 }
 
 export async function archiveInboundMedia(
