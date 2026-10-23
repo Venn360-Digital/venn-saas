@@ -27,8 +27,10 @@
 # Vigia, não relógio: só reinicia quando passa do teto, e diz no log por quê.
 set -eu
 
-C=odontobox360-evolution-go-1
-PG=postgres
+# Mesmo motivo do wa-guard: duas pilhas, nomes diferentes. Os padrões são os
+# da Stay Cloud; a VPS dedicada exporta EVO_CONTAINER/EVO_PG_CONTAINER.
+C=${EVO_CONTAINER:-odontobox360-evolution-go-1}
+PG=${EVO_PG_CONTAINER:-postgres}
 LIMITE=${LIMITE:-60}          # de 100 em max_connections
 INTERVALO=${INTERVALO:-300}   # 5 min
 # Nunca mais de um reinício por hora: se o problema for outro, reiniciar em

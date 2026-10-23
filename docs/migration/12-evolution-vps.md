@@ -1,8 +1,29 @@
 # 12 — Evolution Go no VPS (canal QR fora de Cloudflare Containers)
 
-Runbook do corte que move o Evolution Go + seu Postgres de Cloudflare Containers
-para a VPS Stay Cloud reformatada. App segue em Cloudflare Workers + Neon + R2.
-Plano aprovado em 2026-10-23 (`~/.claude/plans/gentle-sniffing-aho.md`).
+Runbook do corte que move o Evolution Go + seu Postgres para uma **VPS Vultr
+dedicada** (`odontobox`, São Paulo, 216.238.127.233). Plano aprovado em
+2026-10-23 (`~/.claude/plans/gentle-sniffing-aho.md`).
+
+> **Correção de 2026-10-23, depois de executar.** A versão original deste
+> runbook mandava **formatar a VPS Stay Cloud** e partia de "o app já está em
+> Cloudflare Workers + Neon + R2". As duas coisas estavam erradas e, juntas,
+> destruiriam a produção:
+>
+> - `odontobox.venn360.com` resolve para **157.254.207.42 — a Stay Cloud**. O
+>   Worker `odontobox` está no ar **sem rota**.
+> - Medido no contêiner de produção: `DATABASE_URL` aponta para `supabase-db`
+>   (não Neon), o Better Auth é o `supabase-auth` local, não há variável de R2,
+>   e o Evolution que a produção usa é `http://evolution-go:8080` — o contêiner
+>   da própria Stay Cloud, não o Container da Cloudflare.
+>
+> Ou seja: a Stay Cloud **é** a produção inteira — app, banco, arquivos, os dois
+> Evolutions e o Traefik que termina o TLS. **Não formatar.** O que vive em
+> Cloudflare Containers é o POC. A instância Vultr torna o format desnecessário:
+> o Evolution sobe ao lado, sem desligar nada.
+>
+> A Stay Cloud só pode ser formatada depois de o app ir para o Worker, os dados
+> para o Neon, os arquivos para o R2 e o DNS virar — e com dump do `supabase-db`
+> e do `supabase-storage` antes.
 
 **Porquê (resumo):** o whatsmeow mantém socket persistente 24/7; Cloudflare
 Containers dorme na ociosidade e acorda frio. Medido: `/send/text` em ~4,8 s
@@ -31,13 +52,31 @@ adequação de plataforma, isolamento de falha (VPS cai → só o QR cai) e dese
 Segredos do app por `wrangler secret put` (André executa) — nunca no repositório.
 
 ## Ordem de corte
-1. **VPS pronta.** Formatar (Ubuntu LTS). `harden-host.sh` (não-root, SSH por
-   chave, ufw negando inbound exceto SSH, fail2ban, unattended-upgrades, Docker).
-   Criar o Tunnel no painel Cloudflare, rota do hostname → `http://evolution-go:8080`.
-   `docker compose -f infra/compose.evolution-vps.yaml --env-file .env.evolution-vps up -d`.
-   Ativar a licença uma vez pelo `/manager` por túnel SSH
-   (`ssh -N -L 8080:127.0.0.1:8080 root@<vps>` → `http://localhost:8080/manager`).
-   Conferir `/server/ok` pelo hostname do Tunnel.
+1. **VPS pronta.** ✅ **FEITO em 2026-10-23** na Vultr `odontobox`.
+   Três armadilhas encontradas ao executar, que o texto anterior escondia:
+
+   - **`harden-host.sh` não faz o que este runbook prometia.** Ele faz **só**
+     `ufw` + as regras `DOCKER-USER`. Não cria usuário não-root, não desliga
+     senha no SSH, não instala fail2ban, unattended-upgrades nem Docker. Tudo
+     isso foi instalado à mão.
+   - **No Ubuntu 26.04 o `ufw` conflita com o `iptables-persistent`** (`ufw
+     Breaks iptables-persistent`), então o `netfilter-persistent save` que fecha
+     o script **não existe**. Sem contorno, as regras `DOCKER-USER` somem no
+     primeiro reboot e as portas publicadas por contêiner voltam a ficar
+     alcançáveis, em silêncio. Persistidas no `/etc/ufw/after.rules`, que o
+     próprio ufw recarrega no boot.
+   - **O script abre 80 e 443.** Faz sentido na Stay Cloud, que tem Traefik.
+     Aqui não: o `cloudflared` faz conexão **de saída** e nada precisa escutar.
+     Esta máquina ficou com **só a 22** aberta — verificado de fora: 80, 443,
+     8080 e 5432 fechadas.
+
+   Estado final: Docker 29.9.2 + compose 5.6.1 (repositório oficial; o codinome
+   `resolute` É suportado), fail2ban e unattended-upgrades ativos, Evolution Go
+   0.7.2 + Postgres dedicado `healthy`, `evogo_auth`/`evogo_users` criadas,
+   **licença ativada** (gravada em `runtime_configs`), Tunnel
+   `odontobox-evolution` com rota `evo-odontobox.venn360.com` →
+   `http://evolution-go:8080` e CNAME proxied. Provado de fora:
+   `/server/ok` → 200; `/instance/all` sem chave → **401**, com a chave → 200.
 2. **Deploy do app** (mesclar a branch `migracao/evolution-no-vps` em main) com os
    3 segredos do app aplicados. A virada de transporte entra aqui. **NÃO antes:**
    sem `EVOLUTION_GO_URL`, toda chamada ao Evolution lança.
@@ -54,7 +93,35 @@ Segredos do app por `wrangler secret put` (André executa) — nunca no reposit�
 **Rollback (até o passo 6):** reverter os 2 commits da branch (re-registrar o
 gateway + binding) e republicar → volta ao Container da Cloudflare.
 
-## Dois pontos que precisam de ajuste NA máquina (não embarcados)
+## Ajustes dos vigias — FEITOS em 2026-10-23 (ler as ressalvas)
+
+Os três agora estão no repositório. Dois achados mudaram a forma:
+
+- **Os vigias foram PARAMETRIZADOS, não reescritos.** `wa-guard.sh` e
+  `wa-pool-guard.sh` ainda guardam o Evolution **de produção na Stay Cloud**;
+  fixar o nome novo neles quebraria aquele host. Leem `EVO_CONTAINER`,
+  `EVO_PG_CONTAINER`, `EVO_DB` e `EVO_API`, com os padrões antigos. Na Vultr:
+  `EVO_CONTAINER=odontobox-evolution-evolution-go-1`,
+  `EVO_PG_CONTAINER=odontobox-evolution-postgres-1`.
+- **O webhook ESTÁ no banco.** A tabela `instances` do `evogo_users` tem as
+  colunas `token` e `webhook` — ao contrário do que a versão anterior deste
+  documento afirmava ("o Evolution guarda o webhook na requisição, não no
+  banco"). O que não foi verificado é se ele é **relido no restart**. O rearme
+  aproveita isso e reaplica exatamente o que está gravado, sem depender de
+  variável de ambiente.
+- **`wa-webhook-guard.sh` nasce em MODO DE ENSAIO**, e isso é deliberado: o
+  efeito de `/instance/connect` sobre uma linha já logada não é verificável por
+  leitura, e no dia em que foi escrito não havia nenhuma linha pareada para
+  testar. `immediate:true` pode forçar QR e derrubar a linha que ele queria
+  salvar; `immediate:false` pode ser inócuo e não gravar nada. O procedimento de
+  validação está no cabeçalho do próprio arquivo. **Não ligue no systemd antes
+  de validar com um restart proposital.**
+- **O rearme não é só de boot.** O `wa-guard.sh` reinicia o contêiner de
+  propósito logo após o pareamento — então o caminho mais comum de perder o
+  webhook é justamente parear uma linha nova. Por isso o vigia escuta eventos
+  `start` do Docker, e não só a subida da máquina.
+
+### Texto original (mantido por referência)
 Os vigias de host de hoje (`infra/scripts/wa-guard.sh`, `wa-pool-guard.sh`)
 assumem o app DB (`supabase-db`) e um nome de contêiner antigos — ambos inválidos
 na VPS dedicada (o app DB agora é Neon). Antes de confiar neles:
