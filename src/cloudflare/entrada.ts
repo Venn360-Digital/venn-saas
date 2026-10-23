@@ -15,6 +15,7 @@ import { processCron } from '@/trabalhos/processadores/cron'
 import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
 import { aoSerAgendado } from './agendado'
+import { escopoDoPrisma } from '@/lib/prisma'
 
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'
@@ -112,7 +113,17 @@ export default {
          */
         if (ehAperto(new URL(request.url))) return aperto(request, env)
 
-        return vinext.fetch(request, env, ctx)
+        /**
+         * Um cliente de banco por requisição.
+         *
+         * Sem este escopo, o `Proxy` de `lib/prisma.ts` constrói um
+         * `PrismaClient` — com pool e conexão WebSocket próprios — a **cada
+         * acesso de propriedade**, e uma tela com catorze consultas abre catorze
+         * conexões. Guardar um por isolate seria pior ainda: conexão aberta numa
+         * requisição não vale na seguinte (medido: 17 falhas em 20). O escopo é o
+         * meio-termo, e a razão inteira está em `escopoDoPrisma`.
+         */
+        return escopoDoPrisma.run({}, () => vinext.fetch(request, env, ctx))
     },
 
     async queue(lote: MessageBatch<unknown>, env: EnvDasCosturas, ctx: ExecutionContext): Promise<void> {
@@ -160,12 +171,15 @@ export default {
          * compilador estreitar — mais código, nenhuma verificação a mais, e um
          * lugar a mais para esquecer uma fila nova.
          */
-        await consumirLote(lote as never, {
-            fila,
-            processar,
-            idDeDeduplicacao: IDS_DE_DEDUP[fila],
-            atrasoDaRetentativa: BACKOFF[fila],
-        } as never)
+        // Um cliente de banco por lote — mesma razão do `fetch`.
+        await escopoDoPrisma.run({}, () =>
+            consumirLote(lote as never, {
+                fila,
+                processar,
+                idDeDeduplicacao: IDS_DE_DEDUP[fila],
+                atrasoDaRetentativa: BACKOFF[fila],
+            } as never)
+        )
     },
 
     async scheduled(
@@ -174,6 +188,7 @@ export default {
         ctx: ExecutionContext
     ): Promise<void> {
         registrarCosturas(env)
-        await aoSerAgendado(controller, env, ctx)
+        // Um cliente de banco por disparo — mesma razão do `fetch`.
+        await escopoDoPrisma.run({}, () => aoSerAgendado(controller, env, ctx))
     },
 }
