@@ -80,8 +80,6 @@ __pycache__/
 .vinext/
 .cloudflare/
 
-# node_modules da POC do canal de WhatsApp — pacote próprio, instalado à parte.
-poc/*/node_modules/
 
 # Gerado pelo `next dev` (agentRules). Artefato, não fonte.
 AGENTS.md
@@ -91,5 +89,4 @@ AGENTS.md
 src/generated/
 
 # Artefatos de build/deploy do wrangler. Dois ficaram rastreados por engano
-# em poc/canal-whatsapp/.wrangler/tmp (2026-10-22) e foram removidos.
 .wrangler/
