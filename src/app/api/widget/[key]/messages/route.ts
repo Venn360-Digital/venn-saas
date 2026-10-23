@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getBillingState } from '@/lib/billing'
-import { QUEUE, getQueue } from '@/lib/queue'
+import { QUEUE } from '@/lib/queue/definitions'
+import { entregar } from '@/lib/queue/entregar'
 import {
     TETO_DE_MENSAGENS_DO_VISITANTE,
     novaChave,
@@ -171,8 +172,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         : null
 
     if (!cala) {
-        await getQueue(QUEUE.AI_REPLY).add(
-            'reply',
+        await entregar(
+            QUEUE.AI_REPLY,
             {
                 conversationId: conversa.id,
                 agentId: agent.id,
@@ -182,9 +183,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 integrationId: null,
                 to: '',
             },
-            // Um job por conversa em voo: enquanto a resposta não sai, outra
-            // mensagem do visitante não abre uma segunda geração em paralelo.
-            { jobId: `web-${conversa.id}-${Date.now()}`, delay: 1500 }
+            {
+                nome: 'reply',
+                // Um job por conversa em voo: enquanto a resposta não sai, outra
+                // mensagem do visitante não abre uma segunda geração em paralelo.
+                jobId: `web-${conversa.id}-${Date.now()}`,
+                // Eram 1 500 ms. O Queues só aceita segundos inteiros, e aqui o
+                // arredondamento é para cima de propósito: meio segundo a mais
+                // de espera é invisível; meio segundo a menos encurta a janela
+                // em que o visitante ainda está digitando.
+                atrasoSegundos: 2,
+            }
         )
     }
 

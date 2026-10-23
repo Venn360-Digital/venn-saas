@@ -110,7 +110,42 @@ declare global {
  * atravesse) um cliente por acesso é desperdício, mas é o que comprovadamente
  * funciona — degradar para o seguro é melhor do que reusar algo inválido.
  */
-export const escopoDoPrisma = new AsyncLocalStorage<{ cliente?: PrismaClient }>()
+export interface EscopoDoPrisma {
+    cliente?: PrismaClient
+}
+
+export const escopoDoPrisma = new AsyncLocalStorage<EscopoDoPrisma>()
+
+/**
+ * Fecha o cliente que nasceu num escopo — e **tem** de ser chamado.
+ *
+ * Medido em 2026-10-23, na produção Cloudflare: toda invocação — rota, cron,
+ * lote de fila — terminava o trabalho em centenas de milissegundos e ficava
+ * **pendurada ~10 s** depois (`/api/health` respondia em 140 ms com
+ * `wallTime` de 10 050 ms, em todas as amostras). A causa é o pool do Neon:
+ * `PrismaNeon` abre um WebSocket por cliente, ninguém o fechava, e o runtime
+ * só encerra a invocação quando não há mais I/O pendente. Cada chamada
+ * segurava uma conexão no Neon por dez segundos — com cron a cada minuto e a
+ * tela de conversas consultando a cada quinze, era conexão acumulada por nada.
+ *
+ * A documentação do driver é direta: em Workers o `Pool` "must be connected,
+ * used and closed within a single request handler… don't forget to close
+ * them". `$disconnect()` chega ao `dispose()` do adapter, que encerra o pool.
+ *
+ * **Não lança.** Falha ao fechar é registrada e engolida: a resposta já saiu,
+ * e um erro aqui só transformaria uma conexão vazada num 500 na tela.
+ */
+export async function descartarCliente(escopo: EscopoDoPrisma): Promise<void> {
+    const cliente = escopo.cliente
+    if (!cliente) return
+    escopo.cliente = undefined
+
+    try {
+        await cliente.$disconnect()
+    } catch (erro) {
+        console.error('[prisma] falha ao fechar o cliente do escopo:', erro)
+    }
+}
 
 function obterCliente(): PrismaClient {
     const escopo = escopoDoPrisma.getStore()

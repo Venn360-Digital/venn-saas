@@ -50,11 +50,23 @@ const naConta = (fila: string) => `odontobox-${fila}`
 const CONSUMO = {
     'whatsapp-inbound': {
         retryDelay: 2,
-        // Lote pequeno: cada mensagem grava contato, conversa e mídia. Lote
-        // grande arriscaria o teto de CPU por um ganho inexistente — o volume é
-        // de mensagens de clínica, não de telemetria.
-        maxBatchSize: 5,
-        maxBatchTimeout: 2,
+        /**
+         * Uma mensagem por invocação, **entregue na hora**.
+         *
+         * Era lote de 5 com espera de 2 s. Medido em 2026-10-23: uma mensagem
+         * sozinha — o caso normal numa clínica — esperava **3,7 s** na fila
+         * antes de o consumidor começar, e esse era o maior pedaço do atraso
+         * entre o paciente enviar e a mensagem aparecer na tela. O lote só se
+         * enche quando chegam várias mensagens ao mesmo tempo, que é
+         * exatamente quando a espera menos importa.
+         *
+         * Lote cheio dispara sem esperar o tempo-limite ("whichever happens
+         * first", na documentação), então com tamanho 1 cada mensagem sai no
+         * ato. O tempo-limite fica em 1 s só por ser explícito: com lote de 1
+         * ele nunca é alcançado.
+         */
+        maxBatchSize: 1,
+        maxBatchTimeout: 1,
     },
     'whatsapp-event': {
         retryDelay: 1,

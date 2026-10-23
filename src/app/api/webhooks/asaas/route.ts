@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
 import { asaasWebhookToken } from '@/lib/asaas/client'
-import { QUEUE, getQueue } from '@/lib/queue'
+import { QUEUE } from '@/lib/queue/definitions'
+import { entregar } from '@/lib/queue/entregar'
 import { isUniqueViolation } from '@/lib/prisma-errors'
 
 /**
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
          * lado deles — que é o problema maior.
          */
         try {
-            await getQueue(QUEUE.ASAAS_EVENT).add('asaas-event', { eventRowId: linha.id })
+            await entregar(QUEUE.ASAAS_EVENT, { eventRowId: linha.id }, { nome: 'asaas-event' })
         } catch (erro) {
             console.error('[ASAAS_WEBHOOK] evento gravado mas não enfileirado', linha.id, erro)
         }

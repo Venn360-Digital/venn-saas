@@ -1,9 +1,11 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { MissingRedisUrlError, QUEUE, getQueue } from '@/lib/queue'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { QUEUE } from '@/lib/queue/definitions'
+import { entregar } from '@/lib/queue/entregar'
+import { CLASSES } from '@/lib/storage'
+import { arquivar } from '@/trabalhos/servicos/arquivo'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
@@ -15,8 +17,16 @@ export async function POST(
 ) {
     try {
         const { id: conversationId } = await params
-        const supabase = await createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        /**
+         * Esta rota era a **única** da API ainda presa ao Supabase Auth e ao
+         * Supabase Storage, e a única com `getQueue()` do BullMQ no caminho do
+         * atendente. Medido em 2026-10-23, no Worker: `NEXT_PUBLIC_SUPABASE_URL`
+         * não existe lá, então a sessão vinha nula e a resposta era 401 — a
+         * atendente digitava e a mensagem não saía da caixa, com a linha
+         * pareada e o resto do sistema no ar. Portada para `usuarioDaSessao`,
+         * para o storage da aplicação e para a costura de fila.
+         */
+        const user = await usuarioDaSessao()
 
         if (!user) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -64,36 +74,29 @@ export async function POST(
             else if (mime.startsWith('video/')) contentType = 'video'
             else contentType = 'file'
 
-            // Upload to Supabase Storage
-            const fileExt = fileName.split('.').pop() || 'bin'
-            const storagePath = `${workspaceUser.workspaceId}/${conversationId}/${Date.now()}.${fileExt}`
-            const buffer = Buffer.from(await file.arrayBuffer())
+            /**
+             * Mesmo destino e mesma classe da mídia que **chega** (ver
+             * `trabalhos/servicos/media.ts` e `speech.ts`): anexo de conversa é
+             * clínico. A extensão é saneada porque entra numa chave de objeto e
+             * vem do nome do arquivo do navegador.
+             */
+            const fileExt =
+                (fileName.split('.').pop() || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 10) || 'bin'
+            const chave = `${workspaceUser.workspaceId}/${conversationId}/${Date.now()}.${fileExt}`
 
-            // `storage.objects` tem RLS ligado e nenhuma política: com a sessão
-            // do usuário todo upload falhava com "new row violates row-level
-            // security policy", e foi por isso que imagem e áudio nunca saíram.
-            // A autorização já aconteceu acima (membro ativo do workspace, via
-            // Prisma); o Storage recebe o cliente administrativo, como o worker
-            // faz ao arquivar mídia recebida.
-            const storage = createAdminClient().storage
-            const { data: uploadData, error: uploadError } = await storage
-                .from('attachments')
-                .upload(storagePath, buffer, {
-                    contentType: mime,
-                    upsert: false,
-                })
+            const arquivado = await arquivar({
+                classe: CLASSES.CLINICO,
+                chave,
+                bytes: new Uint8Array(await file.arrayBuffer()),
+                contentType: mime,
+            })
 
-            if (uploadError) {
-                console.error('[SEND_MESSAGE] Upload failed:', uploadError)
+            if (!arquivado) {
+                // `arquivar` já registrou a causa no log.
                 return NextResponse.json({ error: 'Falha ao enviar arquivo' }, { status: 500 })
             }
 
-            // Get public URL
-            const { data: urlData } = storage
-                .from('attachments')
-                .getPublicUrl(uploadData.path)
-
-            mediaUrl = urlData.publicUrl
+            mediaUrl = arquivado.url
 
             // Set display content for DB
             if (!textContent) {
@@ -271,8 +274,8 @@ export async function POST(
                         data: { status: 'pending' },
                     })
 
-                    await getQueue(QUEUE.WHATSAPP_OUTBOUND).add(
-                        'send-operator-message',
+                    await entregar(
+                        QUEUE.WHATSAPP_OUTBOUND,
                         {
                             messageId: message.id,
                             integrationId: line.integration.id,
@@ -283,17 +286,16 @@ export async function POST(
                             mediaUrl: mediaUrl || undefined,
                             fileName: fileName || undefined,
                         },
-                        // One send per message row, so a retried request cannot
-                        // double-post.
-                        // "-" e não ":": o BullMQ recusa ids custom com dois-pontos.
-                        { jobId: `send-${message.id}` }
+                        {
+                            nome: 'send-operator-message',
+                            // Um envio por linha de mensagem. No BullMQ é este
+                            // `jobId` ("-" e não ":", que ele recusa); no Queues a
+                            // mesma garantia é o `messageId` em IDS_DE_DEDUP.
+                            jobId: `send-${message.id}`,
+                        }
                     )
                 } catch (error) {
-                    const reason =
-                        error instanceof MissingRedisUrlError
-                            ? 'fila indisponível (REDIS_URL)'
-                            : 'falha ao enfileirar'
-                    console.error(`[SEND_MESSAGE] ${reason}:`, error)
+                    console.error('[SEND_MESSAGE] falha ao enfileirar:', error)
                     await prisma.message.update({
                         where: { id: message.id },
                         data: { status: 'failed' },
