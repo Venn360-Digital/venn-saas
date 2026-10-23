@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { rotinasDoDisparo } from '@/lib/cron/agenda'
+import { cronDaVarredura, rotinasDoDisparo } from '@/lib/cron/agenda'
 import type { CronJobName } from '@/lib/queue/definitions'
 import { varrerOutbox } from './publicador'
 
@@ -33,8 +33,15 @@ interface EnvAgendado {
     SALA_DO_WORKSPACE: DurableObjectNamespace
 }
 
-/** O padrão que roda a cada minuto, e que também carrega a varredura. */
-const CADA_MINUTO = '* * * * *'
+/**
+ * O padrão que carrega a varredura — **derivado da agenda, nunca escrito aqui**.
+ *
+ * Era um literal `'* * * * *'`. Quando o horário mudou na agenda (para o Neon
+ * poder suspender de madrugada), o literal deixou de casar e a varredura teria
+ * parado por completo, em silêncio: `event.cron` nunca mais seria igual.
+ * Derivar faz a divergência deixar de ser possível.
+ */
+const CRON_DA_VARREDURA = cronDaVarredura()
 
 export async function aoSerAgendado(
     event: ScheduledController,
@@ -65,7 +72,7 @@ export async function aoSerAgendado(
      */
     void ctx
     const varredura =
-        event.cron === CADA_MINUTO
+        event.cron === CRON_DA_VARREDURA
             ? varrerOutbox(env).catch((erro) => {
                   console.error('[CRON] varredura da outbox falhou:', erro)
               })

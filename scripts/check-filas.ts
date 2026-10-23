@@ -23,7 +23,7 @@ import {
 } from '@/lib/outbox'
 import { reservar, liberar, umaVezSo, podarChaves, chaveDeIdempotencia } from '@/lib/queue/idempotencia'
 import { consumirLote, exponencial, type LoteDaFila, type MensagemDaFila } from '@/lib/queue/consumidor'
-import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, PadraoNaoConversivelError, ROTINAS } from '@/lib/cron/agenda'
+import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, cronDaVarredura, TAREFA_DA_VARREDURA, PadraoNaoConversivelError, ROTINAS } from '@/lib/cron/agenda'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -60,9 +60,31 @@ async function main() {
         `${curingas.length} rotinas`
     )
 
+    /**
+     * Intervalo de horas: converte quando é demonstrável, recusa quando não é.
+     *
+     * Até 2026-10-23 TODO intervalo era recusado, e a recusa estava certa pelo
+     * motivo certo — "1-5" deslocado vira "4-8", um intervalo diferente e ainda
+     * válido, e meio-converter produz um horário plausível e errado. O que
+     * mudou é o recorte: quando `fim + 3 <= 23` o intervalo inteiro cabe no
+     * mesmo dia UTC e a conversão é hora a hora. Fora disso a recusa continua.
+     */
+    ok(
+        'intervalo de horas que não cruza a meia-noite converte',
+        paraUTC('* 7-20 * * *') === '* 10-23 * * *',
+        paraUTC('* 7-20 * * *')
+    )
+    ok(
+        'intervalo de horas desloca como hora fixa',
+        paraUTC('0 1-5 * * *') === '0 4-8 * * *',
+        paraUTC('0 1-5 * * *')
+    )
+
     // E o que a função NÃO sabe converter tem de recusar, não chutar.
     for (const [rotulo, padrao] of [
-        ['intervalo de horas', '0 1-5 * * *'],
+        ['intervalo que cruza a meia-noite em UTC', '0 22-23 * * *'],
+        ['intervalo invertido', '0 20-7 * * *'],
+        ['intervalo de horas com restrição de dia', '0 7-20 * * 1'],
         ['lista de horas', '0 1,5 * * *'],
         ['campos a menos', '0 7 * *'],
         ['hora inválida', '0 99 * * *'],
@@ -107,6 +129,32 @@ async function main() {
         !/triggers\.scheduled\(\{\s*schedule:\s*['"`]\d/.test(config),
         'um `schedule: "13 3 ..."` literal escaparia da conversão de fuso'
     )
+
+    /**
+     * A varredura da outbox precisa de um gatilho que EXISTA.
+     *
+     * `agendado.ts` compara `event.cron` com o padrão da varredura para decidir
+     * se roda. Enquanto esse padrão era um literal `'* * * * *'` escrito lá,
+     * mudar o horário na agenda faria a comparação ser sempre falsa e a
+     * varredura parar por completo — sem erro, sem log, sem nada. Foi o que
+     * quase aconteceu ao restringir o cron para o Neon poder suspender de
+     * madrugada.
+     *
+     * Este teste é a rede: o padrão tem de estar entre os gatilhos publicados.
+     */
+    {
+        const daVarredura = cronDaVarredura()
+        ok(
+            'a varredura da outbox tem um gatilho publicado',
+            cronsParaWrangler().includes(daVarredura),
+            daVarredura
+        )
+        ok(
+            'e esse gatilho despacha a rotina de que ela pega carona',
+            rotinasDoDisparo(daVarredura).includes(TAREFA_DA_VARREDURA),
+            rotinasDoDisparo(daVarredura).join(', ')
+        )
+    }
 
     // ================================================================== outbox
 
