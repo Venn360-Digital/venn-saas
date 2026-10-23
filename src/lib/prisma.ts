@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 import { PrismaClient } from '#prisma'
 
 import { criarAdapter } from '@/lib/prisma-adapters'
@@ -83,11 +85,40 @@ declare global {
 }
 
 /**
- * Em produção, um cliente por isolate — que é o que o Workers dá de qualquer
- * forma. Em desenvolvimento, guardado no global para que o recarregamento a
- * quente do Next não abra uma conexão nova a cada edição.
+ * Um cliente por **requisição** — e os dois extremos que isto corrige.
+ *
+ * Medido na produção Cloudflare em 2026-10-22, nos dois sentidos:
+ *
+ *  - **Um cliente por isolate** (guardar no `globalThis` também em produção):
+ *    17 falhas em 20. O Workers não garante que uma conexão aberta no contexto
+ *    de uma requisição sirva na seguinte, e o pool do Neon passa a entregar
+ *    WebSocket morto. Foi tentado e revertido — ver o histórico deste arquivo.
+ *  - **Um cliente por acesso de propriedade** (o que havia antes): funciona,
+ *    porque nunca reusa nada, mas o `prisma` exportado é um `Proxy` e cada
+ *    `prisma.contact`, `prisma.deal`, `prisma.message`… constrói um
+ *    `PrismaClient` inteiro, com pool e conexão próprios. Uma tela como o painel,
+ *    com catorze consultas, abre catorze conexões. É essa avalanche que
+ *    produzia 500 **intermitente** em qualquer tela que tocasse o banco.
+ *
+ * O meio-termo é o certo: o Worker abre um escopo por requisição (ver
+ * `src/cloudflare/entrada.ts`) e o cliente nasce **uma vez dentro dele**. As
+ * conexões são criadas e usadas no mesmo ciclo — válidas — e são uma, não
+ * catorze.
+ *
+ * **Sem escopo, cai no comportamento antigo de propósito.** Fora de uma
+ * requisição (build, script, um caminho que o `AsyncLocalStorage` não
+ * atravesse) um cliente por acesso é desperdício, mas é o que comprovadamente
+ * funciona — degradar para o seguro é melhor do que reusar algo inválido.
  */
+export const escopoDoPrisma = new AsyncLocalStorage<{ cliente?: PrismaClient }>()
+
 function obterCliente(): PrismaClient {
+    const escopo = escopoDoPrisma.getStore()
+    if (escopo) {
+        escopo.cliente ??= criarCliente()
+        return escopo.cliente
+    }
+
     const existente = globalThis.prismaGlobal
     if (existente) return existente
 
