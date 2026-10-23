@@ -14,10 +14,17 @@
  * teste — é justamente isso que as funções garantem.
  */
 import {
+    anoNoFuso,
     diaDaSemana,
+    diaDaSemanaNoFuso,
+    diaDeDataSemHora,
     diaNoFuso,
     fimDoDia,
+    horaMinutoNoFuso,
+    horaNoFuso,
     inicioDoDia,
+    inicioDoDiaUtc,
+    instanteNoFuso,
     limitesDoMes,
     somarDias,
 } from '@/lib/fuso'
@@ -88,6 +95,38 @@ function main() {
 
     const d7 = periodRange('d7', agora)
     ok('últimos 7 dias incluem hoje', d7.to === '2026-10-22' && d7.from === '2026-10-16', `${d7.from}..${d7.to}`)
+
+    // ------------------------------------------- hora de parede da clínica
+    ok(
+        '14:30 da clínica é 17:30 UTC',
+        instanteNoFuso('2026-10-22', '14:30').toISOString() === '2026-10-22T17:30:00.000Z',
+        instanteNoFuso('2026-10-22', '14:30').toISOString()
+    )
+    ok('e a volta devolve 14:30', horaMinutoNoFuso(new Date('2026-10-22T17:30:00Z')) === '14:30')
+    ok('a hora da noite é 22, não 1', horaNoFuso(aNoite) === 22, String(horaNoFuso(aNoite)))
+    ok('o ano na virada ainda é o anterior', anoNoFuso(new Date('2027-01-01T02:00:00Z')) === 2026)
+    ok('o dia da semana é o brasileiro', diaDaSemanaNoFuso(aNoite) === 4)
+
+    // ------------------------------------ as DUAS fronteiras, e por que há duas
+    //
+    // Esta é a parte que mais fácil regride: trocar uma pela outra não quebra
+    // nada visível, só some com os compromissos do dia ou conta o dia errado.
+    const hojeBr = diaNoFuso(aNoite) // 2026-10-22, às 22h17 de Brasília
+
+    // `dueDate` é data sem hora: a rota grava `new Date('2026-10-22')`, que é
+    // meia-noite UTC. A fronteira tem de ser UTC, senão ele fica de fora.
+    const compromisso = new Date('2026-10-22T00:00:00Z')
+    ok('compromisso do dia cai dentro da fronteira UTC',
+        compromisso >= inicioDoDiaUtc(hojeBr) && compromisso < inicioDoDiaUtc(somarDias(hojeBr, 1)))
+    ok('e ficaria de fora da fronteira de Brasília — por isso há duas',
+        !(compromisso >= inicioDoDia(hojeBr) && compromisso < fimDoDia(hojeBr)))
+
+    // Coluna de instante (`createdAt`): aí sim o dia é o de Brasília.
+    const criadoAsDez = new Date('2026-10-22T13:00:00Z') // 10h em Brasília
+    ok('instante das 10h cai no dia de Brasília',
+        criadoAsDez >= inicioDoDia(hojeBr) && criadoAsDez < fimDoDia(hojeBr))
+
+    ok('data sem hora devolve o próprio dia', diaDeDataSemHora(compromisso) === '2026-10-22')
 
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)

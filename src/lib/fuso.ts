@@ -78,22 +78,93 @@ function deslocamentoMs(instante: Date): number {
 }
 
 /**
- * O instante UTC da meia-noite daquele dia **no fuso do negócio**.
+ * O instante UTC de uma **hora de parede brasileira**.
+ *
+ * `instanteNoFuso('2026-10-22', '14:30')` é 14h30 na clínica — 17:30 UTC hoje.
+ * É o que `data.setHours(14, 30)` fazia na VPS e deixou de fazer no Worker:
+ * lá o mesmo código marca 14h30 **UTC**, três horas antes do combinado. Era o
+ * caso dos lembretes de compromisso, que disparavam adiantados.
  *
  * Duas passadas: a primeira estima o deslocamento com um palpite, a segunda o
  * recalcula já perto do alvo. É o que cobre a virada de horário de verão, em que
  * o deslocamento do dia não é o do palpite.
  */
-export function inicioDoDia(diaIso: string): Date {
+export function instanteNoFuso(diaIso: string, horaMinuto = '00:00'): Date {
     const [ano, mes, dia] = diaIso.split('-').map(Number)
-    const meiaNoiteComoUtc = Date.UTC(ano, mes - 1, dia)
+    const [hora = 0, minuto = 0] = horaMinuto.split(':').map(Number)
+    const alvoComoUtc = Date.UTC(ano, mes - 1, dia, hora, minuto)
 
-    let instante = new Date(meiaNoiteComoUtc)
+    let instante = new Date(alvoComoUtc)
     for (let passada = 0; passada < 2; passada++) {
-        instante = new Date(meiaNoiteComoUtc - deslocamentoMs(instante))
+        instante = new Date(alvoComoUtc - deslocamentoMs(instante))
     }
 
     return instante
+}
+
+/** O instante UTC da meia-noite daquele dia **no fuso do negócio**. */
+export function inicioDoDia(diaIso: string): Date {
+    return instanteNoFuso(diaIso, '00:00')
+}
+
+/**
+ * O início do dia brasileiro que **contém** este instante.
+ *
+ * Substitui `data.setHours(0, 0, 0, 0)`, que no Worker recua para a meia-noite
+ * UTC — ou seja, para as 21h do dia anterior em Brasília.
+ */
+export function inicioDoDiaDe(instante: Date = new Date()): Date {
+    return inicioDoDia(diaNoFuso(instante))
+}
+
+/** A hora (0–23) no fuso do negócio. Substitui `getHours()`. */
+export function horaNoFuso(instante: Date = new Date()): number {
+    return partesNoFuso(instante).hora
+}
+
+/** O ano no fuso do negócio. Substitui `getFullYear()`. */
+export function anoNoFuso(instante: Date = new Date()): number {
+    return partesNoFuso(instante).ano
+}
+
+/** `HH:mm` no fuso do negócio — a hora de parede que a clínica combinou. */
+export function horaMinutoNoFuso(instante: Date): string {
+    const { hora, minuto } = partesNoFuso(instante)
+    return `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`
+}
+
+/** O dia da semana (0 = domingo) no fuso do negócio. Substitui `getDay()`. */
+export function diaDaSemanaNoFuso(instante: Date = new Date()): number {
+    return diaDaSemana(diaNoFuso(instante))
+}
+
+/**
+ * O dia de uma coluna **de data sem hora** — `dueDate` e afins.
+ *
+ * Essas colunas guardam o dia na meia-noite **UTC**: é o que
+ * `new Date('2026-10-22')` produz, e é como a rota de atividades grava. Lê-las
+ * no fuso do negócio devolveria o **dia anterior**, porque meia-noite UTC é 21h
+ * em Brasília. Então o dia sai das partes UTC, e a hora de parede vem do campo
+ * que a guarda (`startTime`) — ver `instanteNoFuso`.
+ */
+export function diaDeDataSemHora(instante: Date): string {
+    return instante.toISOString().slice(0, 10)
+}
+
+/**
+ * Meia-noite **UTC** do dia — a fronteira de colunas de data sem hora.
+ *
+ * **As duas fronteiras existem e não dá para escolher uma só.** Coluna de
+ * instante (`createdAt`, `closedAt`, `lastMessageAt`) guarda o momento real, e o
+ * dia dela começa à meia-noite **de Brasília** (`inicioDoDia`, 03:00Z). Coluna
+ * de data sem hora (`dueDate`) guarda o dia na meia-noite **UTC**, e filtrá-la
+ * por 03:00Z deixaria de fora justamente os compromissos daquele dia.
+ *
+ * O dia continua sendo decidido no fuso da clínica — `inicioDoDiaUtc(diaNoFuso(agora))`
+ * é "hoje para a clínica, na fronteira em que `dueDate` foi gravada".
+ */
+export function inicioDoDiaUtc(diaIso: string): Date {
+    return new Date(`${diaIso}T00:00:00.000Z`)
 }
 
 /** O instante UTC do fim daquele dia — a meia-noite do dia seguinte. */

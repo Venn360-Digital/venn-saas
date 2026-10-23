@@ -8,6 +8,7 @@ import {
     RuleMessageDispatcher,
 } from '@/types/rules'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
+import { horaMinutoNoFuso } from '@/lib/fuso'
 
 /**
  * Carries out a matched rule's actions against the database.
@@ -263,8 +264,9 @@ export class RuleExecutor {
 
         // dueDate is a date and startTime a "HH:mm" string, so the clock part of
         // the target instant has to be split out to survive a round trip.
-        const hours = String(dueAt.getHours()).padStart(2, '0')
-        const minutes = String(dueAt.getMinutes()).padStart(2, '0')
+        // A hora que vai para `startTime` é de parede, da clínica: no Worker
+        // `getHours()` gravaria a hora UTC — 14h viraria "17:00" no banco.
+        const [hours, minutes] = horaMinutoNoFuso(dueAt).split(':')
 
         const owner = await this.resolveAssignee(params, context.workspaceId)
 

@@ -7,6 +7,7 @@ import { resolveConversationLine } from '@/lib/conversation-line'
 import { QUEUE } from '@/lib/queue/definitions'
 import { createLogger } from '@/trabalhos/registro'
 import { enfileirar } from '@/trabalhos/filas'
+import { diaDaSemanaNoFuso, horaNoFuso } from '@/lib/fuso'
 
 const log = createLogger('CRON:AUTOSEND')
 
@@ -38,8 +39,10 @@ const OPT_OUT = /^\s*(parar|pare|sair|descadastrar|nao quero|não quero|stop)\b/
  */
 export async function runAutoFollowUp(): Promise<void> {
     const now = new Date()
-    const hour = now.getHours()
-    const weekday = now.getDay()
+    // Horário comercial é o da clínica: no Worker `getHours()` daria UTC, e a
+    // janela 9–18 viraria 6–15 em Brasília — com sábado à noite virando domingo.
+    const hour = horaNoFuso(now)
+    const weekday = diaDaSemanaNoFuso(now)
 
     // Portão 5, aplicado antes de tudo: fora do horário não há o que fazer.
     if (hour < BUSINESS_START || hour >= BUSINESS_END || weekday === 0 || weekday === 6) {

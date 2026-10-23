@@ -1,6 +1,7 @@
 import { Prisma } from '#prisma'
 
 import prisma from '@/lib/prisma'
+import { fimDoDia, inicioDoDia } from '@/lib/fuso'
 
 /**
  * Os números da visão Gráfico, em uma rodada.
@@ -29,15 +30,13 @@ export interface ChartScope {
     userId?: string | null
 }
 
+/** Fronteiras do dia **da clínica** — estes limites filtram instantes. */
 function startOfDay(iso: string): Date {
-    const [y, m, d] = iso.split('-').map(Number)
-    return new Date(y, m - 1, d)
+    return inicioDoDia(iso)
 }
 
 function endOfDay(iso: string): Date {
-    const date = startOfDay(iso)
-    date.setDate(date.getDate() + 1)
-    return date
+    return fimDoDia(iso)
 }
 
 export interface ChartWindow {

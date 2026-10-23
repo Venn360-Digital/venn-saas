@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
 
 // GET - Fetch pending reminders for the current user
 // Returns activities that have a reminder set and are due within the reminder window
@@ -49,13 +50,11 @@ export async function GET() {
         const pendingReminders = activities.filter(a => {
             if (!a.dueDate || !a.reminderMinutes) return false
             // Combine dueDate with startTime for precise timing
-            const dueDateTime = new Date(a.dueDate)
-            if (a.startTime) {
-                const [h, m] = a.startTime.split(':').map(Number)
-                dueDateTime.setHours(h, m, 0, 0)
-            } else {
-                dueDateTime.setHours(9, 0, 0, 0) // default 9 AM
-            }
+            // Hora de parede da clínica — ver `instanteNoFuso`.
+            const dueDateTime = instanteNoFuso(
+                diaDeDataSemHora(new Date(a.dueDate)),
+                a.startTime || '09:00'
+            )
             const reminderTime = new Date(dueDateTime.getTime() - a.reminderMinutes * 60 * 1000)
             return reminderTime <= now && dueDateTime > now
         })

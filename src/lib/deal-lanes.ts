@@ -1,4 +1,5 @@
 import type { Prisma } from '#prisma'
+import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 
 /**
  * As três perguntas que a clínica faz todo dia ao funil.
@@ -26,10 +27,11 @@ const STALE_DAYS = 7
 
 export function laneWhere(lane: DealLane, now: Date = new Date()): Prisma.DealWhereInput {
     if (lane === 'due_soon') {
-        const start = new Date(now)
-        start.setHours(0, 0, 0, 0)
-        const end = new Date(start)
-        end.setDate(end.getDate() + 2)
+        // `dueDate` é data sem hora: a fronteira é meia-noite UTC, mas o dia
+        // é o da clínica — ver `inicioDoDiaUtc`.
+        const hoje = diaNoFuso(now)
+        const start = inicioDoDiaUtc(hoje)
+        const end = inicioDoDiaUtc(somarDias(hoje, 2))
         return { activities: { some: { completedAt: null, dueDate: { gte: start, lt: end } } } }
     }
 

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
+import { diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
 
 /** Barato de propósito: resumir não precisa do modelo caro. */
 const SUMMARY_MODEL = 'gpt-4o-mini'
@@ -170,8 +171,8 @@ async function countSince(conversationId: string, untilId: string | null): Promi
  * que a Agenda tem agora, e sem gastar crédito.
  */
 async function upcomingFor(workspaceId: string, contactId: string) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // `dueDate` é data sem hora: fronteira em meia-noite UTC do dia da clínica.
+    const today = inicioDoDiaUtc(diaNoFuso())
 
     const activities = await prisma.activity.findMany({
         where: {
