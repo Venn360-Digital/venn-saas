@@ -127,9 +127,20 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # `--worker` é obrigatório e `-f` pula a confirmação interativa. Sem os
+      # dois o comando sai com 1 — e na primeira versão deste job um
+      # `continue-on-error` transformava essa falha em verde, que é exatamente
+      # o tipo de portão oco que este repositório já tinha em outro lugar.
+      # Aqui o erro vira AVISO visível, em vez de sumir: apagar um preview que
+      # não existe não deve reprovar o workflow, mas tem de aparecer.
       - name: Apagar
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx cf previews delete "pr-${{ github.event.pull_request.number }}"
+          NOME: pr-${{ github.event.pull_request.number }}
+        run: |
+          if npx cf previews delete "$NOME" --worker odontobox -f; then
+            echo "preview $NOME apagado"
+          else
+            echo "::warning::Não foi possível apagar o preview $NOME — conferir Durable Objects órfãos em Workers → odontobox"
+          fi
