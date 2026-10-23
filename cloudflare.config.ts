@@ -291,6 +291,32 @@ export default defineConfig({
             EVOLUTION_GO_URL: bindings.secret(),
             EVOLUTION_WEBHOOK_SECRET: bindings.secret(),
 
+            /**
+             * A base pública da app, para MONTAR a URL do webhook.
+             *
+             * **Por que isto precisa existir, e custou um corte.** Em
+             * 2026-10-23 a linha não conectava: `/instance/create` devolvia
+             * 200 e nenhum `/instance/connect` chegava ao Evolution. A causa
+             * era `webhookUrlFor` (`src/lib/whatsapp/index.ts`), que lê
+             * `WEBHOOK_BASE_URL ?? NEXT_PUBLIC_APP_URL` e lança quando as duas
+             * faltam — e nenhuma das duas era declarada aqui. O erro acontecia
+             * exatamente entre criar e conectar, e o sintoma na tela era só
+             * "erro ao conectar".
+             *
+             * **E tem de ser esta, não `NEXT_PUBLIC_APP_URL`.** O Better Auth
+             * usa `NEXT_PUBLIC_APP_URL` como `baseURL`
+             * (`src/lib/auth/better-auth.ts`); defini-la para consertar o
+             * webhook derruba a sessão de quem está logado. `webhookUrlFor`
+             * prefere `WEBHOOK_BASE_URL`, então esta sozinha resolve e não
+             * encosta na autenticação.
+             *
+             * Segredo pelo mesmo motivo de `EVOLUTION_GO_URL`: é topologia, e
+             * o valor muda quando o domínio virar — e o valor gravado em cada
+             * linha do Evolution é o que o rearme reaplica, então trocá-lo
+             * exige reconectar as linhas (ver `infra/scripts/wa-webhook-guard.sh`).
+             */
+            WEBHOOK_BASE_URL: bindings.secret(),
+
             PUBLICO: bindings.r2({ name: 'odontobox-public' }),
 
             // Variáveis, só o que não é segredo.
