@@ -170,6 +170,39 @@ Asaas intactos.
 **No corte, isto morre junto com a porta sem segredo** — apagar a rota do
 código e `docker compose -f infra/compose.bloqueio-webhook.yaml down`.
 
+## O rearme de webhook NÃO é necessário — medido em 2026-10-23
+
+A versão anterior deste runbook afirmava que o Evolution guarda o webhook só na
+requisição `/instance/connect` e que ele **some num restart**, deixando o
+inbound parar em silêncio — e previa um vigia para reaplicá-lo. Medido com a
+linha real pareada: **é falso nesta pilha.**
+
+Sequência observada, com o `wa-guard` reiniciando o contêiner 9 s após o
+pareamento (o contorno do laço de QR, que é real e continua necessário):
+
+```
+20:52:39  Successfully paired 553131918001:24
+20:52:44  wa-guard: LoggedIn=true after 5s
+20:52:48  wa-guard: restarted
+--- depois do restart, sem rearme nenhum ---
+          connected=true, LoggedIn=true
+          webhook=…/api/webhooks/evolution-go/<segredo>   ← intacto
+          4 entregas de webhook bem-sucedidas, zero falhas
+```
+
+E em seguida, tráfego real: texto, imagem e áudio nos dois sentidos, mídia
+gravada no R2 e áudio de entrada transcrito.
+
+**O Evolution relê o webhook do banco ao subir.** O `wa-webhook-guard.sh` foi
+apagado em vez de ficar guardado "para ligar depois": um vigia que reaplica
+webhook sem necessidade é risco sem ganho — se o valor no banco estiver velho
+(depois de rotacionar o segredo, por exemplo), ele reaplica o errado para
+sempre e diz "reaplicado (HTTP 200)" a cada restart.
+
+O que **continua** necessário é o `wa-guard.sh`: sem ele o Evolution desloga a
+sessão que acabou de criar no 5º QR (~105 s). Visto nesta máquina antes de o
+vigia existir — a linha pareou e caiu em 41 s.
+
 ## Verificação (fim a fim)
 - `/server/ok` respondendo pelo hostname do Tunnel (e recusando sem Access service
   token, se adotado).
