@@ -75,7 +75,12 @@ export async function GET(request: NextRequest) {
                 escapeCsv(createdViaLabel(contact.createdVia)),
                 escapeCsv(Array.from(tagNames).join(', ')),
                 escapeCsv(contact.notes || ''),
-                new Date(contact.createdAt).toLocaleDateString('pt-BR'),
+                // `createdAt` é instante: a data exportada é a da clínica.
+                // Sem o fuso, um paciente criado às 22h saía com a data do dia
+                // seguinte na planilha.
+                new Date(contact.createdAt).toLocaleDateString('pt-BR', {
+                    timeZone: 'America/Sao_Paulo',
+                }),
             ].join(',')
         })
 

@@ -86,3 +86,7 @@ AGENTS.md
 # Clientes do Prisma, gerados por `prisma generate` (dois runtimes).
 # Carregam o engine nativo de ~21 MB cada: artefato, nunca fonte.
 src/generated/
+
+# Artefatos de build/deploy do wrangler. Dois ficaram rastreados por engano
+# em poc/canal-whatsapp/.wrangler/tmp (2026-10-22) e foram removidos.
+.wrangler/

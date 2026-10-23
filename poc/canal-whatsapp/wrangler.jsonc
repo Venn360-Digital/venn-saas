@@ -28,8 +28,21 @@
             // — e é uma diferença de quatro vezes na conta mensal.
             "instance_type": "lite",
 
-            // Teto da POC. Limita o estrago e a fatura enquanto se mede.
-            "max_instances": 5
+            /**
+             * Teto de salas simultâneas.
+             *
+             * Era 5, da POC — e cinco salas depois ele virou o defeito: o
+             * contorno pós-pareamento **para e sobe** o contêiner, e sem uma
+             * folga a subida falha com "Container crashed while checking for
+             * ports". Medido em 2026-10-23: a linha pareava, reciclava, reatava
+             * e então morria porque não havia vaga para voltar.
+             *
+             * Uma sala por linha de WhatsApp, mais a da licença, mais a folga do
+             * reinício. Vinte cobre a homologação com margem; a conta por
+             * contêiner está em `decisoes.ts` (`custoMensal`) e o que paga é o
+             * contêiner **de pé**, não o teto.
+             */
+            "max_instances": 20
         }
     ],
 

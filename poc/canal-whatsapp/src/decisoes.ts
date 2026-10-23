@@ -66,10 +66,21 @@ export function decidirReinicio(s: SituacaoPosPareamento): DecisaoDeReinicio {
         return { acao: 'desistir', motivo: 'janela fechada: o logout forçado já passou' }
     }
 
-    // Reconectar sem aparelho guardado não retoma sessão — abre um ciclo de QR
-    // novo, que é o problema, não a cura.
-    if (!s.jidConhecido) {
-        return { acao: 'desistir', motivo: 'nenhum aparelho pareado para retomar' }
+    /**
+     * Desistir só quando não há sinal **nenhum** de sessão.
+     *
+     * Era `!s.jidConhecido` sozinho, e isso desarmava o contorno inteiro: o
+     * Evolution Go 0.7.2 devolve `loggedIn: true` com **JID vazio** (medido em
+     * 2026-10-22). O reciclo então desistia a +1 s de uma sessão **viva**, e a
+     * goroutine de QR a derrubava ~2 min depois — medido em 2026-10-23, com a
+     * linha pareando, ficando no ar e morrendo sozinha às 23:16.
+     *
+     * `loggedIn` é sinal de sessão tanto quanto o JID. Sem os dois não há o que
+     * retomar, e aí reconectar só abriria um ciclo de QR novo — que é o
+     * problema, não a cura.
+     */
+    if (!s.jidConhecido && !s.loggedIn) {
+        return { acao: 'desistir', motivo: 'nenhum sinal de sessão para retomar' }
     }
 
     if (s.desdeParearMs < JANELA.PISO_MS) {

@@ -364,6 +364,27 @@ export class CanalWhatsApp extends Container<Ambiente> {
         // `startAndWaitForPorts` já traz espera de porta e nova tentativa.
         await this.startAndWaitForPorts({ cancellationOptions: { portReadyTimeoutMS: 60_000 } })
         await this.registrar('reiniciado')
+
+        /**
+         * Reatar **esta** instância, explicitamente.
+         *
+         * O contêiner sobe com `CONNECT_ON_STARTUP=false` (ver `REATAR_SESSOES`:
+         * ligá-lo faria este contêiner disputar os aparelhos das clínicas com o
+         * Evolution Go da VPS). Então ninguém reconecta sozinho — e um reinício
+         * que não reata perde justamente a sessão que o reinício existia para
+         * salvar.
+         *
+         * `armarWebhook` é o `/instance/connect` com o token guardado: retoma
+         * pelas credenciais que já estão no Postgres, **sem emitir QR**, e deixa
+         * o webhook no lugar na mesma chamada.
+         */
+        try {
+            await this.armarWebhook()
+            await this.ctx.storage.put(CHAVE.WEBHOOK_ARMADO, true)
+            await this.registrar('sessão reatada', 'após o reinício')
+        } catch (erro) {
+            await this.registrar('reatar após reinício falhou', String(erro))
+        }
     }
 
     // ---------------------------------------------------------- o vigia

@@ -95,7 +95,7 @@ export async function runInstagramTokenRefresh(): Promise<void> {
                         status: 'error',
                         errorMessage:
                             `Não foi possível renovar o acesso ao Instagram (vence em ` +
-                            `${vence.toLocaleDateString('pt-BR')}). Reconecte a conta. ${detalhe}`,
+                            `${vence.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}). Reconecte a conta. ${detalhe}`,
                     },
                 })
                 .catch(() => null)
