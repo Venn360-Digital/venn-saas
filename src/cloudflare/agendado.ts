@@ -50,17 +50,26 @@ export async function aoSerAgendado(
      * minuto para o mesmo efeito. E ela vai primeiro: os eventos pendentes são o
      * que a tela de alguém está esperando, enquanto as rotinas são manutenção.
      */
-    if (event.cron === CADA_MINUTO) {
-        /**
-         * `waitUntil` e não `await`: a varredura não deve atrasar o
-         * enfileiramento das rotinas, e o Worker continua vivo até ela terminar.
-         */
-        ctx.waitUntil(
-            varrerOutbox(env).catch((erro) => {
-                console.error('[CRON] varredura da outbox falhou:', erro)
-            })
-        )
-    }
+    /**
+     * A varredura começa agora e é **aguardada no fim**, depois de as rotinas
+     * estarem na fila — assim ela não atrasa o enfileiramento, que era o
+     * motivo do `ctx.waitUntil` que havia aqui.
+     *
+     * Por que não mais `waitUntil` solto: o handler retornava com a varredura
+     * ainda rodando, `entrada.ts` fechava o cliente do Prisma no `finally`, e
+     * a varredura — no mesmo escopo — recebia um cliente **novo** que ninguém
+     * fechava. Medido em 2026-10-23, já com o fecho nas rotas e nas filas: o
+     * `scheduled` seguia pendurado 11,8 s por disparo, a cada minuto, sem log
+     * e sem exceção. Aguardar aqui é o que põe a varredura dentro do ciclo de
+     * vida do cliente. `ctx` fica na assinatura para quem precisar dele.
+     */
+    void ctx
+    const varredura =
+        event.cron === CADA_MINUTO
+            ? varrerOutbox(env).catch((erro) => {
+                  console.error('[CRON] varredura da outbox falhou:', erro)
+              })
+            : Promise.resolve()
 
     if (rotinas.length === 0) {
         /**
@@ -72,6 +81,7 @@ export async function aoSerAgendado(
          * chegar aqui, e esta linha é a segunda rede.
          */
         console.error(`[CRON] disparo "${event.cron}" não corresponde a nenhuma rotina`)
+        await varredura
         return
     }
 
@@ -83,4 +93,5 @@ export async function aoSerAgendado(
      * não é repetido junto com ela.
      */
     await Promise.all(rotinas.map((task) => env.CRON.send({ task })))
+    await varredura
 }
