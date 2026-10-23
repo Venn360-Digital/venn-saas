@@ -91,29 +91,8 @@ function obterCliente(): PrismaClient {
     const existente = globalThis.prismaGlobal
     if (existente) return existente
 
-    /**
-     * Guardado **sempre**, inclusive em produção — e isto é correção, não ajuste.
-     *
-     * A intenção escrita acima sempre foi "um cliente por isolate". Mas a
-     * atribuição estava presa a `NODE_ENV !== 'production'`, e o `prisma`
-     * exportado é um `Proxy` que chama esta função a **cada acesso de
-     * propriedade**. No Worker, onde o Next grava `NODE_ENV = 'production'` no
-     * bundle, o resultado era um `PrismaClient` novo — com pool do Neon e
-     * conexão WebSocket nova — a cada `prisma.contact`, `prisma.deal`,
-     * `prisma.message`… Uma página como o painel, que dispara catorze consultas,
-     * abria catorze conexões, e nenhuma era fechada.
-     *
-     * O sintoma era 500 **intermitente** em qualquer tela que tocasse o banco
-     * (medido em 2026-10-22: ~12% numa sequência, e nenhuma falha em rajada
-     * rápida): falhava quando o número de conexões abertas estourava o teto —
-     * ora do Worker, ora do projeto no Neon. Como o erro acontece longe da
-     * causa, parecia "tela quebrada", e a repetição resolvia.
-     *
-     * Em desenvolvimento o efeito é o de antes: o global sobrevive ao
-     * recarregamento a quente do Next e evita uma conexão por edição.
-     */
     const cliente = criarCliente()
-    globalThis.prismaGlobal = cliente
+    if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = cliente
     return cliente
 }
 
