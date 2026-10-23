@@ -322,7 +322,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
                         ? String(day.getDate())
                         : window.bucketDays === 7
                             ? `${day.getDate()}/${day.getMonth() + 1}`
-                            : day.toLocaleDateString('pt-BR', { month: 'short' }),
+                            : day.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short' }),
                 current: runCurrent,
                 previous: runPrevious,
             })

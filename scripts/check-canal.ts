@@ -76,10 +76,23 @@ function main() {
     const tarde = decidirReinicio({ desdeParearMs: JANELA.LOGOUT_MS, loggedIn: true, jidConhecido: true })
     ok('reinício: depois dos 105 s desiste', tarde.acao === 'desistir', tarde.motivo)
 
-    // Sem JID guardado, reconectar abriria ciclo de QR novo — o problema, não a
-    // cura. Vale até quando o relógio está perfeito.
+    /**
+     * **Sem JID mas logado, RECICLA** — e esta prova mudou de lado de propósito.
+     *
+     * Ela afirmava o contrário, e o contrário quebrava o produto: o Evolution Go
+     * 0.7.2 devolve `loggedIn: true` com JID vazio, então exigir JID fazia o
+     * reciclo desistir a +1 s de uma sessão viva. Medido em produção em
+     * 2026-10-23: a linha pareava às 23:14, ficava no ar, e a goroutine de QR a
+     * derrubava às 23:16 — sem o reciclo, que existe exatamente para matá-la.
+     *
+     * `loggedIn` é sinal de sessão tanto quanto o JID.
+     */
     const semJid = decidirReinicio({ desdeParearMs: 20_000, loggedIn: true, jidConhecido: false })
-    ok('reinício: sem aparelho guardado desiste', semJid.acao === 'desistir', semJid.motivo)
+    ok('reinício: logado sem JID ainda recicla', semJid.acao === 'reiniciar', semJid.motivo)
+
+    // E o inverso continua valendo: sem JID e sem login não há o que retomar.
+    const semSinal = decidirReinicio({ desdeParearMs: 20_000, loggedIn: false, jidConhecido: false })
+    ok('reinício: sem sinal nenhum desiste', semSinal.acao === 'desistir', semSinal.motivo)
 
     // A ordem dos guardas importa: fora da janela E sem JID, o motivo relatado
     // deve ser a janela, que é o fato mais forte.
