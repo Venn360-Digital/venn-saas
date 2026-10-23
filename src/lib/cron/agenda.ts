@@ -33,8 +33,36 @@ export interface Rotina {
  * no `scheduler.ts` e não foram repetidos aqui — duplicar justificativa é
  * garantir que uma das cópias fique velha.
  */
+/**
+ * De qual rotina a varredura da outbox pega carona. É a mais frequente, e é por
+ * isso que ela serve: a varredura quer o menor intervalo disponível.
+ */
+export const TAREFA_DA_VARREDURA: CronJobName = 'activity-reminders'
+
 export const ROTINAS: Rotina[] = [
-    { task: 'activity-reminders', brt: '* * * * *' },
+    /**
+     * **Por que não é mais `* * * * *`.**
+     *
+     * Este disparo carrega também a varredura da outbox (ver
+     * `src/cloudflare/agendado.ts`), então ele batia no Postgres a cada minuto,
+     * 24 h por dia — e o *scale to zero* do Neon, que suspende após 5 min de
+     * ociosidade e **não pode ser desligado no plano Free**, nunca chegava a
+     * agir. Compute sempre ligado a 0,25 CU dá ~180 CU-hours/mês contra uma
+     * franquia de 100: a cota acabaria por volta do dia 17 e o Neon suspenderia
+     * o compute — o CRM fora do ar por cota, não por defeito.
+     *
+     * Restringir à janela em que a clínica atende leva a ~97,5 CU-hours, que
+     * cabe na franquia. A decisão está em `docs/migration/00-open-decisions.md`
+     * e só voltou a valer quando o projeto Neon do Evolution saiu: enquanto ele
+     * existia, era a conexão vazada do whatsmeow que segurava o compute
+     * acordado, e restringir este cron não economizaria nada.
+     *
+     * **O que se perde das 21 h às 7 h:** lembrete de atividade não dispara, e a
+     * varredura da outbox — que é a REDE do tempo real, não o caminho principal
+     * — não roda. O caminho imediato (`publicarAgora`) continua funcionando; o
+     * que fica sem rede é o evento que falhou nele e esperaria a varredura.
+     */
+    { task: 'activity-reminders', brt: '* 7-20 * * *' },
     { task: 'activity-recurrence', brt: '7 * * * *' },
     { task: 'credits-reset', brt: '13 3 * * *' },
     { task: 'trial-lifecycle', brt: '17 * * * *' },
@@ -104,6 +132,55 @@ export function paraUTC(padraoBrt: string): string {
         return [minuto, hora, diaDoMes, mes, diaDaSemana].join(' ')
     }
 
+    /**
+     * Intervalo de horas — convertido SÓ quando o deslocamento não cruza a
+     * meia-noite.
+     *
+     * A versão anterior recusava todo intervalo, e a recusa estava certa pelo
+     * motivo certo: "1-5" deslocado vira "4-8", que é um intervalo diferente e
+     * ainda válido — meio-converter produz um horário plausível e errado.
+     *
+     * Mas há um caso em que a conversão é demonstrável: quando `fim + 3 <= 23`,
+     * o intervalo inteiro cabe no mesmo dia UTC e o conjunto de horas é o mesmo.
+     * `7-20` BRT vira `10-23` UTC, hora a hora. Já `20-7` viraria `23-10`, que
+     * não é intervalo válido e precisaria de dois — e aí a recusa continua,
+     * porque um campo de cron não expressa isso sem ambiguidade.
+     */
+    const faixa = hora.match(/^(\d{1,2})-(\d{1,2})$/)
+    if (faixa) {
+        const de = Number(faixa[1])
+        const ate = Number(faixa[2])
+
+        if (de < 0 || ate > 23) {
+            throw new PadraoNaoConversivelError(padraoBrt, `intervalo ${de}-${ate} fora de 0–23`)
+        }
+        if (de > ate) {
+            throw new PadraoNaoConversivelError(
+                padraoBrt,
+                `intervalo ${de}-${ate} está invertido; um intervalo que dá a volta no dia precisa de dois`
+            )
+        }
+
+        const deUtc = de - DESLOCAMENTO_SP
+        const ateUtc = ate - DESLOCAMENTO_SP
+
+        if (ateUtc > 23) {
+            throw new PadraoNaoConversivelError(
+                padraoBrt,
+                `o intervalo ${de}-${ate} cruza a meia-noite em UTC (viraria ${deUtc}-${ateUtc}); ` +
+                    'precisaria de dois intervalos e isso não está implementado'
+            )
+        }
+        if (diaDoMes !== '*' || diaDaSemana !== '*') {
+            throw new PadraoNaoConversivelError(
+                padraoBrt,
+                'intervalo de horas com restrição de dia não está implementado'
+            )
+        }
+
+        return [minuto, `${deUtc}-${ateUtc}`, diaDoMes, mes, diaDaSemana].join(' ')
+    }
+
     if (!/^\d+$/.test(hora)) {
         throw new PadraoNaoConversivelError(
             padraoBrt,
@@ -168,6 +245,22 @@ export function cronsParaWrangler(): string[] {
  * atraso e cair no minuto seguinte, e então a rotina do minuto não roda e a do
  * minuto seguinte roda duas vezes.
  */
+/**
+ * O padrão, **em UTC**, do disparo que carrega a varredura da outbox.
+ *
+ * Existe porque `agendado.ts` comparava `event.cron` com um literal
+ * `'* * * * *'` escrito à mão. Mudar o horário aqui e esquecer lá faria a
+ * comparação ser sempre falsa e a varredura **parar por completo, em silêncio**
+ * — não só fora do horário. Derivar da agenda torna a divergência impossível.
+ */
+export function cronDaVarredura(): string {
+    const rotina = ROTINAS.find((r) => r.task === TAREFA_DA_VARREDURA)
+    if (!rotina) {
+        throw new Error(`a rotina "${TAREFA_DA_VARREDURA}" sumiu da agenda; a varredura da outbox ficaria órfã`)
+    }
+    return paraUTC(rotina.brt)
+}
+
 export function rotinasDoDisparo(cronUtc: string): CronJobName[] {
     const alvo = cronUtc.trim().split(/\s+/).join(' ')
     return rotinasEmUTC()
