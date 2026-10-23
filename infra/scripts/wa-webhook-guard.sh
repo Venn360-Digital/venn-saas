@@ -20,27 +20,42 @@
 # linha. Nada de variável de ambiente: reaplica exatamente o que estava
 # configurado, inclusive o segredo que vai no caminho da URL.
 #
+# O QUE ELE NÃO CONSERTA
+# O banco é a única fonte dele. Se o valor GRAVADO estiver errado, ele reaplica
+# o errado — para sempre, e sem reclamar. O caso concreto: ao rotacionar
+# `EVOLUTION_WEBHOOK_SECRET`, a URL no banco fica velha, o Evolution passa a
+# postar num caminho que a aplicação recusa com 401, e o inbound morre em
+# silêncio com este vigia dizendo "reaplicado (HTTP 200)" a cada restart.
+# Rotacionar o segredo exige reconectar as linhas pela aplicação (que remonta a
+# URL com o segredo novo), não só trocar o segredo.
+#
 # ---------------------------------------------------------------------------
-# ENSAIO POR PADRÃO — LEIA ANTES DE LIGAR
+# O QUE FOI PROVADO NA MÁQUINA (2026-10-23) E O QUE AINDA NÃO
 # ---------------------------------------------------------------------------
-# O payload abaixo espelha o que o app manda (src/lib/whatsapp/evolution-go.ts:
-# `immediate`, `webhookUrl`, `subscribe`). O que NÃO está verificado é o efeito
-# de `/instance/connect` sobre uma linha que JÁ está logada:
+# Medido na VPS com uma instância de teste criada e apagada no mesmo dia:
 #
-#   - `immediate: true`  pode forçar uma reconexão e, no pior caso, pedir QR de
-#                        novo — derrubaria a linha que o script queria salvar;
-#   - `immediate: false` pode ser inócuo e não gravar o webhook — aí o script
-#                        não conserta nada e você acha que está protegido.
+#   PROVADO  `/instance/connect` com `immediate:false` devolve 200 e GRAVA o
+#            webhook e os sete eventos na tabela `instances`. Ou seja: a opção
+#            não-disruptiva NÃO é inócua — era a dúvida que mantinha este
+#            script parado. É por isso que o padrão aqui é `false`.
+#   PROVADO  O webhook sobrevive no BANCO a um restart do contêiner.
+#   PROVADO  O laço deste script funciona: reaplicou e o log confere.
 #
-# Não dá para decidir isso por leitura, e no dia em que escrevi não havia
-# nenhuma linha pareada para testar (`instances` vazia). Então o padrão é
-# ENSAIO: registra o que faria e não chama nada.
+#   NÃO PROVADO, e é o que falta: o efeito de `/instance/connect` sobre uma
+#            linha JÁ LOGADA. A instância de teste nunca pareou (sem telefone),
+#            então `LoggedIn` foi sempre false. Se o connect derrubar a sessão
+#            de uma linha viva, este vigia vira o problema que queria resolver.
+#   NÃO PROVADO: se o Evolution relê o webhook do banco sozinho ao subir. Se
+#            relê, este vigia é redundante — e descobrir isso exige ver uma
+#            mensagem real chegar depois de um restart.
 #
-# Para validar, com UMA linha pareada e de teste:
-#   1. rode com WEBHOOK_GUARD_APPLY=1 e IMMEDIATE=false;
-#   2. `docker restart` proposital no contêiner;
-#   3. mande uma mensagem de fora e veja se ela chega na conversa;
-#   4. se não chegar, repita com IMMEDIATE=true e confira se a linha sobrevive.
+# POR ISSO O PADRÃO SEGUE SENDO ENSAIO: registra o que faria e não chama nada.
+# Para fechar as duas pendências, com UMA linha de teste pareada e descartável:
+#   1. pareie a linha e confirme inbound funcionando;
+#   2. `docker restart` no contêiner e mande uma mensagem — se chegar sem este
+#      vigia rodar, ele é redundante e deve ser aposentado;
+#   3. se NÃO chegar, rode com WEBHOOK_GUARD_APPLY=1 e repita: tem de chegar, e
+#      a linha tem de continuar logada (`/instance/status` com LoggedIn=true).
 # Só depois disso ligue no systemd.
 set -eu
 
@@ -65,8 +80,14 @@ linhas() {
 }
 
 rearmar() {
+    # Sem pipe para o `while`: num pipe ele roda em subshell e o contador nunca
+    # sobe no shell pai — o laço reaplicava e o log dizia "nenhuma linha",
+    # ao mesmo tempo (visto em 2026-10-23). Redirecionar de arquivo mantém o
+    # laço no shell atual.
+    tmp=$(mktemp)
+    linhas > "$tmp"
     n=0
-    linhas | while IFS='|' read -r id token webhook; do
+    while IFS='|' read -r id token webhook; do
         [ -z "${token:-}" ] && continue
         [ -z "${webhook:-}" ] && continue
         n=$((n + 1))
@@ -83,7 +104,8 @@ rearmar() {
             2*) registra "linha $id: webhook reaplicado (HTTP $code)" ;;
             *)  registra "linha $id: FALHOU ao reaplicar (HTTP $code)" ;;
         esac
-    done
+    done < "$tmp"
+    rm -f "$tmp"
     [ "$n" -eq 0 ] && registra "nenhuma linha com webhook configurado"
     return 0
 }
