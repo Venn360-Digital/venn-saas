@@ -13,6 +13,7 @@
  */
 import { readEvolutionGoEvent, readWhatsAppCloudEvent } from '@/lib/whatsapp/envelopes'
 import { LIMITE_DO_JOB_BYTES, semBase64, tamanhoDoJob } from '@/lib/queue/tamanho'
+import { segredoDoWebhookValido } from '@/lib/whatsapp/webhook-evolution-go'
 import { decodeMessage } from '@/lib/whatsapp/payload'
 import type { NormalizedAck, NormalizedInbound } from '@/lib/whatsapp/envelopes'
 
@@ -202,6 +203,15 @@ function main() {
     ok('foto grande: as chaves de download ficam', JSON.stringify(jobCortado.inbound.downloadPayload).includes('mediaKey'))
     ok('foto grande: mimetype sobrevive', jobCortado.inbound.mediaMimetype === 'image/jpeg')
     ok('foto grande: o original não é mutado', foto.mediaBase64 === base64Grande)
+
+    // ------------------------------------------- segredo do webhook do VPS
+    // O Evolution Go no VPS posta num caminho com segredo; a porta confere em
+    // tempo constante. Sem isso, qualquer POST forjaria mensagem de paciente.
+    ok('webhook: segredo certo passa', segredoDoWebhookValido('s3gr3do-abc', 's3gr3do-abc'))
+    ok('webhook: segredo errado falha', !segredoDoWebhookValido('errado', 's3gr3do-abc'))
+    ok('webhook: comprimento diferente falha', !segredoDoWebhookValido('abc', 's3gr3do-abc'))
+    ok('webhook: esperado vazio nunca passa', !segredoDoWebhookValido('', ''))
+    ok('webhook: esperado indefinido nunca passa', !segredoDoWebhookValido('qualquer', undefined))
 
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)
