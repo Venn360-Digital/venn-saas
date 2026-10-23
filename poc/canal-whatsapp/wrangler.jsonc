@@ -37,6 +37,12 @@
         "bindings": [{ "name": "CANAL", "class_name": "CanalWhatsApp" }]
     },
 
+    // Service binding para o Worker do app. O repasse de evento do /entrada vai
+    // por aqui — `fetch` público de um Worker para o workers.dev de outro Worker
+    // da mesma conta não atravessa de forma confiável (medido 2026-10-22). É a
+    // direção inversa do binding EVOLUTION_GO que o app usa para falar com este.
+    "services": [{ "binding": "APP", "service": "odontobox" }],
+
     "exports": {
         "CanalWhatsApp": { "type": "durable-object", "storage": "sqlite" }
     },
