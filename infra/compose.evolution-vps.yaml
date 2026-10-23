@@ -1,0 +1,140 @@
+# =============================================================================
+# Evolution Go + Postgres dedicado — VPS dedicada ao canal QR do WhatsApp
+# =============================================================================
+# Stack autocontido para a VPS Stay Cloud REFORMATADA, dedicada só ao Evolution
+# Go. Combina o serviço `evolution-go` de compose.staycloud.yaml (Postgres
+# separado, ligado a loopback) com um Postgres próprio + o `evolution-go-db-init`
+# de compose.yaml (cria as duas bases), mais `cloudflared` para o Tunnel.
+#
+# Decisão de 2026-10-23: o Evolution Go embute o whatsmeow (socket persistente
+# 24/7), que não combina com Cloudflare Containers (dorme na ociosidade). O app
+# segue em Cloudflare Workers + Neon + R2; só o canal QR vem para cá. Se esta
+# VPS cair, cai só o WhatsApp QR — o CRM continua.
+#
+# O app alcança a API admin SÓ pelo Tunnel (sem porta aberta na internet). O
+# Evolution posta os eventos no webhook público do app, com o segredo no
+# caminho (ver src/app/api/webhooks/evolution-go/[secret]).
+#
+# Subir:   docker compose -f compose.evolution-vps.yaml --env-file .env.evolution-vps up -d
+# Licença: ativar uma vez pelo /manager por túnel SSH (ver 12-evolution-vps.md).
+
+name: odontobox-evolution
+
+networks:
+  evo:
+    driver: bridge
+
+volumes:
+  evo-postgres:
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres dedicado — só do Evolution. Nunca exposto (sem `ports`).
+  # ---------------------------------------------------------------------------
+  # Instância separada por desenho: credencial de aparelho do WhatsApp é o alvo
+  # mais valioso aqui e não divide servidor com nada. A base do APP vive no Neon,
+  # não neste host.
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${EVO_DB_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    volumes:
+      - evo-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [evo]
+
+  # Cria as duas bases que o Evolution Go espera, se não existirem. O Postgres só
+  # roda scripts de init num data dir vazio; isto roda sempre e é idempotente.
+  evolution-go-db-init:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${EVO_DB_PASSWORD}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        for name in evogo_auth evogo_users; do
+          if psql -h postgres -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$$name'" | grep -q 1; then
+            echo "database '$$name' already exists"
+          else
+            echo "creating database '$$name'"
+            psql -h postgres -U postgres -c "CREATE DATABASE $$name"
+          fi
+        done
+    networks: [evo]
+
+  # ---------------------------------------------------------------------------
+  # Evolution Go (whatsmeow) — o canal QR
+  # ---------------------------------------------------------------------------
+  # Fixado em 0.7.2 (a versão provada em 2026-10), não `latest`: numa atualização
+  # do autor o comportamento muda sem ninguém pedir. Ligado a 127.0.0.1:8080 só
+  # para a ativação de licença por túnel SSH; o tráfego real entra pela rede do
+  # compose (cloudflared → evolution-go:8080) e pelo webhook de saída.
+  evolution-go:
+    image: evoapicloud/evolution-go:0.7.2
+    restart: always
+    depends_on:
+      evolution-go-db-init:
+        condition: service_completed_successfully
+    environment:
+      SERVER_PORT: "8080"
+      CLIENT_NAME: odontobox360
+      GLOBAL_API_KEY: ${EVOLUTION_GO_API_KEY}
+      POSTGRES_AUTH_DB: postgresql://postgres:${EVO_DB_PASSWORD}@postgres:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://postgres:${EVO_DB_PASSWORD}@postgres:5432/evogo_users?sslmode=disable
+
+      # Persistimos as mensagens no app; uma segunda cópia aqui só cresceria sem
+      # limite.
+      DATABASE_SAVE_MESSAGES: "false"
+      # A mídia vem no webhook em base64 — o consumidor arquiva sem segunda ida.
+      WEBHOOKFILES: "true"
+      MINIO_ENABLED: "false"
+      # Reata as linhas pareadas após um restart, pelo JID guardado, sem QR.
+      CONNECT_ON_STARTUP: "true"
+      WADEBUG: INFO
+      LOGTYPE: json
+      TZ: ${TZ:-America/Sao_Paulo}
+    ports:
+      - "127.0.0.1:8080:8080"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/server/ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks: [evo]
+
+  # ---------------------------------------------------------------------------
+  # Cloudflare Tunnel — a única porta de entrada da API admin
+  # ---------------------------------------------------------------------------
+  # Sem porta 443 aberta na VPS. O hostname (ex.: evo-odontobox.<domínio>) é
+  # criado no painel da Cloudflare e roteado para http://evolution-go:8080 (rede
+  # do compose). Endurecer com Access service token no painel — ver runbook.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.8.1
+    restart: always
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      evolution-go:
+        condition: service_healthy
+    networks: [evo]
