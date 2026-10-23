@@ -5,7 +5,11 @@ name: Preview
 # Worker roda, porque o `workerd` não roda na máquina de desenvolvimento.
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `closed` entra para APAGAR o preview. Sem ele, cada PR deixava para trás
+    # o Worker de preview e os Durable Objects dele — levantados em 2026-10-23:
+    # 16 namespaces órfãos de PRs já fechados (`odontobox_pr-4_*` a `pr-11_*`),
+    # e o número só cresce.
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
@@ -24,7 +28,7 @@ jobs:
     # PR de fork **não** publica. Fork não recebe segredo por padrão, e mesmo
     # que recebesse, publicar código de terceiro com a credencial da conta é o
     # caminho clássico para comprometer uma conta de CI.
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
 
     # O ambiente de preview carrega o token de escopo reduzido e a URL do banco
     # de homologação. **Nunca** os de produção — ver `deploy.yml`.
@@ -99,3 +103,33 @@ jobs:
             } else {
               await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body: corpo })
             }
+
+  # ---------------------------------------------------------------------------
+  # Apagar o preview quando o PR fecha
+  # ---------------------------------------------------------------------------
+  # Roda tanto em merge quanto em fechamento sem merge: o preview não serve a
+  # nenhum dos dois casos depois que o PR sai de cena.
+  #
+  # `continue-on-error`: se o preview nunca chegou a existir — PR de fork, ou um
+  # deploy que falhou antes de publicar —, `cf previews delete` reclama de algo
+  # que não está lá, e reprovar o workflow por isso treinaria todo mundo a
+  # ignorar o vermelho desta aba.
+  limpar:
+    name: Apagar o preview do PR
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+
+      - name: Apagar
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx cf previews delete "pr-${{ github.event.pull_request.number }}"
