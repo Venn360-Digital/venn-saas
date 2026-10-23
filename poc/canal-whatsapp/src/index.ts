@@ -75,15 +75,27 @@ export default {
             // Repasse ao app, verbatim. O evento carrega o token da instância
             // (o app é dono dela), então o app resolve a integração como sempre;
             // `?sala=` vai junto como rede de segurança.
+            //
+            // Pelo **service binding** `APP` quando existe: `fetch` público de um
+            // Worker para o `workers.dev` de outro Worker da MESMA conta não
+            // atravessa de forma confiável, e o evento se perdia calado (medido
+            // 2026-10-22). O binding roteia pelo caminho da URL, não pelo host,
+            // então a mesma `Request` serve aos dois. Sem binding, cai no público.
             if (env.APP_WEBHOOK_URL) {
                 const destino = `${env.APP_WEBHOOK_URL}?sala=${encodeURIComponent(partes.sala)}`
+                const req = new Request(destino, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: corpo,
+                })
+                const enviar = env.APP ? env.APP.fetch(req) : fetch(req)
                 ctx.waitUntil(
-                    fetch(destino, {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: corpo,
-                    })
-                        .then(() => undefined)
+                    enviar
+                        .then(async (r) => {
+                            // HTTP de erro não rejeita a promessa; registrar aqui
+                            // é o que torna um 4xx/5xx do app visível no log.
+                            if (!r.ok) console.error(`[entrada] app respondeu ${r.status}`)
+                        })
                         .catch((erro) => console.error('[entrada] repasse ao app falhou', erro))
                 )
             }
