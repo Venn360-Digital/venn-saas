@@ -27,6 +27,7 @@ import {
     provedorDa,
     VALIDADE_MAXIMA_SEGUNDOS,
 } from '@/lib/storage'
+import { deBase64 } from '@/trabalhos/servicos/arquivo'
 
 let falhas = 0
 let pulados = 0
@@ -44,6 +45,23 @@ async function main() {
     // ---------------------------------------------------------------- lógica
 
     ok('classe pública vai para o R2', provedorDa(CLASSES.PUBLICO) === 'r2-publico')
+
+    // ------------------------------------------------- deBase64 tolerante
+    // Os bytes da mídia do paciente chegam do `/message/downloadmedia` em
+    // formatos que o `atob` cru recusa. `deBase64` normaliza; o cofre, que usa
+    // a mesma função com base64 padrão, não pode ser afetado.
+    const oi = [0x6f, 0x69] // "oi"
+    const igual = (u8: Uint8Array, esperado: number[]) =>
+        u8.length === esperado.length && esperado.every((b, i) => u8[i] === b)
+    ok('deBase64: base64 padrão', igual(deBase64('b2k='), oi))
+    ok('deBase64: prefixo data URL', igual(deBase64('data:image/png;base64,b2k='), oi))
+    ok('deBase64: com quebra de linha', igual(deBase64('b2\nk=\n'), oi))
+    ok('deBase64: URL-safe sem padding', igual(deBase64('b2k'), oi))
+    ok(
+        'deBase64: URL-safe com - e _',
+        // `-_8=` → `+/8=` (padrão) → bytes 0xFB 0xFF
+        deBase64('-_8=').length === 2 && deBase64('-_8=')[0] === 0xfb && deBase64('-_8=')[1] === 0xff
+    )
     ok('classe pública é gravável', podeGravar(CLASSES.PUBLICO))
 
     // Decisão do André em 2026-10-21: o clínico vai para o R2, no bucket
