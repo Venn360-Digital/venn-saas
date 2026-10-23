@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { CLASSES, enderecoPara, gravar } from '@/lib/storage'
 import { MANAGER_ROLES, assertAgentAccess, getWorkspaceMember } from '@/lib/auth/workspace'
 
 /**
@@ -21,8 +21,6 @@ import { MANAGER_ROLES, assertAgentAccess, getWorkspaceMember } from '@/lib/auth
  * que o paciente vê é a da própria conta conectada, definida no app ou no
  * Gerenciador da Meta, e nenhuma API nossa a sobrescreve.
  */
-
-const BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? 'attachments'
 
 const ALLOWED: Record<string, string> = {
     'image/png': 'png',
@@ -89,23 +87,31 @@ export async function POST(
          * de RLS, e o cliente do usuário recebe "new row violates row-level
          * security policy". A autorização já aconteceu acima, via Prisma.
          */
-        const storage = createAdminClient().storage
-        const path = `${auth.member.workspaceId}/agents/${agentId}.${extension}`
+        const chave = `${auth.member.workspaceId}/agents/${agentId}.${extension}`
 
-        const { data, error } = await storage
-            .from(BUCKET)
-            .upload(path, file, { contentType: file.type, upsert: true })
-
-        if (error || !data) {
-            console.error('[AGENT_AVATAR] upload failed', error)
+        /**
+         * `CLASSES.PUBLICO` e não clínico: o retrato do agente é da clínica,
+         * não de paciente, e serve-se por URL direta e cacheável — passar isso
+         * pelo Worker gastaria invocação para entregar byte que a borda entrega
+         * melhor. A classificação é o que decide o balde; não há nome de bucket
+         * escrito aqui.
+         */
+        let ref
+        try {
+            ref = await gravar(
+                CLASSES.PUBLICO,
+                chave,
+                new Uint8Array(await file.arrayBuffer()),
+                { contentType: file.type }
+            )
+        } catch (erro) {
+            console.error('[AGENT_AVATAR] upload failed', erro)
             return NextResponse.json({ error: 'Falha no upload da imagem' }, { status: 500 })
         }
 
-        const { data: urlData } = storage.from(BUCKET).getPublicUrl(data.path)
-
-        // `upsert` mantém a mesma URL, então sem isto o navegador seguiria
-        // mostrando a imagem anterior em cache depois da troca.
-        const url = `${urlData.publicUrl}?v=${Date.now()}`
+        // Gravar na mesma chave mantém a mesma URL, então sem isto o navegador
+        // seguiria mostrando a imagem anterior em cache depois da troca.
+        const url = `${await enderecoPara(ref)}?v=${Date.now()}`
 
         const agent = await prisma.agent.update({
             where: { id: agentId },
