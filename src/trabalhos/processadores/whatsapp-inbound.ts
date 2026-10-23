@@ -8,7 +8,7 @@ import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
 import type { WhatsAppInboundJob } from '@/lib/queue/definitions'
 import { syncContactProfile } from '@/trabalhos/servicos/avatar'
-import { archiveInboundMedia } from '@/trabalhos/servicos/media'
+import { archiveInboundMedia, obterBytesDaMidia } from '@/trabalhos/servicos/media'
 import { delayForSpeed, scheduleAiReply } from '@/trabalhos/servicos/ai-reply-schedule'
 import { transcribeAudio } from '@/trabalhos/servicos/transcribe'
 import {
@@ -185,21 +185,42 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
 
     let mediaUrl = decoded.mediaUrl ?? undefined
     let transcript: string | null = null
-    if (!isRetry && decoded.contentType === 'audio' && inbound.mediaBase64) {
-        // Antes de arquivar, enquanto os bytes ainda estão em memória.
-        transcript = await transcribeAudio(inbound.mediaBase64, inbound.mediaMimetype).catch((error) => {
-            log.warn('falha ao transcrever; seguindo sem texto', error)
-            return null
-        })
-    }
     if (!isRetry && decoded.contentType !== 'text') {
         try {
             const { provider, credentials } = providerFor(integration)
+
+            /**
+             * Os bytes vêm **uma vez** — do evento ou do download — e servem à
+             * transcrição e ao arquivamento.
+             *
+             * Antes, a transcrição só acontecia com `inbound.mediaBase64`
+             * presente. Desde que o base64 sai do job quando o evento não
+             * cabe no Queues (toda foto, quase toda nota de voz), isso teria
+             * deixado o áudio sem texto em silêncio. Baixar aqui e passar os
+             * bytes adiante é o que mantém a transcrição sem baixar duas
+             * vezes.
+             */
+            const bytes = await obterBytesDaMidia({
+                base64: inbound.mediaBase64,
+                mimetype: inbound.mediaMimetype,
+                provider,
+                credentials,
+                downloadPayload: inbound.downloadPayload,
+            })
+
+            if (decoded.contentType === 'audio' && bytes) {
+                // Antes de arquivar, enquanto os bytes ainda estão em memória.
+                transcript = await transcribeAudio(bytes.base64, bytes.mimetype).catch((error) => {
+                    log.warn('falha ao transcrever; seguindo sem texto', error)
+                    return null
+                })
+            }
+
             const archived = await archiveInboundMedia({
                 workspaceId: workspace.id,
                 conversationId: conversation.id,
-                base64: inbound.mediaBase64,
-                mimetype: inbound.mediaMimetype,
+                base64: bytes?.base64,
+                mimetype: bytes?.mimetype,
                 provider,
                 credentials,
                 downloadPayload: inbound.downloadPayload,

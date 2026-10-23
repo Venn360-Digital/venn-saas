@@ -2,6 +2,7 @@ import 'server-only'
 import { MissingRedisUrlError } from './connection'
 import { QUEUE } from './definitions'
 import { entregar } from './entregar'
+import { LIMITE_DO_JOB_BYTES, semBase64, tamanhoDoJob } from './tamanho'
 import type { AnyNormalizedEvent } from '@/lib/whatsapp/envelopes'
 import type { ChannelProviderName } from '@/lib/whatsapp/types'
 
@@ -12,14 +13,6 @@ import type { ChannelProviderName } from '@/lib/whatsapp/types'
  * their own envelope. Inbound messages go to their own queue because they are the
  * expensive path; receipts, presence and connection state are cheap and chatty.
  */
-
-/**
- * Media bytes above this size are dropped from the job and fetched by the worker
- * instead. A base64 video can run to several megabytes, and BullMQ stores the
- * whole payload in Redis — one large message would otherwise be able to crowd out
- * the queue itself. Images and voice notes, the common case, stay inline.
- */
-const MAX_INLINE_MEDIA_BYTES = 2 * 1024 * 1024
 
 export interface EnqueueResult {
     queued: number
@@ -43,15 +36,19 @@ export async function enqueueNormalizedEvents(
                     break
                 }
 
-                const inbound = { ...event }
+                let inbound = { ...event }
+                let job = { provider, inbound, receivedAt }
 
-                if (inbound.mediaBase64 && inbound.mediaBase64.length > MAX_INLINE_MEDIA_BYTES) {
-                    delete inbound.mediaBase64
+                // Acima do que a fila aceita, o base64 sai e o consumidor baixa a
+                // mídia pelo provedor. A regra e o porquê estão em `tamanho.ts`.
+                if (tamanhoDoJob(job) > LIMITE_DO_JOB_BYTES) {
+                    inbound = semBase64(inbound)
+                    job = { provider, inbound, receivedAt }
                 }
 
                 await entregar(
                     QUEUE.WHATSAPP_INBOUND,
-                    { provider, inbound, receivedAt },
+                    job,
                     // Keyed on the provider message id so a webhook the provider
                     // retries cannot produce a second copy. Só no BullMQ — no
                     // Queues a dedup é no consumo (ver IDS_DE_DEDUP em entrada.ts).
