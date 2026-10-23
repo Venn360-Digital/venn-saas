@@ -1,3 +1,5 @@
+import { diaDaSemana, diaNoFuso, limitesDoMes, somarDias } from '@/lib/fuso'
+
 /**
  * O período do produto — os atalhos e a matemática das datas.
  *
@@ -29,11 +31,18 @@ export interface PeriodRange {
     to: string
 }
 
-/** `yyyy-MM-dd` no fuso de quem olha — `toISOString()` empurraria o dia. */
+/**
+ * `yyyy-MM-dd` no **fuso do negócio** — não no de quem olha, e não em UTC.
+ *
+ * Era `date.getDate()` & cia., que lê o fuso do processo. Funcionava na VPS
+ * (`TZ=America/Sao_Paulo`) e passou a dar UTC no Worker, que ignora `TZ`: às
+ * 22h de Brasília o servidor já resolvia "hoje" como o dia seguinte, e o filtro
+ * da tela deixava de bater com o número que voltava do banco.
+ *
+ * Fixar o fuso da clínica faz cliente e servidor concordarem — ver `lib/fuso.ts`.
+ */
 export function isoDay(date: Date): string {
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${date.getFullYear()}-${month}-${day}`
+    return diaNoFuso(date)
 }
 
 /**
@@ -44,29 +53,24 @@ export function isoDay(date: Date): string {
  * escolha.
  */
 export function periodRange(id: PeriodPresetId, nowMs: number): PeriodRange {
-    const now = new Date(nowMs)
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Tudo em cima do dia de calendário brasileiro, nunca de um instante com
+    // fuso implícito — ver `isoDay`.
+    const hoje = diaNoFuso(new Date(nowMs))
 
     switch (id) {
         case 'today':
-            return { from: isoDay(today), to: isoDay(today) }
+            return { from: hoje, to: hoje }
         case 'week': {
-            const start = new Date(today)
-            start.setDate(start.getDate() - start.getDay())
-            const end = new Date(start)
-            end.setDate(end.getDate() + 6)
-            return { from: isoDay(start), to: isoDay(end) }
+            const inicio = somarDias(hoje, -diaDaSemana(hoje))
+            return { from: inicio, to: somarDias(inicio, 6) }
         }
         case 'month': {
-            const start = new Date(now.getFullYear(), now.getMonth(), 1)
-            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-            return { from: isoDay(start), to: isoDay(end) }
+            const { primeiro, ultimo } = limitesDoMes(hoje)
+            return { from: primeiro, to: ultimo }
         }
         default: {
             const days = id === 'd7' ? 7 : id === 'd30' ? 30 : 90
-            const start = new Date(today)
-            start.setDate(start.getDate() - days + 1)
-            return { from: isoDay(start), to: isoDay(today) }
+            return { from: somarDias(hoje, -(days - 1)), to: hoje }
         }
     }
 }
