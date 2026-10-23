@@ -1,6 +1,7 @@
 import type { Prisma } from '#prisma'
 
 import prisma from '@/lib/prisma'
+import { diaNoFuso, fimDoDia, inicioDoDia } from '@/lib/fuso'
 
 /**
  * Everything the dashboard shows, in one round trip.
@@ -27,17 +28,21 @@ export interface DashboardScope {
     userId?: string | null
 }
 
-/** Meia-noite local do dia `yyyy-MM-dd`. */
+/**
+ * Meia-noite do dia `yyyy-MM-dd` **no fuso da clínica**.
+ *
+ * Era `new Date(y, m - 1, d)`, que usa o fuso do processo: certo na VPS
+ * (`TZ=America/Sao_Paulo`), UTC no Worker. A diferença de três horas movia a
+ * fronteira do dia — medido em 2026-10-22, atividade que vencia às 10h de
+ * Brasília do próprio dia contava como **atrasada**. Ver `lib/fuso.ts`.
+ */
 function startOfDay(iso: string): Date {
-    const [y, m, d] = iso.split('-').map(Number)
-    return new Date(y, m - 1, d)
+    return inicioDoDia(iso)
 }
 
-/** Meia-noite local do dia seguinte — o fim exclusivo de um intervalo inclusivo. */
+/** Meia-noite do dia seguinte — o fim exclusivo de um intervalo inclusivo. */
 function endOfDay(iso: string): Date {
-    const date = startOfDay(iso)
-    date.setDate(date.getDate() + 1)
-    return date
+    return fimDoDia(iso)
 }
 
 interface Window {
@@ -68,9 +73,10 @@ export async function getDashboardSummary(
     const window = resolveWindow(scope)
     const owner = scope.userId ?? null
 
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const endOfToday = new Date(startOfToday.getTime() + 86_400_000)
+    // "Hoje" é o dia da clínica, não o do relógio do servidor (UTC no Worker).
+    const hoje = diaNoFuso(new Date())
+    const startOfToday = inicioDoDia(hoje)
+    const endOfToday = fimDoDia(hoje)
 
     /**
      * O recorte por responsável, modelo a modelo.

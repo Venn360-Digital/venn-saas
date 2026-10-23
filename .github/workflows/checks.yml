@@ -71,6 +71,15 @@ jobs:
           npm run check:storage
           npm run check:tempo-real
           npm run check:envelopes
+          npm run check:fuso
+
+      # O mesmo conjunto, com o relógio do runner em UTC — que é como o Worker
+      # roda. É o que impede a volta do defeito: na VPS o `TZ` era
+      # `America/Sao_Paulo` e mascarava toda conta de data feita em hora local.
+      - name: Provas de fuso, com o relógio em UTC
+        run: npm run check:fuso
+        env:
+          TZ: UTC
 
       - name: Build
         run: npm run build
