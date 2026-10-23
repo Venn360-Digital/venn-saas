@@ -11,7 +11,8 @@
  * Puro de propósito: nenhuma IO, conferido contra corpos gravados da forma que
  * a Meta documenta.
  */
-import { readWhatsAppCloudEvent } from '@/lib/whatsapp/envelopes'
+import { readEvolutionGoEvent, readWhatsAppCloudEvent } from '@/lib/whatsapp/envelopes'
+import { LIMITE_DO_JOB_BYTES, semBase64, tamanhoDoJob } from '@/lib/queue/tamanho'
 import { decodeMessage } from '@/lib/whatsapp/payload'
 import type { NormalizedAck, NormalizedInbound } from '@/lib/whatsapp/envelopes'
 
@@ -176,6 +177,31 @@ function main() {
     ok('corpo vazio: lista vazia', readWhatsAppCloudEvent({}).length === 0)
     ok('nulo: lista vazia', readWhatsAppCloudEvent(null).length === 0)
     ok('sem entry: lista vazia', readWhatsAppCloudEvent({ object: 'x' }).length === 0)
+
+    // ------------------------------------------ foto grande cabe na fila
+    // Medido em 2026-10-23: foto de 776 KB em base64 estourava os 128 KB do
+    // Cloudflare Queues, o webhook respondia 500 e a imagem sumia. O corte
+    // tem de alcançar as TRÊS cópias do base64 (mediaBase64, message.*.base64
+    // e downloadPayload.Message) — apagar só a primeira não encolhe nada.
+    const base64Grande = 'A'.repeat(776_000)
+    const foto = readEvolutionGoEvent({
+        event: 'Message',
+        instanceId: 'inst',
+        data: {
+            Info: { ID: 'F1', Chat: '5531999999999@s.whatsapp.net', IsFromMe: false, PushName: 'Paciente' },
+            Message: {
+                imageMessage: { mimetype: 'image/jpeg', url: 'https://mmg.whatsapp.net/x', mediaKey: 'k', base64: base64Grande },
+            },
+        },
+    }) as NormalizedInbound
+    const jobCheio = { provider: 'evolution-go', inbound: foto, receivedAt: 'agora' }
+    ok('foto grande: o job cheio NÃO cabe', tamanhoDoJob(jobCheio) > LIMITE_DO_JOB_BYTES, `${tamanhoDoJob(jobCheio)} bytes`)
+    const jobCortado = { ...jobCheio, inbound: semBase64(foto) }
+    ok('foto grande: sem base64 cabe', tamanhoDoJob(jobCortado) < LIMITE_DO_JOB_BYTES, `${tamanhoDoJob(jobCortado)} bytes`)
+    ok('foto grande: o corte alcança as três cópias', !JSON.stringify(jobCortado).includes(base64Grande.slice(0, 64)))
+    ok('foto grande: as chaves de download ficam', JSON.stringify(jobCortado.inbound.downloadPayload).includes('mediaKey'))
+    ok('foto grande: mimetype sobrevive', jobCortado.inbound.mediaMimetype === 'image/jpeg')
+    ok('foto grande: o original não é mutado', foto.mediaBase64 === base64Grande)
 
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)

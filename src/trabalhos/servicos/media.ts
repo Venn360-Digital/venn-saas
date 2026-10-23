@@ -47,33 +47,48 @@ export interface ArchiveMediaInput {
  * Returns null on failure; the caller keeps the message and drops the attachment
  * rather than losing both.
  */
+export interface BytesDaMidia {
+    base64: string
+    mimetype?: string
+}
+
+/**
+ * Os bytes da mídia: os que vieram no evento ou, sem eles, os baixados.
+ *
+ * Separado de `archiveInboundMedia` porque há **dois** consumidores dos bytes
+ * — o arquivamento e a transcrição de áudio — e o download tem de acontecer
+ * uma vez só. Desde 2026-10-23 o base64 sai do job quando o evento não cabe
+ * nos 128 KB do Queues (ver `enqueue-whatsapp.ts`), então "sem bytes no
+ * evento" deixou de ser exceção: é toda foto e quase toda nota de voz.
+ */
+export async function obterBytesDaMidia(
+    input: Pick<ArchiveMediaInput, 'base64' | 'mimetype' | 'provider' | 'credentials' | 'downloadPayload'>
+): Promise<BytesDaMidia | null> {
+    if (input.base64) return { base64: input.base64, mimetype: input.mimetype }
+
+    if (!input.provider || !input.credentials || !input.downloadPayload) {
+        log.warn('no inline media and no way to download it')
+        return null
+    }
+
+    const downloaded = await input.provider.downloadMedia(input.credentials, input.downloadPayload)
+
+    if (!downloaded?.base64) {
+        log.warn('provider returned no media bytes')
+        return null
+    }
+
+    return { base64: downloaded.base64, mimetype: downloaded.mimetype }
+}
+
 export async function archiveInboundMedia(
     input: ArchiveMediaInput
 ): Promise<string | null> {
     const { workspaceId, conversationId } = input
 
-    let base64 = input.base64
-    let mimetype = input.mimetype
-
-    if (!base64) {
-        if (!input.provider || !input.credentials || !input.downloadPayload) {
-            log.warn('no inline media and no way to download it')
-            return null
-        }
-
-        const downloaded = await input.provider.downloadMedia(
-            input.credentials,
-            input.downloadPayload
-        )
-
-        if (!downloaded?.base64) {
-            log.warn('provider returned no media bytes')
-            return null
-        }
-
-        base64 = downloaded.base64
-        mimetype = downloaded.mimetype
-    }
+    const bytes = await obterBytesDaMidia(input)
+    if (!bytes) return null
+    const { base64, mimetype } = bytes
 
     // Providers report things like "audio/ogg; codecs=opus"; Storage wants the bare
     // type, and the parameters break extension mapping.
