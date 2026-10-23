@@ -8,15 +8,21 @@ import { readEvolutionGoEvent } from '@/lib/whatsapp/envelopes'
 /**
  * O webhook do Evolution Go — a lógica compartilhada pelas duas portas.
  *
- * **Por que duas portas.** O Evolution Go não assina o que emite e o
- * `/instance/connect` só aceita um `webhookUrl` (sem header custom), então o
+ * **Por que o segredo vai no caminho.** O Evolution Go não assina o que emite e
+ * o `/instance/connect` só aceita um `webhookUrl` (sem header custom), então o
  * segredo viaja no PRÓPRIO caminho — como fazia o Worker-contêiner em
- * `/entrada/{POC_TOKEN}/{sala}`. Quando o Evolution sai da Cloudflare e passa a
- * postar pela internet, a porta `/api/webhooks/evolution-go/{segredo}` é a que
- * autentica (ver o `route.ts` do segmento `[secret]`). A porta antiga sem
- * segredo (`.../evolution-go`) continua existindo só durante a sobreposição do
- * corte, enquanto o contêiner ainda posta por binding interno; é aposentada com
- * ele. Esta função é o corpo comum às duas — normaliza o envelope e enfileira.
+ * `/entrada/{POC_TOKEN}/{sala}`. Quem autentica é o `route.ts` do segmento
+ * `[secret]`; esta função é o corpo que ele chama depois de conferir, e
+ * normaliza o envelope e enfileira.
+ *
+ * **Houve uma segunda porta, sem segredo, e ela foi removida em 2026-10-23.**
+ * Existia "durante a sobreposição do corte", justificada por o contêiner postar
+ * por binding interno. Duas coisas estavam erradas nisso: não era binding, era
+ * a rede do compose; e o mesmo caminho estava aberto na internet, aceitando
+ * POST anônimo e enfileirando — bastava conhecer um `instanceId`, que é um UUID
+ * e vaza em log, para forjar mensagem de entrada, acionar o agente e mandar
+ * WhatsApp em nome da clínica. Com a Stay Cloud desligada ela perdeu o último
+ * chamador, e some. Não recriar.
  */
 
 export interface RespostaWebhook {
