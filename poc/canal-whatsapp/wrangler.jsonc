@@ -22,11 +22,22 @@
             // de QR; vale testar na POC, não em produção.
             "image": "docker.io/evoapicloud/evolution-go:0.7.2",
 
-            // 256 MiB / 1/16 vCPU / 2 GB. O menor que existe, de propósito: a
-            // imagem tem 86 MB e o processo é um Go esperando soquete. Se não
-            // couber, a própria falha é a medição que decide subir para `basic`
-            // — e é uma diferença de quatro vezes na conta mensal.
-            "instance_type": "lite",
+            // `basic`: 1 GiB / 1/4 vCPU / 4 GB.
+            //
+            // Nasceu `lite` (1/16 vCPU) — o menor que existe —, com a aposta de
+            // que um Go esperando soquete não precisaria de mais. A medição
+            // desfez a aposta: em 2026-10-23, com os dois tails cruzados, o
+            // `/send/text` levava ~4,8 s, e ~4,4 s eram DENTRO do contêiner. A
+            // criptografia do Signal por mensagem é CPU, e 1/16 de vCPU é o
+            // gargalo — não o banco nem a rede. Na VPS o mesmo envio era bem
+            // abaixo de 1 s.
+            //
+            // `basic` dá 4× a vCPU. A conta sobe ~4× no contêiner **de pé**
+            // (ver `custoMensal` em `decisoes.ts`), e para uma clínica isso é
+            // centavos contra segundos na frente do paciente. Se `basic` não
+            // chegar perto de 1 s, o próximo passo é medir de novo, não subir
+            // às cegas para `standard`.
+            "instance_type": "basic",
 
             /**
              * Teto de salas simultâneas.
