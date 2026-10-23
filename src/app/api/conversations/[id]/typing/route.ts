@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { resolveIntegration } from '@/lib/whatsapp'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { transmitir } from '@/trabalhos/tempo-real'
 
 // POST: Send typing indicator to contact + broadcast to realtime
 export async function POST(
@@ -62,20 +62,25 @@ export async function POST(
             }
         }
 
-        // Broadcast to Supabase Realtime so other tabs/operators see it too
-        const supabaseAdminClient = createAdminClient()
-        const channel = supabaseAdminClient.channel(`typing:${conversationId}`)
-        await channel.send({
-            type: 'broadcast',
-            event: 'typing',
-            payload: {
+        /**
+         * Para as outras abas e os outros atendentes verem.
+         *
+         * Pelo caminho EFÊMERO, não pelo outbox: o outbox garante entrega ao
+         * custo de uma gravação e da varredura de cada minuto, e "está
+         * digitando" chegaria depois de a pessoa ter terminado de escrever.
+         * Perder este evento não custa nada; atrasá-lo custa tudo. Ver
+         * `src/trabalhos/tempo-real.ts`.
+         */
+        await transmitir({
+            workspaceId: auth.member.workspaceId,
+            tipo: 'digitando',
+            dados: {
                 conversationId,
                 isTyping,
                 source: 'operator',
                 userId: auth.member.userId,
-            }
+            },
         })
-        supabaseAdminClient.removeChannel(channel)
 
         return NextResponse.json({ ok: true })
     } catch (error) {

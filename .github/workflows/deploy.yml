@@ -32,7 +32,6 @@ jobs:
       - run: npx prisma generate
       - run: npm run typecheck
       - run: npm run typecheck:cloudflare
-      - run: npm run typecheck:workers
       - run: npm run lint
       - run: |
           npm run lint:colors

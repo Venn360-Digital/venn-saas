@@ -148,19 +148,6 @@ export function resolveIntegration(integration: AgentIntegration): {
  * provider cannot reach localhost.
  */
 export function webhookUrlFor(providerName: ChannelProviderName): string {
-    /**
-     * O canal QR (evolution-go) NÃO usa esta URL.
-     *
-     * O Worker do contêiner reescreve o `webhookUrl` no `/instance/connect` para
-     * o seu próprio `/entrada`, onde o segredo mora (ver `canal.ts`). Então o
-     * app não precisa — nem deve — montar a URL aqui: exigir `WEBHOOK_BASE_URL`
-     * num Worker que não o tem quebrava o connect (medido 2026-10-22). O valor é
-     * descartado pelo contêiner; o placeholder só satisfaz a assinatura.
-     */
-    if (providerName === 'evolution-go') {
-        return 'https://reescrito-pelo-container.invalid/entrada'
-    }
-
     const base = (process.env.WEBHOOK_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '').replace(
         /\/$/,
         ''
@@ -170,6 +157,27 @@ export function webhookUrlFor(providerName: ChannelProviderName): string {
         throw new Error(
             'Neither WEBHOOK_BASE_URL nor NEXT_PUBLIC_APP_URL is set; cannot build a webhook URL'
         )
+    }
+
+    /**
+     * O canal QR (evolution-go), agora no VPS, posta direto nesta porta.
+     *
+     * Até 2026-10-23 esta função devolvia um placeholder porque o
+     * Worker-contêiner reescrevia o `webhookUrl` para o seu `/entrada`. Sem o
+     * contêiner, a app monta a URL real — e o segredo vai NO CAMINHO, porque o
+     * Evolution Go não assina o que emite e o `/instance/connect` não aceita
+     * header (ver `webhook-evolution-go.ts`). Sem `EVOLUTION_WEBHOOK_SECRET`
+     * não há URL segura a montar: falhar aqui é melhor que parear uma linha
+     * cujo webhook cairia numa porta que recusa tudo (503).
+     */
+    if (providerName === 'evolution-go') {
+        const segredo = process.env.EVOLUTION_WEBHOOK_SECRET
+        if (!segredo) {
+            throw new Error(
+                'EVOLUTION_WEBHOOK_SECRET is not set; cannot build the Evolution Go webhook URL'
+            )
+        }
+        return `${base}/api/webhooks/evolution-go/${encodeURIComponent(segredo)}`
     }
 
     /**

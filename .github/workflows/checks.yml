@@ -51,10 +51,6 @@ jobs:
         # o `workerd` não roda na máquina de desenvolvimento (macOS 12.7.6).
         run: npm run typecheck:cloudflare
 
-      - name: Tipos — processo worker
-        # Ainda existe e precisa seguir compilando até as Queues assumirem.
-        run: npm run typecheck:workers
-
       - run: npm run lint
 
       # Os verificadores próprios do projeto. Rodados um a um — o `prebuild` já

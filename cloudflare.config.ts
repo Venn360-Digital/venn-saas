@@ -272,18 +272,24 @@ export default defineConfig({
              * O bucket antigo ficou órfão e pode ser apagado.
              */
             /**
-             * O canal QR do WhatsApp — o contêiner do Evolution Go, em outro
-             * Worker (`odontobox-evolution`, hoje ainda `poc-canal-whatsapp`).
+             * O canal QR do WhatsApp — agora no VPS, alcançado por HTTP via
+             * Cloudflare Tunnel, não mais por service binding.
              *
-             * Service binding e não URL pública: a API administrativa do
-             * Evolution Go (criar instância, parear número) não pode ficar
-             * exposta na internet atrás de um token. O binding é interno —
-             * chamada Worker→Worker que não sai da Cloudflare — e é a própria
-             * fronteira de autorização. O app ainda manda `x-evo-gateway` (a
-             * chave global) como defesa em profundidade e `x-evo-sala` (o id da
-             * integração) para rotear ao contêiner certo.
+             * Era `EVOLUTION_GO: bindings.worker({ worker: 'poc-canal-whatsapp' })`
+             * — o contêiner do Evolution Go vivia em Cloudflare Containers e o
+             * binding interno era a fronteira de autorização. Decisão de
+             * 2026-10-23: processo com socket persistente 24/7 não combina com
+             * compute que dorme, então o Evolution saiu para o VPS. O app volta
+             * ao caminho HTTP do provider (`EVOLUTION_GO_URL`), e a API admin
+             * fica atrás do Tunnel (sem porta aberta no VPS).
+             *
+             * `EVOLUTION_GO_URL` é o hostname do Tunnel; segredo porque é a
+             * topologia da rede. `EVOLUTION_WEBHOOK_SECRET` é o que o Evolution
+             * no VPS carrega no caminho do webhook para a app autenticar a
+             * entrada (ver `src/app/api/webhooks/evolution-go/[secret]`).
              */
-            EVOLUTION_GO: bindings.worker({ worker: 'poc-canal-whatsapp' }),
+            EVOLUTION_GO_URL: bindings.secret(),
+            EVOLUTION_WEBHOOK_SECRET: bindings.secret(),
 
             PUBLICO: bindings.r2({ name: 'odontobox-public' }),
 

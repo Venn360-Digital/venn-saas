@@ -8,7 +8,6 @@ import { criarDriverCloudflare, type BindingsDeFila } from '@/lib/queue/driver-c
 import { registrarAgenda } from '@/trabalhos/agenda'
 import { registrarTransmissor } from '@/trabalhos/tempo-real'
 import { registrarTravas } from '@/trabalhos/trava'
-import { registrarGatewayEvolutionGo } from '@/lib/whatsapp/evolution-go'
 
 /**
  * Onde o código da aplicação encontra a plataforma.
@@ -27,8 +26,6 @@ export interface EnvDasCosturas extends BindingsDeFila {
     SALA_DO_WORKSPACE: DurableObjectNamespace
     AGENDA_DA_CONVERSA: DurableObjectNamespace
     TRAVA_DE_CONTATO: DurableObjectNamespace
-    /** Service binding para o Worker do canal QR (`odontobox-evolution`). */
-    EVOLUTION_GO: Fetcher
 }
 
 /**
@@ -48,8 +45,10 @@ export function registrarCosturas(env: EnvDasCosturas): void {
 
     registrarDriver(criarDriverCloudflare(env))
 
-    // O canal QR fala com o contêiner do Evolution Go por este binding.
-    registrarGatewayEvolutionGo(env.EVOLUTION_GO)
+    // O gateway do Evolution Go NÃO é mais registrado: o canal saiu para o VPS
+    // (2026-10-23) e o provider fala HTTP por `EVOLUTION_GO_URL`. Sem registro,
+    // `gateway` fica nulo e o `request()` do provider cai sozinho no fetch
+    // público — ver src/lib/whatsapp/evolution-go.ts.
 
     registrarAgenda({
         async agendar(conversationId, payload, atrasoMs) {

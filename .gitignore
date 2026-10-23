@@ -37,6 +37,9 @@ yarn-error.log*
 # não recebia a documentação de configuração nenhuma. Conferido em 2026-10-21:
 # todo valor atribuído ali é placeholder, "" ou não-segredo.
 !.env.example
+# Mesma razão para o exemplo do VPS do Evolution: documenta as variáveis do
+# compose por NOME, sem valor. Ver infra/compose.evolution-vps.yaml.
+!infra/.env.evolution-vps.example
 
 # vercel
 .vercel
