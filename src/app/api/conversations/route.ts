@@ -5,6 +5,7 @@ import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
+import { inicioDoDiaDe } from '@/lib/fuso'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {
@@ -191,8 +192,9 @@ export async function GET(request: NextRequest) {
         // The queue, measured — the three slices the inbox shows above the list.
         // Counted over the whole workspace on purpose: the tab you are looking
         // at must not change how many people are waiting elsewhere.
-        const startOfToday = new Date()
-        startOfToday.setHours(0, 0, 0, 0)
+        // `updatedAt` é instante: o dia começa à meia-noite de Brasília, não à
+        // do relógio do servidor — que no Worker é UTC.
+        const startOfToday = inicioDoDiaDe()
         const ws = workspaceUser.workspaceId
         // O medidor conta dentro do mesmo recorte da lista. Sem isto ele diria
         // "8 esperando" numa tela que mostra 3, e a diferença não teria

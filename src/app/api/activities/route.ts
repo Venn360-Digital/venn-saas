@@ -7,6 +7,7 @@ import { syncActivityToGoogleCalendar } from '@/lib/google-calendar'
 import { z } from 'zod'
 import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
+import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 
 const activitySchema = z.object({
     title: z.string().min(1),
@@ -36,8 +37,9 @@ function generateRecurrenceDates(startDate: Date, type: string, endDate: Date): 
         switch (type) {
             case 'daily': current = new Date(current.getTime() + 86400000); break
             case 'weekly': current = new Date(current.getTime() + 7 * 86400000); break
-            case 'monthly': current = new Date(current.getFullYear(), current.getMonth() + 1, current.getDate()); break
-            case 'yearly': current = new Date(current.getFullYear() + 1, current.getMonth(), current.getDate()); break
+            // Em UTC: a recorrência anda sobre `dueDate`, que é data sem hora.
+            case 'monthly': current = new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + 1, current.getUTCDate())); break
+            case 'yearly': current = new Date(Date.UTC(current.getUTCFullYear() + 1, current.getUTCMonth(), current.getUTCDate())); break
         }
         if (current <= endDate) { dates.push(new Date(current)); count++ }
     }
@@ -90,7 +92,9 @@ export async function GET(request: NextRequest) {
         }
 
         const now = new Date()
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        // `dueDate` é data sem hora, gravada em meia-noite UTC; o DIA, porém,
+        // é o da clínica — ver `inicioDoDiaUtc`.
+        const todayStart = inicioDoDiaUtc(diaNoFuso(now))
 
         if (status === 'overdue') {
             // Atrasada é anterior a hoje por definição; cruzar isso com um
@@ -106,14 +110,8 @@ export async function GET(request: NextRequest) {
             const to = searchParams.get('to') || searchParams.get('endDate')
             if (from || to) {
                 const range: Prisma.DateTimeNullableFilter = {}
-                if (from) {
-                    const [y, m, d] = from.split('-').map(Number)
-                    range.gte = new Date(y, m - 1, d)
-                }
-                if (to) {
-                    const [y, m, d] = to.split('-').map(Number)
-                    range.lt = new Date(y, m - 1, d + 1)
-                }
+                if (from) range.gte = inicioDoDiaUtc(from)
+                if (to) range.lt = inicioDoDiaUtc(somarDias(to, 1))
                 where.dueDate = range
             }
         }

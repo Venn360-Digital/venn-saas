@@ -1,7 +1,7 @@
 import type { Prisma } from '#prisma'
 
 import prisma from '@/lib/prisma'
-import { diaNoFuso, fimDoDia, inicioDoDia } from '@/lib/fuso'
+import { diaNoFuso, fimDoDia, inicioDoDia, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 
 /**
  * Everything the dashboard shows, in one round trip.
@@ -73,10 +73,17 @@ export async function getDashboardSummary(
     const window = resolveWindow(scope)
     const owner = scope.userId ?? null
 
-    // "Hoje" é o dia da clínica, não o do relógio do servidor (UTC no Worker).
+    /**
+     * "Hoje" é o dia da clínica, não o do relógio do servidor (UTC no Worker).
+     *
+     * A fronteira é meia-noite **UTC**, e não de Brasília, porque estes dois
+     * limites só são usados para comparar `dueDate` — coluna de data sem hora,
+     * gravada em meia-noite UTC. Usar 03:00Z aqui deixaria de fora os
+     * compromissos do próprio dia. Ver `inicioDoDiaUtc`.
+     */
     const hoje = diaNoFuso(new Date())
-    const startOfToday = inicioDoDia(hoje)
-    const endOfToday = fimDoDia(hoje)
+    const startOfToday = inicioDoDiaUtc(hoje)
+    const endOfToday = inicioDoDiaUtc(somarDias(hoje, 1))
 
     /**
      * O recorte por responsável, modelo a modelo.

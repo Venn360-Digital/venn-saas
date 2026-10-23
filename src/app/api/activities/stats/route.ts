@@ -3,6 +3,7 @@ import type { Prisma } from '#prisma'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
+import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 
 /**
  * Os quatro números do topo da Agenda.
@@ -28,20 +29,16 @@ export async function GET(request: NextRequest) {
         if (owner) where.userId = owner
 
         const now = new Date()
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+        // `dueDate` é data sem hora; o dia é o da clínica.
+        const hoje = diaNoFuso(now)
+        const todayStart = inicioDoDiaUtc(hoje)
+        const todayEnd = inicioDoDiaUtc(somarDias(hoje, 1))
 
         const from = params.get('from')
         const to = params.get('to')
         const range: Prisma.DateTimeNullableFilter = {}
-        if (from) {
-            const [y, m, d] = from.split('-').map(Number)
-            range.gte = new Date(y, m - 1, d)
-        }
-        if (to) {
-            const [y, m, d] = to.split('-').map(Number)
-            range.lt = new Date(y, m - 1, d + 1)
-        }
+        if (from) range.gte = inicioDoDiaUtc(from)
+        if (to) range.lt = inicioDoDiaUtc(somarDias(to, 1))
         const inPeriod = from || to ? { dueDate: range } : {}
 
         const [today, overdue, completed, total] = await Promise.all([

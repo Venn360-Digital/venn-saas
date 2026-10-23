@@ -3,6 +3,7 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { feriadosNacionais } from '@/lib/holidays'
+import { anoNoFuso } from '@/lib/fuso'
 
 /**
  * O calendário da clínica: feriados e fechamentos.
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const ano = Number(new URL(request.url).searchParams.get('year')) || new Date().getFullYear()
+    const ano = Number(new URL(request.url).searchParams.get('year')) || anoNoFuso()
 
     const linhas = await prisma.scheduleException.findMany({
         where: { workspaceId: auth.member.workspaceId },
@@ -129,7 +130,7 @@ export async function PUT(request: NextRequest) {
     const chave = typeof body.holidayKey === 'string' ? body.holidayKey : ''
     if (!chave) return NextResponse.json({ error: 'Feriado não informado' }, { status: 400 })
 
-    const conhecido = feriadosNacionais(new Date().getFullYear()).find((f) => f.key === chave)
+    const conhecido = feriadosNacionais(anoNoFuso()).find((f) => f.key === chave)
     if (!conhecido) return NextResponse.json({ error: 'Feriado desconhecido' }, { status: 404 })
 
     const blocks = body.blocks !== false

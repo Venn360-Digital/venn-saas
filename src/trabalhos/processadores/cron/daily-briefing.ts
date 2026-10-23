@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma'
 import { DEAL_LANES, laneWhere } from '@/lib/deal-lanes'
 import { readAutomations } from '@/lib/automations'
 import { createLogger } from '@/trabalhos/registro'
+import { horaNoFuso, inicioDoDiaDe } from '@/lib/fuso'
 
 const log = createLogger('CRON:BRIEFING')
 
@@ -20,7 +21,8 @@ const TOP = 5
  * paciente chegar.
  */
 export async function runDailyBriefing(): Promise<void> {
-    const hour = new Date().getHours()
+    // A hora do briefing é a da clínica; `getHours()` daria UTC no Worker.
+    const hour = horaNoFuso()
 
     const workspaces = await prisma.workspace.findMany({
         select: { id: true, automations: true },
@@ -33,8 +35,8 @@ export async function runDailyBriefing(): Promise<void> {
         if (!config.briefing || config.briefingHour !== hour) continue
 
         // Uma vez por dia, mesmo que o cron repita ou o worker reinicie.
-        const since = new Date()
-        since.setHours(0, 0, 0, 0)
+        // `createdAt` é instante: o dia começa à meia-noite de Brasília.
+        const since = inicioDoDiaDe()
         const already = await prisma.notification.findFirst({
             where: { workspaceId: workspace.id, kind: 'briefing', createdAt: { gte: since } },
             select: { id: true },

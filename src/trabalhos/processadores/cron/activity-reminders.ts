@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { transmitir } from '@/trabalhos/tempo-real'
 import { createLogger } from '@/trabalhos/registro'
+import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
 
 const log = createLogger('CRON:REMINDERS')
 
@@ -40,13 +41,12 @@ export async function runActivityReminders(): Promise<void> {
 
         // dueDate carries the day and startTime the clock, so they have to be
         // recombined to decide whether the reminder window has opened.
-        const dueAt = new Date(activity.dueDate)
-        if (activity.startTime) {
-            const [h, m] = activity.startTime.split(':').map(Number)
-            dueAt.setHours(h, m, 0, 0)
-        } else {
-            dueAt.setHours(9, 0, 0, 0)
-        }
+        // A hora combinada é de parede, da clínica: `setHours` a marcava em
+        // UTC no Worker, e o lembrete saía três horas adiantado.
+        const dueAt = instanteNoFuso(
+            diaDeDataSemHora(new Date(activity.dueDate)),
+            activity.startTime || '09:00'
+        )
 
         const fireAt = new Date(dueAt.getTime() - activity.reminderMinutes * 60_000)
         return fireAt <= now && dueAt > now

@@ -1,3 +1,5 @@
+import { diaDeDataSemHora, diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
+
 export interface DealLike {
     createdAt: string
     stageId: string
@@ -60,15 +62,23 @@ export function nextStep(deal: DealLike, now: number): NextStep {
     }
 
     const due = new Date(activity.dueDate)
-    const day = due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    // `dueDate` é data sem hora, guardada em meia-noite UTC — então o rótulo sai
+    // em UTC de propósito. Sem o fuso explícito, a VPS (Brasília) mostrava o dia
+    // ANTERIOR, e o Worker acertava por acidente.
+    const day = due.toLocaleDateString('pt-BR', {
+        timeZone: 'UTC',
+        day: '2-digit',
+        month: '2-digit',
+    })
     const time = activity.startTime ? `, ${activity.startTime}` : ''
 
     if (!now) return { label: `${day}${time}`, overdue: false, missing: false }
 
-    const today = new Date(now)
-    today.setHours(0, 0, 0, 0)
-    const dueDay = new Date(due)
-    dueDay.setHours(0, 0, 0, 0)
+    // Quantos dias faltam, no calendário da clínica. `setHours(0,0,0,0)` dava a
+    // meia-noite do fuso do processo: no Worker (UTC) isso errava o dia por um
+    // entre 21h e meia-noite, e "Hoje" virava "Amanhã" na tela.
+    const today = inicioDoDiaUtc(diaNoFuso(new Date(now)))
+    const dueDay = inicioDoDiaUtc(diaDeDataSemHora(due))
     const diff = Math.round((dueDay.getTime() - today.getTime()) / 86_400_000)
 
     if (diff < 0) return { label: `Era ${day}${time}`, overdue: true, missing: false }
