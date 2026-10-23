@@ -140,6 +140,36 @@ na VPS dedicada (o app DB agora é Neon). Antes de confiar neles:
   e o token de cada instância conectada. Validar com um restart proposital antes
   de confiar.
 
+## A porta sem autenticação — bloqueada em 2026-10-23, antes do corte
+
+A revisão da frente de código encontrou um problema que **não é da migração**:
+`/api/webhooks/evolution-go` (sem o segmento do segredo) aceita POST anônimo e
+enfileira. Medido em produção: `GET` devolvia 200 e `POST {}` chegava no
+handler. O único obstáculo para forjar uma mensagem de entrada, acionar o
+agente e mandar WhatsApp em nome da clínica é conhecer um `instanceId` — um
+UUID, que não é segredo e vaza em log.
+
+O comentário que a justificava no código está errado em dois pontos: fala em
+"binding interno" (é a rede do compose) e em "caminho confiável" (o mesmo
+caminho estava aberto para qualquer um na internet).
+
+**E ela não tinha chamador legítimo pela internet:** `WEBHOOK_BASE_URL` em
+produção é `http://app:3000`, então o Evolution local posta por dentro da rede
+do Docker, sem passar pelo Traefik.
+
+Fechada por `infra/compose.bloqueio-webhook.yaml` — um contêiner próprio cujas
+labels declaram um router de prioridade alta com `ipallowlist` só de loopback.
+Escolhido assim porque o Traefik daquele host só tem provider do Docker, label
+não muda em contêiner de pé, e a mudança não podia entrar por git (o host está
+em `main`, e push em `main` dispara o deploy da Cloudflare).
+
+Verificado: de fora, `GET` e `POST` → **403**; `/evolution-go/{segredo}` segue
+livre; o caminho interno segue respondendo; `/login` e os webhooks da Meta e do
+Asaas intactos.
+
+**No corte, isto morre junto com a porta sem segredo** — apagar a rota do
+código e `docker compose -f infra/compose.bloqueio-webhook.yaml down`.
+
 ## Verificação (fim a fim)
 - `/server/ok` respondendo pelo hostname do Tunnel (e recusando sem Access service
   token, se adotado).

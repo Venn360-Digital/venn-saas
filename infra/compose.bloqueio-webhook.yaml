@@ -1,0 +1,65 @@
+# =============================================================================
+# Bloqueio da porta SEM autenticação do webhook do Evolution Go
+# =============================================================================
+# `/api/webhooks/evolution-go` (sem o segmento do segredo) aceita POST anônimo e
+# enfileira evento — medido em produção em 2026-10-23: GET devolve 200 e POST
+# chega no handler. O único obstáculo para forjar uma mensagem de entrada,
+# acionar o agente de IA e mandar WhatsApp em nome da clínica é conhecer um
+# `instanceId`, que é um UUID e vaza em log. Foi o que a auditoria apontou.
+#
+# E a porta NÃO TEM CHAMADOR LEGÍTIMO pela internet: `WEBHOOK_BASE_URL` em
+# produção é `http://app:3000`, então o Evolution local posta por DENTRO da rede
+# do compose, sem passar pelo Traefik. A exposição pública é superfície de
+# ataque por nada.
+#
+# POR QUE UM CONTÊINER PRÓPRIO, e não uma label no serviço `app`:
+#  - o Traefik aqui só tem o provider do Docker (sem provider de arquivo), então
+#    a regra tem de vir de label;
+#  - label não muda em contêiner de pé: alterar as do `app` exigiria recriá-lo;
+#  - e a mudança não pode entrar por git, porque o host está em `main` e push em
+#    `main` dispara o deploy da Cloudflare.
+# Um contêiner separado resolve os três: entra e sai sem tocar na aplicação.
+#
+# A requisição negada nem chega ao `whoami` — o middleware responde antes. O
+# `whoami` existe só porque um router do Traefik precisa de um serviço.
+#
+# Isto é PROVISÓRIO: no corte, a porta sem segredo é apagada do código e este
+# arquivo morre junto. Ver docs/migration/12-evolution-vps.md.
+#
+# Subir:  docker compose -f compose.bloqueio-webhook.yaml up -d
+# Baixar: docker compose -f compose.bloqueio-webhook.yaml down
+
+name: odontobox-bloqueio
+
+networks:
+  compose_default:
+    external: true
+
+services:
+  nega-webhook-evolution:
+    image: traefik/whoami:v1.10.3
+    restart: always
+    networks: [compose_default]
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=compose_default
+      # Prioridade alta: tem de ganhar do router do app, que casa só por Host.
+      - traefik.http.routers.nega-webhook.priority=1000
+      # PathRegexp e nao Path: o Path do Traefik 3 aceita UM parametro so, e
+      # passar dois invalida a regra inteira e o router e descartado em
+      # silencio (visto no log em 2026-10-23). A ancora `$` garante que
+      # /api/webhooks/evolution-go/{segredo} NAO casa — essa e a porta boa.
+      - traefik.http.routers.nega-webhook.rule=Host(`odontobox.venn360.com`) && PathRegexp(`^/api/webhooks/evolution-go/?$`)
+      - traefik.http.routers.nega-webhook.entrypoints=web,websecure
+      - traefik.http.routers.nega-webhook.tls=true
+      - traefik.http.routers.nega-webhook.tls.certresolver=le
+      - traefik.http.routers.nega-webhook.service=nega-webhook
+      - traefik.http.routers.nega-webhook.middlewares=nega-webhook-ip
+      - traefik.http.services.nega-webhook.loadbalancer.server.port=80
+      # Só loopback passa — ou seja, ninguém de fora. O caminho interno
+      # (http://app:3000) não passa por aqui e segue funcionando.
+      - traefik.http.middlewares.nega-webhook-ip.ipallowlist.sourcerange=127.0.0.1/32
