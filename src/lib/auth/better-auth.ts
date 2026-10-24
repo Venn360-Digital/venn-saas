@@ -42,6 +42,41 @@ export function getAuth(): ReturnType<typeof construir> {
     return instancia
 }
 
+/**
+ * A origem usada quando o host da requisição não é determinável.
+ *
+ * Existe porque sem ela a biblioteca **lança** — e o link do e-mail de
+ * redefinição de senha é montado a partir do `baseURL`. Falhar ali deixaria a
+ * pessoa sem caminho de volta.
+ */
+export const ORIGEM_DE_RESERVA = 'https://odontobox.venn360.com'
+
+/**
+ * Os hosts cuja origem o Better Auth aceita da requisição.
+ *
+ * Exportado para `scripts/check-auth.ts` poder provar as invariantes — a lista
+ * errada aqui não quebra o build, quebra o login, e foi exatamente assim que o
+ * acesso caiu em 2026-10-23.
+ *
+ * O loopback entra **só fora de produção**: em desenvolvimento o servidor é
+ * `localhost:3000` e sem ele o login local resolveria para a origem de reserva,
+ * ou seja apontaria para produção. Medido em 2026-10-24: o curinga de porta
+ * (`localhost:*`) casa `localhost:3000` e `localhost:3001`, e **não** casa
+ * `localhost` sem porta nem `127.0.0.1:3000` — por isso os dois padrões.
+ *
+ * Se o guarda falhar e o loopback valer em produção, o estrago é pequeno: um
+ * atacante teria de mandar `Host: localhost:3000` ao Worker, e o que ele
+ * conseguiria é um redirecionamento para a própria máquina dele.
+ */
+export const HOSTS_PERMITIDOS: string[] = [
+    'odontobox.venn360.com',
+    // Os previews por PR — `pr-<n>-odontobox.andre-7ee.workers.dev`. O
+    // subdomínio estável (`odontobox.andre-7ee...`) está desligado por
+    // `workersDev: false`, então isto alcança só as versões de revisão.
+    '*.andre-7ee.workers.dev',
+    ...(process.env.NODE_ENV === 'production' ? [] : ['localhost:*', '127.0.0.1:*']),
+]
+
 function construir() {
     return betterAuth({
         database: prismaAdapter(prisma, { provider: 'postgresql' }),
@@ -54,7 +89,62 @@ function construir() {
          * sessão forjável.
          */
         secret: process.env.BETTER_AUTH_SECRET,
-        baseURL: process.env.NEXT_PUBLIC_APP_URL,
+
+        /**
+         * A origem, por host permitido — e **não** por variável de ambiente.
+         *
+         * ## O que estava errado
+         *
+         * Era `baseURL: process.env.NEXT_PUBLIC_APP_URL`, e a variável não
+         * existe: o Worker emitia
+         * `WARN [Better Auth]: Base URL is not set` em quase toda requisição, e
+         * a biblioteca passava a derivar a origem do host de **cada
+         * requisição** — qualquer host que alcançasse o Worker valia como
+         * origem para cookie e redirecionamento. Com `auditoria`, era também o
+         * motivo de `trustedOrigins` ficar vazio.
+         *
+         * ## Por que não é uma string fixa
+         *
+         * Porque quebraria os previews, que mudam de hostname a cada PR
+         * (`pr-<n>-odontobox.andre-7ee.workers.dev`) — e é neles que o fluxo de
+         * login é testado. O arquivo do cliente já avisa disso em
+         * `lib/auth/cliente.ts`, e é por isso que ele usa `basePath` relativo
+         * em vez de host.
+         *
+         * ## Por que não é segredo
+         *
+         * Porque em 2026-10-23 gravar `NEXT_PUBLIC_APP_URL` como segredo do
+         * Worker **derrubou o acesso ao sistema**: o valor virou o `baseURL` do
+         * Better Auth e não batia com a origem real. Um segredo a mais é um
+         * valor a mais para divergir do host que serve de fato, e a divergência
+         * se manifesta como "não consigo entrar". Em código, o host está ao
+         * lado da lista que o autoriza, e o `typecheck` vê os dois.
+         *
+         * ## O que esta forma faz
+         *
+         * A configuração dinâmica (`allowedHosts`) resolve a origem do host da
+         * requisição **depois de conferi-lo contra a lista** — host fora dela
+         * cai no `fallback`. E `getTrustedOrigins` deriva `trustedOrigins`
+         * desta mesma lista, então isto também fecha a ausência de
+         * `trustedOrigins` que a auditoria apontou: uma mudança, dois achados.
+         *
+         * O curinga foi medido no matcher do próprio pacote (2026-10-24):
+         * `*.andre-7ee.workers.dev` casa `pr-41-odontobox.andre-7ee.workers.dev`,
+         * **não** casa `odontobox.venn360.com` — por isso o domínio oficial
+         * está listado à parte — e **não** casa
+         * `evil.andre-7ee.workers.dev.evil.com`, ou seja não cai em falsificação
+         * de sufixo. Ele atravessa ponto (`a.b.andre-7ee...` casa), o que é mais
+         * largo que o ideal mas segue confinado ao subdomínio da própria conta.
+         *
+         * O `fallback` existe para o caso de o host não ser determinável: sem
+         * ele a biblioteca **lança**, e o link do e-mail de redefinição de senha
+         * é montado a partir daqui — falhar ali deixaria a pessoa sem caminho de
+         * volta.
+         */
+        baseURL: {
+            allowedHosts: HOSTS_PERMITIDOS,
+            fallback: ORIGEM_DE_RESERVA,
+        },
 
         user: {
             /**
