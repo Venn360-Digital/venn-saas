@@ -1,7 +1,7 @@
 /**
  * Prova do cofre da aplicação.
  *
- * O `supabase_vault` cifrava no banco e nós confiávamos na extensão. Agora a
+ * A extensão de cofre anterior cifrava no banco e nós confiávamos nela. Agora a
  * cifra é nossa (`src/lib/secrets/envelope.ts`), e cifra própria sem teste é
  * cifra que ninguém sabe se funciona. Este script confere as propriedades que
  * importam, não só que o ciclo fecha: que adulterar o texto cifrado **falha**

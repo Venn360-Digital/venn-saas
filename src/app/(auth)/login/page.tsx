@@ -353,7 +353,7 @@ function LoginForm() {
                     {/* O botão do Google que ficava aqui não tinha `onClick`
                         nenhum, e foi removido em vez de ficar como controle que
                         não faz nada. Ligá-lo hoje é configurar o provedor social
-                        no Better Auth — o motivo antigo citava o Supabase Auth,
+                        no Better Auth — o motivo antigo citava o provedor anterior,
                         que saiu na migração. */}
                 </div>
             </main>

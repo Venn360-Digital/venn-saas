@@ -4,13 +4,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 /**
  * O portão de login, na borda.
  *
- * Substitui `lib/supabase/middleware.ts`. A lista de caminhos públicos veio de
+ * Substitui o middleware da plataforma anterior. A lista de caminhos públicos veio de
  * lá **inteira**, com os motivos: cada item ali é um incidente que já
  * aconteceu, e reescrever a lista do zero seria reintroduzi-los um a um.
  *
  * **O que mudou: a verificação é otimista, e de propósito.**
  *
- * O middleware antigo chamava `supabase.auth.getUser()`, que saía para o
+ * O middleware antigo chamava o `getUser()` daquele cliente, que saía para o
  * serviço de identidade **a cada pedido** — e o `matcher` abaixo cobre quase
  * todo caminho da aplicação, inclusive os que nem leem dado. Em borda isso é
  * latência que não se recupera, e em Workers é invocação paga para confirmar o
@@ -22,9 +22,9 @@ import { NextResponse, type NextRequest } from 'next/server'
  * o `isActive` e o papel. Toda rota e toda página passam por ela.
  *
  * **Um caminho público saiu da lista:** `/email/`. Ele existia porque o GoTrue
- * do Supabase buscava os modelos de e-mail por HTTP, e sem a exceção o
+ * daquela plataforma buscava os modelos de e-mail por HTTP, e sem a exceção o
  * middleware respondia àquele pedido com um redirecionamento — fazendo o HTML
- * da tela de login virar o corpo do e-mail. O GoTrue sai com o Supabase, a
+ * da tela de login virar o corpo do e-mail. O GoTrue sai junto com ela, a
  * rota `/email/` não existe mais na aplicação, e manter a exceção seria deixar
  * um caminho público aberto por um motivo que deixou de existir.
  *

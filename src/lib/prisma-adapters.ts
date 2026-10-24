@@ -26,7 +26,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
  * Os dois drivers continuam necessários, em destinos diferentes:
  *
  *   - Worker (Cloudflare): a URL é sempre `*.neon.tech` → só `PrismaNeon`;
- *   - contêiner da VPS: Postgres comum do Supabase auto-hospedado → `PrismaPg`.
+ *   - contêiner da VPS: Postgres comum auto-hospedado → `PrismaPg`.
  *
  * Então apagar o `PrismaPg` quebraria a produção que está no ar hoje.
  */

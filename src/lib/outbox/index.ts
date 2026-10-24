@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma'
 /**
  * A outbox transacional.
  *
- * **O problema que ela resolve.** O Supabase Realtime lia o WAL do Postgres:
+ * **O problema que ela resolve.** O tempo real anterior lia o WAL do Postgres:
  * gravar a linha *era* publicar o evento, e ninguém precisava pensar nisso. O
  * Neon não publica WAL para a Cloudflare. Então, depois da migração, **escrita
  * no banco não chega sozinha ao Durable Object** — e quem assume o contrário

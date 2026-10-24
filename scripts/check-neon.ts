@@ -8,10 +8,10 @@
  * `<=>` do pgvector pelo mesmo caminho do `retriever.ts`, a coluna gerada sendo
  * calculada pelo Postgres, e o cofre cifrando de fato na coluna.
  *
- * Confere também o que **não** deve existir: `supabase_vault`, as políticas que
- * dependem de `auth.uid()` e a função `current_workspace_ids`. A migração de RLS
- * foi tornada portável, e uma migração condicional sem teste é uma migração que
- * ninguém sabe em qual dos dois ramos caiu.
+ * Confere também o que **não** deve existir: extensão que nenhuma migração cria,
+ * as políticas que dependem de `auth.uid()` e a função `current_workspace_ids`. A
+ * migração de RLS foi tornada portável, e uma migração condicional sem teste é
+ * uma migração que ninguém sabe em qual dos dois ramos caiu.
  *
  * Cria e apaga o que usa. Nunca aponte para produção:
  *
@@ -47,7 +47,27 @@ async function main() {
     const nomes = exts.map((e) => e.extname)
     ok('pgvector instalado', nomes.includes('vector'))
     ok('unaccent instalado', nomes.includes('unaccent'))
-    ok('supabase_vault AUSENTE (esperado no Neon)', !nomes.includes('supabase_vault'))
+
+    /**
+     * E **nada além** das declaradas.
+     *
+     * A versão anterior conferia a ausência de uma extensão específica — a de
+     * cofre da plataforma antiga — e por isso só pegava aquele caso. O que
+     * importa é mais largo: extensão que nenhuma migração cria é extensão que
+     * alguém instalou à mão, e o schema deixa de ser reproduzível a partir do
+     * repositório. Vale para um cofre de qualquer fornecedor e para o que ainda
+     * não aconteceu.
+     *
+     * A lista vem das migrações: `vector` no baseline, `unaccent` e `pg_trgm`
+     * na busca sem acento. `plpgsql` é do Postgres.
+     */
+    const DECLARADAS = ['plpgsql', 'vector', 'unaccent', 'pg_trgm']
+    const intrusas = nomes.filter((n) => !DECLARADAS.includes(n))
+    ok(
+        'nenhuma extensão fora das declaradas nas migrações',
+        intrusas.length === 0,
+        intrusas.length ? intrusas.join(', ') : `${nomes.length} extensão(ões)`
+    )
 
     // 4. A migração de RLS virou no-op portável: RLS ligado, sem política de auth.
     const [{ comRls }] = await prisma.$queryRaw<{ comRls: bigint }[]>`

@@ -8,9 +8,9 @@ import { cifrar, decifrar } from '@/lib/secrets/envelope'
  * Os segredos da plataforma.
  *
  * **O que mudou na ida para Cloudflare + Neon.** Até 2026-10-21 isto era o
- * `supabase_vault`: a extensão guardava o valor cifrado dentro do próprio
+ * A extensão de cofre da plataforma anterior guardava o valor cifrado dentro do próprio
  * Postgres e devolvia em claro pela view `vault.decrypted_secrets`. O Neon não
- * tem `supabase_vault` nem `pgsodium` — conferido em `pg_available_extensions`
+ * tem essa extensão nem `pgsodium` — conferido em `pg_available_extensions`
  * do projeto real —, então o cofre foi reconstruído em duas metades, e a divisão
  * não é arbitrária: ela segue quem precisa **gravar**.
  *

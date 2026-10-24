@@ -7,8 +7,8 @@ import { auth } from '@/lib/auth/better-auth'
  *
  * Antes de 2026-10-21, 80 rotas faziam a mesma coisa à mão:
  *
- *     const supabase = await createClient()
- *     const { data: { user } } = await supabase.auth.getUser()
+ *     const cliente = await createClient()
+ *     const { data: { user } } = await cliente.auth.getUser()
  *     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
  *
  * Duas consequências, e nenhuma delas era intencional.
@@ -66,7 +66,7 @@ export async function usuarioDaSessao(): Promise<UsuarioDaSessao | null> {
     /**
      * Uma consulta ao banco, não uma ida à rede.
      *
-     * Era isto o que o Supabase cobrava: cada `auth.getUser()` saía para o
+     * Era isto o que a plataforma anterior cobrava: cada `auth.getUser()` saía para o
      * serviço de identidade. Agora a sessão é linha em `auth_sessions`, no mesmo
      * Postgres do resto — resolvida pelo cookie assinado, numa junção com
      * `users`. É também o que torna o Worker viável: ida à rede por pedido, em

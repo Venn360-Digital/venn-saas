@@ -5,17 +5,17 @@ import type { DoServidor } from './protocolo'
 /**
  * O cliente de tempo real do navegador.
  *
- * Substitui `supabase.channel(...).on('postgres_changes', ...)`. A diferença
- * não é só de transporte: o Supabase entregava **a linha alterada** e a tela a
+ * Substitui o canal de `postgres_changes` do cliente anterior. A diferença
+ * não é só de transporte: ele entregava **a linha alterada** e a tela a
  * usava direto, então o canal era parte do caminho de dados e um evento perdido
  * virava tela errada. Aqui o evento é **aviso** — carrega identificadores, e a
  * tela busca o conteúdo pela rota autenticada.
  *
  * Isso é o que torna este cliente simples: ele não tem estado de domínio para
  * reconciliar. Só precisa acertar três coisas, e as três já erraram neste
- * projeto com o Supabase:
+ * projeto com o mecanismo anterior:
  *
- *   1. **reconectar sozinho.** O canal do Supabase em erro não refazia o join,
+ *   1. **reconectar sozinho.** Aquele canal, em erro, não refazia o join,
  *      e o chat de uma aba aberta há horas simplesmente parava — o polling de
  *      15 s disfarçava na lista, e o chat ficava mudo.
  *   2. **avisar quando desistiu.** Ficou meses mudo sem ninguém notar porque
@@ -51,7 +51,7 @@ export interface Conexao {
  *
  * Projetado para `useEffect`: chamar de novo com as dependências mudadas fecha
  * a anterior pelo retorno, sem deixar socket órfão — era o vazamento clássico
- * da versão com Supabase, que recriava o canal a cada mudança de dependência.
+ * da versão anterior, que recriava o canal a cada mudança de dependência.
  */
 export function conectarTempoReal(ouvintes: Ouvintes): Conexao {
     let socket: WebSocket | null = null

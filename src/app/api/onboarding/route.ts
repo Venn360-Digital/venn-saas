@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
             // later should not get an extra day. It closes at 23:59 São Paulo on
             // the seventh full day.
             // `dbUser.createdAt` e não o timestamp do provedor de identidade.
-            // O Supabase expunha `user.created_at`; o Better Auth não expõe nada
+            // O provedor anterior expunha `user.created_at`; o Better Auth não expõe nada
             // equivalente na sessão — e não precisa, porque a linha de `users`
             // está aqui, na mesma transação, com o `createdAt` que o nosso banco
             // escreveu. Deixa de depender de um campo de fornecedor para contar

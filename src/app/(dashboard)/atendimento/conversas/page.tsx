@@ -947,7 +947,7 @@ export default function ConversasPage() {
     /**
      * O tempo real, agora sobre o Durable Object da sala do workspace.
      *
-     * **Saiu um bloco de autenticação inteiro.** O socket do Supabase Realtime
+     * **Saiu um bloco de autenticação inteiro.** O socket do tempo real anterior
      * autenticava separado do resto do cliente: sem `setAuth` ele conectava como
      * `anon`, a RLS de `messages` filtrava tudo, e nenhum evento chegava — a
      * lista parecia viva pelo polling de 15 s e o chat aberto nunca se mexia.

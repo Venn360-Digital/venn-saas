@@ -3,7 +3,7 @@ import 'server-only'
 /**
  * Os segredos de plataforma, lidos do Cloudflare Secrets.
  *
- * Os cinco segredos que estavam no `supabase_vault` são todos **globais**:
+ * Os cinco segredos que estavam no cofre da plataforma anterior são todos **globais**:
  * identificam os apps da Venn360 junto à Meta, ao Instagram e ao Asaas, e não
  * variam por clínica. Segredo global com valor fixo é configuração de implantação,
  * e o lugar dele é o cofre da plataforma de execução — não uma linha de banco.

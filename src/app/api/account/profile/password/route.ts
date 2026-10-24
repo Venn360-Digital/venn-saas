@@ -10,13 +10,14 @@ import { usuarioDaSessao } from '@/lib/auth/sessao'
  *
  * Esta rota já teve dois defeitos sérios, e vale manter a história: a primeira
  * versão só escrevia `users.hashedPassword`, um hash bcrypt contra o qual nada
- * autenticava — o login ia pelo Supabase Auth e pela credencial dele —, então a
+ * autenticava — o login ia pelo provedor de identidade anterior e pela
+ * credencial dele —, então a
  * rota respondia "senha alterada" enquanto a senha antiga continuava entrando.
  * E ela pulava a conferência da senha atual sempre que aquele hash-sombra era
  * nulo, que era o caso de todo mundo que se cadastrou pela tela de login.
  *
  * **O que o Better Auth simplifica.** A versão seguinte consertava aquilo com um
- * contorno: o `updateUser` do Supabase não conferia a senha antiga, então era
+ * contorno: o `updateUser` daquele provedor não conferia a senha antiga, então era
  * preciso abrir um *segundo* cliente, descartável, só para tentar um login com a
  * senha atual e ver se dava erro — e num cliente separado porque fazer o login
  * no cliente do próprio pedido rotacionaria o cookie de sessão no meio dele.

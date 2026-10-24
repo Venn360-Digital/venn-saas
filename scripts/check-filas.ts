@@ -1,7 +1,7 @@
 /**
  * Prova a outbox, a idempotência e a conversão de fuso dos crons.
  *
- * São as três coisas que o Supabase e o BullMQ davam de graça e que a Cloudflare
+ * São as três coisas que a plataforma anterior e o BullMQ davam de graça e que a Cloudflare
  * não dá — e as três falham **em silêncio** se estiverem erradas:
  *
  *   - sem outbox, a mensagem é gravada e a tela nunca atualiza;

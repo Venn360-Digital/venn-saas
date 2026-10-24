@@ -3,8 +3,8 @@ import 'server-only'
 /**
  * Cifra autenticada para segredo guardado no banco.
  *
- * Substitui o que o `supabase_vault` fazia na VPS. O Neon não tem
- * `supabase_vault` nem `pgsodium` — medido em `pg_available_extensions` do
+ * Substitui o que a extensão de cofre da plataforma anterior fazia na VPS. O
+ * Neon não tem essa extensão nem `pgsodium` — medido em `pg_available_extensions` do
  * projeto real em 2026-10-21 —, então a cifra sai do banco e passa a ser da
  * aplicação, com a chave **fora** do banco, em Cloudflare Secrets.
  *

@@ -64,7 +64,7 @@ export async function aperto(request: Request, env: EnvDoAperto): Promise<Respon
      * `idFromName(workspaceId)`: a sala é a do workspace do bilhete, e de mais
      * nenhum.
      *
-     * Isto conserta, de graça, um defeito que o Supabase Realtime tinha e está
+     * Isto conserta, de graça, um defeito que o tempo real anterior tinha e está
      * descrito na tela de conversas: a assinatura de `postgres_changes` não
      * filtrava por workspace, e a RLS liberava as linhas de **toda** unidade de
      * que a pessoa participa. Quem atende em duas clínicas ouvia o aviso sonoro

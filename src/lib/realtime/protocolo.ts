@@ -3,7 +3,7 @@
  *
  * **A regra que organiza tudo aqui: o WebSocket é aviso, não fonte de verdade.**
  *
- * O Supabase Realtime entregava a linha alterada, e a tela a usava direto. Isso
+ * O tempo real anterior entregava a linha alterada, e a tela a usava direto. Isso
  * tornava o canal parte do caminho de dados — e um evento perdido virava tela
  * errada. Aqui o evento carrega só identificadores, e a tela busca o conteúdo
  * pela rota autenticada, onde a autorização já acontece.

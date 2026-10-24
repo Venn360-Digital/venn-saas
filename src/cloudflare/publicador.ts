@@ -23,7 +23,7 @@ import { publicarPendentes, podarOutbox, type EventoPendente } from '@/lib/outbo
  *   fan-out para os WebSockets conectados
  * ```
  *
- * O Supabase Realtime lia o WAL e dispensava tudo isto. O Neon não publica WAL
+ * O tempo real anterior lia o WAL e dispensava tudo isto. O Neon não publica WAL
  * para a Cloudflare — ver `lib/outbox/index.ts` para o porquê de não haver
  * atalho.
  *

@@ -1835,7 +1835,7 @@ model KnowledgeDocument {
   type    String // "faq", "doc", "website", "video"
   url     String?
 
-  // Vector embeddings (Supabase Vector - pgvector)
+  // Vector embeddings (pgvector)
   embedding Unsupported("vector(1536)")?
 
   metadata  Json?
@@ -1871,10 +1871,11 @@ model CustomFieldDefinition {
   @@map("custom_field_definitions")
 }
 
-/// O cofre da aplicação, substituindo `supabase_vault`.
+/// O cofre da aplicação, substituindo o cofre que era do banco.
 ///
-/// O Neon não tem `supabase_vault` nem `pgsodium` — conferido em
-/// `pg_available_extensions` do projeto `odontobox` em 2026-10-21 —, então a
+/// O Neon não oferece a extensão de cofre da plataforma anterior nem
+/// `pgsodium` — conferido em `pg_available_extensions` do projeto `odontobox`
+/// em 2026-10-21 —, então a
 /// cifra deixa de ser do banco e passa a ser da aplicação: `value` guarda o
 /// envelope AES-256-GCM de `lib/secrets/envelope.ts`, e a chave vive em
 /// Cloudflare Secrets, fora deste banco.
@@ -1901,7 +1902,7 @@ model AppSecret {
 // BETTER AUTH — os três modelos da biblioteca
 // ============================================
 //
-// Substituem o `auth.users`, `auth.sessions` e `auth.identities` do Supabase,
+// Substituem as tabelas de usuário, sessão e identidade do provedor anterior,
 // que viviam num schema próprio fora do alcance do Prisma. Agora são tabelas
 // comuns no mesmo banco — o que permite ao Worker resolver a sessão sem ida à
 // rede, e juntar usuário com `WorkspaceUser` numa consulta só.
@@ -2013,8 +2014,8 @@ model AuthRateLimit {
 
 /// O evento a publicar, gravado na mesma transação do dado que o gerou.
 ///
-/// **Por que isto existe.** O Supabase Realtime lia o WAL do Postgres: gravar a
-/// linha *era* publicar o evento. O Neon não publica WAL para a Cloudflare, e
+/// **Por que isto existe.** O tempo real anterior lia o WAL do Postgres: gravar
+/// a linha *era* publicar o evento. O Neon não publica WAL para a Cloudflare, e
 /// nenhuma configuração muda isso — então escrita no banco **não chega sozinha**
 /// ao Durable Object. Quem assume o contrário constrói um sistema que funciona
 /// em teste e perde eventos em produção.

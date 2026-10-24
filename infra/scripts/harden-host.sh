@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Lock the VPS down to ports 22, 80 and 443.
 #
-# This is not optional. The vendored Supabase compose publishes service ports on
-# the host — Postgres on 5432, Kong on 8000, Studio on 3000 among them — and
-# Docker writes its port mappings straight into iptables, *bypassing* ufw's
+# This is not optional. A compose stack publishes service ports on the host —
+# Postgres on 5432 and an admin UI among them — and Docker writes its port
+# mappings straight into iptables, *bypassing* ufw's
 # default-deny. Without the DOCKER-USER rules below, Postgres and the Studio
 # dashboard are reachable from the public internet the moment the stack boots.
 #
@@ -58,7 +58,7 @@ echo
 echo "==> Done. Open to the internet: 22, 80, 443."
 echo
 echo "To reach a private service from your machine, tunnel it:"
-echo "  ssh -N -L 8000:localhost:8000 root@<vps>   # Supabase Kong / Studio"
+echo "  ssh -N -L 8080:localhost:8080 root@<vps>   # Evolution Go admin"
 echo "  ssh -N -L 5432:localhost:5432 root@<vps>   # Postgres (psql, Prisma Studio)"
 echo
 echo "Verify from outside the VPS:"
