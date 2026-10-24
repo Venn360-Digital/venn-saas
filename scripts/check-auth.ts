@@ -22,7 +22,7 @@
  *
  *     DATABASE_URL='<homologação>' BETTER_AUTH_SECRET='<qualquer>' npm run check:auth
  */
-import { auth } from '@/lib/auth/better-auth'
+import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@/lib/auth/better-auth'
 import prisma from '@/lib/prisma'
 
 let falhas = 0
@@ -32,6 +32,53 @@ const ok = (nome: string, cond: boolean, extra = '') => {
 }
 
 async function main() {
+    // ====================================================== a origem aceita
+    /**
+     * As invariantes da lista de hosts — **sem banco**, de propósito.
+     *
+     * Lista errada aqui não quebra o build: quebra o **login**. Foi assim que o
+     * acesso caiu em 2026-10-23, quando `NEXT_PUBLIC_APP_URL` foi gravada como
+     * segredo com um valor que não batia com a origem real. O `typecheck` não
+     * tem como ver isso, então vê aqui.
+     *
+     * Não é um teste do matcher do Better Auth — aquele é da biblioteca. É um
+     * teste de que **a nossa lista** continua dizendo o que queremos.
+     */
+    ok(
+        'o domínio oficial está entre os hosts aceitos',
+        HOSTS_PERMITIDOS.includes('odontobox.venn360.com'),
+        HOSTS_PERMITIDOS.join(', ')
+    )
+    ok(
+        'nenhum padrão aceita host qualquer',
+        !HOSTS_PERMITIDOS.some((h) => h.trim() === '*' || h.trim() === '*.*'),
+        'um `*` solto devolveria a origem do atacante e anularia o controle'
+    )
+    ok(
+        'a origem de reserva é o domínio oficial, em https',
+        ORIGEM_DE_RESERVA === 'https://odontobox.venn360.com',
+        ORIGEM_DE_RESERVA
+    )
+
+    /**
+     * Em produção, nenhum host de loopback.
+     *
+     * O recorte é por `NODE_ENV`, então esta asserção só tem conteúdo quando o
+     * script roda com `NODE_ENV=production`. No CI ele não roda assim, e por
+     * isso a mensagem diz qual dos dois casos foi conferido — asserção que
+     * passa por vacuidade sem avisar é portão oco.
+     */
+    const comLoopback = HOSTS_PERMITIDOS.filter((h) => /^(localhost|127\.)/.test(h))
+    if (process.env.NODE_ENV === 'production') {
+        ok('em produção não há loopback entre os hosts', comLoopback.length === 0, comLoopback.join(', '))
+    } else {
+        ok(
+            'fora de produção o loopback está lá (senão o login local aponta para produção)',
+            comLoopback.length > 0,
+            `NODE_ENV=${process.env.NODE_ENV ?? '(vazio)'} — a regra de produção não foi exercitada aqui`
+        )
+    }
+
     /**
      * O contador do limite é zerado antes de começar.
      *
