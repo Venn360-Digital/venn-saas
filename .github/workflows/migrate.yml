@@ -124,6 +124,37 @@ jobs:
               echo "::error::DATABASE_URL_DIRECT não é uma URL de Postgres."
               echo "::error::Ela precisa COMEÇAR com postgresql:// ou postgres:// — sem aspas, sem \`psql\` na frente."
               echo "::error::No painel do Neon: Connect → desmarque \"Pooled connection\" → copie só a string."
+
+              # Diagnóstico pela FORMA, nunca pelo conteúdo.
+              #
+              # "Está errado" não diz o que corrigir, e o valor é segredo — não
+              # pode ser impresso, nem em pedaço: o GitHub mascara o valor
+              # inteiro, mas **não** os seus prefixos, então imprimir "os 12
+              # primeiros caracteres" vazaria parte dele no log.
+              #
+              # Estas linhas reportam só classes: tamanho, se começa com aspa,
+              # se tem espaço na ponta, se contém `://`. É o bastante para
+              # separar os quatro erros que acontecem na prática — aspas,
+              # comando `psql` colado junto, quebra de linha, e nome da
+              # variável na frente — sem revelar um caractere do segredo.
+              N=$(printf '%s' "$DATABASE_URL" | wc -c | tr -d ' ')
+              PRIMEIRO=$(printf '%s' "$DATABASE_URL" | cut -c1 | tr -d '\n')
+              echo "::error::forma recebida — tamanho: ${N}"
+              case "$PRIMEIRO" in
+                "'"|'"') echo "::error::  começa com ASPA: tire as aspas das duas pontas" ;;
+                ' '|'')  echo "::error::  começa com ESPAÇO ou vazio: há espaço/quebra de linha colado antes" ;;
+                p)       echo "::error::  começa com 'p' mas não com postgres:// — provavelmente é o comando \`psql '...'\`" ;;
+                D)       echo "::error::  começa com 'D' — parece incluir \`DATABASE_URL=\` na frente" ;;
+                *)       echo "::error::  não começa com letra esperada" ;;
+              esac
+              case "$DATABASE_URL" in
+                *"://"*) echo "::error::  contém :// — a URL está lá dentro, só não no começo" ;;
+                *)       echo "::error::  NÃO contém :// — isto não é uma string de conexão" ;;
+              esac
+              case "$DATABASE_URL" in
+                *" ") echo "::error::  termina com ESPAÇO" ;;
+              esac
+
               exit 1
               ;;
           esac
