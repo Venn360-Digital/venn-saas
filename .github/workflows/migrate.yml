@@ -108,6 +108,26 @@ jobs:
             exit 1
           fi
 
+          # A forma, ANTES do host.
+          #
+          # A primeira versão desta tranca só extraía o host, e o `sed` é
+          # permissivo o bastante para arrancar um host de dentro de um valor
+          # que não é URL — `psql 'postgresql://...'`, colado do painel do
+          # Neon, passa aqui e morre dois passos depois no Prisma com
+          # "the URL must start with the protocol postgresql://". Medido em
+          # 2026-10-24: a tranca disse "destino confirmado" e o `migrate
+          # deploy` reprovou. Conferir o destino sem conferir a forma é
+          # confirmar um endereço que ninguém consegue discar.
+          case "$DATABASE_URL" in
+            postgresql://*|postgres://*) ;;
+            *)
+              echo "::error::DATABASE_URL_DIRECT não é uma URL de Postgres."
+              echo "::error::Ela precisa COMEÇAR com postgresql:// ou postgres:// — sem aspas, sem \`psql\` na frente."
+              echo "::error::No painel do Neon: Connect → desmarque \"Pooled connection\" → copie só a string."
+              exit 1
+              ;;
+          esac
+
           # Só o host. O resto da URL é segredo e não é impresso.
           HOST=$(printf '%s' "$DATABASE_URL" | sed -E 's#^[^:]+://[^@]*@##; s#[:/?].*$##')
 
