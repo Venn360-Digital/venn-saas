@@ -26,53 +26,135 @@ export interface Rotina {
 }
 
 /**
- * As treze rotinas, com os horários que o `workers/src/scheduler.ts` já usava.
+ * As rotinas. Catorze entradas para treze tarefas — a verificação de integração
+ * aparece duas vezes, com um intervalo de dia e outro de noite — que o
+ * `cronsParaWrangler()` reduz a **doze** gatilhos, porque duas pares caem no
+ * mesmo padrão e um gatilho repetido seria invocação dobrada.
  *
  * O escalonamento é de propósito e foi preservado item por item: rodar tudo em
  * `:00` concentrava o banco no mesmo instante. Os motivos de cada horário estão
  * no `scheduler.ts` e não foram repetidos aqui — duplicar justificativa é
  * garantir que uma das cópias fique velha.
+ *
+ * **As janelas de hora não são arrumação.** Elas existem para o compute do Neon
+ * poder suspender, e a conta está na primeira rotina abaixo. Alargar qualquer
+ * uma delas custa CU-hora da mesma franquia que o atendimento usa.
  */
 /**
- * De qual rotina a varredura da outbox pega carona. É a mais frequente, e é por
- * isso que ela serve: a varredura quer o menor intervalo disponível.
+ * De qual rotina a varredura da outbox pega carona: a de menor intervalo, que é
+ * o que a varredura quer.
+ *
+ * Ela precisa ter **uma única** entrada na tabela — ver `cronDaVarredura()`.
  */
 export const TAREFA_DA_VARREDURA: CronJobName = 'activity-reminders'
 
 export const ROTINAS: Rotina[] = [
     /**
-     * **Por que não é mais `* * * * *`.**
+     * **O disparo que carrega a varredura da outbox** — e o único que muda de
+     * intervalo, não só de janela. Ele era de cada minuto, 24 h por dia.
      *
-     * Este disparo carrega também a varredura da outbox (ver
-     * `src/cloudflare/agendado.ts`), então ele batia no Postgres a cada minuto,
-     * 24 h por dia — e o *scale to zero* do Neon, que suspende após 5 min de
-     * ociosidade e **não pode ser desligado no plano Free**, nunca chegava a
-     * agir. Compute sempre ligado a 0,25 CU dá ~180 CU-hours/mês contra uma
-     * franquia de 100: a cota acabaria por volta do dia 17 e o Neon suspenderia
-     * o compute — o CRM fora do ar por cota, não por defeito.
+     * 1. **A janela.** Fora do horário da clínica ele batia no Postgres sem
+     *    ninguém para ler o resultado, e o *scale to zero* do Neon — que
+     *    suspende após 5 min de ociosidade e **não pode ser desligado no plano
+     *    Free** — nunca chegava a agir.
+     * 2. **O intervalo**, depois de fazer a conta: a janela sozinha não cabia.
+     *    Quatorze horas de compute acordado sem parar, ao mínimo de 0,25 CU,
+     *    dão ~106 CU-hora/mês contra uma franquia de 100 — o cron gastava a
+     *    cota inteira e **não sobrava nada para o tráfego real**, que é quem
+     *    deveria gastá-la. A dez minutos o compute fica acordado ~55% da
+     *    janela: ~60 CU-hora/mês, e a folga é o que o atendimento consome.
      *
-     * Restringir à janela em que a clínica atende leva a ~97,5 CU-hours, que
-     * cabe na franquia. A decisão está em `docs/migration/00-open-decisions.md`
-     * e só voltou a valer quando o projeto Neon do Evolution saiu: enquanto ele
-     * existia, era a conexão vazada do whatsmeow que segurava o compute
-     * acordado, e restringir este cron não economizaria nada.
+     * Medido em 2026-10-23: `active_time_seconds` / `compute_time_seconds` do
+     * projeto dá exatamente 0,25 — é esse o tamanho do compute, e é por isso
+     * que a franquia de 100 CU-hora equivale a 400 horas acordado por mês,
+     * 13,1 por dia.
      *
-     * **O que se perde das 21 h às 7 h:** lembrete de atividade não dispara, e a
-     * varredura da outbox — que é a REDE do tempo real, não o caminho principal
-     * — não roda. O caminho imediato (`publicarAgora`) continua funcionando; o
-     * que fica sem rede é o evento que falhou nele e esperaria a varredura.
+     * **Por que dez minutos é aceitável aqui, e não seria em outro lugar.** As
+     * duas coisas que pegam carona neste disparo toleram atraso por desenho:
+     *
+     * - o lembrete de atividade **complementa** a consulta que a Topbar já faz
+     *   do navegador (está escrito em `activity-reminders.ts`) — ele não é a
+     *   entrega, é o empurrão;
+     * - a varredura da outbox é a **rede** do tempo real, não o caminho
+     *   principal: `publicarAgora` segue imediato, e o que a varredura pega é
+     *   o evento que já falhou nele.
+     *
+     * Cinco minutos não serviria: é o próprio tempo de ociosidade do Neon, e o
+     * compute não suspenderia nunca — a mesma conta de antes, com um décimo do
+     * trabalho feito.
+     *
+     * **O que se perde das 21 h às 7 h:** lembrete não dispara e a varredura
+     * não roda. O caminho imediato continua funcionando.
      */
-    { task: 'activity-reminders', brt: '* 7-20 * * *' },
-    { task: 'activity-recurrence', brt: '7 * * * *' },
+    { task: 'activity-reminders', brt: '*/10 7-20 * * *' },
+
+    /** Materializa ocorrências com dias de horizonte: catorze passadas por dia
+     * convergem igual a vinte e quatro. */
+    { task: 'activity-recurrence', brt: '7 7-20 * * *' },
+
     { task: 'credits-reset', brt: '13 3 * * *' },
-    { task: 'trial-lifecycle', brt: '17 * * * *' },
+
+    /** As janelas de aviso têm 24 h de largura (36–60 h e 12–36 h do fim), e o
+     * corte é derivado em `getBillingState` na hora, não aqui. Nenhuma conta
+     * deixa de ser avisada por não haver passada de madrugada — e um aviso de
+     * cobrança às 3 h da manhã seria pior que nenhum. */
+    { task: 'trial-lifecycle', brt: '17 7-20 * * *' },
+
     { task: 'retention', brt: '41 4 * * *' },
-    { task: 'integration-health', brt: '*/10 * * * *' },
-    { task: 'conversation-autoclose', brt: '21 * * * *' },
+
+    /**
+     * A verificação de integração é a que **cura** a linha caída, então ela é
+     * a única que continua rodando de madrugada — e por isso tem duas entradas.
+     *
+     * De dia, de dez em dez minutos: esse é o teto do tempo que uma linha fica
+     * fora sem ninguém perceber, e é o número que `integration-health.ts`
+     * documenta depois das três horas fora do ar de 2026-10-15.
+     *
+     * De noite, de hora em hora — no mesmo minuto do boletim, de propósito. As
+     * duas rotinas caem no mesmo padrão, viram **um** gatilho e acordam o
+     * compute **uma vez** por hora em vez de duas. O teto noturno sobe de dez
+     * minutos para uma hora, o que é o certo: a cura é automática (um
+     * `connect` pelo JID guardado), e de madrugada não há atendente para
+     * ganhar nada com os outros cinquenta minutos.
+     */
+    { task: 'integration-health', brt: '*/10 7-20 * * *' },
+    { task: 'integration-health', brt: '2 * * * *' },
+
+    /** Prazo em dias; de hora em hora já era fino demais. */
+    { task: 'conversation-autoclose', brt: '21 7-20 * * *' },
+
     { task: 'follow-up', brt: '0 7 * * *' },
+
+    /**
+     * **Fica de hora em hora, 24 h — e isso é de propósito.**
+     *
+     * O boletim é entregue na hora que cada clínica escolheu, e o seletor em
+     * Conta → Automações oferece as **24**. Restringir este cron à janela da
+     * clínica tiraria o boletim de quem configurou 6 h ou 22 h, em silêncio e
+     * sem erro em lugar nenhum — o pior resultado possível. Se um dia o
+     * seletor passar a oferecer menos horas, este padrão acompanha.
+     *
+     * O custo é uma passada por hora da madrugada, e ela é **compartilhada**
+     * com a verificação de integração acima: um gatilho, um despertar.
+     */
     { task: 'daily-briefing', brt: '2 * * * *' },
-    { task: 'auto-follow-up', brt: '35 * * * *' },
-    { task: 'instagram-token-refresh', brt: '48 * * * *' },
+
+    /**
+     * A janela é a do **código**, não a da clínica: `auto-follow-up.ts` tem
+     * `BUSINESS_START = 9` e `BUSINESS_END = 18` e sai antes de qualquer
+     * consulta fora disso. Com hora curinga, quinze das vinte e quatro
+     * invocações eram garantidamente inúteis.
+     *
+     * Os dois números andam juntos. Mudar um sem o outro não quebra nada —
+     * só volta a gastar invocação à toa, ou deixa de enviar numa hora
+     * autorizada. O teste em `check-filas.ts` prende o par.
+     */
+    { task: 'auto-follow-up', brt: '35 9-17 * * *' },
+
+    /** Renova a partir de 15 dias do vencimento: perder dez passadas por dia
+     * não tira nem 1% da folga. */
+    { task: 'instagram-token-refresh', brt: '48 7-20 * * *' },
+
     { task: 'billing-dunning', brt: '27 5 * * *' },
     { task: 'billing-reconcile', brt: '47 5 * * *' },
 ]
@@ -254,11 +336,31 @@ export function cronsParaWrangler(): string[] {
  * — não só fora do horário. Derivar da agenda torna a divergência impossível.
  */
 export function cronDaVarredura(): string {
-    const rotina = ROTINAS.find((r) => r.task === TAREFA_DA_VARREDURA)
-    if (!rotina) {
+    /**
+     * `filter` e não `find`, e a contagem é verificada.
+     *
+     * Desde 2026-10-23 a tabela tem rotina com **duas** entradas (a verificação
+     * de integração, com um intervalo de dia e outro de noite). Um `find` sobre
+     * uma tarefa nessa situação devolveria a primeira e pareceria funcionar: a
+     * varredura passaria a rodar só numa das duas janelas, sem erro em lugar
+     * nenhum. Então a condição deixou de ser "existe" e passou a ser "existe uma
+     * só" — se alguém der um segundo horário à tarefa da varredura, falha aqui,
+     * no `check:filas`, e não em produção.
+     */
+    const rotinas = ROTINAS.filter((r) => r.task === TAREFA_DA_VARREDURA)
+
+    if (rotinas.length === 0) {
         throw new Error(`a rotina "${TAREFA_DA_VARREDURA}" sumiu da agenda; a varredura da outbox ficaria órfã`)
     }
-    return paraUTC(rotina.brt)
+    if (rotinas.length > 1) {
+        throw new Error(
+            `a rotina "${TAREFA_DA_VARREDURA}" tem ${rotinas.length} horários ` +
+                `(${rotinas.map((r) => r.brt).join(', ')}); a varredura pega carona em um só e ` +
+                'rodaria pela metade — escolha outra tarefa para carregá-la ou deixe esta com um horário'
+        )
+    }
+
+    return paraUTC(rotinas[0].brt)
 }
 
 export function rotinasDoDisparo(cronUtc: string): CronJobName[] {

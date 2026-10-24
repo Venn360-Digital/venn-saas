@@ -36,7 +36,9 @@ const WS = `ws-prova-${Date.now()}`
 async function main() {
     // ============================================================= fuso dos crons
 
-    ok('as 13 rotinas convertem sem erro', rotinasEmUTC().length === 13)
+    // Catorze entradas para treze tarefas: `integration-health` tem duas, uma
+    // de dia e uma de noite. Ver a tabela em `agenda.ts`.
+    ok('as 14 entradas da agenda convertem sem erro', rotinasEmUTC().length === 14)
 
     // Os cinco de hora fixa, um a um. Fixados de propósito: se alguém mudar o
     // deslocamento ou a tabela, é aqui que aparece — não em produção.
@@ -47,9 +49,24 @@ async function main() {
         'billing-dunning': '27 8 * * *',
         'billing-reconcile': '47 8 * * *',
     }
-    const emUtc = new Map(rotinasEmUTC().map((r) => [r.task as string, r.utc]))
+    /**
+     * Multimapa, e não `Map<task, utc>`.
+     *
+     * Uma tarefa pode ter mais de um horário desde 2026-10-23, e um `Map`
+     * simples guardaria só o último — o teste passaria olhando a entrada
+     * errada. Aqui a asserção é sobre o conjunto.
+     */
+    const emUtc = new Map<string, string[]>()
+    for (const r of rotinasEmUTC()) {
+        emUtc.set(r.task, [...(emUtc.get(r.task) ?? []), r.utc])
+    }
     for (const [task, utc] of Object.entries(esperado)) {
-        ok(`${task} dispara às ${utc} UTC`, emUtc.get(task) === utc, emUtc.get(task))
+        const horarios = emUtc.get(task) ?? []
+        ok(
+            `${task} dispara às ${utc} UTC`,
+            horarios.length === 1 && horarios[0] === utc,
+            horarios.join(' | ')
+        )
     }
 
     // As de hora curinga não podem mudar: "toda hora" é toda hora em qualquer fuso.
@@ -153,6 +170,83 @@ async function main() {
             'e esse gatilho despacha a rotina de que ela pega carona',
             rotinasDoDisparo(daVarredura).includes(TAREFA_DA_VARREDURA),
             rotinasDoDisparo(daVarredura).join(', ')
+        )
+    }
+
+    /**
+     * **A linha caída continua sendo curada de madrugada.**
+     *
+     * `integration-health` é a rotina que reata a linha de WhatsApp sozinha (um
+     * `connect` pelo JID guardado). Restringi-la à janela da clínica junto com
+     * as outras deixaria a linha que cai às 21 h fora do ar até as 7 h — e o
+     * sintoma seria a clínica abrir sem WhatsApp, não um erro no log. Por isso
+     * ela tem duas entradas, e esta é a prova de que a de madrugada não
+     * desapareceu numa arrumação futura.
+     */
+    {
+        const horarios = ROTINAS.filter((r) => r.task === 'integration-health')
+        const noturno = horarios.find((r) => r.brt.split(' ')[1] === '*')
+        ok(
+            'a verificação de integração tem uma passada de madrugada',
+            noturno !== undefined,
+            horarios.map((r) => r.brt).join(' | ')
+        )
+
+        /**
+         * E ela acorda o compute **junto** com o boletim, não depois dele.
+         *
+         * Os dois são de hora em hora, 24 h. Em minutos diferentes seriam dois
+         * despertares do Neon por hora da madrugada em vez de um — o dobro do
+         * custo pelo mesmo trabalho. Mesmo padrão, um gatilho só.
+         */
+        const boletim = ROTINAS.find((r) => r.task === 'daily-briefing')
+        ok(
+            'e ela divide o gatilho com o boletim, para um despertar só por hora',
+            noturno !== undefined && boletim !== undefined && noturno.brt === boletim.brt,
+            `${noturno?.brt} vs ${boletim?.brt}`
+        )
+    }
+
+    /**
+     * **O boletim fica 24 h, e o teste existe para que continue.**
+     *
+     * Ele é entregue na hora que cada clínica escolheu, e o seletor em Conta →
+     * Automações oferece as 24. Restringir este cron à janela da clínica
+     * tiraria o boletim de quem configurou 6 h ou 22 h — em silêncio, sem erro
+     * em lugar nenhum. É a armadilha mais fácil de cair ao "terminar" a
+     * economia de CU-hora, então ela está presa aqui.
+     */
+    {
+        const boletim = ROTINAS.find((r) => r.task === 'daily-briefing')
+        ok(
+            'o boletim roda em todas as horas (a clínica escolhe qual)',
+            boletim?.brt.split(' ')[1] === '*',
+            boletim?.brt
+        )
+    }
+
+    /**
+     * **A janela do envio automático é a mesma no cron e no código.**
+     *
+     * `auto-follow-up.ts` sai antes de qualquer consulta fora de
+     * `BUSINESS_START`–`BUSINESS_END`, e o cron foi estreitado para não gastar
+     * invocação à toa. Os dois têm de andar juntos: o cron mais largo volta a
+     * desperdiçar, e o cron mais estreito **deixa de enviar numa hora que a
+     * clínica autorizou** — este é o lado que machuca.
+     */
+    {
+        const fonte = readFileSync('src/trabalhos/processadores/cron/auto-follow-up.ts', 'utf8')
+        const inicio = fonte.match(/BUSINESS_START\s*=\s*(\d+)/)?.[1]
+        const fim = fonte.match(/BUSINESS_END\s*=\s*(\d+)/)?.[1]
+        const rotina = ROTINAS.find((r) => r.task === 'auto-follow-up')
+
+        // `BUSINESS_END` é exclusivo (`hour >= BUSINESS_END` sai), então a
+        // última hora que envia é `BUSINESS_END - 1`.
+        const esperada = `${inicio}-${Number(fim) - 1}`
+        ok(
+            'o envio automático dispara exatamente nas horas que o código aceita',
+            rotina?.brt.split(' ')[1] === esperada,
+            `cron ${rotina?.brt.split(' ')[1]} vs código ${esperada}`
         )
     }
 
