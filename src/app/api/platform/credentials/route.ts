@@ -1,41 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-
-import prisma from '@/lib/prisma'
-import { PLATFORM_PROVIDERS, ambienteDaChave, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials, temSegredoDuplo } from '@/lib/platform-credentials'
-
-import { SegredoDeAmbienteError, platformSecretName, vaultSecretExists, vaultSecretOrigin } from '@/lib/vault'
+import {
+    PLATFORM_PROVIDERS,
+    ambienteDaChave,
+    estadoDoProvedor,
+    getPlatformAdmin,
+    getPlatformCredentials,
+    temSegredoDuplo,
+} from '@/lib/platform-credentials'
 import { estadoDoWebhook } from '@/lib/asaas/vigia'
 
-const KNOWN = new Set<string>(PLATFORM_PROVIDERS.map((p) => p.provider))
-
 /**
- * GET — which providers the platform has registered.
+ * Somente leitura, de propósito — e não é limitação, é a decisão.
  *
- * Answers for everyone, not only the platform admin: a clinic's Integrações page
- * needs to know whether "Conectar" will work, and `isPlatformAdmin` tells the
- * page whether to render the administration section at all. The secret never
- * leaves the server; only the client id, which identifies the app and is sent to
- * Google in the browser anyway.
+ * Esta rota tinha um `PUT` que gravava as credenciais dos aplicativos de
+ * plataforma a partir de um formulário. Saiu em 2026-10-24, com o formulário: a
+ * primeira metade do Asaas é a chave que movimenta cobrança, e nenhum SaaS põe
+ * isso atrás de uma sessão de navegador. O raciocínio completo está no
+ * cabeçalho de `lib/platform-credentials.ts`.
+ *
+ * As credenciais entram por `wrangler secret put` e são declaradas em
+ * `cloudflare.config.ts`. O que esta rota faz é dizer **o que está definido e
+ * qual variável falta** — informação que não é segredo e que o operador precisa
+ * para saber o que gravar.
  */
 export async function GET() {
     /**
      * Responde a **quem está logado** — não a qualquer um.
      *
-     * O comentário acima explica por que a rota não é só do administrador da
-     * plataforma: a tela de Integrações de cada clínica precisa saber se
-     * "Conectar" vai funcionar. Mas essa tela é de usuário autenticado, e a
-     * rota não pedia sessão nenhuma — então ela respondia a anônimo com a
-     * postura da plataforma: quais provedores estão configurados, se o segredo
-     * vem do ambiente ou do cofre, e quando mudou.
+     * A tela de Integrações de cada clínica precisa saber se "Conectar" vai
+     * funcionar, então a rota não é exclusiva do administrador da plataforma.
+     * Mas essa tela é de usuário autenticado, e a rota não pedia sessão nenhuma
+     * — então respondia a anônimo com a postura da plataforma: quais provedores
+     * estão configurados e de onde vem cada segredo.
      *
-     * Não vaza `clientId` nem segredo, por isso é achado baixo. Mas o portão da
-     * borda é otimista (`lib/auth/middleware.ts`), então "só quem tem cookie"
-     * não era barreira nenhuma — era `getPlatformAdmin()` devolvendo `null` e o
-     * handler seguindo em frente.
-     *
-     * Sessão de verdade, e nada mais: exigir papel aqui quebraria a tela da
-     * clínica, que é quem mais chama esta rota.
+     * Não vaza valor nenhum, por isso o achado era baixo. Mas o portão da borda
+     * é otimista (`lib/auth/middleware.ts`), então "só quem tem cookie" não era
+     * barreira — era `getPlatformAdmin()` devolvendo `null` e o handler
+     * seguindo em frente.
      */
     if (!(await usuarioDaSessao())) {
         return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -43,84 +46,48 @@ export async function GET() {
 
     const admin = await getPlatformAdmin()
 
-    /**
-     * Abrir a tela adota o que estiver esperando no ambiente.
-     *
-     * `getPlatformCredentials` semeia do `.env` para o Vault na primeira leitura
-     * em que nada está guardado — mas, enquanto nenhum fluxo da Meta existir,
-     * ninguém chama esse getter, e a tela mostraria "não configurado" com as
-     * chaves já no arquivo. Aqui ela chama, e o administrador vê ficar verde.
-     *
-     * Idempotente e só para quem administra a plataforma: a segunda abertura não
-     * faz nada, porque já há o que ler.
-     */
-    if (admin) {
-        await Promise.all(
-            PLATFORM_PROVIDERS.map((p) =>
-                getPlatformCredentials(p.provider).catch(() => null)
-            )
-        )
-    }
-
-    const rows = await prisma.platformCredential.findMany({
-        select: { provider: true, credentials: true, updatedAt: true },
-    })
-    const byProvider = new Map(rows.map((r) => [r.provider, r]))
-
-    /**
-     * "Configurado" passa a ser id na coluna **e** segredo no Vault.
-     *
-     * O segredo saiu da coluna — ver `lib/vault.ts` —, então a conta antiga
-     * (`creds.clientId && creds.clientSecret`) daria "não configurado" para
-     * sempre. A conferência no Vault é por existência, sem decifrar: a tela não
-     * precisa do valor, só da resposta.
-     */
     const providers = await Promise.all(
         PLATFORM_PROVIDERS.map(async (p) => {
-            const row = byProvider.get(p.provider)
-            const creds = (row?.credentials ?? {}) as { clientId?: string; ambiente?: string }
-            const temSegredo = await vaultSecretExists(platformSecretName(p.provider))
+            const estado = await estadoDoProvedor(p.provider)
 
             /**
-             * Com segredo duplo, "configurado" é **os dois no cofre** — e a
-             * primeira metade nunca volta para a tela: ela é a chave que move
-             * dinheiro, não um id público. No lugar dela vai o ambiente, que é
-             * derivado do prefixo e é o que o administrador precisa ver.
-             */
-            /**
-             * De onde vem o segredo, para a tela não mentir.
+             * "Configurado" é **as duas metades**, e nenhuma delas é devolvida.
              *
-             * Depois da ida para a Cloudflare, os segredos de plataforma vivem
-             * em Cloudflare Secrets e a aplicação **não os grava** — ver
-             * `lib/vault.ts`. Sem este campo a tela ofereceria um botão de
-             * salvar que o servidor recusa, e o administrador descobriria isso
-             * no meio de uma rotação de credencial. Com ele, a tela diz
-             * "definido no ambiente" e esconde o formulário.
+             * A conferência é por existência, sem decifrar: a tela não precisa
+             * do valor, só da resposta. Meia credencial conta como não
+             * configurada — ela não falharia aqui, falharia no primeiro fluxo
+             * de OAuth, longe deste ponto.
              */
-            const origem = await vaultSecretOrigin(platformSecretName(p.provider))
+            const configured = estado.temId && estado.temSegredo
 
-            if (temSegredoDuplo(p.provider)) {
-                const temChave = await vaultSecretExists(platformSecretName(p.provider, 'clientId'))
-                return {
-                    ...p,
-                    configured: Boolean(temChave && temSegredo),
-                    origem,
-                    editavel: origem !== 'ambiente',
-                    clientId: null,
-                    ambiente: admin ? creds.ambiente ?? null : null,
-                    updatedAt: row?.updatedAt ?? null,
-                }
+            /**
+             * O ambiente do Asaas é **derivado**, não guardado.
+             *
+             * Sai do prefixo da própria chave (`$aact_hmlg_` é sandbox,
+             * `$aact_prod_` é produção), que é o que torna impossível apontar
+             * para produção por engano. A versão anterior lia uma coluna
+             * gravada pelo formulário — e coluna gravada numa tela que não
+             * existe mais é coluna que envelhece calada.
+             */
+            let ambiente: string | null = null
+            if (admin && configured && temSegredoDuplo(p.provider)) {
+                const creds = await getPlatformCredentials(p.provider).catch(() => null)
+                ambiente = creds ? ambienteDaChave(creds.clientId) : null
             }
 
-            const configured = Boolean(creds.clientId && temSegredo)
             return {
                 ...p,
                 configured,
-                origem,
-                editavel: origem !== 'ambiente',
-                clientId: admin && creds.clientId ? creds.clientId : null,
-                ambiente: null,
-                updatedAt: row?.updatedAt ?? null,
+                temId: estado.temId,
+                temSegredo: estado.temSegredo,
+                origem: estado.origem,
+                /**
+                 * Os nomes das variáveis vão **só para quem administra**. Não
+                 * são segredo, mas também não dizem nada a um atendente, e
+                 * manter a resposta mínima é mais fácil de defender depois.
+                 */
+                variaveis: admin ? estado.variaveis : null,
+                ambiente,
             }
         })
     )
@@ -130,8 +97,8 @@ export async function GET() {
      *
      * É a informação que não dá sintoma em lugar nenhum: a fila deles para
      * depois de 15 falhas seguidas e os eventos deixam de chegar em silêncio.
-     * A conciliação da madrugada conserta o estrago; esta linha é para o Andre
-     * **ver** que aconteceu, no lugar onde ele já administra a chave.
+     * A conciliação da madrugada conserta o estrago; esta linha é para o André
+     * **ver** que aconteceu.
      *
      * Falhar aqui não derruba a tela: sem Asaas configurado, ou com a API fora,
      * a tela mostra as credenciais como sempre e omite esta linha.
@@ -148,64 +115,4 @@ export async function GET() {
     }
 
     return NextResponse.json({ isPlatformAdmin: Boolean(admin), providers, asaasWebhook })
-}
-
-/** PUT — register or replace one provider's application credentials. */
-export async function PUT(request: NextRequest) {
-    const admin = await getPlatformAdmin()
-    if (!admin) {
-        return NextResponse.json(
-            { error: 'Só o responsável pela plataforma altera estas credenciais' },
-            { status: 403 }
-        )
-    }
-
-    const body = await request.json()
-    const provider = String(body.provider ?? '')
-    const clientId = String(body.clientId ?? '').trim()
-    const clientSecret = String(body.clientSecret ?? '').trim()
-
-    if (!KNOWN.has(provider)) {
-        return NextResponse.json({ error: 'Provedor desconhecido' }, { status: 400 })
-    }
-    if (!clientId || !clientSecret) {
-        return NextResponse.json({ error: 'Preencha os dois campos' }, { status: 400 })
-    }
-
-    /**
-     * Chave do Asaas que não começa por `$aact_` é chave colada pela metade.
-     *
-     * Recusar aqui é mais gentil que aceitar: guardada errada, ela só daria erro
-     * na primeira cobrança de verdade, longe daqui e sem dizer o motivo.
-     */
-    if (provider === 'asaas' && ambienteDaChave(clientId) === 'desconhecido') {
-        return NextResponse.json(
-            {
-                error:
-                    'A chave do Asaas começa com $aact_hmlg_ (sandbox) ou $aact_prod_ (produção). ' +
-                    'Confira se ela foi copiada inteira.',
-            },
-            { status: 400 }
-        )
-    }
-
-    /**
-     * Segredo definido no Cloudflare Secrets não se altera por aqui.
-     *
-     * `writeVaultSecret` recusa em vez de ignorar — gravar na tabela faria a
-     * tela dizer "salvo" enquanto a leitura continuaria vindo do ambiente, e o
-     * administrador iria embora acreditando ter rotacionado a credencial. 409
-     * porque é conflito de estado, não erro de preenchimento: os campos estão
-     * certos, o destino é que é imutável em tempo de execução.
-     */
-    try {
-        await setPlatformCredentials(provider, { clientId, clientSecret }, admin.userId)
-    } catch (erro) {
-        if (erro instanceof SegredoDeAmbienteError) {
-            return NextResponse.json({ error: erro.message, variavel: erro.variavel }, { status: 409 })
-        }
-        throw erro
-    }
-
-    return NextResponse.json({ success: true })
 }
