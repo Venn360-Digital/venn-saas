@@ -461,13 +461,22 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     }
 
     /**
-     * Reatar: reescreve o webhook no provedor **sem desligar a linha**.
+     * Reatar a linha **sem desligá-la**.
      *
-     * O endereço do webhook mora no banco do Evolution, por instância, e só é
-     * gravado num `/instance/connect`. Então trocar `WEBHOOK_BASE_URL` não tem
-     * efeito até que cada linha passe por isso de novo. Em 2026-10-24 a troca
-     * exigiu um desliga/liga à mão — com risco de QR — e este botão é o caminho
-     * deliberado para a mesma operação.
+     * ## Para que serve, em ordem de frequência
+     *
+     * **1. A linha que diz "No ar" e está muda.** É o buraco que não tinha
+     * ação: `integration-health` só age quando o provedor reporta
+     * `!connected`, então soquete morto com estado mentindo "conectado" passa
+     * pela cura automática sem ser tocado — o incidente de 2026-10-15
+     * invertido. Até hoje a única saída era desliga/liga, que arrisca o laço de
+     * QR do Evolution Go. Este botão é o lever que faltava.
+     *
+     * **2. Trocar o endereço do webhook.** Ele mora no banco do Evolution, por
+     * instância, e só é gravado num `/instance/connect` — então mudar
+     * `WEBHOOK_BASE_URL` não tem efeito até cada linha passar por isso. Foi o
+     * que custou um desliga/liga à mão em 2026-10-24. Motivo real, mas raro:
+     * sozinho não pagaria um controle permanente nesta tela.
      *
      * Fica fora da chave de propósito. A chave diz **estado** ("No ar" / "Fora
      * do ar") e essa linguagem foi padronizada em 2026-10-20 justamente para
@@ -827,7 +836,7 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                                         size="icon"
                                                                         className="size-7"
                                                                         aria-label={`Reconectar ${nomeDaLinha(line)}`}
-                                                                        title="Reconectar — reescreve o webhook sem desligar a linha"
+                                                                        title="Reconectar — reata a linha sem desligá-la, para quando ela aparece no ar mas não recebe"
                                                                         disabled={!canManage || trabalhando}
                                                                         onClick={() => void reatar(line)}
                                                                     >
