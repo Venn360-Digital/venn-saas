@@ -59,6 +59,7 @@ jobs:
         run: |
           npm run lint:colors
           npm run lint:workspace
+          npm run lint:fuso
           npm run check:widget
 
       - name: Provas que não precisam de banco
