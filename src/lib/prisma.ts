@@ -36,8 +36,17 @@ import { criarAdapter } from '@/lib/prisma-adapters'
  * Prisma. Com adapter, quem conecta é o driver — e driver nenhum entende esse
  * parâmetro. Então ele é extraído aqui e repassado nas opções do adapter.
  *
- * `SUPABASE_DB_SCHEMA` continua valendo como segunda via, porque é assim que o
- * ambiente de desenvolvimento alterna entre `public` e `dev` hoje.
+ * `DB_SCHEMA` é a segunda via, porque é assim que o ambiente de
+ * desenvolvimento alterna entre `public` e `dev`.
+ *
+ * **Chamava-se `SUPABASE_DB_SCHEMA`**, e o nome era o problema: uma variável
+ * batizada com o nome de uma infraestrutura desligada, com poder de redirecionar
+ * **todas** as consultas para outro schema — em silêncio, se um dia alguém a
+ * gravasse achando que era resquício inofensivo. A auditoria de 2026-10-23 a
+ * apontou por isso.
+ *
+ * O nome antigo segue aceito como alternativa para não quebrar `.env` que já
+ * existe. Quando os ambientes locais tiverem migrado, some daqui.
  */
 function schemaDaUrl(url: string): string | undefined {
     try {
@@ -48,7 +57,7 @@ function schemaDaUrl(url: string): string | undefined {
         // mais útil que uma exceção de parsing aqui.
     }
 
-    return process.env.SUPABASE_DB_SCHEMA?.trim() || undefined
+    return (process.env.DB_SCHEMA ?? process.env.SUPABASE_DB_SCHEMA)?.trim() || undefined
 }
 
 function criarCliente(): PrismaClient {

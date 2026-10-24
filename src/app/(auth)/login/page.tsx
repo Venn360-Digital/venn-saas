@@ -350,10 +350,11 @@ function LoginForm() {
                         </Button>
                     </form>
 
-                    {/* The Google button that used to sit here had no onClick at all.
-                        Wiring it needs the provider configured in Supabase Auth, so
-                        it is removed rather than left as a control that does
-                        nothing. */}
+                    {/* O botão do Google que ficava aqui não tinha `onClick`
+                        nenhum, e foi removido em vez de ficar como controle que
+                        não faz nada. Ligá-lo hoje é configurar o provedor social
+                        no Better Auth — o motivo antigo citava o Supabase Auth,
+                        que saiu na migração. */}
                 </div>
             </main>
         </div>

@@ -47,7 +47,7 @@ const CONDICOES_DO_WORKER = ["workerd", "worker", "module", "import", "default"]
  *       at node_modules/@prisma/adapter-pg/dist/index.mjs:3
  *
  * `src/lib/prisma.ts` serve aos DOIS destinos e precisava dos dois drivers — o
- * Worker fala com o Neon, o contêiner da VPS com o Postgres do Supabase
+ * Worker fala com o Neon, e o Evolution Go na Vultr com o Postgres dele
  * auto-hospedado. Com os dois `import` estáticos juntos, o bundle do Worker
  * levava a biblioteca `pg`, que executa código de Node na carga do módulo.
  *
