@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { escapeCsv } from '@/lib/csv'
 import prisma from '@/lib/prisma'
 import { createdViaLabel } from '@/lib/created-via'
 import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
@@ -98,9 +99,3 @@ export async function GET(request: NextRequest) {
     }
 }
 
-function escapeCsv(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`
-    }
-    return value
-}

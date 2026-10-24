@@ -1,3 +1,4 @@
+import { igualEmTempoConstante } from '@/lib/comparacao'
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
@@ -45,7 +46,13 @@ async function autenticado(request: NextRequest): Promise<boolean> {
         console.error('[ASAAS_WEBHOOK] nenhum token registrado na plataforma; recusando')
         return false
     }
-    return request.headers.get('asaas-access-token') === esperado
+    /**
+     * Tempo constante, como Meta e Evolution. Era `===` — a única das três
+     * portas sem o cuidado, e por isso a que mais precisava dele: o token aqui
+     * é um valor que nós inventamos e colamos no painel do Asaas, logo é
+     * adivinhável byte a byte se o tempo de resposta contar a história.
+     */
+    return igualEmTempoConstante(request.headers.get('asaas-access-token') ?? '', esperado)
 }
 
 interface CorpoDoAsaas {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 import prisma from '@/lib/prisma'
 import { PLATFORM_PROVIDERS, ambienteDaChave, getPlatformAdmin, getPlatformCredentials, setPlatformCredentials, temSegredoDuplo } from '@/lib/platform-credentials'
@@ -18,6 +19,28 @@ const KNOWN = new Set<string>(PLATFORM_PROVIDERS.map((p) => p.provider))
  * Google in the browser anyway.
  */
 export async function GET() {
+    /**
+     * Responde a **quem está logado** — não a qualquer um.
+     *
+     * O comentário acima explica por que a rota não é só do administrador da
+     * plataforma: a tela de Integrações de cada clínica precisa saber se
+     * "Conectar" vai funcionar. Mas essa tela é de usuário autenticado, e a
+     * rota não pedia sessão nenhuma — então ela respondia a anônimo com a
+     * postura da plataforma: quais provedores estão configurados, se o segredo
+     * vem do ambiente ou do cofre, e quando mudou.
+     *
+     * Não vaza `clientId` nem segredo, por isso é achado baixo. Mas o portão da
+     * borda é otimista (`lib/auth/middleware.ts`), então "só quem tem cookie"
+     * não era barreira nenhuma — era `getPlatformAdmin()` devolvendo `null` e o
+     * handler seguindo em frente.
+     *
+     * Sessão de verdade, e nada mais: exigir papel aqui quebraria a tela da
+     * clínica, que é quem mais chama esta rota.
+     */
+    if (!(await usuarioDaSessao())) {
+        return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+
     const admin = await getPlatformAdmin()
 
     /**

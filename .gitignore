@@ -1,7 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+#
+# SEM a barra inicial, de propósito. `/node_modules` ancora na raiz, então
+# `poc/canal-whatsapp/node_modules/` escapava — e escapou: 19 arquivos ficaram
+# rastreados, incluindo o `wrangler-account.json` com o id da conta Cloudflare.
+# A auditoria de 2026-10-23 os encontrou, e o conserto é tirar a âncora.
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -88,5 +93,7 @@ AGENTS.md
 # Carregam o engine nativo de ~21 MB cada: artefato, nunca fonte.
 src/generated/
 
-# Artefatos de build/deploy do wrangler. Dois ficaram rastreados por engano
+# Artefatos de build/deploy do wrangler. Os dois que ficaram rastreados por
+# engano saíram do índice em 2026-10-24, junto com a correção da regra de
+# `node_modules` acima, que era a causa.
 .wrangler/

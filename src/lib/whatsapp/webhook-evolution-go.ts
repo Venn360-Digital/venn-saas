@@ -1,3 +1,4 @@
+import { igualEmTempoConstante } from '@/lib/comparacao'
 import 'server-only'
 import crypto from 'node:crypto'
 
@@ -38,9 +39,7 @@ export interface RespostaWebhook {
  * tamanho errado é inválido, e pronto. Vazio dos dois lados nunca é válido.
  */
 export function segredoDoWebhookValido(recebido: string, esperado: string | undefined): boolean {
-    if (!esperado) return false
-    if (recebido.length !== esperado.length) return false
-    return crypto.timingSafeEqual(Buffer.from(recebido, 'utf8'), Buffer.from(esperado, 'utf8'))
+    return igualEmTempoConstante(recebido, esperado)
 }
 
 /**
