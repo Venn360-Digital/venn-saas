@@ -4,7 +4,7 @@
  * ## Por que este arquivo existe
  *
  * `docs/migration/01-compatibility.md:595-600` aceitou, por escrito, o preço de
- * remover o RLS do Supabase:
+ * remover o RLS da plataforma anterior:
  *
  * > "a segunda linha de defesa que o RLS dava contra um defeito de aplicação
  * > sai… o preço de um defeito de autorização sobe. Isso torna os testes

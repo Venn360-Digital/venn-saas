@@ -6,7 +6,7 @@ import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
 const log = createLogger('CRON:REMINDERS')
 
 /**
- * Push due activity reminders to connected operators over Supabase Realtime.
+ * Push due activity reminders to connected operators over the realtime channel.
  *
  * Complements — does not replace — the `/api/activities/reminders` poll the
  * Topbar already runs. This job deliberately leaves `reminderSentAt` untouched:

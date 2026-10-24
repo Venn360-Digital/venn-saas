@@ -131,7 +131,7 @@ async function handleAck(event: NormalizedAck): Promise<void> {
      * avisar a tela é preciso saber a conversa e o workspace de cada uma.
      * Sem o aviso, o selo de entrega (enviada → entregue → lida) só mudaria
      * quando a atendente trocasse de conversa — regressão visível em relação
-     * ao que o Supabase Realtime fazia.
+     * ao que o tempo real anterior fazia.
      *
      * Um `findMany` por lote de recibos, e o lote chega com até 25 (ver
      * `CONSUMO` em `cloudflare.config.ts`). Recibo é barato e tagarela; isto
@@ -286,7 +286,7 @@ async function handleConnection(event: NormalizedConnection, job: WhatsAppEventJ
 /**
  * Relay the contact's typing state to the operator inbox.
  *
- * Ephemeral by design: broadcast over Supabase Realtime, never written to the DB.
+ * Ephemeral by design: broadcast over the realtime channel, never written to the DB.
  */
 async function handlePresence(event: NormalizedPresence): Promise<void> {
     if (!event.chatJid || event.chatJid.endsWith('@g.us')) return

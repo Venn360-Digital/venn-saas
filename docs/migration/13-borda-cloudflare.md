@@ -77,6 +77,21 @@ A origem foi **medida**, não suposta — `wrangler tail` em 2026-10-24:
 `ip=216.238.127.233`, `user-agent=Go-http-client/2.0`. O IPv6 entra como `/64`
 porque o endereço específico pode mudar dentro da rede numa reconfiguração.
 
+**Provada nas duas direções, em 2026-10-24.** Bloquear é fácil de verificar; o
+que custa é provar que ela **não bloqueia demais**, e para isso só serve tráfego
+real:
+
+```
+de fora   POST /api/webhooks/evolution-go/…        → 403 da Cloudflare
+da Vultr  (log do Evolution, 01:32:43 BRT)
+          webhook sent successfully · status: 200
+          response: {"received":true,"queued":1,"skipped":0}
+```
+
+O 200 veio de uma mensagem de WhatsApp de verdade, atravessando a regra. Sem
+essa metade, a regra estaria "configurada" e não "funcionando" — e a diferença
+só apareceria quando um paciente escrevesse.
+
 > ### ⚠️ Esta regra falha em silêncio
 >
 > **Se o IP da instância Vultr mudar, o WhatsApp para de receber e nada avisa.**
@@ -207,6 +222,16 @@ curl -s -o /dev/null -w '%{http_code}\n' https://odontobox.venn360.com/login
 Esperado: `403 · 403 · 403 · 404 · 200`.
 
 **O que esses comandos não provam:** que a Vultr **ainda passa** pela regra 2.2.
-Para isso só serve uma mensagem de WhatsApp de verdade, acompanhada por
-`npx wrangler tail odontobox --format json`. Medido funcionando em 2026-10-24
-antes da regra; **depois da regra, ainda não foi exercitado.**
+Para isso só serve uma mensagem de WhatsApp de verdade. Foi exercitado em
+2026-10-24 e está registrado em §2.2 — mas é a metade que envelhece: ela volta a
+valer a cada mudança na instância, e nenhum `curl` a substitui.
+
+Para refazer:
+
+```bash
+npx wrangler tail odontobox --format json
+```
+
+Mande uma mensagem ao número da clínica e procure `webhook sent successfully`
+com `status: 200` no log do Evolution (`docker logs` na Vultr), ou
+`FILA odontobox-whatsapp-inbound` no tail.

@@ -10,21 +10,23 @@
 # had logged in by +16 s and survived a +25 s restart by luck). So: wait until
 # /instance/status reports LoggedIn=true, then restart; cap at 70 s so the restart
 # still lands before the forced logout.
-# Parametrizado porque rodam DUAS pilhas: a da Stay Cloud (nomes antigos, que
-# seguem sendo o padrão aqui) e a da VPS dedicada ao Evolution, onde o compose
-# chama `odontobox-evolution` e os contêineres viram
-# `odontobox-evolution-evolution-go-1` / `-postgres-1`. Fixar o nome novo aqui
-# quebraria a Stay Cloud no próximo deploy dela.
-C=${EVO_CONTAINER:-odontobox360-evolution-go-1}
-PG=${EVO_PG_CONTAINER:-supabase-db}
+# Parametrizado, e os padrões são os da VPS dedicada ao Evolution — a única
+# pilha que existe desde 2026-10-23. Até ali os padrões eram os da Stay Cloud
+# (`odontobox360-evolution-go-1` e o Postgres da aplicação), e as unidades da
+# Vultr sobrescreviam as quatro variáveis. Com aquela máquina desligada, manter
+# os nomes antigos como padrão deixava o vigia **falhando em silêncio** para
+# quem o rodasse à mão: `docker exec` erra, `token_for` devolve vazio, e o
+# vigia simplesmente nunca reinicia nada.
+C=${EVO_CONTAINER:-odontobox-evolution-evolution-go-1}
+PG=${EVO_PG_CONTAINER:-odontobox-evolution-postgres-1}
 EVO_DB=${EVO_DB:-evogo_users}
 API=${EVO_API:-http://127.0.0.1:8080}
 
 # O token sai do banco do PRÓPRIO Evolution, não do banco do app.
 #
-# A consulta anterior lia `agent_integrations` no `supabase-db` — a base da
-# aplicação. Na VPS dedicada ela não existe (o app foi para outro host), e
-# mesmo na Stay Cloud essa dependência some no dia em que o app migrar. A
+# A consulta anterior lia `agent_integrations` no banco da aplicação. Na VPS
+# dedicada ela não existe — o app foi para outro host —, e mesmo antes disso a
+# dependência sumiria no dia da migração. A
 # tabela `instances` do `evogo_users` tem `id` e `token` e pertence ao
 # Evolution, então vale nas duas pilhas.
 token_for() {  # instance uuid -> instance token

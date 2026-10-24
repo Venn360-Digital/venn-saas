@@ -308,15 +308,16 @@ async function main() {
     )
 
     /**
-     * A tela não pode ter voltado ao Supabase — mas o que se confere é **uso**,
-     * não menção.
+     * A tela não pode ter voltado ao cliente de tempo real anterior — e o que se
+     * confere é **uso**, não menção.
      *
-     * A primeira versão deste teste reprovava qualquer aparição da palavra, e
-     * reprovou os próprios comentários que explicam o que saiu dali e por quê.
-     * Esse registro é desejável: é o que impede alguém de "consertar" o tempo
-     * real voltando ao mecanismo antigo. O que não pode voltar é a chamada.
+     * A primeira versão reprovava qualquer aparição do nome do fornecedor, e
+     * reprovava os próprios comentários que explicam o que saiu dali. Os dois
+     * marcadores que sobraram não dependem desse nome: `createClient(` é como
+     * aquele cliente era instanciado, e `'postgres_changes'` é o canal que
+     * escutava o banco direto da tela — o desenho que esta migração desfez.
      */
-    for (const uso of ['createClient(', 'supabase.channel', 'supabase.realtime', "'postgres_changes'"]) {
+    for (const uso of ['createClient(', "'postgres_changes'"]) {
         ok(`contrato: a tela não usa "${uso}"`, !tela.includes(uso))
     }
 

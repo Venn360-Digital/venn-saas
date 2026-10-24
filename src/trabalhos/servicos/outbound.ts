@@ -30,7 +30,7 @@ export interface EnqueueOutboundTextInput {
  * na hora e o envio é retentado à parte, então um provedor instável nunca perde
  * o texto.
  *
- * **O "na hora" mudou de mecanismo.** Antes era o `postgres_changes` do Supabase
+ * **O "na hora" mudou de mecanismo.** Antes era o `postgres_changes` da plataforma anterior
  * pegando o `insert` — a tela ficava viva por efeito colateral da replicação.
  * O Neon não publica WAL para a Cloudflare, então agora é um aviso explícito na
  * mesma transação. Sem ele, a resposta do agente só apareceria quando a

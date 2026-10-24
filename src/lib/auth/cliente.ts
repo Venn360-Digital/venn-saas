@@ -5,12 +5,12 @@ import { createAuthClient } from 'better-auth/react'
 /**
  * O cliente de autenticação do navegador.
  *
- * Substitui `@/lib/supabase/client` nos fluxos de identidade — entrar, cadastrar,
+ * Substitui o cliente de identidade anterior nos fluxos — entrar, cadastrar,
  * sair, pedir redefinição de senha. Fala com `/api/auth/*`, que é o manipulador
  * do Better Auth.
  *
  * **Sem chave no navegador.** É a diferença que menos aparece e mais importa: o
- * cliente do Supabase precisava da chave anon embutida no bundle — pública por
+ * cliente anterior precisava da chave anônima embutida no bundle — pública por
  * desenho, e a razão de existir todo o RLS que esta migração removeu (ver
  * `docs/migration/01-compatibility.md` §13). Aqui o navegador não carrega
  * credencial nenhuma: ele chama a própria aplicação, e quem fala com o banco é o

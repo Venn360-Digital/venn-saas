@@ -6,7 +6,7 @@ import 'server-only'
  * Ela já existia duplicada: `billing.ts` carregava as 25 linhas de tabela e
  * estilo inline, com o comentário "same shell as the auth e-mails" — e os
  * e-mails de autenticação eram modelos do GoTrue, servidos pela rota `/email/`
- * que saiu com o Supabase. A casca sobreviveu ao parente, e o e-mail de
+ * que saiu com a plataforma anterior. A casca sobreviveu ao parente, e o e-mail de
  * redefinição de senha precisava dela de volta.
  *
  * **Por que tabela e estilo inline em 2026.** Cliente de e-mail não é

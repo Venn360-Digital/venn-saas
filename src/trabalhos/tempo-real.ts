@@ -14,8 +14,8 @@ import { createLogger } from './registro'
  * Então são dois caminhos de propósito, com critério claro: **tem de chegar →
  * outbox; tem de chegar agora → aqui.**
  *
- * Substitui `supabase.channel(...).send({ type: 'broadcast' })`, que fazia
- * exatamente isto no Supabase Realtime.
+ * Substitui o `broadcast` do canal do cliente anterior, que fazia
+ * exatamente isto no tempo real daquela plataforma.
  */
 const log = createLogger('TEMPO-REAL')
 

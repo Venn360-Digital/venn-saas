@@ -45,7 +45,6 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Build artefacts and vendored infrastructure.
     "workers/dist/**",
-    "infra/supabase/**",
   ]),
 ]);
 

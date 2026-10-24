@@ -8,7 +8,7 @@ import { sendEmail } from '@/lib/email/send'
 /**
  * O Better Auth, montado sobre o schema que já existe.
  *
- * Substitui o Supabase Auth. A diferença que importa não é de API: é que a
+ * Substitui o provedor de identidade anterior. A diferença que importa não é de API: é que a
  * identidade deixa de ser um serviço externo e passa a ser **tabela no mesmo
  * banco** — o que torna a sessão resolvível pelo Worker sem ida à rede, e torna
  * o usuário juntável com `WorkspaceUser` numa consulta só.
@@ -16,7 +16,7 @@ import { sendEmail } from '@/lib/email/send'
  * **A restrição que manda no desenho: os ids têm de sobreviver.** `User.id` é
  * chave estrangeira em quase todo o schema — `WorkspaceUser`, `Activity`,
  * `Deal`, `Conversation`, `Account.ownerUserId` — e os valores atuais são os
- * UUID que vinham do `auth.users` do Supabase. Gerar id novo seria reescrever o
+ * UUID que vinham do `auth.users` daquele provedor. Gerar id novo seria reescrever o
  * banco inteiro. Então o Better Auth é apontado para a tabela `users` que já
  * existe e **não** gera id: quem gera é o `@default(cuid())` do Prisma, para
  * quem chegar agora, e quem já existe mantém o UUID.

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
          * Só http(s), e nada de endereço interno.
          *
          * A URL vem de um campo de texto e é buscada pelo nosso servidor, que
-         * fala com o Postgres, o Redis e o Supabase na mesma rede. Sem esta
+         * fala com o Postgres e o Redis na mesma rede. Sem esta
          * guarda, "adicione um site" é um pedido para o servidor buscar
          * `http://localhost:8000` ou o metadata da nuvem e devolver o conteúdo.
          */

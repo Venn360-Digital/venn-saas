@@ -17,7 +17,7 @@ import { z } from 'zod'
  *
  * **Segunda: tem nove chaves, não vinte e seis.** As outras dezessete eram do
  * processo que a Cloudflare substitui — `REDIS_URL`, `WORKER_CONCURRENCY`,
- * `WORKER_HEALTH_PORT`, `WORKER_QUEUES`, `ENABLE_SCHEDULER` — ou do Supabase,
+ * `WORKER_HEALTH_PORT`, `WORKER_QUEUES`, `ENABLE_SCHEDULER` — ou da plataforma anterior,
  * que saiu. Carregá-las adiante faria o Worker exigir, para subir, coisas que
  * não existem mais. Estas nove foram medidas: são as que o código portado lê.
  *

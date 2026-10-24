@@ -6,7 +6,7 @@ import { ObjetoAusenteError, chaveDe, type OpcoesDeGravacao, type ProvedorDeObje
 /**
  * O adaptador de storage da aplicação.
  *
- * Substitui o Supabase Storage, que até 2026-10-21 era chamado direto em oito
+ * Substitui o storage da plataforma anterior, que até 2026-10-21 era chamado direto em oito
  * pontos — e cada um deles montava o caminho à mão, escolhia o bucket pelo nome
  * de uma variável só, e **gravava a URL pública numa coluna do banco**.
  *

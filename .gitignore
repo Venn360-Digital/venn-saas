@@ -56,9 +56,6 @@ next-env.d.ts
 
 # infra: generated and vendored
 infra/.env
-infra/supabase/
-infra/supabase.bak/
-infra/supabase.bak.*/
 infra/traefik/dynamic.yaml
 infra/volumes/
 

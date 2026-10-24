@@ -37,7 +37,7 @@ export interface ArchiveMediaInput {
 }
 
 /**
- * Put inbound media bytes in Supabase Storage and return the public URL.
+ * Put inbound media bytes in object storage and return the reference.
  *
  * Evolution Go inlines the base64 on the webhook (`WEBHOOKFILES=true`), so the
  * common path is a plain upload with no provider round trip — which is why media

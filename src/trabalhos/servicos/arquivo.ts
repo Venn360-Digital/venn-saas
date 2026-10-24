@@ -4,10 +4,10 @@ import { createLogger } from '@/trabalhos/registro'
 /**
  * Arquiva bytes que chegaram ou saíram numa conversa.
  *
- * Substitui as três chamadas a `supabase.storage.upload(...).getPublicUrl()`
+ * Substitui as três chamadas ao upload do storage anterior
  * que existiam em `media.ts`, `speech.ts` e `avatar.ts`.
  *
- * **O que muda, e não é o endereço do bucket.** O Supabase Storage devolvia uma
+ * **O que muda, e não é o endereço do bucket.** Aquele storage devolvia uma
  * URL pública permanente, e as três gravavam essa URL no banco. Conteúdo de
  * conversa de paciente — foto que ele mandou, nota de voz, foto de perfil —
  * é **clínico**, e no desenho novo material clínico sai por URL assinada de

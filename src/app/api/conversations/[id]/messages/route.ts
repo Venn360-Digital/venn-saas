@@ -19,9 +19,10 @@ export async function POST(
     try {
         const { id: conversationId } = await params
         /**
-         * Esta rota era a **única** da API ainda presa ao Supabase Auth e ao
-         * Supabase Storage, e a única com `getQueue()` do BullMQ no caminho do
-         * atendente. Medido em 2026-10-23, no Worker: `NEXT_PUBLIC_SUPABASE_URL`
+         * Esta rota era a **única** da API ainda presa ao provedor de identidade
+         * e ao storage da plataforma anterior, e a única com `getQueue()` do
+         * BullMQ no caminho do atendente. Medido em 2026-10-23, no Worker: a
+         * variável de endereço daquela plataforma
          * não existe lá, então a sessão vinha nula e a resposta era 401 — a
          * atendente digitava e a mensagem não saía da caixa, com a linha
          * pareada e o resto do sistema no ar. Portada para `usuarioDaSessao`,
