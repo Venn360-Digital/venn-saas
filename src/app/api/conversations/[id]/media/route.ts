@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
 import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
+import { comEnderecoDeMidia } from '@/lib/midia'
 
 /**
  * Tudo o que foi trocado em arquivo nesta conversa.
@@ -36,5 +37,7 @@ export async function GET(
         },
     })
 
-    return NextResponse.json({ files })
+    // O endereço é cunhado **aqui**, depois de `assertConversationAccess` —
+    // é o que faz o link nascer válido e nunca existir em repouso.
+    return NextResponse.json({ files: await comEnderecoDeMidia(files) })
 }

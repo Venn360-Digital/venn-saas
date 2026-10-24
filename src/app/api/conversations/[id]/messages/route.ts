@@ -1,5 +1,6 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
+import { comoReferencia, enderecoDaMidia } from '@/lib/midia'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { QUEUE } from '@/lib/queue/definitions'
@@ -96,7 +97,8 @@ export async function POST(
                 return NextResponse.json({ error: 'Falha ao enviar arquivo' }, { status: 500 })
             }
 
-            mediaUrl = arquivado.url
+            // A referência, não o endereço assinado — ver `lib/midia.ts`.
+            mediaUrl = comoReferencia(arquivado.referencia)
 
             // Set display content for DB
             if (!textContent) {
@@ -328,6 +330,10 @@ export async function POST(
 
         return NextResponse.json({
             ...fullMessage,
+            // O endereço assinado na hora. Sem isto a mensagem que acabou de
+            // ser enviada mostraria `ref:clinico:...` no lugar da imagem — o
+            // ponto de saída mais visível dos três.
+            mediaUrl: await enderecoDaMidia(fullMessage?.mediaUrl),
             senderName: senderUser?.name || 'Atendente',
             // Presente só quando a mensagem foi gravada e não saiu.
             ...(lineWarning ? { warning: lineWarning } : {}),

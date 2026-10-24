@@ -151,6 +151,19 @@ export const VALIDADE_MAXIMA_SEGUNDOS = 600
  *
  * Sensível sai por **URL assinada de validade curta**, e nunca é persistida.
  */
+/**
+ * Reconstrói uma `Referencia` a partir da classe e da chave.
+ *
+ * Existe para quem guardou só esses dois no banco e precisa assinar depois —
+ * ver `lib/midia.ts`. O provedor e o bucket saem da classe, que é a única
+ * coisa que decide destino neste adaptador.
+ */
+export function referenciaDe(classe: Classe, chave: string, contentType = ''): Referencia {
+    const nome = provedorDa(classe)
+    const { bucket } = provedor(nome)
+    return { provedor: nome, bucket, chave, classe, contentType }
+}
+
 export async function enderecoPara(
     ref: Referencia,
     validadeSegundos = VALIDADE_MAXIMA_SEGUNDOS

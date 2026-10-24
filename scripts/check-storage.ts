@@ -28,6 +28,7 @@ import {
     VALIDADE_MAXIMA_SEGUNDOS,
 } from '@/lib/storage'
 import { deBase64 } from '@/trabalhos/servicos/arquivo'
+import { comoReferencia, enderecoDaMidia } from '@/lib/midia'
 
 let falhas = 0
 let pulados = 0
@@ -42,6 +43,31 @@ const skip = (nome: string, motivo: string) => {
 }
 
 async function main() {
+    // ============================ a referência gravada no lugar do endereço
+    /**
+     * `Message.mediaUrl` guardava a **URL assinada**, de 600 s de validade.
+     * Arquivo com mais de dez minutos abria 403 — e enquanto valia era chave
+     * ao portador num campo de banco. Agora a coluna guarda referência e o
+     * endereço é cunhado na saída, por quem já autorizou (`lib/midia.ts`).
+     *
+     * Estas asserções são puras. A **assinatura de verdade** só roda com
+     * credencial de R2 no ambiente, e está marcada abaixo com o resto do ciclo.
+     */
+    {
+        const ref = comoReferencia({ classe: CLASSES.CLINICO, chave: 'ws1/conv1/123.jpg' })
+        ok('a referência gravada é opaca', ref === 'ref:clinico:ws1/conv1/123.jpg', ref)
+        ok('e nunca parece URL', !ref.startsWith('http'))
+        ok('nulo continua nulo', (await enderecoDaMidia(null)) === null)
+
+        const legado = 'https://x.r2.cloudflarestorage.com/a/b.jpg?X-Amz-Signature=abc'
+        ok('linha antiga passa intacta', (await enderecoDaMidia(legado)) === legado)
+        ok(
+            'referência malformada não vira link falso',
+            (await enderecoDaMidia('ref:')) === 'ref:' &&
+                (await enderecoDaMidia('ref:inventada:x')) === 'ref:inventada:x'
+        )
+    }
+
     // ---------------------------------------------------------------- lógica
 
     ok('classe pública vai para o R2', provedorDa(CLASSES.PUBLICO) === 'r2-publico')
