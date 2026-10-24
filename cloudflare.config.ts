@@ -292,6 +292,31 @@ export default defineConfig({
             EVOLUTION_WEBHOOK_SECRET: bindings.secret(),
 
             /**
+             * O service token do Cloudflare Access, para alcançar o Tunnel.
+             *
+             * O Tunnel já tirava a porta do VPS, mas o hostname publicado
+             * respondia a **qualquer um na internet** — a API e o manager
+             * inteiros do Evolution Go, atrás de uma `apikey` só. Medido na
+             * auditoria de 2026-10-23. A aplicação do Access em
+             * `evo-odontobox.venn360.com` tem política de **Service Auth**, e
+             * estes dois são a credencial que este Worker apresenta.
+             *
+             * **Declarados aqui porque esta configuração é declarativa.** O
+             * `cf deploy` reconcilia o conjunto de bindings do script: segredo
+             * gravado por `wrangler secret put` e **não** declarado aqui é
+             * removido no deploy seguinte. Foi o que custou o corte de
+             * `WEBHOOK_BASE_URL` em 2026-10-23.
+             *
+             * A consequência da declaração é a ordem: os dois têm de **existir
+             * na conta antes** deste arquivo chegar a um deploy. Ver o cabeçalho
+             * de `cabecalhosDoAccess()` em `lib/whatsapp/evolution-go.ts`, que
+             * descreve os quatro passos e por que inverter dois deles derruba a
+             * linha de WhatsApp.
+             */
+            CF_ACCESS_CLIENT_ID: bindings.secret(),
+            CF_ACCESS_CLIENT_SECRET: bindings.secret(),
+
+            /**
              * A base pública da app, para MONTAR a URL do webhook.
              *
              * **Por que isto precisa existir, e custou um corte.** Em

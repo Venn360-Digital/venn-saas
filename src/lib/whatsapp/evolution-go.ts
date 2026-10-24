@@ -160,6 +160,51 @@ export class EvolutionGoProvider implements ChannelProvider {
     }
 
     /**
+     * O service token do Cloudflare Access, quando existe.
+     *
+     * ## Por que o Access entrou
+     *
+     * O Tunnel resolve **como** o tráfego chega: a origem não tem porta aberta,
+     * e o Evolution liga em `127.0.0.1:8080` dentro do host
+     * (`infra/compose.evolution-vps.yaml`). O que ele **não** resolve é *quem*
+     * pode chegar — o hostname publicado responde a qualquer um na internet.
+     *
+     * Medido na auditoria de 2026-10-23: `evo-odontobox.venn360.com` expunha a
+     * API e o manager inteiros do Evolution Go, com a tela de login pública, e
+     * a única defesa era a `apikey` global. Quem a obtivesse enviava e lia
+     * WhatsApp como a clínica, listava e apagava instâncias, e alcançava o
+     * material de sessão do whatsmeow. Sem Access, sem rate limit de borda,
+     * sem mTLS.
+     *
+     * A política no Access é **Service Auth** — não há caminho de navegador,
+     * porque o único cliente deste hostname é este Worker. O André administra
+     * o Evolution por túnel SSH para `localhost:8080`, que não passa por aqui.
+     *
+     * ## Devolve `{}` quando não há token, e isso é deliberado
+     *
+     * Os cabeçalhos são inofensivos quando o Access ainda não está impondo, e
+     * **necessários** depois que estiver. Essa assimetria é o que torna a ordem
+     * da implantação segura:
+     *
+     *   1. criar o service token no painel;
+     *   2. gravar os dois segredos no Worker;
+     *   3. publicar este código;
+     *   4. **só então** criar a aplicação do Access.
+     *
+     * Inverter 3 e 4 derruba a linha de WhatsApp: a Cloudflare passa a devolver
+     * 403 para um Worker que ainda não manda credencial. Falhar aberto aqui não
+     * é frouxidão — é o que permite publicar antes de trancar. Depois de
+     * trancado, a ausência do segredo aparece como 403 em toda chamada, que é
+     * alto e imediato.
+     */
+    private cabecalhosDoAccess(): Record<string, string> {
+        const id = process.env.CF_ACCESS_CLIENT_ID
+        const segredo = process.env.CF_ACCESS_CLIENT_SECRET
+        if (!id || !segredo) return {}
+        return { 'CF-Access-Client-Id': id, 'CF-Access-Client-Secret': segredo }
+    }
+
+    /**
      * @param apiKey the global key for admin routes, or the instance token.
      */
     private async request<T>(
@@ -196,9 +241,12 @@ export class EvolutionGoProvider implements ChannelProvider {
                 )
             } else {
                 this.assertConfigured()
+                // Os cabeçalhos do Access entram só aqui: o caminho do service
+                // binding acima não cruza a borda da Cloudflare, então não há
+                // política para satisfazer nele.
                 response = await fetch(`${this.baseUrl}${endpoint}`, {
                     ...init,
-                    headers,
+                    headers: { ...headers, ...this.cabecalhosDoAccess() },
                     signal: controller.signal,
                 })
             }
@@ -648,10 +696,17 @@ export class EvolutionGoProvider implements ChannelProvider {
         return { base64, mimetype: mimetype ?? 'application/octet-stream' }
     }
 
-    /** Unauthenticated liveness probe. */
+    /**
+     * Sonda de vida. **Não é mais anônima**: `/server/ok` não pede `apikey` no
+     * Evolution, mas o hostname fica atrás do Access, então sem o service token
+     * a resposta é 403 da Cloudflare — e um health check que devolve `false`
+     * por falta de credencial diria "o Evolution caiu" sobre um Evolution no ar.
+     */
     async healthCheck(): Promise<boolean> {
         try {
-            const response = await fetch(`${this.baseUrl}/server/ok`)
+            const response = await fetch(`${this.baseUrl}/server/ok`, {
+                headers: this.cabecalhosDoAccess(),
+            })
             return response.ok
         } catch {
             return false
