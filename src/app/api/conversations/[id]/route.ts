@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { comEnderecoDeMidia } from '@/lib/midia'
 import prisma from '@/lib/prisma'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { phoneFromConfig } from '@/lib/conversation-line'
@@ -260,14 +261,14 @@ export async function GET(
                       }
                     : null,
             },
-            messages: resultMessages.reverse().map(m => ({
+            messages: await comEnderecoDeMidia(resultMessages.reverse().map(m => ({
                 ...m,
                 senderName: m.sentBy === 'agent'
                     ? conversation.agent?.name || 'Bot'
                     : m.sentBy === 'user'
                         ? conversation.contact.name || conversation.contact.phone
                         : senderMap.get(m.sentBy!) || 'Atendente',
-            })),
+            }))),
             hasMore,
             nextCursor: hasMore ? resultMessages[resultMessages.length - 1].createdAt.toISOString() : null,
         })

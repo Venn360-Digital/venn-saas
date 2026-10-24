@@ -2,6 +2,7 @@ import type { ChannelProvider } from '@/lib/whatsapp'
 import type { IntegrationConfig } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'
 import { CLASSES, arquivar, deBase64 } from './arquivo'
+import { comoReferencia } from '@/lib/midia'
 
 const log = createLogger('MEDIA')
 
@@ -112,5 +113,11 @@ export async function archiveInboundMedia(
     if (!arquivado) return null
 
     log.info(`archived media at ${arquivado.referencia.chave}`)
-    return arquivado.url
+
+    /**
+     * A **referência**, não o endereço. O endereço é assinado e vale 600 s;
+     * gravá-lo deixava o arquivo morto dez minutos depois e punha uma chave ao
+     * portador no banco. Ver `lib/midia.ts`.
+     */
+    return comoReferencia(arquivado.referencia)
 }

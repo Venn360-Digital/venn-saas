@@ -28,6 +28,8 @@ import {
     VALIDADE_MAXIMA_SEGUNDOS,
 } from '@/lib/storage'
 import { deBase64 } from '@/trabalhos/servicos/arquivo'
+import { comoReferencia, enderecoDaMidia } from '@/lib/midia'
+import { escapeCsv } from '@/lib/csv'
 
 let falhas = 0
 let pulados = 0
@@ -42,6 +44,58 @@ const skip = (nome: string, motivo: string) => {
 }
 
 async function main() {
+    // ============================ a referência gravada no lugar do endereço
+    /**
+     * `Message.mediaUrl` guardava a **URL assinada**, de 600 s de validade.
+     * Arquivo com mais de dez minutos abria 403 — e enquanto valia era chave
+     * ao portador num campo de banco. Agora a coluna guarda referência e o
+     * endereço é cunhado na saída, por quem já autorizou (`lib/midia.ts`).
+     *
+     * Estas asserções são puras. A **assinatura de verdade** só roda com
+     * credencial de R2 no ambiente, e está marcada abaixo com o resto do ciclo.
+     */
+    {
+        const ref = comoReferencia({ classe: CLASSES.CLINICO, chave: 'ws1/conv1/123.jpg' })
+        ok('a referência gravada é opaca', ref === 'ref:clinico:ws1/conv1/123.jpg', ref)
+        ok('e nunca parece URL', !ref.startsWith('http'))
+        ok('nulo continua nulo', (await enderecoDaMidia(null)) === null)
+
+        const legado = 'https://x.r2.cloudflarestorage.com/a/b.jpg?X-Amz-Signature=abc'
+        ok('linha antiga passa intacta', (await enderecoDaMidia(legado)) === legado)
+        ok(
+            'referência malformada não vira link falso',
+            (await enderecoDaMidia('ref:')) === 'ref:' &&
+                (await enderecoDaMidia('ref:inventada:x')) === 'ref:inventada:x'
+        )
+    }
+
+    // ======================== fórmula não sai viva na exportação de CSV
+    /**
+     * `name` e `notes` vêm do `pushName` do WhatsApp — texto que **o paciente
+     * escolhe**. Um contato chamado `=HYPERLINK(...)` vira fórmula viva quando
+     * a clínica abre o CSV no Excel, e exfiltra a planilha sem nada parecer
+     * errado. É a injeção que não precisa de falha no nosso sistema: o alvo é
+     * o Excel de quem exporta.
+     */
+    {
+        for (const perigoso of ['=1+1', '+1', '-2+cmd|x', '@SUM(A1)', '\tx', '\rx']) {
+            const saida = escapeCsv(perigoso)
+            ok(
+                `CSV neutraliza ${JSON.stringify(perigoso)}`,
+                saida.startsWith("'") || saida.startsWith('"\''),
+                saida
+            )
+        }
+        ok('CSV não mexe em texto comum', escapeCsv('Maria Silva') === 'Maria Silva')
+        ok('CSV mantém o escape de vírgula', escapeCsv('Silva, Maria') === '"Silva, Maria"')
+        ok('CSV segue duplicando aspas', escapeCsv('a "b" c') === '"a ""b"" c"', escapeCsv('a "b" c'))
+        ok(
+            'CSV: fórmula COM vírgula leva as duas proteções',
+            escapeCsv('=A1,B2') === '"\'=A1,B2"',
+            escapeCsv('=A1,B2')
+        )
+    }
+
     // ---------------------------------------------------------------- lógica
 
     ok('classe pública vai para o R2', provedorDa(CLASSES.PUBLICO) === 'r2-publico')

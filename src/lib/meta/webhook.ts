@@ -1,3 +1,4 @@
+import { igualEmTempoConstante } from '@/lib/comparacao'
 import crypto from 'node:crypto'
 
 import { getPlatformCredentials } from '@/lib/platform-credentials'
@@ -48,7 +49,7 @@ export function metaSignatureValid(rawBody: string, header: string | null, appSe
     // inválida, e pronto.
     if (recebido.length !== esperado.length) return false
 
-    return crypto.timingSafeEqual(Buffer.from(recebido, 'utf8'), Buffer.from(esperado, 'utf8'))
+    return igualEmTempoConstante(recebido, esperado)
 }
 
 /**

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
 
 /**
@@ -50,8 +50,59 @@ async function lookup(request: NextRequest) {
         select: { id: true, name: true, phone: true },
     })
 
+    /**
+     * O paciente existe **e é da fila de quem perguntou**?
+     *
+     * ## Por que a conferência é separada da busca
+     *
+     * A busca acima **não** leva `contactScope`, e isso é deliberado. Esta rota
+     * existe para impedir ficha duplicada: se o recorte escondesse o paciente
+     * do atendente, ele criaria uma segunda ficha para o mesmo número — e o
+     * índice único do telefone ou recusaria a gravação, ou o paciente ficaria
+     * partido em duas. O conserto óbvio quebraria a função da rota.
+     *
+     * ## O que estava errado, então
+     *
+     * A resposta devolvia `name`, o negócio e a fase para **qualquer** membro
+     * da clínica. Era um oráculo: digite um telefone e descubra se é paciente
+     * daqui e como ele se chama, mesmo estando fora da sua fila. Todas as
+     * irmãs — `contacts` GET, `contacts/[id]`, `contacts/export` — aplicam
+     * `contactScope`; esta tinha ficado de fora.
+     *
+     * ## O recorte certo
+     *
+     * A **existência** continua visível, porque é ela que evita a duplicata. A
+     * **identidade** não: sem nome, sem negócio, sem fase, sem conversa. A tela
+     * já cai em "Paciente cadastrado já está na base" quando o nome falta, sem
+     * precisar mudar.
+     *
+     * `contactId` continua indo. É cuid opaco, não revela nada sozinho, e é o
+     * que permite o atendimento novo se prender à ficha certa em vez de abrir
+     * outra. E ao assumir esse atendimento ele passa a ser dele, logo o recorte
+     * passa a incluí-lo — que é como o produto já funciona.
+     */
+    const daMinhaFila = contact
+        ? (await prisma.contact.findFirst({
+              where: {
+                  id: contact.id,
+                  workspaceId: auth.member.workspaceId,
+                  ...contactScope(auth.member),
+              },
+              select: { id: true },
+          })) !== null
+        : false
+
     let existing = null
-    if (contact) {
+    if (contact && !daMinhaFila) {
+        existing = {
+            contactId: contact.id,
+            name: null,
+            dealId: null,
+            stageName: null,
+            conversationId: null,
+            lastMessageAt: null,
+        }
+    } else if (contact) {
         const [deal, conversation] = await Promise.all([
             prisma.deal.findFirst({
                 where: { workspaceId: auth.member.workspaceId, contactId: contact.id, status: 'open' },
@@ -74,9 +125,24 @@ async function lookup(request: NextRequest) {
         }
     }
 
-    // Paciente conhecido já provou que o número existe: a conversa só existe
-    // porque alguém escreveu por ela.
-    const checked = existing?.conversationId
+    /**
+     * Paciente conhecido já provou que o número existe: a conversa só existe
+     * porque alguém escreveu por ela.
+     *
+     * `daMinhaFila` e não `existing?.conversationId`, desde o recorte acima: a
+     * resposta reduzida não carrega a conversa, e usar o campo faria o atalho
+     * deixar de valer para quem está fora da fila — uma ida ao provedor por
+     * tecla digitada, para uma pergunta cuja resposta já estava no banco.
+     * A conversa existir é fato da clínica, não da fila de quem pergunta.
+     */
+    const temConversa = daMinhaFila
+        ? Boolean(existing?.conversationId)
+        : contact !== null &&
+          (await prisma.conversation.count({
+              where: { workspaceId: auth.member.workspaceId, contactId: contact.id },
+          })) > 0
+
+    const checked = temConversa
         ? { exists: true as boolean | undefined, canonical: contact?.phone ?? null }
         : await hasWhatsApp(auth.member.workspaceId, digits)
 

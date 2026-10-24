@@ -23,6 +23,7 @@
  *     DATABASE_URL='<homologação>' BETTER_AUTH_SECRET='<qualquer>' npm run check:auth
  */
 import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@/lib/auth/better-auth'
+import { codificarEstado, lerEstado } from '@/lib/instagram/oauth'
 import prisma from '@/lib/prisma'
 
 let falhas = 0
@@ -77,6 +78,38 @@ async function main() {
             comLoopback.length > 0,
             `NODE_ENV=${process.env.NODE_ENV ?? '(vazio)'} — a regra de produção não foi exercitada aqui`
         )
+    }
+
+    // ============================== o destino de volta do OAuth do Instagram
+    /**
+     * `voltarPara` é **caminho interno ou nada** — sem banco, de propósito.
+     *
+     * Ele chega dentro do `state`, que viaja pelo navegador e qualquer um
+     * reescreve. O callback monta o destino com `new URL(voltaCom(...), base)`,
+     * então um absoluto resolvia para fora. E os ramos de erro chamam `voltar()`
+     * **antes** de autenticar: bastava `?state=<b64>&error=x` para um link que
+     * começa em `odontobox.venn360.com` levar ao site do atacante. É a isca que
+     * faz phishing funcionar, e por isso a prova mora junto das de identidade.
+     */
+    {
+        const PADRAO = '/atendimento/agentes/integracoes'
+        const base = { agentId: 'ag1', workspaceId: 'ws1', userId: 'u1' }
+        const destino = (voltarPara: unknown) =>
+            lerEstado(codificarEstado({ ...base, voltarPara } as never))?.voltarPara
+
+        const recusados: Array<[string, unknown]> = [
+            ['absoluto', 'https://evil.example/'],
+            ['esquema-relativo', '//evil.example/x'],
+            ['barra invertida', '/\\evil.example'],
+            ['javascript:', 'javascript:alert(1)'],
+            ['sem barra inicial', 'evil.example'],
+            ['vazio', ''],
+            ['não é string', 42],
+        ]
+        for (const [rotulo, valor] of recusados) {
+            ok(`volta do Instagram recusa ${rotulo}`, destino(valor) === PADRAO, String(destino(valor)))
+        }
+        ok('e aceita caminho interno', destino('/vendas/pacientes') === '/vendas/pacientes')
     }
 
     /**

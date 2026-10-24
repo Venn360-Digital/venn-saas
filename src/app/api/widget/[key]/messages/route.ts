@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { dentroDoLimite, ipDaRequisicao } from '@/lib/limite'
 import prisma from '@/lib/prisma'
 import { getBillingState } from '@/lib/billing'
 import { QUEUE } from '@/lib/queue/definitions'
@@ -104,6 +105,50 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         where: { workspaceId, visitorKey: visitante, channel: 'web' },
         select: { id: true, assignedTo: true },
     })
+
+    /**
+     * **Abrir conversa nova é o ato caro, e era ilimitado.**
+     *
+     * A chave do visitante vem do corpo, e é o cliente quem a escolhe: mandar
+     * uma `visitor` nova a cada requisição criava contato + conversa +
+     * mensagem + job de resposta da IA, sem teto. O único limite existente era
+     * `TETO_DE_MENSAGENS_DO_VISITANTE`, que conta **por conversa** — e por isso
+     * não via nada: cada requisição abria uma conversa diferente.
+     *
+     * O que isso custa não é incômodo: é **crédito de IA da clínica**, que é
+     * dinheiro (`lib/llm/usage-tracker.ts` cobra cada ida ao modelo), e
+     * CU-hora do Neon, cuja franquia é de 100/mês. De um anônimo, com CORS `*`.
+     *
+     * Dois tetos, porque um só não serve:
+     *
+     * - **por IP**, apertado — é o que para o laço de um navegador só;
+     * - **por widget**, folgado — é o que limita o estrago de um ataque
+     *   distribuído, em que cada IP manda pouco.
+     *
+     * Os números são para um site de clínica: dez conversas novas por hora do
+     * mesmo IP já é muito, e cem por hora no widget inteiro é mais do que
+     * qualquer clínica atendida por uma recepção consegue absorver. Mensagem
+     * em conversa **existente** não passa por aqui — quem já está falando
+     * continua falando, e o teto por conversa segue valendo.
+     */
+    if (!conversa) {
+        const ip = ipDaRequisicao(request)
+        const [ipOk, widgetOk] = await Promise.all([
+            dentroDoLimite(`widget:nova:${key}:${ip}`, 10, 3600),
+            dentroDoLimite(`widget:nova:${key}`, 100, 3600),
+        ])
+
+        if (!ipOk || !widgetOk) {
+            console.warn(
+                `[WIDGET] teto de conversas novas atingido — widget=${key} ip=${ip} ` +
+                    `(porIp=${ipOk ? 'ok' : 'estourou'} porWidget=${widgetOk ? 'ok' : 'estourou'})`
+            )
+            return NextResponse.json(
+                { error: 'Muitas conversas iniciadas. Tente de novo em alguns minutos.' },
+                { status: 429, headers: cors }
+            )
+        }
+    }
 
     if (!conversa) {
         /**

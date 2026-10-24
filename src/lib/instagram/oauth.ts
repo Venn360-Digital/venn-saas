@@ -76,6 +76,36 @@ export function codificarEstado(estado: EstadoDoFluxo): string {
     return Buffer.from(JSON.stringify(estado)).toString('base64url')
 }
 
+/** Para onde voltar quando o `state` não traz destino utilizável. */
+const DESTINO_PADRAO = '/atendimento/agentes/integracoes'
+
+/**
+ * O destino é **caminho interno ou nada**.
+ *
+ * `voltarPara` chega dentro do `state`, que viaja pelo navegador e qualquer um
+ * reescreve. Até 2026-10-24 ele era devolvido cru, e o callback monta o destino
+ * com `new URL(voltaCom(...), base)` — então `voltarPara: "https://evil/"`
+ * resolvia para o absoluto e o 307 saía para fora. Pior: os ramos de erro do
+ * callback chamam `voltar()` **antes** de qualquer autenticação, logo bastava
+ * `?state=<b64>&error=x` para transformar um link que começa em
+ * `odontobox.venn360.com` numa ida ao site do atacante. É a isca que faz
+ * phishing funcionar.
+ *
+ * A recusa fica aqui, em `lerEstado`, e não no `voltaCom`: assim vale para
+ * **todo** consumidor do estado, inclusive o próximo que alguém escrever.
+ *
+ * O que passa: caminho que começa com uma barra só. `//evil.com` é recusado
+ * porque o navegador o lê como esquema-relativo — é URL externa escrita para
+ * parecer caminho. `\` idem, por normalização de alguns navegadores.
+ */
+function caminhoInterno(valor: unknown): string {
+    if (typeof valor !== 'string' || valor.length === 0) return DESTINO_PADRAO
+    if (!valor.startsWith('/')) return DESTINO_PADRAO
+    if (valor.startsWith('//') || valor.startsWith('/\\')) return DESTINO_PADRAO
+    if (valor.includes('://')) return DESTINO_PADRAO
+    return valor
+}
+
 export function lerEstado(bruto: string | null): EstadoDoFluxo | null {
     if (!bruto) return null
     try {
@@ -85,7 +115,7 @@ export function lerEstado(bruto: string | null): EstadoDoFluxo | null {
             agentId: lido.agentId,
             workspaceId: lido.workspaceId,
             userId: lido.userId,
-            voltarPara: lido.voltarPara ?? '/atendimento/agentes/integracoes',
+            voltarPara: caminhoInterno(lido.voltarPara),
         }
     } catch {
         return null
@@ -98,7 +128,9 @@ export function voltaCom(
     chave: 'instagram_ok' | 'instagram_erro',
     valor: string
 ): string {
-    const base = estado?.voltarPara ?? '/atendimento/agentes/integracoes'
+    // Segunda rede: `lerEstado` já filtrou, mas `voltaCom` aceita `null` e
+    // alguém pode chamá-la com estado montado à mão.
+    const base = caminhoInterno(estado?.voltarPara)
     const separador = base.includes('?') ? '&' : '?'
     return `${base}${separador}${chave}=${encodeURIComponent(valor)}`
 }
