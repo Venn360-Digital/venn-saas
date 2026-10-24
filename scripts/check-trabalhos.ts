@@ -111,7 +111,7 @@ async function main() {
     // ================================================================ cron
 
     /**
-     * As 13 rotinas do relógio têm de existir no despacho, e vice-versa.
+     * Toda rotina do relógio tem de existir no despacho, e vice-versa.
      *
      * O caminho é longo — gatilho em UTC → `rotinasDoDisparo` → fila `cron` →
      * `TASKS[task]` — e um nome escrito de dois jeitos não falha em lugar
@@ -127,7 +127,21 @@ async function main() {
     const { ROTINAS } = await import('@/lib/cron/agenda')
     const naAgenda = ROTINAS.map((r) => r.task)
 
-    ok('cron: 13 rotinas na agenda', naAgenda.length === 13, String(naAgenda.length))
+    /**
+     * **Tarefas distintas**, não entradas — e a diferença custou uma reprovação.
+     *
+     * A asserção era `length === 13` sobre as entradas de `ROTINAS`. Em
+     * 2026-10-24 a verificação de integração ganhou uma segunda entrada (uma
+     * janela de dia, outra de noite), e a contagem virou 14. O número estava
+     * certo; a pergunta é que estava errada — o que importa aqui é que **todas
+     * as tarefas despachadas tenham agenda e vice-versa**, não quantas linhas
+     * a tabela tem.
+     *
+     * Ficou invisível por horas porque este verificador **não estava em
+     * workflow nenhum**. Agora está.
+     */
+    const tarefas = [...new Set(naAgenda)]
+    ok('cron: as 13 tarefas estão na agenda', tarefas.length === 13, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
     for (const task of naAgenda) {
         ok(`cron: "${task}" tem despacho`, noDespacho.has(task))
     }

@@ -61,8 +61,24 @@ eq('padrão da Agenda é a semana', resolvePeriodParams({}, 'week', wed), { from
 eq('intervalo da URL que coincide com o mês', resolvePeriodParams({ from: '2026-10-01', to: '2026-10-31' }, 'week', wed), { from: '2026-10-01', to: '2026-10-31', preset: 'month' })
 
 console.log('\n— isoDay não empurra o dia no fuso de São Paulo')
-eq('meia-noite local', isoDay(new Date(2026, 9, 14, 0, 0, 0)), '2026-10-14')
-eq('23h59 local', isoDay(new Date(2026, 9, 14, 23, 59, 59)), '2026-10-14')
+/**
+ * O instante é construído com **deslocamento explícito**, não por componentes.
+ *
+ * `new Date(2026, 9, 14, 0, 0, 0)` é meia-noite **no fuso da máquina**. Em
+ * −03 isso é 03:00 UTC e o dia bate; num runner em UTC é 21:00 do dia
+ * anterior em Brasília, e o mesmo teste reprova. Foi o que aconteceu ao ligar
+ * este verificador ao CI em 2026-10-24: ele passava há meses na máquina do
+ * André e **nunca tinha rodado em UTC**.
+ *
+ * A ironia é que o teste existe justamente para provar que `isoDay` não
+ * empurra o dia — e a entrada dele dependia do fuso da máquina. Um teste de
+ * fuso que só vale num fuso não prova nada.
+ */
+eq('meia-noite em São Paulo', isoDay(new Date('2026-10-14T00:00:00-03:00')), '2026-10-14')
+eq('23h59 em São Paulo', isoDay(new Date('2026-10-14T23:59:59-03:00')), '2026-10-14')
+// E a borda que separa os dois dias: 03:00 UTC é meia-noite em Brasília.
+eq('02h59 UTC ainda é dia 13', isoDay(new Date('2026-10-14T02:59:59Z')), '2026-10-13')
+eq('03h00 UTC já é dia 14', isoDay(new Date('2026-10-14T03:00:00Z')), '2026-10-14')
 
 console.log('\n— quem vê o quê')
 const member = (role: WorkspaceRole, departmentIds: string[] = []) => ({
