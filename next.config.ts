@@ -79,9 +79,30 @@ const CABECALHOS = [
     { key: 'X-Frame-Options', value: 'DENY' },
     { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
     {
-        // O que a clínica não precisa, e que um script injetado pediria.
+        /**
+         * O que a clínica não precisa — e **`microphone` ela precisa**.
+         *
+         * A versão de 2026-10-24 trazia `microphone=()`, que não é "ninguém de
+         * fora": é **ninguém, inclusive nós**. Isso desligou a gravação de nota
+         * de voz do atendente (`atendimento/conversas/page.tsx:1563`,
+         * `getUserMedia({ audio: true })`) no app inteiro.
+         *
+         * Nenhum dos nove verificadores enxerga isso, e a verificação de
+         * navegador que eu fiz cobriu só a tela de login — a única alcançável
+         * sem sessão. O recurso ficou quebrado em produção por horas, e só não
+         * foi notado porque ninguém tentou gravar.
+         *
+         * `self` é o que se quer dizer: a nossa origem pode, mais ninguém —
+         * nem um iframe de terceiro, nem um script injetado.
+         *
+         * `camera`, `geolocation`, `payment` e `usb` seguem em `()` porque o
+         * código **não os usa**, e isso foi conferido por varredura, não
+         * suposto: sem `capture=`, sem `facingMode`, sem `video: true`, sem
+         * `PaymentRequest`. Se algum dia um deles entrar, esta linha é que
+         * reprova — e é aqui que se descobre por quê.
+         */
         key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+        value: 'camera=(), microphone=(self), geolocation=(), payment=(), usb=()',
     },
 ]
 
