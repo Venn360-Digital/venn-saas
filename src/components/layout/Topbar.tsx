@@ -57,6 +57,45 @@ function formatReminderTime(r: Reminder): string {
     return r.startTime ? `${dateStr} às ${r.startTime}` : dateStr
 }
 
+/**
+ * A sessão morreu — leva para o login em vez de deixar a tela quebrada.
+ *
+ * ## O incidente que isto fecha
+ *
+ * A sessão dura **8 h de inatividade** (`lib/auth/better-auth.ts`), e nada no
+ * app tratava 401. Quando ela vencia com a aba aberta, os dois pollers desta
+ * barra batiam de minuto em minuto e levavam 401 em silêncio; toda chamada de
+ * API passava a falhar; e a tela continuava **desenhada**, com as conversas que
+ * já estavam na memória. Da cadeira, isso se parece exatamente com "o sistema
+ * quebrou": não envia mensagem, imagem não carrega, nada responde.
+ *
+ * Aconteceu em 2026-10-24 e custou uma investigação de incidente. O rastro
+ * estava no analytics da borda: 60 × `401 GET /api/conversations`, 34 × em
+ * `/api/notifications`, 33 × em `/api/activities/reminders` — a assinatura de
+ * um poller conversando com uma sessão morta.
+ *
+ * ## Por que aqui, e não num interceptador global
+ *
+ * Porque esta barra está em **toda** tela do painel e já bate de minuto em
+ * minuto: o 401 é detectado em até 60 s em qualquer lugar do sistema, sem
+ * envolver as dezenas de `fetch` espalhados. Um wrapper global pegaria mais
+ * cedo e é o passo seguinte, mas mexe em todo caminho de rede de uma vez — e a
+ * lição desta semana é que mudança de alcance global precisa de validação à
+ * altura.
+ *
+ * `window.location.assign` e não `router.push`: a sessão morreu, então o
+ * estado do cliente não vale mais nada e a navegação do Next o preservaria.
+ */
+function sessaoMorreu(res: Response): boolean {
+    if (res.status !== 401) return false
+    if (typeof window === 'undefined') return true
+    if (window.location.pathname.startsWith('/login')) return true
+    const destino = `${window.location.pathname}${window.location.search}`
+    window.location.assign(`/login?redirectTo=${encodeURIComponent(destino)}`)
+    return true
+}
+
+
 export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
     const [soundEnabled, setSoundEnabled] = useSoundEnabled()
     const [reminders, setReminders] = useState<Reminder[]>([])
@@ -78,6 +117,7 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
     const loadNotifications = useCallback(async () => {
         try {
             const res = await fetch('/api/notifications')
+            if (sessaoMorreu(res)) return
             if (!res.ok) return
             const data = await res.json()
             setNotifications(data.items ?? [])
@@ -98,6 +138,7 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
     const loadReminders = useCallback(async () => {
         try {
             const res = await fetch('/api/activities/reminders')
+            if (sessaoMorreu(res)) return
             if (res.ok) {
                 const data: Reminder[] = await res.json()
                 setReminders(data)

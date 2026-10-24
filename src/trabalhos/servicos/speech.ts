@@ -2,6 +2,7 @@ import { TTS_MODELS } from '@/lib/llm/models'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
 import { CLASSES, arquivar } from './arquivo'
+import { comoReferencia } from '@/lib/midia'
 
 const log = createLogger('SPEECH')
 
@@ -17,7 +18,16 @@ const FORMATO = 'opus'
 const MIMETYPE = 'audio/ogg'
 
 export interface FalaGerada {
-    url: string
+    /**
+     * A **referência** do arquivo (`ref:<classe>:<chave>`), não o endereço.
+     *
+     * Era `url`, e era a URL assinada de 600 s — então a nota de voz do agente
+     * sumia da conversa dez minutos depois, o mesmo defeito que as imagens
+     * tinham. Quem envia converte em endereço na hora
+     * (`processadores/whatsapp-outbound.ts`), e quem exibe converte na
+     * serialização (`lib/midia.ts`).
+     */
+    referencia: string
     characters: number
     model: string
 }
@@ -128,7 +138,11 @@ export async function falar(input: FalarInput): Promise<FalaGerada | null> {
         if (!arquivado) return null
 
         log.info(`fala de ${limpo.length} caractere(s) em ${modelo.id} → ${arquivado.referencia.chave}`)
-        return { url: arquivado.url, characters: limpo.length, model: modelo.id }
+        return {
+            referencia: comoReferencia(arquivado.referencia),
+            characters: limpo.length,
+            model: modelo.id,
+        }
     }
 
     log.warn('nenhum modelo de fala respondeu; a resposta vai como texto')

@@ -63,12 +63,22 @@ jobs:
           npm run check:widget
 
       - name: Provas que não precisam de banco
+        # Os quatro do fim entraram em 2026-10-24. Eles já existiam, passavam, e
+        # **não estavam em workflow nenhum** — cobertura escrita que não emitia
+        # sinal. O `check:trabalhos` ficou meses reprovando sem ninguém saber:
+        # a agenda do cron mudou de 13 para 14 entradas e só foi descoberto ao
+        # rodar à mão. Verificador que ninguém executa é verificador que não
+        # existe, com o agravante de parecer que existe.
         run: |
           npm run check:cofre
           npm run check:storage
           npm run check:tempo-real
           npm run check:envelopes
           npm run check:fuso
+          npm run check:trabalhos
+          npm run check:operacao
+          npm run check:period
+          npm run test:availability
 
       # O mesmo conjunto, com o relógio do runner em UTC — que é como o Worker
       # roda. É o que impede a volta do defeito: na VPS o `TZ` era

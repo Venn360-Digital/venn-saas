@@ -351,7 +351,13 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
         await enqueueOutboundAudio({
             conversationId,
             content,
-            mediaUrl: fala.url,
+            /**
+             * A **referência**, como toda mídia desde `lib/midia.ts`. Guardar
+             * `fala.url` deixava a nota de voz do agente sumir da conversa dez
+             * minutos depois — o mesmo defeito que as imagens tinham. O envio
+             * não muda: o processador converte referência em endereço.
+             */
+            mediaUrl: fala.referencia,
             mimetype: MIMETYPE_DA_FALA,
             integrationId: integration.id,
             to,
