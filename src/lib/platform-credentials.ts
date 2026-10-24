@@ -1,8 +1,7 @@
-import { Prisma } from '#prisma'
-
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { platformSecretName, readVaultSecret, writeVaultSecret } from '@/lib/vault'
+import { platformSecretName, readVaultSecret, vaultSecretOrigin } from '@/lib/vault'
+import { nomeDeAmbiente } from '@/lib/secrets/ambiente'
 
 /**
  * The OAuth application's own credentials, registered once for every clinic.
@@ -17,6 +16,35 @@ import { platformSecretName, readVaultSecret, writeVaultSecret } from '@/lib/vau
  * and that wins — a clinic on Google Workspace may prefer an Internal app, which
  * avoids Google's verification review and the 7-day refresh token of an
  * unpublished External one.
+ *
+ * ## ONDE ESTAS CREDENCIAIS MORAM, E POR QUE NÃO HÁ MAIS TELA
+ *
+ * Elas vêm do **ambiente** — Cloudflare Secrets, gravados por quem opera a
+ * plataforma, declarados em `cloudflare.config.ts` e nunca pelo repositório.
+ * Uma por provedor, com nome derivado: `PLATFORM_<PROVEDOR>_CLIENT_ID` e
+ * `PLATFORM_<PROVEDOR>_CLIENT_SECRET` (ver `variaveisDoProvedor`).
+ *
+ * Até 2026-10-24 havia um formulário onde o responsável pela plataforma
+ * digitava as duas metades, e elas iam para a tabela `app_secrets` cifradas. A
+ * ponte saiu por decisão do André, e a razão resiste a ser reescrita:
+ *
+ *   - a primeira metade do Asaas **é a chave que move dinheiro**. Um formulário
+ *     web para ela significa que uma sessão de navegador — roubada, ou de uma
+ *     aba esquecida — é caminho para trocar a credencial de cobrança;
+ *   - o segredo de operação não é dado de inquilino. Misturá-los fazia o mesmo
+ *     banco guardar o que é da plataforma e o que é das clínicas, com a mesma
+ *     chave de envelope;
+ *   - e não resolvia o problema que parecia resolver: o cofre **já** dava
+ *     precedência ao ambiente e `writeVaultSecret` recusava gravar o que
+ *     estivesse lá. Em produção a tela seria sempre somente-leitura.
+ *
+ * O que a tela faz agora é **dizer qual variável falta**, e isso é melhor que
+ * um formulário: o operador grava pelo terminal, onde o valor não passa por
+ * navegador nenhum, e a tela confirma que chegou.
+ *
+ * A linha de `platform_credentials` continua existindo para o que é **público**
+ * — o `clientId` que vai ao navegador dentro do SDK da Meta. É cache, não
+ * fonte: ver `semearDoAmbiente`.
  */
 
 export interface OAuthAppCredentials {
@@ -123,9 +151,25 @@ export async function getPlatformCredentials(provider: string): Promise<OAuthApp
     })
     const creds = (row?.credentials ?? {}) as Partial<OAuthAppCredentials>
 
-    const clientId = temSegredoDuplo(provider)
-        ? await readVaultSecret(platformSecretName(provider, CAMPO_ID))
-        : creds.clientId ?? null
+    /**
+     * As duas metades vêm do MESMO lugar, e o lugar é o ambiente.
+     *
+     * Antes o `clientId` dos provedores de metade pública saía da coluna,
+     * porque havia uma tela onde o responsável pela plataforma o digitava. Essa
+     * ponte saiu em 2026-10-24 (ver o cabeçalho deste módulo): a coluna
+     * continua existindo como cache do que é público, mas a **fonte** é
+     * `PLATFORM_<PROVEDOR>_CLIENT_ID`, resolvido por `readVaultSecret` —
+     * ambiente primeiro, cofre depois.
+     *
+     * A ordem importa num caso só, e é o que esta função garante: ambiente
+     * vence a coluna. Credencial que o operador acabou de gravar no Cloudflare
+     * Secrets não pode perder para um valor antigo que sobrou no banco.
+     */
+    const clientId =
+        (await readVaultSecret(platformSecretName(provider, CAMPO_ID))) ??
+        idDeSemente(provider) ??
+        creds.clientId ??
+        null
     const clientSecret = await readVaultSecret(platformSecretName(provider))
 
     if (clientId && clientSecret) return { clientId, clientSecret }
@@ -156,6 +200,12 @@ export async function getPlatformCredentials(provider: string): Promise<OAuthApp
 const SEMENTES: Record<string, { id?: string }> = {
     meta_messaging: { id: 'META_APP_ID' },
     instagram_login: { id: 'INSTAGRAM_APP_ID' },
+}
+
+/** O nome antigo do id, mantido para não quebrar quem já o gravou. */
+function idDeSemente(provider: string): string | null {
+    const nome = SEMENTES[provider]?.id
+    return (nome && process.env[nome]?.trim()) || null
 }
 
 async function semearDoAmbiente(provider: string): Promise<OAuthAppCredentials | null> {
@@ -192,48 +242,46 @@ async function semearDoAmbiente(provider: string): Promise<OAuthAppCredentials |
 }
 
 /**
- * Grava as duas metades nos seus lugares: o id na coluna, o segredo no Vault.
+ * Onde cada metade deste provedor é definida, pelo nome da variável.
  *
- * A coluna guarda **só** o `clientId` — a forma antiga guardava os dois em
- * claro, e é dela que o segredo saiu. A linha continua existindo porque é ela
- * que carrega quem alterou e quando, que a tela mostra.
+ * A tela deixou de ter formulário: ela informa **qual variável falta**. O nome
+ * não é escolhido aqui — sai de `nomeDeAmbiente` sobre o nome do segredo no
+ * cofre, que é o mesmo que `readVaultSecret` consulta. Derivar em vez de
+ * repetir é o que impede a tela de mandar o operador gravar um nome que o
+ * código não lê.
  */
-export async function setPlatformCredentials(
-    provider: string,
-    credentials: OAuthAppCredentials,
-    updatedBy: string
-) {
-    await writeVaultSecret(
-        platformSecretName(provider),
-        credentials.clientSecret,
-        `Client secret do app de plataforma "${provider}" do OdontoBox360.`
-    )
+export function variaveisDoProvedor(provider: string): { id: string; segredo: string } {
+    return {
+        id: nomeDeAmbiente(platformSecretName(provider, CAMPO_ID)),
+        segredo: nomeDeAmbiente(platformSecretName(provider)),
+    }
+}
+
+/** Se as duas metades estão definidas, e de onde vêm. */
+export async function estadoDoProvedor(provider: string): Promise<{
+    temId: boolean
+    temSegredo: boolean
+    origem: 'ambiente' | 'banco' | null
+    variaveis: { id: string; segredo: string }
+}> {
+    const variaveis = variaveisDoProvedor(provider)
+    const [origemDoId, origemDoSegredo] = await Promise.all([
+        vaultSecretOrigin(platformSecretName(provider, CAMPO_ID)),
+        vaultSecretOrigin(platformSecretName(provider)),
+    ])
 
     /**
-     * Com segredo duplo, a primeira metade vai para o cofre e a coluna guarda
-     * só o que é seguro mostrar.
-     *
-     * No caso do Asaas, isso é o **ambiente** — e ele não é digitado: sai do
-     * prefixo da própria chave (`$aact_hmlg_` é sandbox, `$aact_prod_` é
-     * produção). Um campo a menos para alguém marcar errado, e a tela passa a
-     * poder dizer em letras grandes em qual dos dois está.
+     * O id também conta como "de semente" quando veio do alias antigo
+     * (`META_APP_ID`), que é ambiente do mesmo jeito.
      */
-    let coluna: Record<string, string> = { clientId: credentials.clientId }
+    const temId = origemDoId !== null || idDeSemente(provider) !== null
 
-    if (temSegredoDuplo(provider)) {
-        await writeVaultSecret(
-            platformSecretName(provider, CAMPO_ID),
-            credentials.clientId,
-            `Chave de API da plataforma "${provider}" do OdontoBox360.`
-        )
-        coluna = { ambiente: ambienteDaChave(credentials.clientId) }
-    }
-
-    await prisma.platformCredential.upsert({
-        where: { provider },
-        create: { provider, credentials: coluna as unknown as Prisma.InputJsonObject, updatedBy },
-        update: { credentials: coluna as unknown as Prisma.InputJsonObject, updatedBy },
-    })
+    /**
+     * A origem que a tela mostra é a do **segredo**: é ela que diz se a
+     * credencial está no cofre da Cloudflare ou sobrou no banco de uma
+     * gravação antiga, de quando existia formulário.
+     */
+    return { temId, temSegredo: origemDoSegredo !== null, origem: origemDoSegredo, variaveis }
 }
 
 /**

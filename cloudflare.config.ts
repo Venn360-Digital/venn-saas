@@ -428,26 +428,41 @@ export default defineConfig({
              * não existe no ambiente da VPS, conferido em 2026-10-21.
              */
             /**
-             * Os `PLATFORM_*` saíram daqui em 2026-10-21, e não é economia de
-             * configuração — é correção.
+             * Os `PLATFORM_*` VOLTARAM em 2026-10-24, e a volta é a decisão.
              *
-             * Essas são as credenciais do app OAuth da plataforma, e por
-             * desenho elas moram no COFRE, registradas uma vez por provedor na
-             * tela (`src/lib/platform-credentials.ts`). O cofre dá precedência
-             * ao ambiente e, justamente por isso, `writeVaultSecret` RECUSA
-             * gravar o que está no ambiente — `SegredoDeAmbienteError`.
+             * Eles saíram em 2026-10-21 com um argumento que era correto na
+             * época: declará-los aqui os tornaria somente-leitura, e a tela de
+             * registro passaria a dar erro ao salvar — porque o cofre dá
+             * precedência ao ambiente e `writeVaultSecret` RECUSA gravar o que
+             * está nele.
              *
-             * Ou seja: declará-las aqui as tornaria somente-leitura e a tela de
-             * registro passaria a dar erro ao salvar. Quem as quer no ambiente
-             * está escolhendo não poder mais trocá-las pelo produto.
+             * **Aquela tela não existe mais.** O formulário onde o responsável
+             * pela plataforma digitava estas credenciais saiu por decisão do
+             * André: a primeira metade do Asaas é a chave que movimenta
+             * cobrança, e nenhum SaaS põe isso atrás de uma sessão de
+             * navegador. Com a ponte fora, "somente-leitura pelo produto" deixa
+             * de ser efeito colateral e passa a ser o desenho.
              *
-             * Eram: PLATFORM_ASAAS_CLIENT_ID, PLATFORM_ASAAS_CLIENT_SECRET,
-             * PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET,
-             * PLATFORM_META_MESSAGING_CLIENT_SECRET e
-             * PLATFORM_META_MESSAGING_VERIFY_TOKEN. Depois do deploy, registre
-             * pela tela — a tabela `app_secrets` do branch `production` nasce
-             * vazia.
+             * O nome de cada uma é DERIVADO, não escolhido:
+             * `nomeDeAmbiente(platformSecretName(provedor, campo))`. Esta lista
+             * é conferida contra essa derivação por `npm run check:envelopes` —
+             * um nome digitado errado aqui seria um segredo gravado num lugar
+             * que o código não lê, e isso não dá erro, dá silêncio.
+             *
+             * Declarados só os provedores com caminho real hoje. Google Ads,
+             * Meta Ads e Clinicorp entram quando existirem: declarar o que não
+             * se usa só enche o dev local de aviso de segredo faltando.
              */
+            PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
+            PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
+            PLATFORM_GOOGLE_CALENDAR_CLIENT_ID: bindings.secret(),
+            PLATFORM_GOOGLE_CALENDAR_CLIENT_SECRET: bindings.secret(),
+            PLATFORM_META_MESSAGING_CLIENT_ID: bindings.secret(),
+            PLATFORM_META_MESSAGING_CLIENT_SECRET: bindings.secret(),
+            PLATFORM_META_MESSAGING_VERIFY_TOKEN: bindings.secret(),
+            PLATFORM_INSTAGRAM_LOGIN_CLIENT_ID: bindings.secret(),
+            PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET: bindings.secret(),
+
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
 

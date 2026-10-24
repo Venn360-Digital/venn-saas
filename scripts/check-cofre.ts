@@ -13,6 +13,10 @@
  */
 import { cifrar, decifrar, ehEnvelope, gerarChave, CHAVE_ENV, ChaveAusenteError } from '@/lib/secrets/envelope'
 import { nomeDeAmbiente, segredoDeAmbiente, definidoNoAmbiente } from '@/lib/secrets/ambiente'
+import { PLATFORM_PROVIDERS, variaveisDoProvedor } from '@/lib/platform-credentials'
+import { META_VERIFY_TOKEN_SECRET } from '@/lib/meta/webhook'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 async function main() {
 
@@ -89,7 +93,60 @@ async function main() {
         Object.entries(esperado).every(([k, v]) => nomeDeAmbiente(k) === v)
     )
 
-    // 9. Precedência e vazio-como-ausente.
+    /**
+     * 9. O que `cloudflare.config.ts` DECLARA tem de ser o que o código LÊ.
+     *
+     * Esta é a falha que não dá erro. O nome de cada segredo de plataforma é
+     * derivado — `nomeDeAmbiente(platformSecretName(provedor, campo))` — mas a
+     * declaração no config é uma lista escrita à mão. Um `PLATFORM_` digitado
+     * errado ali faz o operador gravar a credencial num nome que ninguém
+     * consulta: o deploy passa, a tela diz "pendente", e a conclusão natural é
+     * que o `wrangler secret put` não funcionou.
+     *
+     * Confere nas duas direções, porque os dois erros existem: declarado sem
+     * ninguém ler, e lido sem estar declarado — e o segundo é pior, porque
+     * `cloudflare.config.ts` é declarativo e **remove no deploy seguinte** o
+     * segredo que não está nele.
+     */
+    const config = readFileSync(join(process.cwd(), 'cloudflare.config.ts'), 'utf8')
+    const declarados = new Set(
+        [...config.matchAll(/^\s*(PLATFORM_[A-Z0-9_]+):\s*bindings\.secret\(\)/gm)].map(
+            (m) => m[1]!
+        )
+    )
+
+    const derivados = new Set<string>()
+    for (const p of PLATFORM_PROVIDERS) {
+        const v = variaveisDoProvedor(p.provider)
+        derivados.add(v.id)
+        derivados.add(v.segredo)
+    }
+    derivados.add(nomeDeAmbiente(META_VERIFY_TOKEN_SECRET))
+
+    const orfaos = [...declarados].filter((n) => !derivados.has(n))
+    ok(
+        `config: nenhum PLATFORM_ declarado que o código não leia${orfaos.length ? ` — ${orfaos.join(', ')}` : ` (${declarados.size} declarado(s))`}`,
+        orfaos.length === 0
+    )
+
+    /**
+     * A volta é mais frouxa de propósito: provedor sem caminho real ainda
+     * (Google Ads, Meta Ads, Clinicorp) não precisa estar declarado — declarar
+     * o que não se usa só enche o dev local de aviso. O que se exige é que os
+     * provedores **em uso** estejam todos lá.
+     */
+    const EM_USO = ['asaas', 'google_calendar', 'meta_messaging', 'instagram_login']
+    const faltando: string[] = []
+    for (const provider of EM_USO) {
+        const v = variaveisDoProvedor(provider)
+        for (const nome of [v.id, v.segredo]) if (!declarados.has(nome)) faltando.push(nome)
+    }
+    ok(
+        `config: os provedores em uso estão todos declarados${faltando.length ? ` — falta ${faltando.join(', ')}` : ` (${EM_USO.length} provedores)`}`,
+        faltando.length === 0
+    )
+
+    // 10. Precedência e vazio-como-ausente.
     process.env.PLATFORM_ASAAS_CLIENT_SECRET = '  '
     ok('secret vazio conta como ausente', !definidoNoAmbiente('platform:asaas:clientSecret'))
     process.env.PLATFORM_ASAAS_CLIENT_SECRET = 'valor-do-ambiente'
