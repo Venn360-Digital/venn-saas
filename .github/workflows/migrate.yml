@@ -11,8 +11,15 @@ on:
         description: 'Onde aplicar'
         required: true
         type: choice
-        options: [staging, production]
-        default: staging
+        # Os nomes são os Environments REAIS do repositório: `Preview` e
+        # `Production` (o GitHub casa sem diferenciar maiúscula). Oferecer
+        # `staging`, como era até 2026-10-24, apontava para um Environment que
+        # **não existe** — e referenciar um inexistente faz o GitHub criá-lo
+        # vazio na hora, sem variável e sem segredo. A tranca do destino
+        # reprovava, o que é o certo, mas por acidente: o Environment fantasma
+        # ficava para trás na conta.
+        options: [preview, production]
+        default: preview
       confirmar:
         description: 'Escreva APLICAR <ambiente> — ex.: APLICAR production'
         required: true
@@ -48,9 +55,19 @@ jobs:
     # alguém esqueceu o segredo, o host não bate e o job morre também. Nos dois
     # casos a falha é alta e o banco não é tocado.
     #
-    # Para configurar: Settings → Environments → <ambiente> → Variables →
-    # `DB_HOST_ESPERADO` = o host do branch (ex.: `ep-xxx-pooler.sa-east-1.aws.neon.tech`
-    # sem `-pooler`, porque migração usa o endpoint direto).
+    # Configurado em 2026-10-24, com os hosts medidos na API do Neon:
+    #
+    #   Production → ep-icy-mode-b6mp2z8h.c-2.sa-east-1.aws.neon.tech
+    #   Preview    → ep-lucky-pond-b6n42j1j.c-2.sa-east-1.aws.neon.tech
+    #
+    # Sem `-pooler`: migração usa o endpoint direto.
+    #
+    # **`DATABASE_URL_DIRECT` ainda vive só no repositório**, e por isso cai no
+    # segredo que aponta para produção nos dois casos. A tranca cobre o
+    # acidente mesmo assim — escolher `preview` compara o host de produção com
+    # o esperado de homologação, não bate, e o job morre antes de conectar.
+    # Definir o segredo por Environment continua sendo o certo; enquanto não
+    # for, o menu só consegue aplicar em produção.
 
     steps:
       - name: Conferir a confirmação
