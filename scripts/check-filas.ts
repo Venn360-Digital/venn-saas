@@ -298,12 +298,39 @@ async function main() {
     const res = await publicarPendentes(async (ev) => {
         entregues = ev
     })
-    ok('publicou o pendente', res.publicados === 1, JSON.stringify(res))
-    ok('o entregador recebeu o evento', entregues.length === 1 && entregues[0].workspaceId === ws.id)
+    /**
+     * As asserções são sobre os eventos **desta prova**, não sobre a outbox
+     * inteira — e isso é correção, não frouxidão.
+     *
+     * `publicarPendentes` varre a outbox toda, e a branch de CI é criada por
+     * copy-on-write a partir da branch do Neon que a produção usa. Logo
+     * qualquer evento pendente em produção no instante da cópia entra na
+     * varredura. O teste exigia `res.publicados === 1` e indexava
+     * `entregues[0]`, então ele dependia de a produção estar com a outbox
+     * vazia — condição que ninguém controla.
+     *
+     * Reprovou pela primeira vez em 2026-10-24: uma conversa de WhatsApp
+     * minutos antes deixou um evento pendente, a cópia o herdou, e três
+     * asserções caíram com `{"lidos":2,"publicados":2}`. Não havia defeito
+     * nenhum no código sob teste.
+     *
+     * Esse é o pior tipo de reprovação: ela ensina a reexecutar até passar, e
+     * um portão que se aprende a ignorar não é portão. O número global segue na
+     * mensagem, para diagnóstico.
+     */
+    const meus = entregues.filter((e) => e.workspaceId === ws.id)
+
+    ok(
+        'publicou o pendente desta prova',
+        meus.length === 1,
+        `desta prova=${meus.length}, na outbox toda=${JSON.stringify(res)}`
+    )
+    ok('o entregador recebeu o evento', meus.length === 1)
     ok(
         'o payload carrega identificador, não conteúdo',
-        JSON.stringify(entregues[0].payload).includes('conv-1') &&
-            !JSON.stringify(entregues[0].payload).includes('Paciente')
+        meus.length === 1 &&
+            JSON.stringify(meus[0].payload).includes('conv-1') &&
+            !JSON.stringify(meus[0].payload).includes('Paciente')
     )
 
     const aindaPendente = await prisma.outboxEvent.count({ where: { workspaceId: ws.id, publishedAt: null } })
@@ -312,7 +339,9 @@ async function main() {
     // Segunda passada não reentrega o que já saiu.
     let segunda = 0
     await publicarPendentes(async (ev) => {
-        segunda = ev.length
+        // Pelo mesmo motivo de `meus` acima: evento de outra unidade que a
+        // cópia herdou não é reentrega do nosso.
+        segunda = ev.filter((e) => e.workspaceId === ws.id).length
     })
     ok('não reentrega o já publicado', segunda === 0)
 
@@ -344,7 +373,7 @@ async function main() {
     })
     let desistido = 0
     await publicarPendentes(async (ev) => {
-        desistido = ev.length
+        desistido = ev.filter((e) => e.workspaceId === ws.id).length
     })
     ok('para de insistir no máximo de tentativas', desistido === 0)
     ok(

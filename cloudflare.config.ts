@@ -175,6 +175,36 @@ export default defineConfig({
         // e `node:path` que o inventário encontrou.
         compatibilityFlags: ['nodejs_compat'],
 
+        /**
+         * **A porta lateral fechada.** `odontobox.andre-7ee.workers.dev` servia
+         * o app inteiro — e não é da zona `venn360.com`.
+         *
+         * Isso é o que torna o subdomínio um problema de segurança e não só de
+         * estética: regra de WAF, rate limiting, Bot Management e Access vivem
+         * **na zona**. Nada do que se configure em `venn360.com` alcança um
+         * hostname `workers.dev`. Fechar a porta da frente e deixar a lateral
+         * aberta é configurar a borda para ninguém.
+         *
+         * Medido em 2026-10-24: até as 02:11 UTC **todo** webhook de entrada do
+         * WhatsApp chegava por `odontobox.andre-7ee.workers.dev`, porque era o
+         * valor gravado em `WEBHOOK_BASE_URL`. Ou seja, a mensagem de paciente
+         * entrava pela porta sem borda. Às 02:18, depois de trocar o segredo e
+         * reconectar a linha, o inbound passou a chegar em
+         * `odontobox.venn360.com` — foi essa prova que liberou desligar isto.
+         *
+         * **A ordem não pode inverter.** Desligar antes de o Evolution ter o
+         * webhook novo gravado corta o inbound de WhatsApp na hora, porque o
+         * valor mora no banco de cada instância e só é reescrito num
+         * `/instance/connect`.
+         *
+         * `previewUrls` fica **ligado**: as URLs de versão que o `preview.yml`
+         * publica são outro mecanismo, e desligá-las cegaria a revisão de PR.
+         * Elas também são `workers.dev`, mas efêmeras, por versão, e não
+         * servem a produção.
+         */
+        workersDev: false,
+        previewUrls: true,
+
         assets: {
             htmlHandling: 'none',
             notFoundHandling: 'none',

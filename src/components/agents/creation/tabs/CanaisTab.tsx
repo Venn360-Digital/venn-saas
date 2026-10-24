@@ -7,6 +7,7 @@ import {
     Globe,
     Loader2,
     Pencil,
+    PlugZap,
     Plus,
     QrCode,
     Trash2,
@@ -459,6 +460,48 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
         }
     }
 
+    /**
+     * Reatar: reescreve o webhook no provedor **sem desligar a linha**.
+     *
+     * O endereço do webhook mora no banco do Evolution, por instância, e só é
+     * gravado num `/instance/connect`. Então trocar `WEBHOOK_BASE_URL` não tem
+     * efeito até que cada linha passe por isso de novo. Em 2026-10-24 a troca
+     * exigiu um desliga/liga à mão — com risco de QR — e este botão é o caminho
+     * deliberado para a mesma operação.
+     *
+     * Fica fora da chave de propósito. A chave diz **estado** ("No ar" / "Fora
+     * do ar") e essa linguagem foi padronizada em 2026-10-20 justamente para
+     * acabar com as seis formas de dizer duas coisas; reatar não muda estado,
+     * é manutenção. Por isso é ícone ao lado, só na linha que está no ar.
+     */
+    const reatar = async (line: Line) => {
+        setOcupada(line.id)
+        try {
+            const res = await fetch(`/api/agents/${agentId}/integrations/whatsapp/reatar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ integrationId: line.id }),
+            })
+            const body = await res.json().catch(() => ({}))
+            if (!res.ok) {
+                toast.error(body.error ?? 'Não foi possível reatar a linha')
+                return
+            }
+            if (body.seguiuConectada) {
+                toast.success(`${nomeDaLinha(line)} foi reatada e segue no ar`)
+            } else {
+                // Não é sucesso silencioso: a sessão caiu e quem está na tela
+                // precisa saber que o próximo passo é conectar pela chave.
+                toast.error(
+                    `${nomeDaLinha(line)} saiu do ar ao reatar. Conecte-a de novo pela chave.`
+                )
+            }
+            await carregar()
+        } finally {
+            setOcupada(null)
+        }
+    }
+
     const remover = async (line: Line) => {
         setOcupada(line.id)
         try {
@@ -778,7 +821,23 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                                                     >
                                                                         <Trash2 className="size-3.5 text-destructive-subtle-foreground" />
                                                                     </Button>
-                                                                ) : null}
+                                                                ) : (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="size-7"
+                                                                        aria-label={`Reconectar ${nomeDaLinha(line)}`}
+                                                                        title="Reconectar — reescreve o webhook sem desligar a linha"
+                                                                        disabled={!canManage || trabalhando}
+                                                                        onClick={() => void reatar(line)}
+                                                                    >
+                                                                        {trabalhando ? (
+                                                                            <Loader2 className="size-3.5 animate-spin" />
+                                                                        ) : (
+                                                                            <PlugZap className="size-3.5 text-muted-foreground" />
+                                                                        )}
+                                                                    </Button>
+                                                                )}
                                                             </span>
                                                             <Fio />
                                                         </>
