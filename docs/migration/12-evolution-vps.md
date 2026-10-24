@@ -4,6 +4,21 @@ Runbook do corte que move o Evolution Go + seu Postgres para uma **VPS Vultr
 dedicada** (`odontobox`, São Paulo, 216.238.127.233). Plano aprovado em
 2026-10-23 (`~/.claude/plans/gentle-sniffing-aho.md`).
 
+> ### ⚠️ Esse IP está travado numa regra de WAF da Cloudflare
+>
+> Desde 2026-10-24, `/api/webhooks/evolution-go/*` **só aceita requisição
+> de `216.238.127.233` e da rede IPv6 `2001:19f0:b800:2539::/64`** — o
+> segredo do webhook vai no caminho da URL e aparece em log de proxy, então
+> o IP é a segunda tranca.
+>
+> **Basta trocar a instância, recriá-la ou mudar o IP para o WhatsApp parar
+> de receber — em silêncio.** As mensagens não chegam e a tela segue dizendo
+> "No ar", porque o `integration-health` confere a conexão com o provedor,
+> não a entrega do webhook.
+>
+> A regra é `c1c1d3331574494bbc87787233fd5bd5`, no ruleset
+> `regras-proprias`. Ver [`13-borda-cloudflare.md`](13-borda-cloudflare.md).
+
 > **Correção de 2026-10-23, depois de executar.** A versão original deste
 > runbook mandava **formatar a VPS Stay Cloud** e partia de "o app já está em
 > Cloudflare Workers + Neon + R2". As duas coisas estavam erradas e, juntas,
