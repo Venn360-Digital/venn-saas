@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { manageAgent } from '@/lib/auth/agent'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
 
 const indexSchema = z.object({
     agentId: z.string(),
     title: z.string(),
-    content: z.string(),
+    /**
+     * Teto de tamanho. Era `z.string()` seco, e o texto inteiro viaja dentro
+     * do payload do job — o mesmo limite que `agents/knowledge/extract` já
+     * aplica ao extrair de arquivo (`MAX_CHARS`).
+     */
+    content: z.string().max(200_000, 'conteúdo acima de 200.000 caracteres'),
     type: z.enum(['faq', 'doc', 'website']),
     url: z.string().optional(),
     /** Drop previously indexed chunks with this title before re-embedding. */
@@ -24,28 +28,29 @@ const indexSchema = z.object({
  */
 export async function POST(request: NextRequest) {
     try {
-        const user = await usuarioDaSessao()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const body = await request.json()
         const data = indexSchema.parse(body)
 
-        const agent = await prisma.agent.findUnique({
-            where: { id: data.agentId },
-            select: { id: true, workspaceId: true },
-        })
-
-        if (!agent) return new NextResponse('Agent not found', { status: 404 })
-
-        const hasAccess = await prisma.workspaceUser.findFirst({
-            where: { workspaceId: agent.workspaceId, userId: user.id },
-            select: { id: true },
-        })
-
-        if (!hasAccess) return new NextResponse('Forbidden', { status: 403 })
+        /**
+         * `manageAgent` em vez de resolver participação à mão.
+         *
+         * Até 2026-10-23 estas duas rotas do RAG eram as **únicas** em
+         * `src/app/api` que consultavam `workspaceUser.findFirst` **sem
+         * `isActive: true`** — varredura confirmou. Consequência: desativar
+         * alguém em Gerenciamento → Usuários não lhe tirava o acesso ao
+         * Cérebro do agente. Ler **e escrever** continuavam valendo.
+         *
+         * Pior que o acesso: não havia recorte de papel, então um ATENDENTE
+         * indexava conteúdo arbitrário que o modelo depois lê como "fonte de
+         * verdade" (`trabalhos/servicos/prompt.ts:138-148`) — injeção de
+         * prompt persistente no agente que fala com pacientes.
+         *
+         * O comentário em `lib/auth/workspace.ts:28` registra que o helper
+         * antigo tinha exatamente este defeito e que ele foi consertado lá.
+         * Estas duas rotas ficaram para trás porque não usavam o helper.
+         */
+        const auth = await manageAgent(data.agentId)
+        if (!auth.ok) return auth.response
 
         // Pela costura, não por `getQueue()`: no Worker não há Redis, e a chamada
         // direta lançava `MissingRedisUrlError` (medido em 2026-10-23). O id do

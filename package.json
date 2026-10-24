@@ -29,6 +29,7 @@
         "check:trabalhos": "tsx --conditions=react-server scripts/check-trabalhos.ts",
         "check:envelopes": "tsx --conditions=react-server scripts/check-envelopes.ts",
         "check:filas": "tsx --conditions=react-server scripts/check-filas.ts",
+        "check:tenant": "tsx --conditions=react-server scripts/check-tenant.ts",
         "check:tempo-real": "tsx --conditions=react-server scripts/check-tempo-real.ts",
         "typecheck:cloudflare": "tsc --noEmit -p tsconfig.cloudflare.json",
         "dev:vinext": "BUILD_TARGET=cloudflare vite dev --port 3001",

@@ -110,8 +110,24 @@ async function handleCommit(
                 continue
             }
             if (duplicateAction === 'update' && c.existingId) {
-                await prisma.contact.update({
-                    where: { id: c.existingId },
+                /**
+                 * `updateMany` com `workspaceId`, e não `update` por id.
+                 *
+                 * `existingId` **vem do corpo da requisição** — o cliente
+                 * devolve a lista que o preview montou, e nada o obriga a
+                 * devolver a mesma. Com `update({ where: { id } })` e só
+                 * `currentMembership()` na porta, membro de qualquer clínica
+                 * sobrescrevia `name`, `email`, `phone` e `notes` de contato
+                 * de **qualquer outra**, bastando conhecer o id.
+                 *
+                 * `updateMany` aceita o `workspaceId` no `where` (o `update`
+                 * por id único não aceita) e devolve 0 em vez de levantar
+                 * quando não casa — que é o comportamento certo aqui: id que
+                 * não é desta clínica conta como ignorado, sem dizer ao
+                 * chamador que ele existe em outro lugar.
+                 */
+                const { count } = await prisma.contact.updateMany({
+                    where: { id: c.existingId, workspaceId },
                     data: {
                         ...(c.name && { name: c.name }),
                         ...(c.email && { email: c.email }),
@@ -119,7 +135,8 @@ async function handleCommit(
                         ...(c.notes && { notes: c.notes }),
                     },
                 })
-                updated++
+                if (count > 0) updated++
+                else skipped++
                 continue
             }
         }

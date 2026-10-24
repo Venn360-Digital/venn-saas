@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
+import { conferirRelacoes } from '@/lib/auth/relacoes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
 
@@ -48,6 +49,31 @@ export async function PATCH(
 
         const body = await request.json()
         const { title, value, stageId, contactId, notes, probability, status, userId, originId, mediaId, trackingData, outcomeReasonId, outcomeNotes, closedValue, stageNote, stageEntry } = body
+
+        /**
+         * Os ids de relação vêm do navegador e **não eram conferidos**.
+         *
+         * O negócio já está escopado (o `findFirst` acima), mas estes oito
+         * campos iam crus para o `update`, e o `dealInclude` da resposta
+         * devolve o contato — então apontar o negócio para um `contactId` de
+         * outra clínica vazava o paciente dela.
+         *
+         * Vem **antes** da regra 1:1 abaixo de propósito: aquela consulta usa
+         * o `contactId` recebido e também não filtra por clínica, logo era um
+         * oráculo de "este paciente de outra clínica tem negócio aberto?".
+         * Recusar o id antes fecha os dois.
+         */
+        const recusada = await conferirRelacoes(workspaceUser.workspaceId, {
+            contactId,
+            userId,
+            stageId,
+            originId,
+            mediaId,
+            outcomeReasonId,
+        })
+        if (recusada) {
+            return NextResponse.json({ error: recusada.mensagem }, { status: 404 })
+        }
 
         // If changing contact, enforce 1:1 rule
         if (contactId && contactId !== existingDeal.contactId) {

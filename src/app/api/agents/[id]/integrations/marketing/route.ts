@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { manageAgent } from '@/lib/auth/agent'
 
 /**
  * Origem e mídia por linha — de **qualquer** canal.
@@ -67,10 +68,22 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-    const auth = await getWorkspaceMember()
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
     const { id: agentId } = await context.params
+
+    /**
+     * `manageAgent`, como os outros doze irmãos de `/api/agents/[id]/*`.
+     *
+     * Esta rota era a **única** que usava `getWorkspaceMember()` sem recorte
+     * de papel: o escopo de clínica estava certo, mas um ATENDENTE alterava a
+     * origem e a mídia padrão semeadas pela linha de WhatsApp — que é
+     * configuração da clínica e alimenta o filtro do funil de todos.
+     *
+     * `manageAgent` também devolve 404 (não 403) para agente de outra
+     * clínica, o que esta rota não fazia.
+     */
+    const auth = await manageAgent(agentId)
+    if (!auth.ok) return auth.response
+
     const body = (await request.json()) as Corpo
 
     if (!body.integrationId) {

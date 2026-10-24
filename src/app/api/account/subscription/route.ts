@@ -26,7 +26,7 @@ function baseDaAplicacao(request: NextRequest): string {
 }
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@/lib/account'
+import { contaDoMaster, accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@/lib/account'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 
@@ -144,13 +144,42 @@ export async function GET() {
              * pedir o número: a troca no Asaas aceita um token já conhecido, e
              * o token nasce de um pagamento na página deles.
              */
-            cartoes: accountId
-                ? await prisma.paymentCard.findMany({
-                where: { accountId },
-                orderBy: { lastSeenAt: 'desc' },
-                select: { id: true, asaasToken: true, brand: true, last4: true, isDefault: true },
-                  })
-                : [],
+            /**
+             * `asaasToken` **só para quem administra**.
+             *
+             * O token é credencial reutilizável — o comentário acima diz para
+             * que serve: trocar o cartão da assinatura sem pedir o número. E a
+             * rota inteira estava atrás de `currentMembership()` sem recorte de
+             * papel, então um ATENDENTE o lia.
+             *
+             * **E o portão é `contaDoMaster`, não o papel na unidade.** A
+             * hierarquia é CONTA → WORKSPACE: `PaymentCard` pende de
+             * `accountId`, e uma conta pode ter várias unidades. Conferir
+             * `role` daria o token da conta ao ADMIN de **qualquer** unidade
+             * dela — incluindo a franquia pequena cujo responsável não é o de
+             * quem paga. O projeto já decidiu essa camada: criar unidade,
+             * renomear, trocar CNPJ e mover agente passam por `contaDoMaster`
+             * (`lib/account.ts:202`). Pagar é no mínimo tão da conta quanto
+             * renomear.
+             *
+             * Por que não 403 na rota toda: o resto da resposta (plano, fim da
+             * avaliação, créditos) alimenta o aviso de avaliação que o
+             * atendente **vê**. Fechar o campo mantém a tela e tira a
+             * credencial; fechar a rota tiraria as duas coisas.
+             *
+             * **Mudança de comportamento, de propósito:** ADMIN que não é o
+             * responsável pela conta deixa de ver os cartões salvos. Era isso
+             * ou deixar credencial de pagamento atravessando a fronteira da
+             * conta.
+             */
+            cartoes:
+                accountId && (await contaDoMaster(workspaceUser.workspaceId, workspaceUser.userId)).ok
+                    ? await prisma.paymentCard.findMany({
+                          where: { accountId },
+                          orderBy: { lastSeenAt: 'desc' },
+                          select: { id: true, asaasToken: true, brand: true, last4: true, isDefault: true },
+                      })
+                    : [],
             trialEndsAt: subscription.trialEndsAt,
             currentPeriodStart: subscription.currentPeriodStart,
             currentPeriodEnd: subscription.currentPeriodEnd,
