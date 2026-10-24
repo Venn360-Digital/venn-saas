@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { conferirRelacoes } from '@/lib/auth/relacoes'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { syncActivityToGoogleCalendar, deleteActivityFromGoogleCalendar } from '@/lib/google-calendar'
 
@@ -29,6 +30,28 @@ export async function PATCH(
 
         const body = await request.json()
         const { title, type, description, dueDate, startTime, endTime, completed, reminderMinutes, recurrenceType, recurrenceEnd, contactId, dealId, userId, specialistId, productServiceId } = body
+
+        /**
+         * Os ids de relação vêm do navegador e **não eram conferidos**.
+         *
+         * A atividade já está escopada (o `findFirst` acima), mas os cinco
+         * campos abaixo iam crus para o `update`. Como o `include` da resposta
+         * devolve `contact: { id, name, phone }`, apontar a própria atividade
+         * para um `contactId` de outra clínica fazia a resposta devolver o
+         * nome e o telefone daquele paciente — e o
+         * `syncActivityToGoogleCalendar` logo abaixo empurrava o dado para o
+         * calendário desta clínica.
+         */
+        const recusada = await conferirRelacoes(workspaceUser.workspaceId, {
+            contactId,
+            dealId,
+            userId,
+            specialistId,
+            productServiceId,
+        })
+        if (recusada) {
+            return NextResponse.json({ error: recusada.mensagem }, { status: 404 })
+        }
 
         const activity = await prisma.activity.update({
             where: { id },

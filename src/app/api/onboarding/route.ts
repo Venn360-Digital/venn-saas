@@ -54,9 +54,21 @@ export async function POST(request: NextRequest) {
                 console.log('[ONBOARDING] User created:', dbUser.id)
             }
 
-            // 2. Check if user already has a workspace
+            /**
+             * 2. O usuário já participa de alguma unidade?
+             *
+             * `orderBy` por `createdAt` **não é enfeite**: a hierarquia é
+             * CONTA → WORKSPACE, e uma conta tem várias unidades. Sem ordem,
+             * `findFirst` devolvia uma participação **arbitrária** para quem
+             * tem mais de uma, e o ramo abaixo terminava o cadastro da unidade
+             * errada — e, com o recorte de papel novo, lia o papel da errada
+             * também. A mais antiga é a mesma escolha que
+             * `lib/auth/workspace.ts:145-149` faz como padrão, então as duas
+             * resolvem a mesma unidade.
+             */
             const existingWorkspaceUser = await tx.workspaceUser.findFirst({
-                where: { userId: user.id }
+                where: { userId: user.id },
+                orderBy: { createdAt: 'asc' },
             })
 
             /**
@@ -100,7 +112,27 @@ export async function POST(request: NextRequest) {
                 })
                 let agentId = existingAgent?.id ?? null
 
-                if (!agentId && agentName && agentName.trim()) {
+                /**
+                 * Criar o primeiro agente é de **gestão**, e aqui não era.
+                 *
+                 * `existingWorkspaceUser` é resolvido só por `userId`, sem
+                 * papel. Quem legitimamente cai neste ramo é a pessoa
+                 * terminando o próprio cadastro — e ela é OWNER da unidade que
+                 * acabou de criar. Um ATENDENTE cadastrado por um admin também
+                 * tem linha de participação, nunca passou por cadastro, e ao
+                 * chamar esta rota caía aqui e **criava o primeiro agente da
+                 * clínica** — contornando o `MANAGER_ROLES` e o teto
+                 * `maxAgents` que `POST /api/agents:200-215` aplica.
+                 *
+                 * O recorte é no **ato**, não na entrada do ramo: filtrar a
+                 * consulta por papel faria o atendente cair no ramo seguinte e
+                 * ganhar workspace, Account e avaliação próprios — trocaria um
+                 * defeito por um pior. O aceite de termos segue livre: é o
+                 * dele, e registrar o próprio aceite não é privilégio.
+                 */
+                const podeCriarAgente = ['OWNER', 'ADMIN'].includes(existingWorkspaceUser.role)
+
+                if (!agentId && podeCriarAgente && agentName && agentName.trim()) {
                     const agent = await tx.agent.create({
                         data: {
                             workspaceId,

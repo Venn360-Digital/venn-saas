@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { getWorkspaceMember, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 
 const KINDS = new Set(['won', 'lost'])
 
@@ -33,6 +33,15 @@ export async function POST(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+    /**
+     * Motivo de perda é configuração compartilhada da clínica — mesma classe
+     * de etiqueta e fase, que já passam pelo `hasEditorRole`. Estava aberto a
+     * ATENDENTE por esquecimento, não por decisão.
+     */
+    if (!hasEditorRole(auth.member.role)) {
+        return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
+    }
+
     const body = await request.json()
     const kind = String(body.kind ?? '')
     const name = String(body.name ?? '').trim()
@@ -60,6 +69,15 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    /**
+     * Motivo de perda é configuração compartilhada da clínica — mesma classe
+     * de etiqueta e fase, que já passam pelo `hasEditorRole`. Estava aberto a
+     * ATENDENTE por esquecimento, não por decisão.
+     */
+    if (!hasEditorRole(auth.member.role)) {
+        return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
+    }
 
     const body = await request.json()
     const id = String(body.id ?? '')
@@ -94,6 +112,15 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    /**
+     * Motivo de perda é configuração compartilhada da clínica — mesma classe
+     * de etiqueta e fase, que já passam pelo `hasEditorRole`. Estava aberto a
+     * ATENDENTE por esquecimento, não por decisão.
+     */
+    if (!hasEditorRole(auth.member.role)) {
+        return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
+    }
 
     const id = new URL(request.url).searchParams.get('id') ?? ''
     const existing = await prisma.dealOutcomeReason.findFirst({

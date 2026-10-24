@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { readAgent } from '@/lib/auth/agent'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
 
 const searchSchema = z.object({
     agentId: z.string(),
@@ -12,30 +11,29 @@ const searchSchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const user = await usuarioDaSessao()
-
-        if (!user) {
-            return new NextResponse('Unauthorized', { status: 401 })
-        }
-
         const body = await request.json()
         const validatedData = searchSchema.parse(body)
 
-        // Verify agent ownership
-        const agent = await prisma.agent.findUnique({
-            where: { id: validatedData.agentId }
-        })
-
-        if (!agent) return new NextResponse('Agent not found', { status: 404 })
-
-        const hasAccess = await prisma.workspaceUser.findFirst({
-            where: {
-                workspaceId: agent.workspaceId,
-                userId: user.id
-            }
-        })
-
-        if (!hasAccess) return new NextResponse('Forbidden', { status: 403 })
+        /**
+         * `readAgent` em vez de resolver participação à mão.
+         *
+         * Até 2026-10-23 estas duas rotas do RAG eram as **únicas** em
+         * `src/app/api` que consultavam `workspaceUser.findFirst` **sem
+         * `isActive: true`** — varredura confirmou. Consequência: desativar
+         * alguém em Gerenciamento → Usuários não lhe tirava o acesso ao
+         * Cérebro do agente. Ler **e escrever** continuavam valendo.
+         *
+         * Pior que o acesso: não havia recorte de papel, então um ATENDENTE
+         * indexava conteúdo arbitrário que o modelo depois lê como "fonte de
+         * verdade" (`trabalhos/servicos/prompt.ts:138-148`) — injeção de
+         * prompt persistente no agente que fala com pacientes.
+         *
+         * O comentário em `lib/auth/workspace.ts:28` registra que o helper
+         * antigo tinha exatamente este defeito e que ele foi consertado lá.
+         * Estas duas rotas ficaram para trás porque não usavam o helper.
+         */
+        const auth = await readAgent(validatedData.agentId)
+        if (!auth.ok) return auth.response
 
         // Perform search
         const retriever = new DocumentRetriever()

@@ -159,6 +159,7 @@ jobs:
           npm run check:neon
           npm run check:auth
           npm run check:filas
+          npm run check:tenant
 
       - name: Apagar a branch do Neon
         # `always()`: a branch tem de sair mesmo quando a prova falha, senão

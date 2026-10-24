@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
+import { PERMISSION_DENIED, currentMembership, hasEditorRole } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { DEFAULT_PIPELINE_STAGES } from '@/lib/palette'
 
@@ -10,6 +10,16 @@ export async function POST() {
 
         if (!workspaceUser) {
             return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+        }
+
+        /**
+         * Fase do funil é configuração da clínica, e o `hasEditorRole` existe
+         * para isso — a própria doutrina dele, em `lib/auth/workspace.ts:50`,
+         * lista "pipeline stages" entre o que ele protege. Esta rota tinha
+         * ficado de fora: qualquer ATENDENTE semeava as fases padrão.
+         */
+        if (!hasEditorRole(workspaceUser.role)) {
+            return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
         }
 
         // Check if stages already exist

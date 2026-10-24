@@ -14,7 +14,7 @@ on:
         options: [staging, production]
         default: staging
       confirmar:
-        description: 'Escreva APLICAR para confirmar'
+        description: 'Escreva APLICAR <ambiente> — ex.: APLICAR production'
         required: true
         type: string
 
@@ -27,30 +27,43 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.ambiente }}
 
-    # ⚠️ O MENU DE AMBIENTE NÃO ESCOLHE O BANCO, e o padrão dele é `staging`.
+    # ⚠️ O MENU DE AMBIENTE NÃO ESCOLHIA O BANCO. Agora ele é conferido.
     #
     # `secrets.DATABASE_URL_DIRECT` resolve para o segredo do AMBIENTE quando
-    # ele existe, e cai no segredo do REPOSITÓRIO quando não existe. Em
-    # 2026-10-21 os ambientes `Preview` e `Production` têm 0 segredos, então o
-    # do repositório vale nos dois casos — e ele aponta para `production`.
+    # ele existe, e **cai no segredo do REPOSITÓRIO quando não existe**. Em
+    # 2026-10-21 os ambientes `Preview` e `Production` tinham 0 segredos, então
+    # o do repositório valia nos dois casos — e ele aponta para `production`.
+    # Efeito: escolher `staging` no menu aplicava migration em PRODUÇÃO, e a
+    # dupla tranca (Environment + confirmação) não protegia, porque nenhuma das
+    # duas olhava para qual banco era.
     #
-    # Efeito: escolher `staging` no menu aplica migration em PRODUÇÃO. A dupla
-    # tranca (Environment + confirmação `APLICAR`) não protege disso, porque
-    # nenhuma das duas olha para qual banco é.
+    # O GitHub não diz de onde um segredo veio. Então a tranca nova não tenta
+    # descobrir: ela confere o **destino**. Cada Environment tem de declarar a
+    # variável `DB_HOST_ESPERADO` (variável, não segredo) com o host do seu
+    # branch do Neon, e o passo "Conferir o destino" recusa se o host da
+    # `DATABASE_URL_DIRECT` não for aquele — ou se a variável não existir.
     #
-    # O conserto é definir `DATABASE_URL_DIRECT` em cada Environment, pelo
-    # painel do GitHub, apontando cada um para o branch Neon correspondente.
-    # Enquanto isso não for feito, trate o menu como decoração e confira o
-    # destino antes de rodar.
+    # Por que isso basta: se o Environment não foi configurado, não há
+    # `DB_HOST_ESPERADO` e o job morre antes de conectar. Se foi configurado e
+    # alguém esqueceu o segredo, o host não bate e o job morre também. Nos dois
+    # casos a falha é alta e o banco não é tocado.
+    #
+    # Para configurar: Settings → Environments → <ambiente> → Variables →
+    # `DB_HOST_ESPERADO` = o host do branch (ex.: `ep-xxx-pooler.sa-east-1.aws.neon.tech`
+    # sem `-pooler`, porque migração usa o endpoint direto).
 
     steps:
       - name: Conferir a confirmação
-        # Segunda tranca, além do Environment. O menu de ambiente tem `staging`
-        # como padrão, e um clique distraído em "Run workflow" não deve
-        # conseguir aplicar nada — nem em homologação.
+        # A confirmação carrega o **destino**, não só a palavra.
+        #
+        # Era `APLICAR` seco, e com `staging` de padrão no menu um clique
+        # distraído em "Run workflow" bastava. Exigir `APLICAR production`
+        # obriga quem roda a escrever para onde vai — e se o que ele escreveu
+        # não for o que o menu diz, o job para.
         run: |
-          if [ "${{ inputs.confirmar }}" != "APLICAR" ]; then
-            echo "::error::confirmação ausente. Escreva APLICAR."
+          ESPERADO="APLICAR ${{ inputs.ambiente }}"
+          if [ "${{ inputs.confirmar }}" != "$ESPERADO" ]; then
+            echo "::error::confirmação não bate. Para o ambiente \"${{ inputs.ambiente }}\" escreva exatamente: $ESPERADO"
             exit 1
           fi
 
@@ -60,6 +73,34 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+
+      - name: Conferir o destino
+        # A tranca que faltava: o banco que vamos tocar é o do ambiente escolhido?
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_DIRECT }}
+          DB_HOST_ESPERADO: ${{ vars.DB_HOST_ESPERADO }}
+        run: |
+          if [ -z "$DB_HOST_ESPERADO" ]; then
+            echo "::error::o Environment \"${{ inputs.ambiente }}\" não declara DB_HOST_ESPERADO."
+            echo "::error::Sem isso não há como provar que a DATABASE_URL_DIRECT é a dele e não a do repositório."
+            echo "::error::Settings → Environments → ${{ inputs.ambiente }} → Variables → DB_HOST_ESPERADO"
+            exit 1
+          fi
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL_DIRECT não está definida para este ambiente."
+            exit 1
+          fi
+
+          # Só o host. O resto da URL é segredo e não é impresso.
+          HOST=$(printf '%s' "$DATABASE_URL" | sed -E 's#^[^:]+://[^@]*@##; s#[:/?].*$##')
+
+          if [ "$HOST" != "$DB_HOST_ESPERADO" ]; then
+            echo "::error::o destino não é o do ambiente \"${{ inputs.ambiente }}\"."
+            echo "::error::esperado: $DB_HOST_ESPERADO"
+            echo "::error::Provavelmente a DATABASE_URL_DIRECT veio do segredo do REPOSITÓRIO, não do Environment."
+            exit 1
+          fi
+          echo "destino confirmado: $DB_HOST_ESPERADO (ambiente ${{ inputs.ambiente }})"
 
       - name: Mostrar o que será aplicado
         env:
