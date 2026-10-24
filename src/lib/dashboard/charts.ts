@@ -1,4 +1,5 @@
 import { Prisma } from '#prisma'
+import { FUSO_DO_NEGOCIO, partesNoFuso } from '@/lib/fuso'
 
 import prisma from '@/lib/prisma'
 import { fimDoDia, inicioDoDia } from '@/lib/fuso'
@@ -58,6 +59,28 @@ export interface ChartWindow {
  * serra. A troca para semana e depois para mês é automática porque a tela não
  * tem onde caber um seletor de granularidade que ninguém pediu.
  */
+/**
+ * O rótulo de um ponto do gráfico, **no calendário da clínica**.
+ *
+ * Era `day.getDate()` e `day.getMonth() + 1` direto. Num runtime UTC — que é o
+ * do Worker, e `TZ` não muda isso — um instante de 2026-10-24T01:00Z é dia 24
+ * em UTC e **dia 23 em Brasília**. O eixo do gráfico errava o dia na virada, e
+ * errava em silêncio: o número existe, parece certo, e só não é o dia certo.
+ *
+ * `partesNoFuso` resolve pelo `Intl` no `FUSO_DO_NEGOCIO`, que é a única fonte
+ * de verdade de calendário deste projeto. O ramo mensal já usava `timeZone`
+ * explícito e por isso já estava correto — ficou aqui para os três ramos
+ * viverem no mesmo lugar.
+ */
+function rotuloDoDia(dia: Date, bucketDays: number): string {
+    if (bucketDays === 1) return String(partesNoFuso(dia).dia)
+    if (bucketDays === 7) {
+        const { dia: d, mes } = partesNoFuso(dia)
+        return `${d}/${mes}`
+    }
+    return dia.toLocaleDateString('pt-BR', { timeZone: FUSO_DO_NEGOCIO, month: 'short' })
+}
+
 export function resolveChartWindow(scope: ChartScope): ChartWindow | null {
     if (!scope.from || !scope.to) return null
     const from = startOfDay(scope.from)
@@ -317,12 +340,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
             const day = new Date(window.from)
             day.setDate(day.getDate() + i * window.bucketDays)
             revenueSeries.push({
-                label:
-                    window.bucketDays === 1
-                        ? String(day.getDate())
-                        : window.bucketDays === 7
-                            ? `${day.getDate()}/${day.getMonth() + 1}`
-                            : day.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short' }),
+                label: rotuloDoDia(day, window.bucketDays),
                 current: runCurrent,
                 previous: runPrevious,
             })
@@ -432,10 +450,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
             const day = new Date(window.from)
             day.setDate(day.getDate() + i * window.bucketDays)
             activitySeries.push({
-                label:
-                    window.bucketDays === 1
-                        ? String(day.getDate())
-                        : `${day.getDate()}/${day.getMonth() + 1}`,
+                label: rotuloDoDia(day, window.bucketDays),
                 // `current` é o concluído (preenchido) e `previous` o criado
                 // (contorno) — a mesma gramática do gráfico 1: cheio é o que
                 // aconteceu, contorno é a referência.
