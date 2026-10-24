@@ -1,3 +1,4 @@
+import { enderecoDaMidia } from '@/lib/midia'
 import type { ContextoDaEntrega } from '@/lib/queue/consumidor'
 import prisma from '@/lib/prisma'
 import { decidirEnvioNoInstagram } from '@/lib/instagram/window'
@@ -112,14 +113,32 @@ export async function processWhatsAppOutbound(
     try {
         const { provider, credentials } = providerFor(integration)
 
+        /**
+         * O provedor **busca** esta URL para enviar o arquivo — então aqui ela
+         * tem de ser endereço, não referência.
+         *
+         * Desde que `Message.mediaUrl` passou a guardar `ref:<classe>:<chave>`
+         * (ver `lib/midia.ts`), o job chegava com a referência e o Evolution
+         * não tinha o que buscar: **texto saía, mídia não**. Quebrou em
+         * produção em 2026-10-24 e foi o André quem viu.
+         *
+         * A conversão fica **aqui**, e não nos três pontos que enfileiram, por
+         * isso mesmo: três lugares para lembrar é como o quarto nasce
+         * esquecido. Este é o funil por onde toda saída passa.
+         *
+         * Valor que já é URL atravessa intacto — é o caso da nota de voz do
+         * agente, cujo `mediaUrl` vem do TTS e nunca foi referência.
+         */
+        const enderecoDoArquivo = await enderecoDaMidia(mediaUrl)
+
         const result =
-            kind === 'text' || !mediaUrl
+            kind === 'text' || !enderecoDoArquivo
                 ? await provider.sendText(credentials, to, content, options)
                 : await provider.sendMedia(
                       credentials,
                       to,
                       {
-                          url: mediaUrl,
+                          url: enderecoDoArquivo,
                           kind: mediaKind ?? mediaKindFor(mimetype, kind),
                           caption: content || undefined,
                           fileName,
