@@ -42,9 +42,35 @@ export interface GoogleCalendarCredentials extends Partial<GoogleOAuthClient> {
 
 export const GOOGLE_CALENDAR_PROVIDER = 'google_calendar'
 
+/**
+ * Os escopos, no tamanho do que o código realmente faz.
+ *
+ * A lista inteira de endpoints do Google que este sistema chama:
+ *
+ *     oauth2.googleapis.com/token            troca e renovação  (sem escopo)
+ *     oauth2.googleapis.com/revoke           desconectar        (sem escopo)
+ *     oauth2/v2/userinfo                     e-mail da conta conectada
+ *     calendar/v3/calendars/primary/events   POST · PUT · DELETE
+ *
+ * Só eventos. Nunca criamos, listamos, compartilhamos ou apagamos agenda —
+ * então `auth/calendar`, que autoriza "ver, editar, compartilhar e **excluir
+ * permanentemente** todas as agendas", saiu em 2026-10-25. Ele não habilitava
+ * nada que `calendar.events` já não habilite, e tinha dois custos reais: uma
+ * justificativa a mais na revisão do Google, e uma tela de consentimento que
+ * pede à clínica poder de apagar as agendas dela.
+ *
+ * `userinfo.email` entrou porque o callback **já** chamava `oauth2/v2/userinfo`
+ * para mostrar qual conta foi conectada, e sem escopo aquela chamada falhava em
+ * silêncio — está dentro de um `try` com `if (res.ok)`, então o efeito era o
+ * e-mail vir vazio na tela, sem erro em lugar nenhum. É escopo **não
+ * confidencial**: não entra na revisão.
+ *
+ * Mexeu aqui? A lista do Console do Google tem de mudar junto, ou o
+ * consentimento pede uma coisa e o app outra.
+ */
 export const GOOGLE_CALENDAR_SCOPES = [
-    'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ')
 
 /**
