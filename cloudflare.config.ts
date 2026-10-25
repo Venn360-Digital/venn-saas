@@ -474,6 +474,24 @@ export default defineConfig({
             PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
             PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
 
+            /**
+             * Google Calendar — gravados pelo André em 2026-10-25, declarados
+             * assim que apareceram em `wrangler secret list`.
+             *
+             * Estiveram gravados-e-não-declarados por uma janela, que é
+             * exatamente o estado que o `WEBHOOK_BASE_URL` pagou em 23/10: o
+             * deploy seguinte os teria removido, e o sintoma seria a tela
+             * dizendo "pendente" para uma credencial que alguém lembra de ter
+             * gravado.
+             *
+             * Os escopos que este par pede são `calendar.events` e
+             * `userinfo.email` — ver `lib/google-oauth-client.ts`. Se a lista
+             * do Console do Google divergir dali, o consentimento pede uma
+             * coisa e o app outra.
+             */
+            PLATFORM_GOOGLE_CALENDAR_CLIENT_ID: bindings.secret(),
+            PLATFORM_GOOGLE_CALENDAR_CLIENT_SECRET: bindings.secret(),
+
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
 
