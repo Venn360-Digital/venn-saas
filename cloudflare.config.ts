@@ -457,6 +457,23 @@ export default defineConfig({
              * gravação estão em `.env.example`, e `npm run check:cofre` confere
              * que todo `PLATFORM_` declarado aqui é um nome que o código lê.
              */
+            /**
+             * Asaas — gravados em 2026-10-25, declarados no mesmo movimento.
+             *
+             * `CLIENT_ID` é a chave de API; o ambiente sai do prefixo dela
+             * (`$aact_hmlg_` sandbox, `$aact_prod_` produção), e por isso não
+             * existe variável de ambiente para alguém marcar errado e cobrar de
+             * verdade num teste. `CLIENT_SECRET` é o token do webhook, que não
+             * é a chave de API: ele viaja em toda chamada para um endpoint
+             * público e tem de ser igual ao que está no painel do Asaas.
+             *
+             * Declarados só agora porque a ordem é essa e não pode inverter —
+             * ver o comentário acima. Os outros provedores entram cada um com a
+             * sua configuração.
+             */
+            PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
+            PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
+
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
 
