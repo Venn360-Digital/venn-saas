@@ -231,6 +231,16 @@ function LoginForm() {
                     >
                         Venn360
                     </a>
+                    {' · '}
+                    {/* A política precisa ser alcançável sem login — é
+                        requisito do Google para publicar o consentimento OAuth,
+                        e um link daqui é o caminho que um revisor segue. */}
+                    <a
+                        href="/privacidade"
+                        className="text-brand-navy-muted underline underline-offset-2 hover:text-brand-navy-foreground"
+                    >
+                        Privacidade
+                    </a>
                 </p>
             </aside>
 

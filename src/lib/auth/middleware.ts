@@ -106,6 +106,17 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
          */
         pathname === '/widget.js' ||
         pathname.startsWith('/api/widget/') ||
+        /**
+         * A política de privacidade.
+         *
+         * Pública por obrigação externa e por lógica: o Google exige que ela
+         * esteja acessível **sem login** no mesmo domínio do app para publicar
+         * a tela de consentimento OAuth, e um revisor que caísse em `/login`
+         * reprovaria a submissão. O mesmo vale para qualquer titular que queira
+         * ler como tratamos o dado dele — exigir conta para isso seria o
+         * oposto do que a LGPD pretende.
+         */
+        pathname === '/privacidade' ||
         // Container probe.
         pathname === '/api/health'
 
