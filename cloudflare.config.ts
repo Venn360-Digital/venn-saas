@@ -428,41 +428,35 @@ export default defineConfig({
              * não existe no ambiente da VPS, conferido em 2026-10-21.
              */
             /**
-             * Os `PLATFORM_*` VOLTARAM em 2026-10-24, e a volta é a decisão.
+             * Os `PLATFORM_*` NÃO entram aqui até existirem — e a ordem é lei.
              *
-             * Eles saíram em 2026-10-21 com um argumento que era correto na
-             * época: declará-los aqui os tornaria somente-leitura, e a tela de
-             * registro passaria a dar erro ao salvar — porque o cofre dá
-             * precedência ao ambiente e `writeVaultSecret` RECUSA gravar o que
-             * está nele.
+             * `bindings.secret()` não é "declaro que existe": é **exigência de
+             * deploy**. Medido em 2026-10-24, publicando com os nove
+             * declarados e nenhum gravado:
              *
-             * **Aquela tela não existe mais.** O formulário onde o responsável
-             * pela plataforma digitava estas credenciais saiu por decisão do
-             * André: a primeira metade do Asaas é a chave que movimenta
-             * cobrança, e nenhum SaaS põe isso atrás de uma sessão de
-             * navegador. Com a ponte fora, "somente-leitura pelo produto" deixa
-             * de ser efeito colateral e passa a ser o desenho.
+             *     Error: The following required secrets have not been set:
+             *     PLATFORM_ASAAS_CLIENT_ID, PLATFORM_ASAAS_CLIENT_SECRET, …
              *
-             * O nome de cada uma é DERIVADO, não escolhido:
-             * `nomeDeAmbiente(platformSecretName(provedor, campo))`. Esta lista
-             * é conferida contra essa derivação por `npm run check:envelopes` —
-             * um nome digitado errado aqui seria um segredo gravado num lugar
-             * que o código não lê, e isso não dá erro, dá silêncio.
+             * E o outro lado é igualmente verdadeiro, porque esta configuração
+             * é declarativa: **segredo gravado e não declarado é removido no
+             * deploy seguinte.** As duas regras juntas dão uma ordem única, e
+             * ela não pode inverter:
              *
-             * Declarados só os provedores com caminho real hoje. Google Ads,
-             * Meta Ads e Clinicorp entram quando existirem: declarar o que não
-             * se usa só enche o dev local de aviso de segredo faltando.
+             *   1. gravar o segredo:
+             *      `npx wrangler secret put PLATFORM_ASAAS_CLIENT_ID --name odontobox`
+             *   2. declará-lo aqui, no MESMO commit que o põe em uso;
+             *   3. publicar.
+             *
+             * Inverter 1 e 2 derruba o deploy de `main` para todo mundo —
+             * aconteceu, e é por isso que este comentário existe. Pular o 2
+             * apaga a credencial no deploy seguinte, em silêncio, e o sintoma
+             * aparece na primeira cobrança.
+             *
+             * Declare **um provedor por vez**, junto da configuração dele.
+             * Nenhum está declarado hoje; a lista dos nomes e o comando de
+             * gravação estão em `.env.example`, e `npm run check:cofre` confere
+             * que todo `PLATFORM_` declarado aqui é um nome que o código lê.
              */
-            PLATFORM_ASAAS_CLIENT_ID: bindings.secret(),
-            PLATFORM_ASAAS_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_GOOGLE_CALENDAR_CLIENT_ID: bindings.secret(),
-            PLATFORM_GOOGLE_CALENDAR_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_META_MESSAGING_CLIENT_ID: bindings.secret(),
-            PLATFORM_META_MESSAGING_CLIENT_SECRET: bindings.secret(),
-            PLATFORM_META_MESSAGING_VERIFY_TOKEN: bindings.secret(),
-            PLATFORM_INSTAGRAM_LOGIN_CLIENT_ID: bindings.secret(),
-            PLATFORM_INSTAGRAM_LOGIN_CLIENT_SECRET: bindings.secret(),
-
             PUBLIC_STORAGE_ACCESS_KEY_ID: bindings.secret(),
             PUBLIC_STORAGE_SECRET_ACCESS_KEY: bindings.secret(),
 

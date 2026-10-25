@@ -130,21 +130,25 @@ async function main() {
     )
 
     /**
-     * A volta é mais frouxa de propósito: provedor sem caminho real ainda
-     * (Google Ads, Meta Ads, Clinicorp) não precisa estar declarado — declarar
-     * o que não se usa só enche o dev local de aviso. O que se exige é que os
-     * provedores **em uso** estejam todos lá.
+     * A VOLTA NÃO É EXIGIDA, e a razão é o deploy quebrado de 2026-10-24.
+     *
+     * A primeira versão desta guarda exigia que todo provedor "em uso"
+     * estivesse declarado. Parecia simétrico e estava errado:
+     * `bindings.secret()` é **exigência de deploy**, não declaração. Com os
+     * nove declarados e nenhum gravado, `cf deploy` recusou publicar e `main`
+     * ficou impublicável — "The following required secrets have not been set".
+     *
+     * A regra verdadeira é de ORDEM, e nenhum teste em CI a alcança, porque
+     * depende do que está gravado no Worker, que o CI não consulta: grave
+     * primeiro, declare no mesmo commit que põe em uso, publique depois. Está
+     * escrita no comentário de `cloudflare.config.ts`, onde quem for declarar
+     * vai ler.
+     *
+     * O que sobra aqui é a metade que um teste PODE provar, e é a que pega o
+     * erro silencioso: nome declarado que o código não lê. O contrário —
+     * gravado e não declarado — é apagado no deploy seguinte, e isso o
+     * comentário do config avisa.
      */
-    const EM_USO = ['asaas', 'google_calendar', 'meta_messaging', 'instagram_login']
-    const faltando: string[] = []
-    for (const provider of EM_USO) {
-        const v = variaveisDoProvedor(provider)
-        for (const nome of [v.id, v.segredo]) if (!declarados.has(nome)) faltando.push(nome)
-    }
-    ok(
-        `config: os provedores em uso estão todos declarados${faltando.length ? ` — falta ${faltando.join(', ')}` : ` (${EM_USO.length} provedores)`}`,
-        faltando.length === 0
-    )
 
     // 10. Precedência e vazio-como-ausente.
     process.env.PLATFORM_ASAAS_CLIENT_SECRET = '  '
