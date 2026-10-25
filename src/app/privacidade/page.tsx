@@ -35,6 +35,23 @@ const ATUALIZADA_EM = '25 de outubro de 2026'
  */
 const EMAIL_DE_PRIVACIDADE = 'privacidade@venn360.com'
 
+/**
+ * A qualificação de quem responde.
+ *
+ * A LGPD pede que o controlador seja **identificável** — sem isso o titular não
+ * sabe contra quem exercer o direito do artigo 18, e a política vira um texto
+ * sem dono. O CNPJ foi conferido pelos dígitos verificadores antes de entrar
+ * aqui; publicar número com erro de digitação numa página jurídica é pior que
+ * omiti-lo.
+ */
+const CONTROLADOR = {
+    razaoSocial: 'André Moreira Assessoria e Gestão Empresarial Ltda.',
+    cnpj: '37.001.379/0001-64',
+    endereco:
+        'Av. Getúlio Vargas, 671, Sala 500 — Edifício Paraúna, Savassi, ' +
+        'Belo Horizonte/MG, CEP 30112-021',
+}
+
 export const metadata: Metadata = {
     title: 'Política de Privacidade — OdontoBox360',
     description:
@@ -141,6 +158,11 @@ export default function PoliticaDePrivacidade() {
                         <strong>Dados de quem contrata.</strong> Para os dados cadastrais e de
                         cobrança da própria clínica e de seus usuários, o OdontoBox360 é{' '}
                         <strong>controlador</strong>.
+                    </p>
+                    <p>
+                        O OdontoBox360 é operado por{' '}
+                        <strong>{CONTROLADOR.razaoSocial}</strong>, inscrita no CNPJ sob o nº{' '}
+                        {CONTROLADOR.cnpj}, com sede na {CONTROLADOR.endereco}.
                     </p>
                 </Secao>
 
@@ -393,7 +415,14 @@ export default function PoliticaDePrivacidade() {
                 </Secao>
 
                 <footer className="mt-12 border-t border-border pt-6 text-sm text-muted-foreground">
-                    <p>
+                    <p className="leading-relaxed">
+                        {CONTROLADOR.razaoSocial}
+                        <br />
+                        CNPJ {CONTROLADOR.cnpj}
+                        <br />
+                        {CONTROLADOR.endereco}
+                    </p>
+                    <p className="mt-3">
                         Dúvidas sobre privacidade:{' '}
                         <a
                             className="underline underline-offset-2 hover:text-primary"
