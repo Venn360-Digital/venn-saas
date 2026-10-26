@@ -273,20 +273,24 @@ export function DataTable<T>({
                         '[&_td]:py-1.5'
                     )}
                 >
-                    {/* **Carregando não desenha linha falsa.**
+                    {/* **Enquanto espera, o corpo não desenha nada.**
 
-                        A tabela renderiza sempre: durante a espera `sortedRows`
-                        está vazio, então sai só o **cabeçalho real das colunas**
-                        — estrutura verdadeira, que não se move quando os dados
-                        chegam. O esqueleto de seis linhas que havia aqui era
-                        pior que nada: prometia linhas que muitas vezes não
-                        existiam (a tela acabava em "Nenhuma etiqueta ainda"), e
-                        a massa cinza aparecendo e sumindo a cada navegação lia
-                        como defeito. Reportado pelo Andre em 2026-10-26.
+                        A causa real do pisca não está aqui: é que as telas de
+                        índice buscam os dados **depois de montar**, então toda
+                        navegação tem duas pinturas — vazia e cheia. Qualquer
+                        coisa posta na primeira (esqueleto, cabeçalho de coluna)
+                        é substituída na segunda, e o olho lê isso como "a tela
+                        se redesenhou". Já tentei esqueleto de linhas e cabeçalho
+                        sozinho; os dois saltam, porque a largura da coluna é
+                        calculada pelo conteúdo e o rodapé de paginação só existe
+                        com dados.
 
-                        O vazio só entra quando a espera **acabou** — senão ele
-                        piscaria "nenhum registro" antes de os dados chegarem. */}
-                    {!loading && rows.length === 0 ? (
+                        Então: nada. O cabeçalho da página e os filtros já estão
+                        na tela; o corpo aparece **uma vez**, pronto. O conserto
+                        de origem é entregar a primeira página de dados pelo
+                        servidor (ver DESIGN.md, Tela 04 — é por isso que o
+                        painel não pisca), e aí esta espera deixa de existir. */}
+                    {loading ? null : rows.length === 0 ? (
                         <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
                     ) : (
                 <>
