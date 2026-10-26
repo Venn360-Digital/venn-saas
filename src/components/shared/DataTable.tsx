@@ -236,8 +236,20 @@ export function DataTable<T>({
                         '[&_td]:py-1.5'
                     )}
                 >
-                    {body ? (
-                        <div className="flex min-h-full items-center justify-center p-6">{body}</div>
+                    {loading ? (
+                        // O esqueleto carrega **no lugar da tabela** — topo e
+                        // largura cheia, como as linhas reais —, nunca
+                        // centralizado. Centralizado ele virava um "rascunho"
+                        // estreito no meio da tela que saltava para a tabela
+                        // inteira quando os dados chegavam, e esse pulo lia como
+                        // bug. O vazio e o erro, abaixo, seguem centralizados:
+                        // ali não há forma de linha a imitar.
+                        <TableSkeleton
+                            rows={skeletonRows}
+                            cols={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
+                        />
+                    ) : rows.length === 0 ? (
+                        <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
                     ) : (
                 <>
                     {/* Table from md up. No scroll container here: `Table`
