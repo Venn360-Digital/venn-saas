@@ -1,13 +1,15 @@
 /**
- * Transactional e-mail, through Resend's HTTP API.
+ * Transactional e-mail, through Cloudflare Email Sending.
  *
- * No SDK: the call is one POST, and a dependency for that is weight the build on
- * a 2 vCPU box does not need to carry. SMTP would also work — GoTrue already
- * uses it for auth mail — but the HTTP API gives a message id and a readable
- * error, which matters when a billing warning quietly fails to arrive.
+ * Binding `EMAIL` alcançado via `env` em route handlers ou Durable Objects.
+ * Rate limit em memória de Worker (5 envios por 60 segundos por IP), obrigatório
+ * para evitar relay aberto.
+ *
+ * O `env` pode ser passado explicitamente ou será recuperado do registro global
+ * (`registrarEmailEnv()` em `entrada.ts`).
  */
 
-const ENDPOINT = 'https://api.resend.com/emails'
+import { obterEmailEnv, type EmailEnvRegistry } from './env-registry'
 
 export interface SendResult {
     ok: boolean
@@ -15,40 +17,78 @@ export interface SendResult {
     error?: string
 }
 
-export async function sendEmail(input: {
-    to: string
-    subject: string
-    html: string
-}): Promise<SendResult> {
-    const key = process.env.RESEND_API_KEY
-    if (!key) {
-        // Not an exception: a missing key must not take down the cron that was
-        // only trying to warn someone. It is logged and skipped.
-        return { ok: false, error: 'RESEND_API_KEY ausente' }
-    }
-
-    const from = process.env.EMAIL_FROM ?? 'OdontoBox360 <odontobox360@mail.venn360.com>'
-
+export async function sendEmail(
+    input: {
+        to: string
+        subject: string
+        html: string
+    },
+    env?: EmailEnvRegistry
+): Promise<SendResult> {
     try {
-        const response = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${key}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ from, to: [input.to], subject: input.subject, html: input.html }),
+        // Se env não foi passado, recupera do registro global.
+        // Dentro de Workers (crons, filas, etc), é registrado em `entrada.ts`.
+        const emailEnv = env || obterEmailEnv()
+
+        // Rate limit ANTES de qualquer tentativa de envio.
+        // Sem IP (improvável em produção), usa fallback genérico.
+        const ip = emailEnv.CF_CONNECTING_IP ?? 'fallback'
+        const { success } = await emailEnv.EMAIL_RATELIMIT.limit({ key: `email:${ip}` })
+        if (!success) {
+            return { ok: false, error: 'Muitas tentativas de envio.' }
+        }
+
+        // `from` como { email, name }, nunca como string "Nome <email>".
+        // O binding não parseia esse formato — ver skill cloudflare-email-sending.
+        const [email, name] = parseEmailFrom(emailEnv.EMAIL_FROM)
+
+        // Sempre enviar texto + HTML: e-mail só-HTML pesa contra a reputação
+        // de um domínio de envio novo.
+        const text = stripHtmlTags(input.html)
+
+        await emailEnv.EMAIL.send({
+            from: { email, name },
+            to: [{ email: input.to }],
+            subject: input.subject,
+            text,
+            html: input.html,
         })
 
-        const body = (await response.json().catch(() => ({}))) as {
-            id?: string
-            message?: string
-        }
-
-        if (!response.ok) {
-            return { ok: false, error: body.message ?? `HTTP ${response.status}` }
-        }
-        return { ok: true, id: body.id }
+        // Sucesso: o binding não devolve ID, mas marca que saiu.
+        return { ok: true }
     } catch (error) {
-        return { ok: false, error: error instanceof Error ? error.message : 'falha de rede' }
+        const msg = error instanceof Error ? error.message : 'falha de rede'
+
+        // Se o erro carregar `code`, é da API do Email Sending:
+        // `E_SENDER_NOT_VERIFIED`, `E_RATE_LIMIT_EXCEEDED`, etc.
+        const code = (error as any).code ? ` (${(error as any).code})` : ''
+
+        return { ok: false, error: `${msg}${code}` }
     }
+}
+
+function parseEmailFrom(emailFrom: string): [string, string] {
+    // Formato esperado: "Nome <email@domain>" ou "email@domain"
+    const match = emailFrom.match(/^(.+?)\s*<(.+?)>$/)
+    if (match) {
+        return [match[2], match[1]]
+    }
+    return [emailFrom, 'OdontoBox360']
+}
+
+function stripHtmlTags(html: string): string {
+    // Remove tags HTML para gerar versão texto.
+    // Quebra em novas linhas e remove espaços extras.
+    return html
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, '&')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .join('\n')
 }
