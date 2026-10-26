@@ -484,7 +484,24 @@ direita vazia — e o vazio não é respiro, é desperdício que parece bug. Val
 o card de valor, o de adicionais e o de cancelar, que mudam de largura juntos.
 A exceção é a **grade de campos de formulário** (Perfil, Conta da Clínica): ali
 o `max-w-4xl` fica, porque campo de texto largo demais é pior de ler, não
-melhor — a regra é do card que **mostra**, não do que **preenche**.
+melhor — a regra é do card que **mostra**, não do que **preenche**. Vale também
+o teto de **medida de leitura** num parágrafo solto (`max-w-[46ch]`, na Agenda
+da clínica): isso é tipografia, não largura de cartão.
+
+A regra vale para **as sete guias**, não só a Assinatura. Varrido no DOM em
+2026-10-26, a 1920px, medindo quem tinha `max-width` em pixel com folga de
+sobra no pai — três cartões presos apareceram e foram soltos:
+
+| Onde | Teto | Vazio à direita |
+|---|---|---|
+| Integrações — grade de ferramentas e "Em breve" | `max-w-6xl` | 456px |
+| Conta da Clínica — cartão do acordo (`TermsCard`) | `max-w-5xl` | 569px |
+| Integrações — `PlatformCredentialsPanel` | `max-w-5xl` | 569px |
+
+O terceiro só renderiza para o responsável pela plataforma, e é por isso que
+passou: **varrer a guia como clínica não mostra tudo que a guia desenha.** Hoje
+as sete medem o mesmo: conteúdo de 280 a 1888, igual ao título e à tabela de
+Usuários.
 
 **Cabeçalho em ícone precisa continuar tendo nome.** Coluna estreita pode
 trocar o rótulo por um ícone — é o caso de WhatsApp e do medidor de dias sem

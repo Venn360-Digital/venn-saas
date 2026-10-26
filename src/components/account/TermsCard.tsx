@@ -31,8 +31,12 @@ function BandFrame({
         // passou para depois dele, e sem o fio os dois correm juntos.
         <SettingsBand title={title}>
             {/* O acordo num cartão de bordas arredondadas: a frase do estado e o
-                botão de ler ficam na mesma peça, e não soltos no pé da guia. */}
-            <div className="max-w-5xl rounded-xl border border-border bg-card p-4">
+                botão de ler ficam na mesma peça, e não soltos no pé da guia.
+                Sem teto de largura — cartão em guia acompanha a resolução
+                (DESIGN.md §5, "Cartão em guia"). O `max-w-5xl` daqui prendia o
+                cartão em 1024px e deixava 569px de vazio à direita numa tela de
+                1920; quem recua é a margem do painel, pela `SettingsBand`. */}
+            <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">{children}</div>
                     {action ? <div className="shrink-0">{action}</div> : null}

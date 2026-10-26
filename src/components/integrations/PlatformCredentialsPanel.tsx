@@ -75,7 +75,11 @@ export function PlatformCredentialsPanel() {
     if (!visible || !rows) return null
 
     return (
-        <section className="max-w-5xl rounded-xl border border-border bg-card p-5">
+        /* Sem teto de largura: cartão em guia acompanha a resolução (DESIGN.md
+           §5, "Cartão em guia"). Este só aparece para o responsável pela
+           plataforma, então o teto passou despercebido nas medições — quem vê
+           a guia Integrações como clínica nunca o renderiza. */
+        <section className="rounded-xl border border-border bg-card p-5">
             <div className="mb-1 flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" />
                 <h2 className="text-h4">Aplicativos da plataforma</h2>
