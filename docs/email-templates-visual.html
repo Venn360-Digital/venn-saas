@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-mails Transacionais — Visualização Completa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            color: #0b1f3b;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .header p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100vh;
+            background: #0b1f3b;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .sidebar-logo {
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .sidebar-section {
+            margin-bottom: 25px;
+        }
+        .sidebar-section-title {
+            color: #bdd4e0;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        .sidebar-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .sidebar-button:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .sidebar-button.active {
+            background: #06b6d4;
+            border-color: #06b6d4;
+        }
+        .content {
+            margin-left: 250px;
+        }
+        .email-viewer {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .email-info {
+            padding: 24px;
+            background: #f8fbfd;
+            border-bottom: 1px solid #dce7ec;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+        }
+        .email-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .email-info-label {
+            color: #4a5f73;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .email-info-value {
+            color: #0b1f3b;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .tone-neutral {
+            background: #d1f1ed;
+            color: #01524a;
+            padding: 4px 8px;
+            border-radius: 3px;
+            width: fit-content;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .tone-urgent {
+            background: #fadcda;
+            color: #8b0000;
+            padding: 4px 8px;
+            border-radius: 3px;
+            width: fit-content;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .email-preview {
+            padding: 20px;
+            background: #f8fbfd;
+            min-height: 600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .email-preview iframe {
+            border: none;
+            width: 100%;
+            max-width: 600px;
+            height: 700px;
+            background: #fff;
+            border-radius: 4px;
+        }
+        .hidden {
+            display: none;
+        }
+        @media (max-width: 900px) {
+            .sidebar {
+                width: 200px;
+            }
+            .content {
+                margin-left: 200px;
+            }
+        }
+        @media (max-width: 700px) {
+            .sidebar {
+                position: relative;
+                width: 100%;
+                height: auto;
+                margin-bottom: 20px;
+            }
+            .content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">📧 E-MAILS<br>OdontoBox360</div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Autenticação</div>
+            <button class="sidebar-button active" onclick="showEmail('reset-password')">
+                🔐 Reset de Senha
+            </button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Trial & Avaliação</div>
+            <button class="sidebar-button" onclick="showEmail('trial-day-5')">
+                ⏰ Faltam 2 Dias
+            </button>
+            <button class="sidebar-button" onclick="showEmail('trial-day-6')">
+                ⚠️ Último Dia
+            </button>
+            <button class="sidebar-button" onclick="showEmail('trial-ended')">
+                ❌ Encerrada
+            </button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Créditos</div>
+            <button class="sidebar-button" onclick="showEmail('credits-80')">
+                ⚡ 80% Utilizado
+            </button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Retenção & Dados</div>
+            <button class="sidebar-button" onclick="showEmail('retention-60')">
+                📦 60 Dias
+            </button>
+            <button class="sidebar-button" onclick="showEmail('retention-7')">
+                🗑️ 7 Dias
+            </button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Cobrança</div>
+            <button class="sidebar-button" onclick="showEmail('payment-overdue')">
+                💳 Vencida
+            </button>
+            <button class="sidebar-button" onclick="showEmail('access-suspended')">
+                🔒 Acesso Pausado
+            </button>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="container">
+            <div class="header">
+                <h1>📧 Visualização de E-mails Transacionais</h1>
+                <p>Clique na lateral para navegar entre os 8 e-mails. Cada um segue o padrão visual do Reset de Senha com logo, headline, body, CTA e footer.</p>
+            </div>
+
+            <div class="email-viewer">
+                <!-- RESET PASSWORD -->
+                <div id="reset-password" class="email-content">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Reset de Senha</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Disparador</div>
+                            <div class="email-info-value">Solicitação do usuário</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Destinatário</div>
+                            <div class="email-info-value">Usuário</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tom</div>
+                            <div class="tone-neutral">Neutro</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">CTA</div>
+                            <div class="email-info-value">Link com 1h de validade</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Criticidade</div>
+                            <div class="email-info-value" style="color: #c62828;">🔴 Alta</div>
+                        </div>
+                    </div>
+                    <div class="email-preview">
+                        <iframe srcdoc="<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='color-scheme' content='light'><title>Redefinir sua senha</title></head><body style='margin:0;padding:0;background-color:#f8fbfd;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fbfd;'><tr><td align='center' style='padding:32px 16px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:560px;'><tr><td align='center' style='padding-bottom:28px;'><img src='https://odontobox.venn360.com/logos/logo-wordmark-light.png' width='150' height='50' alt='OdontoBox360' style='display:block;border:0;width:150px;height:auto;'></td></tr><tr><td style='background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td style='width:44px;height:3px;background-color:#a7f3d0;border-radius:2px;font-size:0;line-height:0;'>&nbsp;</td></tr></table><h1 style='margin:22px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;'>Redefinir sua senha</h1><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Alguém — provavelmente você — pediu para trocar a senha desta conta.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>O link vale por uma hora e serve uma vez só.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Se não foi você, ignore este e-mail. A senha atual continua valendo e nada muda.</p><table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:30px 0 0;'><tr><td align='center' bgcolor='#06b6d4' style='border-radius:10px;'><a href='#' target='_blank' style='display:inline-block;padding:14px 30px;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;'>Escolher nova senha</a></td></tr></table><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:28px 0 0;'><tr><td style='height:1px;background-color:#dce7ec;font-size:0;line-height:0;'>&nbsp;</td></tr></table><p style='margin:20px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;'>Se o botão não abrir, copie e cole este endereço no navegador: https://seu-app.com/reset</p></td></tr><tr><td align='center' style='padding:24px 8px 0;'><p style='margin:0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;'>OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p></td></tr></table></td></tr></table></body></html>"></iframe>
+                    </div>
+                </div>
+
+                <!-- TRIAL DAY 5 -->
+                <div id="trial-day-5" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Trial: Faltam 2 Dias</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Disparador</div>
+                            <div class="email-info-value">Cron (5 dias antes)</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Destinatário</div>
+                            <div class="email-info-value">OWNER do workspace</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tom</div>
+                            <div class="tone-neutral">Neutro</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">CTA</div>
+                            <div class="email-info-value">Link para planos</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Propósito</div>
+                            <div class="email-info-value">Primeiro aviso</div>
+                        </div>
+                    </div>
+                    <div class="email-preview">
+                        <iframe srcdoc="<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='color-scheme' content='light'><title>Sua avaliação termina em 2 dias</title></head><body style='margin:0;padding:0;background-color:#f8fbfd;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fbfd;'><tr><td align='center' style='padding:32px 16px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:560px;'><tr><td align='center' style='padding-bottom:28px;'><img src='https://odontobox.venn360.com/logos/logo-wordmark-light.png' width='150' height='50' alt='OdontoBox360' style='display:block;border:0;width:150px;height:auto;'></td></tr><tr><td style='background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td style='width:44px;height:3px;background-color:#a7f3d0;border-radius:2px;font-size:0;line-height:0;'>&nbsp;</td></tr></table><h1 style='margin:22px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;'>Sua avaliação termina em 2 dias</h1><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>O período gratuito vai até 30 de outubro de 2026.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Escolhendo um plano antes disso, o atendimento continua sem interrupção — seus agentes, conversas e histórico seguem exatamente como estão.</p><table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:30px 0 0;'><tr><td align='center' bgcolor='#06b6d4' style='border-radius:10px;'><a href='#' target='_blank' style='display:inline-block;padding:14px 30px;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;'>Ver planos</a></td></tr></table><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:28px 0 0;'><tr><td style='height:1px;background-color:#dce7ec;font-size:0;line-height:0;'>&nbsp;</td></tr></table><p style='margin:20px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;'>Qualquer dúvida, é só responder este e-mail.</p></td></tr><tr><td align='center' style='padding:24px 8px 0;'><p style='margin:0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;'>OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p></td></tr></table></td></tr></table></body></html>"></iframe>
+                    </div>
+                </div>
+
+                <!-- TRIAL DAY 6 -->
+                <div id="trial-day-6" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Trial: Último Dia</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Disparador</div>
+                            <div class="email-info-value">Cron (1 dia antes)</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Destinatário</div>
+                            <div class="email-info-value">OWNER do workspace</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tom</div>
+                            <div class="tone-urgent">Urgente</span>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">CTA</div>
+                            <div class="email-info-value">Link para planos</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Propósito</div>
+                            <div class="email-info-value">Último aviso</div>
+                        </div>
+                    </div>
+                    <div class="email-preview">
+                        <iframe srcdoc="<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='color-scheme' content='light'><title>Último dia de avaliação</title></head><body style='margin:0;padding:0;background-color:#f8fbfd;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fbfd;'><tr><td align='center' style='padding:32px 16px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:560px;'><tr><td align='center' style='padding-bottom:28px;'><img src='https://odontobox.venn360.com/logos/logo-wordmark-light.png' width='150' height='50' alt='OdontoBox360' style='display:block;border:0;width:150px;height:auto;'></td></tr><tr><td style='background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td style='width:44px;height:3px;background-color:#c62828;border-radius:2px;font-size:0;line-height:0;'>&nbsp;</td></tr></table><h1 style='margin:22px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;'>Último dia de avaliação</h1><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>A avaliação encerra 31 de outubro de 2026.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Depois disso o sistema continua acessível e as mensagens seguem chegando pelo WhatsApp, mas o envio de respostas fica suspenso até a contratação de um plano.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Nada é apagado, e contratar restabelece tudo na hora.</p><table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:30px 0 0;'><tr><td align='center' bgcolor='#06b6d4' style='border-radius:10px;'><a href='#' target='_blank' style='display:inline-block;padding:14px 30px;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;'>Escolher um plano</a></td></tr></table><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:28px 0 0;'><tr><td style='height:1px;background-color:#dce7ec;font-size:0;line-height:0;'>&nbsp;</td></tr></table><p style='margin:20px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;'>Qualquer dúvida, é só responder este e-mail.</p></td></tr><tr><td align='center' style='padding:24px 8px 0;'><p style='margin:0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;'>OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p></td></tr></table></td></tr></table></body></html>"></iframe>
+                    </div>
+                </div>
+
+                <!-- TRIAL ENDED -->
+                <div id="trial-ended" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Trial: Encerrada</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Disparador</div>
+                            <div class="email-info-value">Cron ao atingir data</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Destinatário</div>
+                            <div class="email-info-value">OWNER do workspace</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tom</div>
+                            <div class="tone-urgent">Urgente</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">CTA</div>
+                            <div class="email-info-value">Link para planos</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Propósito</div>
+                            <div class="email-info-value">Confirmação do corte</div>
+                        </div>
+                    </div>
+                    <div class="email-preview">
+                        <iframe srcdoc="<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='color-scheme' content='light'><title>Avaliação encerrada</title></head><body style='margin:0;padding:0;background-color:#f8fbfd;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fbfd;'><tr><td align='center' style='padding:32px 16px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:560px;'><tr><td align='center' style='padding-bottom:28px;'><img src='https://odontobox.venn360.com/logos/logo-wordmark-light.png' width='150' height='50' alt='OdontoBox360' style='display:block;border:0;width:150px;height:auto;'></td></tr><tr><td style='background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td style='width:44px;height:3px;background-color:#c62828;border-radius:2px;font-size:0;line-height:0;'>&nbsp;</td></tr></table><h1 style='margin:22px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;'>Sua avaliação terminou</h1><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Seus dados estão todos aqui e as mensagens continuam chegando normalmente pelo WhatsApp — nada foi perdido nem desconectado.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>O que está suspenso é o envio de respostas e a criação de novos registros. Assinar um plano restabelece tudo imediatamente.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>A exportação dos seus dados continua disponível a qualquer momento.</p><table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:30px 0 0;'><tr><td align='center' bgcolor='#06b6d4' style='border-radius:10px;'><a href='#' target='_blank' style='display:inline-block;padding:14px 30px;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;'>Assinar um plano</a></td></tr></table><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:28px 0 0;'><tr><td style='height:1px;background-color:#dce7ec;font-size:0;line-height:0;'>&nbsp;</td></tr></table><p style='margin:20px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;'>Qualquer dúvida, é só responder este e-mail.</p></td></tr><tr><td align='center' style='padding:24px 8px 0;'><p style='margin:0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;'>OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p></td></tr></table></td></tr></table></body></html>"></iframe>
+                    </div>
+                </div>
+
+                <!-- CREDITS 80 -->
+                <div id="credits-80" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Créditos: 80% Utilizado</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Disparador</div>
+                            <div class="email-info-value">Cron diário se uso &gt; 80%</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Destinatário</div>
+                            <div class="email-info-value">OWNER do workspace</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tom</div>
+                            <div class="tone-neutral">Neutro</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">CTA</div>
+                            <div class="email-info-value">Link para créditos</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Propósito</div>
+                            <div class="email-info-value">Aviso antes de acabar</div>
+                        </div>
+                    </div>
+                    <div class="email-preview">
+                        <iframe srcdoc="<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='color-scheme' content='light'><title>Seus créditos de IA estão acabando</title></head><body style='margin:0;padding:0;background-color:#f8fbfd;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fbfd;'><tr><td align='center' style='padding:32px 16px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:560px;'><tr><td align='center' style='padding-bottom:28px;'><img src='https://odontobox.venn360.com/logos/logo-wordmark-light.png' width='150' height='50' alt='OdontoBox360' style='display:block;border:0;width:150px;height:auto;'></td></tr><tr><td style='background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td style='width:44px;height:3px;background-color:#a7f3d0;border-radius:2px;font-size:0;line-height:0;'>&nbsp;</td></tr></table><h1 style='margin:22px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;'>80% dos créditos utilizados</h1><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Você usou 8.000 dos 10.000 créditos do período.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Quando acabarem, o agente para de responder automaticamente e avisa o paciente de que o atendimento continua em instantes. Sua equipe segue respondendo normalmente.</p><table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:30px 0 0;'><tr><td align='center' bgcolor='#06b6d4' style='border-radius:10px;'><a href='#' target='_blank' style='display:inline-block;padding:14px 30px;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;'>Ver créditos</a></td></tr></table><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:28px 0 0;'><tr><td style='height:1px;background-color:#dce7ec;font-size:0;line-height:0;'>&nbsp;</td></tr></table><p style='margin:20px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;'>Qualquer dúvida, é só responder este e-mail.</p></td></tr><tr><td align='center' style='padding:24px 8px 0;'><p style='margin:0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;'>OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p></td></tr></table></td></tr></table></body></html>"></iframe>
+                    </div>
+                </div>
+
+                <!-- Placeholder para os próximos 3 e-mails (retention-60, retention-7, payment-overdue, access-suspended) -->
+                <div id="retention-60" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Retenção: 60 Dias</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Status</div>
+                            <div class="email-info-value" style="color: #92400e; font-weight: 600;">🔨 Em design</div>
+                        </div>
+                    </div>
+                    <div class="email-preview" style="align-items: flex-start; padding-top: 40px;">
+                        <div style="text-align: center; color: #8099a8;">
+                            <p style="font-size: 48px; margin-bottom: 16px;">📦</p>
+                            <p style="font-weight: 600; color: #0b1f3b;">Em design</p>
+                            <p style="font-size: 13px; margin-top: 8px;">Próximos 4 e-mails estão sendo desenhados<br>seguindo o padrão visual do Reset de Senha</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="retention-7" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Retenção: 7 Dias</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Status</div>
+                            <div class="email-info-value" style="color: #92400e; font-weight: 600;">🔨 Em design</div>
+                        </div>
+                    </div>
+                    <div class="email-preview" style="align-items: flex-start; padding-top: 40px;">
+                        <div style="text-align: center; color: #8099a8;">
+                            <p style="font-size: 48px; margin-bottom: 16px;">⏳</p>
+                            <p style="font-weight: 600; color: #0b1f3b;">Em design</p>
+                            <p style="font-size: 13px; margin-top: 8px;">Próximos 4 e-mails estão sendo desenhados<br>seguindo o padrão visual do Reset de Senha</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="payment-overdue" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Cobrança: Vencida</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Status</div>
+                            <div class="email-info-value" style="color: #92400e; font-weight: 600;">🔨 Em design</div>
+                        </div>
+                    </div>
+                    <div class="email-preview" style="align-items: flex-start; padding-top: 40px;">
+                        <div style="text-align: center; color: #8099a8;">
+                            <p style="font-size: 48px; margin-bottom: 16px;">💳</p>
+                            <p style="font-weight: 600; color: #0b1f3b;">Em design</p>
+                            <p style="font-size: 13px; margin-top: 8px;">Próximos 4 e-mails estão sendo desenhados<br>seguindo o padrão visual do Reset de Senha</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="access-suspended" class="email-content hidden">
+                    <div class="email-info">
+                        <div class="email-info-item">
+                            <div class="email-info-label">Tipo</div>
+                            <div class="email-info-value">Acesso: Pausado</div>
+                        </div>
+                        <div class="email-info-item">
+                            <div class="email-info-label">Status</div>
+                            <div class="email-info-value" style="color: #92400e; font-weight: 600;">🔨 Em design</div>
+                        </div>
+                    </div>
+                    <div class="email-preview" style="align-items: flex-start; padding-top: 40px;">
+                        <div style="text-align: center; color: #8099a8;">
+                            <p style="font-size: 48px; margin-bottom: 16px;">🔒</p>
+                            <p style="font-weight: 600; color: #0b1f3b;">Em design</p>
+                            <p style="font-size: 13px; margin-top: 8px;">Próximos 4 e-mails estão sendo desenhados<br>seguindo o padrão visual do Reset de Senha</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showEmail(id) {
+            // Hide all emails
+            document.querySelectorAll('.email-content').forEach(el => {
+                el.classList.add('hidden');
+            });
+
+            // Remove active class from all buttons
+            document.querySelectorAll('.sidebar-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected email
+            document.getElementById(id).classList.remove('hidden');
+
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
