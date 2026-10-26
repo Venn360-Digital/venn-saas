@@ -1,12 +1,7 @@
-import { redirect } from 'next/navigation'
-
 import prisma from '@/lib/prisma'
-import { currentMembership } from '@/lib/auth/workspace'
+import { membroOuLogin, primeiraPagina } from '@/lib/indice-servidor'
 
 import { EtiquetasClient } from './EtiquetasClient'
-// O valor vem do módulo neutro, NÃO do arquivo `'use client'`: componente de
-// servidor não importa valor de módulo de cliente. Ver `dados.ts`.
-import { LIMITE_PADRAO } from './dados'
 
 /**
  * Etiquetas — a primeira página de dados vem do **servidor**.
@@ -18,38 +13,28 @@ import { LIMITE_PADRAO } from './dados'
  * cabeçalho de coluna sozinho saltava quando as larguras eram recalculadas.
  * Com as linhas já no HTML, a segunda pintura deixa de existir.
  *
- * É a mesma escolha da Tela 04: "o painel é componente de servidor — os números
- * já chegam no HTML, sem busca no cliente nem piscada de carregamento". Era por
- * isso que o Dashboard nunca piscou e os índices sempre piscaram.
- *
- * A consulta é a **mesma** do `GET /api/tags` (mesmo `where`, mesma ordem,
- * mesmo limite), de propósito: a rota continua servindo busca, paginação e as
- * releituras depois de gravar, e as duas precisam concordar — se divergirem, a
- * primeira página mostraria uma coisa e a segunda outra.
+ * O mecanismo (auth, `findMany` + `count` numa ida só, conta de páginas) vem de
+ * `@/lib/indice-servidor`; aqui fica só **a consulta**, que é o que varia de
+ * tela para tela. Ela é a mesma do `GET /api/tags` de propósito: a rota continua
+ * servindo busca, paginação e as releituras depois de gravar, e as duas
+ * precisam concordar — se divergirem, a primeira página mostra uma coisa e a
+ * segunda mostra outra.
  */
 export default async function EtiquetasPage() {
-    const membro = await currentMembership()
-    if (!membro) redirect('/login')
-
+    const membro = await membroOuLogin()
     const where = { workspaceId: membro.workspaceId }
 
-    const [tags, total] = await Promise.all([
-        prisma.tag.findMany({
-            where,
-            take: LIMITE_PADRAO,
-            orderBy: { name: 'asc' },
-            select: { id: true, name: true, color: true },
-        }),
-        prisma.tag.count({ where }),
-    ])
+    const inicial = await primeiraPagina({
+        buscar: ({ skip, take }) =>
+            prisma.tag.findMany({
+                where,
+                skip,
+                take,
+                orderBy: { name: 'asc' },
+                select: { id: true, name: true, color: true },
+            }),
+        contar: () => prisma.tag.count({ where }),
+    })
 
-    return (
-        <EtiquetasClient
-            inicial={{
-                tags,
-                total,
-                totalPages: Math.ceil(total / LIMITE_PADRAO),
-            }}
-        />
-    )
+    return <EtiquetasClient inicial={inicial} />
 }

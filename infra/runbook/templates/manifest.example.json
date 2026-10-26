@@ -1,0 +1,180 @@
+{
+  "$comment": "Fonte única de verdade dos recursos DESTE app. IDs vazios são preenchidos nas Fases 06-09. Nunca coloque senhas ou secrets aqui.",
+  "app": {
+    "repo": "venn360/stagent360",
+    "name": "Stagent360",
+    "slug": "stagent",
+    "segment": "none",
+    "cloudflareAccountId": ""
+  },
+  "environments": {
+    "production": {
+      "hostnames": {
+        "app": "stagent.venn360.com",
+        "evolution": "wa.stagent.com.br",
+        "emailDomain": "mail.stagent.venn360.com",
+        "emailFrom": "noreply@mail.stagent.venn360.com",
+        "support": "suporte@stagent.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "stagent-prod",
+        "hyperdrive": [
+          {
+            "binding": "HYPERDRIVE",
+            "name": "stagent-prod-db",
+            "id": ""
+          }
+        ],
+        "r2": [
+          {
+            "binding": "FILES",
+            "name": "stagent-prod-files"
+          }
+        ],
+        "kv": [
+          {
+            "binding": "CACHE",
+            "name": "stagent-prod-cache",
+            "id": ""
+          }
+        ],
+        "queues": [
+          {
+            "binding": "JOBS",
+            "name": "stagent-prod-jobs"
+          }
+        ],
+        "turnstileSitekey": "",
+        "accessApps": [
+          {
+            "name": "stagent-prod-admin",
+            "id": ""
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "stagent-worker-evo-prod",
+            "clientId": ""
+          }
+        ]
+      },
+      "neon": {
+        "projectId": "",
+        "branch": "production",
+        "branchId": "",
+        "endpointHost": "",
+        "database": "stagent",
+        "roles": {
+          "app": "stagent_app",
+          "migrator": "stagent_migrator"
+        }
+      },
+      "evolution": {
+        "image": "<imagem>@sha256:<digest>",
+        "container": "evo-stagent-prod",
+        "composeProject": "evo-stagent-prod",
+        "directory": "/opt/evolution/evo-stagent-prod",
+        "internalPort": 0,
+        "database": "evo_stagent_prod",
+        "dbRole": "evo_stagent_prod",
+        "redisDb": null,
+        "redisPrefix": "stagent_prod",
+        "instancePrefix": "stagent-prod-",
+        "webhookUrl": "https://stagent.venn360.com/api/webhooks/<path>"
+      },
+      "integrations": {
+        "googleProjectId": "stagent360-prod",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    },
+    "stg": {
+      "hostnames": {
+        "app": "homolog.stagent.venn360.com",
+        "evolution": "stg-wa.stagent.com.br",
+        "emailDomain": "mail-stg.stagent.venn360.com",
+        "emailFrom": "noreply@mail-stg.stagent.venn360.com",
+        "support": "suporte@stagent.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "stagent-stg",
+        "hyperdrive": [
+          {
+            "binding": "HYPERDRIVE",
+            "name": "stagent-stg-db",
+            "id": ""
+          }
+        ],
+        "r2": [
+          {
+            "binding": "FILES",
+            "name": "stagent-stg-files"
+          }
+        ],
+        "kv": [
+          {
+            "binding": "CACHE",
+            "name": "stagent-stg-cache",
+            "id": ""
+          }
+        ],
+        "queues": [
+          {
+            "binding": "JOBS",
+            "name": "stagent-stg-jobs"
+          }
+        ],
+        "turnstileSitekey": "",
+        "accessApps": [
+          {
+            "name": "stagent-stg",
+            "id": ""
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "stagent-ci-stg",
+            "clientId": ""
+          },
+          {
+            "name": "stagent-worker-evo-stg",
+            "clientId": ""
+          }
+        ]
+      },
+      "neon": {
+        "projectId": "",
+        "branch": "staging",
+        "branchId": "",
+        "endpointHost": "",
+        "database": "stagent",
+        "roles": {
+          "app": "stagent_app",
+          "migrator": "stagent_migrator"
+        }
+      },
+      "evolution": {
+        "image": "<imagem>@sha256:<digest>",
+        "container": "evo-stagent-stg",
+        "composeProject": "evo-stagent-stg",
+        "directory": "/opt/evolution/evo-stagent-stg",
+        "internalPort": 0,
+        "database": "evo_stagent_stg",
+        "dbRole": "evo_stagent_stg",
+        "redisDb": null,
+        "redisPrefix": "stagent_stg",
+        "instancePrefix": "stagent-stg-",
+        "webhookUrl": "https://homolog.stagent.venn360.com/api/webhooks/<path>"
+      },
+      "integrations": {
+        "googleProjectId": "stagent360-stg",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    }
+  }
+}

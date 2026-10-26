@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -22,14 +22,8 @@ import { TagChip } from '@/components/shared/TagChip'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PICKER_RAMP } from '@/lib/palette'
 
+import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 import { LIMITE_PADRAO, type DadosIniciais, type TagItem } from './dados'
-
-interface PaginationState {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-}
 
 /**
  * Values the user picks and the database stores, so this list is forward-only:
@@ -45,21 +39,53 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
 
-    const [tags, setTags] = useState<TagItem[]>(inicial.tags)
-    // Nasce `false`: os dados da primeira página já vieram do servidor. Era
-    // `true` e essa única linha era metade do pisca — a tela montava anunciando
-    // espera que não existia mais.
-    const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
     // The typed value and the value we query with are separate. They used to be
     // the same, with a timer that only deferred the page reset — so the fetch
     // still fired on every keystroke and the debounce bought nothing.
     const [query, setQuery] = useState('')
-    const [pagination, setPagination] = useState<PaginationState>({
-        page: 1,
-        limit: LIMITE_PADRAO,
-        total: inicial.total,
-        totalPages: inicial.totalPages,
+    /**
+     * As **entradas** do recorte são da tela; o **resultado** é do hook.
+     *
+     * Página, limite e busca só a tela sabe. Semear com o que o servidor
+     * mandou, não buscar na montagem e reler quando o recorte muda é
+     * disciplina igual em todo índice — e por isso mora em
+     * `useIndiceServidor`, não copiada aqui.
+     */
+    const [page, setPage] = useState(1)
+    const [limit, setLimit] = useState(LIMITE_PADRAO)
+
+    const buscar = useCallback(async () => {
+        const params = new URLSearchParams({
+            page: String(page),
+            limit: String(limit),
+            search: query,
+        })
+        const res = await fetch(`/api/tags?${params}`)
+        if (!res.ok) {
+            toast.error('Não foi possível carregar as etiquetas')
+            return null
+        }
+        const data = await res.json()
+        return {
+            itens: data.data as TagItem[],
+            total: data.pagination.total as number,
+            totalPages: data.pagination.totalPages as number,
+        }
+    }, [page, limit, query])
+
+    const {
+        itens: tags,
+        total,
+        totalPages,
+        carregando: loading,
+        recarregar,
+    } = useIndiceServidor<TagItem>({
+        inicial,
+        // Na primeira renderização a chave descreve o mesmo recorte que o
+        // servidor serviu — é esse casamento que faz a montagem não buscar.
+        recorte: `${page}|${limit}|${query}`,
+        buscar,
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -80,61 +106,10 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
     useEffect(() => {
         const timer = setTimeout(() => {
             setQuery(search)
-            setPagination((prev) => ({ ...prev, page: 1 }))
+            setPage(1)
         }, 300)
         return () => clearTimeout(timer)
     }, [search])
-
-    const loadTags = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams({
-                page: pagination.page.toString(),
-                limit: pagination.limit.toString(),
-                search: query,
-            })
-            const res = await fetch(`/api/tags?${params}`)
-            if (res.ok) {
-                const data = await res.json()
-                setTags(data.data)
-                setPagination((prev) => ({
-                    ...prev,
-                    total: data.pagination.total,
-                    totalPages: data.pagination.totalPages,
-                }))
-            }
-        } catch (error) {
-            console.error('[ETIQUETAS] load', error)
-            toast.error('Não foi possível carregar as etiquetas')
-        } finally {
-            setLoading(false)
-        }
-    }, [pagination.page, pagination.limit, query])
-
-    /**
-     * A montagem **não** busca: a primeira página já veio do servidor.
-     *
-     * Buscar aqui refaria a mesma consulta e repintaria a tabela logo depois de
-     * ela aparecer — o defeito inteiro que esta refatoração remove.
-     *
-     * **O guarda compara parâmetros, não conta visitas.** A primeira versão era
-     * um `useRef(true)` gasto na primeira execução, e o StrictMode do React
-     * derrubou isso na hora: em desenvolvimento o efeito roda duas vezes, a
-     * primeira gastava o guarda e a segunda buscava — medido, `/api/tags` saía
-     * na rede. Guardando **o recorte que o servidor serviu** o efeito é
-     * idempotente: rodar dez vezes com os mesmos parâmetros não busca nenhuma.
-     *
-     * O marcador só é limpo quando os parâmetros mudam de verdade, então voltar
-     * à página 1 depois de ir à 2 busca de novo — o que é certo, porque nesse
-     * meio tempo a lista pode ter mudado.
-     */
-    const servidoPeloServidor = useRef(`1|${LIMITE_PADRAO}|`)
-    useEffect(() => {
-        const atuais = `${pagination.page}|${pagination.limit}|${query}`
-        if (servidoPeloServidor.current === atuais) return
-        servidoPeloServidor.current = ''
-        loadTags()
-    }, [pagination.page, pagination.limit, query, loadTags])
 
     function openNew() {
         setEditingId(null)
@@ -170,7 +145,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
                 setErrors({})
                 if (again && !editingId) setFormData({ name: '', color: COLOR_PALETTE[0] })
                 else setIsDialogOpen(false)
-                loadTags()
+                void recarregar()
             } else {
                 const error = await res.json().catch(() => ({}))
                 setErrors({ name: error.error ?? 'Não foi possível salvar a etiqueta' })
@@ -188,7 +163,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
             const res = await fetch(`/api/tags/${deletingTag.id}`, { method: 'DELETE' })
             if (res.ok) {
                 toast.success('Etiqueta excluída')
-                loadTags()
+                void recarregar()
             } else {
                 toast.error('Não foi possível excluir a etiqueta')
             }
@@ -202,7 +177,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
         if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'etiqueta' : 'etiquetas'} excluída${ok === 1 ? '' : 's'}`)
         if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídas`)
         setSelectedIds([])
-        await loadTags()
+        await recarregar()
     }
 
     const columns: Column<TagItem>[] = [
@@ -233,7 +208,7 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
                         canEdit={canEdit}
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
-                        onChanged={() => void loadTags()}
+                        onChanged={() => void recarregar()}
                         onEditFull={(id) => { const x = tags.find((i) => i.id === id); if (x) openEdit(x) }}
                         onDelete={(id) => { const t = tags.find((x) => x.id === id); if (t) setDeletingTag(t) }}
                     />
@@ -306,14 +281,18 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
                     }
                     footer={
                         <Pagination
-                            page={pagination.page}
-                            totalPages={pagination.totalPages}
-                            total={pagination.total}
-                            limit={pagination.limit}
-                            onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
-                            onLimitChange={(limit) =>
-                                setPagination((p) => ({ ...p, limit, page: 1 }))
-                            }
+                            page={page}
+                            totalPages={totalPages}
+                            total={total}
+                            limit={limit}
+                            onPageChange={setPage}
+                            onLimitChange={(novo) => {
+                                // Trocar o tamanho da página volta para a
+                                // primeira: a página 3 de um recorte de 20 não
+                                // existe num recorte de 100.
+                                setLimit(novo)
+                                setPage(1)
+                            }}
                         />
                     }
                 />
