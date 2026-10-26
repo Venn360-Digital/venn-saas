@@ -450,6 +450,14 @@ exceção:
   faixas, apoios, indicadores). A tabela é uma das visões. Servir a primeira
   pintura exige decidir **quais** das cinco entram nela, e essa é uma decisão
   de produto, não a repetição de um padrão.
+- **Conta, guia Usuários.** Esta **é** um índice — lista paginada de um modelo,
+  e já alinhada pelo `DataTable`. O que falta é o pré-requisito estrutural: o
+  padrão precisa de um **componente de servidor na fronteira da rota**, e a
+  Conta é **uma** rota com sete guias trocadas no cliente (`conta/page.tsx` é
+  `'use client'`, e a guia monta por `activeTab`). Trocar de guia não passa
+  pelo servidor, então não há onde a consulta rodar antes da pintura. Para
+  servir Usuários do servidor a guia teria de virar segmento de rota
+  (`/gerenciamento/conta/usuarios`) — mexe na Tela 03, não no painel.
 
 As duas já recebem, pelo `DataTable`, tudo que é de renderização: sem fantasma,
 sem linha falsa e sem apagar na releitura — o que o padrão de dados somaria é a
