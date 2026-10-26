@@ -1,5 +1,6 @@
 'use client'
 
+import { Logo } from '@/components/brand/Logo'
 import { Step5Terms } from '@/components/onboarding/Step5Terms'
 import { TERMS_VERSION } from '@/lib/terms'
 import { toast } from 'sonner'
@@ -166,16 +167,32 @@ export default function OnboardingPage() {
         )
     }
 
+    /**
+     * A largura do conteúdo acompanha o passo. Os passos de formulário (1, 3, 4)
+     * continuam numa coluna estreita, que é o que se lê bem campo a campo; os
+     * passos de comparar e de ler ganham largura — os três planos lado a lado e
+     * os parágrafos do termo ficavam espremidos no `max-w-2xl`, e um cartão
+     * estreito vira cartão alto, que é a rolagem vertical que o Andre viu. O
+     * contêiner externo é largo o bastante para o passo mais largo caber.
+     */
+    const contentMax =
+        currentStep === 2 ? 'max-w-5xl' : currentStep === 5 ? 'max-w-4xl' : 'max-w-2xl'
+
     return (
         <div className="min-h-screen bg-card text-foreground">
-            <div className="mx-auto max-w-4xl px-4 py-12">
+            <div className="mx-auto max-w-6xl px-4 py-12">
                 {/* Header */}
                 <div className="mb-12 text-center">
                     <div className="mb-6 flex justify-center">
-                        <div className="flex items-center gap-2">
-                            <div className="text-2xl font-bold text-primary">⚡</div>
-                            <span className="text-2xl font-bold">OdontoBox360</span>
-                        </div>
+                        {/* A logomarca oficial no lugar do ⚡ + texto escrito à
+                            mão. `Logo` traz as duas artes (clara e escura) e o
+                            tema escolhe — o onboarding abre em `bg-card`, que é
+                            branco no claro e marinho no escuro. */}
+                        {/* 120px — três vezes o tamanho da primeira versão, a
+                            pedido do Andre: em 40px a marca sumia no respiro da
+                            abertura. Aqui ela é a abertura do cadastro, não um
+                            carimbo de cabeçalho, e aguenta o tamanho. */}
+                        <Logo variant="full" height={120} priority />
                     </div>
                     <h1 className="mb-2 text-3xl font-bold">Olá, Usuário!</h1>
                     <p className="text-muted-foreground">Vamos configurar sua conta em poucos passos</p>
@@ -214,7 +231,7 @@ export default function OnboardingPage() {
                 </div>
 
                 {/* Step Content */}
-                <div className="mx-auto max-w-2xl">
+                <div className={`mx-auto ${contentMax}`}>
                     {currentStep === 1 && (
                         <Step1Workspace
                             data={onboardingData}

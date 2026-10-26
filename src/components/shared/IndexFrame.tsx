@@ -15,10 +15,11 @@ import { cn } from '@/lib/utils'
  * do cartão e a paginação continua no pé; com 700, as linhas rolam por dentro
  * e nada mais se mexe.
  *
- * A tabela vai sangrada, sem margem nem cartão próprio: a área de conteúdo do
- * shell já é um cartão arredondado, e um cartão dentro do outro dobrava os
- * cantos e custava 32px de largura. O fio de baixo da linha 2 é o fio de cima
- * do cabeçalho da tabela.
+ * A tabela vai sem cartão próprio — a área de conteúdo do shell já é um cartão
+ * arredondado, e um cartão dentro do outro dobrava os cantos —, mas recuada
+ * pela margem do painel (`px-4 md:px-6`, aplicada no `frame` do `DataTable`),
+ * não mais sangrada até a borda: ela alinha com o título e os filtros das
+ * linhas 1 e 2. Decisão de 2026-10-25; ver DESIGN.md §5, "Tabela".
  *
  * **Linha 1 (50px)** — o nome da tela, as ações secundárias à vista (Importar,
  * Exportar) e o botão de criar, sempre no canto direito. **Linha 2 (46px)** —

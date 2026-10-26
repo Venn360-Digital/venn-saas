@@ -39,7 +39,7 @@ export function Step5Terms({ onFinish, onBack, loading = false }: Step5TermsProp
             </div>
 
             <ScrollArea
-                className="h-72 rounded-lg border border-border bg-card"
+                className="h-[22rem] rounded-lg border border-border bg-card"
                 onScrollCapture={handleScroll}
             >
                 <div className="space-y-5 p-5">

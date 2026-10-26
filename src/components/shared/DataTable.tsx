@@ -119,6 +119,37 @@ const HIDE_BELOW = {
 } as const
 
 /**
+ * `true` só quando a espera já passou de `ms`.
+ *
+ * O esqueleto serve à espera **longa**. Numa consulta que volta em 80 ms ele
+ * aparece e some, e o pisca cinza lê como defeito — foi a queixa do Andre em
+ * 2026-10-26, junto com o `loading.tsx` de página inteira que saiu na mesma
+ * correção. Abaixo do limiar a área fica vazia por um instante, que ninguém
+ * percebe; acima dele o esqueleto aparece e aí é informação, não ruído.
+ */
+function useEsperaLonga(ativo: boolean, ms = 200): boolean {
+    const [passou, setPassou] = React.useState(false)
+
+    React.useEffect(() => {
+        // Nada a agendar fora da espera — e nada a zerar aqui: quem zera é o
+        // cleanup do ciclo anterior. Zerar no corpo do efeito dispara render em
+        // cascata (`react-hooks/set-state-in-effect`).
+        if (!ativo) return
+
+        const t = setTimeout(() => setPassou(true), ms)
+        return () => {
+            clearTimeout(t)
+            setPassou(false)
+        }
+    }, [ativo, ms])
+
+    // `ativo &&` é o que garante o `false` imediato quando a espera acaba: o
+    // reset do cleanup pode chegar um tick depois, e sem isto o esqueleto
+    // piscaria uma vez ao lado dos dados já carregados.
+    return ativo && passou
+}
+
+/**
  * The list pattern, once.
  *
  * Six screens each carried their own table markup, their own empty state, their
@@ -148,6 +179,9 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     /** Coluna e direção da ordenação. `null` = a ordem que veio do servidor. */
     const [sort, setSort] = React.useState<{ id: string; dir: 'asc' | 'desc' } | null>(null)
+
+    /** Só desenha o esqueleto se a espera esticar — ver `useEsperaLonga`. */
+    const mostrarEsqueleto = useEsperaLonga(loading)
 
     const sortedRows = React.useMemo(() => {
         if (!sort) return rows
@@ -198,6 +232,9 @@ export function DataTable<T>({
 
     const body = (() => {
         if (loading) {
+            // Espera curta não desenha nada: o esqueleto só entra depois do
+            // limiar, senão vira pisca. Ver `useEsperaLonga`.
+            if (!mostrarEsqueleto) return <div aria-hidden="true" />
             return (
                 <TableSkeleton
                     rows={skeletonRows}
@@ -236,15 +273,40 @@ export function DataTable<T>({
                         '[&_td]:py-1.5'
                     )}
                 >
-                    {body ? (
-                        <div className="flex min-h-full items-center justify-center p-6">{body}</div>
+                    {/* **Enquanto espera, o corpo não desenha nada.**
+
+                        A causa real do pisca não está aqui: é que as telas de
+                        índice buscam os dados **depois de montar**, então toda
+                        navegação tem duas pinturas — vazia e cheia. Qualquer
+                        coisa posta na primeira (esqueleto, cabeçalho de coluna)
+                        é substituída na segunda, e o olho lê isso como "a tela
+                        se redesenhou". Já tentei esqueleto de linhas e cabeçalho
+                        sozinho; os dois saltam, porque a largura da coluna é
+                        calculada pelo conteúdo e o rodapé de paginação só existe
+                        com dados.
+
+                        Então: nada. O cabeçalho da página e os filtros já estão
+                        na tela; o corpo aparece **uma vez**, pronto. O conserto
+                        de origem é entregar a primeira página de dados pelo
+                        servidor (ver DESIGN.md, Tela 04 — é por isso que o
+                        painel não pisca), e aí esta espera deixa de existir. */}
+                    {loading ? null : rows.length === 0 ? (
+                        <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
                     ) : (
                 <>
                     {/* Table from md up. No scroll container here: `Table`
                         already wraps itself in `overflow-x-auto`, and nesting
-                        two gave the inner one a width it never overflowed. */}
+                        two gave the inner one a width it never overflowed.
+
+                        A margem lateral é a do Dashboard (`px-4 md:px-6`): a
+                        tabela de índice deixou de sangrar até a borda do cartão
+                        e passa a alinhar com o título e os filtros das linhas 1
+                        e 2 — o mesmo recuo em todas as telas de cadastro. Ver
+                        DESIGN.md §5, "Tabela". O `thead` preso herda o recuo
+                        porque fica dentro deste bloco. */}
                     <div
                         className={cn(
+                            'px-4 md:px-6',
                             mobile && 'hidden md:block',
                             density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
                         )}
@@ -402,7 +464,8 @@ export function DataTable<T>({
                 </div>
 
                 {bulk ? (
-                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-2 pl-4 text-background">
+                    // Mesma margem lateral da tabela e do rodapé (padrão Dashboard).
+                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background md:px-6">
                         {bulk}
                     </div>
                 ) : footer ? (

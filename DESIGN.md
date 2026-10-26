@@ -331,10 +331,45 @@ primitivo já aplica melhor.
 carregando (`Skeleton`, nunca "Carregando..."), vazio (`EmptyState` com ícone,
 frase e ação), erro (`ErrorState`) e sucesso. Faltar um é bug, não polimento.
 
+**Mas carregando não desenha conteúdo falso.** Decisão de 2026-10-26, depois de
+o Andre recusar a "sombra" duas vezes na homologação. O esqueleto vale para o
+que **vai mesmo** aparecer; linha fantasma é mentira, e mentira que pisca lê
+como defeito:
+
+- **Tabela de índice:** durante a espera sai **só o cabeçalho real das
+  colunas**, com o corpo vazio. É estrutura verdadeira e não se mexe quando os
+  dados chegam. O esqueleto de seis linhas que havia ali prometia linhas que
+  muitas vezes não existiam — a tela acabava em "Nenhuma etiqueta ainda" — e a
+  massa cinza aparecendo e sumindo a cada navegação foi o que ele chamou de
+  sombra. O `EmptyState` só entra **depois** que a espera acaba, senão pisca
+  "nenhum registro" antes da hora.
+- **Nada de `loading.tsx` cobrindo um grupo de rotas.** Um `loading.tsx` na
+  raiz de `(dashboard)` é um Suspense boundary do grupo inteiro: o Next o exibe
+  **instantaneamente em toda troca de rota**, trocando a tela atual por um
+  fantasma — e, pior, por um fantasma em forma de tabela até em telas que não
+  são tabela. Ele cobria só o carregamento do chunk de JS e cobrava um flash de
+  página inteira por clique. Sem ele, o Next mantém a tela atual até a nova
+  estar pronta, e o cabeçalho da nova (título, guias, filtros) pinta na hora.
+- Quando um esqueleto **for** certo, ele só aparece depois de um limiar
+  (`useEsperaLonga`, 200 ms): consulta que volta em 80 ms não pisca nada.
+
 **Tabela.** Cabeçalho em `text-muted-foreground`; **dado de célula em
 `text-foreground`**, não em muted — o dado é o conteúdo. Coluna numérica à direita
 e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
 tabela vira cartão.
+
+**A margem lateral é a do painel: `px-4 md:px-6`, igual em toda tela de
+cadastro.** Decisão do Andre em 2026-10-25, e ela **substitui** o "Desenho 1"
+da tabela sangrada: a tabela de índice (`DataTable frame`) não vai mais até a
+borda do cartão do shell — o cabeçalho, as linhas, o rodapé de paginação e a
+`BulkBar` recuam pela mesma margem que o Dashboard dá ao seu conteúdo, e então
+a tabela alinha com o título e os filtros das linhas 1 e 2. O limite é o mesmo
+em Pacientes, Especialistas, Procedimentos, Departamentos, Etiquetas, Respostas
+rápidas, Usuários e Negócios em lista — uma margem só, aprendida uma vez. A
+margem mora no `frame` do `DataTable` e no `Pagination`, não em cada tela: um
+índice novo nasce alinhado sem fazer nada. O que **continua** sangrado é o que
+não é tabela de cadastro — o quadro do kanban e o chat (Tela 02), que tratam a
+largura como recurso escasso.
 
 **Quadro: cabeçalho e rodapé param, o quadro corre.** No kanban a região da
 página não rola — ela se divide em quadro e rodapé. O quadro rola por dentro,
@@ -354,6 +389,18 @@ rodapé, onde moram os botões. Medido na guia Agenda da clínica: cartão de 61
 de conteúdo esmagado para 219px, sem barra de rolagem em lugar nenhum e com o
 botão "Novo fechamento" fora do corte. `SettingsCard` já traz o `shrink-0`; um
 cartão escrito à mão dentro de uma guia `fill` precisa do seu.
+
+**Cartão em guia acompanha a resolução, com a margem do painel.** Decisão do
+Andre em 2026-10-25, junto com a margem da tabela: cartão de uma tela de ajuste
+— a guia Assinatura é o caso — **não leva teto de largura** (`max-w-*`). Ele
+cresce até a largura da tela, recuado só pela margem do painel (`px-4 md:px-6`,
+que a `SettingsBand` já aplica), igual ao conteúdo do Dashboard. O teto fixo
+deixava um card de assinatura parado no meio de uma tela larga, com metade
+direita vazia — e o vazio não é respiro, é desperdício que parece bug. Vale para
+o card de valor, o de adicionais e o de cancelar, que mudam de largura juntos.
+A exceção é a **grade de campos de formulário** (Perfil, Conta da Clínica): ali
+o `max-w-4xl` fica, porque campo de texto largo demais é pior de ler, não
+melhor — a regra é do card que **mostra**, não do que **preenche**.
 
 **Cabeçalho em ícone precisa continuar tendo nome.** Coluna estreita pode
 trocar o rótulo por um ícone — é o caso de WhatsApp e do medidor de dias sem
@@ -491,11 +538,14 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    placeholder, fundo `card`), filtros como `FilterPill` que mostram o próprio
    valor, abrem a lista no primeiro clique e somem com ×, Limpar, modo de
    visualização. Nada atrás de um menu `⋯`; sem contador — ele vive no rodapé.
-   A tabela vai sangrada, sem margem nem cartão próprio: cabeçalho de 36px em
-   maiúsculas pequenas preso; só as linhas rolam; rodapé preso com "1–7 de 7 ·
-   Por página · ‹ › " que vira a `BulkBar` ("N selecionados · ações · Excluir ·
-   ×") quando há linha marcada. Lista sem paginação no servidor pagina no
-   cliente — o rodapé existe sempre.
+   A tabela vai sem cartão próprio — a área de conteúdo do shell já é um cartão
+   arredondado —, mas **recuada pela margem do painel** (`px-4 md:px-6`), e não
+   mais sangrada até a borda (ver §5, "Tabela", decisão de 2026-10-25): o
+   cabeçalho de 36px em maiúsculas pequenas preso; só as linhas rolam; rodapé
+   preso com "1–7 de 7 · Por página · ‹ › " que vira a `BulkBar` ("N
+   selecionados · ações · Excluir · ×") quando há linha marcada, na mesma
+   margem. Lista sem paginação no servidor pagina no cliente — o rodapé existe
+   sempre.
 2. **Linha e seleção.** Checkbox por linha e "Selecionar todos" no cabeçalho;
    clicar na linha abre a ficha; o menu ⋮ tem "Abrir ficha" e "Excluir", nunca
    "Editar". Etiquetas: até três lado a lado, da quarta em diante quebra.
