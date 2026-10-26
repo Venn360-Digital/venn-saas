@@ -1,0 +1,12 @@
+import type { PaginaDeIndice } from '@/lib/indice'
+// `import type` — e tem de continuar sendo. Este arquivo é importado pelo
+// componente de cliente, e `pacientes-consulta.ts` importa Prisma e o helper de
+// sessão: um import de VALOR arrastaria código de servidor para o bundle do
+// cliente. Tipo some na compilação; valor não.
+import type { PacienteDaLista } from '@/lib/pacientes-consulta'
+
+export { LIMITE_PADRAO } from '@/lib/indice'
+export type { PacienteDaLista }
+
+/** O que o servidor entregou, pronto para a primeira pintura. */
+export type DadosIniciais = PaginaDeIndice<PacienteDaLista>
