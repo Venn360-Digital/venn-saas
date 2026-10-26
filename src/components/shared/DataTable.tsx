@@ -119,6 +119,37 @@ const HIDE_BELOW = {
 } as const
 
 /**
+ * `true` só quando a espera já passou de `ms`.
+ *
+ * O esqueleto serve à espera **longa**. Numa consulta que volta em 80 ms ele
+ * aparece e some, e o pisca cinza lê como defeito — foi a queixa do Andre em
+ * 2026-10-26, junto com o `loading.tsx` de página inteira que saiu na mesma
+ * correção. Abaixo do limiar a área fica vazia por um instante, que ninguém
+ * percebe; acima dele o esqueleto aparece e aí é informação, não ruído.
+ */
+function useEsperaLonga(ativo: boolean, ms = 200): boolean {
+    const [passou, setPassou] = React.useState(false)
+
+    React.useEffect(() => {
+        // Nada a agendar fora da espera — e nada a zerar aqui: quem zera é o
+        // cleanup do ciclo anterior. Zerar no corpo do efeito dispara render em
+        // cascata (`react-hooks/set-state-in-effect`).
+        if (!ativo) return
+
+        const t = setTimeout(() => setPassou(true), ms)
+        return () => {
+            clearTimeout(t)
+            setPassou(false)
+        }
+    }, [ativo, ms])
+
+    // `ativo &&` é o que garante o `false` imediato quando a espera acaba: o
+    // reset do cleanup pode chegar um tick depois, e sem isto o esqueleto
+    // piscaria uma vez ao lado dos dados já carregados.
+    return ativo && passou
+}
+
+/**
  * The list pattern, once.
  *
  * Six screens each carried their own table markup, their own empty state, their
@@ -148,6 +179,9 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     /** Coluna e direção da ordenação. `null` = a ordem que veio do servidor. */
     const [sort, setSort] = React.useState<{ id: string; dir: 'asc' | 'desc' } | null>(null)
+
+    /** Só desenha o esqueleto se a espera esticar — ver `useEsperaLonga`. */
+    const mostrarEsqueleto = useEsperaLonga(loading)
 
     const sortedRows = React.useMemo(() => {
         if (!sort) return rows
@@ -198,6 +232,9 @@ export function DataTable<T>({
 
     const body = (() => {
         if (loading) {
+            // Espera curta não desenha nada: o esqueleto só entra depois do
+            // limiar, senão vira pisca. Ver `useEsperaLonga`.
+            if (!mostrarEsqueleto) return <div aria-hidden="true" />
             return (
                 <TableSkeleton
                     rows={skeletonRows}
@@ -237,17 +274,20 @@ export function DataTable<T>({
                     )}
                 >
                     {loading ? (
-                        // O esqueleto carrega **no lugar da tabela** — topo e
-                        // largura cheia, como as linhas reais —, nunca
-                        // centralizado. Centralizado ele virava um "rascunho"
-                        // estreito no meio da tela que saltava para a tabela
-                        // inteira quando os dados chegavam, e esse pulo lia como
-                        // bug. O vazio e o erro, abaixo, seguem centralizados:
-                        // ali não há forma de linha a imitar.
-                        <TableSkeleton
-                            rows={skeletonRows}
-                            cols={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
-                        />
+                        // Espera curta não desenha nada — o esqueleto só entra
+                        // depois do limiar (`useEsperaLonga`), senão pisca cinza
+                        // a cada navegação. Quando entra, carrega **no lugar da
+                        // tabela**: topo e largura cheia, como as linhas reais,
+                        // nunca centralizado — centralizado ele virava um
+                        // "rascunho" estreito que saltava para a tabela inteira.
+                        // O vazio e o erro, abaixo, seguem centralizados: ali não
+                        // há forma de linha a imitar.
+                        mostrarEsqueleto ? (
+                            <TableSkeleton
+                                rows={skeletonRows}
+                                cols={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
+                            />
+                        ) : null
                     ) : rows.length === 0 ? (
                         <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
                     ) : (
