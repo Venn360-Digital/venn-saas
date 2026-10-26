@@ -273,22 +273,20 @@ export function DataTable<T>({
                         '[&_td]:py-1.5'
                     )}
                 >
-                    {loading ? (
-                        // Espera curta não desenha nada — o esqueleto só entra
-                        // depois do limiar (`useEsperaLonga`), senão pisca cinza
-                        // a cada navegação. Quando entra, carrega **no lugar da
-                        // tabela**: topo e largura cheia, como as linhas reais,
-                        // nunca centralizado — centralizado ele virava um
-                        // "rascunho" estreito que saltava para a tabela inteira.
-                        // O vazio e o erro, abaixo, seguem centralizados: ali não
-                        // há forma de linha a imitar.
-                        mostrarEsqueleto ? (
-                            <TableSkeleton
-                                rows={skeletonRows}
-                                cols={columns.length + (selectable ? 1 : 0) + (rowActions ? 1 : 0)}
-                            />
-                        ) : null
-                    ) : rows.length === 0 ? (
+                    {/* **Carregando não desenha linha falsa.**
+
+                        A tabela renderiza sempre: durante a espera `sortedRows`
+                        está vazio, então sai só o **cabeçalho real das colunas**
+                        — estrutura verdadeira, que não se move quando os dados
+                        chegam. O esqueleto de seis linhas que havia aqui era
+                        pior que nada: prometia linhas que muitas vezes não
+                        existiam (a tela acabava em "Nenhuma etiqueta ainda"), e
+                        a massa cinza aparecendo e sumindo a cada navegação lia
+                        como defeito. Reportado pelo Andre em 2026-10-26.
+
+                        O vazio só entra quando a espera **acabou** — senão ele
+                        piscaria "nenhum registro" antes de os dados chegarem. */}
+                    {!loading && rows.length === 0 ? (
                         <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
                     ) : (
                 <>
