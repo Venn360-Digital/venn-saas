@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -21,22 +21,59 @@ import { IndexFrame } from '@/components/shared/IndexFrame'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
 
+import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 import type { DadosIniciais, QuickResponseItem } from './dados'
 
 const EMPTY_FORM = { command: '', text: '' }
+
+/**
+ * A chave de recorte desta tela — **constante**, e é o ponto todo.
+ *
+ * O hook só busca quando a chave muda, comparando-a com a que o servidor
+ * serviu. Aqui o recorte do servidor nunca muda: `GET /api/quick-responses`
+ * devolve o workspace inteiro, e busca e paginação são contas em memória sobre
+ * essa lista — não saem daqui, não viram parâmetro de consulta. Então não existe
+ * recorte a renegociar: a chave casa na montagem (nenhuma busca, nenhum
+ * repinte) e segue casando para sempre. As releituras continuam existindo, só
+ * são **explícitas**: `recarregar()` depois de gravar, excluir ou pausar.
+ *
+ * O dia que esta rota paginar, é esta chave que passa a descrever página,
+ * limite e busca — como em Etiquetas.
+ */
+const RECORTE_INTEIRO = 'workspace-inteiro'
 
 export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
-    const [responses, setResponses] = useState<QuickResponseItem[]>(inicial.respostas)
+
+    const buscar = useCallback(async () => {
+        const res = await fetch('/api/quick-responses')
+        if (!res.ok) {
+            toast.error('Não foi possível carregar as respostas rápidas')
+            return null
+        }
+        // A rota devolve o array cru, sem envelope de paginação: o total e a
+        // única página saem do próprio tamanho da lista, que é a verdade aqui.
+        const itens = (await res.json()) as QuickResponseItem[]
+        return { itens, total: itens.length, totalPages: 1 }
+    }, [])
+
+    /**
+     * Semear, guardar a montagem e reler é disciplina igual em todo índice — e
+     * por isso vem de `useIndiceServidor`, não copiada aqui. `total` e
+     * `totalPages` do hook ficam de fora de propósito: os desta tela são
+     * contados sobre o resultado da busca em memória, logo abaixo.
+     */
+    const {
+        itens: responses,
+        carregando: loading,
+        recarregar,
+    } = useIndiceServidor<QuickResponseItem>({ inicial, recorte: RECORTE_INTEIRO, buscar })
+
     const [search, setSearch] = useState('')
     const [page, setPage] = useState(1)
     const [pageSize, setPageSize] = useState(20)
-    // Nasce `false`: a lista inteira já veio do servidor. Era `true` e essa
-    // única linha era metade do pisca — a tela montava anunciando uma espera
-    // que não existe mais.
-    const [loading, setLoading] = useState(false)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [errors, setErrors] = useState<{ command?: string; text?: string }>({})
     const [submitting, setSubmitting] = useState(false)
@@ -51,47 +88,6 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
     usePanelKeys(openId, rowIds, setOpenId)
     const openItem = openId ? responses.find((r) => r.id === openId) ?? null : null
     const [formData, setFormData] = useState(EMPTY_FORM)
-
-    const loadResponses = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await fetch('/api/quick-responses')
-            if (res.ok) {
-                setResponses(await res.json())
-            }
-        } catch (error) {
-            console.error('Error loading responses:', error)
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    /**
-     * A montagem **não** busca: a lista inteira já veio do servidor.
-     *
-     * Buscar aqui refaria a mesma consulta e repintaria a tabela logo depois de
-     * ela aparecer — o defeito inteiro que esta refatoração remove. As
-     * releituras continuam existindo, só deixam de ser automáticas: gravar,
-     * excluir e a ficha ao lado chamam `loadResponses()` de propósito.
-     *
-     * **O marcador não é gasto, só consultado.** A primeira versão era um
-     * `useRef(true)` zerado na primeira execução, e o StrictMode do React
-     * derruba isso na hora: em desenvolvimento o efeito roda duas vezes, a
-     * primeira gastava o guarda e a segunda buscava — `/api/quick-responses`
-     * saía na rede e a tabela repintava. Guardando apenas o fato de que o
-     * servidor já serviu, o efeito é idempotente: rodar dez vezes sem nada
-     * mudar não busca nenhuma vez.
-     *
-     * Aqui nada muda de propósito: esta tela não tem recorte de servidor —
-     * busca e paginação são contas em memória sobre a lista completa. O dia que
-     * tiver, é este marcador que se limpa quando os parâmetros divergirem do
-     * que o servidor serviu (é o que Etiquetas faz, comparando parâmetros).
-     */
-    const servidoPeloServidor = useRef(true)
-    useEffect(() => {
-        if (servidoPeloServidor.current) return
-        void loadResponses()
-    }, [loadResponses])
 
     function openNew() {
         setEditingId(null)
@@ -135,7 +131,7 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
             setErrors({})
             if (again && !editingId) setFormData(EMPTY_FORM)
             else setIsDialogOpen(false)
-            loadResponses()
+            void recarregar()
         } catch {
             toast.error('Não foi possível salvar a resposta')
         } finally {
@@ -153,13 +149,14 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
                 body: JSON.stringify({ isActive: !response.isActive }),
             })
 
-            if (res.ok) {
-                setResponses(responses.map(r =>
-                    r.id === response.id ? { ...r, isActive: !r.isActive } : r
-                ))
-            }
+            // Relê em vez de remendar a lista em mãos: o estado da lista é do
+            // hook, e remendo local é como a tela passa a discordar do banco
+            // (uma gravação concorrente da outra aba desaparecia aqui).
+            if (res.ok) await recarregar()
+            else toast.error('Não foi possível alterar a resposta')
         } catch (error) {
             console.error('Error updating response:', error)
+            toast.error('Não foi possível alterar a resposta')
         }
     }
 
@@ -172,8 +169,8 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
                 return
             }
 
-            setResponses(responses.filter(r => r.id !== id))
             toast.success('Resposta removida')
+            await recarregar()
         } catch (error) {
             console.error('Error deleting response:', error)
             toast.error('Erro ao remover resposta')
@@ -185,7 +182,7 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
         if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'resposta' : 'respostas'} excluída${ok === 1 ? '' : 's'}`)
         if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídas`)
         setSelectedIds([])
-        await loadResponses()
+        await recarregar()
     }
 
     // A API devolve a lista inteira; a busca e a paginação são daqui. A
@@ -252,7 +249,7 @@ export function RespostasRapidasClient({ inicial }: { inicial: DadosIniciais }) 
                         canEdit={canEdit}
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
-                        onChanged={() => void loadResponses()}
+                        onChanged={() => void recarregar()}
                         onEditFull={(id) => { const x = responses.find((i) => i.id === id); if (x?.id) openEdit({ ...x, id: x.id }) }}
                         onDelete={(id) => { const r = responses.find((x) => x.id === id); if (r) setDeleting(r) }}
                     />

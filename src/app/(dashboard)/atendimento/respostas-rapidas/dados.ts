@@ -1,3 +1,5 @@
+import type { PaginaDeIndice } from '@/lib/indice'
+
 /**
  * O contrato entre a casca de servidor e o componente de cliente.
  *
@@ -8,6 +10,10 @@
  * dentro do Prisma, longe de onde foi escrita. Tipo pode atravessar (some na
  * compilação); **valor não**. Então tudo que os dois lados compartilham fica
  * aqui, num módulo neutro que cada um importa.
+ *
+ * A forma da página vem de `@/lib/indice`, o módulo **neutro** — nunca de
+ * `indice-servidor.ts`, que importa `currentMembership` e `redirect` e
+ * arrastaria código de servidor para o bundle do cliente.
  */
 
 export interface QuickResponseItem {
@@ -18,19 +24,13 @@ export interface QuickResponseItem {
 }
 
 /**
- * O que o servidor já entregou, pronto para a primeira pintura.
+ * O que o servidor entregou, pronto para a primeira pintura.
  *
- * Diferente de Etiquetas, aqui **não há paginação no servidor**: `GET
- * /api/quick-responses` devolve a lista inteira do workspace e quem recorta é o
- * cliente — busca e paginação são contas feitas em memória, sobre este mesmo
- * array. Por isso o contrato é só a lista: inventar `total`/`totalPages` aqui
- * seria descrever um recorte que não existe, e os dois lados discordariam na
- * primeira troca de página.
- *
- * É isto que acaba com o pisca: a tela nasce com as linhas em mãos, então não
- * existe o par "vazio, depois cheio" que fazia a tabela ser desenhada duas
- * vezes a cada navegação.
+ * É a mesma forma dos índices paginados mesmo aqui, onde **não há paginação no
+ * servidor**: `listaInteira` devolve `total` = tamanho da lista e `totalPages` =
+ * 1, e o cliente semeia igual nos dois regimes. Antes isto era uma interface
+ * própria com só a lista dentro, e era essa divergência que obrigava o
+ * componente a implementar o padrão à mão. Quem recorta continua sendo o
+ * cliente: busca e paginação são contas em memória sobre este mesmo array.
  */
-export interface DadosIniciais {
-    respostas: QuickResponseItem[]
-}
+export type DadosIniciais = PaginaDeIndice<QuickResponseItem>

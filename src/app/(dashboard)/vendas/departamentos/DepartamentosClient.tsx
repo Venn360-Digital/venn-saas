@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -20,32 +20,66 @@ import { FormField } from '@/components/shared/FormField'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 
+import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 import { LIMITE_PADRAO, type DadosIniciais, type DepartmentItem } from './dados'
-
-interface PaginationState {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-}
 
 export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
 
-    const [departments, setDepartments] = useState<DepartmentItem[]>(inicial.departments)
-    // Nasce `false`: os dados da primeira página já vieram do servidor. Era
-    // `true` e essa única linha era metade do pisca — a tela montava anunciando
-    // espera que não existia mais.
-    const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
+    // O valor digitado e o valor que consulta são separados: o `search` acompanha
+    // cada tecla, e só o `query` — atrasado — entra no recorte.
     const [query, setQuery] = useState('')
-    const [pagination, setPagination] = useState<PaginationState>({
-        page: 1,
-        limit: LIMITE_PADRAO,
-        total: inicial.total,
-        totalPages: inicial.totalPages,
+    /**
+     * As **entradas** do recorte são da tela; o **resultado** é do hook.
+     *
+     * Página, limite e busca só a tela sabe. Semear com o que o servidor
+     * mandou, não buscar na montagem e reler quando o recorte muda é disciplina
+     * igual em todo índice — e por isso mora em `useIndiceServidor`, não
+     * copiada aqui.
+     */
+    const [page, setPage] = useState(1)
+    const [limit, setLimit] = useState(LIMITE_PADRAO)
+
+    const buscar = useCallback(async () => {
+        try {
+            const params = new URLSearchParams({
+                page: String(page),
+                limit: String(limit),
+                search: query,
+            })
+            const res = await fetch(`/api/departments?${params}`)
+            if (!res.ok) {
+                toast.error('Não foi possível carregar os departamentos')
+                return null
+            }
+            const data = await res.json()
+            return {
+                itens: data.data as DepartmentItem[],
+                total: data.pagination.total as number,
+                totalPages: data.pagination.totalPages as number,
+            }
+        } catch (error) {
+            console.error('[DEPARTAMENTOS] buscar', error)
+            toast.error('Não foi possível carregar os departamentos')
+            return null
+        }
+    }, [page, limit, query])
+
+    const {
+        itens: departments,
+        total,
+        totalPages,
+        carregando: loading,
+        recarregar,
+    } = useIndiceServidor<DepartmentItem>({
+        inicial,
+        // Na primeira renderização a chave descreve o mesmo recorte que o
+        // servidor serviu — é esse casamento que faz a montagem não buscar.
+        recorte: `${page}|${limit}|${query}`,
+        buscar,
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -66,60 +100,10 @@ export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
     useEffect(() => {
         const timer = setTimeout(() => {
             setQuery(search)
-            setPagination((prev) => ({ ...prev, page: 1 }))
+            setPage(1)
         }, 300)
         return () => clearTimeout(timer)
     }, [search])
-
-    const load = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams({
-                page: pagination.page.toString(),
-                limit: pagination.limit.toString(),
-                search: query,
-            })
-            const res = await fetch(`/api/departments?${params}`)
-            if (res.ok) {
-                const data = await res.json()
-                setDepartments(data.data)
-                setPagination((prev) => ({
-                    ...prev,
-                    total: data.pagination.total,
-                    totalPages: data.pagination.totalPages,
-                }))
-            }
-        } catch (error) {
-            console.error('[DEPARTAMENTOS] load', error)
-            toast.error('Não foi possível carregar os departamentos')
-        } finally {
-            setLoading(false)
-        }
-    }, [pagination.page, pagination.limit, query])
-
-    /**
-     * A montagem **não** busca: a primeira página já veio do servidor.
-     *
-     * Buscar aqui refaria a mesma consulta e repintaria a tabela logo depois de
-     * ela aparecer — o defeito inteiro que esta refatoração remove.
-     *
-     * **O guarda compara parâmetros, não conta visitas.** Um `useRef(true)`
-     * gasto na primeira execução não serve: o StrictMode do React roda o efeito
-     * duas vezes em desenvolvimento, a primeira gastaria o guarda e a segunda
-     * buscaria. Guardando **o recorte que o servidor serviu** o efeito é
-     * idempotente: rodar dez vezes com os mesmos parâmetros não busca nenhuma.
-     *
-     * O marcador só é limpo quando os parâmetros mudam de verdade, então voltar
-     * à página 1 depois de ir à 2 busca de novo — o que é certo, porque nesse
-     * meio tempo a lista pode ter mudado.
-     */
-    const servidoPeloServidor = useRef(`1|${LIMITE_PADRAO}|`)
-    useEffect(() => {
-        const atuais = `${pagination.page}|${pagination.limit}|${query}`
-        if (servidoPeloServidor.current === atuais) return
-        servidoPeloServidor.current = ''
-        load()
-    }, [pagination.page, pagination.limit, query, load])
 
     function openNew() {
         setEditingId(null)
@@ -155,7 +139,7 @@ export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
                 setErrors({})
                 if (again && !editingId) setFormData({ name: '', description: '' })
                 else setIsDialogOpen(false)
-                load()
+                void recarregar()
             } else {
                 const error = await res.json().catch(() => ({}))
                 setErrors({ name: error.error ?? 'Não foi possível salvar o departamento' })
@@ -173,7 +157,7 @@ export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
             const res = await fetch(`/api/departments/${deleting.id}`, { method: 'DELETE' })
             if (res.ok) {
                 toast.success('Departamento excluído')
-                load()
+                void recarregar()
             } else {
                 toast.error('Não foi possível excluir o departamento')
             }
@@ -187,7 +171,7 @@ export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
         if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'departamento' : 'departamentos'} excluído${ok === 1 ? '' : 's'}`)
         if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
         setSelectedIds([])
-        await load()
+        await recarregar()
     }
 
     const columns: Column<DepartmentItem>[] = [
@@ -223,7 +207,7 @@ export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
                         canEdit={canEdit}
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
-                        onChanged={() => void load()}
+                        onChanged={() => void recarregar()}
                         onEditFull={(id) => { const x = departments.find((i) => i.id === id); if (x) openEdit(x) }}
                         onDelete={(id) => { const d = departments.find((x) => x.id === id); if (d) setDeleting(d) }}
                     />
@@ -300,14 +284,18 @@ export function DepartamentosClient({ inicial }: { inicial: DadosIniciais }) {
                     }
                     footer={
                         <Pagination
-                            page={pagination.page}
-                            totalPages={pagination.totalPages}
-                            total={pagination.total}
-                            limit={pagination.limit}
-                            onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
-                            onLimitChange={(limit) =>
-                                setPagination((p) => ({ ...p, limit, page: 1 }))
-                            }
+                            page={page}
+                            totalPages={totalPages}
+                            total={total}
+                            limit={limit}
+                            onPageChange={setPage}
+                            onLimitChange={(novo) => {
+                                // Trocar o tamanho da página volta para a
+                                // primeira: a página 3 de um recorte de 20 não
+                                // existe num recorte de 100.
+                                setLimit(novo)
+                                setPage(1)
+                            }}
                         />
                     }
                 />

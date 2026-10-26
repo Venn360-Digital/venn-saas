@@ -1,3 +1,5 @@
+import type { PaginaDeIndice } from '@/lib/indice'
+
 /**
  * O contrato entre a casca de servidor e o componente de cliente.
  *
@@ -10,6 +12,11 @@
  *
  * Tipo pode atravessar (some na compilação); **valor não**. Então tudo que os
  * dois lados compartilham fica aqui, num módulo neutro que cada um importa.
+ *
+ * A forma da página vem de `@/lib/indice`, o módulo **neutro** — não de
+ * `indice-servidor.ts`, que importa `currentMembership` e `redirect` e
+ * arrastaria código de servidor para o bundle do cliente. Este arquivo é lido
+ * pelos dois lados, então só pode puxar do lado neutro.
  */
 
 /**
@@ -57,9 +64,13 @@ export interface Especialista {
  *
  * É isto que acaba com o pisca: a tela nasce com as linhas em mãos, então não
  * existe o par "vazio, depois cheio" que fazia a tabela ser desenhada duas
- * vezes a cada navegação. Não há `total` nem `totalPages` aqui porque a
- * paginação desta tela é do cliente — ele conta a partir da própria lista.
+ * vezes a cada navegação.
+ *
+ * É a **mesma forma** de Etiquetas, que pagina no servidor, mesmo esta tela
+ * recebendo a lista inteira: `listaInteira` preenche `total` com o tamanho da
+ * lista e `totalPages` com 1. O cliente semeia igual nos dois regimes, e o dia
+ * em que esta tela passar a paginar no servidor o componente não muda — quem
+ * conta hoje a partir da lista em memória é a paginação de cliente, não o
+ * contrato.
  */
-export interface DadosIniciais {
-    especialistas: Especialista[]
-}
+export type DadosIniciais = PaginaDeIndice<Especialista>

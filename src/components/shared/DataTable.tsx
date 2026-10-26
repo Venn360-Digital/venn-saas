@@ -312,8 +312,16 @@ export function DataTable<T>({
                         de origem é entregar a primeira página de dados pelo
                         servidor (ver DESIGN.md, Tela 04 — é por isso que o
                         painel não pisca), e aí esta espera deixa de existir. */}
-                    {loading ? null : rows.length === 0 ? (
-                        <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
+                    {rows.length === 0 ? (
+                        // Sem linhas há dois casos diferentes, e só um desenha
+                        // alguma coisa: **esperando a primeira página** (nada a
+                        // mostrar ainda — fica em branco) e **vazio de
+                        // verdade** (aí sim o `EmptyState`). Desenhar o vazio
+                        // durante a espera piscaria "nenhum registro" antes de
+                        // os dados chegarem.
+                        loading ? null : (
+                            <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
+                        )
                     ) : (
                 <>
                     {/* Table from md up. No scroll container here: `Table`

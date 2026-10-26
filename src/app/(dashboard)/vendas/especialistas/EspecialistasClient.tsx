@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -23,6 +23,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { normalizeSearch } from '@/lib/search'
 import { PICKER_RAMP } from '@/lib/palette'
 
+import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 import { INCLUIR_INATIVOS, type DadosIniciais, type Especialista } from './dados'
 
 /**
@@ -49,12 +50,57 @@ const CORES = PICKER_RAMP
 export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const { canEdit } = usePermissions()
 
-    const [itens, setItens] = useState<Especialista[]>(inicial.especialistas)
-    // Nasce `false`: a lista já veio do servidor. Era `true` e essa única linha
-    // era metade do pisca — a tela montava anunciando espera que não existia
-    // mais, e a tabela trocava de esqueleto para linhas sem nenhum dado novo.
-    const [loading, setLoading] = useState(false)
     const [busca, setBusca] = useState('')
+
+    /**
+     * A releitura da lista inteira — o `all` é o único parâmetro que a rota lê.
+     *
+     * Devolve o **mesmo envelope** das telas paginadas porque o hook é o mesmo:
+     * a rota responde um array cru, e `total`/`totalPages` são preenchidos aqui
+     * exatamente como `listaInteira` faz do outro lado. Quem conta de verdade é
+     * a paginação de cliente, mais abaixo, a partir do que a busca deixou
+     * visível — por isso nem `total` nem `totalPages` são lidos do hook.
+     *
+     * Erro devolve `null`: é assim que o hook sabe não mexer no que está na
+     * tela. Sobrescrever com lista vazia apagaria linhas boas por causa de um
+     * 500.
+     */
+    const buscar = useCallback(async () => {
+        const res = await fetch(`/api/specialists?all=${INCLUIR_INATIVOS}`)
+        if (!res.ok) {
+            toast.error('Não foi possível carregar os especialistas')
+            return null
+        }
+        const itens = (await res.json()) as Especialista[]
+        return { itens, total: itens.length, totalPages: 1 }
+    }, [])
+
+    /**
+     * Semear com o que o servidor mandou, **não buscar na montagem** e reler
+     * quando o recorte muda é disciplina igual em todo índice — e por isso mora
+     * em `useIndiceServidor`, não copiada aqui. O guarda que impede a busca da
+     * montagem era a peça mais fácil de errar do padrão: comparar o recorte (e
+     * não contar visitas num `useRef`, que o StrictMode gasta na primeira das
+     * duas execuções) é o que o hook já faz certo uma vez só.
+     */
+    const {
+        itens,
+        carregando: loading,
+        recarregar,
+    } = useIndiceServidor<Especialista>({
+        inicial,
+        /**
+         * O recorte desta tela é só o `all`: não há paginação nem busca no
+         * servidor, o filtro de texto e as páginas recortam o que já está em
+         * memória. Na primeira renderização a chave descreve o **mesmo** recorte
+         * que o servidor serviu — é esse casamento que faz a montagem não
+         * buscar. Hoje ela nunca muda; está escrita assim para que um futuro
+         * seletor de inativos entre pela chave e volte a buscar sozinho, em vez
+         * de precisar de um segundo mecanismo.
+         */
+        recorte: `all=${INCLUIR_INATIVOS}`,
+        buscar,
+    })
 
     const [dialogoAberto, setDialogoAberto] = useState(false)
     /** A ficha aberta. Clicar na linha abre ela, não a grade (Tela 01). */
@@ -77,48 +123,6 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
 
     const [excluindo, setExcluindo] = useState<Especialista | null>(null)
     const [janelasDe, setJanelasDe] = useState<string | null>(null)
-
-    const carregar = useCallback(async () => {
-        setLoading(true)
-        try {
-            // `all=true`: o cadastro mostra também quem foi desativado, que é
-            // onde a pessoa vai para reativar. A constante é a mesma que o
-            // servidor leu para montar a primeira pintura.
-            const res = await fetch(`/api/specialists?all=${INCLUIR_INATIVOS}`)
-            if (res.ok) setItens(await res.json())
-        } catch {
-            toast.error('Não foi possível carregar os especialistas')
-        } finally {
-            setLoading(false)
-        }
-    }, [])
-
-    /**
-     * A montagem **não** busca: a lista já veio do servidor.
-     *
-     * Buscar aqui refaria a mesma consulta e repintaria a tabela logo depois de
-     * ela aparecer — o defeito inteiro que esta refatoração remove.
-     *
-     * **O guarda compara o recorte, não conta visitas.** Um `useRef(true)`
-     * gasto na primeira execução não resolve: em desenvolvimento o StrictMode
-     * roda o efeito duas vezes, a primeira gasta o guarda e a segunda busca —
-     * o `/api/specialists` sai na rede e a tabela repinta. Guardando **o
-     * recorte que o servidor serviu**, o efeito fica idempotente: rodar N vezes
-     * com o mesmo recorte não dispara nenhuma busca.
-     *
-     * O recorte desta tela é só o `all` — não há paginação nem busca no
-     * servidor, o filtro de texto e as páginas são recortes do que já está em
-     * memória. Hoje ele nunca muda, então a comparação sempre casa; está escrita
-     * assim para que um futuro seletor de inativos entre pela chave e volte a
-     * buscar sozinho, em vez de precisar de um segundo mecanismo.
-     */
-    const servidoPeloServidor = useRef(`all=${INCLUIR_INATIVOS}`)
-    useEffect(() => {
-        const atual = `all=${INCLUIR_INATIVOS}`
-        if (servidoPeloServidor.current === atual) return
-        servidoPeloServidor.current = ''
-        void carregar()
-    }, [carregar])
 
     const visiveis = busca.trim()
         ? itens.filter((e) =>
@@ -169,7 +173,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             } else {
                 setDialogoAberto(false)
             }
-            await carregar()
+            await recarregar()
         } finally {
             setSalvando(false)
         }
@@ -185,7 +189,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         }
         // Com agenda feita, a API desativa em vez de excluir — e diz por quê.
         toast.success(corpo.deactivated ? corpo.message : 'Especialista excluído')
-        await carregar()
+        await recarregar()
     }
 
     const totalPaginas = Math.max(1, Math.ceil(visiveis.length / porPagina))
@@ -212,7 +216,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             toast.error(`${marcados.length - ok} não puderam ser excluídos`)
         }
         setMarcados([])
-        await carregar()
+        await recarregar()
     }
 
     const colunas: Column<Especialista>[] = [
@@ -268,7 +272,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                             canEdit={canEdit}
                             onClose={() => setFichaDe(null)}
                             {...panelNeighbours(fichaDe, ids, setFichaDe)}
-                            onChanged={() => void carregar()}
+                            onChanged={() => void recarregar()}
                             onEditFull={(id) => {
                                 const x = itens.find((i) => i.id === id)
                                 if (x) abrirEdicao(x)
@@ -446,7 +450,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
                 open={janelasDe !== null}
                 onOpenChange={(a) => !a && setJanelasDe(null)}
                 specialistId={janelasDe}
-                onSaved={() => void carregar()}
+                onSaved={() => void recarregar()}
             />
         </>
     )

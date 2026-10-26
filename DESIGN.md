@@ -403,6 +403,34 @@ Duas armadilhas, as duas já pagas:
   recorte que o servidor serviu** e só é limpo quando os parâmetros mudam de
   verdade — assim rodar o efeito N vezes sem mudança não dispara nada.
 
+**Índice novo nasce na peça, não na cópia.** As duas armadilhas acima foram
+pagas uma vez e **não se reescreve** o padrão à mão: cinco cópias dele foi como
+o guarda divergiu, e a sexta tela divergiria de novo. O mecanismo mora em três
+arquivos e uma tela os **usa**:
+
+- `lib/indice.ts` — o neutro (`LIMITE_PADRAO`, `PaginaDeIndice`). Separado de
+  propósito: o arquivo de cada tela, que o componente de cliente importa, não
+  pode puxar valor de `indice-servidor.ts` sem arrastar `currentMembership` e
+  `redirect` para o bundle do cliente.
+- `lib/indice-servidor.ts` — `membroOuLogin`, `primeiraPagina` (o `findMany` +
+  `count` numa ida só e a conta de páginas) e `listaInteira`, para o índice que
+  não pagina no servidor. Os dois devolvem a **mesma forma**, então trocar uma
+  tela de regime depois não mexe no componente.
+- `hooks/useIndiceServidor.ts` — semeia com o que o servidor mandou, carrega o
+  guarda e relê quando o recorte muda.
+
+A divisão é a regra: **a tela é dona das entradas** (página, limite, busca,
+filtros) **e da consulta** — só ela sabe o que lista; **a peça é dona da
+disciplina**. Quem escrever um índice novo declara a consulta e chama a peça.
+
+**E relê sem apagar o que já está na tela.** Com linhas em mão, `loading`
+significa *atualizando*, não *vazio*: o `DataTable` mantém as linhas atuais
+durante a releitura e só fica em branco na espera da **primeira** página. Sem
+isso, gravar, excluir ou virar um interruptor — que releem — faria a tabela
+sumir e voltar, que é o mesmo pisca entrando por outra porta. Medido na tela de
+Respostas rápidas: 14 amostras durante a releitura de um interruptor, todas com
+a lista inteira na tela.
+
 **Quadro: cabeçalho e rodapé param, o quadro corre.** No kanban a região da
 página não rola — ela se divide em quadro e rodapé. O quadro rola por dentro,
 nos dois eixos, e a faixa de Ganho e Perdido fica no rodapé **mesmo sem cartão

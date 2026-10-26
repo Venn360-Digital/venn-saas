@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -31,14 +31,8 @@ import { formatCents, onlyDigits, parseCents } from '@/lib/masks'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { usePermissions } from '@/hooks/usePermissions'
 
+import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 import { CATEGORIA_PADRAO, LIMITE_PADRAO, type DadosIniciais, type ProductItem } from './dados'
-
-interface PaginationState {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-}
 
 const CATEGORIES = PRODUCT_CATEGORIES.map((c) => ({ id: c.id as string, label: c.label }))
 
@@ -56,19 +50,63 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
 
-    const [products, setProducts] = useState<ProductItem[]>(inicial.products)
-    // Nasce `false`: os dados da primeira página já vieram do servidor. Era
-    // `true` e essa única linha era metade do pisca — a tela montava anunciando
-    // espera que não existia mais.
-    const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
     const [query, setQuery] = useState('')
+    /**
+     * As **entradas** do recorte são da tela; o **resultado** é do hook.
+     *
+     * Página, limite, busca e categoria só a tela sabe. Semear com o que o
+     * servidor mandou, não buscar na montagem e reler quando o recorte muda é
+     * disciplina igual em todo índice — e por isso mora em `useIndiceServidor`,
+     * não copiada aqui.
+     */
     const [categoryFilter, setCategoryFilter] = useState(CATEGORIA_PADRAO)
-    const [pagination, setPagination] = useState<PaginationState>({
-        page: 1,
-        limit: LIMITE_PADRAO,
-        total: inicial.total,
-        totalPages: inicial.totalPages,
+    const [page, setPage] = useState(1)
+    const [limit, setLimit] = useState(LIMITE_PADRAO)
+
+    const buscar = useCallback(async () => {
+        const params = new URLSearchParams({
+            page: String(page),
+            limit: String(limit),
+            search: query,
+            category: categoryFilter,
+        })
+        try {
+            const res = await fetch(`/api/products?${params}`)
+            if (!res.ok) {
+                toast.error('Não foi possível carregar os produtos e serviços')
+                return null
+            }
+            const data = await res.json()
+            return {
+                itens: data.data as ProductItem[],
+                total: data.pagination.total as number,
+                totalPages: data.pagination.totalPages as number,
+            }
+        } catch (error) {
+            // A rede falhando chega aqui, não no `!res.ok`. Devolver `null` em
+            // vez de propagar mantém a lista que está na tela: a alternativa é
+            // esvaziar a tabela por causa de um túnel que caiu.
+            console.error('[PRODUTOS] buscar', error)
+            toast.error('Não foi possível carregar os produtos e serviços')
+            return null
+        }
+    }, [page, limit, query, categoryFilter])
+
+    const {
+        itens: products,
+        total,
+        totalPages,
+        carregando: loading,
+        recarregar,
+    } = useIndiceServidor<ProductItem>({
+        inicial,
+        // Na primeira renderização a chave descreve o mesmo recorte que o
+        // servidor serviu — é esse casamento que faz a montagem não buscar. A
+        // categoria entra porque entra na consulta: sem ela, sair de "Todas" e
+        // voltar não buscaria, e a lista ficaria presa na categoria anterior.
+        recorte: `${page}|${limit}|${query}|${categoryFilter}`,
+        buscar,
     })
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -99,63 +137,10 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
     useEffect(() => {
         const timer = setTimeout(() => {
             setQuery(search)
-            setPagination((prev) => ({ ...prev, page: 1 }))
+            setPage(1)
         }, 300)
         return () => clearTimeout(timer)
     }, [search])
-
-    const load = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams({
-                page: pagination.page.toString(),
-                limit: pagination.limit.toString(),
-                search: query,
-                category: categoryFilter,
-            })
-            const res = await fetch(`/api/products?${params}`)
-            if (res.ok) {
-                const data = await res.json()
-                setProducts(data.data)
-                setPagination((prev) => ({
-                    ...prev,
-                    total: data.pagination.total,
-                    totalPages: data.pagination.totalPages,
-                }))
-            }
-        } catch (error) {
-            console.error('[PRODUTOS] load', error)
-            toast.error('Não foi possível carregar os produtos e serviços')
-        } finally {
-            setLoading(false)
-        }
-    }, [pagination.page, pagination.limit, query, categoryFilter])
-
-    /**
-     * A montagem **não** busca: a primeira página já veio do servidor.
-     *
-     * Buscar aqui refaria a mesma consulta e repintaria a tabela logo depois de
-     * ela aparecer — o defeito inteiro que esta refatoração remove.
-     *
-     * **O guarda compara parâmetros, não conta visitas.** Um `useRef(true)`
-     * gasto na primeira execução não serve: o StrictMode roda o efeito duas
-     * vezes em desenvolvimento, a primeira gastaria o guarda e a segunda
-     * buscaria. Guardando **o recorte que o servidor serviu** o efeito é
-     * idempotente: rodar dez vezes com os mesmos parâmetros não busca nenhuma.
-     *
-     * A categoria entra no marcador porque entra na consulta — sem ela, sair de
-     * "Todas" e voltar não buscaria, e a lista ficaria presa na categoria
-     * anterior. O marcador só é limpo quando os parâmetros mudam de verdade,
-     * então voltar à página 1 depois de ir à 2 busca de novo — o que é certo,
-     * porque nesse meio tempo o catálogo pode ter mudado.
-     */
-    const servidoPeloServidor = useRef(`1|${LIMITE_PADRAO}||${CATEGORIA_PADRAO}`)
-    useEffect(() => {
-        const atuais = `${pagination.page}|${pagination.limit}|${query}|${categoryFilter}`
-        if (servidoPeloServidor.current === atuais) return
-        servidoPeloServidor.current = ''
-        load()
-    }, [pagination.page, pagination.limit, query, categoryFilter, load])
 
     function openNew() {
         setEditingId(null)
@@ -204,7 +189,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                 setErrors({})
                 if (again && !editingId) setFormData({ name: '', description: '', sku: '', category: 'service', priceCents: '', group: '', durationMinutes: '' })
                 else setIsDialogOpen(false)
-                load()
+                void recarregar()
             } else {
                 const error = await res.json().catch(() => ({}))
                 setErrors({ name: error.error ?? 'Não foi possível salvar' })
@@ -222,7 +207,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
             const res = await fetch(`/api/products/${deleting.id}`, { method: 'DELETE' })
             if (res.ok) {
                 toast.success('Item excluído')
-                load()
+                void recarregar()
             } else {
                 toast.error('Não foi possível excluir')
             }
@@ -236,7 +221,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
         if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'item' : 'itens'} excluído${ok === 1 ? '' : 's'}`)
         if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
         setSelectedIds([])
-        await load()
+        await recarregar()
     }
 
     const columns: Column<ProductItem>[] = [
@@ -312,7 +297,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                         canEdit={canEdit}
                         onClose={() => setOpenId(null)}
                         {...panelNeighbours(openId, rowIds, setOpenId)}
-                        onChanged={() => void load()}
+                        onChanged={() => void recarregar()}
                         onEditFull={(id) => { const x = products.find((i) => i.id === id); if (x) openEdit(x) }}
                         onDelete={(id) => { const p = products.find((x) => x.id === id); if (p) setDeleting(p) }}
                     />
@@ -333,15 +318,15 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                 onSearchChange={setSearch}
                 searchLabel="Buscar por nome ou SKU"
                 hasFilters={categoryFilter !== 'all'}
-                onClearFilters={() => { setCategoryFilter('all'); setPagination((p) => ({ ...p, page: 1 })) }}
+                onClearFilters={() => { setCategoryFilter('all'); setPage(1) }}
                 filters={
                     <FilterPill
                         label="Categoria"
                         value={categoryFilter === 'all' ? null : (CATEGORIES.find((c) => c.id === categoryFilter)?.label ?? categoryFilter)}
-                        onClear={() => { setCategoryFilter('all'); setPagination((p) => ({ ...p, page: 1 })) }}
+                        onClear={() => { setCategoryFilter('all'); setPage(1) }}
                         options={[{ value: 'all', label: 'Todas' }, ...CATEGORIES.map((c) => ({ value: c.id, label: c.label }))]}
                         selected={categoryFilter}
-                        onSelect={(v) => { setCategoryFilter(v); setPagination((p) => ({ ...p, page: 1 })) }}
+                        onSelect={(v) => { setCategoryFilter(v); setPage(1) }}
                     />
                 }
             >
@@ -405,14 +390,18 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                     }
                     footer={
                         <Pagination
-                            page={pagination.page}
-                            totalPages={pagination.totalPages}
-                            total={pagination.total}
-                            limit={pagination.limit}
-                            onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
-                            onLimitChange={(limit) =>
-                                setPagination((p) => ({ ...p, limit, page: 1 }))
-                            }
+                            page={page}
+                            totalPages={totalPages}
+                            total={total}
+                            limit={limit}
+                            onPageChange={setPage}
+                            onLimitChange={(novo) => {
+                                // Trocar o tamanho da página volta para a
+                                // primeira: a página 3 de um recorte de 20 não
+                                // existe num recorte de 100.
+                                setLimit(novo)
+                                setPage(1)
+                            }}
                         />
                     }
                 />
