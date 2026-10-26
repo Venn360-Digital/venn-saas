@@ -331,6 +331,28 @@ primitivo já aplica melhor.
 carregando (`Skeleton`, nunca "Carregando..."), vazio (`EmptyState` com ícone,
 frase e ação), erro (`ErrorState`) e sucesso. Faltar um é bug, não polimento.
 
+**Mas carregando não desenha conteúdo falso.** Decisão de 2026-10-26, depois de
+o Andre recusar a "sombra" duas vezes na homologação. O esqueleto vale para o
+que **vai mesmo** aparecer; linha fantasma é mentira, e mentira que pisca lê
+como defeito:
+
+- **Tabela de índice:** durante a espera sai **só o cabeçalho real das
+  colunas**, com o corpo vazio. É estrutura verdadeira e não se mexe quando os
+  dados chegam. O esqueleto de seis linhas que havia ali prometia linhas que
+  muitas vezes não existiam — a tela acabava em "Nenhuma etiqueta ainda" — e a
+  massa cinza aparecendo e sumindo a cada navegação foi o que ele chamou de
+  sombra. O `EmptyState` só entra **depois** que a espera acaba, senão pisca
+  "nenhum registro" antes da hora.
+- **Nada de `loading.tsx` cobrindo um grupo de rotas.** Um `loading.tsx` na
+  raiz de `(dashboard)` é um Suspense boundary do grupo inteiro: o Next o exibe
+  **instantaneamente em toda troca de rota**, trocando a tela atual por um
+  fantasma — e, pior, por um fantasma em forma de tabela até em telas que não
+  são tabela. Ele cobria só o carregamento do chunk de JS e cobrava um flash de
+  página inteira por clique. Sem ele, o Next mantém a tela atual até a nova
+  estar pronta, e o cabeçalho da nova (título, guias, filtros) pinta na hora.
+- Quando um esqueleto **for** certo, ele só aparece depois de um limiar
+  (`useEsperaLonga`, 200 ms): consulta que volta em 80 ms não pisca nada.
+
 **Tabela.** Cabeçalho em `text-muted-foreground`; **dado de célula em
 `text-foreground`**, não em muted — o dado é o conteúdo. Coluna numérica à direita
 e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
