@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pré-visualização de E-mails Transacionais — OdontoBox360</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            color: #0b1f3b;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .email-section {
+            background: #fff;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .email-meta {
+            padding: 20px 24px;
+            background: #f8fbfd;
+            border-bottom: 1px solid #dce7ec;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            font-size: 13px;
+        }
+        .email-meta div {
+            display: flex;
+            flex-direction: column;
+        }
+        .email-meta label {
+            color: #4a5f73;
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+        .email-meta span {
+            color: #0b1f3b;
+        }
+        .email-meta .tone-neutral {
+            background: #d1f1ed;
+            color: #01524a;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            width: fit-content;
+        }
+        .email-meta .tone-urgent {
+            background: #fadcda;
+            color: #8b0000;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            width: fit-content;
+        }
+        .email-preview {
+            padding: 20px;
+            background: #f8fbfd;
+            min-height: 400px;
+        }
+        .email-preview iframe {
+            border: none;
+            width: 100%;
+            display: block;
+            background: #fff;
+            border-radius: 4px;
+        }
+        .email-title {
+            padding: 20px 24px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #0b1f3b;
+            border-bottom: 1px solid #dce7ec;
+        }
+        .category {
+            margin-bottom: 40px;
+        }
+        .category-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #0b1f3b;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dce7ec;
+        }
+        .footer-note {
+            background: #fffaed;
+            padding: 16px;
+            border-left: 4px solid #f59e0b;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #92400e;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 Pré-visualização de E-mails Transacionais</h1>
+            <p>OdontoBox360 • 8 tipos ativos • Renderização para aprovação visual</p>
+        </div>
+
+        <!-- AUTENTICAÇÃO -->
+        <div class="category">
+            <h2 class="category-title">1️⃣ Autenticação</h2>
+
+            <div class="email-section">
+                <div class="email-title">Reset de Senha</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Solicitação de reset</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>Usuário</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-neutral">Neutro</span>
+                    </div>
+                    <div>
+                        <label>Criticidade</label>
+                        <span style="color: #c62828;">🔴 Alta</span>
+                    </div>
+                </div>
+                <div class="email-preview">
+                    <iframe srcdoc="<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='color-scheme' content='light'><title>Redefinir sua senha</title></head><body style='margin:0;padding:0;background-color:#f8fbfd;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fbfd;'><tr><td align='center' style='padding:32px 16px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:560px;'><tr><td align='center' style='padding-bottom:28px;'><img src='https://odontobox.venn360.com/logos/logo-wordmark-light.png' width='150' height='50' alt='OdontoBox360' style='display:block;border:0;width:150px;height:auto;'></td></tr><tr><td style='background-color:#ffffff;border:1px solid #dce7ec;border-radius:12px;padding:40px 36px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td style='width:44px;height:3px;background-color:#a7f3d0;border-radius:2px;font-size:0;line-height:0;'>&nbsp;</td></tr></table><h1 style='margin:22px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:26px;line-height:1.25;font-weight:700;color:#0b1f3b;letter-spacing:-0.3px;'>Redefinir sua senha</h1><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Alguém — provavelmente você — pediu para trocar a senha desta conta.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>O link vale por uma hora e serve uma vez só.</p><p style='margin:14px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#53707f;'>Se não foi você, ignore este e-mail. A senha atual continua valendo e nada muda.</p><table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:30px 0 0;'><tr><td align='center' bgcolor='#06b6d4' style='border-radius:10px;'><a href='#' target='_blank' style='display:inline-block;padding:14px 30px;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f3b;text-decoration:none;border-radius:10px;'>Escolher nova senha</a></td></tr></table><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin:28px 0 0;'><tr><td style='height:1px;background-color:#dce7ec;font-size:0;line-height:0;'>&nbsp;</td></tr></table><p style='margin:20px 0 0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#53707f;'>Se o botão não abrir, copie e cole este endereço no navegador: https://seu-app.com/reset</p></td></tr><tr><td align='center' style='padding:24px 8px 0;'><p style='margin:0;font-family:&quot;Open Sans&quot;,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8099a8;'>OdontoBox360 &middot; atendimento, agenda e CRM para clínicas odontológicas<br>uma solução Venn360</p></td></tr></table></td></tr></table></body></html>" style="height: 600px;"></iframe>
+                </div>
+                <div class="footer-note">
+                    <strong>✓ Implementado:</strong> Better Auth hook • Link com token válido por 1 hora • Sempre dispara quando solicitado (sem idempotência)
+                </div>
+            </div>
+        </div>
+
+        <!-- BILLING -->
+        <div class="category">
+            <h2 class="category-title">2️⃣ Cobrança & Ciclo de Vida</h2>
+
+            <div class="email-section">
+                <div class="email-title">Faltam 2 Dias de Avaliação</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron daily (5 dias antes)</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>OWNER do workspace</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-neutral">Neutro</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por workspace</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Primeiro aviso • Oferece tempo para decisão • Link para planos
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">Último Dia de Avaliação</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron daily (1 dia antes)</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>OWNER do workspace</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-urgent">Urgente</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por workspace</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Segundo aviso • Tarja vermelha para urgência • Explica que envio fica suspenso após prazo
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">Avaliação Encerrada</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron ao atingir data</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>OWNER do workspace</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-urgent">Urgente</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por workspace</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Confirmação do corte • Ressegura que dados não foram apagados • Oferece caminho de volta
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">80% dos Créditos de IA Utilizados</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron diário se uso &gt; 80%</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>OWNER do workspace</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-neutral">Neutro</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por período</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Aviso de consumo • Mostra números (X de Y créditos) • Deixa clara consequência de acabar
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">Dados Serão Removidos em 60 Dias</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron (60 dias após trial end)</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>OWNER do workspace</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-neutral">Neutro</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por workspace</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Primeiro aviso de retenção • Prazo longo permite respirar • Oferece exportação dos dados
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">Últimos 7 Dias Antes da Remoção</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron (7 dias antes)</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>OWNER do workspace</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-urgent">Urgente</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por workspace</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Último aviso antes de deleção irreversível • Data específica da remoção • Oferece contratação ou exportação
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">Cobrança Vencida</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Webhook do Asaas</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>MASTER da Account (responsável)</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-urgent">Urgente</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por data de vencimento</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Aviso de vencimento • Mostra valor + data de vencimento • Explica carência antes de read-only • Data limite para pagar
+                </div>
+            </div>
+
+            <div class="email-section">
+                <div class="email-title">Atendimento Pausado por Falta de Pagamento</div>
+                <div class="email-meta">
+                    <div>
+                        <label>Disparador</label>
+                        <span>Cron (carência expirada)</span>
+                    </div>
+                    <div>
+                        <label>Destinatário</label>
+                        <span>MASTER da Account</span>
+                    </div>
+                    <div>
+                        <label>Tom</label>
+                        <span class="tone-urgent">Urgente</span>
+                    </div>
+                    <div>
+                        <label>Idempotência</label>
+                        <span>Por workspace</span>
+                    </div>
+                </div>
+                <div class="footer-note">
+                    Confirmação do corte de funcionalidade • Ressegura que dados não foram apagados • Oferece pagamento imediato para restauração
+                </div>
+            </div>
+        </div>
+
+        <!-- RESUMO -->
+        <div class="category">
+            <h2 class="category-title">📊 Resumo & Recomendações</h2>
+            <div style="background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="color: #0b1f3b; margin-bottom: 16px; font-size: 18px;">E-mails Ativos</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr style="border-bottom: 1px solid #dce7ec;">
+                        <th style="text-align: left; padding: 12px; font-weight: 600; color: #0b1f3b;">Tipo</th>
+                        <th style="text-align: left; padding: 12px; font-weight: 600; color: #0b1f3b;">Destinatário</th>
+                        <th style="text-align: left; padding: 12px; font-weight: 600; color: #0b1f3b;">Tom</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Reset de senha</td>
+                        <td style="padding: 12px;">Usuário</td>
+                        <td style="padding: 12px;"><span class="tone-neutral">Neutro</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Trial (faltam 2 dias)</td>
+                        <td style="padding: 12px;">OWNER workspace</td>
+                        <td style="padding: 12px;"><span class="tone-neutral">Neutro</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Trial (último dia)</td>
+                        <td style="padding: 12px;">OWNER workspace</td>
+                        <td style="padding: 12px;"><span class="tone-urgent">Urgente</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Trial encerrado</td>
+                        <td style="padding: 12px;">OWNER workspace</td>
+                        <td style="padding: 12px;"><span class="tone-urgent">Urgente</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Créditos 80%</td>
+                        <td style="padding: 12px;">OWNER workspace</td>
+                        <td style="padding: 12px;"><span class="tone-neutral">Neutro</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Retenção (60 dias)</td>
+                        <td style="padding: 12px;">OWNER workspace</td>
+                        <td style="padding: 12px;"><span class="tone-neutral">Neutro</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Retenção (7 dias)</td>
+                        <td style="padding: 12px;">OWNER workspace</td>
+                        <td style="padding: 12px;"><span class="tone-urgent">Urgente</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Cobrança vencida</td>
+                        <td style="padding: 12px;">MASTER Account</td>
+                        <td style="padding: 12px;"><span class="tone-urgent">Urgente</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 12px;">Atendimento pausado</td>
+                        <td style="padding: 12px;">MASTER Account</td>
+                        <td style="padding: 12px;"><span class="tone-urgent">Urgente</span></td>
+                    </tr>
+                </table>
+
+                <h3 style="color: #0b1f3b; margin-top: 30px; margin-bottom: 16px; font-size: 18px;">📋 Recomendados para Implementar</h3>
+                <ol style="color: #666; line-height: 1.8; margin-left: 20px;">
+                    <li><strong>Boas-vindas novo workspace</strong> — Guia rápido + onboarding (Prioridade: Média)</li>
+                    <li><strong>Convite para novo membro</strong> — Notificação de convite com link (Prioridade: Alta)</li>
+                    <li><strong>Confirmação de pagamento</strong> — Recebimento de boleto + próxima cobrança (Prioridade: Alta)</li>
+                </ol>
+
+                <div style="background: #fffaed; border-left: 4px solid #f59e0b; padding: 16px; margin-top: 24px; border-radius: 4px;">
+                    <strong style="color: #92400e;">💡 Nota:</strong> Todos os e-mails têm layout responsivo e inline CSS para compatibilidade máxima com clientes de e-mail (Outlook, Gmail, Apple Mail, etc).
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
