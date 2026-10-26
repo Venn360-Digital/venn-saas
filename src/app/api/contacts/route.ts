@@ -5,8 +5,8 @@ import { Prisma } from '#prisma'
 import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
 import { phoneVariants } from '@/lib/whatsapp/types'
-import { searchTerms } from '@/lib/search'
-import { contactScope, currentMembership, getWorkspaceMember } from '@/lib/auth/workspace'
+import { currentMembership, getWorkspaceMember } from '@/lib/auth/workspace'
+import { consultarPacientes, FILTROS_PADRAO } from '@/lib/pacientes-consulta'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),
@@ -18,135 +18,41 @@ const contactSchema = z.object({
 })
 
 // GET - List contacts with pagination + advanced filters
+//
+// A consulta não mora aqui: ela é a mesma que a casca de servidor da tela usa
+// para a primeira pintura (`lib/pacientes-consulta.ts`). Se as duas fossem
+// cópias, divergiriam na primeira manutenção — e divergir significa a tela
+// abrir com uma lista e a releitura trocar por outra.
 export async function GET(request: NextRequest) {
     try {
         const auth = await getWorkspaceMember()
         if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-        const workspaceUser = auth.member
 
         const { searchParams } = new URL(request.url)
-        const search = searchParams.get('search') || ''
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
-        const tagId = searchParams.get('tagId')
-        const originId = searchParams.get('originId')
-        const dateFrom = searchParams.get('dateFrom')
-        const dateTo = searchParams.get('dateTo')
-        const dealStatus = searchParams.get('dealStatus') // 'open', 'won', 'lost', 'none'
-        const sortBy = searchParams.get('sortBy') || 'createdAt'
-        const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
+        const page = parseInt(searchParams.get('page') || String(FILTROS_PADRAO.page))
+        // Teto de 100: a lista é do navegador, e um `limit` aberto deixaria
+        // qualquer um pedir o workspace inteiro numa requisição.
+        const limit = Math.min(
+            parseInt(searchParams.get('limit') || String(FILTROS_PADRAO.limit)),
+            100
+        )
 
-        // Build where clause
-        const where: Prisma.ContactWhereInput = {
-            workspaceId: workspaceUser.workspaceId,
-        }
-
-        // Text search
-        if (search) {
-            // `searchText` é gerada pelo banco com nome, e-mail e telefone já
-            // sem acento e em minúsculas, então uma comparação resolve o que
-            // antes eram três — e passa a achar "André" por "andre".
-            where.OR = searchTerms(search).map((term) => ({ searchText: { contains: term } }))
-        }
-
-        /**
-         * As condições que valem **juntas**: o recorte de quem vê o quê e, se
-         * houver, o filtro de etiqueta.
-         *
-         * `AND`, e não `OR`, para que a etiqueta restrinja a busca textual em
-         * vez de alargá-la. E numa lista, não por atribuição: o recorte e a
-         * etiqueta usam os dois este campo, e o segundo apagaria o primeiro.
-         */
-        const todas: Prisma.ContactWhereInput[] = [contactScope(workspaceUser)]
-
-        if (tagId) {
-            todas.push({
-                OR: [
-                    { tags: { some: { tagId } } },
-                    { conversations: { some: { tags: { some: { tagId } } } } },
-                ],
-            })
-        }
-
-        where.AND = todas
-
-        // Origin filter — a origem comercial, que é uma referência para a
-        // lista da clínica. O canal por onde o paciente escreveu não se filtra
-        // aqui: ele é da conversa, não da ficha.
-        if (originId) {
-            where.originId = originId
-        }
-
-        // Date range filter
-        if (dateFrom || dateTo) {
-            where.createdAt = {}
-            if (dateFrom) where.createdAt.gte = new Date(dateFrom)
-            if (dateTo) where.createdAt.lte = new Date(dateTo + 'T23:59:59.999Z')
-        }
-
-        // Deal status filter
-        if (dealStatus === 'none') {
-            where.deals = { none: {} }
-        } else if (dealStatus === 'open' || dealStatus === 'won' || dealStatus === 'lost') {
-            where.deals = { some: { status: dealStatus } }
-        }
-
-        // Determine sort field
-        const orderBy: Prisma.ContactOrderByWithRelationInput = {}
-        if (sortBy === 'name') orderBy.name = sortDir
-        else if (sortBy === 'email') orderBy.email = sortDir
-        else if (sortBy === 'phone') orderBy.phone = sortDir
-        else orderBy.createdAt = sortDir
-
-        // Count total
-        const total = await prisma.contact.count({ where })
-
-        // Fetch contacts
-        const contacts = await prisma.contact.findMany({
-            where,
-            include: {
-                tags: {
-                    include: { tag: { select: { id: true, name: true, color: true } } }
-                },
-                conversations: {
-                    select: {
-                        tags: {
-                            include: { tag: { select: { id: true, name: true, color: true } } }
-                        }
-                    }
-                }
-            },
-            orderBy,
-            skip: (page - 1) * limit,
-            take: limit,
-        })
-
-        // Merge tags from contact_tags + conversation_tags, deduplicated
-        const contactsWithMergedTags = contacts.map(contact => {
-            const tagMap = new Map<string, { id: string; name: string; color: string }>()
-            for (const ct of contact.tags) {
-                tagMap.set(ct.tag.id, ct.tag)
-            }
-            for (const conv of contact.conversations) {
-                for (const ct of conv.tags) {
-                    tagMap.set(ct.tag.id, ct.tag)
-                }
-            }
-            const { conversations, tags, ...rest } = contact
-            return {
-                ...rest,
-                tags: Array.from(tagMap.values()).map(tag => ({ tag }))
-            }
+        const { itens, total, totalPages } = await consultarPacientes(auth.member, {
+            search: searchParams.get('search') || '',
+            page,
+            limit,
+            tagId: searchParams.get('tagId'),
+            originId: searchParams.get('originId'),
+            dateFrom: searchParams.get('dateFrom'),
+            dateTo: searchParams.get('dateTo'),
+            dealStatus: searchParams.get('dealStatus'),
+            sortBy: searchParams.get('sortBy') || FILTROS_PADRAO.sortBy,
+            sortDir: searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc',
         })
 
         return NextResponse.json({
-            data: contactsWithMergedTags,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            }
+            data: itens,
+            pagination: { page, limit, total, totalPages },
         })
     } catch (error) {
         console.error('[CONTACTS_GET] Error:', error)

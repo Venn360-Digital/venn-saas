@@ -1,361 +1,44 @@
-'use client'
+import prisma from '@/lib/prisma'
+import { membroOuLogin, primeiraPagina } from '@/lib/indice-servidor'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Plus, Trash2, Users } from 'lucide-react'
-import { toast } from 'sonner'
+import { DepartamentosClient } from './DepartamentosClient'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { DataTable, type Column } from '@/components/shared/DataTable'
-import { RowActionItem, RowActions } from '@/components/shared/RowActions'
-import { Pagination } from '@/components/shared/Pagination'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { DepartmentPanel } from '@/components/departments/DepartmentPanel'
-import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
-import { FormField } from '@/components/shared/FormField'
-import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
-import { usePermissions } from '@/hooks/usePermissions'
+/**
+ * Departamentos — a primeira página de dados vem do **servidor**.
+ *
+ * É o conserto de origem do pisca das telas de índice. Enquanto a tela era um
+ * `'use client'` que buscava em `useEffect`, toda navegação tinha duas pinturas
+ * obrigatórias: a casca vazia e, logo depois, a casca cheia. Não havia
+ * placeholder que resolvesse — esqueleto de linhas mentia sobre o que vinha, e
+ * cabeçalho de coluna sozinho saltava quando as larguras eram recalculadas.
+ * Com as linhas já no HTML, a segunda pintura deixa de existir.
+ *
+ * É a mesma escolha da Tela 04: "o painel é componente de servidor — os números
+ * já chegam no HTML, sem busca no cliente nem piscada de carregamento". Era por
+ * isso que o Dashboard nunca piscou e os índices sempre piscaram.
+ *
+ * O mecanismo (auth, `findMany` + `count` numa ida só, conta de páginas) vem de
+ * `@/lib/indice-servidor`; aqui fica só **a consulta**, que é o que varia de
+ * tela para tela. Ela é a mesma do `GET /api/departments` de propósito: a rota
+ * continua servindo busca, paginação e as releituras depois de gravar, e as
+ * duas precisam concordar — se divergirem, a primeira página mostraria uma
+ * coisa e a segunda outra.
+ */
+export default async function DepartamentosPage() {
+    const membro = await membroOuLogin()
+    const where = { workspaceId: membro.workspaceId }
 
-interface Department {
-    id: string
-    name: string
-    description: string | null
-}
-
-interface PaginationState {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-}
-
-export default function DepartamentosPage() {
-    // Presentation only — the API enforces the same rule. Without this an
-    // ATENDENTE would see Edit/Delete controls that answer 403.
-    const { canEdit } = usePermissions()
-
-    const [departments, setDepartments] = useState<Department[]>([])
-    const [loading, setLoading] = useState(true)
-    const [search, setSearch] = useState('')
-    const [query, setQuery] = useState('')
-    const [pagination, setPagination] = useState<PaginationState>({
-        page: 1,
-        limit: 20,
-        total: 0,
-        totalPages: 0,
+    const inicial = await primeiraPagina({
+        buscar: ({ skip, take }) =>
+            prisma.department.findMany({
+                where,
+                skip,
+                take,
+                orderBy: { name: 'asc' },
+                select: { id: true, name: true, description: true },
+            }),
+        contar: () => prisma.department.count({ where }),
     })
 
-    const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [errors, setErrors] = useState<{ name?: string }>({})
-    const [submitting, setSubmitting] = useState(false)
-    /** O diálogo do Novo em modo de edição: o id do registro aberto no formulário. */
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const [deleting, setDeleting] = useState<Department | null>(null)
-    const [selectedIds, setSelectedIds] = useState<string[]>([])
-    const [bulkDeleting, setBulkDeleting] = useState(false)
-    /** Qual ficha está aberta ao lado. ↑↓ andam pela lista; Esc fecha. */
-    const [openId, setOpenId] = useState<string | null>(null)
-    const rowIds = useMemo(() => departments.map((r) => r.id).filter((id): id is string => Boolean(id)), [departments])
-    usePanelKeys(openId, rowIds, setOpenId)
-    const openItem = openId ? departments.find((r) => r.id === openId) ?? null : null
-    const [formData, setFormData] = useState({ name: '', description: '' })
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setQuery(search)
-            setPagination((prev) => ({ ...prev, page: 1 }))
-        }, 300)
-        return () => clearTimeout(timer)
-    }, [search])
-
-    const load = useCallback(async () => {
-        setLoading(true)
-        try {
-            const params = new URLSearchParams({
-                page: pagination.page.toString(),
-                limit: pagination.limit.toString(),
-                search: query,
-            })
-            const res = await fetch(`/api/departments?${params}`)
-            if (res.ok) {
-                const data = await res.json()
-                setDepartments(data.data)
-                setPagination((prev) => ({
-                    ...prev,
-                    total: data.pagination.total,
-                    totalPages: data.pagination.totalPages,
-                }))
-            }
-        } catch (error) {
-            console.error('[DEPARTAMENTOS] load', error)
-            toast.error('Não foi possível carregar os departamentos')
-        } finally {
-            setLoading(false)
-        }
-    }, [pagination.page, pagination.limit, query])
-
-    useEffect(() => {
-        load()
-    }, [load])
-
-    function openNew() {
-        setEditingId(null)
-        setFormData({ name: '', description: '' })
-        setErrors({})
-        setIsDialogOpen(true)
-    }
-
-    /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
-    function openEdit(item: Department) {
-        setEditingId(item.id)
-        setFormData({ name: item.name, description: item.description ?? '' })
-        setErrors({})
-        setIsDialogOpen(true)
-    }
-
-    /** `again` = Criar e novo: grava, limpa e fica aberto. */
-    async function handleSave(again: boolean) {
-        const name = formData.name.trim()
-        if (!name) {
-            setErrors({ name: 'Dê um nome ao departamento.' })
-            return
-        }
-        setSubmitting(true)
-        try {
-            const res = await fetch(editingId ? `/api/departments/${editingId}` : '/api/departments', {
-                method: editingId ? 'PATCH' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: formData.description.trim() || undefined }),
-            })
-            if (res.ok) {
-                toast.success(editingId ? 'Departamento atualizado' : 'Departamento criado')
-                setErrors({})
-                if (again && !editingId) setFormData({ name: '', description: '' })
-                else setIsDialogOpen(false)
-                load()
-            } else {
-                const error = await res.json().catch(() => ({}))
-                setErrors({ name: error.error ?? 'Não foi possível salvar o departamento' })
-            }
-        } catch {
-            toast.error('Não foi possível salvar o departamento')
-        } finally {
-            setSubmitting(false)
-        }
-    }
-
-    async function handleDelete() {
-        if (!deleting) return
-        try {
-            const res = await fetch(`/api/departments/${deleting.id}`, { method: 'DELETE' })
-            if (res.ok) {
-                toast.success('Departamento excluído')
-                load()
-            } else {
-                toast.error('Não foi possível excluir o departamento')
-            }
-        } catch {
-            toast.error('Não foi possível excluir o departamento')
-        }
-    }
-
-    const deleteSelected = async () => {
-        const ok = await deleteEach(selectedIds, (id) => `/api/departments/${id}`)
-        if (ok > 0) toast.success(`${ok} ${ok === 1 ? 'departamento' : 'departamentos'} excluído${ok === 1 ? '' : 's'}`)
-        if (ok < selectedIds.length) toast.error(`${selectedIds.length - ok} não puderam ser excluídos`)
-        setSelectedIds([])
-        await load()
-    }
-
-    const columns: Column<Department>[] = [
-        {
-            id: 'name',
-            header: 'Nome',
-            sortable: true,
-            sortValue: (d) => d.name ?? '',
-            cell: (d) => <span className="font-medium">{d.name}</span>,
-        },
-        {
-            id: 'description',
-            header: 'Descrição',
-            sortable: true,
-            sortValue: (d) => d.description ?? '',
-            hideBelow: 'sm',
-            cell: (d) =>
-                d.description ? (
-                    <span className="text-muted-foreground">{d.description}</span>
-                ) : (
-                    <span className="text-muted-foreground">—</span>
-                ),
-        },
-    ]
-
-    return (
-        <>
-            <IndexFrame
-                aside={openItem ? (
-                    <DepartmentPanel
-                        key={openItem.id}
-                        item={openItem}
-                        canEdit={canEdit}
-                        onClose={() => setOpenId(null)}
-                        {...panelNeighbours(openId, rowIds, setOpenId)}
-                        onChanged={() => void load()}
-                        onEditFull={(id) => { const x = departments.find((i) => i.id === id); if (x) openEdit(x) }}
-                        onDelete={(id) => { const d = departments.find((x) => x.id === id); if (d) setDeleting(d) }}
-                    />
-                ) : null}
-                title="Departamentos"
-                primary={
-                    canEdit ? (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={openNew}>
-                            <Plus className="size-3.5" /> Novo departamento
-                        </Button>
-                    ) : null
-                }
-                search={search}
-                onSearchChange={setSearch}
-                searchLabel="Buscar departamentos"
-            >
-                <DataTable
-                    frame
-                    selectable={canEdit}
-                    selected={selectedIds}
-                    onSelectedChange={setSelectedIds}
-                    bulkActions={(ids) => (
-                        <BulkBar count={ids.length} noun={['departamento', 'departamentos']} onDelete={() => setBulkDeleting(true)} onClear={() => setSelectedIds([])} />
-                    )}
-                    columns={columns}
-                    rows={departments}
-                    getRowId={(d) => d.id}
-                    loading={loading}
-                    onRowClick={(r) => { if (r.id) setOpenId(r.id) }}
-                    rowActions={
-                        canEdit
-                            ? (d) => (
-                                  <RowActions label={`Ações do departamento ${d.name}`}>
-                                      <RowActionItem
-                                          icon={Pencil}
-                                          onClick={() => setOpenId(d.id)}
-                                      >
-                                          Abrir ficha
-                                      </RowActionItem>
-                                      <RowActionItem
-                                          icon={Trash2}
-                                          destructive
-                                          onClick={() => setDeleting(d)}
-                                      >
-                                          Excluir
-                                      </RowActionItem>
-                                  </RowActions>
-                              )
-                            : undefined
-                    }
-                    empty={
-                        <EmptyState
-                            variant="inline"
-                            icon={Users}
-                            title={
-                                query
-                                    ? 'Nenhum departamento encontrado'
-                                    : 'Nenhum departamento ainda'
-                            }
-                            description={
-                                query
-                                    ? 'Tente outro termo de busca.'
-                                    : 'Crie o primeiro para organizar a equipe por área.'
-                            }
-                            action={
-                                canEdit && !query ? (
-                                    <Button onClick={openNew}>
-                                        <Plus />
-                                        Novo departamento
-                                    </Button>
-                                ) : null
-                            }
-                        />
-                    }
-                    footer={
-                        <Pagination
-                            page={pagination.page}
-                            totalPages={pagination.totalPages}
-                            total={pagination.total}
-                            limit={pagination.limit}
-                            onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
-                            onLimitChange={(limit) =>
-                                setPagination((p) => ({ ...p, limit, page: 1 }))
-                            }
-                        />
-                    }
-                />
-            </IndexFrame>
-
-            <RecordDialog
-                open={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                title={editingId ? 'Editar departamento' : 'Novo departamento'}
-                description="Organiza quem atende o quê: filas, transferências e relatórios."
-                submitLabel={editingId ? 'Salvar departamento' : 'Criar departamento'}
-                hideAgain={editingId !== null}
-                onSubmit={handleSave}
-                submitting={submitting}
-                summary={
-                    <>
-                        <SummaryCard className="flex-col items-start gap-1">
-                            <span className="flex items-center gap-2 text-sm font-semibold">
-                                <Users className="size-4 text-muted-foreground" />
-                                {formData.name.trim() || 'Nome do departamento'}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{formData.description.trim() || 'Sem descrição'}</span>
-                        </SummaryCard>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">Usuários entram nele pela ficha de cada um; conversas e negócios, pela transferência.</p>
-                    </>
-                }
-            >
-                <FormField label="Nome" htmlFor="dept-name" required error={errors.name} className="col-span-2">
-                    <Input
-                        id="dept-name"
-                        value={formData.name}
-                        onChange={(e) => { setFormData((prev) => ({ ...prev, name: e.target.value })); if (errors.name) setErrors({}) }}
-                        placeholder="Recepção"
-                        aria-invalid={errors.name ? true : undefined}
-                        autoFocus
-                    />
-                </FormField>
-
-                <FormField label="Descrição" htmlFor="dept-description" hint="Ajuda a equipe a saber o que cai aqui." className="col-span-2">
-                    <Textarea
-                        id="dept-description"
-                        value={formData.description}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                        placeholder="Primeiro contato, agendamento e confirmação"
-                        rows={3}
-                    />
-                </FormField>
-            </RecordDialog>
-
-            <ConfirmDialog
-                open={deleting !== null}
-                onOpenChange={(open) => !open && setDeleting(null)}
-                title="Excluir departamento"
-                description={`"${deleting?.name}" será removido. Atendimentos e negócios ligados a ele ficam sem departamento.`}
-                confirmLabel="Excluir"
-                destructive
-                onConfirm={handleDelete}
-            />
-            <ConfirmDialog
-                open={bulkDeleting}
-                onOpenChange={(open) => !open && setBulkDeleting(false)}
-                title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? 'departamento' : 'departamentos'}`}
-                description="Os departamentos marcados serão removidos. Atendimentos e negócios ligados a eles ficam sem departamento."
-                confirmLabel="Excluir"
-                destructive
-                onConfirm={deleteSelected}
-            />
-        </>
-    )
+    return <DepartamentosClient inicial={inicial} />
 }

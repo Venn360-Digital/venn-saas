@@ -253,17 +253,39 @@ export function DataTable<T>({
         return (
             <div
                 className={cn(
-                    'flex min-h-0 flex-1 flex-col overflow-clip bg-card',
+                    // A margem do Dashboard mora aqui agora, e não dentro de
+                    // cada bloco: ela emoldura o cartão da tabela, em vez de
+                    // recuar o conteúdo de uma tabela que sangrava.
+                    'flex min-h-0 flex-1 flex-col bg-background px-4 pb-4 md:px-6',
                     className
                 )}
             >
+                {/* **O cartão da tabela** — desenho pedido pelo Andre em
+                    2026-10-26: bordas suaves e arredondadas, no lugar da tabela
+                    de ponta a ponta.
+
+                    A borda é `border/60` e não a cheia: a tabela já é uma grade
+                    de linhas horizontais, e uma moldura em força total somada a
+                    elas endurece o conjunto. `overflow-hidden` é o que faz as
+                    linhas e o cabeçalho preso respeitarem o raio — sem ele a
+                    primeira linha vaza por cima do canto. */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/60 bg-card">
                 <div
                     className={cn(
                         'min-h-0 flex-1 overflow-auto overscroll-contain',
+                        // Fios internos mais leves que a moldura, pelo mesmo
+                        // motivo: muitas linhas em força total viram ruído.
+                        '[&_tbody_tr]:border-border/60',
                         // Cabeçalho da tabela preso: superfície da página para
                         // separar das linhas, e a borda como sombra interna porque
                         // borda de `tr` não acompanha o `sticky`.
-                        '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-background',
+                        // `muted` e não `background`: aquele tom foi escolhido
+                        // quando a tabela ficava SOBRE o fundo tingido, e
+                        // dentro do cartão branco ele vira 7 pontos de
+                        // diferença — faixa que não se lê como faixa. `muted`
+                        // dá a banda que o cabeçalho precisa, e o texto em
+                        // `muted-foreground` sobre ela mede 4,75:1 (passa AA).
+                        '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-muted',
                         '[&_th]:h-9 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]',
                         // O cabeçalho ordenável é um `button`, e o reset do botão
                         // desfaz o `uppercase` herdado do `th`.
@@ -290,8 +312,16 @@ export function DataTable<T>({
                         de origem é entregar a primeira página de dados pelo
                         servidor (ver DESIGN.md, Tela 04 — é por isso que o
                         painel não pisca), e aí esta espera deixa de existir. */}
-                    {loading ? null : rows.length === 0 ? (
-                        <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
+                    {rows.length === 0 ? (
+                        // Sem linhas há dois casos diferentes, e só um desenha
+                        // alguma coisa: **esperando a primeira página** (nada a
+                        // mostrar ainda — fica em branco) e **vazio de
+                        // verdade** (aí sim o `EmptyState`). Desenhar o vazio
+                        // durante a espera piscaria "nenhum registro" antes de
+                        // os dados chegarem.
+                        loading ? null : (
+                            <div className="flex min-h-full items-center justify-center p-6">{empty}</div>
+                        )
                     ) : (
                 <>
                     {/* Table from md up. No scroll container here: `Table`
@@ -306,7 +336,16 @@ export function DataTable<T>({
                         porque fica dentro deste bloco. */}
                     <div
                         className={cn(
-                            'px-4 md:px-6',
+                            // **O respiro é da célula, não do bloco.** Com
+                            // `px` no bloco a tabela ficava recuada dentro do
+                            // cartão, e a faixa do cabeçalho parava antes das
+                            // bordas — sobravam duas tiras sem cor nas pontas.
+                            // Jogando o recuo na primeira e na última célula, a
+                            // tabela ocupa a largura inteira, a cor do
+                            // cabeçalho corre a linha toda e o texto continua
+                            // sem encostar na borda arredondada.
+                            '[&_th:first-child]:pl-4 [&_th:last-child]:pr-4',
+                            '[&_td:first-child]:pl-4 [&_td:last-child]:pr-4',
                             mobile && 'hidden md:block',
                             density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
                         )}
@@ -465,12 +504,15 @@ export function DataTable<T>({
 
                 {bulk ? (
                     // Mesma margem lateral da tabela e do rodapé (padrão Dashboard).
-                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background md:px-6">
+                    // Dentro do cartão, então o `px` é o respiro interno — a
+                    // margem da página já está na moldura.
+                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background">
                         {bulk}
                     </div>
                 ) : footer ? (
                     <div className="shrink-0">{footer}</div>
                 ) : null}
+                </div>
             </div>
         )
     }

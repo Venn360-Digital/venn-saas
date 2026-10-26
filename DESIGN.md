@@ -371,6 +371,98 @@ margem mora no `frame` do `DataTable` e no `Pagination`, não em cada tela: um
 não é tabela de cadastro — o quadro do kanban e o chat (Tela 02), que tratam a
 largura como recurso escasso.
 
+**E dentro dessa margem a tabela é um cartão arredondado.** Pedido do Andre em
+2026-10-26: `rounded-xl` com moldura `border/60`, e `overflow-hidden` para que
+as linhas e o cabeçalho preso respeitem o raio — sem ele a primeira linha vaza
+por cima do canto. A moldura é deliberadamente **mais fraca que a borda cheia**,
+e os fios entre as linhas acompanham (`border/60`): a tabela já é uma grade de
+horizontais, e somar uma moldura em força total endurece o conjunto. O rodapé de
+paginação e a `BulkBar` ficam **dentro** do cartão, então o `px` deles é respiro
+interno — a margem da página está na moldura, não neles.
+
+**A primeira página de dados vem do servidor.** Decisão de 2026-10-26, e é o
+conserto de origem do pisca das telas de índice. Enquanto cada índice era um
+`'use client'` que buscava em `useEffect`, toda navegação tinha **duas pinturas**
+obrigatórias — casca vazia e casca cheia —, e nenhum placeholder resolvia isso:
+esqueleto de linhas mente sobre o que vem, e cabeçalho de coluna sozinho salta
+quando as larguras são recalculadas. A casca passa a ser componente de servidor,
+que consulta o Prisma e entrega as linhas já no HTML; o componente de cliente
+nasce com os dados em mãos e **não busca na montagem**. É a mesma escolha da
+Tela 04 — e era por isso que o painel nunca piscou e os índices sempre piscaram.
+
+Duas armadilhas, as duas já pagas:
+
+- **Componente de servidor não importa VALOR de módulo `'use client'`.** O Next
+  troca cada export daquele módulo por uma referência de cliente, e a constante
+  chega do outro lado como função (`Invalid value for argument take: [object
+  Function]`). Tipo atravessa; valor não. O que os dois lados compartilham mora
+  num `dados.ts` neutro, ao lado da tela.
+- **O guarda que evita a busca na montagem compara parâmetros, não conta
+  visitas.** Um `useRef(true)` gasto na primeira execução morre no StrictMode,
+  que roda o efeito duas vezes: a segunda busca e repinta. O guarda guarda **o
+  recorte que o servidor serviu** e só é limpo quando os parâmetros mudam de
+  verdade — assim rodar o efeito N vezes sem mudança não dispara nada.
+
+**Índice novo nasce na peça, não na cópia.** As duas armadilhas acima foram
+pagas uma vez e **não se reescreve** o padrão à mão: cinco cópias dele foi como
+o guarda divergiu, e a sexta tela divergiria de novo. O mecanismo mora em três
+arquivos e uma tela os **usa**:
+
+- `lib/indice.ts` — o neutro (`LIMITE_PADRAO`, `PaginaDeIndice`). Separado de
+  propósito: o arquivo de cada tela, que o componente de cliente importa, não
+  pode puxar valor de `indice-servidor.ts` sem arrastar `currentMembership` e
+  `redirect` para o bundle do cliente.
+- `lib/indice-servidor.ts` — `membroOuLogin`, `primeiraPagina` (o `findMany` +
+  `count` numa ida só e a conta de páginas) e `listaInteira`, para o índice que
+  não pagina no servidor. Os dois devolvem a **mesma forma**, então trocar uma
+  tela de regime depois não mexe no componente.
+- `hooks/useIndiceServidor.ts` — semeia com o que o servidor mandou, carrega o
+  guarda e relê quando o recorte muda.
+
+A divisão é a regra: **a tela é dona das entradas** (página, limite, busca,
+filtros) **e da consulta** — só ela sabe o que lista; **a peça é dona da
+disciplina**. Quem escrever um índice novo declara a consulta e chama a peça.
+
+**E relê sem apagar o que já está na tela.** Com linhas em mão, `loading`
+significa *atualizando*, não *vazio*: o `DataTable` mantém as linhas atuais
+durante a releitura e só fica em branco na espera da **primeira** página. Sem
+isso, gravar, excluir ou virar um interruptor — que releem — faria a tabela
+sumir e voltar, que é o mesmo pisca entrando por outra porta. Medido na tela de
+Respostas rápidas: 14 amostras durante a releitura de um interruptor, todas com
+a lista inteira na tela.
+
+**Onde o padrão NÃO se aplica, e por quê.** Ele é de **índice** — lista
+paginada de um modelo, com filtros que viram parâmetro de consulta. Duas telas
+com tabela ficaram de fora **de propósito**, e a razão importa mais que a
+exceção:
+
+- **Agenda.** O período nasce `null` e é calculado **no navegador**, com o
+  "agora" local; ele não vive na URL. O Worker roda em UTC (ver
+  `fuso-workers-ignora-tz`), então um período servido pelo servidor pode
+  discordar do que o cliente recalcula — a tela abriria numa semana e trocaria
+  para outra na frente de quem olha, que é pior que a segunda pintura. O
+  pré-requisito é **levar o período para a URL**, como a Tela 04 já faz
+  (`resolvePeriodParams`): aí o servidor lê datas explícitas e não há o que
+  divergir. Isso é mudança de desenho da tela (endereço compartilhável, botão
+  voltar), não efeito colateral de refatoração.
+- **Negócios.** Não é índice: é tela de trabalho (Tela 02) com **três visões**
+  — trilho, quadro e lista — e **cinco** fontes (funil, negócios da lista,
+  faixas, apoios, indicadores). A tabela é uma das visões. Servir a primeira
+  pintura exige decidir **quais** das cinco entram nela, e essa é uma decisão
+  de produto, não a repetição de um padrão.
+- **Conta, guia Usuários.** Esta **é** um índice — lista paginada de um modelo,
+  e já alinhada pelo `DataTable`. O que falta é o pré-requisito estrutural: o
+  padrão precisa de um **componente de servidor na fronteira da rota**, e a
+  Conta é **uma** rota com sete guias trocadas no cliente (`conta/page.tsx` é
+  `'use client'`, e a guia monta por `activeTab`). Trocar de guia não passa
+  pelo servidor, então não há onde a consulta rodar antes da pintura. Para
+  servir Usuários do servidor a guia teria de virar segmento de rota
+  (`/gerenciamento/conta/usuarios`) — mexe na Tela 03, não no painel.
+
+As duas já recebem, pelo `DataTable`, tudo que é de renderização: sem fantasma,
+sem linha falsa e sem apagar na releitura — o que o padrão de dados somaria é a
+primeira pintura já cheia.
+
 **Quadro: cabeçalho e rodapé param, o quadro corre.** No kanban a região da
 página não rola — ela se divide em quadro e rodapé. O quadro rola por dentro,
 nos dois eixos, e a faixa de Ganho e Perdido fica no rodapé **mesmo sem cartão
@@ -400,7 +492,24 @@ direita vazia — e o vazio não é respiro, é desperdício que parece bug. Val
 o card de valor, o de adicionais e o de cancelar, que mudam de largura juntos.
 A exceção é a **grade de campos de formulário** (Perfil, Conta da Clínica): ali
 o `max-w-4xl` fica, porque campo de texto largo demais é pior de ler, não
-melhor — a regra é do card que **mostra**, não do que **preenche**.
+melhor — a regra é do card que **mostra**, não do que **preenche**. Vale também
+o teto de **medida de leitura** num parágrafo solto (`max-w-[46ch]`, na Agenda
+da clínica): isso é tipografia, não largura de cartão.
+
+A regra vale para **as sete guias**, não só a Assinatura. Varrido no DOM em
+2026-10-26, a 1920px, medindo quem tinha `max-width` em pixel com folga de
+sobra no pai — três cartões presos apareceram e foram soltos:
+
+| Onde | Teto | Vazio à direita |
+|---|---|---|
+| Integrações — grade de ferramentas e "Em breve" | `max-w-6xl` | 456px |
+| Conta da Clínica — cartão do acordo (`TermsCard`) | `max-w-5xl` | 569px |
+| Integrações — `PlatformCredentialsPanel` | `max-w-5xl` | 569px |
+
+O terceiro só renderiza para o responsável pela plataforma, e é por isso que
+passou: **varrer a guia como clínica não mostra tudo que a guia desenha.** Hoje
+as sete medem o mesmo: conteúdo de 280 a 1888, igual ao título e à tabela de
+Usuários.
 
 **Cabeçalho em ícone precisa continuar tendo nome.** Coluna estreita pode
 trocar o rótulo por um ícone — é o caso de WhatsApp e do medidor de dias sem

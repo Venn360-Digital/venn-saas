@@ -437,13 +437,21 @@ export function IntegrationsPanel() {
     const live = INTEGRATIONS.filter((def) => def.provider === 'google_calendar')
     const soon = INTEGRATIONS.filter((def) => def.provider !== 'google_calendar')
 
+    /*
+     * Sem teto de largura: cartão em guia acompanha a resolução (DESIGN.md §5,
+     * "Cartão em guia"). O `max-w-6xl` que estava aqui parava a grade em 1152px
+     * — numa tela de 1920 com a lateral de 256, a área útil é 1616, então
+     * sobravam 464px de vazio à direita dos cartões. Abaixo de ~1456px de tela
+     * o teto não mordia, que é por que passou batido. Quem limita a largura é a
+     * margem do painel, que a `SettingsBand` já aplica.
+     */
     const grid = (
-        <div className="grid max-w-6xl grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
             {live.map((def) => <GoogleCalendarCard key={def.id} def={def} />)}
         </div>
     )
     const soonList = (
-        <div className="grid max-w-6xl grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {soon.map((def) => <ComingSoonRow key={def.id} def={def} />)}
         </div>
     )

@@ -1524,7 +1524,10 @@ export function PlanoTab() {
                             contratado.
                         </p>
                     ) : (
-<div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
+                        /* Sem teto: a lista está dentro de um modal de 840px,
+                           então `max-w-5xl` (1024px) nunca mordia — era teto
+                           morto contradizendo a regra do cartão em guia. */
+                        <div className="divide-y divide-border rounded-lg border border-border">
                         {cobrancas.map((c) => {
                             const pago = c.status === 'RECEIVED' || c.status === 'CONFIRMED'
                             const vencida = c.status === 'OVERDUE'
