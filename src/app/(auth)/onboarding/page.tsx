@@ -188,7 +188,11 @@ export default function OnboardingPage() {
                             mão. `Logo` traz as duas artes (clara e escura) e o
                             tema escolhe — o onboarding abre em `bg-card`, que é
                             branco no claro e marinho no escuro. */}
-                        <Logo variant="full" height={40} priority />
+                        {/* 120px — três vezes o tamanho da primeira versão, a
+                            pedido do Andre: em 40px a marca sumia no respiro da
+                            abertura. Aqui ela é a abertura do cadastro, não um
+                            carimbo de cabeçalho, e aguenta o tamanho. */}
+                        <Logo variant="full" height={120} priority />
                     </div>
                     <h1 className="mb-2 text-3xl font-bold">Olá, Usuário!</h1>
                     <p className="text-muted-foreground">Vamos configurar sua conta em poucos passos</p>
