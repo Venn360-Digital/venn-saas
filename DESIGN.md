@@ -431,6 +431,30 @@ sumir e voltar, que é o mesmo pisca entrando por outra porta. Medido na tela de
 Respostas rápidas: 14 amostras durante a releitura de um interruptor, todas com
 a lista inteira na tela.
 
+**Onde o padrão NÃO se aplica, e por quê.** Ele é de **índice** — lista
+paginada de um modelo, com filtros que viram parâmetro de consulta. Duas telas
+com tabela ficaram de fora **de propósito**, e a razão importa mais que a
+exceção:
+
+- **Agenda.** O período nasce `null` e é calculado **no navegador**, com o
+  "agora" local; ele não vive na URL. O Worker roda em UTC (ver
+  `fuso-workers-ignora-tz`), então um período servido pelo servidor pode
+  discordar do que o cliente recalcula — a tela abriria numa semana e trocaria
+  para outra na frente de quem olha, que é pior que a segunda pintura. O
+  pré-requisito é **levar o período para a URL**, como a Tela 04 já faz
+  (`resolvePeriodParams`): aí o servidor lê datas explícitas e não há o que
+  divergir. Isso é mudança de desenho da tela (endereço compartilhável, botão
+  voltar), não efeito colateral de refatoração.
+- **Negócios.** Não é índice: é tela de trabalho (Tela 02) com **três visões**
+  — trilho, quadro e lista — e **cinco** fontes (funil, negócios da lista,
+  faixas, apoios, indicadores). A tabela é uma das visões. Servir a primeira
+  pintura exige decidir **quais** das cinco entram nela, e essa é uma decisão
+  de produto, não a repetição de um padrão.
+
+As duas já recebem, pelo `DataTable`, tudo que é de renderização: sem fantasma,
+sem linha falsa e sem apagar na releitura — o que o padrão de dados somaria é a
+primeira pintura já cheia.
+
 **Quadro: cabeçalho e rodapé param, o quadro corre.** No kanban a região da
 página não rola — ela se divide em quadro e rodapé. O quadro rola por dentro,
 nos dois eixos, e a faixa de Ganho e Perdido fica no rodapé **mesmo sem cartão
