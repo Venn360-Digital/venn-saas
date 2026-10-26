@@ -279,7 +279,13 @@ export function DataTable<T>({
                         // Cabeçalho da tabela preso: superfície da página para
                         // separar das linhas, e a borda como sombra interna porque
                         // borda de `tr` não acompanha o `sticky`.
-                        '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-background',
+                        // `muted` e não `background`: aquele tom foi escolhido
+                        // quando a tabela ficava SOBRE o fundo tingido, e
+                        // dentro do cartão branco ele vira 7 pontos de
+                        // diferença — faixa que não se lê como faixa. `muted`
+                        // dá a banda que o cabeçalho precisa, e o texto em
+                        // `muted-foreground` sobre ela mede 4,75:1 (passa AA).
+                        '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-muted',
                         '[&_th]:h-9 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]',
                         // O cabeçalho ordenável é um `button`, e o reset do botão
                         // desfaz o `uppercase` herdado do `th`.
@@ -322,10 +328,16 @@ export function DataTable<T>({
                         porque fica dentro deste bloco. */}
                     <div
                         className={cn(
-                            // Respiro interno do cartão. A margem da página
-                            // subiu para a moldura; aqui é só o que separa o
-                            // texto da borda arredondada.
-                            'px-4',
+                            // **O respiro é da célula, não do bloco.** Com
+                            // `px` no bloco a tabela ficava recuada dentro do
+                            // cartão, e a faixa do cabeçalho parava antes das
+                            // bordas — sobravam duas tiras sem cor nas pontas.
+                            // Jogando o recuo na primeira e na última célula, a
+                            // tabela ocupa a largura inteira, a cor do
+                            // cabeçalho corre a linha toda e o texto continua
+                            // sem encostar na borda arredondada.
+                            '[&_th:first-child]:pl-4 [&_th:last-child]:pr-4',
+                            '[&_td:first-child]:pl-4 [&_td:last-child]:pr-4',
                             mobile && 'hidden md:block',
                             density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
                         )}
