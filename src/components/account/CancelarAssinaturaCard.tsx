@@ -130,7 +130,7 @@ export function CancelarAssinaturaCard() {
     if (resumo?.status === 'canceled') {
         return (
             <div className="px-5 py-4 md:px-6">
-                <SettingsCard className="max-w-5xl" title="Assinatura cancelada">
+                <SettingsCard title="Assinatura cancelada">
                     <SettingsRow
                         title={`O acesso continua até ${ateLabel}`}
                         description="Nada mais será cobrado. Depois dessa data a clínica fica em somente-leitura: o histórico continua inteiro e exportável."
@@ -144,7 +144,7 @@ export function CancelarAssinaturaCard() {
         <>
             <div className="px-5 py-4 md:px-6">
                 <SettingsCard
-                    className="max-w-5xl border-destructive/30"
+                    className="border-destructive/30"
                     title="Cancelar assinatura"
                     description="Esta ação não tem volta."
                 >

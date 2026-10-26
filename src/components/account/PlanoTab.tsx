@@ -1190,7 +1190,10 @@ export function PlanoTab() {
             ) : null}
 
             <SettingsBand title="Minha assinatura">
-              <div className="max-w-5xl divide-y divide-border rounded-lg border border-border">
+              {/* Sem teto de largura: o card acompanha a resolução da tela,
+                  recuado só pela margem do Dashboard que a faixa já aplica
+                  (`px-5 py-4 md:px-6`). Ver DESIGN.md §5, "Cartão em guia". */}
+              <div className="divide-y divide-border rounded-lg border border-border">
                 {/* O QUANTO E O QUANDO, antes de tudo.
                     O card começava pela forma de pagamento e nunca dizia o
                     valor: mostrava R$ 580,00 dos adicionais e calava a
@@ -1367,7 +1370,7 @@ export function PlanoTab() {
                     extrato da assinatura, com o mesmo respiro — as duas faixas
                     enumeram contratos, e enumerar duas vezes de formas
                     diferentes faz parecer que uma coisa é diferente da outra. */}
-                <div className="max-w-5xl rounded-lg border border-border">
+                <div className="rounded-lg border border-border">
                     {(subscription?.contratosDeUnidade?.length ?? 0) === 0 &&
                     (subscription?.lotesDeCredito?.length ?? 0) === 0 ? (
                         <p className="px-5 py-4 text-sm text-muted-foreground">

@@ -242,9 +242,17 @@ export function DataTable<T>({
                 <>
                     {/* Table from md up. No scroll container here: `Table`
                         already wraps itself in `overflow-x-auto`, and nesting
-                        two gave the inner one a width it never overflowed. */}
+                        two gave the inner one a width it never overflowed.
+
+                        A margem lateral é a do Dashboard (`px-4 md:px-6`): a
+                        tabela de índice deixou de sangrar até a borda do cartão
+                        e passa a alinhar com o título e os filtros das linhas 1
+                        e 2 — o mesmo recuo em todas as telas de cadastro. Ver
+                        DESIGN.md §5, "Tabela". O `thead` preso herda o recuo
+                        porque fica dentro deste bloco. */}
                     <div
                         className={cn(
+                            'px-4 md:px-6',
                             mobile && 'hidden md:block',
                             density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
                         )}
@@ -402,7 +410,8 @@ export function DataTable<T>({
                 </div>
 
                 {bulk ? (
-                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-2 pl-4 text-background">
+                    // Mesma margem lateral da tabela e do rodapé (padrão Dashboard).
+                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background md:px-6">
                         {bulk}
                     </div>
                 ) : footer ? (
