@@ -22,11 +22,7 @@ import { TagChip } from '@/components/shared/TagChip'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PICKER_RAMP } from '@/lib/palette'
 
-interface TagItem {
-    id: string
-    name: string
-    color: string
-}
+import { LIMITE_PADRAO, type DadosIniciais, type TagItem } from './dados'
 
 interface PaginationState {
     page: number
@@ -43,23 +39,6 @@ interface PaginationState {
  * stages offer — the previous one was the pre-rebrand palette and had drifted.
  */
 const COLOR_PALETTE = PICKER_RAMP
-
-/** Quantas linhas a primeira página traz. O servidor usa o mesmo número. */
-export const LIMITE_PADRAO = 20
-
-/**
- * O que o servidor já entregou, pronto para a primeira pintura.
- *
- * É isto que acaba com o pisca: a tela nasce com as linhas em mãos, então não
- * existe o par "vazio, depois cheio" que fazia a tabela ser desenhada duas
- * vezes a cada navegação. Ver DESIGN.md, Tela 01 — "a primeira página vem do
- * servidor".
- */
-export interface DadosIniciais {
-    tags: TagItem[]
-    total: number
-    totalPages: number
-}
 
 export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
     // Presentation only — the API enforces the same rule. Without this an
@@ -136,18 +115,26 @@ export function EtiquetasClient({ inicial }: { inicial: DadosIniciais }) {
      * A montagem **não** busca: a primeira página já veio do servidor.
      *
      * Buscar aqui refaria a mesma consulta e repintaria a tabela logo depois de
-     * ela aparecer — que é o defeito inteiro que esta mudança remove. Da segunda
-     * execução em diante o efeito trabalha normal: trocar de página, de limite
-     * ou de busca passa por aqui.
+     * ela aparecer — o defeito inteiro que esta refatoração remove.
+     *
+     * **O guarda compara parâmetros, não conta visitas.** A primeira versão era
+     * um `useRef(true)` gasto na primeira execução, e o StrictMode do React
+     * derrubou isso na hora: em desenvolvimento o efeito roda duas vezes, a
+     * primeira gastava o guarda e a segunda buscava — medido, `/api/tags` saía
+     * na rede. Guardando **o recorte que o servidor serviu** o efeito é
+     * idempotente: rodar dez vezes com os mesmos parâmetros não busca nenhuma.
+     *
+     * O marcador só é limpo quando os parâmetros mudam de verdade, então voltar
+     * à página 1 depois de ir à 2 busca de novo — o que é certo, porque nesse
+     * meio tempo a lista pode ter mudado.
      */
-    const primeiraPintura = useRef(true)
+    const servidoPeloServidor = useRef(`1|${LIMITE_PADRAO}|`)
     useEffect(() => {
-        if (primeiraPintura.current) {
-            primeiraPintura.current = false
-            return
-        }
+        const atuais = `${pagination.page}|${pagination.limit}|${query}`
+        if (servidoPeloServidor.current === atuais) return
+        servidoPeloServidor.current = ''
         loadTags()
-    }, [loadTags])
+    }, [pagination.page, pagination.limit, query, loadTags])
 
     function openNew() {
         setEditingId(null)

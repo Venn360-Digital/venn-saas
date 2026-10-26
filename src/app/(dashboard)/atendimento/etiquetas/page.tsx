@@ -3,7 +3,10 @@ import { redirect } from 'next/navigation'
 import prisma from '@/lib/prisma'
 import { currentMembership } from '@/lib/auth/workspace'
 
-import { EtiquetasClient, LIMITE_PADRAO } from './EtiquetasClient'
+import { EtiquetasClient } from './EtiquetasClient'
+// O valor vem do módulo neutro, NÃO do arquivo `'use client'`: componente de
+// servidor não importa valor de módulo de cliente. Ver `dados.ts`.
+import { LIMITE_PADRAO } from './dados'
 
 /**
  * Etiquetas — a primeira página de dados vem do **servidor**.
