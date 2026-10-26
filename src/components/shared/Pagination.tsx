@@ -41,7 +41,10 @@ export function Pagination({
     return (
         <div
             className={cn(
-                'flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 md:px-6',
+                // Dentro do cartão da tabela: `px-4` é o respiro interno, e a
+                // margem da página fica na moldura do cartão. O fio de cima
+                // acompanha a leveza da moldura (`border/60`).
+                'flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3',
                 className
             )}
         >

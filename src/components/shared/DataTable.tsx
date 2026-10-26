@@ -253,13 +253,29 @@ export function DataTable<T>({
         return (
             <div
                 className={cn(
-                    'flex min-h-0 flex-1 flex-col overflow-clip bg-card',
+                    // A margem do Dashboard mora aqui agora, e não dentro de
+                    // cada bloco: ela emoldura o cartão da tabela, em vez de
+                    // recuar o conteúdo de uma tabela que sangrava.
+                    'flex min-h-0 flex-1 flex-col bg-background px-4 pb-4 md:px-6',
                     className
                 )}
             >
+                {/* **O cartão da tabela** — desenho pedido pelo Andre em
+                    2026-10-26: bordas suaves e arredondadas, no lugar da tabela
+                    de ponta a ponta.
+
+                    A borda é `border/60` e não a cheia: a tabela já é uma grade
+                    de linhas horizontais, e uma moldura em força total somada a
+                    elas endurece o conjunto. `overflow-hidden` é o que faz as
+                    linhas e o cabeçalho preso respeitarem o raio — sem ele a
+                    primeira linha vaza por cima do canto. */}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/60 bg-card">
                 <div
                     className={cn(
                         'min-h-0 flex-1 overflow-auto overscroll-contain',
+                        // Fios internos mais leves que a moldura, pelo mesmo
+                        // motivo: muitas linhas em força total viram ruído.
+                        '[&_tbody_tr]:border-border/60',
                         // Cabeçalho da tabela preso: superfície da página para
                         // separar das linhas, e a borda como sombra interna porque
                         // borda de `tr` não acompanha o `sticky`.
@@ -306,7 +322,10 @@ export function DataTable<T>({
                         porque fica dentro deste bloco. */}
                     <div
                         className={cn(
-                            'px-4 md:px-6',
+                            // Respiro interno do cartão. A margem da página
+                            // subiu para a moldura; aqui é só o que separa o
+                            // texto da borda arredondada.
+                            'px-4',
                             mobile && 'hidden md:block',
                             density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
                         )}
@@ -465,12 +484,15 @@ export function DataTable<T>({
 
                 {bulk ? (
                     // Mesma margem lateral da tabela e do rodapé (padrão Dashboard).
-                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background md:px-6">
+                    // Dentro do cartão, então o `px` é o respiro interno — a
+                    // margem da página já está na moldura.
+                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background">
                         {bulk}
                     </div>
                 ) : footer ? (
                     <div className="shrink-0">{footer}</div>
                 ) : null}
+                </div>
             </div>
         )
     }

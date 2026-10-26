@@ -371,6 +371,38 @@ margem mora no `frame` do `DataTable` e no `Pagination`, não em cada tela: um
 não é tabela de cadastro — o quadro do kanban e o chat (Tela 02), que tratam a
 largura como recurso escasso.
 
+**E dentro dessa margem a tabela é um cartão arredondado.** Pedido do Andre em
+2026-10-26: `rounded-xl` com moldura `border/60`, e `overflow-hidden` para que
+as linhas e o cabeçalho preso respeitem o raio — sem ele a primeira linha vaza
+por cima do canto. A moldura é deliberadamente **mais fraca que a borda cheia**,
+e os fios entre as linhas acompanham (`border/60`): a tabela já é uma grade de
+horizontais, e somar uma moldura em força total endurece o conjunto. O rodapé de
+paginação e a `BulkBar` ficam **dentro** do cartão, então o `px` deles é respiro
+interno — a margem da página está na moldura, não neles.
+
+**A primeira página de dados vem do servidor.** Decisão de 2026-10-26, e é o
+conserto de origem do pisca das telas de índice. Enquanto cada índice era um
+`'use client'` que buscava em `useEffect`, toda navegação tinha **duas pinturas**
+obrigatórias — casca vazia e casca cheia —, e nenhum placeholder resolvia isso:
+esqueleto de linhas mente sobre o que vem, e cabeçalho de coluna sozinho salta
+quando as larguras são recalculadas. A casca passa a ser componente de servidor,
+que consulta o Prisma e entrega as linhas já no HTML; o componente de cliente
+nasce com os dados em mãos e **não busca na montagem**. É a mesma escolha da
+Tela 04 — e era por isso que o painel nunca piscou e os índices sempre piscaram.
+
+Duas armadilhas, as duas já pagas:
+
+- **Componente de servidor não importa VALOR de módulo `'use client'`.** O Next
+  troca cada export daquele módulo por uma referência de cliente, e a constante
+  chega do outro lado como função (`Invalid value for argument take: [object
+  Function]`). Tipo atravessa; valor não. O que os dois lados compartilham mora
+  num `dados.ts` neutro, ao lado da tela.
+- **O guarda que evita a busca na montagem compara parâmetros, não conta
+  visitas.** Um `useRef(true)` gasto na primeira execução morre no StrictMode,
+  que roda o efeito duas vezes: a segunda busca e repinta. O guarda guarda **o
+  recorte que o servidor serviu** e só é limpo quando os parâmetros mudam de
+  verdade — assim rodar o efeito N vezes sem mudança não dispara nada.
+
 **Quadro: cabeçalho e rodapé param, o quadro corre.** No kanban a região da
 página não rola — ela se divide em quadro e rodapé. O quadro rola por dentro,
 nos dois eixos, e a faixa de Ganho e Perdido fica no rodapé **mesmo sem cartão
