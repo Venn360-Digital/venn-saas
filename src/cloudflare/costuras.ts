@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import type { EmailBinding, RateLimit } from '@cloudflare/workers-types'
 import { registrarPublicadorImediato } from '@/lib/outbox/avisar'
 import { publicarPendentes } from '@/lib/outbox'
 import { entregadorParaSalas } from './publicador'
@@ -26,6 +27,9 @@ export interface EnvDasCosturas extends BindingsDeFila {
     SALA_DO_WORKSPACE: DurableObjectNamespace
     AGENDA_DA_CONVERSA: DurableObjectNamespace
     TRAVA_DE_CONTATO: DurableObjectNamespace
+    EMAIL: EmailBinding
+    EMAIL_FROM: string
+    EMAIL_RATELIMIT: RateLimit<string>
 }
 
 /**

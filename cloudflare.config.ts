@@ -240,7 +240,7 @@ export default defineConfig({
             EMAIL: bindings.sendEmail({ destinationAddress: 'odontobox360@mail.venn360.com' }),
             EMAIL_FROM: bindings.text('OdontoBox360 <odontobox360@mail.venn360.com>'),
             EMAIL_RATELIMIT: bindings.rateLimit({
-                namespace_id: '1001',
+                namespace: '1001',
                 simple: { limit: 5, period: 60 },
             }),
 
