@@ -6,6 +6,8 @@ import prisma from '@/lib/prisma'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
 import { errorMessage } from '@/lib/prisma-errors'
 import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
+import { sendEmail } from '@/lib/email/send'
+import { TEMPLATES } from '@/lib/email/templates'
 
 export async function POST(request: NextRequest) {
     try {
@@ -291,6 +293,17 @@ export async function POST(request: NextRequest) {
         })
 
         console.log('[ONBOARDING] Transaction completed:', result)
+
+        // Enviar e-mail de bem-vindo em background
+        if (!result.alreadyExists && user.email) {
+            const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`
+            const docsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/docs`
+            sendEmail({
+                to: user.email,
+                subject: TEMPLATES.welcome(dashboardUrl, docsUrl).includes('Bem-vindo') ? 'Bem-vindo ao OdontoBox360' : 'Bem-vindo',
+                html: TEMPLATES.welcome(dashboardUrl, docsUrl),
+            }).catch(err => console.error('[ONBOARDING] Failed to send welcome email:', err))
+        }
 
         if (result.alreadyExists) {
             return NextResponse.json({

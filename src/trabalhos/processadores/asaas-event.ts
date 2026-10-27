@@ -526,7 +526,7 @@ function formatarReais(valor: number): string {
  */
 async function avisarPorEmail(
     accountId: string,
-    kind: 'payment_overdue' | 'access_suspended',
+    kind: 'payment_overdue' | 'access_suspended' | 'payment_confirmed',
     scope: string,
     context: Record<string, unknown>
 ): Promise<void> {
@@ -637,6 +637,19 @@ async function reagirAoStatusDaCobranca(
         })
 
         log.info(`conta ${accountId} regularizada: atraso encerrado e acesso restaurado`)
+
+        // Enviar e-mail de pagamento confirmado
+        const subscription = await prisma.subscription.findUnique({
+            where: { accountId },
+            select: { currentPeriodEnd: true },
+        })
+
+        if (subscription?.currentPeriodEnd) {
+            await avisarPorEmail(accountId, 'payment_confirmed', dados.dueDate.toISOString().slice(0, 10), {
+                valor: formatarReais(dados.valueCents / 100),
+                proximaCobranca: subscription.currentPeriodEnd.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+            })
+        }
     }
 }
 

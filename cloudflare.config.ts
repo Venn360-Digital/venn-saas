@@ -228,6 +228,23 @@ export default defineConfig({
             ASSETS: bindings.assets(),
 
             /**
+             * Email transacional via Cloudflare Email Sending.
+             *
+             * Subdomínio dedicado (`mail.venn360.com`), com destinatários
+             * verificados na conta. Rate limit em memória por IP, obrigatório
+             * para evitar que o serviço fique aberto.
+             *
+             * Ver `docs/email-service-migration.md` para os passos de
+             * configuração no painel da Cloudflare.
+             */
+            EMAIL: bindings.sendEmail({ destinationAddress: 'odontobox360@mail.venn360.com' }),
+            EMAIL_FROM: bindings.text('OdontoBox360 <odontobox360@mail.venn360.com>'),
+            EMAIL_RATELIMIT: bindings.rateLimit({
+                namespace_id: '1001',
+                simple: { limit: 5, period: 60 },
+            }),
+
+            /**
              * Os Durable Objects, referenciados pelo próprio nome do Worker.
              *
              * As duas são fronteira de isolamento por **topologia**, não por
@@ -415,7 +432,6 @@ export default defineConfig({
             BETTER_AUTH_SECRET: bindings.secret(),
             TOKEN_ENCRYPTION_KEY: bindings.secret(),
             OPENAI_API_KEY: bindings.secret(),
-            RESEND_API_KEY: bindings.secret(),
             EVOLUTION_GO_API_KEY: bindings.secret(),
             /**
              * `GOOGLE_CLIENT_SECRET` saiu em 2026-10-21: é resquício, e nada o
@@ -538,9 +554,11 @@ export default defineConfig({
  *     gateway precisa ser criado na conta;
  *   - **Containers** para o Evolution Go, sujeito à POC. Se ela falhar no item
  *     "sobrevive a período sem tráfego", ele não vem para cá;
- *   - **Cloudflare Email Service**, que fica para depois do primeiro corte — o
- *     Resend segue atendendo;
  *   - `SENSITIVE_STORAGE_*` **não entra mais**: a classe clínica foi para o
  *     R2 em 2026-10-21 e as credenciais dela são `PRIVATE_STORAGE_*`, já
  *     declaradas acima. O que falta nessa frente é a cifra na aplicação.
+ *
+ * **MIGRADO para Cloudflare Email Service** (2026-10-26): rota de envio via
+ * `env.EMAIL` binding, rate limit por IP em memória do Workers, e destino
+ * verificado em `mail.venn360.com`. Resend desativado.
  */

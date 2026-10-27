@@ -16,6 +16,7 @@ import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
 import { aoSerAgendado } from './agendado'
 import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/prisma'
+import { registrarEmailEnv } from '@/lib/email/env-registry'
 
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'
@@ -101,6 +102,7 @@ export default {
         // que chega, mensagem que o atendente envia), e sem as costuras
         // registradas `enfileirar()` lançaria na primeira delas.
         registrarCosturas(env)
+        registrarEmailEnv(env)
 
         /**
          * O WebSocket do tempo real é atendido **antes** do vinext.
@@ -131,6 +133,7 @@ export default {
     async queue(lote: MessageBatch<unknown>, env: EnvDasCosturas, ctx: ExecutionContext): Promise<void> {
         void ctx
         registrarCosturas(env)
+        registrarEmailEnv(env)
 
         const fila = POR_NOME_NA_CLOUDFLARE.get(lote.queue)
 
@@ -197,6 +200,7 @@ export default {
         ctx: ExecutionContext
     ): Promise<void> {
         registrarCosturas(env)
+        registrarEmailEnv(env)
         // Um cliente de banco por disparo — mesma razão do `fetch`, fechado
         // no `finally` pela mesma razão do `queue`.
         const escopo: EscopoDoPrisma = {}
