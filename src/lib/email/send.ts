@@ -1,84 +1,101 @@
 /**
- * Transactional e-mail, through Cloudflare Email Sending.
+ * E-mail transacional, pelo binding de Email Sending da Cloudflare.
  *
- * Binding `EMAIL` alcançado via `env` em route handlers ou Durable Objects.
- * Rate limit em memória de Worker (5 envios por 60 segundos por IP), obrigatório
- * para evitar relay aberto.
+ * **O binding é registrado, não importado** — mesma costura que o driver de
+ * fila usa, e pelo mesmo motivo: binding só existe dentro do Worker e chega por
+ * `env`. Alcançá-lo daqui exigiria `import { env } from 'cloudflare:workers'`,
+ * que não resolve no typecheck desta máquina (sem Miniflare local,
+ * `.cloudflare/types` não é gerado). Ver `src/lib/queue/driver.ts`.
  *
- * O `env` pode ser passado explicitamente ou será recuperado do registro global
- * (`registrarEmailEnv()` em `entrada.ts`).
+ * A assinatura é a mesma de quando o envio era pela API do Resend: um argumento,
+ * sem nada de plataforma. Os chamadores — o gancho de senha do Better Auth, os
+ * avisos de cobrança, as rotas — não sabem por onde o e-mail sai.
  */
 
-import { obterEmailEnv, type EmailEnvRegistry } from './env-registry'
+/**
+ * O recorte do binding que este módulo usa.
+ *
+ * Declarado aqui em vez de importado de `@cloudflare/workers-types` para o
+ * arquivo passar no typecheck do app (`lib: dom`) **e** no do Worker — a mesma
+ * razão que está em `driver-cloudflare.ts`. O Worker passa o binding real; o
+ * tipo confere a forma.
+ *
+ * `from` é objeto, nunca a string `"Nome <endereço>"`: o builder do binding não
+ * parseia esse formato.
+ */
+interface RemetenteDaCloudflare {
+    send(mensagem: {
+        from: { email: string; name: string }
+        to: { email: string }[]
+        subject: string
+        text: string
+        html: string
+    }): Promise<void>
+}
 
 export interface SendResult {
     ok: boolean
-    id?: string
     error?: string
 }
 
-export async function sendEmail(
-    input: {
-        to: string
-        subject: string
-        html: string
-    },
-    env?: EmailEnvRegistry
-): Promise<SendResult> {
+let remetente: RemetenteDaCloudflare | null = null
+let enderecoDeEnvio = ''
+
+/** Chamado por `registrarCosturas`, na entrada do Worker. */
+export function registrarRemetenteDeEmail(
+    binding: RemetenteDaCloudflare,
+    from: string
+): void {
+    remetente = binding
+    enderecoDeEnvio = from
+}
+
+export async function sendEmail(input: {
+    to: string
+    subject: string
+    html: string
+}): Promise<SendResult> {
+    if (!remetente) {
+        // Não é exceção: binding ausente não pode derrubar o cron que só estava
+        // tentando avisar alguém. Fica no retorno, e quem chamou registra.
+        return { ok: false, error: 'binding de e-mail não registrado' }
+    }
+
+    const [email, name] = separarRemetente(enderecoDeEnvio)
+
     try {
-        // Se env não foi passado, recupera do registro global.
-        // Dentro de Workers (crons, filas, etc), é registrado em `entrada.ts`.
-        const emailEnv = env || obterEmailEnv()
-
-        // Rate limit ANTES de qualquer tentativa de envio.
-        // Sem IP (improvável em produção), usa fallback genérico.
-        const ip = emailEnv.CF_CONNECTING_IP ?? 'fallback'
-        const { success } = await emailEnv.EMAIL_RATELIMIT.limit({ key: `email:${ip}` })
-        if (!success) {
-            return { ok: false, error: 'Muitas tentativas de envio.' }
-        }
-
-        // `from` como { email, name }, nunca como string "Nome <email>".
-        // O binding não parseia esse formato — ver skill cloudflare-email-sending.
-        const [email, name] = parseEmailFrom(emailEnv.EMAIL_FROM)
-
-        // Sempre enviar texto + HTML: e-mail só-HTML pesa contra a reputação
-        // de um domínio de envio novo.
-        const text = stripHtmlTags(input.html)
-
-        await emailEnv.EMAIL.send({
+        // Sempre texto **e** HTML: e-mail só-HTML pesa contra a entrega de um
+        // domínio de envio que ainda não tem reputação.
+        await remetente.send({
             from: { email, name },
             to: [{ email: input.to }],
             subject: input.subject,
-            text,
+            text: emTextoSimples(input.html),
             html: input.html,
         })
 
-        // Sucesso: o binding não devolve ID, mas marca que saiu.
         return { ok: true }
-    } catch (error) {
-        const msg = error instanceof Error ? error.message : 'falha de rede'
+    } catch (erro) {
+        const mensagem = erro instanceof Error ? erro.message : 'falha de rede'
+        // O erro do Email Sending carrega `code` (`E_SENDER_NOT_VERIFIED`,
+        // `E_RATE_LIMIT_EXCEEDED`). É ele que diz se o problema é configuração
+        // ou volume, então vai junto.
+        const codigo =
+            typeof erro === 'object' && erro !== null && 'code' in erro
+                ? ` (${String((erro as { code: unknown }).code)})`
+                : ''
 
-        // Se o erro carregar `code`, é da API do Email Sending:
-        // `E_SENDER_NOT_VERIFIED`, `E_RATE_LIMIT_EXCEEDED`, etc.
-        const code = (error as any).code ? ` (${(error as any).code})` : ''
-
-        return { ok: false, error: `${msg}${code}` }
+        return { ok: false, error: `${mensagem}${codigo}` }
     }
 }
 
-function parseEmailFrom(emailFrom: string): [string, string] {
-    // Formato esperado: "Nome <email@domain>" ou "email@domain"
-    const match = emailFrom.match(/^(.+?)\s*<(.+?)>$/)
-    if (match) {
-        return [match[2], match[1]]
-    }
-    return [emailFrom, 'OdontoBox360']
+/** De `"OdontoBox360 <conta@dominio>"` para `["conta@dominio", "OdontoBox360"]`. */
+function separarRemetente(valor: string): [string, string] {
+    const encontrado = valor.match(/^(.+?)\s*<(.+?)>$/)
+    return encontrado ? [encontrado[2], encontrado[1]] : [valor, 'OdontoBox360']
 }
 
-function stripHtmlTags(html: string): string {
-    // Remove tags HTML para gerar versão texto.
-    // Quebra em novas linhas e remove espaços extras.
+function emTextoSimples(html: string): string {
     return html
         .replace(/<[^>]+>/g, '')
         .replace(/&nbsp;/g, ' ')
@@ -88,7 +105,7 @@ function stripHtmlTags(html: string): string {
         .replace(/&#39;/g, "'")
         .replace(/&amp;/g, '&')
         .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
+        .map((linha) => linha.trim())
+        .filter((linha) => linha.length > 0)
         .join('\n')
 }

@@ -8,12 +8,12 @@ import { criarDriverCloudflare, type BindingsDeFila } from '@/lib/queue/driver-c
 import { registrarAgenda } from '@/trabalhos/agenda'
 import { registrarTransmissor } from '@/trabalhos/tempo-real'
 import { registrarTravas } from '@/trabalhos/trava'
-import type { EmailEnvRegistry } from '@/lib/email/env-registry'
+import { registrarRemetenteDeEmail } from '@/lib/email/send'
 
 /**
  * Onde o código da aplicação encontra a plataforma.
  *
- * Quatro costuras, todas registradas em vez de importadas, e sempre pelo mesmo
+ * Cinco costuras, todas registradas em vez de importadas, e sempre pelo mesmo
  * motivo: o que elas precisam são *bindings*, que só existem dentro do Worker e
  * chegam por `env`. Importá-los do lado da aplicação exigiria
  * `import { env } from 'cloudflare:workers'` — que não resolve no typecheck
@@ -23,10 +23,19 @@ import type { EmailEnvRegistry } from '@/lib/email/env-registry'
  * está: o mesmo `enfileirar()` funcionava sobre BullMQ e funciona sobre Queues,
  * e é por isso que os processadores atravessaram a migração sem reescrita.
  */
-export interface EnvDasCosturas extends BindingsDeFila, EmailEnvRegistry {
+export interface EnvDasCosturas extends BindingsDeFila {
     SALA_DO_WORKSPACE: DurableObjectNamespace
     AGENDA_DA_CONVERSA: DurableObjectNamespace
     TRAVA_DE_CONTATO: DurableObjectNamespace
+    /**
+     * O binding de Email Sending, e o endereço que assina o envio.
+     *
+     * A forma vem de `registrarRemetenteDeEmail` em vez de ser repetida aqui:
+     * uma declaração só, do lado de quem usa o binding, e esta interface não
+     * fica livre para divergir dela.
+     */
+    EMAIL: Parameters<typeof registrarRemetenteDeEmail>[0]
+    EMAIL_FROM: string
 }
 
 /**
@@ -45,6 +54,8 @@ export function registrarCosturas(env: EnvDasCosturas): void {
     if (registrado) return
 
     registrarDriver(criarDriverCloudflare(env))
+
+    registrarRemetenteDeEmail(env.EMAIL, env.EMAIL_FROM)
 
     // O gateway do Evolution Go NÃO é mais registrado: o canal saiu para o VPS
     // (2026-10-23) e o provider fala HTTP por `EVOLUTION_GO_URL`. Sem registro,

@@ -228,21 +228,23 @@ export default defineConfig({
             ASSETS: bindings.assets(),
 
             /**
-             * Email transacional via Cloudflare Email Sending.
+             * E-mail transacional, pelo Email Sending. O remetente fica no
+             * subdomínio dedicado (`mail.venn360.com`), que é quem carrega a
+             * reputação de envio — o MX do apex continua com a caixa de entrada.
              *
-             * Subdomínio dedicado (`mail.venn360.com`), com destinatários
-             * verificados na conta. Rate limit em memória por IP, obrigatório
-             * para evitar que o serviço fique aberto.
+             * **Sem `destinationAddress`**, e é a decisão que importa aqui:
+             * travar o destino no binding serve a formulário de contato, onde o
+             * destinatário é sempre a mesma caixa. Estes e-mails vão para o dono
+             * da clínica, para quem foi convidado, para quem pediu a senha de
+             * volta — destinatário diferente a cada envio. Com a trava, todo
+             * envio que não fosse para o próprio endereço do sistema seria
+             * recusado pela plataforma, e o aviso de cobrança nunca chegaria.
              *
-             * Ver `docs/email-service-migration.md` para os passos de
-             * configuração no painel da Cloudflare.
+             * Ver `docs/email-service-migration.md` para o que precisa estar
+             * configurado no painel.
              */
-            EMAIL: bindings.sendEmail({ destinationAddress: 'odontobox360@mail.venn360.com' }),
+            EMAIL: bindings.sendEmail(),
             EMAIL_FROM: bindings.text('OdontoBox360 <odontobox360@mail.venn360.com>'),
-            EMAIL_RATELIMIT: bindings.rateLimit({
-                namespace: '1001',
-                simple: { limit: 5, period: 60 },
-            }),
 
             /**
              * Os Durable Objects, referenciados pelo próprio nome do Worker.
