@@ -1,6 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import type { EmailBinding, RateLimit } from '@cloudflare/workers-types'
 import { registrarPublicadorImediato } from '@/lib/outbox/avisar'
 import { publicarPendentes } from '@/lib/outbox'
 import { entregadorParaSalas } from './publicador'
@@ -9,6 +8,7 @@ import { criarDriverCloudflare, type BindingsDeFila } from '@/lib/queue/driver-c
 import { registrarAgenda } from '@/trabalhos/agenda'
 import { registrarTransmissor } from '@/trabalhos/tempo-real'
 import { registrarTravas } from '@/trabalhos/trava'
+import type { EmailEnvRegistry } from '@/lib/email/env-registry'
 
 /**
  * Onde o código da aplicação encontra a plataforma.
@@ -23,13 +23,10 @@ import { registrarTravas } from '@/trabalhos/trava'
  * está: o mesmo `enfileirar()` funcionava sobre BullMQ e funciona sobre Queues,
  * e é por isso que os processadores atravessaram a migração sem reescrita.
  */
-export interface EnvDasCosturas extends BindingsDeFila {
+export interface EnvDasCosturas extends BindingsDeFila, EmailEnvRegistry {
     SALA_DO_WORKSPACE: DurableObjectNamespace
     AGENDA_DA_CONVERSA: DurableObjectNamespace
     TRAVA_DE_CONTATO: DurableObjectNamespace
-    EMAIL: EmailBinding
-    EMAIL_FROM: string
-    EMAIL_RATELIMIT: RateLimit<string>
 }
 
 /**
