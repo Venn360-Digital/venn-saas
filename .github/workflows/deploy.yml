@@ -41,6 +41,8 @@ jobs:
           npm run check:storage
           npm run check:tempo-real
           npm run check:envelopes
+      - name: Auditoria de isolamento (proíbe recursos de stagent/conecta)
+        run: npm run audit:isolation
       - run: npm run build
       - run: npm run build:vinext
 

@@ -1,0 +1,74 @@
+{
+  "$comment": "Identificadores do app Stagent360. Lista proibida nos repos odontobox e conecta. Sem secrets. Conta Cloudflare e nomes de classe de DO são compartilhados (não entram aqui).",
+  "slug": "stagent",
+  "strings": [
+    "stagent",
+    "stagent360",
+    "venn.stagent360"
+  ],
+  "hostnames": [
+    "stagent.venn360.com",
+    "homolog-stagent.venn360.com",
+    "evo-stagent.venn360.com",
+    "mail.stagent.venn360.com",
+    "mail-stg.stagent.venn360.com"
+  ],
+  "cloudflareIds": [],
+  "workers": [
+    "stagent-prod",
+    "stagent-stg"
+  ],
+  "buckets": [
+    "stagent-prod-public",
+    "stagent-prod-private",
+    "stagent-stg-public",
+    "stagent-stg-private"
+  ],
+  "queues": [
+    "stagent-prod-whatsapp-inbound",
+    "stagent-prod-whatsapp-event",
+    "stagent-prod-whatsapp-outbound",
+    "stagent-prod-ai-reply",
+    "stagent-prod-rag-index",
+    "stagent-prod-agent-webhook",
+    "stagent-prod-asaas-event",
+    "stagent-prod-broadcast",
+    "stagent-prod-cron",
+    "stagent-stg-whatsapp-inbound",
+    "stagent-stg-whatsapp-event",
+    "stagent-stg-whatsapp-outbound",
+    "stagent-stg-ai-reply",
+    "stagent-stg-rag-index",
+    "stagent-stg-agent-webhook",
+    "stagent-stg-asaas-event",
+    "stagent-stg-broadcast",
+    "stagent-stg-cron"
+  ],
+  "turnstileSitekeys": [],
+  "neonProjectIds": [
+    "lingering-star-00477174"
+  ],
+  "neonEndpoints": [
+    "ep-misty-flower-b66fzdhu.c-2.sa-east-1.aws.neon.tech",
+    "ep-square-pond-b6or2qgu.c-2.sa-east-1.aws.neon.tech"
+  ],
+  "containers": [
+    "evo-stagent-prod",
+    "evo-stagent-stg"
+  ],
+  "composeProjects": [
+    "evo-stagent-prod",
+    "evo-stagent-stg"
+  ],
+  "vpsDatabases": [
+    "evo_stagent_prod",
+    "evo_stagent_stg"
+  ],
+  "googleClientIds": [],
+  "metaAppIds": [],
+  "other": [
+    "b930a363-a4b6-4896-a167-e7168179334b",
+    "216.238.113.204"
+  ],
+  "warnStrings": []
+}
