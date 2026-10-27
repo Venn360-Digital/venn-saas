@@ -94,3 +94,7 @@ src/generated/
 # engano saíram do índice em 2026-10-24, junto com a correção da regra de
 # `node_modules` acima, que era a causa.
 .wrangler/
+
+# acrescentados na Fase 02 (completude)
+.dev.vars*
+.open-next/
