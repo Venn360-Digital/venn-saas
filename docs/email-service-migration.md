@@ -1,83 +1,84 @@
-# Migração para Cloudflare Email Sending
+# E-mail transacional pelo Cloudflare Email Sending
 
-**Data:** 2026-10-26
-**Mudança:** Resend → Cloudflare Email Sending
-**Status:** código migrado; falta onboardar o subdomínio de envio no painel
+**Configurado em:** 2026-10-27
+**Estado:** subdomínio de envio verificado (`ready`), Worker publicado, Resend desativado
 
-## O que mudou no código
+## O desenho
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Provedor | Resend (HTTP API) | binding `EMAIL` do Email Sending |
-| Credencial | `RESEND_API_KEY` em secret | nenhuma — binding declarado em `cloudflare.config.ts` |
-| Remetente | qualquer domínio | `mail.venn360.com`, subdomínio dedicado |
+| Aspecto | Valor |
+|---------|-------|
+| Remetente | `OdontoBox360 <noreply@mail.venn360.com>` |
+| Subdomínio de envio | `mail.venn360.com` |
+| Seletor DKIM | `cf-bounce` |
+| Return-Path | `cf-bounce.mail.venn360.com` |
+| Cota | **200 envios/dia** na conta |
 
-A assinatura de `sendEmail({ to, subject, html })` **não mudou**: quem chama —
-o gancho de senha do Better Auth, os avisos de cobrança, as rotas — continua
-igual. O binding chega por `registrarCosturas`, a mesma costura que entrega as
-filas e os Durable Objects ao código da aplicação.
+A assinatura de `sendEmail({ to, subject, html })` é a mesma de quando o envio
+era pelo Resend: um argumento, sem nada de plataforma. O binding chega por
+`registrarCosturas`, a mesma costura que entrega filas e Durable Objects.
 
-## O caso de uso, que decide a configuração
+`noreply@` é literal: **`mail.venn360.com` não tem MX**, então o subdomínio só
+envia e qualquer resposta é devolvida. Por isso o rodapé padrão em `layout.ts`
+diz que o endereço não recebe respostas, em vez de convidar a responder.
 
-Estes e-mails vão para **destinatário diferente a cada envio**: o dono da
-clínica, quem foi convidado para a equipe, quem pediu a senha de volta. Isso
-tem duas consequências, e as duas contrariam o modelo de "formulário de
-contato" que a documentação da Cloudflare usa de exemplo:
+## Por que o binding não trava o destino
 
-1. **O binding não trava o destino.** `bindings.sendEmail()` vai sem
-   `destinationAddress`. Travá-lo faria a plataforma recusar todo envio que não
-   fosse para o próprio endereço do sistema — ou seja, todos.
-2. **Exige Workers Paid.** O envio gratuito vale só para destinatário
-   verificado na conta. Não é um bloqueio aqui: a conta já está em Paid, porque
-   Durable Objects e Queues exigem.
+`bindings.sendEmail()` vai **sem `destinationAddress`**. Travar o destino serve
+a formulário de contato, onde o destinatário é sempre a mesma caixa. Aqui cada
+envio vai para uma pessoa diferente — dono de clínica, convidado, quem pediu a
+senha de volta — e com a trava a plataforma recusaria todos.
 
-Não há limitador de envio no caminho. O limitador por IP que a documentação
-sugere protege uma **rota pública** de virar relay aberto; aqui nenhum envio
-nasce de requisição anônima — todos vêm de cron, de webhook do Asaas ou de
-administrador autenticado. Um limitador global, além de não proteger nada,
-descartaria em silêncio os avisos a partir da sexta clínica da mesma rodada do
-cron.
+Também não há limitador no caminho de envio. O limitador por IP que a
+documentação sugere protege **rota pública** de virar relay aberto; aqui nenhum
+envio nasce de requisição anônima. Um limitador global descartaria em silêncio
+os avisos a partir da sexta clínica da mesma rodada do cron.
 
-## Checklist no painel da Cloudflare
+## O que está publicado no DNS
 
-### 1. Onboardar o subdomínio de envio
+Criados pelo próprio Email Sending (`POST .../subdomains/{tag}/dns`):
 
-1. Zona **`venn360.com`** → **Email** → **Email Sending**
-2. Adicionar `mail.venn360.com` como domínio de envio
-3. Aplicar no DNS os registros **DKIM/SPF** que a Cloudflare gerar (a zona já
-   está na Cloudflare, então é aplicar no mesmo painel)
-4. Esperar o painel marcar o domínio como verificado
+| Tipo | Nome | Conteúdo |
+|------|------|----------|
+| MX | `cf-bounce.mail.venn360.com` | `route1/2/3.mx.cloudflare.net` (prio 43/80/61) |
+| TXT | `cf-bounce.mail.venn360.com` | `v=spf1 include:_spf.mx.cloudflare.net ~all` |
+| TXT | `cf-bounce._domainkey.mail.venn360.com` | chave DKIM |
+| TXT | `_dmarc.mail.venn360.com` | `v=DMARC1; p=reject;` |
 
-Sem este passo o envio falha com `E_SENDER_NOT_VERIFIED`.
+Tudo fica sob `cf-bounce.` — nada no apex foi tocado. O **MX de `venn360.com`
+continua em `smtp.google.com`**, que é a caixa de entrada da empresa, e o SPF
+do apex continua o do Google.
 
-### 2. Não tocar no MX do apex
+O `p=reject` em `_dmarc.mail.venn360.com` é política só do subdomínio de envio;
+o apex mantém o `p=quarantine` que já tinha. Reject é adequado aqui porque
+`mail.venn360.com` tem um remetente só — qualquer coisa assinada de outro jeito
+é falsificação.
 
-O MX de `venn360.com` atende a **caixa de entrada** e está com outro provedor.
-O subdomínio de envio não precisa de MX — só dos registros de assinatura. Mexer
-no MX do apex derruba o e-mail da empresa.
+## Verificar o estado
 
-### 3. Publicar o Worker
+```bash
+npx wrangler tail odontobox
+```
 
-O binding é declarativo, mas só existe no Worker depois de publicado. Merge em
-`main` → workflow **Produção** → aprovar o environment.
+Pela API, o status do subdomínio de envio:
+
+```
+GET /zones/f01f6a4a622fb37f5ba0c7bbe0869fde/email/sending/subdomains
+GET /zones/f01f6a4a622fb37f5ba0c7bbe0869fde/email/sending/subdomains/{tag}/dns/status
+GET /accounts/7ee4810a45580562977d68b86ec709e7/email/sending/limits
+```
+
+`.../dns/status` devolve `status: "ready"` e `errors: []` quando o DNS está
+completo. `limits` mostra quanto da cota diária já saiu.
 
 ## Testar
 
-Pelo fluxo real, que é o que prova a ponta a ponta:
+```bash
+./scripts/testar-email.sh andre@venn360.com
+```
 
-1. **Redefinição de senha** — `/auth/esqueci-senha` com um endereço real. É o
-   caminho mais curto: não depende de cron nem de webhook.
-2. Conferir que a mensagem chega (inclusive no spam, que é onde cai domínio de
-   envio sem reputação) e que o botão abre o link certo.
-3. Conferir no `wrangler tail` que não houve erro de binding.
-
-## Limpeza do Resend
-
-1. ✅ Código e `.env.example`: `RESEND_API_KEY` já removido
-2. **Secret:** `wrangler secret delete RESEND_API_KEY --name odontobox`
-3. **Histórico do git:** `git log -S "RESEND_API_KEY" --oneline` — se a chave
-   foi commitada em texto puro, **revogar no painel do Resend**; apagar o
-   arquivo não tira do histórico
+Dispara a redefinição de senha, que é o único dos onze alcançável de fora sem
+sessão. Os outros nascem de administrador autenticado, de cadastro, de webhook
+do Asaas ou do cron — o script lista o que provoca cada um.
 
 ## Erros do binding
 
@@ -85,10 +86,20 @@ O erro carrega `code`, e é ele que diz se o problema é configuração ou volum
 
 | Código | Significado | O que fazer |
 |--------|-------------|-------------|
-| `E_SENDER_NOT_VERIFIED` | `mail.venn360.com` não onboardado | passo 1 |
-| `E_INVALID_ADDRESS` | endereço malformado, ou destino recusado pelo binding | conferir que o binding não tem `destinationAddress` |
-| `E_RATE_LIMIT_EXCEEDED` | teto da plataforma, não nosso | olhar volume no painel |
+| `E_SENDER_NOT_VERIFIED` | subdomínio saiu do `ready` | conferir `.../dns/status` |
+| `E_INVALID_ADDRESS` | endereço malformado, ou destino recusado | conferir que o binding segue sem `destinationAddress` |
+| `E_RATE_LIMIT_EXCEEDED` | cota de 200/dia | ver `.../sending/limits` |
 
 Falha de envio **não derruba quem chamou**: `sendEmail` devolve
 `{ ok: false, error }` e o chamador registra. Um aviso de cobrança perdido é
 recuperável; um cron que morre no meio da rodada não.
+
+## Resend
+
+Desativado, e os registros dele (`send.mail`, `rsend.mail`,
+`resend._domainkey.mail`) já saíram da zona. Falta confirmar:
+
+```bash
+npx wrangler secret delete RESEND_API_KEY --name odontobox
+git log -S "RESEND_API_KEY" --oneline   # se a chave foi commitada, revogar no painel
+```

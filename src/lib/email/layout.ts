@@ -43,7 +43,13 @@ function esc(texto: string): string {
 
 export function renderEmail(copy: CascaDeEmail): string {
     const accent = copy.tone === 'urgent' ? '#c62828' : '#a7f3d0'
-    const rodape = copy.rodape ?? 'Qualquer dúvida, é só responder este e-mail.'
+    /**
+     * O envio sai de `noreply@mail.venn360.com`, e `mail.venn360.com` não tem
+     * MX — o subdomínio é só de envio, e quem responder recebe devolução. O
+     * rodapé anterior convidava a responder, o que mandava o cliente falar com
+     * uma caixa que não existe justamente quando ele tinha dúvida de cobrança.
+     */
+    const rodape = copy.rodape ?? 'Este é um aviso automático. Este endereço não recebe respostas.'
 
     return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(copy.headline)}</title></head>

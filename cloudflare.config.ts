@@ -244,7 +244,7 @@ export default defineConfig({
              * configurado no painel.
              */
             EMAIL: bindings.sendEmail(),
-            EMAIL_FROM: bindings.text('OdontoBox360 <odontobox360@mail.venn360.com>'),
+            EMAIL_FROM: bindings.text('OdontoBox360 <noreply@mail.venn360.com>'),
 
             /**
              * Os Durable Objects, referenciados pelo próprio nome do Worker.
