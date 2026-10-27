@@ -4,6 +4,7 @@ import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ThemeProvider } from '@/components/theme-provider'
+import { BRAND } from '@/config/brand'
 
 // Both are variable fonts, so `weight` is deliberately omitted — naming weights
 // would ship four to six files per family instead of one, and the build runs on
@@ -28,8 +29,9 @@ const inter = Inter({
 export const metadata: Metadata = {
     // `DocumentTitle` renomeia a aba por rota dentro do dashboard; isto é o
     // padrão para login, onboarding e o que for servido do servidor.
-    title: 'OdontoBox360',
-    description: 'Atendimento, agenda e CRM para clínicas odontológicas',
+    // Vem da marca (`src/config/brand.ts`) — único lugar da identidade.
+    title: BRAND.name,
+    description: BRAND.tagline,
 }
 
 export default function RootLayout({
