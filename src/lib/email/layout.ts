@@ -18,6 +18,15 @@ import 'server-only'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://odontobox.venn360.com'
 
+/**
+ * A caixa que atende quem responde a um e-mail nosso.
+ *
+ * Fica aqui, e não repetida em `send.ts`, porque o rodapé e o `Reply-To` têm de
+ * apontar para o mesmo lugar — divergir é anunciar um endereço e encaminhar
+ * para outro.
+ */
+export const CONTATO = 'contato@venn360.com'
+
 const FONTE =
     "'Open Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
@@ -45,11 +54,14 @@ export function renderEmail(copy: CascaDeEmail): string {
     const accent = copy.tone === 'urgent' ? '#c62828' : '#a7f3d0'
     /**
      * O envio sai de `noreply@mail.venn360.com`, e `mail.venn360.com` não tem
-     * MX — o subdomínio é só de envio, e quem responder recebe devolução. O
-     * rodapé anterior convidava a responder, o que mandava o cliente falar com
-     * uma caixa que não existe justamente quando ele tinha dúvida de cobrança.
+     * MX — é subdomínio de envio, e resposta a ele volta. Por isso o rodapé
+     * manda para a caixa de verdade, e `send.ts` põe o mesmo endereço no
+     * `Reply-To`: quem apertar "responder" por reflexo chega no mesmo lugar
+     * que quem clicar aqui.
      */
-    const rodape = copy.rodape ?? 'Este é um aviso automático. Este endereço não recebe respostas.'
+    const rodape =
+        copy.rodape ??
+        `Dúvidas? Escreva para <a href="mailto:${CONTATO}" style="color:#01524a;">${CONTATO}</a>.`
 
     return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${esc(copy.headline)}</title></head>

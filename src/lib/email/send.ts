@@ -12,6 +12,8 @@
  * avisos de cobrança, as rotas — não sabem por onde o e-mail sai.
  */
 
+import { CONTATO } from './layout'
+
 /**
  * O recorte do binding que este módulo usa.
  *
@@ -26,6 +28,7 @@
 interface RemetenteDaCloudflare {
     send(mensagem: {
         from: { email: string; name: string }
+        replyTo: string
         to: { email: string }[]
         subject: string
         text: string
@@ -68,6 +71,9 @@ export async function sendEmail(input: {
         // domínio de envio que ainda não tem reputação.
         await remetente.send({
             from: { email, name },
+            // O remetente é `noreply@` num subdomínio sem MX. Sem este
+            // `Reply-To`, apertar "responder" devolve a mensagem.
+            replyTo: CONTATO,
             to: [{ email: input.to }],
             subject: input.subject,
             text: emTextoSimples(input.html),
