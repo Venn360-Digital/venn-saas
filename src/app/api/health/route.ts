@@ -1,13 +1,29 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 
+import { verificarIdentidade } from '@/lib/identidade/guarda'
+
 /**
  * Container liveness/readiness probe.
  *
  * Checks the database round trip rather than just returning 200: a container
  * that cannot reach Postgres should not receive traffic from the proxy.
+ *
+ * Também respeita a trava de identidade (T3): com `APP_SLUG`/`APP_ENV` setados
+ * e a sentinela divergente, responde 503 `identity_mismatch` — o mesmo sinal
+ * que o entry global dará quando a trava for estendida a todas as rotas (ver
+ * fase-03.md). Enquanto a identidade não estiver configurada, a trava é no-op e
+ * só a checagem de banco decide.
  */
 export async function GET() {
+    const id = await verificarIdentidade()
+    if (!id.ok) {
+        return NextResponse.json(
+            { status: 'identity_mismatch', timestamp: new Date().toISOString() },
+            { status: 503 }
+        )
+    }
+
     const checks: Record<string, 'ok' | 'error'> = {}
 
     try {

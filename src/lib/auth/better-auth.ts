@@ -4,6 +4,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import prisma from '@/lib/prisma'
 import { renderEmail } from '@/lib/email/layout'
 import { sendEmail } from '@/lib/email/send'
+import { APP } from '@/config/app.config'
 
 /**
  * O Better Auth, montado sobre o schema que já existe.
@@ -347,6 +348,27 @@ function construir() {
                  */
                 generateId: false,
             },
+
+            /**
+             * T5 — cookies host-only, com prefixo por app.
+             *
+             * `cookiePrefix` vem de `AUTH_COOKIE_PREFIX`. Na OdontoBox fica
+             * **vazio de propósito**: `undefined` mantém o default da biblioteca
+             * (`better-auth`), então as sessões ativas NÃO caem. Os apps novos
+             * setam o próprio slug. Trocar o prefixo renomeia o cookie e desloga
+             * todo mundo uma vez — por isso só muda quando a var muda.
+             *
+             * `crossSubDomainCookies` **desativado** (cookie sem atributo
+             * `Domain`): todos os produtos vivem sob `venn360.com`, e um cookie
+             * com `Domain=.venn360.com` vazaria sessão entre produtos. O default
+             * da lib já é desativado; aqui fica explícito para não depender disso.
+             *
+             * `useSecureCookies` NÃO é setado aqui: o default da lib já marca
+             * Secure em https/produção, e forçá-lo sem poder validar em staging
+             * arriscaria o cookie em preview. Fica para a validação da Fase 03.
+             */
+            cookiePrefix: APP.authCookiePrefix || undefined,
+            crossSubDomainCookies: { enabled: false },
         },
     })
 }

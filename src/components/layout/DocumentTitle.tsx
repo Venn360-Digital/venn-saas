@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { pageTitleFor } from '@/lib/nav'
+import { BRAND } from '@/config/brand'
 
 /**
  * Names the browser tab after the page you are on.
@@ -24,7 +25,7 @@ export function DocumentTitle() {
 
     useEffect(() => {
         const page = pageTitleFor(pathname)
-        document.title = page === 'OdontoBox360' ? page : `${page} · OdontoBox360`
+        document.title = page === BRAND.name ? page : `${page} · ${BRAND.name}`
     }, [pathname])
 
     return null
