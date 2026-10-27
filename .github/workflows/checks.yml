@@ -52,6 +52,8 @@ jobs:
         run: npm run typecheck:cloudflare
 
       - run: npm run lint
+      - name: Auditoria de isolamento (proíbe recursos de stagent/conecta)
+        run: npm run audit:isolation
 
       # Os verificadores próprios do projeto. Rodados um a um — o `prebuild` já
       # os chama, mas em bloco: separados, a falha diz qual foi.

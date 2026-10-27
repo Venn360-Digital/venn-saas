@@ -1,0 +1,73 @@
+{
+  "$comment": "Identificadores do app Conecta360. Lista proibida nos repos odontobox e stagent. Sem secrets. Conta Cloudflare e nomes de classe de DO são compartilhados.",
+  "slug": "conecta",
+  "strings": [
+    "conecta360",
+    "venn.conecta360"
+  ],
+  "hostnames": [
+    "conecta.venn360.com",
+    "homolog-conecta.venn360.com",
+    "evo-conecta.venn360.com",
+    "mail.conecta.venn360.com",
+    "mail-stg.conecta.venn360.com"
+  ],
+  "cloudflareIds": [],
+  "workers": [
+    "conecta-prod",
+    "conecta-stg"
+  ],
+  "buckets": [
+    "conecta-prod-public",
+    "conecta-prod-private",
+    "conecta-stg-public",
+    "conecta-stg-private"
+  ],
+  "queues": [
+    "conecta-prod-whatsapp-inbound",
+    "conecta-prod-whatsapp-event",
+    "conecta-prod-whatsapp-outbound",
+    "conecta-prod-ai-reply",
+    "conecta-prod-rag-index",
+    "conecta-prod-agent-webhook",
+    "conecta-prod-asaas-event",
+    "conecta-prod-broadcast",
+    "conecta-prod-cron",
+    "conecta-stg-whatsapp-inbound",
+    "conecta-stg-whatsapp-event",
+    "conecta-stg-whatsapp-outbound",
+    "conecta-stg-ai-reply",
+    "conecta-stg-rag-index",
+    "conecta-stg-agent-webhook",
+    "conecta-stg-asaas-event",
+    "conecta-stg-broadcast",
+    "conecta-stg-cron"
+  ],
+  "turnstileSitekeys": [],
+  "neonProjectIds": [
+    "twilight-forest-55489209"
+  ],
+  "neonEndpoints": [
+    "ep-morning-mouse-b6bkiolv.c-2.sa-east-1.aws.neon.tech",
+    "ep-still-credit-b66bl8cs.c-2.sa-east-1.aws.neon.tech"
+  ],
+  "containers": [
+    "evo-conecta-prod",
+    "evo-conecta-stg"
+  ],
+  "composeProjects": [
+    "evo-conecta-prod",
+    "evo-conecta-stg"
+  ],
+  "vpsDatabases": [
+    "evo_conecta_prod",
+    "evo_conecta_stg"
+  ],
+  "googleClientIds": [],
+  "metaAppIds": [],
+  "other": [
+    "0a5ffb7f-d14f-4842-999f-568037942885",
+    "216.128.171.19"
+  ],
+  "warnStrings": []
+}
