@@ -1,0 +1,20 @@
+{
+  "$comment": "Identificadores de UM app. Salve como infra/fingerprints/<slug>.json. Nos repositórios dos OUTROS apps, este arquivo vira lista proibida. Nunca coloque secrets aqui (client IDs e app IDs são públicos; secrets não).",
+  "slug": "odontobox",
+  "strings": ["odontobox", "odontobox360", "odonto box"],
+  "hostnames": ["<app.odontobox...>", "<staging...>", "<evolution...>", "<mail...>"],
+  "cloudflareIds": ["<id 32 hex de KV>", "<id Hyperdrive>", "<id Access app>"],
+  "workers": ["<worker prod>", "<worker staging>"],
+  "buckets": ["<bucket prod>", "<bucket staging>"],
+  "queues": ["<queue>"],
+  "turnstileSitekeys": ["<sitekey>"],
+  "neonProjectIds": ["<project id>"],
+  "neonEndpoints": ["ep-xxxx-xxxx.sa-east-1.aws.neon.tech"],
+  "containers": ["<container evolution prod>", "<container evolution stg>"],
+  "composeProjects": ["<compose project>"],
+  "vpsDatabases": ["<banco evolution>"],
+  "googleClientIds": ["<client id>.apps.googleusercontent.com"],
+  "metaAppIds": ["<app id>"],
+  "other": [],
+  "warnStrings": ["odontograma", "dentista", "odontológic"]
+}
