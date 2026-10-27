@@ -23,6 +23,10 @@ export type BillingEmailKind =
     | 'payment_overdue'
     /** A carência acabou e a clínica ficou em somente-leitura. */
     | 'access_suspended'
+    /** Pagamento recebido com sucesso. */
+    | 'payment_confirmed'
+    /** Bem-vindo ao novo workspace. */
+    | 'welcome'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://odontobox.venn360.com'
 const PLANS_URL = `${APP_URL}/gerenciamento/conta?tab=plano`
@@ -152,6 +156,29 @@ function copyFor(
                 tone: 'neutral',
             }
         }
+        case 'welcome':
+            return {
+                subject: 'Bem-vindo ao OdontoBox360',
+                headline: 'Bem-vindo ao OdontoBox360',
+                body: [
+                    'Sua clínica foi criada com sucesso. Agora é hora de começar: configure seus números de WhatsApp, adicione sua equipe e comece a atender.',
+                    'Temos documentação completa e suporte disponível — é só um clique.',
+                ],
+                cta: 'Acessar dashboard',
+                tone: 'neutral',
+            }
+        case 'payment_confirmed':
+            return {
+                subject: 'Pagamento recebido · OdontoBox360',
+                headline: 'Pagamento recebido',
+                body: [
+                    `Confirmamos o recebimento de ${context.valor as string}.`,
+                    `Sua próxima cobrança está marcada para ${context.proximaCobranca as string}.`,
+                    'O atendimento segue sem interrupção — obrigado por confiar no OdontoBox360.',
+                ],
+                cta: 'Ver fatura',
+                tone: 'neutral',
+            }
     }
 }
 

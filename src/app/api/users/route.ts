@@ -3,6 +3,8 @@ import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { auth } from '@/lib/auth/better-auth'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { sendEmail } from '@/lib/email/send'
+import { TEMPLATES } from '@/lib/email/templates'
 import { z } from 'zod'
 import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
@@ -286,6 +288,14 @@ export async function POST(request: NextRequest) {
         })
 
         console.log('[USERS_POST] Created user:', workspaceUser.userId)
+
+        // Enviar e-mail de convite em background
+        const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/login`
+        sendEmail({
+            to: workspaceUser.user.email,
+            subject: 'Você foi convidado para o OdontoBox360',
+            html: TEMPLATES.inviteMember(inviteUrl),
+        }).catch(err => console.error('[USERS_POST] Failed to send invite email:', err))
 
         return NextResponse.json({
             id: workspaceUser.id,

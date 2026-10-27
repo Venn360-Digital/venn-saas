@@ -124,6 +124,42 @@ export const TEMPLATES = {
       cta: { texto: 'Pagar agora', url: invoiceUrl },
       tone: 'urgent',
     }),
+
+  // ── EQUIPE ──────────────────────────────────────────────────────────────
+  inviteMember: (inviteUrl: string) =>
+    renderEmail({
+      headline: 'Você foi convidado',
+      body: [
+        'O administrador da clínica te convidou para usar o OdontoBox360. Clique abaixo para entrar e começar a colaborar com seu time.',
+        'O convite vale por 30 dias, depois você poderá solicitar um novo convite.',
+      ],
+      cta: { texto: 'Aceitar convite', url: inviteUrl },
+      tone: 'neutral',
+    }),
+
+  // ── ONBOARDING ──────────────────────────────────────────────────────────
+  welcome: (dashboardUrl: string, docsUrl: string) =>
+    renderEmail({
+      headline: 'Bem-vindo ao OdontoBox360',
+      body: [
+        'Sua clínica foi criada com sucesso. Agora é hora de começar: configure seus números de WhatsApp, adicione sua equipe e comece a atender.',
+        'Temos documentação completa e suporte disponível — é só um clique.',
+      ],
+      cta: { texto: 'Acessar dashboard', url: dashboardUrl },
+      rodape: 'Documentação: ' + docsUrl,
+    }),
+
+  paymentConfirmed: (valor: string, proximaCobranca: string, invoiceUrl: string) =>
+    renderEmail({
+      headline: 'Pagamento recebido',
+      body: [
+        `Confirmamos o recebimento de ${valor}.`,
+        `Sua próxima cobrança está marcada para ${proximaCobranca}.`,
+        'O atendimento segue sem interrupção — obrigado por confiar no OdontoBox360.',
+      ],
+      cta: { texto: 'Ver fatura', url: invoiceUrl },
+      tone: 'neutral',
+    }),
 }
 
 function formatDate(date: Date): string {
