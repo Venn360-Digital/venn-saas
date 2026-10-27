@@ -37,6 +37,10 @@ const ALLOWED = [
     // reach: a value stored in the database, a colour picker's options, and
     // e-mail. See the file's own header.
     'src/lib/palette.ts',
+    // A identidade da marca por app (Fase 03): o ÚNICO lugar com o hex da marca,
+    // que é a fonte dos tokens. Clonar o produto é trocar este arquivo — por
+    // isso o hex literal aqui é por decisão, como em `palette.ts`.
+    'src/config/brand.ts',
     // E-mail HTML. CSS variables do not exist in a mail client, so the brand
     // has to be inlined; the values come from the same palette.
     'src/lib/email/',
