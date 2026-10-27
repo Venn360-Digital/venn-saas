@@ -1,0 +1,72 @@
+{
+  "$comment": "Identificadores reais do app Odontobox (Fase 01). Nos repos de Stagent360/Conecta360 este arquivo é LISTA PROIBIDA. Sem secrets (client/app IDs são públicos; aqui estão como desconhecidos por viverem em Vault/DB). Gerado 2026-10-27.",
+  "slug": "odontobox",
+  "strings": ["odontobox", "odontobox360", "odonto box", "OdontoBox360", "venn.odontobox360"],
+  "hostnames": [
+    "odontobox.venn360.com",
+    "evo-odontobox.venn360.com",
+    "mail.venn360.com",
+    "suporte.odontobox.venn360.com",
+    "app.odontobox360.com.br",
+    "odontobox.andre-7ee.workers.dev"
+  ],
+  "cloudflareIds": [
+    "7ee4810a45580562977d68b86ec709e7",
+    "ed8d57aacf3242e29355327da2829eaf",
+    "0e4fcb95bc6e45e282d0a72bb74a5bc7",
+    "f09c1361c214423c815f4efedbea74be",
+    "dad5c7bfca3a4c9cacf692be27b04885",
+    "2e5772ad-ba25-400f-b26c-047698638072",
+    "add2d7916c61654d14364b05ae8d517c2f990564079bb9270e54c7e7dc77a14a",
+    "a0f7469a-d1a9-4cc5-89a9-2240c5e61a13",
+    "892e1e51de799e177bbf9a0b85ba5259.access",
+    "8d90f2b1-c880-4a4b-a0e5-5b636219f3bd"
+  ],
+  "workers": ["odontobox"],
+  "buckets": ["odontobox-public", "odontobox-private"],
+  "queues": [
+    "odontobox-whatsapp-inbound",
+    "odontobox-whatsapp-event",
+    "odontobox-whatsapp-outbound",
+    "odontobox-ai-reply",
+    "odontobox-rag-index",
+    "odontobox-agent-webhook",
+    "odontobox-asaas-event",
+    "odontobox-broadcast",
+    "odontobox-cron"
+  ],
+  "turnstileSitekeys": [],
+  "neonProjectIds": ["polished-shape-42069569"],
+  "neonEndpoints": [
+    "ep-icy-mode-b6mp2z8h.c-2.sa-east-1.aws.neon.tech",
+    "ep-lucky-pond-b6n42j1j.c-2.sa-east-1.aws.neon.tech"
+  ],
+  "containers": [
+    "odontobox-evolution-evolution-go-1",
+    "odontobox-evolution-postgres-1",
+    "odontobox-evolution-cloudflared-1"
+  ],
+  "composeProjects": ["odontobox-evolution"],
+  "vpsDatabases": ["evogo_auth", "evogo_users"],
+  "googleClientIds": [],
+  "metaAppIds": [],
+  "other": [
+    "c7e5d07a-e0dc-42ef-9323-eb6e33c28683",
+    "216.238.127.233",
+    "2001:19f0:b800:2539::/64",
+    "/opt/evolution/compose.yaml",
+    "odontobox-evolution_evo",
+    "odontobox-evolution_evo-postgres",
+    "SalaDoWorkspace",
+    "AgendaDaConversa",
+    "TravaDeContato",
+    "br-weathered-water-b6wu2by1",
+    "br-bold-violet-b6phz4yu"
+  ],
+  "unknownBecauseInVaultOrDb": [
+    "googleClientId (platform_credentials: google_calendar)",
+    "metaAppId (META_APP_ID / meta_messaging)",
+    "instagramAppId (INSTAGRAM_APP_ID / instagram_login)"
+  ],
+  "warnStrings": ["odontograma", "dentista", "odontológic", "odontológica", "paciente", "especialista", "procedimento", "clínica", "CRO", "convênio"]
+}
