@@ -11,6 +11,7 @@ import { processAiReply } from '@/trabalhos/processadores/ai-reply'
 import { processRagIndex } from '@/trabalhos/processadores/rag-index'
 import { processAgentWebhook } from '@/trabalhos/processadores/agent-webhook'
 import { processAsaasEvent } from '@/trabalhos/processadores/asaas-event'
+import { processBroadcast } from '@/trabalhos/processadores/broadcast'
 import { processCron } from '@/trabalhos/processadores/cron'
 import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
@@ -60,6 +61,7 @@ const PROCESSADORES: { [N in QueueName]: Processador<N> | null } = {
     [QUEUE.RAG_INDEX]: processRagIndex,
     [QUEUE.AGENT_WEBHOOK]: processAgentWebhook,
     [QUEUE.ASAAS_EVENT]: processAsaasEvent,
+    [QUEUE.BROADCAST]: processBroadcast,
     [QUEUE.CRON]: processCron,
 }
 
@@ -82,6 +84,12 @@ const IDS_DE_DEDUP: Partial<{ [N in QueueName]: (p: JobPayloads[N]) => string | 
      * lugar e virou a tabela — e tem de estar aqui, senão sai calada.
      */
     [QUEUE.WHATSAPP_OUTBOUND]: (p) => p.messageId,
+    /**
+     * Um envio por destinatário. Só o `send` deduplica (o `fanout` é idempotente
+     * por natureza — relê os pendentes); por isso a chave sai só quando há
+     * `recipientId`, e uma reentrega do mesmo envio não manda o template de novo.
+     */
+    [QUEUE.BROADCAST]: (p) => (p.phase === 'send' ? p.recipientId : undefined),
 }
 
 /** Onde insistir devagar faz diferença. O resto usa o `retry_delay` da fila. */

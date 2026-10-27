@@ -9,6 +9,7 @@ import {
     type QrCode,
     type SendMediaInput,
     type SendResult,
+    type SendTemplateInput,
     type ChannelProvider,
     ChannelProviderError,
     normalizeNumber,
@@ -56,6 +57,20 @@ interface SendResponse {
 interface MediaUrlResponse {
     url?: string
     mime_type?: string
+}
+
+/** Um template como a Graph o devolve em `/{WABA}/message_templates`. */
+export interface MetaTemplate {
+    name: string
+    language: string
+    category: string
+    status: string
+    components?: Record<string, unknown>[]
+}
+
+interface MetaTemplateListResponse {
+    data?: MetaTemplate[]
+    paging?: { cursors?: { after?: string }; next?: string }
 }
 
 export class MetaWhatsAppProvider implements ChannelProvider {
@@ -162,6 +177,69 @@ export class MetaWhatsAppProvider implements ChannelProvider {
         )
 
         return { externalId: response.messages?.[0]?.id }
+    }
+
+    /**
+     * Envia um template aprovado (HSM). O caminho de disparo frio do Broadcast.
+     *
+     * Mesmo endpoint de `/messages`, com `type: "template"`. `components` já vem
+     * montado por quem dispara (corpo/cabeçalho/botões com as variáveis
+     * preenchidas) — aqui só embrulhamos. A Meta recusa o envio se o template não
+     * estiver APPROVED, então a validação de estado fica a cargo de quem escolhe.
+     */
+    async sendTemplate(
+        credentials: InstanceCredentials,
+        to: string,
+        template: SendTemplateInput
+    ): Promise<SendResult> {
+        const { accessToken, phoneNumberId } = business(credentials)
+
+        const payload: Record<string, unknown> = {
+            name: template.name,
+            language: { code: template.language },
+        }
+        if (template.components && template.components.length > 0) {
+            payload.components = template.components
+        }
+
+        const response = await this.request<SendResponse>(
+            accessToken,
+            `/${phoneNumberId}/messages`,
+            {
+                method: 'POST',
+                body: JSON.stringify(this.envelope(to, { type: 'template', template: payload })),
+            }
+        )
+
+        return { externalId: response.messages?.[0]?.id }
+    }
+
+    /**
+     * Lista os templates de mensagem da conta de negócio (WABA), para espelhar
+     * localmente. Os templates são criados e aprovados no painel da Meta; aqui
+     * só lemos. Pagina por `after` até esgotar.
+     */
+    async listTemplates(credentials: InstanceCredentials): Promise<MetaTemplate[]> {
+        const { accessToken, businessId } = business(credentials)
+        const out: MetaTemplate[] = []
+        let after: string | undefined
+
+        do {
+            const qs = new URLSearchParams({
+                limit: '100',
+                fields: 'name,language,category,status,components',
+            })
+            if (after) qs.set('after', after)
+
+            const page = await this.request<MetaTemplateListResponse>(
+                accessToken,
+                `/${businessId}/message_templates?${qs.toString()}`
+            )
+            out.push(...(page.data ?? []))
+            after = page.paging?.cursors?.after && page.paging?.next ? page.paging.cursors.after : undefined
+        } while (after)
+
+        return out
     }
 
     /**

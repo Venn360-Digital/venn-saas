@@ -40,6 +40,7 @@ export interface BindingsDeFila {
     RAG_INDEX: FilaDaCloudflare<JobPayloads['rag-index']>
     AGENT_WEBHOOK: FilaDaCloudflare<JobPayloads['agent-webhook']>
     ASAAS_EVENT: FilaDaCloudflare<JobPayloads['asaas-event']>
+    BROADCAST: FilaDaCloudflare<JobPayloads['broadcast']>
     CRON: FilaDaCloudflare<JobPayloads['cron']>
 }
 
@@ -52,6 +53,7 @@ const BINDING: Record<QueueName, keyof BindingsDeFila> = {
     [QUEUE.RAG_INDEX]: 'RAG_INDEX',
     [QUEUE.AGENT_WEBHOOK]: 'AGENT_WEBHOOK',
     [QUEUE.ASAAS_EVENT]: 'ASAAS_EVENT',
+    [QUEUE.BROADCAST]: 'BROADCAST',
     [QUEUE.CRON]: 'CRON',
 }
 

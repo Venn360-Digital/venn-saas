@@ -157,6 +157,14 @@ async function handleAck(event: NormalizedAck): Promise<void> {
             data: { status: event.status },
         })
 
+        // O mesmo recibo avança o selo do destinatário de campanha. `sent` já foi
+        // gravado no envio; aqui chega `delivered`/`read`. Sem efeito nas
+        // mensagens que não são de broadcast (nenhum recipient aponta para elas).
+        await tx.broadcastRecipient.updateMany({
+            where: { messageId: { in: alvos.map((m) => m.id) } },
+            data: { status: event.status },
+        })
+
         for (const alvo of alvos) {
             const workspaceId = alvo.conversation?.agent?.workspaceId
             // Sem workspace não há sala para avisar. Acontece em conversa cujo

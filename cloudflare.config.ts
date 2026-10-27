@@ -94,6 +94,14 @@ const CONSUMO = {
         maxConcurrency: 2,
     },
     'agent-webhook': {  retryDelay: 10, maxBatchSize: 5 },
+    broadcast: {
+        // Uma por vez: cada `send` é uma chamada ao provedor, e o ritmo do
+        // disparo é controlado pelo atraso escalonado no fan-out, não pelo lote.
+        retryDelay: 3,
+        maxBatchSize: 1,
+        // Não disputar o atendimento: o disparo em massa cede o passo.
+        maxConcurrency: 2,
+    },
     'asaas-event': {
         // Sete repetições: o evento já está gravado em `asaas_events`, então
         // reprocessar é barato e idempotente — e o que está em jogo é ativar
@@ -292,6 +300,7 @@ export default defineConfig({
             RAG_INDEX: bindings.queue({ name: naConta('rag-index') }),
             AGENT_WEBHOOK: bindings.queue({ name: naConta('agent-webhook') }),
             ASAAS_EVENT: bindings.queue({ name: naConta('asaas-event') }),
+            BROADCAST: bindings.queue({ name: naConta('broadcast') }),
             CRON: bindings.queue({ name: naConta('cron') }),
 
             /**

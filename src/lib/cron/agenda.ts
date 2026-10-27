@@ -157,6 +157,21 @@ export const ROTINAS: Rotina[] = [
 
     { task: 'billing-dunning', brt: '27 5 * * *' },
     { task: 'billing-reconcile', brt: '47 5 * * *' },
+
+    /**
+     * Dispara as campanhas agendadas cuja hora chegou (ver
+     * `broadcast-dispatch.ts`). De dez em dez minutos, na janela da clínica:
+     *
+     * - **O intervalo** é o teto do atraso entre a hora agendada e o disparo —
+     *   dez minutos é fino o bastante para marketing e não derruba o orçamento
+     *   de CU-hora do Neon (cron de ≤5 min nunca deixa o compute suspender).
+     * - **A janela** 7–20 (BRT) cobre o horário comercial; campanha agendada para
+     *   fora dela sai na primeira passada da manhã, que é o certo para disparo de
+     *   marketing. É a mesma janela dos demais crons — e o conversor para UTC só
+     *   aceita intervalo que não cruza a meia-noite (7–20 → 10–23 UTC; 7–21
+     *   viraria 10–24 e seria recusado).
+     */
+    { task: 'broadcast-dispatch', brt: '*/10 7-20 * * *' },
 ]
 
 /**

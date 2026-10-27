@@ -49,6 +49,15 @@ export interface PlanLimits {
      * mensalidade destinados a custo de IA.
      */
     maxSpokenReplies: number
+    /**
+     * Quantos destinatários de broadcast a conta pode disparar no mês.
+     *
+     * Teto separado do `maxMessages` do atendimento: um disparo de campanha não
+     * pode consumir, de uma vez, a franquia de conversa que a clínica precisa no
+     * dia a dia. Zero desliga o broadcast no plano. Ver DUVIDAS-B2.md D1 — a
+     * contagem de custo por mensagem da Meta é à parte.
+     */
+    maxBroadcastRecipientsPerMonth: number
 }
 
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
@@ -59,6 +68,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
         credits: 10_000,
         maxMessages: 10_000,
         maxSpokenReplies: 400,
+        maxBroadcastRecipientsPerMonth: 1_000,
     },
     pro: {
         maxWorkspaces: 1,
@@ -67,6 +77,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
         credits: 20_000,
         maxMessages: 20_000,
         maxSpokenReplies: 750,
+        maxBroadcastRecipientsPerMonth: 5_000,
     },
     advanced: {
         maxWorkspaces: 3,
@@ -75,6 +86,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
         credits: 30_000,
         maxMessages: 30_000,
         maxSpokenReplies: 1_500,
+        maxBroadcastRecipientsPerMonth: 20_000,
     },
 }
 
@@ -167,6 +179,7 @@ export const ADICIONAL_INCLUI = {
     credits: 0,
     maxMessages: 0,
     maxSpokenReplies: 0,
+    maxBroadcastRecipientsPerMonth: 0,
 } satisfies PlanLimits
 
 /**
@@ -190,6 +203,9 @@ export function limitesEfetivos(
         credits: base.credits + n * ADICIONAL_INCLUI.credits,
         maxMessages: base.maxMessages + n * ADICIONAL_INCLUI.maxMessages,
         maxSpokenReplies: base.maxSpokenReplies + n * ADICIONAL_INCLUI.maxSpokenReplies,
+        maxBroadcastRecipientsPerMonth:
+            base.maxBroadcastRecipientsPerMonth +
+            n * ADICIONAL_INCLUI.maxBroadcastRecipientsPerMonth,
     }
 }
 

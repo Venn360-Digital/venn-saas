@@ -44,6 +44,12 @@ export const QUEUE = {
     AGENT_WEBHOOK: 'agent-webhook',
     /** Processa um evento do webhook do Asaas, já gravado no banco. */
     ASAAS_EVENT: 'asaas-event',
+    /**
+     * Disparo de campanha: fan-out de uma campanha em destinatários e o envio de
+     * cada template. Fila à parte da `whatsapp-outbound` de propósito — milhares
+     * de disparos não podem bloquear a cabeça da fila do atendimento.
+     */
+    BROADCAST: 'broadcast',
     /** Scheduled maintenance: reminders, recurrences, credit reset, health checks. */
     CRON: 'cron',
 } as const
@@ -146,6 +152,7 @@ export type CronJobName =
     | 'instagram-token-refresh'
     | 'billing-dunning'
     | 'billing-reconcile'
+    | 'broadcast-dispatch'
 
 export interface CronJob {
     task: CronJobName
@@ -164,6 +171,18 @@ export interface AsaasEventJob {
     eventRowId: string
 }
 
+/**
+ * Trabalho de campanha, em duas fases na mesma fila.
+ *
+ * `fanout` expande a campanha nos destinatários pendentes e enfileira um `send`
+ * por destinatário, com atraso escalonado para respeitar o ritmo. `send`
+ * entrega o template a um destinatário. Separar as fases deixa o fan-out barato
+ * e o envio idempotente por destinatário (o id de dedup é o `recipientId`).
+ */
+export type BroadcastJob =
+    | { phase: 'fanout'; broadcastId: string }
+    | { phase: 'send'; broadcastId: string; recipientId: string }
+
 export interface JobPayloads {
     [QUEUE.WHATSAPP_INBOUND]: WhatsAppInboundJob
     [QUEUE.WHATSAPP_EVENT]: WhatsAppEventJob
@@ -172,6 +191,7 @@ export interface JobPayloads {
     [QUEUE.RAG_INDEX]: RagIndexJob
     [QUEUE.AGENT_WEBHOOK]: AgentWebhookJob
     [QUEUE.ASAAS_EVENT]: AsaasEventJob
+    [QUEUE.BROADCAST]: BroadcastJob
     [QUEUE.CRON]: CronJob
 }
 
@@ -232,6 +252,14 @@ export const DEFAULT_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
         ...RETENTION,
         attempts: 4,
         backoff: { type: 'exponential', delay: 10_000 },
+    },
+    [QUEUE.BROADCAST]: {
+        ...RETENTION,
+        // O fan-out é barato e idempotente; o envio é chamada ao provedor. Poucas
+        // tentativas: falha de envio a um destinatário vira `failed` na linha
+        // dele, não retentativa infinita que reenviaria aos demais.
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 3_000 },
     },
     [QUEUE.CRON]: {
         ...RETENTION,

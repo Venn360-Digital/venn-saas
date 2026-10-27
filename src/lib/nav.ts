@@ -102,18 +102,9 @@ export const navSections: NavSection[] = [
         icon: Megaphone,
         allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
         items: [
-            {
-                label: 'Campanhas',
-                href: '/marketing/campanhas',
-                badge: 'Em breve',
-                disabled: true,
-            },
-            {
-                label: 'Templates',
-                href: '/marketing/templates',
-                badge: 'Em breve',
-                disabled: true,
-            },
+            { label: 'Campanhas', href: '/marketing/campanhas' },
+            { label: 'Listas', href: '/marketing/listas' },
+            { label: 'Templates', href: '/marketing/templates' },
         ],
     },
 ]
@@ -158,6 +149,7 @@ const SEGMENT_LABELS: Record<string, string> = {
 
     marketing: 'Marketing',
     campanhas: 'Campanhas',
+    listas: 'Listas',
     templates: 'Templates',
 
     onboarding: 'Primeiros passos',

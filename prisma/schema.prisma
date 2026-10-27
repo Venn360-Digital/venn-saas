@@ -3,18 +3,15 @@
 
 /**
  * DOIS clientes gerados, e não é duplicação — é exigência medida.
- *
  * O cliente com `runtime = "workerd"` importa o engine wasm e **só funciona
  * dentro de um bundler que resolva esse import**. Em Node ele falha com
  * "The loaded wasm module was unexpectedly `undefined` or `null` once loaded"
  * (medido em 2026-10-22). O inverso também vale: o de Node não serve ao Worker.
- *
  * O gerador antigo (`prisma-client-js`) não resolvia isso de jeito nenhum: o
  * wasm dele mora dentro de `node_modules` e o plugin Vite da Cloudflare não o
  * empacotava — o deploy subia sem `.wasm` e toda consulta morria em
  * `PrismaClientInitializationError`. No gerador novo o wasm é emitido DENTRO da
  * saída, como arquivo do projeto, e o bundler o vê.
- *
  * Quem escolhe entre os dois é o campo `imports` do `package.json`, pela
  * condição `workerd`. Ver `#prisma` lá.
  */
@@ -492,6 +489,9 @@ model Workspace {
   automations        Json?
   specialists        Specialist[]
   scheduleExceptions ScheduleException[]
+  contactLists       ContactList[]
+  whatsappTemplates  WhatsAppTemplate[]
+  broadcasts         Broadcast[]
 
   @@index([accountId])
   @@map("workspaces")
@@ -735,11 +735,13 @@ model AgentIntegration {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  agent         Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  department    Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  defaultOrigin Origin?        @relation(fields: [defaultOriginId], references: [id], onDelete: SetNull)
-  defaultMedia  Media?         @relation(fields: [defaultMediaId], references: [id], onDelete: SetNull)
-  conversations Conversation[]
+  agent             Agent              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  department        Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  defaultOrigin     Origin?            @relation(fields: [defaultOriginId], references: [id], onDelete: SetNull)
+  defaultMedia      Media?             @relation(fields: [defaultMediaId], references: [id], onDelete: SetNull)
+  conversations     Conversation[]
+  whatsappTemplates WhatsAppTemplate[]
+  broadcasts        Broadcast[]
 
   /// Sem `@@unique([agentId, channel])`: um agente atende por N números.
   ///
@@ -894,12 +896,14 @@ model Contact {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  origin        Origin?        @relation(fields: [originId], references: [id], onDelete: SetNull)
-  conversations Conversation[]
-  deals         Deal[]
-  activities    Activity[]
-  tags          ContactTag[]
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  origin              Origin?              @relation(fields: [originId], references: [id], onDelete: SetNull)
+  conversations       Conversation[]
+  deals               Deal[]
+  activities          Activity[]
+  tags                ContactTag[]
+  listMemberships     ContactListMember[]
+  broadcastRecipients BroadcastRecipient[]
 
   @@unique([workspaceId, phone])
   @@unique([workspaceId, instagramId])
@@ -2077,4 +2081,146 @@ model ProcessedMessage {
 
   @@index([expiraEm])
   @@map("processed_messages")
+}
+
+// ───────────────────────── Marketing / Broadcast (B2) ─────────────────────────
+
+/// Uma lista de contatos para campanha. Entidade de primeira classe porque a
+/// campanha se associa a listas, não a um filtro solto: a lista é nomeada,
+/// reutilizável e — no disparo — congelada em destinatários.
+///
+/// `kind = "static"` guarda os membros em `ContactListMember`. `kind = "dynamic"`
+/// guarda um `filter` (os mesmos filtros de `consultarPacientes`) a reavaliar;
+/// hoje o disparo usa os membros congelados (ver docs/paridade-respond-io/DUVIDAS-B2.md D3).
+model ContactList {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  kind        String   @default("static") // "static" | "dynamic"
+  /// Filtros de origem quando a lista nasce de uma busca de pacientes. Informativo
+  /// em lista estática; o critério a reavaliar em lista dinâmica.
+  filter      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members    ContactListMember[]
+  broadcasts BroadcastList[]
+
+  @@index([workspaceId])
+  @@map("contact_lists")
+}
+
+model ContactListMember {
+  listId    String
+  contactId String
+  addedAt   DateTime @default(now())
+
+  list    ContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  contact Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([listId, contactId])
+  @@index([contactId])
+  @@map("contact_list_members")
+}
+
+/// Espelho local de um template de mensagem aprovado na Meta (HSM).
+///
+/// O template é criado e aprovado no painel da Meta; aqui guardamos uma cópia
+/// para a campanha escolher sem uma chamada à Graph a cada tela. `components`
+/// traz header/body/footer/buttons com os marcadores `{{1}}`, e é o que a tela
+/// usa para pedir o preenchimento das variáveis.
+model WhatsAppTemplate {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  /// A linha (WABA) de onde o template veio. Templates são por conta de negócio.
+  integrationId String
+  metaName      String
+  language      String
+  category      String // MARKETING | UTILITY | AUTHENTICATION
+  status        String // APPROVED | PENDING | REJECTED | PAUSED | DISABLED
+  components    Json
+  syncedAt      DateTime @default(now())
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  integration AgentIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  broadcasts  Broadcast[]
+
+  @@unique([integrationId, metaName, language])
+  @@index([workspaceId])
+  @@map("whatsapp_templates")
+}
+
+/// Uma campanha de disparo em massa pelo WhatsApp oficial.
+///
+/// Só a linha `whatsapp_business` dispara (o QR não alcança o broadcast, por
+/// decisão). `status` percorre draft→scheduled→running→done|failed; `canceled`
+/// é saída manual. Os contadores são denormalizados para a lista não ter de
+/// contar destinatários a cada pintura.
+model Broadcast {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  name           String // interno, visível só à equipe
+  labels         String[]  @default([])
+  integrationId  String // linha whatsapp_business (obrigatória)
+  templateId     String // WhatsAppTemplate aprovado (obrigatório)
+  /// Mapeamento das variáveis do template ({{1}} → valor/campo). Forma livre.
+  variables      Json?
+  status         String    @default("draft") // draft|scheduled|running|done|failed|canceled
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  /// Teto de envios por minuto no fan-out. Conservador por padrão; o tier real
+  /// da WABA define o seguro (ver DUVIDAS-B2.md D2).
+  throttlePerMin Int       @default(30)
+  totalCount     Int       @default(0)
+  sentCount      Int       @default(0)
+  failedCount    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  integration AgentIntegration     @relation(fields: [integrationId], references: [id], onDelete: Restrict)
+  template    WhatsAppTemplate     @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  recipients  BroadcastRecipient[]
+  lists       BroadcastList[]
+
+  @@index([workspaceId, status])
+  @@index([status, scheduledAt])
+  @@map("broadcasts")
+}
+
+/// Quais listas uma campanha mira. Os destinatários são congelados no disparo
+/// (em `BroadcastRecipient`); este vínculo é a escolha feita no rascunho.
+model BroadcastList {
+  broadcastId String
+  listId      String
+
+  broadcast Broadcast   @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  list      ContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@id([broadcastId, listId])
+  @@index([listId])
+  @@map("broadcast_lists")
+}
+
+model BroadcastRecipient {
+  id          String   @id @default(cuid())
+  broadcastId String
+  contactId   String
+  /// MSISDN congelado no momento do envio — a ficha pode mudar depois.
+  to          String
+  status      String   @default("pending") // pending|sent|delivered|read|failed|skipped
+  /// A Message gerada, quando enviada. Liga o recibo da Meta ao destinatário.
+  messageId   String?
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, contactId])
+  @@index([broadcastId, status])
+  @@map("broadcast_recipients")
 }

@@ -257,6 +257,69 @@ export async function canConnectWhatsApp(
 }
 
 /**
+ * Pode disparar uma campanha para `recipientCount` destinatários este mês?
+ *
+ * O teto é da conta e por mês, igual à franquia de mensagem — e separado dela
+ * de propósito (ver `PlanLimits.maxBroadcastRecipientsPerMonth`): um disparo não
+ * pode comer a cota de conversa do dia a dia. Conta os destinatários que já
+ * saíram (sent/delivered/read) ou falharam no envio neste mês, em todas as
+ * unidades da conta, e recusa se somar acima do teto. `skipped`/`pending` não
+ * contam: ninguém foi disparado.
+ */
+export async function canBroadcast(
+    workspaceId: string,
+    recipientCount: number
+): Promise<LimitCheck> {
+    const limits = await getWorkspaceLimits(workspaceId)
+
+    if (limits.unsubscribed) {
+        return {
+            ok: false,
+            status: 402,
+            error: 'Este workspace ainda não tem um plano. Escolha um em Gerenciamento → Conta.',
+        }
+    }
+
+    const allowance = limitesEfetivos(limits.planId, limits.units.adicionais)
+        .maxBroadcastRecipientsPerMonth
+
+    if (allowance <= 0) {
+        return {
+            ok: false,
+            status: 402,
+            error: `O ${limits.planName} não inclui disparo de campanhas. Mude de plano em Gerenciamento → Conta.`,
+        }
+    }
+
+    const accountId = await accountIdOf(workspaceId)
+    const daConta: Prisma.BroadcastWhereInput = accountId
+        ? { workspace: { accountId } }
+        : { workspaceId }
+
+    const inicioDoMes = new Date()
+    inicioDoMes.setDate(1)
+    inicioDoMes.setHours(0, 0, 0, 0)
+
+    const usados = await prisma.broadcastRecipient.count({
+        where: {
+            broadcast: daConta,
+            status: { in: ['sent', 'delivered', 'read', 'failed'] },
+            createdAt: { gte: inicioDoMes },
+        },
+    })
+
+    if (usados + recipientCount > allowance) {
+        return {
+            ok: false,
+            status: 402,
+            error: `O ${limits.planName} inclui ${allowance.toLocaleString('pt-BR')} destinatários de campanha por mês, e você já usou ${usados.toLocaleString('pt-BR')}. Reduza a lista ou mude de plano em Gerenciamento → Conta.`,
+        }
+    }
+
+    return { ok: true }
+}
+
+/**
  * Brings the account in line with the plan's allowance after a plan change.
  *
  * Downgrading pauses the excess by reverse order of creation — the oldest agent

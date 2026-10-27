@@ -37,7 +37,8 @@
         "build:vinext": "BUILD_TARGET=cloudflare vite build",
         "start:vinext": "BUILD_TARGET=cloudflare vite preview",
         "deploy:vinext": "BUILD_TARGET=cloudflare vinext-cloudflare deploy",
-        "check:fuso": "tsx --conditions=react-server scripts/check-fuso.ts"
+        "check:fuso": "tsx --conditions=react-server scripts/check-fuso.ts",
+    "check:paridade": "tsx scripts/check-paridade.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

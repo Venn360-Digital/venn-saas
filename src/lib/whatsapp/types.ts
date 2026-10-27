@@ -165,6 +165,22 @@ export interface SendResult {
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'document'
 
+/**
+ * Um template (HSM) pronto para disparo, no formato que a Graph aceita.
+ *
+ * `components` é opcional: um template sem variável não leva nenhum. Quando leva,
+ * é a lista `{ type: 'body'|'header'|'button', parameters: [...] }` que a Meta
+ * espera — montada por quem dispara, a partir do template guardado e das
+ * variáveis da campanha. Só o canal oficial entende template; o QR não.
+ */
+export interface SendTemplateInput {
+    /** Nome do template aprovado na Meta. */
+    name: string
+    /** Código de idioma (ex.: "pt_BR"). */
+    language: string
+    components?: Record<string, unknown>[]
+}
+
 export interface SendMediaInput {
     /** Publicly reachable URL. Both providers fetch the bytes themselves. */
     url: string
@@ -291,6 +307,17 @@ export interface ChannelProvider {
         to: string,
         input: SendMediaInput,
         options?: SendOptions
+    ): Promise<SendResult>
+
+    /**
+     * Envia um template (HSM) aprovado. Opcional: só o canal oficial da Meta o
+     * implementa — é o único caminho de disparo frio fora da janela de 24h, e é
+     * o que o Broadcast usa. O QR não tem template e deixa este método ausente.
+     */
+    sendTemplate?(
+        credentials: InstanceCredentials,
+        to: string,
+        template: SendTemplateInput
     ): Promise<SendResult>
 
     sendPresence(
