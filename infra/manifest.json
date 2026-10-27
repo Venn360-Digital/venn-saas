@@ -1,0 +1,134 @@
+{
+  "$comment": "Fonte única de verdade dos recursos REAIS da Odontobox (Fase 02, dados da Fase 01). Nomes atuais preservados (R10). Sem senhas/secrets. NOTA: a Odontobox ainda NÃO tem um staging isolado — ver _isolation em cada ambiente e o plano na Fase 02.",
+  "app": {
+    "repo": "venn360/venn.odontobox360",
+    "name": "OdontoBox360",
+    "slug": "odontobox",
+    "segment": "odontologia (de superfície; núcleo é CRM genérico)",
+    "cloudflareAccountId": "7ee4810a45580562977d68b86ec709e7"
+  },
+  "environments": {
+    "production": {
+      "_isolation": "isolado",
+      "hostnames": {
+        "app": "odontobox.venn360.com",
+        "evolution": "evo-odontobox.venn360.com",
+        "emailDomain": "mail.venn360.com",
+        "emailFrom": "noreply@mail.venn360.com",
+        "support": "suporte@odontobox.venn360.com (NEXT_PUBLIC_SUPPORT_*)"
+      },
+      "cloudflare": {
+        "worker": "odontobox",
+        "workerTag": "ed8d57aacf3242e29355327da2829eaf",
+        "customDomain": "odontobox.venn360.com",
+        "hyperdrive": [],
+        "r2": [
+          { "binding": "PUBLICO", "name": "odontobox-public" },
+          { "binding": "(via S3)", "name": "odontobox-private" }
+        ],
+        "kv": [],
+        "queues": [
+          { "name": "odontobox-whatsapp-inbound" },
+          { "name": "odontobox-whatsapp-event" },
+          { "name": "odontobox-whatsapp-outbound" },
+          { "name": "odontobox-ai-reply" },
+          { "name": "odontobox-rag-index" },
+          { "name": "odontobox-agent-webhook" },
+          { "name": "odontobox-asaas-event" },
+          { "name": "odontobox-broadcast" },
+          { "name": "odontobox-cron" }
+        ],
+        "durableObjects": [
+          { "binding": "SALA_DO_WORKSPACE", "class": "SalaDoWorkspace", "id": "f09c1361c214423c815f4efedbea74be" },
+          { "binding": "AGENDA_DA_CONVERSA", "class": "AgendaDaConversa", "id": "0e4fcb95bc6e45e282d0a72bb74a5bc7" },
+          { "binding": "TRAVA_DE_CONTATO", "class": "TravaDeContato", "id": "dad5c7bfca3a4c9cacf692be27b04885" }
+        ],
+        "email": { "binding": "EMAIL", "type": "send_email", "from": "OdontoBox360 <noreply@mail.venn360.com>" },
+        "turnstileSitekey": "",
+        "accessApps": [
+          { "name": "evolution-go", "id": "2e5772ad-ba25-400f-b26c-047698638072", "domain": "evo-odontobox.venn360.com" }
+        ],
+        "accessServiceTokens": [
+          { "name": "odontobox-worker", "clientId": "892e1e51de799e177bbf9a0b85ba5259.access", "id": "a0f7469a-d1a9-4cc5-89a9-2240c5e61a13" }
+        ],
+        "cronTriggers": 12
+      },
+      "neon": {
+        "projectId": "polished-shape-42069569",
+        "branch": "production",
+        "branchId": "br-weathered-water-b6wu2by1",
+        "endpointHost": "ep-icy-mode-b6mp2z8h.c-2.sa-east-1.aws.neon.tech",
+        "pgVersion": 18,
+        "database": "neondb",
+        "roles": { "app": "neondb_owner", "migrator": "neondb_owner (sem separação; ver Fase 02)" }
+      },
+      "evolution": {
+        "image": "evoapicloud/evolution-go:0.7.2",
+        "container": "odontobox-evolution-evolution-go-1",
+        "composeProject": "odontobox-evolution",
+        "directory": "/opt/evolution/compose.yaml",
+        "vpsInstanceId": "c7e5d07a-e0dc-42ef-9323-eb6e33c28683",
+        "vpsIp": "216.238.127.233",
+        "internalPort": 8080,
+        "database": "evogo_auth,evogo_users",
+        "dbRole": "postgres",
+        "redisDb": null,
+        "redisPrefix": null,
+        "instancePrefix": "",
+        "webhookUrl": "https://odontobox.venn360.com/api/webhooks/evolution-go/<secret>",
+        "tunnelId": "8d90f2b1-c880-4a4b-a0e5-5b636219f3bd"
+      },
+      "integrations": {
+        "googleProjectId": "(em platform_credentials / Vault — não em env)",
+        "googleOAuthClientId": "",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": [],
+        "asaas": "chave/token no Vault (provedor asaas); ambiente pelo prefixo da chave"
+      }
+    },
+    "stg": {
+      "_isolation": "NÃO ISOLADO — só a branch Neon é separada; Worker, filas, DO, R2, secrets, Evolution, e-mail e Access são COMPARTILHADOS com produção (previews efêmeros pr-N). Débito crítico da Fase 02.",
+      "hostnames": {
+        "app": "(previews efêmeros em *.andre-7ee.workers.dev; sem host estável de staging)",
+        "evolution": "(compartilha evo-odontobox.venn360.com)",
+        "emailDomain": "(compartilha mail.venn360.com)",
+        "emailFrom": "(compartilha noreply@mail.venn360.com)",
+        "support": "suporte@odontobox.venn360.com"
+      },
+      "cloudflare": {
+        "worker": "(sem worker de staging; previews pr-N em workers.dev)",
+        "hyperdrive": [],
+        "r2": [{ "name": "odontobox-public (COMPARTILHADO)" }, { "name": "odontobox-private (COMPARTILHADO)" }],
+        "kv": [],
+        "queues": [{ "name": "odontobox-* (COMPARTILHADO — previews produzem nas filas de produção)" }],
+        "turnstileSitekey": "",
+        "accessApps": [{ "name": "evolution-go (COMPARTILHADO)" }],
+        "accessServiceTokens": [{ "name": "odontobox-worker (COMPARTILHADO)" }]
+      },
+      "neon": {
+        "projectId": "polished-shape-42069569",
+        "branch": "staging",
+        "branchId": "br-bold-violet-b6phz4yu",
+        "endpointHost": "ep-lucky-pond-b6n42j1j.c-2.sa-east-1.aws.neon.tech",
+        "pgVersion": 18,
+        "database": "neondb",
+        "roles": { "app": "neondb_owner", "migrator": "neondb_owner" },
+        "_nota": "ATRÁS de produção — faltam as tabelas de marketing/broadcast (migrate deploy recente não aplicado)."
+      },
+      "evolution": {
+        "container": "(compartilha o de produção — não há Evolution de staging)",
+        "composeProject": "odontobox-evolution",
+        "database": "evogo_auth,evogo_users",
+        "instancePrefix": "",
+        "webhookUrl": "(compartilha produção)"
+      },
+      "integrations": {
+        "googleProjectId": "(compartilha as credenciais de plataforma de produção)",
+        "metaAppId": "",
+        "wabaId": "",
+        "whatsappPhoneNumberIds": []
+      }
+    }
+  }
+}

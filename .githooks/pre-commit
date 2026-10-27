@@ -1,0 +1,9 @@
+#!/bin/sh
+# Pre-commit: barra segredo ANTES de entrar no índice/commit.
+# Ativar uma vez por clone:  git config core.hooksPath .githooks
+# Requer gitleaks no PATH (brew install gitleaks).
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks não encontrado — pulando varredura local (o CI ainda barra). Instale: brew install gitleaks" >&2
+  exit 0
+fi
+gitleaks protect --staged --no-banner --redact
