@@ -1,0 +1,15 @@
+# Allowlist do gitleaks — falsos positivos confirmados na Fase 01 (inventário B).
+# Formato: <commit>:<arquivo>:<regra>:<linha>
+#
+# Todos são literais de TESTE e uma chave de localStorage, não credenciais:
+# - scripts/check-auth.ts: paths/ids de teste ('ag1'/'ws1'), `password: senha`,
+#   regex /HttpOnly/, token de prova de reset — script de verificação, sem segredo.
+# - src/hooks/useSoundEnabled.ts: chave de localStorage 'odontobox360-sound-enabled'.
+# Conferido linha a linha em 2026-10-27; nenhuma credencial viva no histórico.
+
+34585e72d47d0932d31882c5923c565559da4e89:scripts/check-auth.ts:generic-api-key:261
+ba488e19da1b57ed4f031db4ad350b7f6a889cf0:scripts/check-auth.ts:generic-api-key:140
+ba488e19da1b57ed4f031db4ad350b7f6a889cf0:scripts/check-auth.ts:generic-api-key:174
+ba488e19da1b57ed4f031db4ad350b7f6a889cf0:scripts/check-auth.ts:generic-api-key:181
+94aad230f8ff1a03a73c6258f0e3cd335da7b0cb:scripts/check-auth.ts:generic-api-key:95
+4a989b9c3c051b171d4673645e7871f35f18381e:src/hooks/useSoundEnabled.ts:generic-api-key:5
