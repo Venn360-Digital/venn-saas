@@ -5,6 +5,7 @@ import { requireWritable } from '@/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
 import { TTS_MODELS } from '@/lib/llm/models'
 import { VOZES_IDS } from '@/lib/voz'
+import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
 
 
 const schema = z.object({
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
              */
             if (instructions && model.acceptsInstructions) body.instructions = instructions
 
-            const response = await fetch('https://api.openai.com/v1/audio/speech', {
+            const response = await fetch(`${OPENAI_BASE_URL}/audio/speech`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,

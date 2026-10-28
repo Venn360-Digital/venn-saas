@@ -1,4 +1,5 @@
 import { createLogger } from '@/trabalhos/registro'
+import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
 
 const log = createLogger('TRANSCRIBE')
 
@@ -34,7 +35,7 @@ export async function transcribeAudio(base64: string, mimetype: string | undefin
     form.append('file', new Blob([Buffer.from(base64, 'base64')], { type: mime }), `nota.${ext}`)
 
     const started = Date.now()
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const response = await fetch(`${OPENAI_BASE_URL}/audio/transcriptions`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}` },
         body: form,

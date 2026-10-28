@@ -3,6 +3,7 @@ import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
 import { CLASSES, arquivar } from './arquivo'
 import { comoReferencia } from '@/lib/midia'
+import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
 
 const log = createLogger('SPEECH')
 
@@ -99,7 +100,7 @@ export async function falar(input: FalarInput): Promise<FalaGerada | null> {
 
         let bytes: ArrayBuffer
         try {
-            const resposta = await fetch('https://api.openai.com/v1/audio/speech', {
+            const resposta = await fetch(`${OPENAI_BASE_URL}/audio/speech`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,

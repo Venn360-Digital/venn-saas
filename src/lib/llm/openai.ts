@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { LLMConfig, LLMMessage, LLMProvider, LLMResponse, LLMTool, LLMUsage } from '@/types/llm'
+import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
 
 /**
  * Traduz as mensagens para a forma da API de chat da OpenAI.
@@ -40,6 +41,8 @@ export class OpenAIProvider implements LLMProvider {
         this.config = config
         this.client = new OpenAI({
             apiKey: config.apiKey,
+            // Pelo AI Gateway quando `OPENAI_BASE_URL` existe; direto quando não.
+            baseURL: OPENAI_BASE_URL,
         })
     }
 

@@ -443,6 +443,26 @@ export default defineConfig({
             BETTER_AUTH_SECRET: bindings.secret(),
             TOKEN_ENCRYPTION_KEY: bindings.secret(),
             OPENAI_API_KEY: bindings.secret(),
+            /**
+             * Todo tráfego de IA passa pelo **AI Gateway deste produto**.
+             *
+             * Um gateway por produto, compartilhado por staging e produção —
+             * decisão do André em 2026-10-28. O que o portão dá: uso e custo
+             * reais por chamada (é a base do débito de crédito, que hoje sai de
+             * uma tabela de preços escrita no código), cache que paga as
+             * retentativas da fila, teto de gasto e fallback de provedor.
+             *
+             * **Modo proxy, de propósito.** A chave da OpenAI continua indo na
+             * requisição em vez de ficar guardada no portão (BYOK): guardá-la
+             * exigiria um token Cloudflare de `AI Gateway Run`, e esse token
+             * **não pode ser restrito a um gateway** — qualquer app da conta
+             * poderia gastar a credencial dos outros. A saída documentada é o
+             * binding `env.AI` do Worker, e é para lá que isto vai junto com o
+             * Workers AI.
+             */
+            OPENAI_BASE_URL: bindings.text(
+                'https://gateway.ai.cloudflare.com/v1/7ee4810a45580562977d68b86ec709e7/odontobox/openai'
+            ),
             EVOLUTION_GO_API_KEY: bindings.secret(),
             /**
              * `GOOGLE_CLIENT_SECRET` saiu em 2026-10-21: é resquício, e nada o
