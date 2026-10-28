@@ -96,10 +96,13 @@ recuperável; um cron que morre no meio da rodada não.
 
 ## Resend
 
-Desativado, e os registros dele (`send.mail`, `rsend.mail`,
-`resend._domainkey.mail`) já saíram da zona. Falta confirmar:
+Desativado e **limpo em 2026-10-28**. Os registros dele (`send.mail`,
+`rsend.mail`, `resend._domainkey.mail`) saíram da zona, o segredo órfão
+`RESEND_API_KEY` saiu do Worker `odontobox` e a política de privacidade não o
+lista mais como subprocessador — quem envia agora é a Cloudflare.
 
-```bash
-npx wrangler secret delete RESEND_API_KEY --name odontobox
-git log -S "RESEND_API_KEY" --oneline   # se a chave foi commitada, revogar no painel
-```
+A chave **nunca foi commitada** (`git log -S "RESEND_API_KEY"` não acha valor
+nenhum, e não há `re_…` em commit algum), mas estava em texto puro no `.env`
+local, de onde foi retirada. **Revogar no painel do Resend é ato humano** e
+segue pendente: chave que existiu em disco se revoga por higiene, não por
+suspeita.
