@@ -2,6 +2,7 @@ import 'server-only'
 import { OpenAIEmbeddings } from '@langchain/openai'
 import { DocumentChunker } from './chunker'
 import prisma from '@/lib/prisma'
+import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
 // Note: We use raw SQL for pgvector insertion as Prisma support is still limited/evolving for the unsupported type in this specific version setup
 // or we use the specific Prisma syntax if available.
 // In the schema we defined `embedding Unsupported("vector(1536)")?`
@@ -14,6 +15,8 @@ export class DocumentEmbedder {
   constructor() {
     this.embedder = new OpenAIEmbeddings({
       openAIApiKey: process.env.OPENAI_API_KEY,
+      // Embeddings também pelo portão: é o maior volume do sistema.
+      configuration: { baseURL: OPENAI_BASE_URL },
       modelName: 'text-embedding-3-small', // Lower cost, high performance
     })
     this.chunker = new DocumentChunker()
