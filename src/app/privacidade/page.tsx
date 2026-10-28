@@ -280,8 +280,8 @@ export default function PoliticaDePrivacidade() {
                         linhas={[
                             [
                                 'Cloudflare',
-                                'Todo o tráfego da aplicação e os arquivos enviados nas conversas',
-                                'Hospedagem, rede e armazenamento de arquivos',
+                                'Todo o tráfego da aplicação, os arquivos enviados nas conversas e o e-mail e o nome de quem recebe os avisos',
+                                'Hospedagem, rede, armazenamento de arquivos e envio dos e-mails de cobrança e do sistema',
                             ],
                             [
                                 'Neon',
@@ -307,11 +307,6 @@ export default function PoliticaDePrivacidade() {
                                 'Asaas',
                                 'Dados de cobrança da clínica',
                                 'Processar a assinatura e os pagamentos',
-                            ],
-                            [
-                                'Resend',
-                                'E-mail e nome do destinatário',
-                                'Enviar avisos de cobrança e do sistema',
                             ],
                         ]}
                     />

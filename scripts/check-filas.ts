@@ -36,9 +36,13 @@ const WS = `ws-prova-${Date.now()}`
 async function main() {
     // ============================================================= fuso dos crons
 
-    // Catorze entradas para treze tarefas: `integration-health` tem duas, uma
+    // Quinze entradas para catorze tarefas: `integration-health` tem duas, uma
     // de dia e uma de noite. Ver a tabela em `agenda.ts`.
-    ok('as 14 entradas da agenda convertem sem erro', rotinasEmUTC().length === 14)
+    //
+    // O número é fixo de propósito — é o que faz uma rotina acrescentada ou
+    // removida aparecer aqui, e não em produção. Estava em 14 desde antes de
+    // `broadcast-dispatch` entrar, e por isso esta prova vinha vermelha.
+    ok('as 15 entradas da agenda convertem sem erro', rotinasEmUTC().length === 15)
 
     // Os cinco de hora fixa, um a um. Fixados de propósito: se alguém mudar o
     // deslocamento ou a tabela, é aqui que aparece — não em produção.

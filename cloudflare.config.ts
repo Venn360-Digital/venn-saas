@@ -127,7 +127,7 @@ const CONSUMO = {
  * Omitir no preview não é contorno, é o comportamento correto. Um Worker de
  * preview com estes gatilhos **disputaria mensagem de fila real** com a
  * produção (consumidor a mais na mesma fila, e cada mensagem é entregue a um
- * só) e **dispararia os treze crons** contra o banco real — boletim, poda de
+ * só) e **dispararia os doze crons** contra o banco real — boletim, poda de
  * retenção e corte de cobrança saindo de um PR. O preview serve para olhar
  * tela, não para processar trabalho.
  *
@@ -159,7 +159,7 @@ const GATILHOS = [
         ),
 
         /**
-         * Os treze crons, **em UTC**.
+         * Os doze crons, **em UTC**.
          *
          * A lista é gerada por `cronsParaWrangler()` a partir da intenção
          * declarada em horário de Brasília. Cron Triggers não aceitam fuso:

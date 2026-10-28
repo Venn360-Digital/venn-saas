@@ -118,8 +118,8 @@ Free em todas. Rulesets custom na zona `venn360.com`: 1 rate-limit (`limite-de-t
 
 ### C4 — Worker `odontobox`
 Tag `ed8d57aacf3242e29355327da2829eaf`; handlers `fetch`/`queue`/`scheduled`; DO `AgendaDaConversa`/`SalaDoWorkspace`/`TravaDeContato` (sqlite). compat `2026-10-21` + `nodejs_compat`. `subdomain.enabled=false` (workers.dev off), `previews_enabled=true`. **Custom domain `odontobox.venn360.com` ativo** (cert `d0cf09c7…`). Deploys por `cf_cli`/`wrangler` (não Workers Builds); último 2026-10-27. Bindings reais confirmam A2.
-- **Segredo órfão `RESEND_API_KEY`** presente no Worker mas **não declarado** no `cloudflare.config.ts` (Resend desativado) → limpar na Fase 02 e retirar no Resend.
-- **12 cron triggers ativos** vs **13 declarados** no código → divergência a conferir.
+- ~~Segredo órfão `RESEND_API_KEY`~~ **removido do Worker em 2026-10-28**; falta só retirar a chave no painel do Resend (ato humano).
+- **12 cron triggers ativos** = **12 gerados** por `cronsParaWrangler()` (conferido em 2026-10-28). O "treze" era o comentário do `cloudflare.config.ts`, corrigido.
 - DO namespace ids: `AgendaDaConversa` `0e4fcb95bc6e45e282d0a72bb74a5bc7`, `SalaDoWorkspace` `f09c1361c214423c815f4efedbea74be`, `TravaDeContato` `dad5c7bfca3a4c9cacf692be27b04885`.
 
 ### C5 — Armazenamento e filas

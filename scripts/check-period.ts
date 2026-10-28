@@ -182,11 +182,13 @@ console.log('\n— o que o adicional soma, e o que não soma')
 eq('Digital puro', limitesEfetivos('flow', 0), {
     maxWorkspaces: 1, maxAgents: 1, maxWhatsAppNumbers: 1,
     credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
+    maxBroadcastRecipientsPerMonth: 1_000,
 })
 
 eq('Digital + 1 adicional dobra a capacidade, não o consumo', limitesEfetivos('flow', 1), {
     maxWorkspaces: 2, maxAgents: 2, maxWhatsAppNumbers: 2,
     credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
+    maxBroadcastRecipientsPerMonth: 1_000,
 })
 
 // O caso da Venn360 ao descer para o Digital com dois adicionais: 3 agentes, e
@@ -194,11 +196,13 @@ eq('Digital + 1 adicional dobra a capacidade, não o consumo', limitesEfetivos('
 eq('Digital + 2 adicionais', limitesEfetivos('flow', 2), {
     maxWorkspaces: 3, maxAgents: 3, maxWhatsAppNumbers: 3,
     credits: 10_000, maxMessages: 10_000, maxSpokenReplies: 400,
+    maxBroadcastRecipientsPerMonth: 1_000,
 })
 
 eq('Multiclínica + 2 adicionais', limitesEfetivos('advanced', 2), {
     maxWorkspaces: 5, maxAgents: 5, maxWhatsAppNumbers: 8,
     credits: 30_000, maxMessages: 30_000, maxSpokenReplies: 1_500,
+    maxBroadcastRecipientsPerMonth: 20_000,
 })
 
 /**
