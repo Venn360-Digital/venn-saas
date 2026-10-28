@@ -23,13 +23,15 @@ import { CONTATO } from './layout'
  * tipo confere a forma.
  *
  * `from` é objeto, nunca a string `"Nome <endereço>"`: o builder do binding não
- * parseia esse formato.
+ * parseia esse formato. E **todo endereço precisa de `name` string** — o
+ * runtime do Email Sending recusa um `EmailAddress` sem `name` ("Incorrect type
+ * for the 'name' field on 'EmailAddress'"), então o `to` também o carrega.
  */
 interface RemetenteDaCloudflare {
     send(mensagem: {
         from: { email: string; name: string }
         replyTo: string
-        to: { email: string }[]
+        to: { email: string; name: string }[]
         subject: string
         text: string
         html: string
@@ -74,7 +76,7 @@ export async function sendEmail(input: {
             // O remetente é `noreply@` num subdomínio sem MX. Sem este
             // `Reply-To`, apertar "responder" devolve a mensagem.
             replyTo: CONTATO,
-            to: [{ email: input.to }],
+            to: [{ email: input.to, name: input.to }],
             subject: input.subject,
             text: emTextoSimples(input.html),
             html: input.html,
