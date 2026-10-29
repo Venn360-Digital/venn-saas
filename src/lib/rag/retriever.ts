@@ -1,6 +1,7 @@
 import 'server-only'
-import { OpenAIEmbeddings } from '@langchain/openai'
+import type { OpenAIEmbeddings } from '@langchain/openai'
 import prisma from '@/lib/prisma'
+import { criarEmbeddings } from './embeddings'
 
 /** Uma linha do resultado da busca por similaridade. */
 export interface KnowledgeMatch {
@@ -21,9 +22,11 @@ export interface KnowledgeMatch {
  * ortodontia, "vocês fazem exame de vista?" trazia os quatro trechos menos
  * distantes do acervo e pedia ao modelo que respondesse com base neles.
  *
- * 0,35 com `text-embedding-3-small` separa "fala do mesmo assunto" de "é o texto
- * menos distante que eu tinha". Ajustável por ambiente porque o valor depende do
- * tamanho e da variedade do acervo de cada clínica.
+ * 0,35 com o modelo de `EMBEDDING_MODEL` separa "fala do mesmo assunto" de "é o
+ * texto menos distante que eu tinha". Ajustável por ambiente porque o valor
+ * depende do tamanho e da variedade do acervo de cada clínica — e **precisa ser
+ * reavaliado se o modelo de embedding mudar**, porque a escala de similaridade
+ * é propriedade do modelo, não do acervo.
  */
 const DEFAULT_MIN_SIMILARITY = 0.35
 
@@ -36,10 +39,9 @@ export class DocumentRetriever {
     private embedder: OpenAIEmbeddings
 
     constructor() {
-        this.embedder = new OpenAIEmbeddings({
-            openAIApiKey: process.env.OPENAI_API_KEY,
-            modelName: 'text-embedding-3-small',
-        })
+        // O mesmo cliente de quem indexa: ver `embeddings.ts` para o que
+        // divergir aqui custava.
+        this.embedder = criarEmbeddings()
     }
 
     async search(agentId: string, query: string, limit = 5): Promise<KnowledgeMatch[]> {
