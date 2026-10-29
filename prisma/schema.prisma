@@ -634,6 +634,7 @@ model Agent {
   rules         AgentRule[]
   conversations Conversation[]
   knowledgeDocs KnowledgeDocument[]
+  trainingDocs  AgentTrainingDoc[]
   integrations  AgentIntegration[]
   webhooks      AgentWebhook[]
   customFields  AgentCustomField[]
@@ -2223,4 +2224,59 @@ model BroadcastRecipient {
   @@unique([broadcastId, contactId])
   @@index([broadcastId, status])
   @@map("broadcast_recipients")
+}
+
+/// Um documento de treinamento do agente, em Markdown.
+///
+/// Existe por duas razões, e a segunda só apareceu ao medir o sistema:
+///
+/// **1. É o suporte do método.** O treinamento deixou de ser uma dúzia de
+/// campos avulsos e passou a ser sete documentos em Markdown, catalogados em
+/// `src/lib/treinamento/documentos.ts`. Uma linha por documento, em vez de sete
+/// colunas novas num `Agent` que já é largo — e acrescentar o oitavo documento
+/// deixa de ser migração.
+///
+/// **2. É o que torna a reindexação possível.** `knowledge_documents` guarda
+/// **trechos**, nunca a fonte: a coluna `metadata` dela nunca foi escrita e o
+/// arquivo enviado não é persistido. Então, quando o corte do acervo melhora
+/// (como melhorou ao passar a respeitar cabeçalho de Markdown), **não há de onde
+/// recortar de novo** — reconstruir a fonte a partir dos trechos duplicaria a
+/// sobreposição. Aqui o texto-fonte fica, e reindexar é relançar o conteúdo.
+model AgentTrainingDoc {
+  id      String @id @default(cuid())
+  agentId String
+
+  /// A chave do catálogo. **Nunca muda**, mesmo que o título na tela mude: é por
+  /// ela que o conteúdo é achado e que os trechos indexados são substituídos.
+  /// Trocar um slug é perder o documento e o acervo dele.
+  slug String
+
+  /// O Markdown como o admin escreveu. É a fonte, não o resultado do corte.
+  content String @db.Text
+
+  /// O hash do conteúdo na última indexação.
+  ///
+  /// É o que evita pagar embedding do acervo inteiro a cada salvar: só o
+  /// documento cujo hash mudou volta para a fila. Sem isto, salvar uma vírgula
+  /// em Instruções centrais reindexaria os sete.
+  indexedHash String?
+
+  /// Quando foi indexado, e em quantos trechos.
+  ///
+  /// Os dois são para a tela dizer "indexado em 34 trechos às 14h32". Documento
+  /// de modo `prompt` não é indexado, e nestes os dois ficam nulos — é o estado
+  /// correto, não pendência.
+  indexedAt     DateTime?
+  indexedChunks Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// Um documento por slug por agente. É esta restrição que faz o salvar ser um
+  /// `upsert` em vez de uma decisão de quem escreve a rota.
+  @@unique([agentId, slug])
+  @@index([agentId])
+  @@map("agent_training_docs")
 }
