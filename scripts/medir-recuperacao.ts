@@ -31,6 +31,7 @@
  * entrar pela API. A senha nunca é impressa.
  */
 import { readFileSync } from 'node:fs'
+import { acharDocumento } from '@/lib/treinamento/documentos'
 import { createInterface } from 'node:readline'
 
 interface Caso {
@@ -179,6 +180,34 @@ function barra(valor: number): string {
 
 async function principal() {
     const casos: Caso[] = JSON.parse(readFileSync(arquivo, 'utf8'))
+
+    /**
+     * Documento de modo `prompt` **nunca** é recuperado — ele não é indexado,
+     * porque vai inteiro no prompt de toda resposta. Esperá-lo aqui produz uma
+     * falha garantida que parece defeito do acervo e não é.
+     *
+     * Foi exatamente o erro da primeira lista de perguntas: cinco delas
+     * esperavam `processo-comercial` ou `privacidade`, e as cinco "falharam"
+     * por construção. O medidor avisa em vez de deixar o número mentir.
+     */
+    const impossiveis = casos.filter((c) => {
+        const doc = c.esperado ? acharDocumento(c.esperado) : undefined
+        return doc && doc.modo === 'prompt'
+    })
+    if (impossiveis.length > 0) {
+        console.log('\nAviso — estas perguntas esperam documento de modo `prompt`:\n')
+        for (const c of impossiveis) {
+            console.log(`  "${c.pergunta}" → ${c.esperado}`)
+        }
+        console.log(
+            '\n  Documento de `prompt` não é indexado e não pode ser recuperado:\n' +
+            '  ele já está no prompt de toda resposta. Tire o `esperado` dessas\n' +
+            '  perguntas — elas seguem úteis para ver o que o acervo traz no lugar.\n' +
+            '  Elas NÃO entram na taxa de acerto.\n'
+        )
+    }
+    const esperadoVale = (c: Caso) => Boolean(c.esperado) && !impossiveis.includes(c)
+
     const cookie = await autenticar()
 
     const resposta = await fetch(`${base}/api/agents/${agentId}/recuperacao`, {
@@ -233,17 +262,26 @@ async function principal() {
             porDocumento.set(t.titulo, atual)
         }
 
+        /**
+         * O acerto é contado **antes** de tratar o vazio.
+         *
+         * Era depois, e com `return` no vazio — então pergunta que não recuperou
+         * nada saía da conta. Isso inflava a taxa justamente no pior desfecho
+         * possível: não achar nada é pior que achar o documento errado, e era o
+         * único caso que não pesava.
+         */
+        const vale = esperadoVale(caso)
+        const acertou = vale ? r.trechos.some((t) => t.titulo === caso.esperado) : null
+        if (vale) {
+            comEsperado++
+            if (acertou) acertos++
+        }
+
         if (!topo) {
             semNada++
             console.log(`  ∅  ${r.pergunta}`)
-            console.log(`     nada passou do piso\n`)
+            console.log(`     nada passou do piso${vale ? ` — esperado: ${caso.esperado}` : ''}\n`)
             return
-        }
-
-        const acertou = caso.esperado ? r.trechos.some((t) => t.titulo === caso.esperado) : null
-        if (caso.esperado) {
-            comEsperado++
-            if (acertou) acertos++
         }
 
         const apertado = topo.similaridade - PISO < FOLGA_MINIMA
@@ -255,7 +293,7 @@ async function principal() {
             `     ${topo.similaridade.toFixed(3)} ${barra(topo.similaridade)} ${topo.titulo}` +
             (apertado ? '   ← raspando o piso' : '')
         )
-        if (caso.esperado && !acertou) {
+        if (vale && !acertou) {
             console.log(`     esperado: ${caso.esperado} — não veio em ${r.trechos.length} trecho(s)`)
         }
         console.log()
