@@ -45,7 +45,8 @@
         "test:chunker": "tsx scripts/test-chunker.ts",
         "test:consulta": "tsx scripts/test-consulta.ts",
         "test:treinamento": "tsx scripts/test-treinamento.ts",
-        "test:prompt": "tsx scripts/test-prompt.ts"
+        "test:prompt": "tsx scripts/test-prompt.ts",
+        "check:treinamento": "tsx scripts/check-treinamento.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",
