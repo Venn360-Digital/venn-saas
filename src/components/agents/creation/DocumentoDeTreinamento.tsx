@@ -85,7 +85,7 @@ export function DocumentoDeTreinamento({
      * seção existe quando o corte não a vê — e o que importa é o que o agente
      * vai conseguir recuperar, não o que está escrito na tela.
      */
-    const estrutura = conferirEstrutura(doc, secionarMarkdown(semComentarios(valor)))
+    const estrutura = conferirEstrutura(secionarMarkdown(semComentarios(valor)))
     const temConteudo = valor.trim().length > 0
 
     const importar = (arquivo: File) => {
@@ -268,19 +268,36 @@ export function DocumentoDeTreinamento({
                     ) : null}
                 </div>
 
+                {/*
+                  * O que a conferência diz, e o que ela deixou de dizer.
+                  *
+                  * Ela não compara mais com a lista do catálogo: as seções são
+                  * da empresa — "Prótese overdenture", "Etapa 4", "Dói?" — e
+                  * exigir nome acusava documento bom. O que vale em qualquer
+                  * redação é quantos trechos saem, e os dois casos em que o
+                  * corte vai piorar.
+                  */}
                 {temConteudo ? (
-                    estrutura.faltando.length > 0 ? (
+                    estrutura.semSecoes ? (
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                             <AlertTriangle
                                 className="size-3.5 shrink-0 text-warning-subtle-foreground"
                                 aria-hidden="true"
                             />
-                            Sem conteúdo em: {estrutura.faltando.join(', ')}
+                            Sem subtítulos — será cortado por tamanho, não por assunto
+                        </span>
+                    ) : estrutura.grandesDemais.length > 0 ? (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <AlertTriangle
+                                className="size-3.5 shrink-0 text-warning-subtle-foreground"
+                                aria-hidden="true"
+                            />
+                            Longo demais para um trecho: {estrutura.grandesDemais.join(', ')}
                         </span>
                     ) : (
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                             <Check className="size-3.5 shrink-0" aria-hidden="true" />
-                            Todas as seções preenchidas
+                            {estrutura.trechos} trecho{estrutura.trechos === 1 ? '' : 's'}
                         </span>
                     )
                 ) : null}
