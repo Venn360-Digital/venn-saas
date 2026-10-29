@@ -265,10 +265,8 @@ export class InstagramProvider implements ChannelProvider {
 
             return {
                 base64: bytes.toString('base64'),
-                mimetype:
-                    (response.headers.get('content-type') ?? 'application/octet-stream')
-                        .split(';')[0]
-                        .trim(),
+                // `undefined`, não `octet-stream`: ver `DownloadedMedia.mimetype`.
+                mimetype: response.headers.get('content-type')?.split(';')[0].trim(),
             }
         } catch {
             return null

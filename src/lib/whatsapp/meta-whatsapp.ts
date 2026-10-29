@@ -294,7 +294,8 @@ export class MetaWhatsAppProvider implements ChannelProvider {
                 (typeof raw.mimetype === 'string' && raw.mimetype) ||
                 meta.mime_type ||
                 response.headers.get('content-type') ||
-                'application/octet-stream'
+                // `undefined`, não `octet-stream`: ver `DownloadedMedia.mimetype`.
+                undefined
 
             return { base64: bytes.toString('base64'), mimetype }
         } finally {

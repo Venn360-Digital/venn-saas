@@ -211,7 +211,24 @@ export interface SendOptions {
 
 export interface DownloadedMedia {
     base64: string
-    mimetype: string
+    /**
+     * **Opcional de propósito, e isto consertou um defeito.**
+     *
+     * Era `string`, e cada provedor preenchia um `'application/octet-stream'`
+     * inventado quando não sabia o tipo. O efeito foi apagar a diferença entre
+     * "é octet-stream" e "não sei": o `?? input.mimetype` de
+     * `obterBytesDaMidia`, que existe justamente para cair no tipo que veio no
+     * envelope do webhook, **nunca disparava** — o lado esquerdo nunca era nulo.
+     *
+     * Com isso toda mídia baixada pelo fallback perdia o tipo, e a nota de voz
+     * ia para a transcrição como `application/octet-stream` com o nome
+     * `nota.ogg`: um palpite, e errado para áudio de iPhone (`audio/mp4`). A
+     * OpenAI recusava com 400 em ~500 ms e o paciente ouvia que o agente não
+     * conseguiu entender o áudio. Ver `transcribe.ts`.
+     *
+     * Quem não sabe devolve `undefined` e deixa o chamador decidir.
+     */
+    mimetype?: string
 }
 
 export interface ChannelProvider {
