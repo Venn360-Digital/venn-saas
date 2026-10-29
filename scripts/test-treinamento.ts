@@ -129,7 +129,7 @@ conferir(
     [...documentosDoPrompt().map((d) => d.precedencia)].sort((a, b) => a - b)
 )
 
-console.log('\nO orçamento do prompt — a soma é a regra, não o teto por documento')
+console.log('\nO orçamento do prompt — informa, e quem limita é o teto de cada documento')
 
 const orc = (chars: Record<string, number>) =>
     orcamentoDoPrompt(
@@ -146,26 +146,39 @@ conferir(
     orc({ 'instrucoes-centrais': 3500 }).tokens,
     1000
 )
+
+/**
+ * As faixas são calibradas contra o máximo **possível**, não contra um número
+ * abstrato: três documentos de prompt a 10.000 cada dão 30.000, e nada pode
+ * passar disso porque o teto de cada documento é que barra. Um corte acima de
+ * 30.000 seria faixa que nunca acende — foi o que aconteceu com `excessivo`.
+ */
 conferir(
-    'um conjunto de cliente pequeno (11.485) é confortável',
-    orc({ 'instrucoes-centrais': 2863, 'processo-comercial': 6431, privacidade: 2191 }).faixa,
+    'o conjunto real de hoje (11.790) é confortável',
+    orc({ 'instrucoes-centrais': 3170, 'processo-comercial': 6429, privacidade: 2191 }).faixa,
     'confortavel'
 )
 conferir(
-    'o cliente grande que o André estima (50.000) é pesado, mas NÃO bloqueia',
-    [orc({ 'instrucoes-centrais': 50_000 }).faixa, orc({ 'instrucoes-centrais': 50_000 }).bloqueia],
-    ['pesado', false]
+    'dois documentos cheios já é pesado',
+    orc({ 'instrucoes-centrais': 10_000, 'processo-comercial': 10_000 }).faixa,
+    'pesado'
 )
 conferir(
-    'acima de 60.000 vira muito pesado, e ainda não bloqueia',
-    [orc({ 'instrucoes-centrais': 70_000 }).faixa, orc({ 'instrucoes-centrais': 70_000 }).bloqueia],
-    ['muito-pesado', false]
+    'os três documentos cheios são muito pesados — e mesmo assim passam',
+    orc({ 'instrucoes-centrais': 10_000, 'processo-comercial': 10_000, privacidade: 10_000 }).faixa,
+    'muito-pesado'
 )
+
+// O teto por documento é o único limite rígido, e ele vive no catálogo.
 conferir(
-    'só o absurdo bloqueia — onde o prompt disputa espaço com a conversa',
-    orc({ 'instrucoes-centrais': 130_000 }).bloqueia,
-    true
+    'documento de prompt cabe em 10.000; o de acervo, em 50.000',
+    [
+        documentosDoPrompt().every((d) => d.teto === 10_000),
+        documentosDoAcervo().every((d) => d.teto === 50_000),
+    ],
+    [true, true]
 )
+
 conferir('documento vazio não gasta orçamento', orc({}).usado, 0)
 
 console.log('\nA seção reservada')
