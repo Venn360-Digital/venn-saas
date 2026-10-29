@@ -293,6 +293,20 @@ async function principal() {
             `     ${topo.similaridade.toFixed(3)} ${barra(topo.similaridade)} ${topo.titulo}` +
             (apertado ? '   ← raspando o piso' : '')
         )
+        /**
+         * O **começo do trecho**, e não só o nome do documento.
+         *
+         * Saber que a F.A.Q respondeu não diz se ela respondeu certo. A pergunta
+         * que decide o conserto é outra: *o texto recuperado tem a informação
+         * pedida?* Um documento de perguntas frequentes pode vencer a busca de
+         * preço por ser escrito em forma de pergunta e **não ter preço nenhum
+         * dentro** — e aí o agente responde preço a partir de um texto que não
+         * fala de preço, que é pior do que não responder.
+         *
+         * A rota já devolvia isto; o medidor é que jogava fora.
+         */
+        console.log(`     ${topo.inicio.replace(/\s+/g, ' ').slice(0, 120)}`)
+
         if (vale && !acertou) {
             console.log(`     esperado: ${caso.esperado} — não veio em ${r.trechos.length} trecho(s)`)
         }
