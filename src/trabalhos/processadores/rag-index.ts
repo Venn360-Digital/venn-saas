@@ -32,7 +32,7 @@ export async function processRagIndex(payload: RagIndexJob): Promise<void> {
     }
 
     const embedder = new DocumentEmbedder()
-    await embedder.processDocument(agentId, documentTitle, content, type, url)
+    const trechos = await embedder.processDocument(agentId, documentTitle, content, type, url)
 
-    log.info(`indexed "${documentTitle}" for agent ${agentId}`)
+    log.info(`indexed "${documentTitle}" for agent ${agentId} in ${trechos} chunk(s)`)
 }
