@@ -43,7 +43,8 @@
         "db:migrate:guarded": "node scripts/migrate-guarded.mjs",
         "db:migrate:unsafe": "prisma migrate deploy",
         "test:chunker": "tsx scripts/test-chunker.ts",
-        "test:consulta": "tsx scripts/test-consulta.ts"
+        "test:consulta": "tsx scripts/test-consulta.ts",
+        "test:treinamento": "tsx scripts/test-treinamento.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",
