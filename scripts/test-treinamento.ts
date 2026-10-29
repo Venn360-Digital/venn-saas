@@ -28,9 +28,10 @@ import {
     documentosDoPrompt,
     modeloDoDocumento,
     SECAO_EXEMPLOS,
-    TETO_SOMADO_DO_PROMPT,
+    orcamentoDoPrompt,
+    TAMANHO_DE_TRECHO,
 } from '@/lib/treinamento/documentos'
-import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
+import { secionarMarkdown, semComentarios, TAMANHO_MAX } from '@/lib/rag/secoes'
 import { MODELOS } from '@/lib/treinamento/modelos'
 import { gerarRascunho, temRascunho } from '@/lib/treinamento/gerar'
 import {
@@ -128,32 +129,44 @@ conferir(
     [...documentosDoPrompt().map((d) => d.precedencia)].sort((a, b) => a - b)
 )
 
-console.log('\nTetos')
+console.log('\nO orçamento do prompt — a soma é a regra, não o teto por documento')
 
-conferir('o teto somado do prompt é 11.000 caracteres', TETO_SOMADO_DO_PROMPT, 11_000)
+const orc = (chars: Record<string, number>) =>
+    orcamentoDoPrompt(
+        Object.fromEntries(Object.entries(chars).map(([k, n]) => [k, 'x'.repeat(n)]))
+    )
+
 conferir(
-    'e cabe num bloco estável de prompt (~3 mil tokens)',
-    TETO_SOMADO_DO_PROMPT <= 12_000,
+    'soma só os documentos de modo prompt',
+    orc({ 'instrucoes-centrais': 100, privacidade: 50, servicos: 99999 }).usado,
+    150
+)
+conferir(
+    'estima tokens a ~3,5 caracteres por token',
+    orc({ 'instrucoes-centrais': 3500 }).tokens,
+    1000
+)
+conferir(
+    'um conjunto de cliente pequeno (11.485) é confortável',
+    orc({ 'instrucoes-centrais': 2863, 'processo-comercial': 6431, privacidade: 2191 }).faixa,
+    'confortavel'
+)
+conferir(
+    'o cliente grande que o André estima (50.000) é pesado, mas NÃO bloqueia',
+    [orc({ 'instrucoes-centrais': 50_000 }).faixa, orc({ 'instrucoes-centrais': 50_000 }).bloqueia],
+    ['pesado', false]
+)
+conferir(
+    'acima de 60.000 vira muito pesado, e ainda não bloqueia',
+    [orc({ 'instrucoes-centrais': 70_000 }).faixa, orc({ 'instrucoes-centrais': 70_000 }).bloqueia],
+    ['muito-pesado', false]
+)
+conferir(
+    'só o absurdo bloqueia — onde o prompt disputa espaço com a conversa',
+    orc({ 'instrucoes-centrais': 130_000 }).bloqueia,
     true
 )
-conferir(
-    'documento de prompt tem teto apertado; de acervo, largo',
-    [acharDocumento('privacidade')!.teto, acharDocumento('servicos')!.teto],
-    [3000, 200_000]
-)
-
-console.log('\nO rótulo do índice — cortado em silêncio por `truncate`')
-
-conferir(
-    'todo rótulo cabe no índice da Tela 03',
-    DOCUMENTOS.filter((d) => d.item.length > LIMITE_DO_ROTULO).map((d) => d.item),
-    []
-)
-conferir(
-    'o mais comprido é "Processo comercial"',
-    Math.max(...DOCUMENTOS.map((d) => d.item.length)),
-    'Processo comercial'.length
-)
+conferir('documento vazio não gasta orçamento', orc({}).usado, 0)
 
 console.log('\nA seção reservada')
 
@@ -211,14 +224,14 @@ conferir(
     []
 )
 
-console.log('\nConferência de estrutura — contra o corte real, não contra o texto cru')
+console.log('\nConferência de estrutura — sem exigir NOME de seção')
 
 const doc = acharDocumento('servicos')!
 
 conferir(
-    'modelo recém-inserido: TUDO faltando, porque nada tem corpo',
-    conferirEstrutura(doc, secionarMarkdown(modelo)).faltando,
-    doc.secoes
+    'modelo recém-inserido: zero trechos, porque cabeçalho sem corpo não conta',
+    conferirEstrutura(secionarMarkdown(semComentarios(modelo))).trechos,
+    0
 )
 
 conferir(
@@ -242,43 +255,46 @@ A partir de R$ 180 por mês.
 ## Diferenciais
 
 Atendimento no mesmo dia.
-
-## ${SECAO_EXEMPLOS}
-
-"Posso te explicar as opções?"
 `
 
 conferir(
-    'documento completo: nada faltando, nada sobrando',
-    conferirEstrutura(doc, secionarMarkdown(preenchido)),
-    { faltando: [], extras: [] }
+    'documento bem seccionado: conta os trechos e não reclama',
+    conferirEstrutura(secionarMarkdown(preenchido)),
+    { trechos: 3, semSecoes: false, grandesDemais: [] }
 )
 
 conferir(
-    'subtítulo de 3º nível conta para a seção de 2º nível que o contém',
-    conferirEstrutura(doc, secionarMarkdown(preenchido)).faltando.includes('Serviços'),
+    'SEÇÃO COM NOME QUE O CATÁLOGO NÃO PREVÊ passa limpo — era o defeito',
+    conferirEstrutura(
+        secionarMarkdown('# X\n\n## Prótese overdenture\n\nTexto.\n\n## Dói?\n\nNão.')
+    ),
+    { trechos: 2, semSecoes: false, grandesDemais: [] }
+)
+
+conferir(
+    'texto sem nenhum subtítulo é apontado',
+    conferirEstrutura(secionarMarkdown('Um muro de prosa, sem cabeçalho nenhum.')).semSecoes,
+    true
+)
+
+conferir(
+    'documento vazio NÃO é "sem seções" — é vazio, e o contador já diz',
+    conferirEstrutura(secionarMarkdown('   \n\n  ')).semSecoes,
     false
 )
 
-const semDiferenciais = preenchido.replace(/## Diferenciais\n\nAtendimento no mesmo dia.\n\n/, '')
 conferir(
-    'seção removida é apontada',
-    conferirEstrutura(doc, secionarMarkdown(semDiferenciais)).faltando,
-    ['Diferenciais']
+    'seção maior que um trecho é apontada pelo nome',
+    conferirEstrutura(
+        secionarMarkdown(`# X\n\n## Tabela de preços\n\n${'y'.repeat(TAMANHO_DE_TRECHO + 1)}`)
+    ).grandesDemais,
+    ['Tabela de preços']
 )
 
-const comExtra = `${preenchido}\n## Convênios\n\nAtendemos Amil.\n`
 conferir(
-    'cabeçalho não previsto aparece como extra, não como erro',
-    conferirEstrutura(doc, secionarMarkdown(comExtra)),
-    { faltando: [], extras: ['Convênios'] }
-)
-
-const vazia = preenchido.replace('Atendimento no mesmo dia.', '')
-conferir(
-    'seção com cabeçalho e sem conteúdo conta como faltando',
-    conferirEstrutura(doc, secionarMarkdown(vazia)).faltando,
-    ['Diferenciais']
+    'e o teto de trecho aqui bate com o do cortador',
+    TAMANHO_DE_TRECHO,
+    TAMANHO_MAX
 )
 
 console.log('\nO título dos trechos é o slug — e isso é deliberado')
@@ -390,12 +406,9 @@ conferir(
     false
 )
 conferir(
-    'e por isso a conferência de estrutura ainda aponta o que falta',
-    conferirEstrutura(
-        acharDocumento('instrucoes-centrais')!,
-        secionarMarkdown(semComentarios(rascunhoCentrais))
-    ).faltando,
-    [SECAO_EXEMPLOS]
+    'e o rascunho sai bem seccionado, sem aviso de estrutura',
+    conferirEstrutura(secionarMarkdown(semComentarios(rascunhoCentrais))),
+    { trechos: 4, semSecoes: false, grandesDemais: [] }
 )
 
 conferir(

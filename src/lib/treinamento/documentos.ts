@@ -65,7 +65,14 @@ export interface DocumentoDeTreinamento {
      * de saúde isso não é detalhe de engenharia.
      */
     precedencia: number
-    /** As seções que o modelo oferece, na ordem. */
+    /**
+     * As seções que o **modelo** oferece, na ordem.
+     *
+     * São sugestão, não contrato: servem ao botão "Inserir modelo" e a mais
+     * nada. A conferência de estrutura **não** compara com esta lista — as
+     * seções reais são da empresa e do método dela, e exigir nome acusava
+     * documento bom. Ver `conferirEstrutura`.
+     */
     secoes: string[]
     /** O que a tela explica sobre este documento. */
     explicacao: string
@@ -90,7 +97,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Instruções centrais',
         item: 'Perfil',
         modo: 'prompt',
-        teto: 4000,
+        teto: 60_000,
         precedencia: 2,
         secoes: [
             'Identidade do agente',
@@ -140,7 +147,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Processo comercial e políticas',
         item: 'Processo comercial',
         modo: 'prompt',
-        teto: 4000,
+        teto: 60_000,
         precedencia: 3,
         secoes: [
             'Objetivo comercial',
@@ -153,7 +160,8 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         ],
         explicacao:
             'A espinha da condução do atendimento. Vai em toda mensagem, porque ' +
-            'vale a cada resposta — por isso tem teto: escreva a regra, não o manual.',
+            'vale a cada resposta. Escreva a regra, não o manual: o que vai em toda ' +
+            'mensagem custa em toda mensagem.',
     },
     {
         slug: 'tecnicas-de-venda',
@@ -184,7 +192,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Informações e privacidade',
         item: 'Privacidade',
         modo: 'prompt',
-        teto: 3000,
+        teto: 60_000,
         precedencia: 1,
         secoes: [
             'Limites clínicos',
@@ -234,12 +242,57 @@ export function documentosDoAcervo(): DocumentoDeTreinamento[] {
 }
 
 /**
- * Quanto de prompt os documentos "sempre no prompt" podem ocupar, somados.
+ * O que os documentos de comportamento ocupam, somados — e o que isso custa.
  *
- * É o número que mantém o método viável: é teto, e serve para a tela poder
- * dizer quanto resta antes de alguém descobrir pela resposta.
+ * **Não existe mais bloqueio duro em 11.000, e o número era meu palpite.** Eu o
+ * derivei de uma estimativa de custo, não de conteúdo real; o primeiro conjunto
+ * de um cliente **pequeno** já pediu 11.485, e o André estima que um cliente
+ * grande chegue a 50.000 sem esforço. Teto derivado de palpite que barra uso
+ * legítimo é teto errado.
+ *
+ * O que fica é a consequência, dita em vez de imposta — porque ela é real e tem
+ * duas metades de gravidade diferente:
+ *
+ *   - **Custo.** Tudo isto viaja em toda mensagem, e a conta cai na margem: o
+ *     crédito do cliente é por ação entregue, não por consumo. Esta metade tem
+ *     conserto — bloco estável no começo do prompt vira prefixo cacheável.
+ *   - **Atenção.** O modelo atende pior ao meio de um contexto longo. Esta
+ *     metade **não** tem conserto por engenharia: é limite do modelo, e o único
+ *     remédio é o texto ser regra e não manual.
+ *
+ * O bloqueio duro sobrou só no absurdo, onde o prompt passa a disputar espaço
+ * com a própria conversa.
  */
-export const TETO_SOMADO_DO_PROMPT = documentosDoPrompt().reduce((s, d) => s + d.teto, 0)
+
+/** Português corrido gira em torno de 3,5 caracteres por token. */
+const CARACTERES_POR_TOKEN = 3.5
+
+/** Onde o prompt começa a competir com a conversa. Aí sim o salvar trava. */
+export const TETO_ABSOLUTO_DO_PROMPT = 120_000
+
+export type FaixaDoOrcamento = 'confortavel' | 'pesado' | 'muito-pesado' | 'excessivo'
+
+export function orcamentoDoPrompt(porSlug: Record<string, string>): {
+    usado: number
+    tokens: number
+    faixa: FaixaDoOrcamento
+    bloqueia: boolean
+} {
+    const usado = documentosDoPrompt().reduce((s, d) => s + (porSlug[d.slug]?.length ?? 0), 0)
+    const tokens = Math.round(usado / CARACTERES_POR_TOKEN)
+
+    const faixa: FaixaDoOrcamento =
+        usado > TETO_ABSOLUTO_DO_PROMPT
+            ? 'excessivo'
+            : usado > 60_000
+              ? 'muito-pesado'
+              : usado > 20_000
+                ? 'pesado'
+                : 'confortavel'
+
+    return { usado, tokens, faixa, bloqueia: faixa === 'excessivo' }
+}
+
 
 /**
  * O esqueleto que o botão "Inserir modelo" escreve no campo.
@@ -280,17 +333,34 @@ export function modeloDoDocumento(doc: DocumentoDeTreinamento): string {
  */
 
 /**
- * O que falta e o que sobra na estrutura de um documento.
+ * O que, na estrutura do documento, vai atrapalhar o agente.
  *
- * Não reprova nada — avisa. O admin pode ter um motivo para não ter "Follow-up",
- * e travar o salvar por causa de um cabeçalho seria pior que o problema. O que
- * não pode é ele **achar** que preencheu.
+ * **Não confere nome de seção, e isso foi uma correção.** A primeira versão
+ * comparava os `##` escritos com a lista do catálogo e acusava "sem conteúdo
+ * em: Follow-up". Ao encontrar documentos reais de cliente, ficou claro que a
+ * premissa estava errada: as seções são da clínica e do método dela —
+ * "Prótese overdenture", "Etapa 4 — solicitação de agendamento", "Qual a
+ * diferença entre protocolo e overdenture?". Nenhuma lista fixa casa com isso,
+ * nem com o próximo cliente. O verificador acusava sete documentos bons.
+ *
+ * O que vale em **qualquer** redação são duas coisas, e são as que ficam:
+ *
+ *   - **Documento sem `##` nenhum.** O corte cai no caractere, e o agente passa
+ *     a recuperar pedaços que começam e terminam no meio de uma frase.
+ *   - **Seção maior que um trecho.** Ela vai ser cortada por caractere do mesmo
+ *     jeito, só que por dentro — e aí metade de uma tabela de preço vira um
+ *     trecho sem o cabeçalho da coluna.
+ *
+ * O resto é o número de trechos, que a tela mostra: é a melhor pista de que o
+ * documento está bem seccionado.
  */
 export interface ConferenciaDeEstrutura {
-    /** Seções do modelo que não aparecem no texto, ou aparecem sem conteúdo. */
-    faltando: string[]
-    /** Cabeçalhos de 2º nível que o texto tem e o modelo não previa. */
-    extras: string[]
+    /** Quantos trechos o documento vai gerar — o número que a tela mostra. */
+    trechos: number
+    /** Nenhum `##`: o corte vai ser por caractere, não por assunto. */
+    semSecoes: boolean
+    /** Seções que não cabem num trecho e serão cortadas por dentro. */
+    grandesDemais: string[]
 }
 
 /**
@@ -303,22 +373,34 @@ export interface ConferenciaDeEstrutura {
  * quem preenche, o conselho é o mesmo nos dois casos.
  */
 export function conferirEstrutura(
-    doc: DocumentoDeTreinamento,
     secoesEncontradas: { caminho: string[]; corpo: string }[]
 ): ConferenciaDeEstrutura {
-    /** O 2º nível é o que o modelo propõe; o 1º é o título do documento. */
-    const nivel2 = (caminho: string[]) => caminho[1] ?? caminho[0]
+    const comConteudo = secoesEncontradas.filter((s) => s.corpo.trim() !== '')
 
-    const presentes = new Set<string>()
-    for (const s of secoesEncontradas) {
-        const nome = nivel2(s.caminho)
-        if (nome && s.corpo.trim() !== '') presentes.add(nome)
-    }
+    /**
+     * "Sem seções" é ter conteúdo e nenhum cabeçalho — o secionamento devolve
+     * uma única seção de caminho vazio. Documento vazio não é problema de
+     * estrutura: é documento vazio, e a tela já mostra isso no contador.
+     */
+    const semSecoes =
+        comConteudo.length > 0 && comConteudo.every((s) => s.caminho.length === 0)
 
-    const previstas = new Set(doc.secoes)
+    const nome = (caminho: string[]) => caminho.at(-1) ?? '(sem título)'
 
     return {
-        faltando: doc.secoes.filter((s) => !presentes.has(s)),
-        extras: [...presentes].filter((s) => !previstas.has(s)),
+        trechos: comConteudo.length,
+        semSecoes,
+        grandesDemais: comConteudo
+            .filter((s) => s.corpo.length > TAMANHO_DE_TRECHO)
+            .map((s) => nome(s.caminho)),
     }
 }
+
+/**
+ * O teto de um trecho, repetido daqui para a tela não importar de `rag/secoes`.
+ *
+ * `secoes.ts` é o dono do número; este é o espelho usado só para avisar. Vale a
+ * repetição porque o alternativo seria a tela depender do módulo de corte, e um
+ * teste confere que os dois batem.
+ */
+export const TAMANHO_DE_TRECHO = 1500

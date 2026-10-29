@@ -15,7 +15,7 @@
  * trechos tem cabeçalho de menos.
  */
 import { readFileSync, existsSync } from 'node:fs'
-import { DOCUMENTOS, conferirEstrutura } from '@/lib/treinamento/documentos'
+import { DOCUMENTOS, conferirEstrutura, orcamentoDoPrompt } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
 
 const pasta = process.argv[2]
@@ -26,7 +26,7 @@ if (!pasta) {
 
 let problemas = 0
 let ausentes = 0
-let somaDoPrompt = 0
+const conteudoDoPrompt: Record<string, string> = {}
 
 console.log(`\nConferindo ${pasta}\n`)
 
@@ -41,17 +41,15 @@ for (const doc of DOCUMENTOS) {
 
     const texto = readFileSync(caminho, 'utf8')
     const secoes = secionarMarkdown(semComentarios(texto))
-    const c = conferirEstrutura(doc, secoes)
+    const c = conferirEstrutura(secoes)
     const excedeu = texto.length > doc.teto
-    if (doc.modo === 'prompt') somaDoPrompt += texto.length
+    if (doc.modo === 'prompt') conteudoDoPrompt[doc.slug] = texto
 
     const avisos: string[] = []
     if (excedeu) avisos.push(`ACIMA DO TETO em ${(texto.length - doc.teto).toLocaleString('pt-BR')}`)
-    if (c.faltando.length) avisos.push(`sem conteúdo em: ${c.faltando.join(', ')}`)
-    if (c.extras.length) avisos.push(`seção não prevista: ${c.extras.join(', ')}`)
-    // Documento longo que vira poucos trechos quase sempre é falta de cabeçalho.
-    if (doc.modo === 'rag' && texto.length > 1500 && secoes.length < 4) {
-        avisos.push(`só ${secoes.length} trechos para ${texto.length} caracteres — faltam subtítulos?`)
+    if (c.semSecoes) avisos.push('sem subtítulos — será cortado por tamanho, não por assunto')
+    if (c.grandesDemais.length) {
+        avisos.push(`longo demais para um trecho: ${c.grandesDemais.join(', ')}`)
     }
 
     const ok = avisos.length === 0
@@ -65,10 +63,16 @@ for (const doc of DOCUMENTOS) {
     )
 }
 
-const TETO_PROMPT = DOCUMENTOS.filter((d) => d.modo === 'prompt').reduce((s, d) => s + d.teto, 0)
+const o = orcamentoDoPrompt(conteudoDoPrompt)
+const comoLer: Record<string, string> = {
+    confortavel: 'confortável',
+    pesado: 'pesado — considere mover fato consultável para os documentos de acervo',
+    'muito-pesado': 'MUITO pesado — o modelo atende pior ao meio de um contexto deste tamanho',
+    excessivo: 'EXCESSIVO — a tela recusa salvar neste tamanho',
+}
 console.log(
-    `\n  somado nos de prompt: ${somaDoPrompt.toLocaleString('pt-BR')} de ` +
-    `${TETO_PROMPT.toLocaleString('pt-BR')} — vão em TODA mensagem`
+    `\n  comportamento (vai em TODA mensagem): ${o.usado.toLocaleString('pt-BR')} caracteres, ` +
+    `~${o.tokens.toLocaleString('pt-BR')} tokens — ${comoLer[o.faixa]}`
 )
 
 if (ausentes > 0) console.log(`  ${ausentes} arquivo(s) ausente(s)`)
