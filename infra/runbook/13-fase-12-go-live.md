@@ -31,10 +31,60 @@
 
 ## 2. Execução
 
-1. PR `staging` → `main`. O CI roda `audit:isolation` e os testes.
-2. Merge → `deploy-prod.yml` aguarda a aprovação do André no GitHub Environment.
-3. Após a aprovação, o deploy roda: migrations guardadas (`--expect-env production`), build, deploy e smoke test.
-4. Certificado de `{slug}.venn360.com` ativo; `curl -I` → 200/302 esperado.
+> **Reescrito em 2026-10-29.** Esta seção descrevia `deploy-prod.yml` e um portão
+> de aprovação no GitHub Environment. Nada disso existe mais: o deploy saiu do
+> GitHub Actions para o **Cloudflare Workers Builds** em 29/10, porque os minutos
+> do GitHub acabaram. O portão foi reconstruído sobre o que existe, e o que mudou
+> de verdade é **onde a aprovação humana acontece**: era um botão no GitHub,
+> agora é o próprio **merge em `main`**.
+
+### 2.1 Pré-requisitos — sem estes o primeiro deploy falha
+
+- [ ] **O Worker de produção existe.** Hoje a conta tem só `{slug}-stg`. O
+      primeiro build do Workers Builds cria `{slug}-prod`.
+- [ ] **Os segredos de produção estão gravados** no Worker `{slug}-prod`. O
+      `cloudflare.config.ts` os declara com `bindings.secret()`, e **declarar é
+      exigir no deploy**: faltando um, o deploy falha antes de publicar. São os
+      mesmos ~16 de `{slug}-stg`, com valores de produção.
+- [ ] **`DATABASE_URL_MIGRATOR` como variável de build** no Workers Builds (não
+      é segredo de runtime: é o papel de DDL, usado só durante o build). Sem ele
+      o portão aborta com "DATABASE_URL_MIGRATOR ausente", que é o
+      comportamento certo.
+- [ ] **A sentinela `({slug}, production)` existe** em `app_identity` da branch
+      `production` do Neon. Sem linha, `migrate-guarded` **aborta** — é a trava
+      que impede migrar o banco de um app com o código de outro.
+
+### 2.2 Configuração do Workers Builds (produção)
+
+No painel do Worker `{slug}-prod` → Settings → Builds:
+
+| campo | valor |
+|---|---|
+| Branch | `main` |
+| Build command | `npx prisma generate && npm run portao:prod && npm run build:prod` |
+| Deploy command | `npm run deploy:prod && npm run smoke:prod` |
+| Build variables | `DATABASE_URL_MIGRATOR` |
+
+`portao:prod` é o portão, e ele roda **antes** do build:
+
+1. `migrate:prod` — `migrate-guarded --expect-slug {slug} --expect-env production`.
+   Lê `app_identity` antes de migrar e aborta se o banco não for o esperado.
+2. `audit:isolation --strict` — recusa vazamento de identidade entre os apps.
+
+`smoke:prod` roda **depois** do deploy e confere, de fora, que a identidade
+publicada bate com `infra/manifest.json`.
+
+A ordem importa e não é estética: migração antes do build garante que o código
+publicado nunca encontra um schema que não existe; o smoke depois do deploy é a
+única prova que enxerga o que foi de fato publicado.
+
+### 2.3 O deploy
+
+1. PR `staging` → `main`. O CI (`ci.yml`) roda typecheck, lint, os testes e
+   `audit:isolation --strict`.
+2. **O merge em `main` é a aprovação humana.** Ele dispara o Workers Builds de
+   produção, que roda o portão, o build e o deploy.
+3. Certificado de `{slug}.venn360.com` ativo; `curl -I` → 200/302 esperado.
 5. **Primeiro tenant interno** ("Venn360 – interno"):
    - cadastro;
    - e-mail transacional real;
