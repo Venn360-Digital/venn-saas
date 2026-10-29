@@ -31,6 +31,7 @@
  * entrar pela API. A senha nunca é impressa.
  */
 import { readFileSync } from 'node:fs'
+import { createInterface } from 'node:readline'
 
 interface Caso {
     pergunta: string
@@ -57,14 +58,49 @@ if (!base || !agentId || !arquivo) {
     process.exit(2)
 }
 
+/**
+ * Pergunta no terminal. `oculto` apaga o eco, para a senha não ficar na tela.
+ *
+ * Existe para que medir em produção **não exija senha na linha de comando**: ali
+ * ela entraria no histórico do shell, ficaria no `ps` enquanto o processo roda, e
+ * sobreviveria à sessão. Perguntar na hora custa um Enter e não deixa rastro.
+ */
+function perguntar(rotulo: string, oculto = false): Promise<string> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    return new Promise((resolve) => {
+        if (oculto) {
+            const saida = process.stdout as NodeJS.WriteStream & { muted?: boolean }
+            saida.muted = false
+            const escrever = saida.write.bind(saida)
+            // Substituição deliberada e temporária do write, desfeita no fim.
+            saida.write = (chunk: string, ...resto: unknown[]) =>
+                saida.muted ? true : escrever(chunk, ...(resto as []))
+            rl.question(rotulo, (resposta) => {
+                saida.muted = false
+                saida.write = escrever
+                process.stdout.write('\n')
+                rl.close()
+                resolve(resposta.trim())
+            })
+            saida.muted = true
+        } else {
+            rl.question(rotulo, (resposta) => {
+                rl.close()
+                resolve(resposta.trim())
+            })
+        }
+    })
+}
+
 async function autenticar(): Promise<string> {
     const cookie = process.env.MEDIR_COOKIE
     if (cookie) return cookie
 
-    const email = process.env.MEDIR_EMAIL
-    const senha = process.env.MEDIR_SENHA
+    // Perguntados na hora quando não vierem do ambiente — ver `perguntar`.
+    const email = process.env.MEDIR_EMAIL || (await perguntar('e-mail: '))
+    const senha = process.env.MEDIR_SENHA || (await perguntar('senha: ', true))
     if (!email || !senha) {
-        console.error('defina MEDIR_COOKIE, ou MEDIR_EMAIL e MEDIR_SENHA')
+        console.error('sem credencial; informe e-mail e senha, ou MEDIR_COOKIE')
         process.exit(2)
     }
 
@@ -186,4 +222,11 @@ async function principal() {
     )
 }
 
-void principal()
+principal().catch((erro) => {
+    // Sem isto, falha de rede ou JSON malformado saía como rejeição não tratada:
+    // uma pilha de stack onde devia haver uma frase.
+    console.error(`
+falhou: ${erro instanceof Error ? erro.message : erro}
+`)
+    process.exit(1)
+})
