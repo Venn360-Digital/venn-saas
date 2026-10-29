@@ -23,6 +23,7 @@ import {
     acharDocumento,
     conferirEstrutura,
     DOCUMENTOS,
+    LIMITE_DO_ROTULO,
     documentosDoAcervo,
     documentosDoPrompt,
     modeloDoDocumento,
@@ -137,6 +138,19 @@ conferir(
     'documento de prompt tem teto apertado; de acervo, largo',
     [acharDocumento('privacidade')!.teto, acharDocumento('servicos')!.teto],
     [3000, 200_000]
+)
+
+console.log('\nO rótulo do índice — cortado em silêncio por `truncate`')
+
+conferir(
+    'todo rótulo cabe no índice da Tela 03',
+    DOCUMENTOS.filter((d) => d.item.length > LIMITE_DO_ROTULO).map((d) => d.item),
+    []
+)
+conferir(
+    'o mais comprido é "Processo comercial"',
+    Math.max(...DOCUMENTOS.map((d) => d.item.length)),
+    'Processo comercial'.length
 )
 
 console.log('\nA seção reservada')
