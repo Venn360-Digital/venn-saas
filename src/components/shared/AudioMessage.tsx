@@ -20,7 +20,20 @@ export function AudioMessage({
     transcript,
     className,
 }: {
-    src: string
+    /**
+     * O arquivo tocável — **opcional de propósito**.
+     *
+     * A nota de voz chega, é transcrita e só depois é arquivada, e o
+     * arquivamento pode falhar sozinho (provedor fora, credencial trocada).
+     * Quando falha, `mediaUrl` fica nulo — e até 29/10 a tela simplesmente não
+     * desenhava nada disto, porque a condição era `contentType === 'audio' &&
+     * mediaUrl`. O efeito: a transcrição existia no banco e a atendente lia
+     * "🎵 Áudio" na tela.
+     *
+     * **Poder ouvir e poder ler são coisas diferentes, e aqui deixaram de estar
+     * amarradas.** Sem arquivo, o player some e a transcrição fica.
+     */
+    src?: string | null
     transcript?: string | null
     className?: string
 }) {
@@ -74,29 +87,37 @@ export function AudioMessage({
 
     return (
         <div className={cn('min-w-[200px] max-w-[260px]', className)}>
-            <audio ref={ref} src={src} preload="metadata" className="hidden" />
-            <div className="flex items-center gap-2.5">
-                <button
-                    type="button"
-                    onClick={toggle}
-                    aria-label={playing ? 'Pausar nota de voz' : 'Ouvir nota de voz'}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-current/15 transition-colors hover:bg-current/25"
-                >
-                    {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                </button>
-                {/* A click target, not a decorative waveform: the bar is the
-                    position in the recording and seeking works on it. */}
-                <div
-                    onClick={seek}
-                    role="presentation"
-                    className="h-1 flex-1 cursor-pointer overflow-hidden rounded-full bg-current/20"
-                >
-                    <div className="h-full rounded-full bg-current/70" style={{ width: `${progress}%` }} />
+            {src ? (
+                <>
+                <audio ref={ref} src={src} preload="metadata" className="hidden" />
+                <div className="flex items-center gap-2.5">
+                    <button
+                        type="button"
+                        onClick={toggle}
+                        aria-label={playing ? 'Pausar nota de voz' : 'Ouvir nota de voz'}
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-current/15 transition-colors hover:bg-current/25"
+                    >
+                        {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    </button>
+                    {/* A click target, not a decorative waveform: the bar is the
+                        position in the recording and seeking works on it. */}
+                    <div
+                        onClick={seek}
+                        role="presentation"
+                        className="h-1 flex-1 cursor-pointer overflow-hidden rounded-full bg-current/20"
+                    >
+                        <div className="h-full rounded-full bg-current/70" style={{ width: `${progress}%` }} />
+                    </div>
+                    <span className="num shrink-0 text-[11px] opacity-70">{formatClock(shown)}</span>
                 </div>
-                <span className="num shrink-0 text-[11px] opacity-70">{formatClock(shown)}</span>
-            </div>
+                </>
+            ) : (
+                // Sem arquivo, dizer que ele não está disponível é melhor do que
+                // um player que não toca — e a transcrição abaixo segue valendo.
+                <p className="text-[11px] italic opacity-60">Nota de voz (áudio indisponível)</p>
+            )}
             {transcript ? (
-                <div className="mt-2 border-t border-current/15 pt-2">
+                <div className={cn('mt-2 pt-2', src && 'border-t border-current/15')}>
                     <p className="text-[10px] font-semibold uppercase tracking-wide opacity-55">Transcrição</p>
                     <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-snug">{transcript}</p>
                 </div>
