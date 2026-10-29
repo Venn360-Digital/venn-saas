@@ -411,7 +411,14 @@ function MediaContent({ msg }: { msg: Message }) {
         )
     }
 
-    if (msg.contentType === 'audio' && msg.mediaUrl) {
+    /**
+     * Áudio aparece mesmo sem arquivo, desde que haja o que ler.
+     *
+     * A condição era `&& msg.mediaUrl`, e com o arquivamento falhando a
+     * mensagem caía no desenho genérico — que mostra o `content`, isto é, o
+     * marcador "🎵 Áudio". A transcrição estava gravada e invisível.
+     */
+    if (msg.contentType === 'audio' && (msg.mediaUrl || msg.transcript)) {
         return <AudioMessage src={msg.mediaUrl} transcript={msg.transcript} className="mb-1" />
     }
 
