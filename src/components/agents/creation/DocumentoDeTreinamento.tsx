@@ -113,7 +113,15 @@ export function DocumentoDeTreinamento({
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-1">
+                {/*
+                  * `min-w-[260px]` e não `min-w-0`: com quatro botões — quando
+                  * "Gerar do cadastro" aparece — eles tomam ~560px, e sem piso
+                  * quem cede é a explicação, que colapsa para ~90px e quebra em
+                  * duas palavras por linha. Com piso, o `flex-wrap` faz o grupo
+                  * de botões descer, que é o certo. É a armadilha que o
+                  * DESIGN.md registra na Tela 03.
+                  */}
+                <div className="min-w-[260px] flex-1 space-y-1">
                     <p className="text-[12.5px] text-muted-foreground">{doc.explicacao}</p>
                     <p className="text-xs text-muted-foreground">
                         {doc.modo === 'prompt' ? (
@@ -215,7 +223,9 @@ export function DocumentoDeTreinamento({
                 aria-label={doc.titulo}
                 className="min-h-[340px] font-mono text-[12.5px] leading-relaxed"
                 spellCheck={false}
-                placeholder={`Cole aqui o ${doc.titulo.toLowerCase()} em Markdown, ou use "Inserir modelo".`}
+                // Sem o título no meio da frase: "Cole aqui o serviços
+                // prestados" errava a concordância em quatro dos sete.
+                placeholder={'Cole aqui o conteúdo em Markdown, ou use "Inserir modelo".'}
                 value={valor}
                 onChange={(e) => onChange(e.target.value)}
             />
