@@ -30,7 +30,9 @@ import {
     SECAO_EXEMPLOS,
     TETO_SOMADO_DO_PROMPT,
 } from '@/lib/treinamento/documentos'
-import { secionarMarkdown } from '@/lib/rag/secoes'
+import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
+import { MODELOS } from '@/lib/treinamento/modelos'
+import { gerarRascunho, temRascunho } from '@/lib/treinamento/gerar'
 import {
     decidirIndexacao,
     hashDoConteudo,
@@ -182,6 +184,33 @@ conferir(
     acharDocumento('servicos')!.secoes
 )
 
+console.log('\nOs modelos fornecidos — cabeçalhos têm de casar com o catálogo')
+
+conferir(
+    'nenhum modelo escrito divergiu das seções do catálogo',
+    Object.entries(MODELOS)
+        .map(([slug, texto]) => {
+            const doc = acharDocumento(slug)
+            if (!doc) return `${slug}: slug não existe no catálogo`
+            const cabecalhos = (texto.match(/^## (.+)$/gm) ?? []).map((l) => l.replace('## ', '').trim())
+            const faltam = doc.secoes.filter((s) => !cabecalhos.includes(s))
+            const sobram = cabecalhos.filter((c) => !doc.secoes.includes(c))
+            return faltam.length || sobram.length
+                ? `${slug}: faltam [${faltam}] sobram [${sobram}]`
+                : null
+        })
+        .filter(Boolean),
+    []
+)
+
+conferir(
+    'e todo modelo escrito abre com o título do catálogo',
+    Object.entries(MODELOS)
+        .filter(([slug, texto]) => !texto.startsWith(`# ${acharDocumento(slug)?.titulo}`))
+        .map(([slug]) => slug),
+    []
+)
+
 console.log('\nConferência de estrutura — contra o corte real, não contra o texto cru')
 
 const doc = acharDocumento('servicos')!
@@ -329,6 +358,78 @@ conferir(
     'o hash devolvido na ação indexar é o do conteúdo JÁ aparado',
     await decidirIndexacao({ doc: docRag, content: `  ${conteudo}  `, hashGravado: null }),
     { acao: 'indexar', hash: hashDele }
+)
+
+console.log('\nRascunho a partir dos campos antigos — para a transição não custar redigitação')
+
+const antigos = {
+    agentName: 'Ana',
+    companyName: 'Clínica Teste',
+    companySector: 'Clínica odontológica',
+    companyAddress: 'Av. Afonso Pena, 1500',
+    companyDescription: 'Atendemos ortodontia e implante.',
+    jobDescription: 'Atender, qualificar e agendar avaliação.',
+    agentFunction: 'sdr_atendimento',
+    voiceTone: 'pratico',
+    systemPrompt: 'Nunca prometa prazo sem avaliação presencial.',
+}
+
+const rascunhoCentrais = gerarRascunho('instrucoes-centrais', antigos)!
+
+conferir('as centrais ganham rascunho', rascunhoCentrais !== null, true)
+conferir('abre com o título do catálogo', rascunhoCentrais.startsWith('# Instruções centrais'), true)
+conferir('o tom vira texto legível', rascunhoCentrais.includes('Prático e objetivo.'), true)
+conferir(
+    'a instrução livre vira "Limites técnicos" — era a lista de limites',
+    rascunhoCentrais.includes('## Limites técnicos\n\nNunca prometa prazo'),
+    true
+)
+conferir(
+    'o aviso de rascunho vai em comentário, que NÃO chega ao modelo',
+    semComentarios(rascunhoCentrais).includes('Rascunho gerado'),
+    false
+)
+conferir(
+    'e por isso a conferência de estrutura ainda aponta o que falta',
+    conferirEstrutura(
+        acharDocumento('instrucoes-centrais')!,
+        secionarMarkdown(semComentarios(rascunhoCentrais))
+    ).faltando,
+    [SECAO_EXEMPLOS]
+)
+
+conferir(
+    'Empresa pega nome, setor, endereço e descrição',
+    ['Clínica Teste', 'Av. Afonso Pena', 'ortodontia e implante'].every((s) =>
+        gerarRascunho('empresa', antigos)!.includes(s)
+    ),
+    true
+)
+
+conferir(
+    'Processo comercial pega as atribuições',
+    gerarRascunho('processo-comercial', antigos)!.includes('qualificar e agendar'),
+    true
+)
+
+conferir(
+    'os quatro sem origem devolvem null, não um modelo disfarçado',
+    ['servicos', 'tecnicas-de-venda', 'faq', 'privacidade'].map((s) =>
+        gerarRascunho(s, antigos)
+    ),
+    [null, null, null, null]
+)
+
+conferir(
+    'agente sem nada preenchido não gera rascunho nenhum',
+    DOCUMENTOS.map((d) => gerarRascunho(d.slug, {})).filter(Boolean),
+    []
+)
+
+conferir(
+    'temRascunho concorda com gerarRascunho',
+    DOCUMENTOS.every((d) => temRascunho(d.slug, antigos) === (gerarRascunho(d.slug, antigos) !== null)),
+    true
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { AlertTriangle, Check, Download, FileUp, ListPlus } from 'lucide-react'
+import { AlertTriangle, Check, Download, FileUp, ListPlus, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import {
     type DocumentoDeTreinamento as Doc,
 } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
+import { gerarRascunho, type CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 
 /**
@@ -49,6 +50,15 @@ interface Props {
     indexadoEm?: string | null
     trechos?: number | null
     somenteLeitura?: boolean
+    /**
+     * Os campos antigos do cadastro, para o rascunho da transição.
+     *
+     * Ausente, o botão não aparece. O rascunho preenche o campo **na tela** e
+     * nada é gravado até a pessoa salvar — script contra o banco escreveria em
+     * produção antes de alguém conferir, e o que está aqui é o que o agente vai
+     * dizer ao paciente.
+     */
+    camposAntigos?: CamposAntigos
 }
 
 export function DocumentoDeTreinamento({
@@ -58,8 +68,10 @@ export function DocumentoDeTreinamento({
     indexadoEm,
     trechos,
     somenteLeitura = false,
+    camposAntigos,
 }: Props) {
     const entrada = useRef<HTMLInputElement>(null)
+    const rascunho = camposAntigos ? gerarRascunho(doc.slug, camposAntigos) : null
 
     const usado = valor.length
     const excedeu = usado > doc.teto
@@ -154,6 +166,25 @@ export function DocumentoDeTreinamento({
                             <ListPlus className="size-4" aria-hidden="true" />
                             Inserir modelo
                         </Button>
+                        {rascunho ? (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8"
+                                onClick={() => onChange(rascunho)}
+                                // Mesmo cuidado do modelo: não apaga texto escrito.
+                                disabled={temConteudo}
+                                title={
+                                    temConteudo
+                                        ? 'O rascunho só entra no campo vazio, para não apagar o que você escreveu'
+                                        : 'Monta um rascunho a partir do que já está no cadastro do agente'
+                                }
+                            >
+                                <Wand2 className="size-4" aria-hidden="true" />
+                                Gerar do cadastro
+                            </Button>
+                        ) : null}
                         <Button
                             type="button"
                             variant="outline"
