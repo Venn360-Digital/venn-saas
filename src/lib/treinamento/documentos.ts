@@ -33,6 +33,8 @@
  * deixar a pessoa descobrir pelo resultado.
  */
 
+import { modeloEscrito } from './modelos'
+
 export type ModoDoDocumento = 'prompt' | 'rag'
 
 export interface DocumentoDeTreinamento {
@@ -249,6 +251,16 @@ export const TETO_SOMADO_DO_PROMPT = documentosDoPrompt().reduce((s, d) => s + d
  * Com o esqueleto, virar documento bom é preencher, não redigir.
  */
 export function modeloDoDocumento(doc: DocumentoDeTreinamento): string {
+    /**
+     * O modelo escrito ganha do esqueleto.
+     *
+     * `modelos.ts` guarda o `.md` de cada documento quando ele existe; enquanto
+     * não existe, saem só os cabeçalhos do catálogo. Assim o botão funciona nos
+     * sete desde já, e cada modelo real entra sem tocar em tela nem em rota.
+     */
+    const escrito = modeloEscrito(doc.slug)
+    if (escrito) return escrito
+
     return `# ${doc.titulo}\n\n${doc.secoes.map((secao) => `## ${secao}\n`).join('\n')}`
 }
 

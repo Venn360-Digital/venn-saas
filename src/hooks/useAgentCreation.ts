@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import {
-    PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData,
+    PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData, DocumentoGravado,
     PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
 } from '@/types/agent-creation'
 import { ENTONACAO_PADRAO, VOZ_PADRAO } from '@/lib/voz'
 import { SETOR_PADRAO } from '@/components/agents/creation/tabs/TrabalhoTab'
+import { acharDocumento, DOCUMENTOS } from '@/lib/treinamento/documentos'
 
 /**
  * A instrução livre com que um agente novo nasce — curta de propósito.
@@ -62,6 +63,27 @@ export function useAgentCreation(workspaceId: string) {
         voiceModel: VOZ_PADRAO,
         voiceTraining: ENTONACAO_PADRAO,
     })
+
+    /**
+     * Os sete documentos de treinamento, por slug.
+     *
+     * Começa com os sete presentes e vazios, não com um objeto em branco: a tela
+     * desenha sete campos desde o primeiro acesso, e sete campos vazios são sete
+     * coisas que o agente não sabe — que é a informação que se quer dar.
+     */
+    const [documentos, setDocumentos] = useState<Record<string, DocumentoGravado>>(() =>
+        Object.fromEntries(
+            DOCUMENTOS.map((doc) => [doc.slug, { content: '', indexedAt: null, indexedChunks: null }])
+        )
+    )
+
+    /**
+     * O que veio do banco, para saber o que mudou.
+     *
+     * `useRef` e não estado: ninguém renderiza por causa disto, e em estado ele
+     * entraria nas dependências de quem grava e disparia o laço de atualização.
+     */
+    const originais = useRef<Record<string, string>>({})
 
     const [instrucoes, setInstrucoes] = useState<InstrucoesData>({
         llmModel: PADROES_DO_AGENTE.llmModel,
@@ -185,6 +207,8 @@ export function useAgentCreation(workspaceId: string) {
             if (cerebro.faqs.length > 0 || cerebro.websites.length > 0 || cerebro.files.length > 0) {
                 await saveKnowledgeBase(agent.id)
             }
+
+            await salvarDocumentos(agent.id)
 
             /**
              * A imagem sobe depois do agente existir.
@@ -335,7 +359,90 @@ export function useAgentCreation(workspaceId: string) {
         }
     }
 
+    /**
+     * Carrega os sete documentos do agente.
+     *
+     * A rota devolve sempre os sete — o catálogo inteiro, com conteúdo vazio no
+     * que não foi escrito —, então a tela não precisa reconciliar ausência.
+     */
+    const carregarDocumentos = useCallback(async (agentId: string) => {
+        try {
+            const res = await fetch(`/api/agents/${agentId}/training`)
+            if (!res.ok) throw new Error(String(res.status))
+            const lista: Array<{
+                slug: string
+                content: string
+                indexedAt: string | null
+                indexedChunks: number | null
+            }> = await res.json()
+
+            const porSlug: Record<string, DocumentoGravado> = {}
+            for (const item of lista) {
+                porSlug[item.slug] = {
+                    content: item.content,
+                    indexedAt: item.indexedAt,
+                    indexedChunks: item.indexedChunks,
+                }
+                originais.current[item.slug] = item.content
+            }
+            setDocumentos((atual) => ({ ...atual, ...porSlug }))
+        } catch (erro) {
+            console.error('[TREINAMENTO] carregar', erro)
+            toast.error('Não foi possível carregar os documentos de treinamento')
+        }
+    }, [])
+
+    /**
+     * Grava os documentos de treinamento que mudaram.
+     *
+     * **Aqui, e não na tela**, pelo mesmo motivo da base de conhecimento: é
+     * depois desta linha que o agente tem id. Num agente novo, o que foi escrito
+     * nos sete campos se perderia se a gravação dependesse de um id que ainda
+     * não existe.
+     *
+     * **Só o que mudou vai.** `originais` guarda o que veio do banco; comparar
+     * evita sete requisições a cada salvar, e a rota ainda confere o hash antes
+     * de gastar embedding — duas guardas, porque esta aqui não sobrevive a um
+     * recarregamento e a de lá sim.
+     *
+     * Falha de um documento não impede os outros nem desfaz o agente salvo: o
+     * aviso diz quais ficaram de fora, e o resto do trabalho fica de pé.
+     */
+    const salvarDocumentos = async (agentId: string) => {
+        const mudaram = Object.entries(documentos).filter(
+            ([slug, doc]) => doc.content !== (originais.current[slug] ?? '')
+        )
+        if (mudaram.length === 0) return
+
+        const falharam: string[] = []
+
+        for (const [slug, doc] of mudaram) {
+            try {
+                const res = await fetch(`/api/agents/${agentId}/training/${slug}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: doc.content }),
+                })
+                if (!res.ok) {
+                    const corpo = await res.json().catch(() => null)
+                    throw new Error(corpo?.error ?? String(res.status))
+                }
+                originais.current[slug] = doc.content
+            } catch (erro) {
+                falharam.push(acharDocumento(slug)?.titulo ?? slug)
+                console.error(`[TREINAMENTO] ${slug}`, erro)
+            }
+        }
+
+        if (falharam.length > 0) {
+            toast.error(`Não foi possível gravar: ${falharam.join(', ')}`)
+        }
+    }
+
     return {
+        documentos,
+        setDocumentos,
+        carregarDocumentos,
         perfil,
         setPerfil,
         trabalho,

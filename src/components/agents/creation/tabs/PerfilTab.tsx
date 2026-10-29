@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
+import { OPENAI_MODELS } from '@/lib/llm/models'
+import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
+import { acharDocumento } from '@/lib/treinamento/documentos'
+import type { CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 import {
     Select,
@@ -15,7 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { PerfilData } from '@/types/agent-creation'
+import { InstrucoesData, PerfilData } from '@/types/agent-creation'
 
 type AgentFunction = NonNullable<PerfilData['agentFunction']>
 
@@ -44,9 +49,57 @@ const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 interface PerfilTabProps {
     data: PerfilData
     onChange: (data: Partial<PerfilData>) => void
+    /**
+     * O modelo e a criatividade, que vinham da aba Instruções.
+     *
+     * Mudaram de lugar porque são do **agente**, como o nome e o idioma — a aba
+     * Instruções existia para a instrução livre, e essa foi substituída por
+     * Instruções centrais.
+     */
+    instrucoes: InstrucoesData
+    onInstrucoesChange: (data: Partial<InstrucoesData>) => void
+    /** O documento `instrucoes-centrais`: mora aqui, não em guia própria. */
+    centrais: { valor: string; indexadoEm: string | null; trechos: number | null }
+    onCentraisChange: (valor: string) => void
+    /** Os campos antigos, para o botão de rascunho das Instruções centrais. */
+    camposAntigos?: CamposAntigos
+    /**
+     * O `fieldset` de `CamposSomenteLeitura` cobre controles de formulário, e o
+     * Slider do Radix é um `span[role=slider]` — escapa. Esta prop é para ele e
+     * para os botões do documento.
+     */
+    somenteLeitura?: boolean
 }
 
-export function PerfilTab({ data, onChange }: PerfilTabProps) {
+/** O teto do controle. O banco aceita até 2, que já não é conversa, é sorteio. */
+const TEMPERATURA_MAX = 1.5
+
+/**
+ * O documento de Instruções centrais, do catálogo.
+ *
+ * `!` aqui é seguro e é conferido: `test:treinamento` confere a lista literal de
+ * slugs, então este deixar de existir quebra o teste antes de quebrar a tela.
+ */
+const DOC_CENTRAIS = acharDocumento('instrucoes-centrais')!
+
+function descreveTemperatura(valor: number): string {
+    if (valor <= 0.2) return 'Quase sempre a mesma resposta para a mesma pergunta. Bom para preço e regra.'
+    if (valor <= 0.5) return 'Pouca variação. Previsível, com alguma naturalidade.'
+    if (valor <= 0.9) return 'Equilíbrio entre naturalidade e consistência.'
+    if (valor <= 1.2) return 'Respostas mais variadas. Cuidado: mais chance de inventar o que não sabe.'
+    return 'Muito imprevisível. Não recomendado para atendimento.'
+}
+
+export function PerfilTab({
+    data,
+    onChange,
+    instrucoes,
+    onInstrucoesChange,
+    centrais,
+    onCentraisChange,
+    camposAntigos,
+    somenteLeitura = false,
+}: PerfilTabProps) {
     const charCount = data.initialMessage?.length || 0
     const maxChars = 500
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -233,32 +286,39 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                     </p>
                 </div>
 
-                {/* Como o Agente fala e como se situa: tom, língua e relógio
-                    são três escolhas curtas e cabem na mesma linha. */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {/* Tom de Voz */}
-                    <div className="space-y-2">
-                        <Label htmlFor="voiceTone">Tom de Voz</Label>
-                        <p className="text-xs text-muted-foreground">
-                            Escolha o tom de voz que o seu Agente irá utilizar durante as conversas
-                        </p>
-                        <Select
-                            value={data.voiceTone}
-                            onValueChange={(value) => onChange({ voiceTone: value })}
-                        >
-                            <SelectTrigger id="voiceTone">
-                                <SelectValue placeholder="Prático" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="pratico">Prático</SelectItem>
-                                <SelectItem value="formal">Formal</SelectItem>
-                                <SelectItem value="casual">Casual</SelectItem>
-                                <SelectItem value="amigavel">Amigável</SelectItem>
-                                <SelectItem value="entusiasmado">Entusiasmado</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                {/*
+                  * Instruções centrais: o documento de identidade do agente.
+                  *
+                  * Mora no Perfil e não em guia própria porque é isto que o
+                  * Perfil é — quem o agente é. Ele SUBSTITUI a instrução livre
+                  * da antiga aba Instruções: emitir as duas daria ao modelo duas
+                  * declarações de identidade que podem divergir.
+                  */}
+                <div className="space-y-2">
+                    <Label htmlFor={`treinamento-${DOC_CENTRAIS.slug}`}>
+                        {DOC_CENTRAIS.titulo}
+                    </Label>
+                    <DocumentoDeTreinamento
+                        doc={DOC_CENTRAIS}
+                        valor={centrais.valor}
+                        onChange={onCentraisChange}
+                        indexadoEm={centrais.indexadoEm}
+                        trechos={centrais.trechos}
+                        somenteLeitura={somenteLeitura}
+                        camposAntigos={camposAntigos}
+                    />
+                </div>
 
+                {/*
+                  * O "Tom de voz" saiu daqui.
+                  *
+                  * Eram DOIS controles sobre a MESMA coluna `voiceTone` — este e
+                  * o da aba Voz —, e quem salvasse por último ganhava, sem a
+                  * tela dizer nada. O tom do texto agora é escrito em Instruções
+                  * centrais, junto da identidade, que é onde ele pertence; o da
+                  * aba Voz segue sendo a entonação da fala.
+                  */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
                         <Label htmlFor="language">Idioma</Label>
                         <p className="text-xs text-muted-foreground">
@@ -298,6 +358,66 @@ export function PerfilTab({ data, onChange }: PerfilTabProps) {
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+                </div>
+
+                {/* Qual modelo responde e quanta liberdade ele tem: os dois
+                    ajustes são do mesmo assunto e cabem na mesma linha. Vinham
+                    da aba Instruções, que deixou de existir. */}
+                <div className="grid items-start gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="llmModel">Modelo</Label>
+                        <p className="text-xs text-muted-foreground">
+                            O mais capaz entende melhor pedido confuso e mensagem desencontrada; o
+                            mais barato dá conta da pergunta de rotina. Em resposta curta os dois
+                            consomem 1 crédito — a economia aparece em conversa longa e em base de
+                            conhecimento grande.
+                        </p>
+                        <Select
+                            value={instrucoes.llmModel}
+                            onValueChange={(llmModel) => onInstrucoesChange({ llmModel })}
+                        >
+                            <SelectTrigger id="llmModel">
+                                <SelectValue placeholder="Escolher modelo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {OPENAI_MODELS.map((modelo) => (
+                                    <SelectItem key={modelo.id} value={modelo.id}>
+                                        {modelo.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-3 rounded-lg border bg-card p-4">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <Label className="text-base font-medium">
+                                    Criatividade das respostas
+                                </Label>
+                                <p className="text-[12.5px] text-muted-foreground">
+                                    Quanto o Agente pode variar a forma de responder
+                                </p>
+                            </div>
+                            <span className="num shrink-0 text-sm font-medium">
+                                {(instrucoes.temperature ?? 0.7).toFixed(1)}
+                            </span>
+                        </div>
+
+                        <Slider
+                            disabled={somenteLeitura}
+                            value={[instrucoes.temperature ?? 0.7]}
+                            onValueChange={([temperature]) => onInstrucoesChange({ temperature })}
+                            min={0}
+                            max={TEMPERATURA_MAX}
+                            step={0.1}
+                            aria-label="Criatividade das respostas"
+                        />
+
+                        <p className="text-xs text-muted-foreground">
+                            {descreveTemperatura(instrucoes.temperature ?? 0.7)}
+                        </p>
                     </div>
                 </div>
             </div>

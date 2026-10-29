@@ -13,8 +13,9 @@ import { Button } from '@/components/ui/button'
 import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
 import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
 import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
-import { InstrucoesTab } from '@/components/agents/creation/tabs/InstrucoesTab'
 import { VozTab } from '@/components/agents/creation/tabs/VozTab'
+import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
+import { acharDocumento } from '@/lib/treinamento/documentos'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
 import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -59,6 +60,9 @@ function NovoAgenteContent() {
     const [dataLoaded, setDataLoaded] = useState(false)
 
     const {
+        documentos,
+        setDocumentos,
+        carregarDocumentos,
         perfil,
         setPerfil,
         trabalho,
@@ -86,6 +90,7 @@ function NovoAgenteContent() {
         const agentId = agentIdRef.current
         if (agentId && workspaceId && !dataLoaded) {
             loadAgentData(agentId)
+            void carregarDocumentos(agentId)
         }
     }, [workspaceId, dataLoaded, urlAgentId])
 
@@ -233,6 +238,24 @@ function NovoAgenteContent() {
         }
     }
 
+    /**
+     * Os campos antigos, para o rascunho da transição.
+     *
+     * Montado da tela e não do banco: é o que a pessoa está vendo, inclusive o
+     * que ela acabou de digitar e ainda não salvou.
+     */
+    const camposAntigos = {
+        agentName: perfil.name,
+        companyName: trabalho.companyName,
+        companySector: trabalho.companySector,
+        companyAddress: trabalho.companyAddress,
+        companyDescription: trabalho.companyDescription,
+        jobDescription: trabalho.jobDescription,
+        agentFunction: perfil.agentFunction,
+        voiceTone: perfil.voiceTone,
+        systemPrompt: instrucoes.systemPrompt,
+    }
+
     const renderTab = () => {
         switch (currentTab) {
             case 'perfil':
@@ -240,6 +263,22 @@ function NovoAgenteContent() {
                     <PerfilTab
                         data={perfil}
                         onChange={(data) => { marcarSujo(true); setPerfil({ ...perfil, ...data }) }}
+                        somenteLeitura={!canManage}
+                        instrucoes={instrucoes}
+                        onInstrucoesChange={(data) => { marcarSujo(true); setInstrucoes({ ...instrucoes, ...data }) }}
+                        centrais={{
+                            valor: documentos['instrucoes-centrais']?.content ?? '',
+                            indexadoEm: documentos['instrucoes-centrais']?.indexedAt ?? null,
+                            trechos: documentos['instrucoes-centrais']?.indexedChunks ?? null,
+                        }}
+                        camposAntigos={camposAntigos}
+                        onCentraisChange={(content) => {
+                            marcarSujo(true)
+                            setDocumentos((atual) => ({
+                                ...atual,
+                                'instrucoes-centrais': { ...atual['instrucoes-centrais'], content },
+                            }))
+                        }}
                     />
                 )
             case 'trabalho':
@@ -258,14 +297,6 @@ function NovoAgenteContent() {
                         canManage={canManage}
                     />
                 )
-            case 'instrucoes':
-                return (
-                    <InstrucoesTab
-                        somenteLeitura={!canManage}
-                        data={instrucoes}
-                        onChange={(data) => { marcarSujo(true); setInstrucoes({ ...instrucoes, ...data }) }}
-                    />
-                )
             case 'voz':
                 return (
                     <VozTab
@@ -273,8 +304,37 @@ function NovoAgenteContent() {
                         onChange={(data) => { marcarSujo(true); setVoz({ ...voz, ...data }) }}
                     />
                 )
-            default:
-                return <div>Aba não encontrada</div>
+            default: {
+                /**
+                 * As seis guias de documento, todas pelo mesmo componente.
+                 *
+                 * Não há um `case` por documento porque não há código por
+                 * documento: o catálogo descreve teto, modo, seções e
+                 * explicação, e a guia é o mesmo campo desenhado a partir
+                 * disso. O oitavo documento não passa por aqui.
+                 */
+                const doc = acharDocumento(currentTab)
+                if (!doc) return <div>Aba não encontrada</div>
+
+                const gravado = documentos[doc.slug]
+                return (
+                    <DocumentoDeTreinamento
+                        doc={doc}
+                        valor={gravado?.content ?? ''}
+                        somenteLeitura={!canManage}
+                        camposAntigos={camposAntigos}
+                        indexadoEm={gravado?.indexedAt ?? null}
+                        trechos={gravado?.indexedChunks ?? null}
+                        onChange={(content) => {
+                            marcarSujo(true)
+                            setDocumentos((atual) => ({
+                                ...atual,
+                                [doc.slug]: { ...atual[doc.slug], content },
+                            }))
+                        }}
+                    />
+                )
+            }
         }
     }
 
@@ -282,7 +342,7 @@ function NovoAgenteContent() {
     return (
         <AgentFrame
             secao="personalidade"
-            dica="Grava o agente com o que está nas cinco guias."
+            dica="Grava o agente com o que está nas guias de Treinamento."
             /* Sem Salvar para quem não administra: a API recusa, e um botão
                que só sabe recusar é pior que a sua ausência. */
             acoes={canManage ? (
@@ -301,7 +361,7 @@ function NovoAgenteContent() {
                 uma guia só (DESIGN.md, Tela 03).
 
                 O rótulo diz "agente" e não o nome da guia porque é o que ele
-                faz: a gravação manda o agente inteiro, com o que as cinco guias
+                faz: a gravação manda o agente inteiro, com o que as guias
                 têm em mão. Chamá-lo de "Salvar perfil" seria um nome bonito
                 para algo que grava mais do que diz. */}
         </AgentFrame>

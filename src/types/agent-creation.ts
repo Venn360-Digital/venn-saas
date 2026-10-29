@@ -103,6 +103,18 @@ export interface InstrucoesData {
     temperature: number
 }
 
+/**
+ * Um documento de treinamento como a tela o segura.
+ *
+ * O carimbo de indexação vem do banco e **não é editável**: é o que a tela
+ * mostra para a conta saber que o que ela escreveu chegou ao Cérebro.
+ */
+export interface DocumentoGravado {
+    content: string
+    indexedAt: string | null
+    indexedChunks: number | null
+}
+
 export interface CerebroData {
     files: KnowledgeFile[]
     websites: KnowledgeWebsite[]
