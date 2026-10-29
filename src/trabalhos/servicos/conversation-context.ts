@@ -85,6 +85,64 @@ function quandoCurto(dueDate: Date, startTime: string | null, tz: string): strin
  * Falhar aqui não cala o agente: devolve o mínimo (a data) e segue, porque uma
  * resposta sem o nome do paciente é muito melhor que nenhuma resposta.
  */
+/**
+ * O que a conta tem cadastrado e o agente pode usar — fases do funil, o que dá
+ * para marcar e com quem.
+ *
+ * Fica separado do contexto da conversa porque **não depende dela**: é cadastro
+ * da conta, igual para todo atendimento. Dois motivos para o corte, e o segundo
+ * é o que importa:
+ *
+ * - é a parte **estável** do prompt (ver `buildSystemPrompt`), e ler isso num
+ *   lugar só deixa claro o que pode entrar no prefixo cacheável;
+ * - o **console de ensaio** precisa exatamente disto e de nada mais: ele não tem
+ *   conversa nem contato. Se ele montasse a própria consulta, o prompt do ensaio
+ *   divergiria do de produção na primeira mudança aqui — e um ensaio que exercita
+ *   outro prompt não prova nada.
+ */
+async function cadastroDoWorkspace(workspaceId: string): Promise<{
+    stages: string[]
+    bookable: { procedimentos: string[]; especialistas: string[] }
+}> {
+    const [fases, procedimentos, especialistas] = await Promise.all([
+        prisma.pipelineStage.findMany({
+            where: { workspaceId },
+            orderBy: { order: 'asc' },
+            select: { name: true },
+        }),
+        /**
+         * Só o que o agente pode de fato marcar.
+         *
+         * Um procedimento sem duração não dá para reservar, e um que nenhuma
+         * janela liberada aceita ele não vai conseguir marcar — listar qualquer
+         * um dos dois no prompt seria convidá-lo a prometer o que não cumpre.
+         */
+        prisma.productService.findMany({
+            where: {
+                workspaceId,
+                category: { in: SCHEDULABLE_CATEGORIES },
+                durationMinutes: { not: null },
+                windows: { some: { window: { agentCanBook: true } } },
+            },
+            orderBy: { name: 'asc' },
+            select: { name: true },
+        }),
+        prisma.specialist.findMany({
+            where: { workspaceId, isActive: true, windows: { some: { agentCanBook: true } } },
+            orderBy: { name: 'asc' },
+            select: { name: true },
+        }),
+    ])
+
+    return {
+        stages: fases.map((f) => f.name),
+        bookable: {
+            procedimentos: procedimentos.map((p) => p.name),
+            especialistas: especialistas.map((e) => e.name),
+        },
+    }
+}
+
 export async function loadConversationContext(
     conversationId: string,
     timezone: string = TZ_PADRAO
@@ -109,7 +167,7 @@ export async function loadConversationContext(
         // modelo a tratar ninguém pelo nome.
         const nome = contact.name && !/^WhatsApp\s/i.test(contact.name) ? contact.name.trim() : undefined
 
-        const [negocio, compromissos, fases, procedimentos, especialistas] = await Promise.all([
+        const [negocio, compromissos, cadastro] = await Promise.all([
             prisma.deal.findFirst({
                 where: { workspaceId, contactId: contact.id, status: 'open' },
                 orderBy: { createdAt: 'desc' },
@@ -126,38 +184,7 @@ export async function loadConversationContext(
                 take: 3,
                 select: { title: true, dueDate: true, startTime: true },
             }),
-            prisma.pipelineStage.findMany({
-                where: { workspaceId },
-                orderBy: { order: 'asc' },
-                select: { name: true },
-            }),
-            /**
-             * Só o que o agente pode de fato marcar.
-             *
-             * Um procedimento sem duração não dá para reservar, e um que nenhuma
-             * janela liberada aceita ele não vai conseguir marcar — listar
-             * qualquer um dos dois no prompt seria convidá-lo a prometer o que
-             * não cumpre.
-             */
-            prisma.productService.findMany({
-                where: {
-                    workspaceId,
-                    category: { in: SCHEDULABLE_CATEGORIES },
-                    durationMinutes: { not: null },
-                    windows: { some: { window: { agentCanBook: true } } },
-                },
-                orderBy: { name: 'asc' },
-                select: { name: true },
-            }),
-            prisma.specialist.findMany({
-                where: {
-                    workspaceId,
-                    isActive: true,
-                    windows: { some: { agentCanBook: true } },
-                },
-                orderBy: { name: 'asc' },
-                select: { name: true },
-            }),
+            cadastroDoWorkspace(workspaceId),
         ])
 
         return {
@@ -166,11 +193,8 @@ export async function loadConversationContext(
             contactFirstName: nome?.split(/\s+/)[0],
             dealTitle: negocio?.title,
             dealStage: negocio?.stage?.name,
-            stages: fases.map((f) => f.name),
-            bookable: {
-                procedimentos: procedimentos.map((p) => p.name),
-                especialistas: especialistas.map((e) => e.name),
-            },
+            stages: cadastro.stages,
+            bookable: cadastro.bookable,
             upcoming: compromissos
                 .filter((a) => a.dueDate)
                 .map((a) => ({ quando: quandoCurto(a.dueDate as Date, a.startTime, timezone), titulo: a.title })),
@@ -178,6 +202,39 @@ export async function loadConversationContext(
         }
     } catch (error) {
         log.warn(`não foi possível montar o contexto da conversa ${conversationId}`, error)
+        return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
+    }
+}
+
+/**
+ * O contexto de um ensaio: o cadastro da conta, e **ninguém do outro lado**.
+ *
+ * O instrutor está testando o treinamento, não atendendo uma pessoa. Então o
+ * agente recebe as fases e o que pode ser marcado — que é o que o prompt de
+ * produção tem — e não recebe contato, negócio nem compromisso, porque não
+ * existem.
+ *
+ * **A ausência de `contactId` é uma garantia, não uma falta.** `generateReply`
+ * só monta `toolContext` quando há contato, então o ensaio roda **sem
+ * ferramenta**: ele não move negócio de ninguém, não marca consulta e não
+ * escreve na agenda. É o que torna seguro deixar o instrutor conversar à
+ * vontade com um agente ligado à conta de produção.
+ *
+ * O preço disso é honesto: o ensaio **não** exercita chamada de ferramenta. Ele
+ * prova o que foi escrito nos documentos e o que a busca recupera, que é para
+ * isso que ele existe.
+ */
+export async function carregarContextoDoEnsaio(
+    workspaceId: string,
+    timezone: string = TZ_PADRAO
+): Promise<ConversationContext> {
+    const agora = porExtenso(new Date(), timezone)
+
+    try {
+        const cadastro = await cadastroDoWorkspace(workspaceId)
+        return { upcoming: [], agora, ...cadastro }
+    } catch (error) {
+        log.warn(`não foi possível montar o contexto do ensaio de ${workspaceId}`, error)
         return { upcoming: [], stages: [], bookable: { procedimentos: [], especialistas: [] }, agora }
     }
 }

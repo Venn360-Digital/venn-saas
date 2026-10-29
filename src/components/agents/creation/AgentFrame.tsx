@@ -8,6 +8,7 @@ import {
     Database,
     Eye,
     FileText,
+    FlaskConical,
     GitBranch,
     History,
     MessagesSquare,
@@ -111,6 +112,14 @@ const GUIAS_DE_TREINAMENTO: FrameTab[] = [
         icon: ICONE_DO_DOCUMENTO[doc.slug] ?? FileText,
     })),
     { id: 'cerebro', label: 'Cérebro', icon: Database },
+    /**
+     * O ensaio entra **antes de Voz**, não depois.
+     *
+     * "Item Voz continua sendo o último" é instrução do André, e ela não abre
+     * exceção para ferramenta. Se o lugar natural de um console de teste for o
+     * fim de tudo, é uma linha para mover — mas não por minha conta.
+     */
+    { id: 'ensaio', label: 'Ensaio', icon: FlaskConical },
     { id: 'voz', label: 'Voz', icon: Mic },
 ]
 
