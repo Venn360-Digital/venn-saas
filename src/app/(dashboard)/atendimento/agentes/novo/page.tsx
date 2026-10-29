@@ -14,6 +14,7 @@ import { PerfilTab } from '@/components/agents/creation/tabs/PerfilTab'
 import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
 import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
 import { VozTab } from '@/components/agents/creation/tabs/VozTab'
+import { EnsaioTab } from '@/components/agents/creation/tabs/EnsaioTab'
 import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
 import { acharDocumento } from '@/lib/treinamento/documentos'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
@@ -297,6 +298,17 @@ function NovoAgenteContent() {
                         canManage={canManage}
                     />
                 )
+            case 'ensaio':
+                /**
+                 * O ensaio não tem estado no formulário, e isso é o desenho.
+                 *
+                 * Ele não edita nada do agente: conversa com o que está
+                 * gravado. Por isso não recebe `onChange` nem chama
+                 * `marcarSujo` — abrir o console e fazer dez perguntas não pode
+                 * deixar a tela "suja" e cobrar um Salvar que não tem o que
+                 * salvar.
+                 */
+                return <EnsaioTab agentId={urlAgentId} canManage={canManage} />
             case 'voz':
                 return (
                     <VozTab

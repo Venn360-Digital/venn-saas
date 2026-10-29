@@ -1,9 +1,9 @@
-import type { Agent, Message } from '#prisma'
+import type { Agent } from '#prisma'
 import prisma from '@/lib/prisma'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'
-import { montarConsulta } from '@/lib/rag/consulta'
+import { montarConsulta, type MensagemDaConversa } from '@/lib/rag/consulta'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
@@ -14,7 +14,11 @@ import {
     type KnowledgeChunk,
 } from './prompt'
 import { documentosDoPrompt } from '@/lib/treinamento/documentos'
-import { loadConversationContext } from './conversation-context'
+import {
+    carregarContextoDoEnsaio,
+    loadConversationContext,
+    type ConversationContext,
+} from './conversation-context'
 import { AGENT_TOOL_DEFINITIONS, runAgentTool, type AgentToolContext } from './agent-tools'
 
 const log = createLogger('AI_REPLY')
@@ -73,7 +77,16 @@ async function carregarComportamento(agentId: string): Promise<DocumentoNoPrompt
     })
 }
 
-function toLlmHistory(history: Message[]): LLMMessage[] {
+/**
+ * `MensagemDaConversa` e nao `Message` do Prisma — a mesma forma minima que
+ * `montarConsulta` usa.
+ *
+ * E o que permite ao console de ensaio passar turnos que **nao existem no
+ * banco** por aqui, em vez de ter a propria versao desta conversao. Duas
+ * versoes significariam o ensaio exercitando um historico montado de outro
+ * jeito, e aí ele deixaria de provar o atendimento real.
+ */
+function toLlmHistory(history: MensagemDaConversa[]): LLMMessage[] {
     return history
         // Internal operator notes are not part of the customer-facing dialogue.
         .filter((m) => !m.isInternal && m.content.trim().length > 0)
@@ -83,6 +96,58 @@ function toLlmHistory(history: Message[]): LLMMessage[] {
             // via "🎵 Áudio" e respondia sem saber o que o paciente disse.
             content: m.contentType === 'audio' && m.transcript ? `[Nota de voz] ${m.transcript}` : m.content,
         }))
+}
+
+
+/**
+ * O que o prompt precisa buscar, buscado uma vez.
+ *
+ * Separado de `montarMensagens` por causa do **paralelismo**: estas duas idas ao
+ * banco não dependem do contexto da conversa, então rodam ao lado dele em vez de
+ * depois. Juntar tudo numa função só custaria uma viagem em série no caminho
+ * mais quente do sistema.
+ */
+interface PecasDoPrompt {
+    knowledge: KnowledgeChunk[]
+    comportamento: DocumentoNoPrompt[]
+}
+
+async function pecasDoPrompt(
+    agent: Agent,
+    historico: MensagemDaConversa[]
+): Promise<PecasDoPrompt> {
+    const consulta = montarConsulta(historico)
+    const [knowledge, comportamento] = await Promise.all([
+        retrieveKnowledge(agent.id, consulta),
+        carregarComportamento(agent.id),
+    ])
+    return { knowledge, comportamento }
+}
+
+/**
+ * As mensagens que vão ao modelo — **o mesmo texto no atendimento e no ensaio**.
+ *
+ * Esta função existe por uma razão só, e ela é o ponto todo do console de
+ * ensaio: se o ensaio montasse o prompt por conta própria, ele passaria a provar
+ * um prompt que ninguém usa. A primeira mudança em `buildSystemPrompt` separaria
+ * os dois em silêncio, e o instrutor homologaria um agente que não existe.
+ *
+ * Então há uma montagem, e os dois caminhos passam por ela. O que difere entre
+ * eles é de onde vêm o histórico e o contexto — não como o prompt é escrito.
+ */
+function montarMensagens(
+    agent: Agent,
+    historico: MensagemDaConversa[],
+    context: ConversationContext | undefined,
+    pecas: PecasDoPrompt
+): LLMMessage[] {
+    return [
+        {
+            role: 'system',
+            content: buildSystemPrompt(agent, pecas.knowledge, context, pecas.comportamento),
+        },
+        ...toLlmHistory(historico),
+    ]
 }
 
 export interface GenerateReplyInput {
@@ -148,27 +213,23 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     const history = recent.reverse()
 
     /**
-     * O que se procura no Cérebro.
+     * O que se procura no Cérebro é montado em `pecasDoPrompt`.
      *
      * Era `lastInbound.content` cru, e nota de voz procurava pela string
      * "🎵 Áudio" — busca vazia, atendimento sem base de conhecimento. Ver
      * `montarConsulta`, que também completa a pergunta curta com o que a pessoa
      * já disse.
      */
-    const consulta = montarConsulta(history)
 
     // A busca na base e o contexto do paciente são independentes: duas idas ao
     // banco em paralelo custam o tempo da mais lenta, não a soma.
-    const [knowledge, context, comportamento] = await Promise.all([
-        retrieveKnowledge(agent.id, consulta),
+    const [context, pecas] = await Promise.all([
         loadConversationContext(conversationId, agent.timezone),
-        carregarComportamento(agent.id),
+        pecasDoPrompt(agent, history),
     ])
+    const { knowledge } = pecas
 
-    const messages: LLMMessage[] = [
-        { role: 'system', content: buildSystemPrompt(agent, knowledge, context, comportamento) },
-        ...toLlmHistory(history),
-    ]
+    const messages: LLMMessage[] = montarMensagens(agent, history, context, pecas)
 
     const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
         model: agent.llmModel,
@@ -263,4 +324,109 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     )
 
     return { content: response.content, usage: total }
+}
+
+/** Um turno do ensaio. `instrutor` é quem pergunta; `agente`, o que ele já respondeu. */
+export interface TurnoDeEnsaio {
+    de: 'instrutor' | 'agente'
+    texto: string
+}
+
+export interface EnsaioInput {
+    agent: Agent
+    workspaceId: string
+    /** Os turnos em ordem cronológica, terminando numa pergunta do instrutor. */
+    turnos: TurnoDeEnsaio[]
+}
+
+export interface EnsaioResult {
+    content: string
+    usage: LLMResponse['usage']
+    /** O que a busca trouxe, para o instrutor ver **por que** o agente respondeu aquilo. */
+    trechos: KnowledgeChunk[]
+    /** O texto com que se buscou — já expandido por `montarConsulta`. */
+    consulta: string
+    /** O prompt de sistema inteiro. É o artefato que explica a resposta. */
+    prompt: string
+}
+
+/**
+ * Uma resposta de ensaio: o instrutor pergunta, o agente responde, nada sai.
+ *
+ * ## O que isto é, e o que deliberadamente não é
+ *
+ * É o **mesmo** prompt e a **mesma** busca do atendimento real — por
+ * `montarMensagens` e `pecasDoPrompt`, que o caminho do WhatsApp também usa. É
+ * essa partilha que faz o ensaio valer como homologação; sem ela o instrutor
+ * aprovaria um agente que não é o que atende.
+ *
+ * Não é um atendimento: não há conversa, não há contato, nada é gravado em
+ * `Message` e nada é enviado por canal nenhum. E **não há ferramenta** — o
+ * contexto do ensaio não tem `contactId` (ver `carregarContextoDoEnsaio`), então
+ * o agente não move negócio nem marca consulta de ninguém durante o teste. O
+ * preço é que a chamada de ferramenta não é exercitada aqui; o ganho é que o
+ * instrutor pode conversar à vontade com um agente ligado à conta de produção.
+ *
+ * Consome crédito, por decisão do André: a interação gasta token do plano e isso
+ * faz parte. Quem debita é a rota, uma vez por resposta entregue, como no
+ * atendimento — ver `spendAiCredits`.
+ */
+export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult> {
+    const { agent, workspaceId, turnos } = input
+
+    const credits = await checkCredits(workspaceId)
+    if (!credits.hasCredits) throw new OutOfCreditsError(workspaceId)
+
+    /**
+     * Os turnos viram a forma mínima de mensagem, sem passar pelo banco.
+     *
+     * `inbound` é o instrutor e `outbound` é o agente porque é assim que
+     * `montarConsulta` e `toLlmHistory` leem direção — e o ensaio tem de ser
+     * lido exatamente como uma conversa é.
+     */
+    const historico: MensagemDaConversa[] = turnos.map((t) => ({
+        direction: t.de === 'instrutor' ? 'inbound' : 'outbound',
+        content: t.texto,
+        contentType: 'text',
+    }))
+
+    const [context, pecas] = await Promise.all([
+        carregarContextoDoEnsaio(workspaceId, agent.timezone),
+        pecasDoPrompt(agent, historico),
+    ])
+
+    const messages = montarMensagens(agent, historico, context, pecas)
+
+    const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
+        model: agent.llmModel,
+        temperature: agent.temperature,
+    })
+
+    // Sem ferramenta, e portanto sem laço de rodadas: uma ida ao modelo.
+    const response = await llm.generate(messages)
+
+    try {
+        await trackUsage(agent.llmProvider as LLMProviderName, agent.llmModel, response.usage, {
+            workspaceId,
+            agentId: agent.id,
+            // `canal: 'ensaio'` é o que permite separar, no medidor, o que foi
+            // teste do que foi atendimento de verdade.
+            metadata: { channel: 'ensaio', knowledgeChunks: pecas.knowledge.length },
+        })
+    } catch (error) {
+        log.error(`usage tracking failed for workspace ${workspaceId}`, error)
+    }
+
+    log.info(
+        `ensaio do agente ${agent.id}: ${response.usage.totalTokens} tokens, ` +
+        `${pecas.knowledge.length} trechos`
+    )
+
+    return {
+        content: response.content,
+        usage: response.usage,
+        trechos: pecas.knowledge,
+        consulta: montarConsulta(historico),
+        prompt: messages[0].content,
+    }
 }
