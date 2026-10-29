@@ -3,15 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-    Briefcase,
+    Building2,
     Code2,
     Database,
     Eye,
     FileText,
     GitBranch,
     History,
+    MessagesSquare,
     Mic,
+    Package,
     Plug,
+    Route,
+    ShieldCheck,
+    TrendingUp,
     Settings2,
     SlidersHorizontal,
     UserRound,
@@ -25,6 +30,7 @@ import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { BandLayout, TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
+import { DOCUMENTOS } from '@/lib/treinamento/documentos'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -65,19 +71,59 @@ interface Secao {
     tabs: FrameTab[]
 }
 
+/**
+ * O ícone de cada documento do catálogo.
+ *
+ * Mora aqui, e não no catálogo, porque o catálogo é puro — sem React, para
+ * poder ser exercitado por `npm run test:treinamento`. O **rótulo** vem do
+ * catálogo: deixá-lo aqui faria o índice e a tela dizerem nomes diferentes na
+ * primeira renomeação.
+ *
+ * Slug sem ícone cai em `FileText` em vez de quebrar a tela — um documento novo
+ * aparece feio antes de aparecer errado.
+ */
+const ICONE_DO_DOCUMENTO: Record<string, LucideIcon> = {
+    'instrucoes-centrais': UserRound,
+    empresa: Building2,
+    servicos: Package,
+    'processo-comercial': Route,
+    'tecnicas-de-venda': TrendingUp,
+    faq: MessagesSquare,
+    privacidade: ShieldCheck,
+}
+
+/**
+ * As guias de Treinamento, derivadas do catálogo.
+ *
+ * `Instruções centrais` não ganha guia própria: ela mora no **Perfil**, junto da
+ * identidade do agente — é o que o catálogo declara em `item`. As outras seis
+ * viram uma guia cada, na ordem do catálogo.
+ *
+ * `Cérebro` e `Voz` ficam onde estavam, e `Voz` segue a última por decisão do
+ * André. `Instruções` saiu: a instrução livre dela foi substituída por
+ * Instruções centrais, e o modelo e a criatividade foram para o Perfil.
+ */
+const GUIAS_DE_TREINAMENTO: FrameTab[] = [
+    { id: 'perfil', label: 'Perfil', icon: UserRound },
+    ...DOCUMENTOS.filter((doc) => doc.item !== 'Perfil').map((doc) => ({
+        id: doc.slug,
+        label: doc.item,
+        icon: ICONE_DO_DOCUMENTO[doc.slug] ?? FileText,
+    })),
+    { id: 'cerebro', label: 'Cérebro', icon: Database },
+    { id: 'voz', label: 'Voz', icon: Mic },
+]
+
 export const SECOES: Secao[] = [
     {
+        // O id e a rota continuam "personalidade": é o que está nos links já
+        // guardados e no `?tab=`. O que muda é o nome que a conta lê — mesma
+        // escolha que "comandos" → "Parametrização".
         id: 'personalidade',
-        label: 'Personalidade',
+        label: 'Treinamento',
         icon: UserRound,
         rota: '/atendimento/agentes/novo',
-        tabs: [
-            { id: 'perfil', label: 'Perfil', icon: UserRound },
-            { id: 'trabalho', label: 'Trabalho', icon: Briefcase },
-            { id: 'cerebro', label: 'Cérebro', icon: Database },
-            { id: 'instrucoes', label: 'Instruções', icon: FileText },
-            { id: 'voz', label: 'Voz', icon: Mic },
-        ],
+        tabs: GUIAS_DE_TREINAMENTO,
     },
     {
         id: 'comandos',
