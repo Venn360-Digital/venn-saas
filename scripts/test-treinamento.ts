@@ -30,6 +30,12 @@ import {
     TETO_SOMADO_DO_PROMPT,
 } from '@/lib/treinamento/documentos'
 import { secionarMarkdown } from '@/lib/rag/secoes'
+import {
+    decidirIndexacao,
+    hashDoConteudo,
+    slugConhecido,
+    tituloDoAcervo,
+} from '@/lib/treinamento/indexar'
 
 let passou = 0
 let falhou = 0
@@ -230,6 +236,85 @@ conferir(
     'seção com cabeçalho e sem conteúdo conta como faltando',
     conferirEstrutura(doc, secionarMarkdown(vazia)).faltando,
     ['Diferenciais']
+)
+
+console.log('\nO título dos trechos é o slug — e isso é deliberado')
+
+conferir('tituloDoAcervo devolve o slug, não o título humano', tituloDoAcervo('servicos'), 'servicos')
+conferir(
+    'o slug NUNCA é o título da tela — se fosse, um rename orfanaria o acervo',
+    DOCUMENTOS.every((d) => tituloDoAcervo(d.slug) !== d.titulo),
+    true
+)
+conferir('slugConhecido aceita o do catálogo', slugConhecido('privacidade'), true)
+conferir('e recusa slug inventado', slugConhecido('../etc/passwd'), false)
+
+console.log('\nO hash do conteúdo')
+
+const h1 = await hashDoConteudo('Ortodontia a partir de R$ 180.')
+conferir('é SHA-256 em hexadecimal (64 caracteres)', /^[0-9a-f]{64}$/.test(h1), true)
+conferir('é estável para o mesmo texto', await hashDoConteudo('Ortodontia a partir de R$ 180.'), h1)
+conferir('e muda com o texto', (await hashDoConteudo('Ortodontia a partir de R$ 190.')) !== h1, true)
+conferir(
+    'acento conta (UTF-8), senão dois textos diferentes colidiriam',
+    (await hashDoConteudo('protese')) !== (await hashDoConteudo('prótese')),
+    true
+)
+
+console.log('\nA decisão de indexar — o que evita pagar embedding sete vezes')
+
+const docRag = acharDocumento('servicos')!
+const docPrompt = acharDocumento('instrucoes-centrais')!
+
+conferir(
+    'documento de modo prompt nunca é indexado — é o modo dele, não pendência',
+    await decidirIndexacao({ doc: docPrompt, content: '# Instruções\n\nSeja breve.', hashGravado: null }),
+    { acao: 'pular', motivo: 'modo-prompt' }
+)
+
+conferir(
+    'documento de acervo com conteúdo novo é indexado',
+    (await decidirIndexacao({ doc: docRag, content: '## Serviços\n\nOrtodontia.', hashGravado: null })).acao,
+    'indexar'
+)
+
+const conteudo = '## Serviços\n\nOrtodontia a partir de R$ 180.'
+const hashDele = await hashDoConteudo(conteudo)
+
+conferir(
+    'conteúdo INALTERADO é pulado — é isto que evita reindexar os sete a cada salvar',
+    await decidirIndexacao({ doc: docRag, content: conteudo, hashGravado: hashDele }),
+    { acao: 'pular', motivo: 'inalterado' }
+)
+
+conferir(
+    'espaço em volta não conta como alteração',
+    await decidirIndexacao({ doc: docRag, content: `\n\n${conteudo}\n  `, hashGravado: hashDele }),
+    { acao: 'pular', motivo: 'inalterado' }
+)
+
+conferir(
+    'uma vírgula a mais JÁ conta, e volta para a fila',
+    (await decidirIndexacao({ doc: docRag, content: `${conteudo},`, hashGravado: hashDele })).acao,
+    'indexar'
+)
+
+conferir(
+    'documento esvaziado que JÁ tinha acervo manda apagar os trechos',
+    await decidirIndexacao({ doc: docRag, content: '   ', hashGravado: hashDele }),
+    { acao: 'apagar' }
+)
+
+conferir(
+    'documento vazio que nunca teve acervo não tem nada a fazer',
+    await decidirIndexacao({ doc: docRag, content: '', hashGravado: null }),
+    { acao: 'pular', motivo: 'sem-conteudo' }
+)
+
+conferir(
+    'o hash devolvido na ação indexar é o do conteúdo JÁ aparado',
+    await decidirIndexacao({ doc: docRag, content: `  ${conteudo}  `, hashGravado: null }),
+    { acao: 'indexar', hash: hashDele }
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

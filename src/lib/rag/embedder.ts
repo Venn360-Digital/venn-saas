@@ -2,6 +2,7 @@ import 'server-only'
 import type { OpenAIEmbeddings } from '@langchain/openai'
 import { DocumentChunker } from './chunker'
 import { criarEmbeddings } from './embeddings'
+import type { RagDocType } from '@/lib/queue/definitions'
 import prisma from '@/lib/prisma'
 
 /**
@@ -31,7 +32,7 @@ export class DocumentEmbedder {
         agentId: string,
         title: string,
         content: string,
-        type: 'faq' | 'doc' | 'website',
+        type: RagDocType,
         url?: string
     ): Promise<number> {
         const chunks = await this.chunker.split(content)
