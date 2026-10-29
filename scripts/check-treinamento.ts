@@ -68,7 +68,6 @@ const comoLer: Record<string, string> = {
     confortavel: 'confortável',
     pesado: 'pesado — considere mover fato consultável para os documentos de acervo',
     'muito-pesado': 'MUITO pesado — o modelo atende pior ao meio de um contexto deste tamanho',
-    excessivo: 'EXCESSIVO — a tela recusa salvar neste tamanho',
 }
 console.log(
     `\n  comportamento (vai em TODA mensagem): ${o.usado.toLocaleString('pt-BR')} caracteres, ` +

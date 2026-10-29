@@ -97,7 +97,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Instruções centrais',
         item: 'Perfil',
         modo: 'prompt',
-        teto: 60_000,
+        teto: 10_000,
         precedencia: 2,
         secoes: [
             'Identidade do agente',
@@ -115,7 +115,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Detalhamento da empresa',
         item: 'Empresa',
         modo: 'rag',
-        teto: 200_000,
+        teto: 50_000,
         precedencia: 5,
         secoes: [
             'Identificação da empresa',
@@ -135,7 +135,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Serviços prestados',
         item: 'Serviços',
         modo: 'rag',
-        teto: 200_000,
+        teto: 50_000,
         precedencia: 6,
         secoes: ['Regra geral', 'Serviços', 'Diferenciais', SECAO_EXEMPLOS],
         explicacao:
@@ -147,7 +147,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Processo comercial e políticas',
         item: 'Processo comercial',
         modo: 'prompt',
-        teto: 60_000,
+        teto: 10_000,
         precedencia: 3,
         secoes: [
             'Objetivo comercial',
@@ -168,7 +168,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Metodologia de venda',
         item: 'Técnicas de venda',
         modo: 'rag',
-        teto: 200_000,
+        teto: 50_000,
         precedencia: 7,
         secoes: ['Princípios', 'Descoberta de necessidade', 'Objeções', SECAO_EXEMPLOS],
         explicacao:
@@ -180,7 +180,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Sinônimos e FAQ',
         item: 'F.A.Q',
         modo: 'rag',
-        teto: 200_000,
+        teto: 50_000,
         precedencia: 8,
         secoes: ['Sinônimos e expressões comuns', 'Perguntas e respostas', SECAO_EXEMPLOS],
         explicacao:
@@ -192,7 +192,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         titulo: 'Informações e privacidade',
         item: 'Privacidade',
         modo: 'prompt',
-        teto: 60_000,
+        teto: 10_000,
         precedencia: 1,
         secoes: [
             'Limites clínicos',
@@ -244,53 +244,48 @@ export function documentosDoAcervo(): DocumentoDeTreinamento[] {
 /**
  * O que os documentos de comportamento ocupam, somados — e o que isso custa.
  *
- * **Não existe mais bloqueio duro em 11.000, e o número era meu palpite.** Eu o
- * derivei de uma estimativa de custo, não de conteúdo real; o primeiro conjunto
- * de um cliente **pequeno** já pediu 11.485, e o André estima que um cliente
- * grande chegue a 50.000 sem esforço. Teto derivado de palpite que barra uso
- * legítimo é teto errado.
+ * **Isto informa, não impede.** Quem limita é o teto de cada documento, e ter os
+ * dois bloqueando era redundância: dois limites rígidos para a mesma coisa, e
+ * nenhum dos dois ensinando nada. O `TETO_ABSOLUTO_DO_PROMPT` de 120.000 saiu
+ * junto com a faixa `excessivo` — com três documentos de prompt a 10.000 cada, o
+ * máximo possível é 30.000, então aquele teto era inalcançável e as duas faixas
+ * de cima eram código morto.
  *
- * O que fica é a consequência, dita em vez de imposta — porque ela é real e tem
- * duas metades de gravidade diferente:
+ * A consequência que a faixa comunica é real e tem duas metades de gravidade
+ * diferente:
  *
  *   - **Custo.** Tudo isto viaja em toda mensagem, e a conta cai na margem: o
  *     crédito do cliente é por ação entregue, não por consumo. Esta metade tem
- *     conserto — bloco estável no começo do prompt vira prefixo cacheável.
+ *     conserto — o bloco estável abre o prompt e vira prefixo cacheável, então
+ *     da segunda mensagem da conversa em diante ele é cobrado com desconto.
  *   - **Atenção.** O modelo atende pior ao meio de um contexto longo. Esta
  *     metade **não** tem conserto por engenharia: é limite do modelo, e o único
  *     remédio é o texto ser regra e não manual.
  *
- * O bloqueio duro sobrou só no absurdo, onde o prompt passa a disputar espaço
- * com a própria conversa.
+ * Os cortes são calibrados contra **dado real**, não contra estimativa — foi
+ * assim que o teto de 11.000 nasceu errado da primeira vez. O conjunto de um
+ * cliente pequeno de verdade soma 11.790, e isso precisa ler "confortável": uma
+ * faixa que chama de pesado o uso normal não informa, assusta. Daí 15.000 e
+ * 25.000, contra um máximo possível de 30.000 (três documentos de 10.000).
  */
 
 /** Português corrido gira em torno de 3,5 caracteres por token. */
 const CARACTERES_POR_TOKEN = 3.5
 
-/** Onde o prompt começa a competir com a conversa. Aí sim o salvar trava. */
-export const TETO_ABSOLUTO_DO_PROMPT = 120_000
-
-export type FaixaDoOrcamento = 'confortavel' | 'pesado' | 'muito-pesado' | 'excessivo'
+export type FaixaDoOrcamento = 'confortavel' | 'pesado' | 'muito-pesado'
 
 export function orcamentoDoPrompt(porSlug: Record<string, string>): {
     usado: number
     tokens: number
     faixa: FaixaDoOrcamento
-    bloqueia: boolean
 } {
     const usado = documentosDoPrompt().reduce((s, d) => s + (porSlug[d.slug]?.length ?? 0), 0)
     const tokens = Math.round(usado / CARACTERES_POR_TOKEN)
 
     const faixa: FaixaDoOrcamento =
-        usado > TETO_ABSOLUTO_DO_PROMPT
-            ? 'excessivo'
-            : usado > 60_000
-              ? 'muito-pesado'
-              : usado > 20_000
-                ? 'pesado'
-                : 'confortavel'
+        usado > 25_000 ? 'muito-pesado' : usado > 15_000 ? 'pesado' : 'confortavel'
 
-    return { usado, tokens, faixa, bloqueia: faixa === 'excessivo' }
+    return { usado, tokens, faixa }
 }
 
 
