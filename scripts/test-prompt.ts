@@ -7,9 +7,10 @@
  * consequente do sistema. Duas coisas aqui são invariantes, e as duas falham em
  * silêncio:
  *
- *   - **agente sem documento de treinamento não muda de comportamento.** Esta
- *     mudança sobe para contas que já atendem, e um agente que ainda não tem
- *     nenhum `.md` escrito tem de receber o prompt de antes, sem seção nova.
+ *   - **agente sem documento de treinamento não ganha seção nenhuma.** Isto sobe
+ *     para contas que já atendem, e um agente que ainda não tem nenhum `.md`
+ *     escrito não pode receber bloco novo por causa do método. (A **ordem** das
+ *     seções mudou para todos, de propósito — ver o prefixo cacheável abaixo.)
  *   - **a precedência é dita.** Sem ela, "crie urgência" e "não prometa
  *     resultado" são resolvidos pela posição no texto, por acidente.
  *
@@ -188,7 +189,84 @@ conferir('a seção Empresa segue lá', completo.includes('## Empresa'), true)
 conferir('o endereço segue lá', completo.includes('Av. Afonso Pena, 1500'), true)
 conferir('a base de conhecimento segue lá', completo.includes('## Base de conhecimento'), true)
 conferir('o trecho recuperado segue lá', completo.includes('Ortodontia a partir de R$ 180.'), true)
-conferir('e a seção de formato é a última', completo.trimEnd().endsWith('listas numeradas longas.'), true)
+
+console.log('\nO prefixo cacheável — a razão da ordem')
+
+/**
+ * Estes casos existem porque o desconto do provedor para no **primeiro byte que
+ * muda**: tudo depois dele é cobrado cheio, mesmo sendo idêntico. Antes da
+ * reordenação as duas seções voláteis ficavam no meio, com três estáveis atrás —
+ * então nada era reaproveitado, nem os documentos de treinamento, que num
+ * cliente real passam de 50.000 caracteres.
+ *
+ * Não se testa isso olhando a posição das seções, e sim a propriedade: dois
+ * prompts do mesmo agente que diferem **só** no que é volátil têm de compartilhar
+ * um prefixo que já contenha o treinamento inteiro.
+ */
+const contextoBase = {
+    contactId: 'c1',
+    upcoming: [],
+    stages: ['Novo', 'Qualificado', 'Fechado'],
+    bookable: { procedimentos: ['Limpeza'], especialistas: ['Dra. Ana'] },
+}
+
+const TREINO = 'Nunca prometer resultado de tratamento.'
+const docsDoTeste = [doc(PRIVACIDADE, `## Limites\n\n${TREINO}`)]
+
+const agenteCompleto = agenteDeTeste({ companyAddress: 'Av. Afonso Pena, 1500' })
+
+const primeira = buildSystemPrompt(
+    agenteCompleto,
+    [{ title: 'servicos', content: 'Ortodontia a partir de R$ 180.' }],
+    { ...contextoBase, agora: 'quinta-feira, 29/10/2026 às 09:00', contactFirstName: 'João', contactFullName: 'João Silva' },
+    docsDoTeste
+)
+
+// Mesma conta, mesmo agente, mensagem seguinte: o relógio andou, a busca trouxe
+// outro trecho, e o negócio mudou de fase. Nada do cadastro mudou.
+const segunda = buildSystemPrompt(
+    agenteCompleto,
+    [{ title: 'faq', content: 'Atendemos convênio Unimed.' }],
+    { ...contextoBase, agora: 'quinta-feira, 29/10/2026 às 11:42', contactFirstName: 'João', contactFullName: 'João Silva', dealStage: 'Qualificado' },
+    docsDoTeste
+)
+
+function prefixoComum(a: string, b: string): string {
+    let i = 0
+    while (i < a.length && i < b.length && a[i] === b[i]) i++
+    return a.slice(0, i)
+}
+
+const prefixo = prefixoComum(primeira, segunda)
+
+conferir('os dois prompts de fato diferem', primeira === segunda, false)
+conferir('o treinamento está no prefixo reaproveitado', prefixo.includes(TREINO), true)
+conferir('a precedência também', prefixo.includes('## Precedência'), true)
+conferir('e o cadastro da empresa', prefixo.includes('Av. Afonso Pena, 1500'), true)
+conferir('as fases do funil, que são da conta', prefixo.includes('## O que você pode fazer'), true)
+conferir('o que pode ser agendado, que é cadastro', prefixo.includes('## Agendamento'), true)
+conferir('o formato fecha o prefixo', prefixo.includes('## Formato'), true)
+
+// O que NÃO pode estar no prefixo: se estivesse, seria porque não muda — e aí o
+// agente estaria respondendo com o relógio ou o acervo da mensagem anterior.
+conferir('o relógio fica fora do prefixo', prefixo.includes('09:00'), false)
+conferir('o trecho recuperado fica fora', prefixo.includes('Ortodontia a partir de R$ 180.'), false)
+
+/**
+ * Nenhuma seção estável pode ficar depois de uma volátil. É a mesma regra vista
+ * por fora: se uma `push` for para a lista errada, isto quebra.
+ */
+const inicioDoVolatil = Math.min(
+    ...['## Esta conversa', '## Base de conhecimento']
+        .map((s) => primeira.indexOf(s))
+        .filter((i) => i >= 0)
+)
+const estaveisDepois = ['## Empresa', '## Estilo de comunicação', '## O que você pode fazer', '## Agendamento', '## Formato']
+    .filter((s) => primeira.indexOf(s) > inicioDoVolatil)
+
+conferir('nenhuma seção estável depois do volátil', estaveisDepois, [])
+
+// E o acervo é a última coisa antes da pergunta, que é onde ele é mais usado.
+conferir('a base de conhecimento é a última seção', primeira.trimEnd().endsWith('Ortodontia a partir de R$ 180.'), true)
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
-process.exit(falhou > 0 ? 1 : 0)

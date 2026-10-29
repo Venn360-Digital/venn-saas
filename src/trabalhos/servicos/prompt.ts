@@ -121,8 +121,12 @@ function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
      * A regra, escrita com os nomes que o admin vê na tela.
      *
      * Entra só quando há documento de treinamento: um agente que ainda não tem
-     * nenhum recebe **exatamente** o prompt de antes, byte a byte. É o que
-     * garante que esta mudança não altera o comportamento de quem já atende.
+     * nenhum **não ganha seção nenhuma** por causa disto.
+     *
+     * Note que "nenhuma seção nova" deixou de ser "byte a byte igual ao de
+     * antes": a reordenação para o cache de prefixo move `Formato` para antes
+     * das seções voláteis, e isso vale para todo agente, com ou sem `.md`. O
+     * conteúdo é o mesmo; a ordem, de propósito, não.
      */
     const ordem = naOrdem.map((d) => d.titulo)
     const precedencia =
@@ -144,6 +148,44 @@ function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
     return { instrucoesCentrais, secoes }
 }
 
+/**
+ * O prompt de sistema, montado em **duas metades e nesta ordem**.
+ *
+ * ## Por que a ordem é parte do desenho, e não gosto
+ *
+ * O provedor desconta a parte do prompt que repete, mas só enquanto ela for
+ * **prefixo exato** da chamada anterior. O desconto para no primeiro byte que
+ * muda — e tudo depois dele é cobrado cheio, mesmo que seja idêntico.
+ *
+ * Até aqui as duas seções voláteis (`Base de conhecimento`, que vem da busca de
+ * cada mensagem, e `Esta conversa`, que carrega o relógio) ficavam **no meio**,
+ * com três seções estáveis atrás delas. O efeito é que nada era reaproveitado:
+ * `Agendamento`, `O que você pode fazer` e `Formato` eram recobrados a cada
+ * mensagem, e acima delas os documentos de treinamento — que num cliente real
+ * passam de 50.000 caracteres — também.
+ *
+ * Então:
+ *
+ * - **`estaveis`** só pode conter o que não muda entre duas mensagens do mesmo
+ *   atendimento: o que o admin escreveu, o cadastro da empresa, as fases do
+ *   funil e o que o agente pode marcar. É o prefixo, e é o que fica em cache.
+ * - **`volateis`** é a cauda: o relógio, quem está do outro lado, a fase deste
+ *   negócio e os trechos recuperados do acervo.
+ *
+ * As duas listas existem separadas **no código** de propósito. Comentário
+ * pedindo "mantenha a ordem" não impede ninguém de dar um `push` no lugar
+ * errado; duas listas, sim — e o `test:prompt` prova que nenhuma seção estável
+ * ficou depois de uma volátil.
+ *
+ * Efeito colateral bem-vindo: o acervo passa a ser a última coisa antes da
+ * pergunta, que é onde ele é mais usado — e não no meio, com quatro seções de
+ * instrução entre ele e o que o cliente perguntou.
+ *
+ * A única coisa que **não** melhorou de posição foi `Formato`: ela era a última
+ * de todas e agora é a última das estáveis. Perde um pouco de recência e ganha
+ * o cache; e o que ela pede (mensagem curta, sem markdown) nunca foi a
+ * instrução em disputa.
+ */
 export function buildSystemPrompt(
     agent: Agent,
     knowledge: KnowledgeChunk[] = [],
@@ -152,8 +194,12 @@ export function buildSystemPrompt(
 ): string {
     const { instrucoesCentrais, secoes: deTreinamento } = blocosDeTreinamento(treinamento)
 
-    const sections: string[] = [instrucoesCentrais ?? agent.systemPrompt.trim()]
-    sections.push(...deTreinamento)
+    /** O prefixo cacheável. Nada aqui pode depender da mensagem que chegou. */
+    const estaveis: string[] = [instrucoesCentrais ?? agent.systemPrompt.trim()]
+    /** A cauda. Muda a cada mensagem, por desenho. */
+    const volateis: string[] = []
+
+    estaveis.push(...deTreinamento)
 
     const company = [
         agent.companyName && `Nome: ${agent.companyName}`,
@@ -167,7 +213,7 @@ export function buildSystemPrompt(
     ].filter(Boolean)
 
     if (company.length > 0) {
-        sections.push(`## Empresa\n${company.join('\n')}`)
+        estaveis.push(`## Empresa\n${company.join('\n')}`)
     }
 
     const atribuicoes = [
@@ -176,7 +222,7 @@ export function buildSystemPrompt(
     ].filter(Boolean)
 
     if (atribuicoes.length > 0) {
-        sections.push(`## Suas funções e atribuições\n${atribuicoes.join('\n\n')}`)
+        estaveis.push(`## Suas funções e atribuições\n${atribuicoes.join('\n\n')}`)
     }
 
     const style: string[] = []
@@ -204,20 +250,70 @@ export function buildSystemPrompt(
     }
 
     if (style.length > 0) {
-        sections.push(`## Estilo de comunicação\n${style.join(' ')}`)
+        estaveis.push(`## Estilo de comunicação\n${style.join(' ')}`)
     }
 
-    if (knowledge.length > 0) {
-        const corpus = knowledge
-            .map((chunk, i) => `[${i + 1}] ${chunk.title}\n${chunk.content}`)
-            .join('\n\n')
-        sections.push(
-            '## Base de conhecimento\n' +
-            'Use os trechos abaixo como fonte de verdade. Se a resposta não estiver ' +
-            'neles, diga que vai verificar em vez de inventar.\n\n' +
-            corpus
+    /**
+     * O que o agente pode **fazer**, e não só dizer.
+     *
+     * A seção existe porque uma ferramenta sem contexto é chamada na hora errada:
+     * sem a lista de fases, o modelo chuta um nome plausível que a clínica não
+     * tem; sem a frase sobre agenda, ele promete marcar horário, que é
+     * exatamente o que ele ainda não sabe fazer.
+     *
+     * **Estável**: as fases são do funil da conta, não deste atendimento. A fase
+     * em que *este* negócio está vai na cauda, com o resto do que muda.
+     */
+    if (context && context.stages.length > 0) {
+        estaveis.push(
+            '## O que você pode fazer\n' +
+            'Você tem ferramentas. Use-as quando a conversa pedir, e nunca invente o ' +
+            'resultado delas.\n' +
+            `As fases do funil desta clínica são, em ordem: ${context.stages.join(' → ')}. ` +
+            'Ao mover o negócio, use o nome exato de uma delas.\n' +
+            'Você consegue **consultar** compromissos já marcados.'
         )
     }
+
+    /**
+     * O que ele pode marcar, e com quem — ou que não pode marcar nada.
+     *
+     * As duas frases existem pelo mesmo motivo: sem nenhuma, o modelo decide
+     * sozinho. Com a lista, ele oferece o que existe; sem nada liberado, ele
+     * sabe dizer que a equipe retorna, em vez de prometer um horário que não
+     * tem como marcar.
+     *
+     * **Estável**: procedimentos e especialistas são cadastro da conta.
+     */
+    if (context) {
+        const { procedimentos, especialistas } = context.bookable
+        if (procedimentos.length > 0 && especialistas.length > 0) {
+            estaveis.push(
+                '## Agendamento\n' +
+                `Você pode marcar: ${procedimentos.join(', ')}.\n` +
+                `Com: ${especialistas.join(', ')}.\n` +
+                'Sempre consulte os horários livres antes de oferecer qualquer data, e marque ' +
+                'só depois de o paciente confirmar qual horário quer. **Nunca invente horário** ' +
+                'e nunca ofereça data que não tenha aparecido na consulta.\n' +
+                'Para qualquer outro procedimento, ou qualquer pedido de remarcar ou cancelar, ' +
+                'diga que vai passar para a equipe — você não faz isso.'
+            )
+        } else {
+            estaveis.push(
+                '## Agendamento\n' +
+                'Você **não** marca, remarca nem cancela horário. Quando o paciente quiser um ' +
+                'horário, diga que vai passar para a equipe e não prometa data nenhuma.'
+            )
+        }
+    }
+
+    // WhatsApp-specific shaping: long markdown answers read badly in a chat bubble.
+    // Última das estáveis: é o fim do prefixo cacheável.
+    estaveis.push(
+        '## Formato\n' +
+        'Você está conversando pelo WhatsApp. Escreva mensagens curtas e diretas, ' +
+        'sem markdown, sem títulos e sem listas numeradas longas.'
+    )
 
     /**
      * O que o agente sabe sobre agora e sobre quem está do outro lado.
@@ -227,6 +323,9 @@ export function buildSystemPrompt(
      * perceber que a consulta de sexta já passou. O resto evita o vexame de
      * perguntar o nome de quem a clínica já atende, ou oferecer horário a quem
      * já tem consulta marcada.
+     *
+     * **Volátil, e a mais volátil de todas**: o relógio muda a cada mensagem,
+     * então nenhuma seção estável pode vir depois desta.
      */
     if (context) {
         const linhas: string[] = [`Agora é ${context.agora}.`]
@@ -250,64 +349,27 @@ export function buildSystemPrompt(
             linhas.push('Não ofereça novo agendamento sem antes considerar o que já está marcado.')
         }
 
-        sections.push(`## Esta conversa\n${linhas.join('\n')}`)
+        volateis.push(`## Esta conversa\n${linhas.join('\n')}`)
     }
 
     /**
-     * O que o agente pode **fazer**, e não só dizer.
+     * O acervo recuperado, por último.
      *
-     * A seção existe porque uma ferramenta sem contexto é chamada na hora errada:
-     * sem a lista de fases, o modelo chuta um nome plausível que a clínica não
-     * tem; sem a frase sobre agenda, ele promete marcar horário, que é
-     * exatamente o que ele ainda não sabe fazer.
+     * É a seção que muda mais a cada mensagem, e é a que mais se beneficia de
+     * estar perto da pergunta: ficava com quatro blocos de instrução entre ela e
+     * o que o cliente escreveu.
      */
-    if (context && context.stages.length > 0) {
-        sections.push(
-            '## O que você pode fazer\n' +
-            'Você tem ferramentas. Use-as quando a conversa pedir, e nunca invente o ' +
-            'resultado delas.\n' +
-            `As fases do funil desta clínica são, em ordem: ${context.stages.join(' → ')}. ` +
-            'Ao mover o negócio, use o nome exato de uma delas.\n' +
-            'Você consegue **consultar** compromissos já marcados.'
+    if (knowledge.length > 0) {
+        const corpus = knowledge
+            .map((chunk, i) => `[${i + 1}] ${chunk.title}\n${chunk.content}`)
+            .join('\n\n')
+        volateis.push(
+            '## Base de conhecimento\n' +
+            'Use os trechos abaixo como fonte de verdade. Se a resposta não estiver ' +
+            'neles, diga que vai verificar em vez de inventar.\n\n' +
+            corpus
         )
     }
 
-    /**
-     * O que ele pode marcar, e com quem — ou que não pode marcar nada.
-     *
-     * As duas frases existem pelo mesmo motivo: sem nenhuma, o modelo decide
-     * sozinho. Com a lista, ele oferece o que existe; sem nada liberado, ele
-     * sabe dizer que a equipe retorna, em vez de prometer um horário que não
-     * tem como marcar.
-     */
-    if (context) {
-        const { procedimentos, especialistas } = context.bookable
-        if (procedimentos.length > 0 && especialistas.length > 0) {
-            sections.push(
-                '## Agendamento\n' +
-                `Você pode marcar: ${procedimentos.join(', ')}.\n` +
-                `Com: ${especialistas.join(', ')}.\n` +
-                'Sempre consulte os horários livres antes de oferecer qualquer data, e marque ' +
-                'só depois de o paciente confirmar qual horário quer. **Nunca invente horário** ' +
-                'e nunca ofereça data que não tenha aparecido na consulta.\n' +
-                'Para qualquer outro procedimento, ou qualquer pedido de remarcar ou cancelar, ' +
-                'diga que vai passar para a equipe — você não faz isso.'
-            )
-        } else {
-            sections.push(
-                '## Agendamento\n' +
-                'Você **não** marca, remarca nem cancela horário. Quando o paciente quiser um ' +
-                'horário, diga que vai passar para a equipe e não prometa data nenhuma.'
-            )
-        }
-    }
-
-    // WhatsApp-specific shaping: long markdown answers read badly in a chat bubble.
-    sections.push(
-        '## Formato\n' +
-        'Você está conversando pelo WhatsApp. Escreva mensagens curtas e diretas, ' +
-        'sem markdown, sem títulos e sem listas numeradas longas.'
-    )
-
-    return sections.join('\n\n')
+    return [...estaveis, ...volateis].join('\n\n')
 }
