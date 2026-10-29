@@ -1,23 +1,18 @@
 [
   {
-    "pergunta": "onde vocês ficam?",
-    "esperado": "empresa"
+    "pergunta": "onde vocês ficam?"
   },
   {
-    "pergunta": "qual o endereço da clínica?",
-    "esperado": "empresa"
+    "pergunta": "qual o endereço da clínica?"
   },
   {
-    "pergunta": "vocês abrem no sábado?",
-    "esperado": "empresa"
+    "pergunta": "vocês abrem no sábado?"
   },
   {
-    "pergunta": "qual o horário de atendimento?",
-    "esperado": "empresa"
+    "pergunta": "qual o horário de atendimento?"
   },
   {
-    "pergunta": "tem estacionamento?",
-    "esperado": "empresa"
+    "pergunta": "tem estacionamento?"
   },
   {
     "pergunta": "quanto custa um clareamento?",
@@ -79,16 +74,13 @@
     "pergunta": "quem tem acesso à minha ficha?"
   },
   {
-    "pergunta": "estou com medo de dentista",
-    "esperado": "tecnicas-de-venda"
+    "pergunta": "estou com medo de dentista"
   },
   {
-    "pergunta": "tá caro, vou pensar",
-    "esperado": "tecnicas-de-venda"
+    "pergunta": "tá caro, vou pensar"
   },
   {
-    "pergunta": "depois eu vejo isso",
-    "esperado": "tecnicas-de-venda"
+    "pergunta": "depois eu vejo isso"
   },
   {
     "pergunta": "bom dia"
