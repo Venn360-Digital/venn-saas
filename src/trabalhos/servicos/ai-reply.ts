@@ -7,7 +7,13 @@ import { montarConsulta } from '@/lib/rag/consulta'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
-import { buildSystemPrompt, readPreferences, type KnowledgeChunk } from './prompt'
+import {
+    buildSystemPrompt,
+    readPreferences,
+    type DocumentoNoPrompt,
+    type KnowledgeChunk,
+} from './prompt'
+import { documentosDoPrompt } from '@/lib/treinamento/documentos'
 import { loadConversationContext } from './conversation-context'
 import { AGENT_TOOL_DEFINITIONS, runAgentTool, type AgentToolContext } from './agent-tools'
 
@@ -42,6 +48,29 @@ async function retrieveKnowledge(agentId: string, query: string): Promise<Knowle
         log.warn(`knowledge retrieval failed for agent ${agentId}`, error)
         return []
     }
+}
+
+/**
+ * Os documentos de comportamento do agente — os de modo `prompt`.
+ *
+ * Os de acervo não vêm por aqui: eles chegam por busca, quando a conversa pede.
+ *
+ * **Falha aqui NÃO é tolerada, e a assimetria com a busca é deliberada.**
+ * `retrieveKnowledge` engole o erro porque responder sem a base de conhecimento
+ * é responder sem um *fato* — chato, não perigoso. Estes documentos carregam os
+ * **limites**: o que o agente não promete, o que ele não diagnostica, o que ele
+ * encaminha para a equipe. Responder sem eles é responder como se não houvesse
+ * limite, e num produto de saúde isso é pior do que não responder.
+ *
+ * Então o erro sobe: o job falha, a fila tenta de novo, e o paciente recebe uma
+ * resposta atrasada em vez de uma resposta sem freio.
+ */
+async function carregarComportamento(agentId: string): Promise<DocumentoNoPrompt[]> {
+    const slugs = documentosDoPrompt().map((d) => d.slug)
+    return prisma.agentTrainingDoc.findMany({
+        where: { agentId, slug: { in: slugs } },
+        select: { slug: true, content: true },
+    })
 }
 
 function toLlmHistory(history: Message[]): LLMMessage[] {
@@ -130,13 +159,14 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
 
     // A busca na base e o contexto do paciente são independentes: duas idas ao
     // banco em paralelo custam o tempo da mais lenta, não a soma.
-    const [knowledge, context] = await Promise.all([
+    const [knowledge, context, comportamento] = await Promise.all([
         retrieveKnowledge(agent.id, consulta),
         loadConversationContext(conversationId, agent.timezone),
+        carregarComportamento(agent.id),
     ])
 
     const messages: LLMMessage[] = [
-        { role: 'system', content: buildSystemPrompt(agent, knowledge, context) },
+        { role: 'system', content: buildSystemPrompt(agent, knowledge, context, comportamento) },
         ...toLlmHistory(history),
     ]
 

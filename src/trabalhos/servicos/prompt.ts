@@ -5,6 +5,8 @@ import {
     hasStoredPreferences,
     readAgentPreferences,
 } from '@/types/agent-preferences'
+import { semComentarios } from '@/lib/rag/secoes'
+import { documentosDoPrompt } from '@/lib/treinamento/documentos'
 
 export interface KnowledgeChunk {
     title: string
@@ -76,12 +78,82 @@ const IDIOMA: Record<string, string> = {
     'fr-FR': 'francês',
 }
 
+/** Um documento de treinamento de modo `prompt`, como veio do banco. */
+export interface DocumentoNoPrompt {
+    slug: string
+    content: string
+}
+
+/**
+ * Os documentos de comportamento, na ordem de precedência, com a regra dita.
+ *
+ * **Por que a regra é dita e não só ordenada.** Os documentos vão se
+ * contradizer: "Metodologia de venda" pede urgência, "Informações e privacidade"
+ * proíbe prometer resultado, e o processo comercial manda conduzir ao
+ * agendamento. Sem a precedência declarada, quem decide é a posição no texto —
+ * ou seja, o acidente. Num produto de saúde isso não é detalhe de engenharia.
+ *
+ * `Instruções centrais` **substitui** `agent.systemPrompt` quando preenchido, em
+ * vez de somar: os dois são o mesmo papel, e emitir ambos daria ao modelo duas
+ * declarações de identidade que podem divergir — exatamente o defeito que o
+ * método veio consertar.
+ *
+ * O comentário de HTML sai: `<!-- confirmar com a recepção -->` é nota de quem
+ * escreve, e aqui ela entraria como instrução.
+ */
+function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
+    instrucoesCentrais: string | null
+    secoes: string[]
+} {
+    const porSlug = new Map<string, string>()
+    for (const doc of docs) {
+        const limpo = semComentarios(doc.content).trim()
+        if (limpo) porSlug.set(doc.slug, limpo)
+    }
+
+    const instrucoesCentrais = porSlug.get('instrucoes-centrais') ?? null
+
+    if (porSlug.size === 0) return { instrucoesCentrais: null, secoes: [] }
+
+    const naOrdem = documentosDoPrompt().filter((d) => porSlug.has(d.slug))
+
+    /**
+     * A regra, escrita com os nomes que o admin vê na tela.
+     *
+     * Entra só quando há documento de treinamento: um agente que ainda não tem
+     * nenhum recebe **exatamente** o prompt de antes, byte a byte. É o que
+     * garante que esta mudança não altera o comportamento de quem já atende.
+     */
+    const ordem = naOrdem.map((d) => d.titulo)
+    const precedencia =
+        '## Precedência\n' +
+        'Quando duas instruções suas se contradisserem, vale a que estiver mais ' +
+        'alto nesta lista:\n' +
+        ordem.map((titulo, i) => `${i + 1}. ${titulo}`).join('\n') +
+        `\n${ordem.length + 1}. A base de conhecimento consultada durante a conversa\n` +
+        'Nenhum objetivo comercial justifica contrariar um limite. Em dúvida, ' +
+        'recuse com cuidado e diga que a equipe confirma.'
+
+    const secoes = [precedencia]
+    for (const doc of naOrdem) {
+        // As centrais já foram para o topo, no lugar da instrução livre.
+        if (doc.slug === 'instrucoes-centrais') continue
+        secoes.push(`## ${doc.titulo}\n${porSlug.get(doc.slug)!}`)
+    }
+
+    return { instrucoesCentrais, secoes }
+}
+
 export function buildSystemPrompt(
     agent: Agent,
     knowledge: KnowledgeChunk[] = [],
-    context?: ConversationContext
+    context?: ConversationContext,
+    treinamento: DocumentoNoPrompt[] = []
 ): string {
-    const sections: string[] = [agent.systemPrompt.trim()]
+    const { instrucoesCentrais, secoes: deTreinamento } = blocosDeTreinamento(treinamento)
+
+    const sections: string[] = [instrucoesCentrais ?? agent.systemPrompt.trim()]
+    sections.push(...deTreinamento)
 
     const company = [
         agent.companyName && `Nome: ${agent.companyName}`,
