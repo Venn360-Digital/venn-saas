@@ -40,6 +40,8 @@
         "check:fuso": "tsx --conditions=react-server scripts/check-fuso.ts",
         "check:paridade": "tsx scripts/check-paridade.ts",
         "audit:isolation": "node scripts/audit-isolation.mjs",
+        "migrate:producao": "node scripts/migrate-guarded.mjs --expect-slug odontobox --expect-env production",
+        "portao:producao": "npm run migrate:producao && npm run audit:isolation -- --strict",
         "db:migrate:guarded": "node scripts/migrate-guarded.mjs",
         "db:migrate:unsafe": "prisma migrate deploy",
         "medir:recuperacao": "tsx scripts/medir-recuperacao.ts",
