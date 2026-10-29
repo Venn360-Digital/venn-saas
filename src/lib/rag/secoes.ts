@@ -67,6 +67,69 @@ export function secionarMarkdown(texto: string): SecaoMarkdown[] {
     return secoes
 }
 
+/**
+ * Tira os comentários de HTML, preservando cerca de código.
+ *
+ * `<!-- … -->` é nota de quem escreve, não conteúdo — e sem isto ela seria
+ * vetorizada e apresentada ao modelo como **fonte de verdade**, que é como o
+ * prompt apresenta o acervo. Uma anotação do tipo "confirmar preço com a
+ * recepção" viraria resposta ao paciente.
+ *
+ * **Dentro de cerca de código o comentário fica.** Um documento de treinamento
+ * que mostre um exemplo de HTML ou de script é conteúdo legítimo, e apagar o que
+ * está dentro da cerca mutilaria o exemplo. Mesma regra do secionamento, e pelo
+ * mesmo motivo.
+ *
+ * Atravessa linha: um comentário aberto numa linha e fechado três abaixo é
+ * removido inteiro.
+ */
+export function semComentarios(texto: string): string {
+    const saida: string[] = []
+    let dentroDeCerca = false
+    let dentroDeComentario = false
+
+    for (const linha of texto.split('\n')) {
+        // A cerca só conta fora de comentário: ``` dentro de um comentário
+        // aberto não abre bloco de código.
+        if (!dentroDeComentario && CERCA.test(linha)) {
+            dentroDeCerca = !dentroDeCerca
+            saida.push(linha)
+            continue
+        }
+
+        if (dentroDeCerca) {
+            saida.push(linha)
+            continue
+        }
+
+        let resto = linha
+        let limpo = ''
+
+        for (;;) {
+            if (dentroDeComentario) {
+                const fim = resto.indexOf('-->')
+                if (fim < 0) break
+                dentroDeComentario = false
+                resto = resto.slice(fim + 3)
+                continue
+            }
+
+            const inicio = resto.indexOf('<!--')
+            if (inicio < 0) {
+                limpo += resto
+                break
+            }
+            limpo += resto.slice(0, inicio)
+            resto = resto.slice(inicio + 4)
+            dentroDeComentario = true
+        }
+
+        saida.push(limpo)
+    }
+
+    return saida.join('\n')
+}
+
 /** O caminho colado no texto, que é o que faz o trecho valer sozinho. */
 export function prefixar(caminho: string[], corpo: string): string {
     return caminho.length > 0 ? `${caminho.join(' › ')}\n\n${corpo}` : corpo

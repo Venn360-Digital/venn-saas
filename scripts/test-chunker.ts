@@ -9,7 +9,13 @@
  * de um tratamento como se fosse de outro. Dá para exercitá-lo inteiro com
  * entradas montadas à mão, sem embedding, sem banco e sem gastar um centavo.
  */
-import { montarTrechos, prefixar, secionarMarkdown, TAMANHO_MAX } from '@/lib/rag/secoes'
+import {
+    montarTrechos,
+    prefixar,
+    secionarMarkdown,
+    semComentarios,
+    TAMANHO_MAX,
+} from '@/lib/rag/secoes'
 
 let passou = 0
 let falhou = 0
@@ -210,6 +216,56 @@ conferir(
     'pedaço que vira só espaço é descartado',
     await montarTrechos(`## A\n\n${'y'.repeat(2000)}`, async () => ['', '   ', 'resta']),
     ['A\n\nresta']
+)
+
+console.log('\nComentário de HTML — nota de quem escreve, não fonte de verdade')
+
+conferir(
+    'comentário numa linha sai',
+    semComentarios('Antes <!-- nota interna --> depois'),
+    'Antes  depois'
+)
+
+conferir(
+    'comentário de várias linhas sai inteiro',
+    semComentarios('A\n<!-- confirmar\no preço\ncom a recepção -->\nB'),
+    'A\n\n\n\nB'
+)
+
+conferir(
+    'comentário DENTRO de cerca de código fica — é exemplo, é conteúdo',
+    semComentarios('```\n<!-- isto é um exemplo -->\n```'),
+    '```\n<!-- isto é um exemplo -->\n```'
+)
+
+conferir(
+    'texto sem comentário passa intacto',
+    semComentarios('## Serviços\n\nOrtodontia a partir de R$ 180.'),
+    '## Serviços\n\nOrtodontia a partir de R$ 180.'
+)
+
+conferir(
+    'comentário aberto e nunca fechado engole o resto, não vaza',
+    semComentarios('Vale <!-- daqui em diante é nota\nmais nota\ne mais'),
+    'Vale \n\n'
+)
+
+conferir(
+    'dois comentários na mesma linha',
+    semComentarios('a <!-- x --> b <!-- y --> c'),
+    'a  b  c'
+)
+
+conferir(
+    '``` dentro de um comentário não abre bloco de código',
+    semComentarios('<!-- ``` -->\n## Real\n\ntexto'),
+    '\n## Real\n\ntexto'
+)
+
+conferir(
+    'depois de limpar, a seção vazia volta a contar como vazia',
+    secionarMarkdown(semComentarios('## Exemplos\n\n<!-- como preencher -->\n')).length,
+    0
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

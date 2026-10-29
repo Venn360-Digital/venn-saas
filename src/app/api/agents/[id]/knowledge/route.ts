@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { manageAgent, readAgent } from '@/lib/auth/agent'
+import { TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
 
 export async function GET(
     request: NextRequest,
@@ -22,9 +23,16 @@ export async function GET(
          *
          * `chars` é a soma dos trechos: é o número que a tela mostra para a
          * clínica saber o que de fato entrou no cérebro.
+         *
+         * **Os trechos dos documentos de treinamento não entram.** A aba Cérebro
+         * desenha cada fonte conforme o tipo — ela conhece arquivo, site, FAQ e
+         * vídeo. Documento de treinamento apareceria como fonte que a tela não
+         * sabe renderizar, gerenciada por outra tela, e o DELETE abaixo
+         * aceitaria apagá-la: os trechos sairiam e `indexedChunks` continuaria
+         * dizendo "34 trechos" com zero no banco.
          */
         const chunks = await prisma.knowledgeDocument.findMany({
-            where: { agentId },
+            where: { agentId, type: { not: TIPO_DE_TREINAMENTO } },
             orderBy: { createdAt: 'asc' },
             select: {
                 id: true,
@@ -144,6 +152,27 @@ export async function DELETE(
 
             title = chunk.title
             type = chunk.type
+        }
+
+        /**
+         * Documento de treinamento não se apaga por aqui.
+         *
+         * O acervo dele é derivado de `agent_training_docs`: remover os trechos
+         * sem mexer na fonte deixaria o documento gravado, a tela de
+         * treinamento dizendo "indexado em 34 trechos" e o banco com zero —
+         * e a próxima gravação pularia a indexação, porque o `indexedHash`
+         * continuaria batendo. Esvaziar o campo na tela de treinamento é o
+         * caminho, e ele limpa o carimbo junto.
+         */
+        if (type === TIPO_DE_TREINAMENTO) {
+            return NextResponse.json(
+                {
+                    error:
+                        'Este conteúdo é de um documento de treinamento. ' +
+                        'Para removê-lo, esvazie o campo correspondente em Treinamento.',
+                },
+                { status: 409 }
+            )
         }
 
         const removed = await prisma.knowledgeDocument.deleteMany({

@@ -122,14 +122,41 @@ export interface AiReplyJob {
     to: string
 }
 
+/**
+ * A procedência de um trecho do acervo.
+ *
+ * Declarado aqui e importado por quem grava (`DocumentEmbedder`): a lista
+ * existia nos dois arquivos, e tipo duplicado é a forma de defeito que mais
+ * aparece neste sistema.
+ *
+ * `treinamento` é tipo próprio, e não `doc`, porque a aba Cérebro lista fontes
+ * agrupadas por `type::title` **sem filtrar tipo** — e o DELETE dela apaga por
+ * essa chave. Com tipo próprio, a aba ignora o que não é dela e o DELETE recusa.
+ */
+export type RagDocType = 'faq' | 'doc' | 'website' | 'treinamento'
+
 export interface RagIndexJob {
     agentId: string
     documentTitle: string
+    /**
+     * O texto a indexar — **vazio quando `trainingSlug` vem preenchido**.
+     *
+     * O payload da fila tem teto de 128 KB (ver `src/lib/queue/tamanho.ts`), e
+     * este campo aceita até 200.000 caracteres: um documento acima de ~120 mil
+     * **não cabe na mensagem**. Para os documentos de treinamento o conteúdo
+     * não viaja: o job leva a referência e o processador lê de
+     * `agent_training_docs`. É a mesma regra do "a mídia sai do job".
+     */
     content: string
-    type: 'faq' | 'doc' | 'website'
+    type: RagDocType
     url?: string
     /** Replace previously indexed chunks with the same title before inserting. */
     replaceExisting?: boolean
+    /**
+     * Quando presente, o conteúdo vem da tabela e não do job, e o processador
+     * carimba `indexedHash`/`indexedAt`/`indexedChunks` no documento.
+     */
+    trainingSlug?: string
 }
 
 export interface AgentWebhookJob {
