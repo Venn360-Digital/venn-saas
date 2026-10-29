@@ -81,6 +81,7 @@ jobs:
           npm run check:operacao
           npm run check:period
           npm run test:availability
+          npm run test:audio
           npm run test:chunker
           npm run test:consulta
           npm run test:treinamento

@@ -693,7 +693,10 @@ export class EvolutionGoProvider implements ChannelProvider {
         const mimetype = data?.mimetype ?? data?.Mimetype
 
         if (!base64) return null
-        return { base64, mimetype: mimetype ?? 'application/octet-stream' }
+        // Sem invenção: `/message/downloadmedia` às vezes não informa o tipo, e
+        // dizer `octet-stream` por ele impedia o chamador de usar o tipo do
+        // envelope. Ver `DownloadedMedia.mimetype`.
+        return { base64, mimetype }
     }
 
     /**
