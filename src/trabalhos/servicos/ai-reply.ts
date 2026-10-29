@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'
+import { montarConsulta } from '@/lib/rag/consulta'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
@@ -117,12 +118,20 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     })
     const history = recent.reverse()
 
-    const lastInbound = [...history].reverse().find((m) => m.direction === 'inbound')
+    /**
+     * O que se procura no Cérebro.
+     *
+     * Era `lastInbound.content` cru, e nota de voz procurava pela string
+     * "🎵 Áudio" — busca vazia, atendimento sem base de conhecimento. Ver
+     * `montarConsulta`, que também completa a pergunta curta com o que a pessoa
+     * já disse.
+     */
+    const consulta = montarConsulta(history)
 
     // A busca na base e o contexto do paciente são independentes: duas idas ao
     // banco em paralelo custam o tempo da mais lenta, não a soma.
     const [knowledge, context] = await Promise.all([
-        retrieveKnowledge(agent.id, lastInbound?.content ?? ''),
+        retrieveKnowledge(agent.id, consulta),
         loadConversationContext(conversationId, agent.timezone),
     ])
 
