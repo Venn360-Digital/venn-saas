@@ -59,46 +59,69 @@ if (!base || !agentId || !arquivo) {
 }
 
 /**
- * Pergunta no terminal. `oculto` apaga o eco, para a senha não ficar na tela.
+ * Pergunta no terminal, reusando **uma** interface para todas as perguntas.
  *
- * Existe para que medir em produção **não exija senha na linha de comando**: ali
- * ela entraria no histórico do shell, ficaria no `ps` enquanto o processo roda, e
- * sobreviveria à sessão. Perguntar na hora custa um Enter e não deixa rastro.
+ * A primeira versão abria um `readline` por pergunta e fechava cada um. Fechar a
+ * interface encerra a entrada padrão, então a segunda pergunta — a senha — podia
+ * ler vazio ou pela metade, e o sintoma era "login recusado" sem nada que
+ * indicasse a causa. Uma interface, aberta no começo e fechada no fim.
+ *
+ * `oculto` apaga o eco, para a senha não ficar na tela nem no histórico.
  */
-function perguntar(rotulo: string, oculto = false): Promise<string> {
+async function comTerminal<T>(uso: (perguntar: (rotulo: string, oculto?: boolean) => Promise<string>) => Promise<T>): Promise<T> {
     const rl = createInterface({ input: process.stdin, output: process.stdout })
-    return new Promise((resolve) => {
-        if (oculto) {
-            const saida = process.stdout as NodeJS.WriteStream & { muted?: boolean }
-            saida.muted = false
-            const escrever = saida.write.bind(saida)
-            // Substituição deliberada e temporária do write, desfeita no fim.
-            saida.write = (chunk: string, ...resto: unknown[]) =>
-                saida.muted ? true : escrever(chunk, ...(resto as []))
-            rl.question(rotulo, (resposta) => {
-                saida.muted = false
+    const saida = process.stdout as NodeJS.WriteStream & { mudo?: boolean }
+    const escrever = saida.write.bind(saida)
+
+    const perguntar = (rotulo: string, oculto = false) =>
+        new Promise<string>((resolve) => {
+            if (!oculto) {
+                rl.question(rotulo, (resposta) => resolve(resposta.trim()))
+                return
+            }
+
+            /**
+             * O rótulo é escrito **antes** de silenciar, e o silenciador é ligado
+             * **antes** de perguntar.
+             *
+             * A ordem importa e custou uma prova falhada: com a entrada vinda de
+             * um pipe, a linha já está no buffer e o callback do `question` roda
+             * na hora — antes de uma linha posterior que ligasse o silenciador.
+             * O resultado era o silenciador ficar ligado para sempre e engolir
+             * toda a saída seguinte, inclusive a mensagem de erro. Silenciar
+             * primeiro remove a corrida inteira.
+             */
+            escrever(rotulo)
+            saida.write = ((texto: string, ...resto: unknown[]) =>
+                saida.mudo ? true : escrever(texto, ...(resto as []))) as typeof saida.write
+            saida.mudo = true
+
+            rl.question('', (resposta) => {
+                saida.mudo = false
                 saida.write = escrever
-                process.stdout.write('\n')
-                rl.close()
+                escrever('\n')
                 resolve(resposta.trim())
             })
-            saida.muted = true
-        } else {
-            rl.question(rotulo, (resposta) => {
-                rl.close()
-                resolve(resposta.trim())
-            })
-        }
-    })
+        })
+
+    try {
+        return await uso(perguntar)
+    } finally {
+        saida.mudo = false
+        saida.write = escrever
+        rl.close()
+    }
 }
 
 async function autenticar(): Promise<string> {
     const cookie = process.env.MEDIR_COOKIE
     if (cookie) return cookie
 
-    // Perguntados na hora quando não vierem do ambiente — ver `perguntar`.
-    const email = process.env.MEDIR_EMAIL || (await perguntar('e-mail: '))
-    const senha = process.env.MEDIR_SENHA || (await perguntar('senha: ', true))
+    const { email, senha } = await comTerminal(async (perguntar) => ({
+        email: process.env.MEDIR_EMAIL || (await perguntar('e-mail: ')),
+        senha: process.env.MEDIR_SENHA || (await perguntar('senha: ', true)),
+    }))
+
     if (!email || !senha) {
         console.error('sem credencial; informe e-mail e senha, ou MEDIR_COOKIE')
         process.exit(2)
@@ -106,17 +129,35 @@ async function autenticar(): Promise<string> {
 
     const resposta = await fetch(`${base}/api/auth/sign-in/email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            /**
+             * `Origin` é obrigatório, e a falta dele foi o "login recusado".
+             *
+             * O Better Auth recusa com 403 `MISSING_OR_NULL_ORIGIN` quando a
+             * requisição chega sem origem — é a proteção contra CSRF, e um
+             * `fetch` de Node não manda nenhuma. Do navegador o cabeçalho vem
+             * sozinho, então o defeito só aparecia aqui.
+             */
+            Origin: base,
+        },
         body: JSON.stringify({ email, password: senha }),
     })
 
     if (!resposta.ok) {
-        console.error(`login recusado (${resposta.status})`)
+        /**
+         * O corpo entra na mensagem, e isso foi um conserto.
+         *
+         * Antes saía só o status, e "login recusado (401)" não distingue senha
+         * errada de limite de tentativas de conta inexistente — três causas com
+         * três consertos diferentes. O servidor já diz qual é; faltava mostrar.
+         */
+        const detalhe = (await resposta.text()).slice(0, 300)
+        console.error(`login recusado (${resposta.status}): ${detalhe}`)
+        console.error(`  e-mail usado: ${email}`)
         process.exit(1)
     }
 
-    // `getSetCookie` preserva os cookies separados; `get('set-cookie')` os
-    // junta numa string só e quebra quando há mais de um.
     const cookies = resposta.headers.getSetCookie?.() ?? []
     const sessao = cookies.map((c) => c.split(';')[0]).join('; ')
     if (!sessao) {
@@ -146,7 +187,27 @@ async function principal() {
         body: JSON.stringify({ perguntas: casos.map((c) => c.pergunta) }),
     })
 
-    const corpo = (await resposta.json()) as { resultados?: Resultado[]; error?: string }
+    /**
+     * O corpo é lido como texto antes de virar JSON.
+     *
+     * Quando a rota não existe, o Next devolve a **página** de 404 — e
+     * `resposta.json()` estourava com "Unexpected token '<'", que não diz nada a
+     * quem está rodando. Lendo texto primeiro, o status e o começo do corpo
+     * entram na mensagem e o 404 se identifica.
+     */
+    const texto = await resposta.text()
+    let corpo: { resultados?: Resultado[]; error?: string }
+    try {
+        corpo = JSON.parse(texto)
+    } catch {
+        console.error(
+            `resposta inesperada (${resposta.status}) de ${base}/api/agents/${agentId}/recuperacao` +
+            `\n  ${texto.slice(0, 160).replace(/\s+/g, ' ')}` +
+            (resposta.status === 404 ? '\n  404: confira o agentId, e se o deploy com a rota já subiu.' : '')
+        )
+        process.exit(1)
+    }
+
     if (!resposta.ok || !corpo.resultados) {
         console.error(`medição recusada (${resposta.status}): ${corpo.error ?? ''}`)
         process.exit(1)
