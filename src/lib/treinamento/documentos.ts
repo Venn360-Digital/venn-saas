@@ -180,7 +180,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
     {
         slug: 'privacidade',
         titulo: 'Informações e privacidade',
-        item: 'Privacidade e segurança',
+        item: 'Privacidade',
         modo: 'prompt',
         teto: 3000,
         precedencia: 1,
@@ -192,10 +192,28 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
             SECAO_EXEMPLOS,
         ],
         explicacao:
-            'O que o agente não faz e não promete. Tem a maior precedência de todas: ' +
-            'quando qualquer outro documento conflita com este, este ganha.',
+            'Privacidade dos dados, segurança e o que o agente não faz nem promete. ' +
+            'Tem a maior precedência de todas: quando qualquer outro documento ' +
+            'conflita com este, este ganha.',
     },
 ]
+
+/**
+ * O teto do rótulo no índice da Tela 03, em caracteres.
+ *
+ * O índice tem 176px na largura mínima, e a moldura de cada item come ~42
+ * (ícone 14, gap 8, padding 20) — sobram ~134px de texto. A régua vem de um
+ * caso medido e registrado no DESIGN.md: "Condições da conversa", 21
+ * caracteres, pediu 143px num índice de 137 e **saía cortado**. Dá ~6,8px por
+ * caractere a 13px, logo ~19 caracteres.
+ *
+ * Existe porque o botão do índice tem `truncate`: rótulo comprido não quebra
+ * nem avisa — ele **desaparece com reticências**, e ninguém nota ao escrever o
+ * catálogo. "Privacidade e segurança" tinha 23 e seria cortado; virou
+ * "Privacidade", com o resto dito em `explicacao`, que é onde o DESIGN.md manda
+ * explicar.
+ */
+export const LIMITE_DO_ROTULO = 19
 
 export function acharDocumento(slug: string): DocumentoDeTreinamento | undefined {
     return DOCUMENTOS.find((d) => d.slug === slug)
