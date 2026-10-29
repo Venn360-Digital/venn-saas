@@ -42,7 +42,8 @@
         "audit:isolation": "node scripts/audit-isolation.mjs",
         "db:migrate:guarded": "node scripts/migrate-guarded.mjs",
         "db:migrate:unsafe": "prisma migrate deploy",
-        "test:chunker": "tsx scripts/test-chunker.ts"
+        "test:chunker": "tsx scripts/test-chunker.ts",
+        "test:consulta": "tsx scripts/test-consulta.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",
