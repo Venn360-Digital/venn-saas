@@ -70,9 +70,23 @@ export async function decidirIndexacao(entrada: {
     content: string
     hashGravado: string | null
 }): Promise<AcaoDeIndexacao> {
-    // Documento de comportamento vai no prompt, não no acervo. Não é pendência
-    // de indexação: é o modo dele.
-    if (entrada.doc.modo === 'prompt') return { acao: 'pular', motivo: 'modo-prompt' }
+    /**
+     * Documento de comportamento vai no prompt, não no acervo.
+     *
+     * **Com trechos gravados, porém, a ação é apagar — e isto foi um defeito.**
+     * Quando um documento muda de `rag` para `prompt`, o modo novo diz "não
+     * indexe", mas os trechos da indexação anterior continuam lá: o mesmo texto
+     * passa a chegar ao modelo **duas vezes** — inteiro no prompt e em pedaços
+     * pelo acervo — e os pedaços ainda ocupam vaga de recuperação que outro
+     * documento precisava.
+     *
+     * Aconteceu de verdade em 2026-10-29, quando `empresa` e `tecnicas-de-venda`
+     * mudaram de modo com 7 e 13 trechos indexados. Sem isto, a troca de modo
+     * seria silenciosamente pela metade.
+     */
+    if (entrada.doc.modo === 'prompt') {
+        return entrada.hashGravado ? { acao: 'apagar' } : { acao: 'pular', motivo: 'modo-prompt' }
+    }
 
     const conteudo = entrada.content.trim()
 

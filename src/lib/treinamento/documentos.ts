@@ -114,8 +114,8 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         slug: 'empresa',
         titulo: 'Detalhamento da empresa',
         item: 'Empresa',
-        modo: 'rag',
-        teto: 50_000,
+        modo: 'prompt',
+        teto: 10_000,
         precedencia: 5,
         secoes: [
             'Identificação da empresa',
@@ -167,8 +167,8 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         slug: 'tecnicas-de-venda',
         titulo: 'Metodologia de venda',
         item: 'Técnicas de venda',
-        modo: 'rag',
-        teto: 50_000,
+        modo: 'prompt',
+        teto: 10_000,
         precedencia: 7,
         secoes: ['Princípios', 'Descoberta de necessidade', 'Objeções', SECAO_EXEMPLOS],
         explicacao:

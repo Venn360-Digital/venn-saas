@@ -83,22 +83,45 @@ conferir('e devolve undefined no slug que não existe', acharDocumento('inventad
 
 console.log('\nModo e precedência')
 
+/**
+ * A divisão **foi medida**, não arbitrada — e mudou em 2026-10-29 por causa dos
+ * números, não de gosto. Quem mexer nela deve medir de novo
+ * (`npm run medir:recuperacao`), porque cada linha abaixo tem uma razão:
+ *
+ *   - `empresa` saiu do acervo porque "onde vocês ficam?" era recuperado a
+ *     **0.371** com o piso em 0.35. A pergunta mais básica que existe numa
+ *     empresa, a um centésimo de desaparecer.
+ *   - `tecnicas-de-venda` saiu porque "depois eu vejo isso" **não recuperava
+ *     nada**. Contorno de objeção é comportamento: tem de valer sempre, não
+ *     quando a busca coopera.
+ *   - `servicos` e `faq` ficam: são acervo de fato consultável e crescem com o
+ *     cliente. `faq` é, de longe, o mais recuperado (36 vezes contra 18 de
+ *     `servicos`) — ela é escrita em forma de pergunta, o que a aproxima
+ *     vetorialmente de qualquer pergunta.
+ */
 conferir(
-    'três no prompt, quatro no acervo',
+    'cinco no prompt, dois no acervo',
     [documentosDoPrompt().length, documentosDoAcervo().length],
-    [3, 4]
+    [5, 2]
 )
 
 conferir(
-    'os do prompt são os de comportamento',
+    'os do prompt são os de comportamento, na ordem de precedência',
     documentosDoPrompt().map((d) => d.slug),
-    ['privacidade', 'instrucoes-centrais', 'processo-comercial']
+    ['privacidade', 'instrucoes-centrais', 'processo-comercial', 'empresa', 'tecnicas-de-venda']
 )
 
 conferir(
-    'os do acervo são os de fato consultável',
+    'os do acervo são os de fato consultável, que crescem com o cliente',
     documentosDoAcervo().map((d) => d.slug),
-    ['empresa', 'servicos', 'tecnicas-de-venda', 'faq']
+    ['servicos', 'faq']
+)
+
+// Documento de prompt viaja inteiro em toda resposta: o teto dele é o menor.
+conferir(
+    'quem foi para o prompt levou o teto do prompt',
+    documentosDoPrompt().every((d) => d.teto === 10_000),
+    true
 )
 
 conferir(
@@ -342,6 +365,23 @@ conferir(
     'documento de modo prompt nunca é indexado — é o modo dele, não pendência',
     await decidirIndexacao({ doc: docPrompt, content: '# Instruções\n\nSeja breve.', hashGravado: null }),
     { acao: 'pular', motivo: 'modo-prompt' }
+)
+
+/**
+ * O caso que faltava, e que apareceu ao mudar `empresa` e `tecnicas-de-venda`
+ * de modo com 7 e 13 trechos já indexados: o modo novo diz "não indexe", e os
+ * trechos antigos ficavam. O mesmo texto chegaria ao modelo duas vezes — inteiro
+ * no prompt e em pedaços pelo acervo — e os pedaços ainda tomariam vaga de
+ * recuperação de outro documento.
+ */
+conferir(
+    'modo prompt COM trechos gravados manda apagar — a troca de modo não fica pela metade',
+    await decidirIndexacao({
+        doc: docPrompt,
+        content: '# Instruções\n\nSeja breve.',
+        hashGravado: 'hash-de-quando-ele-era-acervo',
+    }),
+    { acao: 'apagar' }
 )
 
 conferir(
