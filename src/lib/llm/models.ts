@@ -6,15 +6,24 @@
  * conta não tinha permissão para usar, e a tabela de preços do `usage-tracker`
  * listava modelos que o seletor não oferecia e omitia outros que oferecia.
  *
- * O acoplamento importa porque os créditos do cliente são debitados pelo custo
- * real da chamada (PRODUCT.md §2). Um modelo renderizado na tela sem preço aqui
- * seria cobrado pelo fallback — e um fallback barato num modelo caro é prejuízo
- * silencioso, do tipo que só aparece na fatura do mês seguinte.
+ * O acoplamento importa porque é daqui que sai o **nosso custo em dólar** em
+ * `usage_logs` — onde se olha margem e se precifica o crédito. (Este comentário
+ * já disse que o crédito do cliente saía deste preço; **não sai**, e a confusão
+ * custou caro em 2026-10-28: quem debita é `spendAiCredits`, 1 ação entregue =
+ * 1 crédito. Ver o comentário dela.) Um modelo na tela sem preço aqui cai no
+ * fallback — e fallback barato em modelo caro é prejuízo silencioso.
  *
- * `price` é em dólares por 1 milhão de tokens. Para acrescentar um modelo:
- * confira o preço na tabela oficial da OpenAI e confira que ele está na allowlist
- * do projeto no painel — o tipo obriga o primeiro, e só o teste real pega o
- * segundo.
+ * `price` é em dólares por 1 milhão de tokens, na modalidade **Standard** — que
+ * é a que usamos, porque o código não pede `service_tier`. Cuidado ao conferir
+ * na tabela da OpenAI: a aba **Flex/Batch** mostra metade do valor, e foi
+ * exatamente essa diferença que fez o custo do AI Gateway divergir 2× do nosso
+ * (ele calcula pela modalidade barata). Copie da aba **Standard**.
+ *
+ * Para acrescentar um modelo: confira o preço na aba Standard **e** confira que
+ * ele está na allowlist do projeto no painel da OpenAI — o tipo obriga o
+ * primeiro, e só o teste real pega o segundo (403 `model_not_found`). A
+ * allowlist é **por projeto**: cada produto tem a sua chave, então liberar num
+ * não libera nos outros.
  */
 
 export interface ModelInfo {
@@ -26,13 +35,34 @@ export interface ModelInfo {
 
 export const OPENAI_MODELS: ModelInfo[] = [
     {
+        id: 'gpt-6.1-sol',
+        label: 'GPT-6.1 Sol — mais capaz',
+        price: { input: 2.0, output: 10.0 },
+    },
+    {
+        id: 'gpt-6.1-terra',
+        label: 'GPT-6.1 Terra — equilíbrio',
+        price: { input: 1.0, output: 5.0 },
+    },
+    {
+        id: 'gpt-6-luna',
+        label: 'GPT-6 Luna — econômico',
+        price: { input: 0.1, output: 0.5 },
+    },
+    /**
+     * Os `gpt-4o` continuam listados porque **agentes existentes apontam para
+     * eles** (`Agent.llmModel`), e sumir com a opção quebraria a tela de quem já
+     * escolheu. São geração anterior e, no catálogo atual, custam mais que o
+     * Terra fazendo menos — a migração é por agente, depois de comparar.
+     */
+    {
         id: 'gpt-4o',
-        label: 'GPT-4o — mais capaz',
+        label: 'GPT-4o — geração anterior',
         price: { input: 2.5, output: 10.0 },
     },
     {
         id: 'gpt-4o-mini',
-        label: 'GPT-4o mini — mais barato',
+        label: 'GPT-4o mini — geração anterior, econômico',
         price: { input: 0.15, output: 0.6 },
     },
 ]
