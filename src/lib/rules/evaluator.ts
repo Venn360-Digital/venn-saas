@@ -1,4 +1,6 @@
 import { AgentRuleConfig, RuleCondition, Operator, RuleContext } from '@/types/rules'
+import { diaDaSemanaNoFuso, horaMinutoNoFuso } from '@/lib/fuso'
+import { dentroDaJanela, normalizarJanela } from './expediente'
 
 /**
  * Decides whether a rule's conditions are satisfied for a given message.
@@ -29,6 +31,12 @@ export class RuleEvaluator {
                     condition.value,
                     condition.operator
                 )
+
+            case 'first_message':
+                return this.matchFirstMessage(context.isFirstMessage, condition.value)
+
+            case 'business_hours':
+                return this.matchBusinessHours(context.agora, condition.value, condition.operator)
 
             case 'custom':
                 // No extension point wired yet; never auto-fire.
@@ -63,6 +71,59 @@ export class RuleEvaluator {
                     return false
             }
         })
+    }
+
+    /**
+     * "É a primeira mensagem" — e o valor diz se a regra quer o sim ou o não.
+     *
+     * Sem o campo no contexto a regra **não dispara**: quem monta o contexto é
+     * que sabe se há mensagem anterior, e adivinhar aqui faria toda regra de
+     * primeira mensagem valer em canal que não informa isso.
+     *
+     * Aceita `true`, `'true'` e `'sim'` porque o valor atravessa JSON e já
+     * chegou como texto de versões anteriores da tela.
+     */
+    private matchFirstMessage(isFirstMessage: boolean | undefined, value: unknown): boolean {
+        if (isFirstMessage === undefined) return false
+
+        const bruto = String(value).trim().toLowerCase()
+        const querPrimeira = bruto === 'true' || bruto === 'sim' || bruto === '1'
+
+        return isFirstMessage === querPrimeira
+    }
+
+    /**
+     * Dentro ou fora da janela de expediente declarada na própria condição.
+     *
+     * **Janela malformada não dispara**, nos dois operadores. Parece assimétrico
+     * — "fora do expediente" com janela inválida poderia valer sempre —, e é
+     * justamente o que não se quer: a regra inválida mais perigosa é a que
+     * responde "estamos fechados" vinte e quatro horas por dia. Ver
+     * `normalizarJanela`.
+     *
+     * A hora de parede sai de `lib/fuso`, no fuso do negócio: o Worker roda em
+     * UTC, então comparar `Date` cru erraria em três horas.
+     */
+    private matchBusinessHours(
+        agora: Date | undefined,
+        value: unknown,
+        operator: Operator
+    ): boolean {
+        if (!agora) return false
+
+        const janela = normalizarJanela(value)
+        if (!janela) return false
+
+        const dentro = dentroDaJanela(horaMinutoNoFuso(agora), diaDaSemanaNoFuso(agora), janela)
+
+        switch (operator) {
+            case 'inside':
+                return dentro
+            case 'outside':
+                return !dentro
+            default:
+                return false
+        }
     }
 
     private matchElapsed(

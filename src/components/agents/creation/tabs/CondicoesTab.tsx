@@ -7,7 +7,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 import { RuleData, RuleCondition, RuleAction } from '@/types/agent-creation'
+import {
+    DIAS_DA_SEMANA,
+    JANELA_PADRAO,
+    descreverJanela,
+    normalizarJanela,
+    type JanelaDeExpediente,
+} from '@/lib/rules/expediente'
 
 /**
  * As condições que o avaliador sabe executar — e só elas.
@@ -29,13 +37,17 @@ import { RuleData, RuleCondition, RuleAction } from '@/types/agent-creation'
 interface DefinicaoCondicao {
     label: string
     operadores: { value: RuleCondition['operator']; label: string }[]
-    /** Decide o teclado do campo e como o valor é gravado. */
-    tipo: 'texto' | 'numero'
+    /** Decide o campo que a tela desenha e como o valor é gravado. */
+    tipo: 'texto' | 'numero' | 'booleano' | 'expediente'
     placeholder: string
     ajuda: string
 }
 
-type CondicaoSuportada = 'message_contains' | 'time_elapsed'
+type CondicaoSuportada =
+    | 'message_contains'
+    | 'time_elapsed'
+    | 'first_message'
+    | 'business_hours'
 
 const CONDICOES: Record<CondicaoSuportada, DefinicaoCondicao> = {
     message_contains: {
@@ -60,6 +72,23 @@ const CONDICOES: Record<CondicaoSuportada, DefinicaoCondicao> = {
         placeholder: '60',
         ajuda: 'Use para reagir a quem sumiu e voltou.',
     },
+    first_message: {
+        label: 'É a primeira mensagem da conversa',
+        operadores: [{ value: 'equals', label: 'é' }],
+        tipo: 'booleano',
+        placeholder: '',
+        ajuda: 'Vale só na mensagem que abre o atendimento. Não dá para escrever isso com tempo decorrido, que é vazio justamente na primeira.',
+    },
+    business_hours: {
+        label: 'O horário de atendimento',
+        operadores: [
+            { value: 'outside', label: 'está fora de' },
+            { value: 'inside', label: 'está dentro de' },
+        ],
+        tipo: 'expediente',
+        placeholder: '',
+        ajuda: 'A hora é a de Brasília. O fim é exclusivo: às 18:00 em ponto já está fora de uma janela que fecha às 18:00.',
+    },
 }
 
 function isSuportada(tipo: string): tipo is CondicaoSuportada {
@@ -81,6 +110,7 @@ const ACOES = [
     { value: 'add_tag', label: 'Adicionar etiqueta' },
     { value: 'move_pipeline', label: 'Mover no funil' },
     { value: 'schedule_followup', label: 'Agendar retomada' },
+    { value: 'close_conversation', label: 'Encerrar atendimento' },
 ] as const
 
 const PRAZOS = [
@@ -100,6 +130,91 @@ interface CondicoesTabProps {
     agentId?: string | null
     rules: RuleData[]
     onChange: (rules: RuleData[]) => void
+}
+
+/**
+ * O campo da janela de expediente: duas horas e os dias.
+ *
+ * Dias como botões e não como lista de seleção, porque a escolha é **múltipla** e
+ * porque o resumo precisa caber ao lado — "seg, ter, qua, qui, sex 08:00–18:00"
+ * é o que explica a regra a quem só passa o olho. O `type="time"` é o mesmo
+ * controle que as janelas de especialista já usam.
+ */
+function CampoDeExpediente({
+    janela,
+    somenteLeitura,
+    onChange,
+}: {
+    janela: JanelaDeExpediente
+    somenteLeitura?: boolean
+    onChange: (j: JanelaDeExpediente) => void
+}) {
+    const alternarDia = (dia: number) => {
+        const dias = janela.dias.includes(dia)
+            ? janela.dias.filter((d) => d !== dia)
+            : [...janela.dias, dia].sort((a, b) => a - b)
+        onChange({ ...janela, dias })
+    }
+
+    return (
+        <div className="min-w-[280px] flex-1 space-y-2">
+            <div className="flex items-center gap-2">
+                <Input
+                    type="time"
+                    className="w-[110px] bg-muted/50"
+                    aria-label="Início do atendimento"
+                    disabled={somenteLeitura}
+                    value={janela.inicio}
+                    onChange={(e) => onChange({ ...janela, inicio: e.target.value })}
+                />
+                <span className="text-sm text-muted-foreground">às</span>
+                <Input
+                    type="time"
+                    className="w-[110px] bg-muted/50"
+                    aria-label="Fim do atendimento"
+                    disabled={somenteLeitura}
+                    value={janela.fim}
+                    onChange={(e) => onChange({ ...janela, fim: e.target.value })}
+                />
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+                {DIAS_DA_SEMANA.map((nome, dia) => {
+                    const ligado = janela.dias.includes(dia)
+                    return (
+                        <button
+                            key={nome}
+                            type="button"
+                            disabled={somenteLeitura}
+                            aria-pressed={ligado}
+                            aria-label={nome}
+                            onClick={() => alternarDia(dia)}
+                            className={cn(
+                                'h-7 rounded px-2 text-xs font-medium transition-colors disabled:opacity-50',
+                                ligado
+                                    ? 'bg-primary-subtle text-primary-subtle-foreground'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                            )}
+                        >
+                            {nome.slice(0, 3)}
+                        </button>
+                    )
+                })}
+            </div>
+
+            {janela.fim <= janela.inicio ? (
+                <p className="text-xs text-destructive">
+                    O fim tem de ser depois do início — do jeito que está, a regra não dispara.
+                </p>
+            ) : janela.dias.length === 0 ? (
+                <p className="text-xs text-destructive">
+                    Escolha ao menos um dia — do jeito que está, a regra não dispara.
+                </p>
+            ) : (
+                <p className="text-xs text-muted-foreground">{descreverJanela(janela)}</p>
+            )}
+        </div>
+    )
 }
 
 export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
@@ -153,11 +268,21 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
         // Trocar o tipo troca o operador junto: um operador que o tipo novo não
         // aceita faz a condição nunca casar, sem nada na tela dizendo por quê.
         if (patch.type && isSuportada(patch.type)) {
-            const permitidos = CONDICOES[patch.type].operadores.map((o) => o.value)
+            const def = CONDICOES[patch.type]
+            const permitidos = def.operadores.map((o) => o.value)
             if (!permitidos.includes(atual.operator)) {
                 atual.operator = permitidos[0] as RuleCondition['operator']
             }
-            atual.value = ''
+            /**
+             * Cada tipo nasce com o valor que **já funciona**, e não com `''`.
+             *
+             * Texto vazio é um começo legítimo para "a mensagem contém"; para a
+             * janela de expediente seria uma condição malformada, que não dispara
+             * e não diz por quê. A janela nasce seg–sex 08:00–18:00; a pergunta
+             * de primeira mensagem nasce "sim", que é o caso de quem a escolhe.
+             */
+            atual.value =
+                def.tipo === 'expediente' ? { ...JANELA_PADRAO } : def.tipo === 'booleano' ? true : ''
         }
 
         conditions[ci] = atual
@@ -176,6 +301,9 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
 
     const valorNaTela = (c: RuleCondition): string => {
         if (Array.isArray(c.value)) return c.value.join(', ')
+        // Objeto é a janela de expediente, que tem campo próprio — `String()`
+        // num objeto imprimiria `[object Object]` dentro do input.
+        if (c.value && typeof c.value === 'object') return ''
         return c.value === undefined || c.value === null ? '' : String(c.value)
     }
 
@@ -190,8 +318,20 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
         <div className="space-y-6">
             <div>
                 <p className="text-[12.5px] text-muted-foreground">
-                    Regras que rodam antes do Agente responder. A primeira que responder
-                    ou transferir encerra a vez dele nesta mensagem.
+                    Regras que rodam antes do Agente responder. A primeira que responder,
+                    transferir ou encerrar fecha a vez dele nesta mensagem.
+                </p>
+                {/*
+                  * O widget do site não passa pelas regras — e isso precisa estar
+                  * escrito. A mensagem que chega por ele vai direto para a fila de
+                  * resposta do Agente: nenhuma regra é avaliada, e quem configurou
+                  * uma transferência por palavra-chave acreditaria que ela vale em
+                  * todos os canais.
+                  */}
+                <p className="mt-1 text-[12.5px] text-muted-foreground">
+                    Valem para <strong className="font-semibold text-foreground">WhatsApp e
+                    Instagram</strong>. O widget do site não passa por elas: a mensagem vai
+                    direto para o Agente.
                 </p>
             </div>
 
@@ -310,23 +450,53 @@ export function CondicoesTab({ rules, onChange }: CondicoesTabProps) {
                                                 ))}
                                             </select>
 
-                                            <Input
-                                                className="min-w-[180px] flex-1 bg-muted/50"
-                                                type={def?.tipo === 'numero' ? 'number' : 'text'}
-                                                placeholder={def?.placeholder}
-                                                disabled={!def}
-                                                value={valorNaTela(condition)}
-                                                onChange={(e) =>
-                                                    atualizarCondicao(ri, ci, {
-                                                        value: def
-                                                            ? gravarValor(
-                                                                  condition.type as CondicaoSuportada,
-                                                                  e.target.value
-                                                              )
-                                                            : e.target.value,
-                                                    })
-                                                }
-                                            />
+                                            {def?.tipo === 'expediente' ? (
+                                                <CampoDeExpediente
+                                                    janela={
+                                                        normalizarJanela(condition.value) ??
+                                                        JANELA_PADRAO
+                                                    }
+                                                    onChange={(janela) =>
+                                                        atualizarCondicao(ri, ci, { value: janela })
+                                                    }
+                                                />
+                                            ) : def?.tipo === 'booleano' ? (
+                                                <select
+                                                    className="h-10 min-w-[180px] flex-1 rounded-md border bg-muted/50 px-3 text-sm"
+                                                    aria-label={def.label}
+                                                    value={
+                                                        String(condition.value) === 'false'
+                                                            ? 'false'
+                                                            : 'true'
+                                                    }
+                                                    onChange={(e) =>
+                                                        atualizarCondicao(ri, ci, {
+                                                            value: e.target.value === 'true',
+                                                        })
+                                                    }
+                                                >
+                                                    <option value="true">sim</option>
+                                                    <option value="false">não</option>
+                                                </select>
+                                            ) : (
+                                                <Input
+                                                    className="min-w-[180px] flex-1 bg-muted/50"
+                                                    type={def?.tipo === 'numero' ? 'number' : 'text'}
+                                                    placeholder={def?.placeholder}
+                                                    disabled={!def}
+                                                    value={valorNaTela(condition)}
+                                                    onChange={(e) =>
+                                                        atualizarCondicao(ri, ci, {
+                                                            value: def
+                                                                ? gravarValor(
+                                                                      condition.type as CondicaoSuportada,
+                                                                      e.target.value
+                                                                  )
+                                                                : e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                            )}
 
                                             <Button
                                                 variant="ghost"
@@ -474,6 +644,22 @@ function ParametrosDaAcao({
                     value={texto('message')}
                     onChange={(e) => onParams({ message: e.target.value })}
                 />
+            )
+
+        case 'close_conversation':
+            return (
+                <div className="space-y-2">
+                    <Input
+                        className="bg-background"
+                        placeholder="Nota interna do encerramento (opcional)"
+                        value={texto('note')}
+                        onChange={(e) => onParams({ note: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        O atendimento é finalizado e o Agente não responde esta mensagem. Quem
+                        escrever depois reabre a conversa, e o limite de interações recomeça.
+                    </p>
+                </div>
             )
 
         case 'notify_human':

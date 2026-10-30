@@ -7,12 +7,34 @@ const updateRuleSchema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
     conditions: z.array(z.object({
-        type: z.enum(['message_contains', 'user_intent', 'time_elapsed', 'custom']),
-        operator: z.enum(['equals', 'contains', 'greater_than', 'less_than', 'starts_with']),
+        /**
+     * **`user_intent` e `custom` saíram daqui de propósito.** Os dois nunca
+     * disparam — um exige uma classificação que nada no sistema produz, o outro é
+     * `return false` literal —, e aceitá-los era deixar criar regra que não
+     * funciona. Regra antiga gravada com eles segue no banco e é pulada com aviso
+     * (ver `applyAgentRules`); a tela a sinaliza. O que não dá mais é nascer uma.
+     */
+    type: z.enum(['message_contains', 'time_elapsed', 'first_message', 'business_hours']),
+        operator: z.enum([
+            'equals',
+            'contains',
+            'greater_than',
+            'less_than',
+            'starts_with',
+            'inside',
+            'outside',
+        ]),
         value: z.any(),
     })).optional(),
     actions: z.array(z.object({
-        type: z.enum(['send_message', 'notify_human', 'add_tag', 'move_pipeline', 'schedule_followup']),
+        type: z.enum([
+            'send_message',
+            'notify_human',
+            'add_tag',
+            'move_pipeline',
+            'schedule_followup',
+            'close_conversation',
+        ]),
         params: z.record(z.string(), z.any()),
     })).optional(),
     priority: z.number().optional(),
