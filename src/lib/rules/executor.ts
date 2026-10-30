@@ -26,6 +26,7 @@ export class RuleExecutor {
             executed: [],
             handedToHuman: false,
             repliedWithRuleMessage: false,
+            encerrou: false,
         }
 
         if (!config.actions || config.actions.length === 0) return result
@@ -63,6 +64,9 @@ export class RuleExecutor {
                 break
             case 'schedule_followup':
                 await this.scheduleFollowup(action.params, context)
+                break
+            case 'close_conversation':
+                await this.closeConversation(action.params, context, result)
                 break
             default:
                 console.warn(`[RULE_EXECUTOR] Unknown action type: ${action.type}`)
@@ -153,6 +157,55 @@ export class RuleExecutor {
         })
 
         result.handedToHuman = true
+    }
+
+    /**
+     * Encerra o atendimento — e com ele a vez do agente nesta mensagem.
+     *
+     * Existe para o caso que nenhuma outra ação cobria: a mensagem que **não
+     * precisa de atendimento**. "obrigado", "era só isso", o descadastro que já
+     * foi tratado — hoje cada uma delas ou consome uma resposta do agente ou
+     * fica aberta até o cron de `autoCloseDays` varrer, trinta dias depois.
+     *
+     * Três coisas acontecem juntas, e nenhuma é opcional:
+     *
+     *   - `status` e `closedAt`, que é o que a caixa de entrada lê para mostrar
+     *     "Finalizada". **`closedAt` também reinicia a contagem do limite de
+     *     interações** (ver `desdeQuandoContar`), e isso é desejável: atendimento
+     *     encerrado e reaberto é atendimento novo.
+     *   - a nota interna, porque conversa que fecha sozinha sem rastro é a
+     *     clínica descobrindo pelo paciente reclamando.
+     *   - `result.encerrou`, que impede o agente de responder a seguir. Sem ele,
+     *     a regra fecharia e o agente escreveria logo depois — e a mensagem dele
+     *     reabriria a leitura do fio na tela, com o rótulo mentindo.
+     *
+     * **Não desatribui ninguém.** Se um atendente estava com a conversa, ela
+     * fecha atribuída a ele, que é quem a conduziu. Quem decide o contrário é
+     * `notify_human`, na direção oposta.
+     */
+    private async closeConversation(
+        params: Record<string, unknown>,
+        context: RuleContext,
+        result: RuleExecutionResult
+    ): Promise<void> {
+        await prisma.conversation.update({
+            where: { id: context.conversationId },
+            data: { status: 'closed', closedAt: new Date() },
+        })
+
+        await prisma.message.create({
+            data: {
+                conversationId: context.conversationId,
+                direction: 'internal',
+                content: String(params.note ?? 'Atendimento encerrado por regra do agente.'),
+                contentType: 'text',
+                sentBy: 'agent',
+                isInternal: true,
+                status: 'sent',
+            },
+        })
+
+        result.encerrou = true
     }
 
 

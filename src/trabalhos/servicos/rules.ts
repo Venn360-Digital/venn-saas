@@ -23,6 +23,7 @@ const EMPTY: RuleExecutionResult = {
     executed: [],
     handedToHuman: false,
     repliedWithRuleMessage: false,
+    encerrou: false,
 }
 
 /**
@@ -51,6 +52,16 @@ export async function applyAgentRules(
             actions: rule.actions,
         })
 
+        /**
+         * Config que não valida é pulada, com aviso — e isto passou a alcançar
+         * mais regras do que antes, de propósito.
+         *
+         * `user_intent` e `custom` saíram do schema de gravação porque nunca
+         * disparam. Regra antiga gravada com eles existe, e agora cai aqui em vez
+         * de ser avaliada como falsa. **O desfecho é o mesmo** — ela não dispara
+         * nos dois casos, porque as condições são E lógico —, mas passa a
+         * aparecer no log em vez de falhar em silêncio. A tela já a sinaliza.
+         */
         if (!parsed.success) {
             log.warn(`rule ${rule.id} ("${rule.name}") has an invalid config; skipping`)
             continue
@@ -65,6 +76,7 @@ export async function applyAgentRules(
         merged.handedToHuman = merged.handedToHuman || result.handedToHuman
         merged.repliedWithRuleMessage =
             merged.repliedWithRuleMessage || result.repliedWithRuleMessage
+        merged.encerrou = merged.encerrou || result.encerrou
     }
 
     return merged

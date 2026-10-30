@@ -336,6 +336,14 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
         dealId: openDeal?.id ?? null,
         message: decoded.content,
         minutesSinceLastMessage,
+        /**
+         * `!previous` é a mesma leitura que decide se a saudação sai: não há
+         * mensagem anterior no fio. Não dá para derivar isso de
+         * `minutesSinceLastMessage`, que é **indefinido** justamente na primeira.
+         */
+        isFirstMessage: !previous,
+        /** A condição de expediente converte isto para hora de parede do negócio. */
+        agora: new Date(),
         channel: { integrationId: integration.id, to: senderId },
     }
 
@@ -380,13 +388,25 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
         log.info(`conversation ${conversation.id} opened; initial message sent`)
     }
 
-    // Regras podem enviar mensagem e transferir conversa: não se repetem.
+    // Regras podem enviar mensagem, transferir e encerrar: não se repetem.
     const rules = isRetry
-        ? { handedToHuman: false, repliedWithRuleMessage: false }
+        ? { handedToHuman: false, repliedWithRuleMessage: false, encerrou: false }
         : await applyAgentRules(agent, ruleContext)
 
     if (rules.handedToHuman) {
         log.info(`rules escalated conversation ${conversation.id} to a human`)
+        return
+    }
+
+    /**
+     * Encerrada por regra: o agente não responde.
+     *
+     * Vem antes de `repliedWithRuleMessage` porque encerrar é o desfecho mais
+     * forte — e porque a regra que encerra costuma enviar uma despedida na mesma
+     * passada, então as duas bandeiras sobem juntas e esta é a que explica o log.
+     */
+    if (rules.encerrou) {
+        log.info(`rules closed conversation ${conversation.id}`)
         return
     }
 
