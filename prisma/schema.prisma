@@ -1843,6 +1843,11 @@ model KnowledgeDocument {
   // Vector embeddings (pgvector)
   embedding Unsupported("vector(1536)")?
 
+  /// A perna lexical da busca híbrida: `to_tsvector('portuguese', unaccent(content))`.
+  /// Coluna GERADA — o Postgres a mantém, e nada no código a escreve. Declarada
+  /// aqui só para o Prisma não a propor como coluna a remover no próximo diff.
+  searchVector Unsupported("tsvector")?
+
   metadata  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
