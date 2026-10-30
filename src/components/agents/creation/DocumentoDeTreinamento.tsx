@@ -12,6 +12,7 @@ import {
     type DocumentoDeTreinamento as Doc,
 } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
+import { textoParaAcervo } from '@/lib/treinamento/indexar'
 import { gerarRascunho, type CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 
@@ -79,13 +80,32 @@ export function DocumentoDeTreinamento({
     const perto = !excedeu && usado > doc.teto * 0.9
 
     /**
-     * A conferência roda sobre o texto **sem comentário** e pelo **corte real**.
+     * A conferência roda sobre o texto **que vai de fato ser cortado**.
      *
-     * É a mesma função que o indexador usa. Conferir o texto cru diria que a
-     * seção existe quando o corte não a vê — e o que importa é o que o agente
-     * vai conseguir recuperar, não o que está escrito na tela.
+     * É a mesma normalização do indexador (`textoParaAcervo`): sem comentário de
+     * quem escreve e, nos documentos de acervo, sem a seção reservada de
+     * exemplos. Conferir o texto cru diria que a seção existe quando o corte não
+     * a vê — e o que importa é o que o agente vai conseguir recuperar, não o que
+     * está escrito na tela.
+     *
+     * Nos documentos de **prompt** a conta é sobre o texto inteiro, porque é o
+     * texto inteiro que vai ao modelo: lá o exemplo é instrução de estilo, não
+     * trecho recuperável. O número de trechos de um documento de prompt não
+     * descreve acervo nenhum — serve só como medida de quão bem seccionado ele
+     * está.
      */
-    const estrutura = conferirEstrutura(secionarMarkdown(semComentarios(valor)))
+    const acervo = textoParaAcervo(valor)
+    const paraConferir = doc.modo === 'rag' ? acervo.texto : semComentarios(valor)
+    const estrutura = conferirEstrutura(secionarMarkdown(paraConferir))
+    /**
+     * Quem escreveu a seção de exemplos precisa saber que ela não é indexada.
+     *
+     * Sem este aviso, o comportamento parece defeito: a pessoa escreve três
+     * exemplos de resposta, salva, e o contador de trechos não sobe. Dizer que
+     * ficou de fora **e por quê** é o que transforma uma surpresa em regra
+     * aprendida — e é só no documento de acervo que a distinção existe.
+     */
+    const exemplosFora = doc.modo === 'rag' ? acervo.exemplosRetirados : []
     const temConteudo = valor.trim().length > 0
 
     const importar = (arquivo: File) => {
@@ -302,6 +322,17 @@ export function DocumentoDeTreinamento({
                     )
                 ) : null}
             </div>
+
+            {exemplosFora.length > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                    <strong className="font-semibold text-foreground">
+                        “{exemplosFora.join('”, “')}” não vai para o acervo.
+                    </strong>{' '}
+                    Exemplo de resposta orienta o estilo; no acervo ele seria recuperado como
+                    fato e repetido ao paciente — inclusive na pergunta errada. O texto fica
+                    guardado aqui.
+                </p>
+            ) : null}
 
             {excedeu ? (
                 <p className="text-xs text-destructive">

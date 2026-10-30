@@ -4,6 +4,7 @@ import { manageAgent } from '@/lib/auth/agent'
 import { checkCredits, spendAiCredits } from '@/lib/llm/usage-tracker'
 import { OutOfCreditsError, ensaiarResposta, type TurnoDeEnsaio } from '@/trabalhos/servicos/ai-reply'
 import { createLogger } from '@/trabalhos/registro'
+import { pisoDeSimilaridade } from '@/lib/rag/parametros'
 
 const log = createLogger('ENSAIO')
 
@@ -138,6 +139,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             consulta: resultado.consulta,
             prompt: resultado.prompt,
             uso: resultado.usage,
+            /**
+             * O piso vai junto porque é ele que diz o que é trecho fraco.
+             *
+             * A tela marcava em âmbar abaixo de `0.45` — um número que não vinha
+             * de nenhum lugar e que, com o piso em 0,35, chamava de fraco um
+             * trecho com 0,10 de folga. Agora o console mostra a mesma régua do
+             * atendimento.
+             */
+            piso: pisoDeSimilaridade(),
         })
     } catch (error) {
         if (error instanceof OutOfCreditsError) {

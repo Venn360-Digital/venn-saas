@@ -1,4 +1,6 @@
 import { acharDocumento, type DocumentoDeTreinamento } from './documentos'
+import { semComentarios } from '@/lib/rag/secoes'
+import { semExemplos } from './exemplos'
 
 /**
  * Quando um documento de treinamento precisa ser reindexado, e com que nome.
@@ -34,6 +36,35 @@ export const TIPO_DE_TREINAMENTO = 'treinamento'
  */
 export function tituloDoAcervo(slug: string): string {
     return slug
+}
+
+export interface TextoDoAcervo {
+    /** O que de fato vai ser cortado e vetorizado. */
+    texto: string
+    /** Títulos das seções de exemplo que ficaram fora. */
+    exemplosRetirados: string[]
+}
+
+/**
+ * O texto que vai para o acervo — **a mesma normalização nos dois lados**.
+ *
+ * Existe porque a rota e o processador normalizavam diferente, e a diferença
+ * fazia o carimbo de "já indexado" comparar maçã com laranja:
+ *
+ *   - a rota hasheava o conteúdo cru (só `trim`), enquanto o processador
+ *     hasheava o conteúdo **sem comentários de HTML**. Documento com um
+ *     `<!-- confirmar -->` dentro nunca batia, então `decidirIndexacao`
+ *     respondia "indexar" a cada salvar e enfileirava um job por gravação, para
+ *     o processador descobrir no fim que nada havia mudado;
+ *   - e agora as seções de exemplo também saem do acervo, o que abriria uma
+ *     segunda divergência pela mesma porta.
+ *
+ * Com uma função só, `pular: inalterado` volta a ser verdade e o job só nasce
+ * quando há texto novo para vetorizar.
+ */
+export function textoParaAcervo(content: string): TextoDoAcervo {
+    const { fatos, retiradas } = semExemplos(semComentarios(content))
+    return { texto: fatos.trim(), exemplosRetirados: retiradas }
 }
 
 export type AcaoDeIndexacao =
@@ -88,10 +119,15 @@ export async function decidirIndexacao(entrada: {
         return entrada.hashGravado ? { acao: 'apagar' } : { acao: 'pular', motivo: 'modo-prompt' }
     }
 
-    const conteudo = entrada.content.trim()
+    const { texto: conteudo } = textoParaAcervo(entrada.content)
 
-    // Esvaziado: os trechos da geração anterior têm de sair, senão o agente
-    // continua respondendo pelo que a conta acabou de apagar.
+    /**
+     * Esvaziado: os trechos da geração anterior têm de sair, senão o agente
+     * continua respondendo pelo que a conta acabou de apagar.
+     *
+     * "Vazio" aqui é vazio **para o acervo**: documento que só tem comentário de
+     * quem escreve, ou só a seção de exemplos, não tem fato nenhum a indexar.
+     */
     if (conteudo.length === 0) {
         return entrada.hashGravado ? { acao: 'apagar' } : { acao: 'pular', motivo: 'sem-conteudo' }
     }

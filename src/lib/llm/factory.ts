@@ -16,6 +16,7 @@ export class LLMFactory {
             model,
             temperature: config?.temperature ?? 0.7,
             maxTokens: config?.maxTokens,
+            promptCacheKey: config?.promptCacheKey,
         }
 
         switch (provider) {

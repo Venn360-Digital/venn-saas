@@ -2,6 +2,7 @@ import 'server-only'
 import type { OpenAIEmbeddings } from '@langchain/openai'
 import prisma from '@/lib/prisma'
 import { criarEmbeddings } from './embeddings'
+import { pisoDeSimilaridade } from './parametros'
 
 /** Uma linha do resultado da busca por similaridade. */
 export interface KnowledgeMatch {
@@ -15,25 +16,13 @@ export interface KnowledgeMatch {
 }
 
 /**
- * Piso de similaridade para um trecho entrar na resposta.
+ * O piso e o número de trechos **não moram aqui**: ver `./parametros.ts`.
  *
- * Sem piso, a busca devolvia sempre os N trechos mais próximos — e o prompt os
- * apresenta ao modelo como "fonte de verdade". Numa clínica cujo cérebro fala de
- * ortodontia, "vocês fazem exame de vista?" trazia os quatro trechos menos
- * distantes do acervo e pedia ao modelo que respondesse com base neles.
- *
- * 0,35 com o modelo de `EMBEDDING_MODEL` separa "fala do mesmo assunto" de "é o
- * texto menos distante que eu tinha". Ajustável por ambiente porque o valor
- * depende do tamanho e da variedade do acervo de cada clínica — e **precisa ser
- * reavaliado se o modelo de embedding mudar**, porque a escala de similaridade
- * é propriedade do modelo, não do acervo.
+ * Eles governam a busca e eram declarados em três arquivos com valores
+ * diferentes — mudar a variável de ambiente fazia o medidor e o console de
+ * ensaio mentirem em silêncio. O `limit` continua chegando por parâmetro, porque
+ * quem decide quantos trechos cabem numa resposta é o chamador.
  */
-const DEFAULT_MIN_SIMILARITY = 0.35
-
-function minSimilarity(): number {
-    const raw = Number(process.env.AI_RAG_MIN_SIMILARITY)
-    return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : DEFAULT_MIN_SIMILARITY
-}
 
 export class DocumentRetriever {
     private embedder: OpenAIEmbeddings
@@ -75,7 +64,7 @@ export class DocumentRetriever {
       FROM "knowledge_documents"
       WHERE "agentId" = ${agentId}
         AND embedding IS NOT NULL
-        AND 1 - (embedding <=> ${vectorString}::vector) >= ${minSimilarity()}
+        AND 1 - (embedding <=> ${vectorString}::vector) >= ${pisoDeSimilaridade()}
       ORDER BY embedding <=> ${vectorString}::vector
       LIMIT ${limit};
     `

@@ -51,7 +51,19 @@ export class OpenAIProvider implements LLMProvider {
             model: this.config.model,
             messages: toApiMessages(messages),
             temperature: this.config.temperature ?? 0.7,
-            max_tokens: this.config.maxTokens,
+            /**
+             * `max_completion_tokens`, e não `max_tokens`.
+             *
+             * O segundo está depreciado e **é incompatível com os modelos de
+             * raciocínio** — mandá-lo faria a API recusar a chamada justamente
+             * nos modelos mais novos do catálogo, e o sintoma seria o agente
+             * mudo. Os dois campos querem a mesma coisa; só um atravessa as duas
+             * gerações.
+             */
+            max_completion_tokens: this.config.maxTokens,
+            ...(this.config.promptCacheKey
+                ? { prompt_cache_key: this.config.promptCacheKey }
+                : {}),
             ...(tools?.length
                 ? {
                       tools: tools.map((t) => ({
@@ -70,9 +82,13 @@ export class OpenAIProvider implements LLMProvider {
             promptTokens: response.usage?.prompt_tokens ?? 0,
             completionTokens: response.usage?.completion_tokens ?? 0,
             totalTokens: response.usage?.total_tokens ?? 0,
+            // Quanto do prompt o provedor cobrou com desconto. É o que torna o
+            // prefixo cacheável verificável em vez de acreditado.
+            cachedTokens: response.usage?.prompt_tokens_details?.cached_tokens ?? 0,
         }
 
-        const message = response.choices[0]?.message
+        const escolha = response.choices[0]
+        const message = escolha?.message
         const toolCalls = message?.tool_calls
             ?.filter((c) => c.type === 'function')
             .map((c) => ({
@@ -85,6 +101,7 @@ export class OpenAIProvider implements LLMProvider {
             content: message?.content ?? '',
             usage,
             ...(toolCalls?.length ? { toolCalls } : {}),
+            ...(escolha?.finish_reason ? { finishReason: escolha.finish_reason } : {}),
         }
     }
 
@@ -93,7 +110,11 @@ export class OpenAIProvider implements LLMProvider {
             model: this.config.model,
             messages: toApiMessages(messages),
             temperature: this.config.temperature ?? 0.7,
-            max_tokens: this.config.maxTokens,
+            // Mesmo campo da chamada normal; ver o comentário em `generate`.
+            max_completion_tokens: this.config.maxTokens,
+            ...(this.config.promptCacheKey
+                ? { prompt_cache_key: this.config.promptCacheKey }
+                : {}),
             stream: true,
             stream_options: { include_usage: true },
         })
@@ -116,6 +137,7 @@ export class OpenAIProvider implements LLMProvider {
                     promptTokens: chunk.usage.prompt_tokens ?? 0,
                     completionTokens: chunk.usage.completion_tokens ?? 0,
                     totalTokens: chunk.usage.total_tokens ?? 0,
+                    cachedTokens: chunk.usage.prompt_tokens_details?.cached_tokens ?? 0,
                 }
             }
         }

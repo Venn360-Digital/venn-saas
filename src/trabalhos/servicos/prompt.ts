@@ -182,9 +182,9 @@ function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
  * instrução entre ele e o que o cliente perguntou.
  *
  * A única coisa que **não** melhorou de posição foi `Formato`: ela era a última
- * de todas e agora é a última das estáveis. Perde um pouco de recência e ganha
- * o cache; e o que ela pede (mensagem curta, sem markdown) nunca foi a
- * instrução em disputa.
+ * de todas e agora está no fim das estáveis, junto de `Quando não souber`. Perde
+ * um pouco de recência e ganha o cache; e o que ela pede (mensagem curta, sem
+ * markdown) nunca foi a instrução em disputa.
  */
 export function buildSystemPrompt(
     agent: Agent,
@@ -308,11 +308,38 @@ export function buildSystemPrompt(
     }
 
     // WhatsApp-specific shaping: long markdown answers read badly in a chat bubble.
-    // Última das estáveis: é o fim do prefixo cacheável.
     estaveis.push(
         '## Formato\n' +
         'Você está conversando pelo WhatsApp. Escreva mensagens curtas e diretas, ' +
         'sem markdown, sem títulos e sem listas numeradas longas.'
+    )
+
+    /**
+     * O que fazer quando a resposta não está em lugar nenhum.
+     *
+     * **Estável, e isto foi um conserto.** A única instrução de recuo do sistema
+     * vivia dentro de `## Base de conhecimento` — que só é emitida quando a busca
+     * trouxe algo. Ou seja: exatamente no caso em que o recuo importa, quando o
+     * acervo não devolveu nada, o modelo não recebia instrução nenhuma e decidia
+     * sozinho o que dizer. Era o inverso do desejado, e invisível, porque o
+     * agente responde de qualquer jeito — só responde inventando.
+     *
+     * Ser estável também é o certo para o cache: é texto que não muda entre
+     * mensagens, e no bloco volátil ele custaria integral em toda resposta.
+     *
+     * As três proibições não são genéricas: preço, horário e prazo são as três
+     * coisas que uma clínica não pode errar por escrito, e são as três que um
+     * modelo preenche com plausibilidade quando não sabe.
+     */
+    estaveis.push(
+        '## Quando não souber\n' +
+        'Se a informação não estiver nas suas instruções nem na base de conhecimento ' +
+        'desta conversa, diga que vai confirmar com a equipe e que retorna. Não ' +
+        'responda por dedução.\n' +
+        'Nunca invente valor, horário, prazo ou condição de pagamento. É melhor ' +
+        'prometer confirmação do que acertar por sorte.\n' +
+        'Se o paciente pedir para falar com uma pessoa, diga que vai passar o ' +
+        'atendimento para a equipe — e passe a tratar o assunto como encaminhado.'
     )
 
     /**
@@ -365,8 +392,7 @@ export function buildSystemPrompt(
             .join('\n\n')
         volateis.push(
             '## Base de conhecimento\n' +
-            'Use os trechos abaixo como fonte de verdade. Se a resposta não estiver ' +
-            'neles, diga que vai verificar em vez de inventar.\n\n' +
+            'Use os trechos abaixo como fonte de verdade para esta pergunta.\n\n' +
             corpus
         )
     }

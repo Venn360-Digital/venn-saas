@@ -38,8 +38,10 @@ import {
     decidirIndexacao,
     hashDoConteudo,
     slugConhecido,
+    textoParaAcervo,
     tituloDoAcervo,
 } from '@/lib/treinamento/indexar'
+import { ehSecaoDeExemplos, semExemplos } from '@/lib/treinamento/exemplos'
 
 let passou = 0
 let falhou = 0
@@ -172,24 +174,55 @@ conferir(
 
 /**
  * As faixas são calibradas contra o máximo **possível**, não contra um número
- * abstrato: três documentos de prompt a 10.000 cada dão 30.000, e nada pode
+ * abstrato: **cinco** documentos de prompt a 10.000 cada dão 50.000, e nada pode
  * passar disso porque o teto de cada documento é que barra. Um corte acima de
- * 30.000 seria faixa que nunca acende — foi o que aconteceu com `excessivo`.
+ * 50.000 seria faixa que nunca acende — foi o que aconteceu com `excessivo`.
+ *
+ * Estes casos travam a recalibração: com os cortes antigos (15.000/25.000,
+ * desenhados quando eram três documentos) o conjunto real do cliente, que
+ * cresceu para 17.952 por decisão nossa de mover dois documentos para o prompt,
+ * passaria a ser chamado de "pesado" sem ninguém ter escrito uma linha a mais.
  */
 conferir(
-    'o conjunto real de hoje (11.790) é confortável',
+    'o conjunto real medido (17.952, cinco documentos) é confortável',
+    orc({
+        'instrucoes-centrais': 3170,
+        'processo-comercial': 6429,
+        privacidade: 2191,
+        empresa: 2574,
+        'tecnicas-de-venda': 3588,
+    }).faixa,
+    'confortavel'
+)
+conferir(
+    'o conjunto antigo de três documentos segue confortável',
     orc({ 'instrucoes-centrais': 3170, 'processo-comercial': 6429, privacidade: 2191 }).faixa,
     'confortavel'
 )
 conferir(
-    'dois documentos cheios já é pesado',
-    orc({ 'instrucoes-centrais': 10_000, 'processo-comercial': 10_000 }).faixa,
+    'três documentos cheios é pesado',
+    orc({
+        'instrucoes-centrais': 10_000,
+        'processo-comercial': 10_000,
+        privacidade: 10_000,
+    }).faixa,
     'pesado'
 )
 conferir(
-    'os três documentos cheios são muito pesados — e mesmo assim passam',
-    orc({ 'instrucoes-centrais': 10_000, 'processo-comercial': 10_000, privacidade: 10_000 }).faixa,
+    'os cinco documentos cheios são muito pesados — e mesmo assim passam',
+    orc({
+        'instrucoes-centrais': 10_000,
+        'processo-comercial': 10_000,
+        privacidade: 10_000,
+        empresa: 10_000,
+        'tecnicas-de-venda': 10_000,
+    }).faixa,
     'muito-pesado'
+)
+conferir(
+    'o máximo possível é 50.000 — cinco documentos de prompt a 10.000',
+    documentosDoPrompt().reduce((soma, d) => soma + d.teto, 0),
+    50_000
 )
 
 // O teto por documento é o único limite rígido, e ele vive no catálogo.
@@ -427,6 +460,103 @@ conferir(
     'o hash devolvido na ação indexar é o do conteúdo JÁ aparado',
     await decidirIndexacao({ doc: docRag, content: `  ${conteudo}  `, hashGravado: null }),
     { acao: 'indexar', hash: hashDele }
+)
+
+/**
+ * A seção reservada de exemplos **não vai para o acervo** — e os dois lados
+ * normalizam igual.
+ *
+ * O catálogo declara `SECAO_EXEMPLOS` como reservada desde que nasceu, com a
+ * razão escrita (exemplo indexado como fato é repetido literalmente pelo modelo,
+ * inclusive o exemplo da pergunta vizinha). Faltava o runtime fazer a separação.
+ *
+ * Os casos abaixo travam as duas metades: que a seção sai, e que a rota e o
+ * processador chegam ao **mesmo** texto — senão `pular: inalterado` volta a
+ * mentir e cada salvar enfileira um job inútil.
+ */
+console.log('\nA seção reservada de exemplos fica fora do acervo')
+
+const comExemplos = [
+    '# Serviços prestados',
+    '',
+    '## Ortodontia',
+    'A partir de R$ 180 por mês.',
+    '',
+    '## Exemplos de resposta',
+    'Oi! O aparelho sai a partir de R$ 180 por mês.',
+    '',
+    '### No WhatsApp',
+    'Manda um oi que a gente explica.',
+    '',
+    '## Implante',
+    'Avaliação gratuita.',
+].join('\n')
+
+conferir(
+    'o fato fica e o exemplo sai',
+    semExemplos(comExemplos).fatos,
+    '# Serviços prestados\n\n## Ortodontia\nA partir de R$ 180 por mês.\n\n## Implante\nAvaliação gratuita.'
+)
+conferir('e diz qual seção retirou', semExemplos(comExemplos).retiradas, ['Exemplos de resposta'])
+conferir(
+    'o subtítulo dentro dos exemplos sai junto — senão volta pela porta de trás',
+    semExemplos(comExemplos).fatos.includes('Manda um oi'),
+    false
+)
+conferir(
+    'documento sem exemplos atravessa intacto',
+    semExemplos('## Ortodontia\nR$ 180.').fatos,
+    '## Ortodontia\nR$ 180.'
+)
+conferir(
+    'cabeçalho dentro de cerca de código não abre seção de exemplos',
+    semExemplos(['## Ortodontia', '```', '## Exemplos de resposta', '```', 'R$ 180.'].join('\n')).retiradas,
+    []
+)
+conferir(
+    'título escrito à mão conta: plural, caixa e acento',
+    [
+        ehSecaoDeExemplos('Exemplos de respostas'),
+        ehSecaoDeExemplos('exemplos de resposta'),
+        ehSecaoDeExemplos('Exemplos de resposta (WhatsApp)'),
+        ehSecaoDeExemplos('Serviços'),
+    ],
+    [true, true, true, false]
+)
+conferir(
+    'o título do catálogo é reconhecido pela própria função',
+    ehSecaoDeExemplos(SECAO_EXEMPLOS),
+    true
+)
+
+/**
+ * `textoParaAcervo` é a normalização única. Antes a rota hasheava o conteúdo cru
+ * e o processador hasheava sem comentário de HTML: documento com um
+ * `<!-- confirmar -->` nunca batia, e **todo salvar** enfileirava um job para o
+ * processador descobrir no fim que nada mudara.
+ */
+conferir(
+    'tira comentário de HTML e exemplos, na mesma passada',
+    textoParaAcervo('## Preço\nR$ 180. <!-- confirmar -->\n\n## Exemplos de resposta\nOi!').texto,
+    '## Preço\nR$ 180.'
+)
+conferir(
+    'documento que é só exemplo não tem fato nenhum a indexar',
+    await decidirIndexacao({
+        doc: docRag,
+        content: '## Exemplos de resposta\nOi, tudo bem?',
+        hashGravado: null,
+    }),
+    { acao: 'pular', motivo: 'sem-conteudo' }
+)
+conferir(
+    'mexer só no exemplo não reindexa — o acervo não mudou',
+    await decidirIndexacao({
+        doc: docRag,
+        content: `${conteudo}\n\n## Exemplos de resposta\nOutra redação do exemplo.`,
+        hashGravado: hashDele,
+    }),
+    { acao: 'pular', motivo: 'inalterado' }
 )
 
 console.log('\nRascunho a partir dos campos antigos — para a transição não custar redigitação')

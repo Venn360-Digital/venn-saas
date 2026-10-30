@@ -32,6 +32,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { acharDocumento } from '@/lib/treinamento/documentos'
+import { FOLGA_MINIMA, PISO_PADRAO } from '@/lib/rag/parametros'
 import { createInterface } from 'node:readline'
 
 interface Caso {
@@ -168,13 +169,18 @@ async function autenticar(): Promise<string> {
     return sessao
 }
 
-/** O piso do atendimento. Abaixo disto o trecho nem chega ao agente. */
-const PISO = 0.35
-/** Acima do piso, mas por tão pouco que qualquer reescrita da pergunta derruba. */
-const FOLGA_MINIMA = 0.10
-
-function barra(valor: number): string {
-    const n = Math.max(0, Math.min(20, Math.round((valor - PISO) / 0.03)))
+/**
+ * O piso **vem da rota**, não daqui.
+ *
+ * Havia `const PISO = 0.35` cravado neste arquivo, ao lado de outro 0,35 no
+ * retriever e de um 0,45 no console de ensaio. Mudar `AI_RAG_MIN_SIMILARITY`
+ * fazia o medidor desenhar a barra e marcar "raspando o piso" contra um corte
+ * que o atendimento não usava mais — a medição descrevendo um sistema que não
+ * existe. `PISO_PADRAO` fica só como reserva para o caso de uma rota antiga não
+ * devolver o campo.
+ */
+function barra(valor: number, piso: number): string {
+    const n = Math.max(0, Math.min(20, Math.round((valor - piso) / 0.03)))
     return '█'.repeat(n)
 }
 
@@ -225,7 +231,7 @@ async function principal() {
      * entram na mensagem e o 404 se identifica.
      */
     const texto = await resposta.text()
-    let corpo: { resultados?: Resultado[]; error?: string }
+    let corpo: { resultados?: Resultado[]; limite?: number; piso?: number; error?: string }
     try {
         corpo = JSON.parse(texto)
     } catch {
@@ -248,7 +254,19 @@ async function principal() {
     let semNada = 0
     let raspando = 0
 
-    console.log(`\n${corpo.resultados.length} pergunta(s) — piso de similaridade ${PISO}\n`)
+    /**
+     * O `limite` é dito junto do piso, e é o número que explica a taxa.
+     *
+     * O acerto é "o documento esperado está entre os trechos devolvidos"; com
+     * `limite` acima do que o atendimento entrega, a taxa conta acertos que a
+     * conversa real não teria. A rota agora usa o mesmo `AI_RAG_CHUNKS` da
+     * produção, e mostrar os dois é o que deixa isso conferível de fora.
+     */
+    const piso = typeof corpo.piso === 'number' ? corpo.piso : PISO_PADRAO
+    console.log(
+        `\n${corpo.resultados.length} pergunta(s) — piso ${piso}` +
+        `, ${corpo.limite ?? '?'} trecho(s) por pergunta (o mesmo do atendimento)\n`
+    )
 
     corpo.resultados.forEach((r, i) => {
         const caso = casos[i]
@@ -284,13 +302,13 @@ async function principal() {
             return
         }
 
-        const apertado = topo.similaridade - PISO < FOLGA_MINIMA
+        const apertado = topo.similaridade - piso < FOLGA_MINIMA
         if (apertado) raspando++
 
         const marca = acertou === null ? '·' : acertou ? 'ok' : 'XX'
         console.log(`  ${marca.padEnd(2)} ${r.pergunta}`)
         console.log(
-            `     ${topo.similaridade.toFixed(3)} ${barra(topo.similaridade)} ${topo.titulo}` +
+            `     ${topo.similaridade.toFixed(3)} ${barra(topo.similaridade, piso)} ${topo.titulo}` +
             (apertado ? '   ← raspando o piso' : '')
         )
         /**

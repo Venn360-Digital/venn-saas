@@ -50,13 +50,39 @@ export interface LLMConfig {
     apiKey: string
     model: string
     temperature?: number
+    /**
+     * Teto de tokens da resposta.
+     *
+     * Vai na API como `max_completion_tokens`, e **não** como `max_tokens`:
+     * aquele está depreciado e é incompatível com os modelos de raciocínio, o
+     * que faria a chamada ser recusada justamente nos modelos mais novos do
+     * catálogo. Ver `OpenAIProvider`.
+     */
     maxTokens?: number
+    /**
+     * A chave que agrupa chamadas com o mesmo prefixo, para o cache do provedor.
+     *
+     * O desconto de prefixo só acontece se a chamada cair na mesma máquina que
+     * guardou o prefixo, e esta chave é o que aumenta essa probabilidade. Tem de
+     * ser estável por **prefixo**, não por conversa: o prefixo é o bloco estável
+     * do prompt, que é o mesmo para todas as conversas de um agente.
+     */
+    promptCacheKey?: string
 }
 
 export interface LLMUsage {
     promptTokens: number
     completionTokens: number
     totalTokens: number
+    /**
+     * Quantos tokens do prompt vieram do cache do provedor.
+     *
+     * É a única prova de que a ordenação estável→volátil do prompt está
+     * funcionando. Sem registrar isto, o cache é invisível: o prompt pode voltar
+     * a ser montado fora de ordem e ninguém percebe, porque a resposta continua
+     * certa — só mais caro.
+     */
+    cachedTokens?: number
 }
 
 export interface LLMResponse {
@@ -64,6 +90,14 @@ export interface LLMResponse {
     usage: LLMUsage
     /** Presente quando o modelo pediu ferramentas em vez de responder. */
     toolCalls?: LLMToolCall[]
+    /**
+     * Por que o modelo parou de falar.
+     *
+     * `length` significa que a resposta **foi cortada** pelo teto de tokens — e
+     * sem este campo isso é invisível: o paciente recebe uma frase que termina no
+     * meio e o sistema registra sucesso.
+     */
+    finishReason?: string
 }
 
 export interface LLMProvider {
