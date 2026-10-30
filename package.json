@@ -56,6 +56,7 @@
         "test:escalada": "tsx scripts/test-escalada.ts",
         "test:juiz": "tsx scripts/test-juiz.ts",
         "test:versao": "tsx scripts/test-versao.ts",
+        "test:regras": "tsx scripts/test-regras.ts",
         "check:treinamento": "tsx scripts/check-treinamento.ts"
     },
     "dependencies": {

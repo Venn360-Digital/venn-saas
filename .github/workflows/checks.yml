@@ -90,6 +90,7 @@ jobs:
           npm run test:escalada
           npm run test:juiz
           npm run test:versao
+          npm run test:regras
 
       # O mesmo conjunto, com o relógio do runner em UTC — que é como o Worker
       # roda. É o que impede a volta do defeito: na VPS o `TZ` era
