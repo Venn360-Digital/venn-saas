@@ -44,8 +44,6 @@ export const agentPreferencesSchema = z.object({
     showTypingIndicator: z.boolean(),
     /** Atraso extra, em segundos, somado ao debounce de entrada. */
     responseSpeed: responseSpeedSchema,
-    /** Quando falso, o modelo responde só à última mensagem, sem histórico. */
-    keepContext: z.boolean(),
     useEmojis: z.boolean(),
     /** Recusa assunto fora da empresa e das atribuições do agente. */
     restrictTopics: z.boolean(),
@@ -74,10 +72,32 @@ export const agentPreferencesSchema = z.object({
 export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
 
 /**
- * O que um agente **novo** recebe gravado ao ser criado.
+ * **Saiu `keepContext`**, e não era uma opção — era um defeito com interruptor.
  *
- * `keepContext` nasce ligado porque um agente sem histórico responde cada
- * mensagem como se fosse a primeira.
+ * Desligado, o modelo recebia `take: 1` em vez das `AI_HISTORY_LIMIT` últimas
+ * mensagens. Três consequências, e a terceira é a que condena:
+ *
+ *   1. "e quanto custa?" perde o referente, porque a pergunta anterior não está
+ *      mais lá;
+ *   2. `montarConsulta` deixa de completar a pergunta curta com o que a pessoa
+ *      já disse — é a expansão que faz a busca encontrar algo;
+ *   3. `take: 1` pega a última mensagem **de qualquer direção**. Se essa for do
+ *      agente — a saudação `initialMessage`, ou uma mensagem de regra —, o
+ *      filtro de `inbound` esvazia a lista: **busca vazia e prompt sem a fala do
+ *      paciente**. Atendimento sem base de conhecimento nenhuma, sem nada na
+ *      tela indicando isso.
+ *
+ * A única razão de existir era custo de token, e ela não se sustenta: vinte
+ * mensagens de WhatsApp são 600 a 1.000 tokens, duas ordens de grandeza longe de
+ * importar — e o bloco estável do prompt já é cobrado com desconto de cache.
+ * Conversa longa é problema de compactação, não de desligar a memória.
+ *
+ * **Nada cai no banco.** `preferences` é JSON e `readAgentPreferences` faz merge
+ * por chave: a chave gravada em agente antigo simplesmente deixa de ser lida.
+ */
+
+/**
+ * O que um agente **novo** recebe gravado ao ser criado.
  *
  * O limite de interações nasce em **20** desde 2026-10-15. Era 50, e passou por
  * 12 no mesmo dia — o caminho até 20 vale registrar, porque os dois extremos
@@ -104,7 +124,6 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: true,
     /** Cinco segundos: tempo de alguém lendo e digitando, não de um robô. */
     responseSpeed: 5,
-    keepContext: true,
     useEmojis: true,
     /** Clínica responde de clínica: fora disso, recusa educadamente. */
     restrictTopics: true,
@@ -133,7 +152,6 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
 export const UNCONFIGURED_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: false,
     responseSpeed: 0,
-    keepContext: true,
     useEmojis: false,
     restrictTopics: false,
     /** Sem limite, como antes. */

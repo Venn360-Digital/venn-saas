@@ -29,6 +29,12 @@ import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-prefere
  * Saiu o interruptor "assumir a conversa manualmente": assumir **sempre**
  * interrompe o agente, e o controle sugeria que desligá-lo o faria responder por
  * cima do atendente.
+ *
+ * Saiu também "Manter contexto da conversa", e por motivo mais forte: desligado,
+ * ele podia deixar a resposta **sem base de conhecimento nenhuma** — ver a nota
+ * em `@/types/agent-preferences`. Oferecia economia de crédito que não existe
+ * (vinte mensagens de WhatsApp são ~600 a 1.000 tokens) em troca de piorar o
+ * atendimento em silêncio. Opção que não deveria ser escolhível não é opção.
  */
 
 interface PreferenciasTabProps {
@@ -106,30 +112,16 @@ export function PreferenciasTab({ data, onChange, somenteLeitura = false }: Pref
             >
                 <div className="flex flex-col gap-4">
                     <SettingsRow
-                        title="Manter contexto da conversa"
-                        description="Desligado, o Agente responde cada mensagem como se fosse a primeira — e consome menos créditos."
+                        title="Restringir temas permitidos"
+                        description="O Agente responde só sobre a clínica e as próprias atribuições. Fora disso, recusa educadamente e retoma o atendimento."
                         action={
                             <Switch
-                                checked={data.keepContext}
-                                aria-label="Manter contexto da conversa"
-                                onCheckedChange={(keepContext) => onChange({ keepContext })}
+                                checked={data.restrictTopics}
+                                aria-label="Restringir temas permitidos"
+                                onCheckedChange={(restrictTopics) => onChange({ restrictTopics })}
                             />
                         }
                     />
-
-                    <div className="border-t border-border pt-4">
-                        <SettingsRow
-                            title="Restringir temas permitidos"
-                            description="O Agente responde só sobre a clínica e as próprias atribuições. Fora disso, recusa educadamente e retoma o atendimento."
-                            action={
-                                <Switch
-                                    checked={data.restrictTopics}
-                                    aria-label="Restringir temas permitidos"
-                                    onCheckedChange={(restrictTopics) => onChange({ restrictTopics })}
-                                />
-                            }
-                        />
-                    </div>
 
                     {/* Campo livre, e não lista: trinta dias é o que a clínica
                         recebe, não o que ela tem de aceitar. Fechar conversa é
