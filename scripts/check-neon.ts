@@ -20,6 +20,7 @@
 import prisma from '@/lib/prisma'
 import { readVaultSecret, writeVaultSecret, vaultSecretExists, vaultSecretOrigin, platformSecretName, SegredoDeAmbienteError } from '@/lib/vault'
 import { gerarChave, CHAVE_ENV } from '@/lib/secrets/envelope'
+import { termosLexicais } from '@/lib/rag/fusao'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -208,6 +209,76 @@ async function main() {
             e instanceof SegredoDeAmbienteError && e.variavel === 'PLATFORM_ASAAS_CLIENT_SECRET'
         )
     }
+
+    /**
+     * A busca híbrida do acervo — o SQL que o typecheck não alcança.
+     *
+     * Quatro coisas que só o banco responde, e nenhuma precisa de linha gravada:
+     * a coluna é de fato **gerada e armazenada** pelo Postgres, a expressão dela
+     * produz vetor de texto, os dois índices existem, e a consulta lexical **não
+     * estoura** com os termos que `termosLexicais` produz. O último é o que pega
+     * a classe de erro mais provável aqui: `to_tsquery` trata pontuação e símbolo
+     * como operador, e pergunta de paciente é cheia deles.
+     */
+    /** `attgenerated` é `char` no catálogo; sem o cast o Prisma não desserializa. */
+    const geradaPeloBanco = await prisma.$queryRaw<{ attgenerated: string }[]>`
+        SELECT a.attgenerated::text AS attgenerated FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        WHERE c.relname = 'knowledge_documents' AND a.attname = 'searchVector'`
+
+    ok(
+        'searchVector é coluna GERADA e armazenada — nada no código a escreve',
+        geradaPeloBanco[0]?.attgenerated === 's',
+        `attgenerated=${geradaPeloBanco[0]?.attgenerated ?? '(ausente)'}`
+    )
+
+    const vetorDeTexto = await prisma.$queryRaw<{ v: string }[]>`
+        SELECT to_tsvector('portuguese', public.immutable_unaccent('Clareamento a partir de R$ 180'))::text AS v`
+
+    /**
+     * `clareament` e não `clareamento`: a configuração `portuguese` **reduz ao
+     * radical**, e é por isso que "clareamentos" e "clareamento" casam entre si.
+     * Conferir a palavra inteira aqui seria conferir que o radical NÃO acontece.
+     *
+     * E `180` sobrevive como está — número não tem radical, e é justamente o
+     * caso que a perna lexical veio resolver.
+     */
+    ok(
+        'a expressão da coluna reduz ao radical e preserva o número',
+        (vetorDeTexto[0]?.v ?? '').includes("'clareament'") &&
+            (vetorDeTexto[0]?.v ?? '').includes("'180'"),
+        vetorDeTexto[0]?.v ?? ''
+    )
+
+    const indices = await prisma.$queryRaw<{ indexname: string }[]>`
+        SELECT indexname::text AS indexname FROM pg_indexes
+        WHERE tablename = 'knowledge_documents'
+          AND indexname IN ('knowledge_documents_searchVector_idx', 'knowledge_documents_embedding_hnsw_idx')`
+
+    ok(
+        'os dois índices da busca híbrida existem: GIN no texto, HNSW no vetor',
+        indices.length === 2,
+        indices.map((i) => i.indexname).sort().join(', ')
+    )
+
+    /**
+     * A pergunta mais hostil que o medidor tem: símbolo de moeda, vírgula
+     * decimal, interrogação e travessão. Com esses caracteres chegando crus ao
+     * `to_tsquery`, a consulta morreria com erro de sintaxe — e morreria em
+     * produção, numa mensagem de paciente, não aqui. Zero acerto é resposta
+     * válida; o que se prova é que ela **responde**.
+     */
+    const termos = termosLexicais('quanto custa? R$ 180,00 — tá caro!')
+    const lexical = await prisma.$queryRaw<{ n: bigint }[]>`
+        WITH consulta AS (SELECT to_tsquery('portuguese', public.immutable_unaccent(${termos ?? 'x'})) AS q)
+        SELECT count(*) AS n FROM "knowledge_documents" d
+        WHERE d."agentId" = ${'agente-que-nao-existe'} AND d."searchVector" @@ (SELECT q FROM consulta)`
+
+    ok(
+        'a consulta lexical roda com pontuação e símbolo na pergunta',
+        Number(lexical[0]?.n ?? -1) === 0,
+        `termos: "${termos}"`
+    )
 
     // Limpeza do que esta prova criou.
     delete process.env.PLATFORM_ASAAS_CLIENT_SECRET

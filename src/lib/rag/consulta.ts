@@ -80,6 +80,24 @@ export function textoParaBusca(mensagem: MensagemDaConversa): string {
  * A pergunta atual vem **primeiro**, e o contexto depois: o que importa é a
  * massa de texto, e a atual precisa dominar o vetor.
  */
+/**
+ * Só a última fala da pessoa — o que a perna lexical da busca recebe.
+ *
+ * `montarConsulta` devolve a pergunta **expandida** com até 400 caracteres de
+ * mensagens anteriores, e isso serve ao vetor. Para o lexical é veneno: palavra
+ * de outro assunto entra como termo de busca com o mesmo peso da pergunta atual.
+ *
+ * Devolve `''` quando não há fala da pessoa no histórico — e aí a busca roda só
+ * com a perna de vetor.
+ */
+export function ultimaFalaDaPessoa(historico: MensagemDaConversa[]): string {
+    const dela = historico.filter(
+        (m) => m.direction === 'inbound' && !m.isInternal && textoParaBusca(m).length > 0
+    )
+    const atual = dela.at(-1)
+    return atual ? textoParaBusca(atual) : ''
+}
+
 export function montarConsulta(historico: MensagemDaConversa[]): string {
     const dela = historico.filter(
         (m) => m.direction === 'inbound' && !m.isInternal && textoParaBusca(m).length > 0

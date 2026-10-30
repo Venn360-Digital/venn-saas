@@ -119,7 +119,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                 { direction: 'inbound', content: pergunta, contentType: 'text' },
             ])
 
-            const trechos = await retriever.search(agentId, consulta, limite)
+            /**
+             * A pergunta isolada **é** a última fala, então ela serve às duas
+             * pernas. É o que faz a medição exercitar a busca híbrida inteira,
+             * e não só metade dela.
+             */
+            const trechos = await retriever.search(agentId, consulta, limite, pergunta)
 
             resultados.push({
                 pergunta,
