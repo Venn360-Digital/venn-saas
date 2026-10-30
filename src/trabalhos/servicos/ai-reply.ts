@@ -9,7 +9,6 @@ import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
 import {
     buildSystemPrompt,
-    readPreferences,
     type DocumentoNoPrompt,
     type KnowledgeChunk,
 } from './prompt'
@@ -239,21 +238,20 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     if (!credits.hasCredits) throw new OutOfCreditsError(workspaceId)
 
     /**
-     * "Manter contexto da conversa" decide quanto do fio o modelo vê.
+     * O fio inteiro que cabe na janela — **sem interruptor**.
      *
-     * Ligado (o padrão), o modelo recebe as últimas `AI_HISTORY_LIMIT` mensagens.
-     * Desligado, recebe só a última do paciente — cada mensagem é respondida como
-     * se fosse a primeira. O interruptor existia na tela e não era lido por
-     * ninguém; agora vale, e de quebra é o jeito de uma clínica cortar custo de
-     * token num atendimento que não precisa de memória.
+     * Havia um, "Manter contexto da conversa", que trocava isto por `take: 1`.
+     * Saiu: além de perder o referente de "e quanto custa?", ele pegava a última
+     * mensagem **de qualquer direção**, então quando a última era do agente — a
+     * saudação, ou uma mensagem de regra — a lista de `inbound` ficava vazia e a
+     * resposta saía **sem busca e sem a fala do paciente**. Ver a nota em
+     * `@/types/agent-preferences`.
      */
-    const prefs = readPreferences(agent)
-
     const recent = await prisma.message.findMany({
         where: { conversationId },
         // Newest messages matter most, so take from the end and restore chronology.
         orderBy: { createdAt: 'desc' },
-        take: prefs.keepContext ? env.AI_HISTORY_LIMIT : 1,
+        take: env.AI_HISTORY_LIMIT,
     })
     const history = recent.reverse()
 

@@ -149,5 +149,29 @@ conferir(
     'olha meu dente quebrado'
 )
 
+/**
+ * O caso que o interruptor "Manter contexto" criava, e que esta prova trava.
+ *
+ * Desligado, o histórico ia ao modelo como `take: 1` — a última mensagem **de
+ * qualquer direção**. Quando essa era do agente (a saudação `initialMessage`, ou
+ * uma mensagem gravada por regra), o filtro de `inbound` daqui esvaziava a lista
+ * e a consulta saía `''`: **busca sem nada e prompt sem a fala do paciente**.
+ *
+ * O interruptor saiu, então o histórico vem inteiro. Estes dois casos garantem
+ * que, com o fio inteiro, a última mensagem ser do agente não apaga a pergunta.
+ */
+console.log('\nÚltima mensagem do agente não pode apagar a pergunta')
+
+conferir(
+    'agente falou por último: a pergunta do paciente segue valendo',
+    montarConsulta([entra('quanto custa clareamento?'), sai('Oi! Sou a Ana, como posso ajudar?')]),
+    'quanto custa clareamento?'
+)
+conferir(
+    'só o agente falou: não há pergunta, e a consulta é vazia',
+    montarConsulta([sai('Oi! Sou a Ana, como posso ajudar?')]),
+    ''
+)
+
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)
