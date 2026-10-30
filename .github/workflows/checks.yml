@@ -91,6 +91,7 @@ jobs:
           npm run test:juiz
           npm run test:versao
           npm run test:agrupar
+          npm run test:cenarios
           npm run test:regras
           npm run test:condicoes
 

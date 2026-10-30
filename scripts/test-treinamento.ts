@@ -25,6 +25,7 @@ import {
     DOCUMENTOS,
     LIMITE_DO_ROTULO,
     documentosDoAcervo,
+    documentosDeFato,
     documentosDoPrompt,
     modeloDoDocumento,
     SECAO_EXEMPLOS,
@@ -61,7 +62,7 @@ function conferir(nome: string, real: unknown, esperado: unknown) {
 console.log('\nOs slugs — chave de gravação, conferida literal')
 
 conferir(
-    'os sete slugs, nesta grafia',
+    'os oito slugs, nesta grafia — `cenarios` é o do passo 6',
     DOCUMENTOS.map((d) => d.slug),
     [
         'instrucoes-centrais',
@@ -71,6 +72,7 @@ conferir(
         'tecnicas-de-venda',
         'faq',
         'privacidade',
+        'cenarios',
     ]
 )
 
@@ -101,10 +103,19 @@ console.log('\nModo e precedência')
  *     `servicos`) — ela é escrita em forma de pergunta, o que a aproxima
  *     vetorialmente de qualquer pergunta.
  */
+/**
+ * **Três no acervo, e só dois deles são fato.**
+ *
+ * `cenarios` entrou no passo 6 com modo `procedimento`: ele é indexado (o corpo
+ * chega por busca), mas não é fonte de verdade — é ordem de execução. Por isso
+ * `documentosDoAcervo` o inclui e `documentosDeFato` não, e é essa distinção que
+ * o prompt usa para pôr os passos numa seção própria em vez de em "Base de
+ * conhecimento".
+ */
 conferir(
-    'cinco no prompt, dois no acervo',
-    [documentosDoPrompt().length, documentosDoAcervo().length],
-    [5, 2]
+    'cinco no prompt, três no acervo — e dois deles são de fato',
+    [documentosDoPrompt().length, documentosDoAcervo().length, documentosDeFato().length],
+    [5, 3, 2]
 )
 
 conferir(
@@ -114,9 +125,12 @@ conferir(
 )
 
 conferir(
-    'os do acervo são os de fato consultável, que crescem com o cliente',
-    documentosDoAcervo().map((d) => d.slug),
-    ['servicos', 'faq']
+    'os de FATO são os que crescem com o cliente; o de procedimento vem junto no acervo',
+    [documentosDeFato().map((d) => d.slug), documentosDoAcervo().map((d) => d.slug)],
+    [
+        ['servicos', 'faq'],
+        ['servicos', 'faq', 'cenarios'],
+    ]
 )
 
 // Documento de prompt viaja inteiro em toda resposta: o teto dele é o menor.

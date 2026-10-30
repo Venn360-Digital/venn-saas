@@ -6,7 +6,7 @@ import { manageAgent } from '@/lib/auth/agent'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
 import { acharDocumento, DOCUMENTOS } from '@/lib/treinamento/documentos'
-import { TIPO_DE_TREINAMENTO, tituloDoAcervo } from '@/lib/treinamento/indexar'
+import { tipoDoAcervo, tituloDoAcervo } from '@/lib/treinamento/indexar'
 import {
     aplicarRascunhos,
     proximaVersao,
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
             if (!texto.trim()) {
                 await prisma.knowledgeDocument.deleteMany({
-                    where: { agentId, title: tituloDoAcervo(slug), type: TIPO_DE_TREINAMENTO },
+                    where: { agentId, title: tituloDoAcervo(slug), type: tipoDoAcervo(doc.modo) },
                 })
                 await prisma.agentTrainingDoc.update({
                     where: { agentId_slug: { agentId, slug } },
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                     documentTitle: tituloDoAcervo(slug),
                     // Vazio de propósito: quem lê o conteúdo é o processador.
                     content: '',
-                    type: TIPO_DE_TREINAMENTO,
+                    type: tipoDoAcervo(doc.modo),
                     replaceExisting: true,
                     trainingSlug: slug,
                 },

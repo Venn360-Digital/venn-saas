@@ -327,4 +327,94 @@ conferir(
     true
 )
 
+/**
+ * ## Passo 6: o catálogo é estável, o resumo é volátil
+ *
+ * As duas metades do prompt não são arrumação — é o cache de prefixo. O catálogo
+ * de cenários **tem** de ficar no prefixo, senão ele é cobrado cheio em toda
+ * mensagem; o resumo **tem** de ficar na cauda, senão cada compactação invalida
+ * o cache de tudo que vem depois dela.
+ *
+ * E a ordem relativa importa pelo conteúdo, não só pelo preço: o resumo é o
+ * passado, e vem antes de tudo que fala do agora.
+ */
+const CENARIOS = `# Cenários
+
+## Remarcação
+
+Quando: o paciente quer mudar a data.
+
+Passos:
+1. Não remarque.
+2. Passe para a equipe.
+`
+
+const comCenarios = buildSystemPrompt(agenteDeTeste(), [], undefined, [], CENARIOS, null)
+
+conferir('o catálogo de cenários entra', comCenarios.includes('## Cenários disponíveis'), true)
+conferir('com o título e o gatilho', comCenarios.includes('**Remarcação** — quando o paciente quer mudar a data.'), true)
+conferir(
+    'e SEM os passos — é o ponto inteiro do modo procedimento',
+    comCenarios.includes('Passe para a equipe'),
+    false
+)
+conferir(
+    'sem documento de cenário, nenhuma seção aparece',
+    buildSystemPrompt(agenteDeTeste(), [], undefined, [], null, null).includes('## Cenários disponíveis'),
+    false
+)
+
+const comResumo = buildSystemPrompt(
+    agenteDeTeste(),
+    [{ title: 'servicos', content: 'preço', type: 'treinamento' }],
+    undefined,
+    [],
+    CENARIOS,
+    'Resumo: quer clareamento.'
+)
+
+conferir('o resumo entra', comResumo.includes('## O que já aconteceu nesta conversa'), true)
+conferir(
+    'CATÁLOGO antes do RESUMO: o estável é prefixo, o volátil é cauda',
+    comResumo.indexOf('## Cenários disponíveis') < comResumo.indexOf('## O que já aconteceu'),
+    true
+)
+conferir(
+    'e o resumo antes do acervo: o passado vem antes do agora',
+    comResumo.indexOf('## O que já aconteceu') < comResumo.indexOf('## Base de conhecimento'),
+    true
+)
+
+const comProcedimento = buildSystemPrompt(
+    agenteDeTeste(),
+    [
+        { title: 'servicos', content: 'o preço é X', type: 'treinamento' },
+        { title: 'cenarios', content: 'Passos:\n1. passe para a equipe', type: 'cenario' },
+    ],
+    undefined,
+    []
+)
+
+conferir(
+    'trecho de cenário vai para a seção de PROCEDIMENTO, não para a de fato',
+    comProcedimento.includes('## Procedimento para esta situação'),
+    true
+)
+conferir(
+    'e manda executar, não ler para o paciente',
+    comProcedimento.includes('Não os leia para o paciente'),
+    true
+)
+conferir(
+    'o fato continua na base de conhecimento',
+    comProcedimento.includes('## Base de conhecimento') && comProcedimento.includes('o preço é X'),
+    true
+)
+conferir(
+    'PROCEDIMENTO antes de FATO: senão o modelo responde o preço e ignora o passo a passo',
+    comProcedimento.indexOf('## Procedimento para esta situação') <
+        comProcedimento.indexOf('## Base de conhecimento'),
+    true
+)
+
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

@@ -2,10 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { manageAgent } from '@/lib/auth/agent'
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
 import { acharDocumento } from '@/lib/treinamento/documentos'
-import { decidirIndexacao, TIPO_DE_TREINAMENTO, tituloDoAcervo } from '@/lib/treinamento/indexar'
 
 /**
  * Grava um documento de treinamento e decide o que fazer com o acervo.

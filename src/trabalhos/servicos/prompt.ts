@@ -7,11 +7,22 @@ import {
 } from '@/types/agent-preferences'
 import { semComentarios } from '@/lib/rag/secoes'
 import { documentosDoPrompt } from '@/lib/treinamento/documentos'
+import { catalogoDeCenarios, lerCenarios, procedimentoParaOPrompt } from '@/lib/treinamento/cenarios'
+import { resumoParaOPrompt } from '@/lib/conversas/resumo'
 
 export interface KnowledgeChunk {
     title: string
     content: string
     similarity?: number
+    /**
+     * O tipo do trecho — `treinamento`, `cenario`, `doc`, `faq`, `website`.
+     *
+     * Existe para o prompt poder separar **fato** de **procedimento**: um fato
+     * recuperado é fonte de verdade para responder, um procedimento é ordem de
+     * execução. Sem a distinção, os passos de um cenário entrariam em "Base de
+     * conhecimento" e o modelo os leria *para* o paciente em vez de executá-los.
+     */
+    type?: string
 }
 
 /**
@@ -190,7 +201,19 @@ export function buildSystemPrompt(
     agent: Agent,
     knowledge: KnowledgeChunk[] = [],
     context?: ConversationContext,
-    treinamento: DocumentoNoPrompt[] = []
+    treinamento: DocumentoNoPrompt[] = [],
+    /**
+     * O documento de Cenários, cru. **Parâmetro próprio, e não um item de
+     * `treinamento`.**
+     *
+     * Se ele entrasse na lista de comportamento, `blocosDeTreinamento` o
+     * emitiria inteiro no bloco estável — exatamente o que o modo
+     * `procedimento` existe para evitar. Separado, só o catálogo sai daqui, e
+     * é impossível somá-lo por acidente.
+     */
+    cenariosCru: string | null = null,
+    /** O resumo compactado da conversa, quando houver. Entra antes da janela. */
+    resumo: string | null = null
 ): string {
     const { instrucoesCentrais, secoes: deTreinamento } = blocosDeTreinamento(treinamento)
 
@@ -198,6 +221,19 @@ export function buildSystemPrompt(
     const estaveis: string[] = [instrucoesCentrais ?? agent.systemPrompt.trim()]
     /** A cauda. Muda a cada mensagem, por desenho. */
     const volateis: string[] = []
+
+    /**
+     * O resumo do que já aconteceu — a **primeira** volátil, e por isso ela está
+     * aqui em cima e não perto do acervo.
+     *
+     * Volátil porque muda quando a compactação roda. Primeira porque é o
+     * **passado**: tudo o que vem depois fala do agora — o relógio, quem está do
+     * outro lado, o procedimento desta situação, os trechos desta pergunta. Pôr
+     * o passado no fim faria o modelo ler o resumo como a última coisa dita, e
+     * responder ao que foi combinado há trinta mensagens como se fosse novidade.
+     */
+    const passado = resumoParaOPrompt(resumo)
+    if (passado) volateis.push(passado)
 
     estaveis.push(...deTreinamento)
 
@@ -273,6 +309,23 @@ export function buildSystemPrompt(
             'Ao mover o negócio, use o nome exato de uma delas.\n' +
             'Você consegue **consultar** compromissos já marcados.'
         )
+    }
+
+    /**
+     * O catálogo de cenários: **título e gatilho, nada mais**.
+     *
+     * Estável de propósito, e é por isso que ele é só o catálogo. Os passos de
+     * vinte cenários num prompt que vai em toda mensagem seriam milhares de
+     * tokens para um agente que usa dois por dia. O título e o gatilho custam
+     * ~30 tokens cada e fazem o agente **saber que o procedimento existe** —
+     * divulgação progressiva, o padrão das Agent Skills.
+     *
+     * O corpo chega pela busca, na seção volátil "Procedimento para esta
+     * situação", quando a conversa entra na situação.
+     */
+    if (cenariosCru) {
+        const catalogo = catalogoDeCenarios(lerCenarios(cenariosCru).cenarios)
+        if (catalogo) estaveis.push(catalogo)
     }
 
     /**
@@ -414,8 +467,26 @@ export function buildSystemPrompt(
      * estar perto da pergunta: ficava com quatro blocos de instrução entre ela e
      * o que o cliente escreveu.
      */
-    if (knowledge.length > 0) {
-        const corpus = knowledge
+    /**
+     * **Procedimento e fato são seções diferentes, e a ordem é procedimento
+     * primeiro.**
+     *
+     * O cenário diz o que fazer; o fato diz o que é verdade. Quando os dois
+     * chegam na mesma recuperação — "quanto custa remarcar?" traz o preço e o
+     * cenário de remarcação —, o procedimento tem de ser lido antes, senão o
+     * modelo responde o fato e ignora a instrução de passar para a equipe.
+     *
+     * É também a precedência declarada no catálogo: Cenários é 4, Serviços e FAQ
+     * são 7 e 8.
+     */
+    const procedimentos = knowledge.filter((c) => c.type === 'cenario')
+    const fatos = knowledge.filter((c) => c.type !== 'cenario')
+
+    const procedimento = procedimentoParaOPrompt(procedimentos)
+    if (procedimento) volateis.push(procedimento)
+
+    if (fatos.length > 0) {
+        const corpus = fatos
             .map((chunk, i) => `[${i + 1}] ${chunk.title}\n${chunk.content}`)
             .join('\n\n')
         volateis.push(

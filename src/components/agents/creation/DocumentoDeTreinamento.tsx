@@ -95,7 +95,10 @@ export function DocumentoDeTreinamento({
      * está.
      */
     const acervo = textoParaAcervo(valor)
-    const paraConferir = doc.modo === 'rag' ? acervo.texto : semComentarios(valor)
+    // `!== 'prompt'` e não `=== 'rag'`: o de procedimento também é indexado,
+    // e conferir a estrutura dele contra o texto cru esconderia o que o corte
+    // de fato vai ver.
+    const paraConferir = doc.modo !== 'prompt' ? acervo.texto : semComentarios(valor)
     const estrutura = conferirEstrutura(secionarMarkdown(paraConferir))
     /**
      * Quem escreveu a seção de exemplos precisa saber que ela não é indexada.
@@ -105,7 +108,7 @@ export function DocumentoDeTreinamento({
      * ficou de fora **e por quê** é o que transforma uma surpresa em regra
      * aprendida — e é só no documento de acervo que a distinção existe.
      */
-    const exemplosFora = doc.modo === 'rag' ? acervo.exemplosRetirados : []
+    const exemplosFora = doc.modo !== 'prompt' ? acervo.exemplosRetirados : []
     const temConteudo = valor.trim().length > 0
 
     const importar = (arquivo: File) => {
@@ -150,6 +153,20 @@ export function DocumentoDeTreinamento({
                                     Vai em toda mensagem.
                                 </strong>{' '}
                                 Escreva a regra, não o manual.
+                            </>
+                        ) : doc.modo === 'procedimento' ? (
+                            /* O terceiro modo precisa da própria frase: dizer só
+                               "consultado quando a conversa pede" esconderia que
+                               o título e o gatilho vão em TODA mensagem — e é
+                               isso que faz quem escreve caprichar no "Quando:",
+                               que é a única parte que o agente sempre vê. */
+                            <>
+                                <strong className="font-semibold text-foreground">
+                                    O título e o &quot;Quando:&quot; vão em toda mensagem; os passos chegam
+                                    quando a conversa entra na situação.
+                                </strong>{' '}
+                                Um subtítulo por situação, com uma linha &quot;Quando:&quot; e uma lista
+                                &quot;Passos:&quot;.
                             </>
                         ) : (
                             <>

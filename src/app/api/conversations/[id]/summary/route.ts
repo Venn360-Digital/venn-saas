@@ -5,22 +5,23 @@ import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import { diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
+import {
+    JANELA_DO_RESUMO,
+    MODELO_DO_RESUMO,
+    SYSTEM_DO_RESUMO,
+    transcrever,
+} from '@/lib/conversas/resumo'
 
 /** Barato de propósito: resumir não precisa do modelo caro. */
-const SUMMARY_MODEL = 'gpt-4o-mini'
-
-/** Quantas mensagens o resumo lê. O começo da conversa é onde está o pedido. */
-const WINDOW = 120
-
-const SYSTEM = `Você resume conversas de atendimento de uma clínica odontológica para a própria equipe.
-Escreva em português do Brasil, direto, sem saudação e sem repetir o que o atendente já sabe.
-Responda exatamente nestas quatro seções, cada uma começando pelo rótulo seguido de ":".
-Resumo: dois a três períodos sobre o que o paciente quer e onde o atendimento parou.
-Pendências: tópicos com "- ", o que falta fazer. Escreva "- Nenhuma" se não houver.
-Combinados: tópicos com "- ", datas, valores e procedimentos acordados. Escreva "- Nenhum" se não houver.
-Tom: uma linha sobre o estado do paciente (apressado, inseguro, satisfeito, irritado).
-Não invente datas, valores ou procedimentos que não estejam na conversa.
-Os agendamentos já marcados chegam prontos na primeira linha da entrada: use-os para não listar como pendência algo que já está marcado, e não os repita em "Combinados".`
+/**
+ * As constantes e o prompt vêm de `lib/conversas/resumo.ts`, **um só para os dois
+ * chamadores**: esta rota e a compactação automática do processador.
+ *
+ * Eram declaradas aqui. Duas cópias divergiriam na primeira vez que alguém
+ * melhorasse uma delas, e aí o resumo que a tela mostra e o que o agente lê
+ * passariam a descrever a mesma conversa de formas diferentes — sem ninguém
+ * notar, porque ninguém olha os dois lado a lado.
+ */
 
 /**
  * O resumo da conversa, lido e gerado.
@@ -83,7 +84,7 @@ export async function POST(
     const recent = await prisma.message.findMany({
         where: { conversationId: id, isInternal: false },
         orderBy: { createdAt: 'desc' },
-        take: WINDOW,
+        take: JANELA_DO_RESUMO,
         select: { id: true, direction: true, content: true, transcript: true, contentType: true, createdAt: true },
     })
     if (recent.length === 0) {
@@ -91,15 +92,7 @@ export async function POST(
     }
 
     const chronological = [...recent].reverse()
-    const transcriptText = chronological
-        .map((m) => {
-            const who = m.direction === 'inbound' ? 'Paciente' : 'Clínica'
-            // Áudio entra pela transcrição: sem isso o resumo veria "[audio]".
-            const body = m.transcript?.trim() || m.content?.trim() || `[${m.contentType}]`
-            const when = m.createdAt.toISOString().slice(0, 10)
-            return `${when} ${who}: ${body}`
-        })
-        .join('\n')
+    const transcriptText = transcrever(chronological)
 
     try {
         // Os agendamentos entram no prompt como fato, não para o modelo
@@ -111,13 +104,13 @@ export async function POST(
                 .join('; ')
             : 'nenhum'
 
-        const llm = LLMFactory.create('openai', { model: SUMMARY_MODEL, temperature: 0.2, maxTokens: 600 })
+        const llm = LLMFactory.create('openai', { model: MODELO_DO_RESUMO, temperature: 0.2, maxTokens: 600 })
         const result = await llm.generate([
-            { role: 'system', content: SYSTEM },
+            { role: 'system', content: SYSTEM_DO_RESUMO },
             { role: 'user', content: `Agendamentos já marcados na Agenda: ${agenda}.\n\n${transcriptText}` },
         ])
 
-        await trackUsage('openai', SUMMARY_MODEL, result.usage, {
+        await trackUsage('openai', MODELO_DO_RESUMO, result.usage, {
             workspaceId: auth.member.workspaceId,
             metadata: { kind: 'conversation_summary', conversationId: id },
         })

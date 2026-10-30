@@ -73,12 +73,28 @@ async function retrieveKnowledge(
  * resposta atrasada em vez de uma resposta sem freio.
  */
 async function carregarComportamento(agentId: string): Promise<DocumentoNoPrompt[]> {
-    const slugs = documentosDoPrompt().map((d) => d.slug)
+    /**
+     * Os de `prompt` **e** o de Cenários, numa consulta.
+     *
+     * Cenários não é documento de prompt — o que vai no prompt dele é só o
+     * catálogo —, mas quem monta o catálogo é `buildSystemPrompt`, e para isso
+     * ele precisa do texto. Duas consultas ao banco para dois conjuntos de slugs
+     * seriam duas idas no caminho mais quente do sistema.
+     *
+     * Quem separa um do outro é `pecasDoPrompt`, que passa o cenário por um
+     * parâmetro próprio: se ele entrasse na lista de comportamento,
+     * `blocosDeTreinamento` o emitiria inteiro no bloco estável, que é
+     * exatamente o que o modo `procedimento` existe para evitar.
+     */
+    const slugs = [...documentosDoPrompt().map((d) => d.slug), SLUG_DOS_CENARIOS]
     return prisma.agentTrainingDoc.findMany({
         where: { agentId, slug: { in: slugs } },
         select: { slug: true, content: true },
     })
 }
+
+/** O slug do documento de procedimentos. Ver `lib/treinamento/cenarios.ts`. */
+const SLUG_DOS_CENARIOS = 'cenarios'
 
 /**
  * `MensagemDaConversa` e nao `Message` do Prisma — a mesma forma minima que
@@ -112,7 +128,10 @@ function toLlmHistory(history: MensagemDaConversa[]): LLMMessage[] {
  */
 interface PecasDoPrompt {
     knowledge: KnowledgeChunk[]
+    /** Os de modo `prompt`. **Sem** Cenários — ver `cenarios`. */
     comportamento: DocumentoNoPrompt[]
+    /** O documento de Cenários, cru. Dele sai só o catálogo. */
+    cenarios: string | null
 }
 
 async function pecasDoPrompt(
@@ -128,7 +147,20 @@ async function pecasDoPrompt(
         retrieveKnowledge(agent.id, consulta, ultimaFalaDaPessoa(historico)),
         carregarComportamento(agent.id),
     ])
-    return { knowledge, comportamento }
+    /**
+     * O cenário sai da lista e vai para um campo próprio.
+     *
+     * `comportamento` é o que `blocosDeTreinamento` emite **inteiro** no bloco
+     * estável. Deixar Cenários lá dentro poria vinte procedimentos em toda
+     * mensagem, que é o oposto do modo `procedimento`.
+     */
+    const cenarios = comportamento.find((d) => d.slug === SLUG_DOS_CENARIOS)?.content ?? null
+
+    return {
+        knowledge,
+        comportamento: comportamento.filter((d) => d.slug !== SLUG_DOS_CENARIOS),
+        cenarios,
+    }
 }
 
 /**
@@ -146,12 +178,21 @@ function montarMensagens(
     agent: Agent,
     historico: MensagemDaConversa[],
     context: ConversationContext | undefined,
-    pecas: PecasDoPrompt
+    pecas: PecasDoPrompt,
+    /** O resumo compactado, quando houver. Nulo no ensaio, que não tem conversa. */
+    resumo: string | null = null
 ): LLMMessage[] {
     return [
         {
             role: 'system',
-            content: buildSystemPrompt(agent, pecas.knowledge, context, pecas.comportamento),
+            content: buildSystemPrompt(
+                agent,
+                pecas.knowledge,
+                context,
+                pecas.comportamento,
+                pecas.cenarios,
+                resumo
+            ),
         },
         ...toLlmHistory(historico),
     ]
@@ -266,13 +307,30 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
 
     // A busca na base e o contexto do paciente são independentes: duas idas ao
     // banco em paralelo custam o tempo da mais lenta, não a soma.
-    const [context, pecas] = await Promise.all([
+    const [context, pecas, conversa] = await Promise.all([
         loadConversationContext(conversationId, agent.timezone),
         pecasDoPrompt(agent, history),
+        /**
+         * O resumo compactado, se houver.
+         *
+         * Lido aqui e não dentro de `pecasDoPrompt` porque é da **conversa**, não
+         * do agente: `pecasDoPrompt` é compartilhado com o ensaio, que não tem
+         * conversa nenhuma.
+         */
+        prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: { summaryText: true },
+        }),
     ])
     const { knowledge } = pecas
 
-    const messages: LLMMessage[] = montarMensagens(agent, history, context, pecas)
+    const messages: LLMMessage[] = montarMensagens(
+        agent,
+        history,
+        context,
+        pecas,
+        conversa?.summaryText ?? null
+    )
 
     const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
         model: agent.llmModel,
