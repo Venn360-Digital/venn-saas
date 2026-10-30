@@ -432,6 +432,16 @@ export interface EnsaioInput {
     workspaceId: string
     /** Os turnos em ordem cronológica, terminando numa pergunta do instrutor. */
     turnos: TurnoDeEnsaio[]
+    /**
+     * O canal com que o custo é registrado em `usage_logs`.
+     *
+     * Padrão `'ensaio'`, que é o instrutor conversando. A bateria de avaliação
+     * passa `'avaliacao'`: o caminho é o mesmo de propósito — avaliar um agente
+     * que não é o que atende seria inútil —, mas o **custo** é de medição, e
+     * misturar os dois no medidor faria a margem do produto parecer pior nos dias
+     * em que alguém mede muito.
+     */
+    canal?: 'ensaio' | 'avaliacao'
 }
 
 export interface EnsaioResult {
@@ -511,7 +521,7 @@ export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult>
             // `canal: 'ensaio'` é o que permite separar, no medidor, o que foi
             // teste do que foi atendimento de verdade.
             metadata: {
-                channel: 'ensaio',
+                channel: input.canal ?? 'ensaio',
                 knowledgeChunks: pecas.knowledge.length,
                 finishReason: response.finishReason ?? null,
             },

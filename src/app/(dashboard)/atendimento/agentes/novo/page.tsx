@@ -76,6 +76,10 @@ function NovoAgenteContent() {
         setInstrucoes,
         handleSave: originalHandleSave,
         isSaving,
+        versao,
+        pendentes,
+        publicar,
+        publicando,
     } = useAgentCreation(workspaceId)
 
     const handleSave = useCallback(() => {
@@ -358,10 +362,46 @@ function NovoAgenteContent() {
             /* Sem Salvar para quem não administra: a API recusa, e um botão
                que só sabe recusar é pior que a sua ausência. */
             acoes={canManage ? (
-                <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving || loading}>
-                    {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                    {isSaving ? 'Salvando…' : 'Salvar agente'}
-                </Button>
+                <div className="flex items-center gap-2">
+                    {/**
+                     * **Publicar é outro botão, e tem de ser.**
+                     *
+                     * Salvar grava rascunho: o agente continua respondendo pelo
+                     * texto anterior até alguém publicar. É o que torna possível
+                     * medir antes de publicar — sem dois estados não há o que
+                     * comparar — e é onde o embedding do acervo é pago, uma vez.
+                     *
+                     * Aparece **só quando há pendência**. Um botão Publicar sempre
+                     * aceso convidaria a publicar o nada, e a rota recusaria com
+                     * "nada para publicar": botão que só sabe recusar é pior que a
+                     * sua ausência, o mesmo critério que já vale para o Salvar.
+                     */}
+                    {pendentes.length > 0 ? (
+                        <Button
+                            onClick={async () => {
+                                const id = agentIdRef.current
+                                if (id) await publicar(id)
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            disabled={publicando || isSaving || loading}
+                        >
+                            {publicando ? <Loader2 className="size-4 animate-spin" /> : null}
+                            {publicando
+                                ? 'Publicando…'
+                                : `Publicar ${pendentes.length} ${pendentes.length === 1 ? 'mudança' : 'mudanças'}`}
+                        </Button>
+                    ) : (
+                        <span className="text-xs text-muted-foreground">
+                            {versao === 0 ? 'nunca publicado' : `versão ${versao} no ar`}
+                        </span>
+                    )}
+                    <Button onClick={handleSave} size="sm" className="h-8" disabled={isSaving || loading}>
+                        {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                        {isSaving ? 'Salvando…' : 'Salvar agente'}
+                    </Button>
+                </div>
             ) : null}
         >
             {loading ? <EsqueletoDoFormulario /> : (

@@ -464,25 +464,27 @@ model Workspace {
   updatedAt DateTime @updatedAt
 
   // Relations
-  account        Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  users          WorkspaceUser[]
-  agents         Agent[]
-  outcomeReasons DealOutcomeReason[]
-  contacts       Contact[]
-  deals          Deal[]
-  conversations  Conversation[]
-  knowledgeGaps  KnowledgeGap[]
-  integrations   Integration[]
-  departments    Department[]
-  tags           Tag[]
-  products       ProductService[]
-  activities     Activity[]
-  pipelineStages PipelineStage[]
-  quickResponses QuickResponse[]
-  usageLogs      UsageLog[]
-  origins        Origin[]
-  medias         Media[]
-  customFields   CustomFieldDefinition[]
+  account         Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  users           WorkspaceUser[]
+  agents          Agent[]
+  outcomeReasons  DealOutcomeReason[]
+  contacts        Contact[]
+  deals           Deal[]
+  conversations   Conversation[]
+  knowledgeGaps   KnowledgeGap[]
+  evaluationCases EvaluationCase[]
+  evaluations     Evaluation[]
+  integrations    Integration[]
+  departments     Department[]
+  tags            Tag[]
+  products        ProductService[]
+  activities      Activity[]
+  pipelineStages  PipelineStage[]
+  quickResponses  QuickResponse[]
+  usageLogs       UsageLog[]
+  origins         Origin[]
+  medias          Media[]
+  customFields    CustomFieldDefinition[]
 
   /// O que a clínica deixou ligado: boletim diário, hora dele, tarefa de
   /// retomada. JSON porque a lista cresce a cada camada de automação, e uma
@@ -576,9 +578,16 @@ model Agent {
   pausedByLimit Boolean @default(false)
   id            String  @id @default(cuid())
   workspaceId   String
-  name          String
-  description   String?
-  avatar        String?
+
+  /// A versão publicada do treinamento. Zero quer dizer "nunca publicou".
+  ///
+  /// É **do agente** e não de cada documento: os sete se contradizem entre si por
+  /// desenho (há precedência declarada), e comparar "Serviços v3 com Processo v1"
+  /// compararia um agente que nunca existiu.
+  trainingVersion Int     @default(0)
+  name            String
+  description     String?
+  avatar          String?
 
   // AI Configuration
   llmProvider  String // "openai" — único provedor do MVP; ver src/types/llm.ts
@@ -631,16 +640,19 @@ model Agent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  rules         AgentRule[]
-  conversations Conversation[]
-  knowledgeGaps KnowledgeGap[]
-  knowledgeDocs KnowledgeDocument[]
-  trainingDocs  AgentTrainingDoc[]
-  integrations  AgentIntegration[]
-  webhooks      AgentWebhook[]
-  customFields  AgentCustomField[]
-  usageLogs     UsageLog[]
+  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rules            AgentRule[]
+  conversations    Conversation[]
+  knowledgeGaps    KnowledgeGap[]
+  trainingVersions AgentTrainingVersion[]
+  evaluationCases  EvaluationCase[]
+  evaluations      Evaluation[]
+  knowledgeDocs    KnowledgeDocument[]
+  trainingDocs     AgentTrainingDoc[]
+  integrations     AgentIntegration[]
+  webhooks         AgentWebhook[]
+  customFields     AgentCustomField[]
+  usageLogs        UsageLog[]
 
   @@index([workspaceId])
   @@map("agents")
@@ -1329,15 +1341,12 @@ model Conversation {
 
 /**
  * O que o agente não soube responder.
- *
  * Uma linha por pergunta que terminou em promessa de confirmação **com busca
  * fraca** — a conjunção dos dois sinais, decidida em `lib/atendimento/escalada.ts`.
- *
  * Existe para o passo 5 do estudo (mineração de lacunas e FAQ sugerida). Sem
  * guardar a pergunta no instante em que ela falha, a mineração teria de
  * redescobri-la relendo conversas inteiras com um modelo — caro, e impreciso
  * justamente nas conversas longas, que são as que mais importam.
- *
  * A conta "quantas lacunas neste atendimento?" roda a cada resposta e é o que
  * decide a escalada: duas no mesmo atendimento entregam a conversa à equipe.
  */
@@ -2330,7 +2339,18 @@ model AgentTrainingDoc {
   slug String
 
   /// O Markdown como o admin escreveu. É a fonte, não o resultado do corte.
+  ///
+  /// **É o que está no ar.** O agente responde por este texto, e ele só muda ao
+  /// publicar.
   content String @db.Text
+
+  /// O rascunho, ao lado do que está no ar. Nulo quer dizer "sem rascunho".
+  ///
+  /// Até o passo 4, "Salvar" publicava: o texto ia direto para `content` e o
+  /// agente passava a responder por ele na mensagem seguinte. Com isso era
+  /// impossível medir antes de publicar — não havia dois estados para comparar —,
+  /// e o princípio 5 do estudo (nada publica sem número) não tinha onde morar.
+  draftContent String? @db.Text
 
   /// O hash do conteúdo na última indexação.
   ///
@@ -2357,4 +2377,127 @@ model AgentTrainingDoc {
   @@unique([agentId, slug])
   @@index([agentId])
   @@map("agent_training_docs")
+}
+
+/**
+ * O instantâneo de cada publicação do treinamento.
+ * Guarda os sete documentos como estavam, em JSON, porque é exatamente o que a
+ * volta atrás precisa. Guardar diff seria menor e exigiria reconstruir o estado
+ * aplicando a cadeia inteira — caro de escrever e fácil de errar justamente no
+ * momento em que alguém está tentando desfazer um estrago.
+ * **Os trechos do acervo não são versionados.** Eles são derivados do texto, e a
+ * reindexação os reconstrói de graça; guardar geração antiga de embedding
+ * dobraria a tabela para não comprar nada.
+ */
+model AgentTrainingVersion {
+  id      String @id @default(cuid())
+  agentId String
+  version Int
+
+  /// `[{ slug, content }]` com TODOS os documentos, não só os que mudaram:
+  /// instantâneo pela metade não serve para voltar atrás.
+  docs Json
+
+  /// Os slugs que esta publicação mudou. Derivável do instantâneo anterior, mas
+  /// guardado porque é o que a tela mostra e o que liga "mexeu em Serviços" a
+  /// "a recuperação de preço melhorou".
+  changed Json
+
+  note        String?
+  publishedBy String?
+  createdAt   DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// Uma versão por número por agente: é o que impede duas publicações
+  /// simultâneas de gravarem a "versão 4" duas vezes e deixarem a volta atrás
+  /// ambígua.
+  @@unique([agentId, version])
+  @@index([agentId, createdAt])
+  @@map("agent_training_versions")
+}
+
+/**
+ * O conjunto dourado: os casos que o instrutor aprovou no console de ensaio.
+ * Nasce de "guardar este caso", que é a única fonte possível neste produto. A
+ * segunda fonte da literatura — o atendente editar uma resposta sugerida antes
+ * de enviar — não existe aqui, porque o agente envia direto, sem sugestão.
+ */
+model EvaluationCase {
+  id          String @id @default(cuid())
+  workspaceId String
+  agentId     String
+
+  question String @db.Text
+
+  /// Os trechos que a busca entregou naquele ensaio, com o caminho do cabeçalho.
+  ///
+  /// Guardados para o juiz poder perguntar "a resposta se apoia nisto?" sem
+  /// rodar a busca de novo — e para o caso continuar significando a mesma coisa
+  /// se o acervo mudar depois. Sem isso, um caso de hoje seria julgado contra o
+  /// material de amanhã.
+  chunks Json
+
+  /// A resposta que o instrutor aprovou, ou a correção que ele escreveu.
+  reference String @db.Text
+
+  /// `aprovado` (a resposta do agente estava boa) ou `corrigido` (o instrutor
+  /// reescreveu). Caso corrigido é material de exemplo de estilo; caso aprovado
+  /// é só regressão.
+  kind String @default("aprovado")
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent     Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, createdAt])
+  @@map("evaluation_cases")
+}
+
+/**
+ * O resultado de cada bateria de avaliação.
+ * Persiste porque o valor da medição é o **histórico**: "preferiu a resposta de
+ * agora em 68% dos casos" só quer dizer algo ao lado do que a bateria anterior
+ * deu. O script de medição de recuperação só imprime no terminal, e é por isso
+ * que ninguém sabe se o acerto subiu ou caiu desde a semana passada.
+ */
+model Evaluation {
+  id          String @id @default(cuid())
+  workspaceId String
+  agentId     String
+
+  /// A versão publicada quando esta bateria rodou.
+  version Int
+
+  /// `regressao` (o agente de agora contra a referência aprovada) ou `pareado`
+  /// (rascunho contra publicado), quando este último existir.
+  kind String @default("regressao")
+
+  cases  Int @default(0)
+  wins   Int @default(0)
+  losses Int @default(0)
+  ties   Int @default(0)
+
+  /// Vereditos que o parser não entendeu. Contados à parte, **nunca** somados ao
+  /// denominador: parser que chuta "empate" injeta dado inventado na métrica que
+  /// decide se o treinamento vai ao ar.
+  unreadable Int @default(0)
+
+  preference Float?
+
+  /// Os avisos do canário: preferência de 100%, empate em tudo, amostra pequena.
+  warnings Json
+
+  /// O detalhe por caso, para a tela poder abrir "quais pioraram".
+  details Json
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent     Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, createdAt])
+  @@map("evaluations")
 }

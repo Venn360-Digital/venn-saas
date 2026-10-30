@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Eraser, Loader2, Search, Send } from 'lucide-react'
+import { AlertTriangle, Check, Eraser, Loader2, Search, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -111,7 +111,91 @@ function Similaridade({ valor, piso }: { valor?: number; piso: number }) {
     )
 }
 
-function DetalheDaResposta({ detalhe }: { detalhe: Omit<Resposta, 'resposta'> }) {
+/**
+ * Guardar este caso: a resposta vira critério de aprovação do agente.
+ *
+ * É a **única** fonte do conjunto dourado neste produto. A segunda fonte da
+ * literatura — o atendente editar uma resposta sugerida antes de enviar — não
+ * existe aqui, porque o agente envia direto.
+ *
+ * Os trechos vão junto, e não são buscados na hora de avaliar: sem isso, a
+ * clínica reescreve Serviços e um caso que o instrutor aprovou passa a reprovar
+ * sem que a resposta tenha mudado.
+ */
+function GuardarCaso({
+    agentId,
+    pergunta,
+    resposta,
+    trechos,
+}: {
+    agentId: string
+    pergunta: string
+    resposta: string
+    trechos: Trecho[]
+}) {
+    const [estado, setEstado] = useState<'parado' | 'enviando' | 'guardado'>('parado')
+
+    if (estado === 'guardado') {
+        return <span className="text-[11px] text-success">caso guardado</span>
+    }
+
+    const guardar = async () => {
+        setEstado('enviando')
+        try {
+            const res = await fetch(`/api/agents/${agentId}/casos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pergunta,
+                    referencia: resposta,
+                    // O título junto do texto: é o caminho do cabeçalho que o
+                    // corte já cola, e é o que o juiz lê como fonte.
+                    trechos: trechos.map((t) => `${t.title}\n${t.content}`),
+                    tipo: 'aprovado',
+                }),
+            })
+            if (!res.ok) {
+                const corpo = await res.json().catch(() => null)
+                throw new Error(corpo?.error ?? String(res.status))
+            }
+            const corpo = await res.json()
+            setEstado('guardado')
+            toast.success(
+                corpo.holdout
+                    ? 'Caso guardado — ficou no conjunto congelado de conferência.'
+                    : 'Caso guardado no conjunto de avaliação.'
+            )
+        } catch {
+            setEstado('parado')
+            toast.error('Não foi possível guardar o caso.')
+        }
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={guardar}
+            disabled={estado === 'enviando'}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-muted disabled:opacity-60"
+        >
+            <Check className="size-3" aria-hidden="true" />
+            {estado === 'enviando' ? 'guardando…' : 'guardar este caso'}
+        </button>
+    )
+}
+
+function DetalheDaResposta({
+    detalhe,
+    agentId,
+    pergunta,
+    resposta,
+}: {
+    detalhe: Omit<Resposta, 'resposta'>
+    agentId: string
+    /** A fala do instrutor que gerou esta resposta. Vazia no primeiro turno órfão. */
+    pergunta: string
+    resposta: string
+}) {
     const [aberto, setAberto] = useState<'nada' | 'busca' | 'prompt'>('nada')
 
     return (
@@ -138,6 +222,14 @@ function DetalheDaResposta({ detalhe }: { detalhe: Omit<Resposta, 'resposta'> })
                     {detalhe.uso.promptTokens.toLocaleString('pt-BR')} +{' '}
                     {detalhe.uso.completionTokens.toLocaleString('pt-BR')} tokens
                 </span>
+                {pergunta && resposta ? (
+                    <GuardarCaso
+                        agentId={agentId}
+                        pergunta={pergunta}
+                        resposta={resposta}
+                        trechos={detalhe.trechos}
+                    />
+                ) : null}
             </div>
 
             {aberto === 'busca' ? (
@@ -243,6 +335,18 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
                         consulta: corpo.consulta ?? '',
                         prompt: corpo.prompt ?? '',
                         uso: corpo.uso ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+                        /**
+                         * **O piso da rota não chegava aqui.**
+                         *
+                         * `Resposta.piso` existia no tipo e a rota o devolvia, mas
+                         * `enviar()` não o copiava para o detalhe — então a régua
+                         * de "trecho fraco" caía sempre no `PISO_PADRAO`
+                         * compilado, e mudar `AI_RAG_MIN_SIMILARITY` não mudava
+                         * nada na tela. Era o mesmo defeito que o passo 1
+                         * consertou nos outros dois lugares, sobrando num
+                         * terceiro.
+                         */
+                        piso: typeof corpo.piso === 'number' ? corpo.piso : undefined,
                     },
                 },
             ])
@@ -310,7 +414,18 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
                                 {turno.de === 'instrutor' ? 'Você' : 'Agente'}
                             </p>
                             <p className="whitespace-pre-wrap break-words">{turno.texto}</p>
-                            {turno.detalhe ? <DetalheDaResposta detalhe={turno.detalhe} /> : null}
+                            {turno.detalhe && agentId ? (
+                                <DetalheDaResposta
+                                    detalhe={turno.detalhe}
+                                    agentId={agentId}
+                                    // O turno anterior é a pergunta que gerou
+                                    // esta resposta. Vazio no histórico que
+                                    // começa com o agente, e aí o botão não
+                                    // aparece: caso sem pergunta não é caso.
+                                    pergunta={turnos[i - 1]?.de === 'instrutor' ? turnos[i - 1].texto : ''}
+                                    resposta={turno.texto}
+                                />
+                            ) : null}
                         </div>
                     ))}
                 </div>

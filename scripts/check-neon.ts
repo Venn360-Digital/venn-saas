@@ -371,6 +371,109 @@ async function main() {
         sobreviveu === null ? '(a lacuna foi embora)' : `conversationId=${sobreviveu.conversationId}`
     )
 
+    /**
+     * ## Passo 4: rascunho, versão e conjunto dourado
+     *
+     * O que só o banco responde: a coluna de rascunho existe, a versão nasce em
+     * zero, e **a versão é única por agente** — é essa restrição que impede duas
+     * publicações simultâneas de gravarem a "versão 4" duas vezes e deixarem a
+     * volta atrás ambígua.
+     */
+    const agenteDaVersao = await prisma.agent.create({
+        data: {
+            workspaceId: ws.criado.id,
+            name: 'Agente da Versao',
+            llmProvider: 'openai',
+            llmModel: 'gpt-4o-mini',
+            systemPrompt: 'prova',
+        },
+        select: { id: true, trainingVersion: true },
+    })
+
+    ok('o agente nasce na versão 0 — "nunca publicou"', agenteDaVersao.trainingVersion === 0)
+
+    const docDeTreino = await prisma.agentTrainingDoc.create({
+        data: { agentId: agenteDaVersao.id, slug: 'servicos', content: '', draftContent: 'rascunho' },
+        select: { content: true, draftContent: true },
+    })
+
+    ok(
+        'salvar grava rascunho e deixa o publicado vazio — nada chega ao agente sem publicar',
+        docDeTreino.content === '' && docDeTreino.draftContent === 'rascunho'
+    )
+
+    await prisma.agentTrainingVersion.create({
+        data: {
+            agentId: agenteDaVersao.id,
+            version: 1,
+            docs: [{ slug: 'servicos', content: 'rascunho' }],
+            changed: ['servicos'],
+        },
+    })
+
+    let repetiu = false
+    try {
+        await prisma.agentTrainingVersion.create({
+            data: { agentId: agenteDaVersao.id, version: 1, docs: [], changed: [] },
+        })
+        repetiu = true
+    } catch {
+        // É o que se espera: a restrição única recusou.
+    }
+
+    ok('a mesma versão NÃO pode ser gravada duas vezes para o mesmo agente', repetiu === false)
+
+    /**
+     * O caso dourado e a avaliação: existem, e apagar o agente leva os dois.
+     *
+     * `Cascade` aqui e não `SetNull` — ao contrário da lacuna: caso de avaliação
+     * sem agente não quer dizer nada, porque o critério de aprovação é **daquele**
+     * agente. A lacuna sobrevive porque ela é material de escrita, não de
+     * julgamento.
+     */
+    const casoDourado = await prisma.evaluationCase.create({
+        data: {
+            workspaceId: ws.criado.id,
+            agentId: agenteDaVersao.id,
+            question: 'quanto custa um clareamento?',
+            chunks: ['Serviços › Clareamento\nA partir de R$ 180.'],
+            reference: 'Começa em R$ 180.',
+        },
+        select: { id: true, kind: true },
+    })
+
+    ok('o caso nasce como aprovado — o padrão vem do banco', casoDourado.kind === 'aprovado')
+
+    const bateria = await prisma.evaluation.create({
+        data: {
+            workspaceId: ws.criado.id,
+            agentId: agenteDaVersao.id,
+            version: 1,
+            cases: 2,
+            wins: 1,
+            losses: 1,
+            preference: 0.5,
+            warnings: ['poucos casos'],
+            details: [],
+        },
+        select: { id: true, kind: true, unreadable: true },
+    })
+
+    ok(
+        'a bateria nasce como regressão, com zero ilegíveis',
+        bateria.kind === 'regressao' && bateria.unreadable === 0,
+        `${bateria.kind}/${bateria.unreadable}`
+    )
+
+    await prisma.agent.delete({ where: { id: agenteDaVersao.id } })
+
+    ok(
+        'apagar o agente leva versão, caso e bateria — critério de aprovação sem agente não diz nada',
+        (await prisma.agentTrainingVersion.count({ where: { agentId: agenteDaVersao.id } })) === 0 &&
+            (await prisma.evaluationCase.count({ where: { agentId: agenteDaVersao.id } })) === 0 &&
+            (await prisma.evaluation.count({ where: { agentId: agenteDaVersao.id } })) === 0
+    )
+
     await prisma.knowledgeGap.deleteMany({ where: { workspaceId: ws.criado.id } })
     await prisma.agent.deleteMany({ where: { workspaceId: ws.criado.id } })
 
