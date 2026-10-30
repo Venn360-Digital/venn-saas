@@ -56,6 +56,7 @@
         "test:escalada": "tsx scripts/test-escalada.ts",
         "test:juiz": "tsx scripts/test-juiz.ts",
         "test:versao": "tsx scripts/test-versao.ts",
+        "test:agrupar": "tsx scripts/test-agrupar.ts",
         "test:regras": "tsx scripts/test-regras.ts",
         "test:condicoes": "tsx scripts/test-condicoes.ts",
         "check:treinamento": "tsx scripts/check-treinamento.ts"

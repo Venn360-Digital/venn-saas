@@ -2,30 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-    Building2,
-    Code2,
-    Database,
-    Eye,
-    FileText,
-    FlaskConical,
-    GitBranch,
-    History,
-    MessagesSquare,
-    Mic,
-    Package,
-    Plug,
-    Route,
-    ShieldCheck,
-    TrendingUp,
-    Settings2,
-    SlidersHorizontal,
-    UserRound,
-    Webhook,
-    Workflow,
-    Zap,
-    type LucideIcon,
-} from 'lucide-react'
+import { Building2, Code2, Database, Eye, FileText, FlaskConical, GitBranch, History, Inbox, MessagesSquare, Mic, Package, Plug, Route, Settings2, ShieldCheck, SlidersHorizontal, TrendingUp, UserRound, Webhook, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Switch } from '@/components/ui/switch'
@@ -120,6 +97,12 @@ const GUIAS_DE_TREINAMENTO: FrameTab[] = [
      * fim de tudo, é uma linha para mover — mas não por minha conta.
      */
     { id: 'ensaio', label: 'Ensaio', icon: FlaskConical },
+    /**
+     * Lacunas entra junto do Ensaio, pelo mesmo critério: é ferramenta de quem
+     * treina, não documento de treinamento. E **antes de Voz**, porque "Voz
+     * continua sendo o último" é instrução do André e não abre exceção.
+     */
+    { id: 'lacunas', label: 'Lacunas', icon: Inbox },
     { id: 'voz', label: 'Voz', icon: Mic },
 ]
 

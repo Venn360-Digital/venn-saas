@@ -488,7 +488,78 @@ async function main() {
             (await prisma.evaluation.count({ where: { agentId: agenteDaVersao.id } })) === 0
     )
 
+    /**
+     * ## Passo 5: a sugestão de lacuna
+     *
+     * O que só o banco responde: a sugestão nasce `nova`, a lacuna aponta para
+     * ela, e **descartar a sugestão não apaga as lacunas** — elas são o registro
+     * do que o agente não soube, e o `SetNull` é o que as preserva. Foi o mesmo
+     * raciocínio que fez a lacuna sobreviver à conversa.
+     */
+    const agenteDaLacuna2 = await prisma.agent.create({
+        data: {
+            workspaceId: ws.criado.id,
+            name: 'Agente da Mineracao',
+            llmProvider: 'openai',
+            llmModel: 'gpt-4o-mini',
+            systemPrompt: 'prova',
+        },
+        select: { id: true },
+    })
+
+    const sugestao = await prisma.gapSuggestion.create({
+        data: {
+            workspaceId: ws.criado.id,
+            agentId: agenteDaLacuna2.id,
+            question: 'quanto custa o clareamento?',
+            demand: 3,
+            targetSlug: 'faq',
+            draftText: '## Quanto custa o clareamento?\n\n<!-- confirmar: ... -->\n',
+        },
+        select: { id: true, status: true, demand: true },
+    })
+
+    ok(
+        'a sugestão nasce nova, com a demanda que o agrupamento contou',
+        sugestao.status === 'nova' && sugestao.demand === 3,
+        `${sugestao.status}/${sugestao.demand}`
+    )
+
+    const duasLacunas = await Promise.all(
+        ['quanto custa clareamento?', 'qual o valor do clareamento?'].map((q) =>
+            prisma.knowledgeGap.create({
+                data: {
+                    workspaceId: ws.criado.id,
+                    agentId: agenteDaLacuna2.id,
+                    question: q,
+                    suggestionId: sugestao.id,
+                    status: 'agrupada',
+                },
+                select: { id: true },
+            })
+        )
+    )
+
+    ok(
+        'as lacunas apontam para a sugestão',
+        (await prisma.knowledgeGap.count({ where: { suggestionId: sugestao.id } })) === 2
+    )
+
+    await prisma.gapSuggestion.delete({ where: { id: sugestao.id } })
+
+    const sobraram = await prisma.knowledgeGap.findMany({
+        where: { id: { in: duasLacunas.map((l) => l.id) } },
+        select: { suggestionId: true },
+    })
+
+    ok(
+        'apagar a sugestão NÃO apaga as lacunas — só solta a referência',
+        sobraram.length === 2 && sobraram.every((l) => l.suggestionId === null),
+        `${sobraram.length} lacuna(s), referências: ${sobraram.map((l) => String(l.suggestionId)).join(',')}`
+    )
+
     await prisma.knowledgeGap.deleteMany({ where: { workspaceId: ws.criado.id } })
+    await prisma.gapSuggestion.deleteMany({ where: { workspaceId: ws.criado.id } })
     await prisma.agent.deleteMany({ where: { workspaceId: ws.criado.id } })
 
     // Limpeza do que esta prova criou.
