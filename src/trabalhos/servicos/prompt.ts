@@ -276,6 +276,33 @@ export function buildSystemPrompt(
     }
 
     /**
+     * Entregar, anotar e registrar o que não soube — as três que o passo 3 deu.
+     *
+     * **Estável, e fora do `if (context)` acima de propósito.** As outras
+     * ferramentas dependem do cadastro da conta (as fases do funil, os
+     * procedimentos marcáveis); estas três valem em qualquer clínica, inclusive
+     * na que acabou de assinar e não cadastrou nada. Amarrá-las ao contexto
+     * deixaria o agente de uma conta nova sem como escalar — exatamente a conta
+     * em que escalar é mais provável.
+     *
+     * A ordem das frases é a ordem da precedência: entregar é a mais forte,
+     * porque é a única irreversível pelo próprio agente.
+     */
+    estaveis.push(
+        '## Quando a conversa passa de você\n' +
+        'Use `passar_para_equipe` para entregar o atendimento a uma pessoa. Faça isso ' +
+        'quando o paciente pedir para falar com alguém, quando houver dor ou urgência, ' +
+        'quando for reclamação, e quando você já prometeu confirmar algo e não tem como. ' +
+        '**Depois de chamar, você não responde mais nesta conversa** — então diga a frase ' +
+        'que a ferramenta devolve e pare.\n' +
+        'Use `nao_encontrei` quando a base de conhecimento desta conversa trouxe material ' +
+        'e ainda assim não respondeu à pergunta. Chame junto de prometer a confirmação.\n' +
+        'Use `anotar_paciente` para guardar o que vale para os próximos atendimentos: ' +
+        'preferência, restrição, combinado ou como a pessoa quer ser chamada. Não anote ' +
+        'o assunto de agora, que já está no histórico.'
+    )
+
+    /**
      * O que ele pode marcar, e com quem — ou que não pode marcar nada.
      *
      * As duas frases existem pelo mesmo motivo: sem nenhuma, o modelo decide
@@ -338,8 +365,9 @@ export function buildSystemPrompt(
         'responda por dedução.\n' +
         'Nunca invente valor, horário, prazo ou condição de pagamento. É melhor ' +
         'prometer confirmação do que acertar por sorte.\n' +
-        'Se o paciente pedir para falar com uma pessoa, diga que vai passar o ' +
-        'atendimento para a equipe — e passe a tratar o assunto como encaminhado.'
+        'Se o paciente pedir para falar com uma pessoa, **chame `passar_para_equipe`** ' +
+        'em vez de só dizer que vai passar. Dizer sem chamar deixa o paciente esperando ' +
+        'alguém que não foi avisado.'
     )
 
     /**

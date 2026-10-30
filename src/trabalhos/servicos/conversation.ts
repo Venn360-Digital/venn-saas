@@ -317,6 +317,17 @@ async function resolveConversation(
                 integrationId,
                 assignedTo: null,
                 /**
+                 * E a entrega anterior também sai.
+                 *
+                 * `handoffAt` cala o agente. Sem limpá-lo aqui, um paciente cujo
+                 * atendimento foi entregue à equipe uma vez voltaria meses depois
+                 * para **nenhuma** resposta automática, para sempre — a conversa é
+                 * reaberta na mesma linha, não recriada. É o mesmo raciocínio que
+                 * já limpa o aviso automático logo abaixo.
+                 */
+                handoffAt: null,
+                handoffReason: null,
+                /**
                  * Reabrir limpa o aviso automático, porque é outro atendimento.
                  *
                  * `claimAutoNotice` recusa repetir o mesmo aviso na mesma
@@ -403,7 +414,29 @@ export async function resolveInboundContext(input: {
     )
 }
 
-/** True when the thread is owned by a human, meaning the agent must stay quiet. */
-export function isHumanHandled(conversation: Conversation): boolean {
-    return Boolean(conversation.assignedTo)
+/**
+ * O agente tem de ficar calado nesta conversa?
+ *
+ * **Duas colunas, e as duas significam coisas diferentes.**
+ *
+ *   - `assignedTo`: uma pessoa está atendendo. É o mutex histórico, lido em mais
+ *     de vinte lugares.
+ *   - `handoffAt`: a conversa foi **entregue** à equipe, com ou sem responsável
+ *     definido.
+ *
+ * Ler só `assignedTo` era um defeito com sintoma estranho: a regra `notify_human`
+ * sem destino e o teto de interações anunciavam ao paciente que a equipe
+ * assumiria, não atribuíam ninguém (porque não havia quem), e o agente respondia
+ * a mensagem seguinte normalmente — por cima da própria despedida. A conversa
+ * ficava com duas versões de si mesma.
+ *
+ * O tipo é estrutural, e não `Conversation`, porque os chamadores fazem `select`
+ * de duas ou três colunas: exigir a entidade inteira obrigaria a trazer o resumo
+ * da conversa e o histórico de avisos num caminho quente.
+ */
+export function isHumanHandled(conversation: {
+    assignedTo: string | null
+    handoffAt: Date | null
+}): boolean {
+    return Boolean(conversation.assignedTo) || Boolean(conversation.handoffAt)
 }

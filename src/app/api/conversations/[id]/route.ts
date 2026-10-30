@@ -322,7 +322,14 @@ export async function PATCH(
                 updateData = { assignedTo: user.id }
                 break
             case 'unassign':
-                updateData = { assignedTo: null }
+                /**
+                 * Devolver ao bot é devolver **de verdade**.
+                 *
+                 * `handoffAt` junto: ele cala o agente por conta própria, então
+                 * limpar só o responsável devolveria a conversa para uma fila em
+                 * que ninguém responde — nem pessoa, nem agente.
+                 */
+                updateData = { assignedTo: null, handoffAt: null, handoffReason: null }
                 break
             case 'close':
                 // `closedAt` marca o fim do atendimento, e é o que faz o
@@ -331,7 +338,13 @@ export async function PATCH(
                 updateData = { status: 'closed', closedAt: new Date() }
                 break
             case 'reopen':
-                updateData = { status: 'active', assignedTo: null }
+                // Reabrir é um atendimento novo: a entrega anterior não vale mais.
+                updateData = {
+                    status: 'active',
+                    assignedTo: null,
+                    handoffAt: null,
+                    handoffReason: null,
+                }
                 break
             case 'transfer':
                 if (!workspaceUser.canTransfer) {

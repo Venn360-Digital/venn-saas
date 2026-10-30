@@ -171,11 +171,27 @@ export interface GenerateReplyInput {
      * em vez de emudecer. Ver a degradação em `processors/ai-reply.ts`.
      */
     semFerramentas?: boolean
+    /**
+     * Por qual linha a conversa entrou, para a entrega ter destino.
+     *
+     * Vem do processador, que já a resolveu para enviar a resposta — buscá-la de
+     * novo aqui seria uma ida ao banco repetida no caminho mais quente.
+     */
+    integrationId?: string | null
 }
 
 export interface GeneratedReply {
     content: string
     usage: LLMResponse['usage']
+    /**
+     * O que a busca entregou a esta resposta — com a similaridade de cada trecho.
+     *
+     * Sai daqui porque é **metade do sinal de lacuna**: o processador decide
+     * "o agente não soube" cruzando isto com o texto da resposta (ver
+     * `lib/atendimento/escalada.ts`). Recalcular a busca lá fora custaria um
+     * embedding a mais por mensagem para descobrir o que esta função já sabe.
+     */
+    trechos: KnowledgeChunk[]
 }
 
 /**
@@ -332,6 +348,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
               conversationId,
               contactId: context.contactId,
               timezone: agent.timezone,
+              integrationId: input.integrationId ?? null,
           }
         : null
     const ferramentas =
@@ -401,7 +418,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
         `${knowledge.length} chunks)`
     )
 
-    return { content: response.content, usage: total }
+    return { content: response.content, usage: total, trechos: knowledge }
 }
 
 /** Um turno do ensaio. `instrutor` é quem pergunta; `agente`, o que ele já respondeu. */

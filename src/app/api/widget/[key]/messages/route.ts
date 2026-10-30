@@ -10,6 +10,7 @@ import {
     widgetCors,
     widgetIntegration,
 } from '@/lib/widget'
+import { isHumanHandled } from '@/trabalhos/servicos/conversation'
 
 /**
  * A conversa do visitante do site.
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let conversa = await prisma.conversation.findFirst({
         where: { workspaceId, visitorKey: visitante, channel: 'web' },
-        select: { id: true, assignedTo: true },
+        select: { id: true, assignedTo: true, handoffAt: true },
     })
 
     /**
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 visitorKey: visitante,
                 status: 'active',
             },
-            select: { id: true, assignedTo: true },
+            select: { id: true, assignedTo: true, handoffAt: true },
         })
     }
 
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      */
     const cala =
         !agent.isActive ? 'agente pausado'
-        : conversa.assignedTo ? 'conversa assumida por uma pessoa'
+        : isHumanHandled(conversa) ? 'conversa com a equipe'
         : billing.readOnly ? 'workspace sem crédito'
         : jaDitas >= TETO_DE_MENSAGENS_DO_VISITANTE ? 'teto de mensagens do visitante'
         : null

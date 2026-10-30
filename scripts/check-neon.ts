@@ -280,6 +280,100 @@ async function main() {
         `termos: "${termos}"`
     )
 
+    /**
+     * ## Passo 3: a entrega à equipe e as lacunas
+     *
+     * Três coisas que só o banco responde: as duas colunas de entrega existem, a
+     * tabela de lacunas existe com os índices que a conta de escalada usa, e — a
+     * mais importante — **apagar a conversa não apaga a lacuna**.
+     *
+     * Esse último é o que justifica a tabela: o valor da lacuna é sobreviver ao
+     * atendimento, porque é a mineração semanal do passo 5 que vai lê-la. Com
+     * `onDelete: Cascade` na conversa, o `CONVERSATION_AUTOCLOSE` e qualquer
+     * limpeza de histórico levariam o material embora em silêncio.
+     */
+    const colunasDeEntrega = await prisma.$queryRaw<{ column_name: string }[]>`
+        SELECT column_name::text AS column_name FROM information_schema.columns
+        WHERE table_name = 'conversations' AND column_name IN ('handoffAt', 'handoffReason')`
+
+    ok(
+        'as duas colunas de entrega existem em conversations',
+        colunasDeEntrega.length === 2,
+        colunasDeEntrega.map((c) => c.column_name).sort().join(', ')
+    )
+
+    const indicesDaLacuna = await prisma.$queryRaw<{ indexname: string }[]>`
+        SELECT indexname::text AS indexname FROM pg_indexes WHERE tablename = 'knowledge_gaps'`
+
+    ok(
+        'knowledge_gaps existe com os dois índices que a escalada e a fila usam',
+        indicesDaLacuna.length >= 3,
+        indicesDaLacuna.map((i) => i.indexname).sort().join(', ')
+    )
+
+    /**
+     * A prova de que a lacuna sobrevive: cria agente, conversa e lacuna, apaga a
+     * conversa, e confere que a lacuna ficou — com `conversationId` nulo.
+     */
+    const agenteDaLacuna = await prisma.agent.create({
+        data: {
+            workspaceId: ws.criado.id,
+            name: 'Agente da Prova',
+            llmProvider: 'openai',
+            llmModel: 'gpt-4o-mini',
+            systemPrompt: 'prova',
+        },
+        select: { id: true },
+    })
+    const contatoDaLacuna = await prisma.contact.create({
+        data: { workspaceId: ws.criado.id, name: 'Quem Perguntou' },
+        select: { id: true },
+    })
+    const conversaDaLacuna = await prisma.conversation.create({
+        data: {
+            workspaceId: ws.criado.id,
+            contactId: contatoDaLacuna.id,
+            agentId: agenteDaLacuna.id,
+            channel: 'whatsapp',
+        },
+        select: { id: true, handoffAt: true },
+    })
+
+    ok('conversa nasce sem entrega', conversaDaLacuna.handoffAt === null)
+
+    const lacuna = await prisma.knowledgeGap.create({
+        data: {
+            workspaceId: ws.criado.id,
+            agentId: agenteDaLacuna.id,
+            conversationId: conversaDaLacuna.id,
+            question: 'vocês fazem clareamento a laser?',
+            bestSimilarity: 0.21,
+            chunkCount: 2,
+        },
+        select: { id: true, source: true, status: true },
+    })
+
+    ok(
+        'a lacuna nasce automática e nova — os padrões vêm do banco',
+        lacuna.source === 'automatica' && lacuna.status === 'nova',
+        `${lacuna.source}/${lacuna.status}`
+    )
+
+    await prisma.conversation.delete({ where: { id: conversaDaLacuna.id } })
+    const sobreviveu = await prisma.knowledgeGap.findUnique({
+        where: { id: lacuna.id },
+        select: { conversationId: true, question: true },
+    })
+
+    ok(
+        'apagar a conversa NÃO apaga a lacuna — só solta a referência',
+        sobreviveu !== null && sobreviveu.conversationId === null,
+        sobreviveu === null ? '(a lacuna foi embora)' : `conversationId=${sobreviveu.conversationId}`
+    )
+
+    await prisma.knowledgeGap.deleteMany({ where: { workspaceId: ws.criado.id } })
+    await prisma.agent.deleteMany({ where: { workspaceId: ws.criado.id } })
+
     // Limpeza do que esta prova criou.
     delete process.env.PLATFORM_ASAAS_CLIENT_SECRET
     await prisma.appSecret.deleteMany({ where: { name: nome } })

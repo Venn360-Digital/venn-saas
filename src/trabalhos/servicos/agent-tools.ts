@@ -1,6 +1,9 @@
 import prisma from '@/lib/prisma'
+import type { Prisma } from '#prisma'
 import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { normalizeSearch } from '@/lib/search'
+import { despedidaDaEntrega } from '@/lib/atendimento/escalada'
+import { entregarAEquipe } from './entrega'
 import type { LLMTool } from '@/types/llm'
 import { createLogger } from '@/trabalhos/registro'
 
@@ -29,6 +32,18 @@ export interface AgentToolContext {
     conversationId: string
     contactId: string
     timezone: string
+    /**
+     * Por qual linha esta conversa entrou.
+     *
+     * É o que dá **destino** à entrega: a linha tem departamento, a conversa não
+     * (ver o schema de `Conversation`). Sem isto, `passar_para_equipe` só sabia
+     * calar o agente, e a conversa caía na fila geral mesmo quando o número por
+     * onde o paciente escreveu pertence a um departamento.
+     *
+     * Nula no widget do site, no intake da recepção e no histórico anterior à
+     * coluna — e aí a entrega fica sem responsável, de propósito.
+     */
+    integrationId: string | null
 }
 
 interface AgentTool {
@@ -502,7 +517,227 @@ const marcarConsulta: AgentTool = {
     },
 }
 
-const FERRAMENTAS: AgentTool[] = [consultarAgenda, moverNegocio, consultarHorarios, marcarConsulta]
+
+/**
+ * As três ferramentas que o passo 3 do estudo acrescenta.
+ *
+ * As quatro primeiras agem sobre a agenda e o funil. Estas agem sobre o
+ * **atendimento em si**: quem continua a conversa, o que fica sabido sobre a
+ * pessoa, e o que o agente não soube responder.
+ */
+
+const passarParaEquipe: AgentTool = {
+    definition: {
+        name: 'passar_para_equipe',
+        description:
+            'Entrega este atendimento para a equipe humana e para de responder. ' +
+            'Use quando o paciente pedir para falar com uma pessoa, quando houver ' +
+            'urgência ou dor, quando o assunto for reclamação, ou quando você já ' +
+            'prometeu confirmar algo e não tem como. Não use para ganhar tempo: ' +
+            'depois disto você não responde mais nesta conversa.',
+        parameters: {
+            type: 'object',
+            properties: {
+                motivo: {
+                    type: 'string',
+                    description:
+                        'Por que está passando, em poucas palavras. Ex.: "paciente pediu atendente", ' +
+                        '"dor forte", "reclamação de atendimento".',
+                },
+                resumo: {
+                    type: 'string',
+                    description:
+                        'O que a pessoa da equipe precisa saber para continuar sem reler a conversa: ' +
+                        'o que o paciente quer, o que já foi dito, o que ficou pendente.',
+                },
+            },
+            required: ['motivo'],
+        },
+    },
+    async run(args, ctx) {
+        const motivo = String(args.motivo ?? '').trim() || 'não informado'
+        const resumo = String(args.resumo ?? '').trim()
+
+        const { responsavel, jaEstava } = await entregarAEquipe({
+            workspaceId: ctx.workspaceId,
+            conversationId: ctx.conversationId,
+            integrationId: ctx.integrationId,
+            motivo: 'ferramenta',
+            nota:
+                `O agente passou o atendimento para a equipe. Motivo: ${motivo}.` +
+                (resumo ? `\n\n${resumo}` : ''),
+        })
+
+        /**
+         * Já entregue devolve a mesma frase, sem reclamar.
+         *
+         * O modelo não precisa saber que chamou duas vezes: o que ele precisa é
+         * da frase para dizer ao paciente. Devolver "Erro:" aqui faria ele pedir
+         * desculpa por algo que deu certo.
+         */
+        void jaEstava
+
+        return despedidaDaEntrega(Boolean(responsavel))
+    },
+}
+
+/**
+ * As categorias de fato durável. Fechadas de propósito.
+ *
+ * Campo livre viraria depósito: o modelo escreveria "paciente simpático" e a
+ * memória de longo prazo encheria de ruído que volta ao prompt em toda conversa.
+ * Estas quatro são as que mudam o atendimento seguinte.
+ */
+const CATEGORIAS_DE_FATO = ['preferencia', 'restricao', 'combinado', 'contato'] as const
+
+const anotarPaciente: AgentTool = {
+    definition: {
+        name: 'anotar_paciente',
+        description:
+            'Guarda um fato durável sobre o paciente, que vale para os próximos ' +
+            'atendimentos. Use para preferência ("só pode à tarde"), restrição ' +
+            '("alérgica a penicilina"), combinado ("vai mandar o exame por foto") ' +
+            'ou contato ("prefere ser chamada de Lu"). Não use para o assunto da ' +
+            'conversa de agora, que já está no histórico.',
+        parameters: {
+            type: 'object',
+            properties: {
+                fato: {
+                    type: 'string',
+                    description: 'O fato em uma frase curta, como alguém da recepção anotaria.',
+                },
+                categoria: {
+                    type: 'string',
+                    enum: [...CATEGORIAS_DE_FATO],
+                    description: 'preferencia | restricao | combinado | contato',
+                },
+            },
+            required: ['fato', 'categoria'],
+        },
+    },
+    async run(args, ctx) {
+        const fato = String(args.fato ?? '').trim()
+        if (!fato) return 'Erro: "fato" não pode ser vazio.'
+
+        const categoria = String(args.categoria ?? '')
+        if (!CATEGORIAS_DE_FATO.includes(categoria as (typeof CATEGORIAS_DE_FATO)[number])) {
+            return `Erro: "categoria" tem de ser uma destas: ${CATEGORIAS_DE_FATO.join(', ')}.`
+        }
+
+        /**
+         * O fato vai para `customFields.fatos`, e **não** para `notes`.
+         *
+         * `notes` é o campo de observação que a recepção escreve e edita à mão, na
+         * ficha do paciente. Um agente escrevendo lá acabaria apagando o que uma
+         * pessoa escreveu, porque gravar texto é substituir texto. Em
+         * `customFields` o acréscimo é uma entrada numa lista, e o que a equipe
+         * escreveu continua intacto.
+         */
+        const contato = await prisma.contact.findFirst({
+            where: { id: ctx.contactId, workspaceId: ctx.workspaceId },
+            select: { customFields: true },
+        })
+        if (!contato) return 'Erro: este paciente não existe mais.'
+
+        const campos: Record<string, Prisma.InputJsonValue> =
+            contato.customFields && typeof contato.customFields === 'object' && !Array.isArray(contato.customFields)
+                ? (contato.customFields as Record<string, Prisma.InputJsonValue>)
+                : {}
+
+        /**
+         * O tipo é o do Prisma, não `unknown[]`.
+         *
+         * `Prisma.InputJsonValue` é o que o campo `Json` aceita, e um
+         * `unknown[]` não satisfaz a assinatura de índice que ele exige. Tipar
+         * aqui e não forçar com `as any` é o que mantém o erro visível se o
+         * formato do fato mudar.
+         */
+        const anteriores: Prisma.InputJsonValue[] = Array.isArray(campos.fatos)
+            ? (campos.fatos as Prisma.InputJsonValue[])
+            : []
+
+        /**
+         * Teto de 20, descartando o mais antigo.
+         *
+         * Os fatos voltam ao prompt em toda conversa deste paciente. Sem teto, a
+         * lista cresce para sempre e um dia come o bloco estável — o mesmo
+         * raciocínio do teto de resposta: pedir não é limitar.
+         */
+        const fatos = [
+            ...anteriores.slice(-19),
+            { fato, categoria, em: new Date().toISOString(), por: 'agente' },
+        ]
+
+        await prisma.contact.update({
+            where: { id: ctx.contactId },
+            data: { customFields: { ...campos, fatos } },
+        })
+
+        await registrar(ctx, `O agente anotou sobre o paciente (${categoria}): ${fato}`)
+
+        return `Anotado: ${fato}`
+    },
+}
+
+const naoEncontrei: AgentTool = {
+    definition: {
+        name: 'nao_encontrei',
+        description:
+            'Registra que você não achou a resposta de uma pergunta do paciente, ' +
+            'mesmo tendo material na base de conhecimento desta conversa. Chame ' +
+            'junto de dizer ao paciente que vai confirmar com a equipe. Não chame ' +
+            'para pergunta que suas instruções já respondem.',
+        parameters: {
+            type: 'object',
+            properties: {
+                pergunta: {
+                    type: 'string',
+                    description: 'A pergunta do paciente, com as palavras dele.',
+                },
+            },
+            required: ['pergunta'],
+        },
+    },
+    async run(args, ctx) {
+        const pergunta = String(args.pergunta ?? '').trim()
+        if (!pergunta) return 'Erro: "pergunta" não pode ser vazia.'
+
+        /**
+         * `source: 'ferramenta'`, e a distinção com `'automatica'` é o conserto.
+         *
+         * Lacuna automática quer dizer "a busca não trouxe material" — falta
+         * documento, e o passo 5 vai propor escrevê-lo. Esta aqui quer dizer "a
+         * busca trouxe e o modelo não usou" — o documento existe e não foi
+         * encontrado, que se conserta mexendo na recuperação ou no texto do
+         * documento, não escrevendo outro.
+         *
+         * Sem nota interna: a lacuna não é ação sobre o mundo, é instrumentação.
+         * Nota em toda pergunta sem resposta encheria a conversa de ruído para
+         * quem atende.
+         */
+        await prisma.knowledgeGap.create({
+            data: {
+                workspaceId: ctx.workspaceId,
+                agentId: ctx.agentId,
+                conversationId: ctx.conversationId,
+                question: pergunta,
+                source: 'ferramenta',
+            },
+        })
+
+        return 'Registrado. Diga ao paciente que vai confirmar com a equipe e que retorna.'
+    },
+}
+
+const FERRAMENTAS: AgentTool[] = [
+    consultarAgenda,
+    moverNegocio,
+    consultarHorarios,
+    marcarConsulta,
+    passarParaEquipe,
+    anotarPaciente,
+    naoEncontrei,
+]
 
 export const AGENT_TOOL_DEFINITIONS: LLMTool[] = FERRAMENTAS.map((f) => f.definition)
 

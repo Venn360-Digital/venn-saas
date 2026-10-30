@@ -304,9 +304,26 @@ conferir(
     comAcervo.includes('diga que vai verificar em vez de inventar'),
     false
 )
+/**
+ * **Nomear a ferramenta, e não só pedir a frase.**
+ *
+ * Esta prova checava `'passar o atendimento para a equipe'` — o texto antigo, que
+ * mandava o agente *dizer* que ia passar. Dizer sem chamar deixava o paciente
+ * esperando alguém que não foi avisado: a conversa não era entregue, nenhuma nota
+ * aparecia para a equipe, e o agente respondia a mensagem seguinte normalmente.
+ * Agora existe `passar_para_equipe`, e o que o prompt precisa garantir é que o
+ * modelo saiba chamá-la.
+ */
 conferir(
-    'o pedido de passar para a equipe é dito',
-    semAcervo.includes('passar o atendimento para a equipe'),
+    'o fallback manda CHAMAR a ferramenta de entrega, não só prometê-la',
+    semAcervo.includes('passar_para_equipe'),
+    true
+)
+conferir(
+    'e a seção própria das três ferramentas de atendimento é estável',
+    semAcervo.includes('## Quando a conversa passa de você') &&
+        semAcervo.includes('nao_encontrei') &&
+        semAcervo.includes('anotar_paciente'),
     true
 )
 
