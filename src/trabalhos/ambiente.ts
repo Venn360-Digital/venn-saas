@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { PISO_PADRAO, TRECHOS_PADRAO } from '@/lib/rag/parametros'
+import {
+    CANDIDATOS_PADRAO,
+    MAX_POR_DOCUMENTO,
+    PISO_PADRAO,
+    TRECHOS_PADRAO,
+} from '@/lib/rag/parametros'
 
 /**
  * O ambiente que o trabalho de fila precisa — e só ele.
@@ -62,6 +67,12 @@ const esquema = z.object({
      * `lib/rag/parametros`.
      */
     AI_RAG_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(PISO_PADRAO),
+
+    /** Candidatos por perna da busca híbrida, antes da fusão por RRF. */
+    AI_RAG_CANDIDATOS: z.coerce.number().int().min(1).max(200).default(CANDIDATOS_PADRAO),
+
+    /** Teto de trechos do mesmo documento numa resposta. Zero desliga o teto. */
+    AI_RAG_MAX_POR_DOC: z.coerce.number().int().min(0).max(50).default(MAX_POR_DOCUMENTO),
 
     /**
      * Segundos de espera por mais mensagens do mesmo contato antes de responder.

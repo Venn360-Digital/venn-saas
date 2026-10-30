@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'
-import { montarConsulta, type MensagemDaConversa } from '@/lib/rag/consulta'
+import { montarConsulta, ultimaFalaDaPessoa, type MensagemDaConversa } from '@/lib/rag/consulta'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
@@ -35,12 +35,16 @@ export class OutOfCreditsError extends Error {
  *
  * Failure is non-fatal: answering without the knowledge base beats not answering.
  */
-async function retrieveKnowledge(agentId: string, query: string): Promise<KnowledgeChunk[]> {
+async function retrieveKnowledge(
+    agentId: string,
+    query: string,
+    textoLexical: string
+): Promise<KnowledgeChunk[]> {
     if (env.AI_RAG_CHUNKS === 0 || !query.trim()) return []
 
     try {
         const retriever = new DocumentRetriever()
-        const rows = await retriever.search(agentId, query, env.AI_RAG_CHUNKS)
+        const rows = await retriever.search(agentId, query, env.AI_RAG_CHUNKS, textoLexical)
         return rows
             .filter((row) => typeof row?.content === 'string')
             .map((row) => ({
@@ -117,8 +121,12 @@ async function pecasDoPrompt(
     historico: MensagemDaConversa[]
 ): Promise<PecasDoPrompt> {
     const consulta = montarConsulta(historico)
+    /**
+     * A perna lexical recebe só a última fala, e não a consulta expandida — ver
+     * `ultimaFalaDaPessoa` e o comentário de `DocumentRetriever.search`.
+     */
     const [knowledge, comportamento] = await Promise.all([
-        retrieveKnowledge(agent.id, consulta),
+        retrieveKnowledge(agent.id, consulta, ultimaFalaDaPessoa(historico)),
         carregarComportamento(agent.id),
     ])
     return { knowledge, comportamento }

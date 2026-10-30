@@ -30,8 +30,40 @@
  */
 export const PISO_PADRAO = 0.35
 
-/** Trechos entregues ao modelo por resposta. Zero desliga a busca. */
-export const TRECHOS_PADRAO = 4
+/**
+ * Trechos entregues ao modelo por resposta. Zero desliga a busca.
+ *
+ * **Era 4, e subiu para 5 com a busca híbrida.** O corte do acervo passou de
+ * caractere cego para seção do autor, e o comentário do chunker já avisava que
+ * "trecho menor e mais preciso pede mais trechos por resposta" — o 4 não
+ * acompanhou. Com o teto por documento, cinco vagas passam a caber em pelo
+ * menos duas fontes, que é o que uma pergunta de preço precisa: o serviço e a
+ * condição de pagamento moram em documentos diferentes.
+ */
+export const TRECHOS_PADRAO = 5
+
+/**
+ * Quantos candidatos cada perna da busca traz, antes da fusão.
+ *
+ * Doze e não cinco: a fusão só tem como corrigir a ordem se receber mais do que
+ * vai entregar. Com 12 por perna, um trecho que o vetor põe em 9º e o lexical
+ * põe em 1º ainda tem chance de entrar — e é exatamente o caso das perguntas de
+ * preço, onde o número casa no texto e não no vetor.
+ *
+ * Custa duas consultas num plano só, numa ida ao banco. Não custa embedding nem
+ * token: o que o modelo recebe continua sendo `TRECHOS_PADRAO`.
+ */
+export const CANDIDATOS_PADRAO = 12
+
+/**
+ * Teto de trechos do mesmo documento numa resposta.
+ *
+ * Existe porque um documento bem escrito ocupava a resposta inteira: a medição
+ * mostrou `faq` em primeiro lugar em 13 de 14 recuperações, por ser escrita em
+ * forma de pergunta. Três de cinco deixa o documento dominante responder sem
+ * calar os outros.
+ */
+export const MAX_POR_DOCUMENTO = 3
 
 /**
  * Acima do piso, mas por tão pouco que qualquer reescrita da pergunta derruba.
@@ -62,4 +94,14 @@ export function pisoDeSimilaridade(): number {
  */
 export function trechosDoAtendimento(): number {
     return numeroDoAmbiente(process.env.AI_RAG_CHUNKS, 0, 50) ?? TRECHOS_PADRAO
+}
+
+/** Candidatos por perna da busca, antes da fusão. */
+export function candidatosDaBusca(): number {
+    return numeroDoAmbiente(process.env.AI_RAG_CANDIDATOS, 1, 200) ?? CANDIDATOS_PADRAO
+}
+
+/** Teto por documento na resposta. Zero desliga o teto. */
+export function maxPorDocumento(): number {
+    return numeroDoAmbiente(process.env.AI_RAG_MAX_POR_DOC, 0, 50) ?? MAX_POR_DOCUMENTO
 }
