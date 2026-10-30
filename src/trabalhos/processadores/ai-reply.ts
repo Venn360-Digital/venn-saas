@@ -10,6 +10,15 @@ import { isHumanHandled } from '@/trabalhos/servicos/conversation'
 import { deveEscalar, ehLacuna, melhorSimilaridade } from '@/lib/atendimento/escalada'
 import { pisoDeSimilaridade } from '@/lib/rag/parametros'
 import { entregarAEquipe } from '@/trabalhos/servicos/entrega'
+import { LLMFactory } from '@/lib/llm/factory'
+import {
+    JANELA_DO_RESUMO,
+    MODELO_DO_RESUMO,
+    SYSTEM_DO_RESUMO,
+    precisaCompactar,
+    transcrever,
+} from '@/lib/conversas/resumo'
+import { trackUsage } from '@/lib/llm/usage-tracker'
 import { enqueueOutboundAudio, enqueueOutboundText } from '@/trabalhos/servicos/outbound'
 import { MIMETYPE_DA_FALA, falar } from '@/trabalhos/servicos/speech'
 import { spendAiCredits, trackSpeechUsage } from '@/lib/llm/usage-tracker'
@@ -424,6 +433,15 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
      * `try`: lacuna perdida é um dado perdido, resposta perdida é um paciente
      * perdido.
      */
+    /**
+     * A compactação, também depois de entregar.
+     *
+     * Mesma razão da lacuna: é uma ida ao modelo que não muda nada do que o
+     * paciente acabou de receber. Pô-la antes do envio atrasaria toda mensagem
+     * de uma conversa longa para arrumar o contexto da **próxima**.
+     */
+    await compactarSePreciso(conversationId, workspaceId, agent.id)
+
     await registrarLacuna({
         workspaceId,
         agentId: agent.id,
@@ -433,6 +451,127 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
         resposta: content,
         trechos,
     })
+}
+
+/**
+ * Resume a conversa quando a janela do prompt deixa de bastar.
+ *
+ * **Não debita crédito.** O crédito é "uma ação de IA entregue", e isto não
+ * entrega nada a ninguém: conserta o contexto da resposta seguinte. Cobrá-lo
+ * faria a conversa longa custar mais por existir, sem o cliente pedir nada. O
+ * custo real vai para `usage_logs` com canal próprio.
+ *
+ * O resumo **pedido pela tela** continua debitando: ali é uma pessoa pedindo e
+ * recebendo um texto.
+ *
+ * Tudo dentro de `try`: resumo perdido é contexto pior na próxima mensagem,
+ * resposta perdida é um paciente perdido.
+ */
+async function compactarSePreciso(
+    conversationId: string,
+    workspaceId: string,
+    agentId: string
+): Promise<void> {
+    try {
+        const conversa = await prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: { summaryText: true, summaryUntilId: true },
+        })
+        if (!conversa) return
+
+        const total = await prisma.message.count({
+            where: { conversationId, isInternal: false },
+        })
+
+        /**
+         * Quantas chegaram depois do último resumo.
+         *
+         * Contadas pelo `createdAt` da mensagem até onde o resumo leu, e não por
+         * id: id de `cuid` não ordena por tempo de forma garantida, e a conta
+         * "mudou o suficiente para valer a chamada" depende de ser por tempo.
+         */
+        let desdeOResumo = total
+        if (conversa.summaryUntilId) {
+            const marco = await prisma.message.findUnique({
+                where: { id: conversa.summaryUntilId },
+                select: { createdAt: true },
+            })
+            if (marco) {
+                desdeOResumo = await prisma.message.count({
+                    where: { conversationId, isInternal: false, createdAt: { gt: marco.createdAt } },
+                })
+            }
+        }
+
+        if (
+            !precisaCompactar({
+                total,
+                desdeOResumo,
+                temResumo: Boolean(conversa.summaryText?.trim()),
+            })
+        ) {
+            return
+        }
+
+        const recentes = await prisma.message.findMany({
+            where: { conversationId, isInternal: false },
+            orderBy: { createdAt: 'desc' },
+            take: JANELA_DO_RESUMO,
+            select: {
+                id: true,
+                direction: true,
+                content: true,
+                transcript: true,
+                contentType: true,
+                createdAt: true,
+            },
+        })
+        if (recentes.length === 0) return
+
+        const cronologicas = [...recentes].reverse()
+
+        const llm = LLMFactory.create('openai', {
+            model: MODELO_DO_RESUMO,
+            temperature: 0.2,
+            maxTokens: 600,
+        })
+        const r = await llm.generate([
+            { role: 'system', content: SYSTEM_DO_RESUMO },
+            /**
+             * "Agendamentos já marcados" vazio aqui, de propósito.
+             *
+             * A rota da tela os busca para o resumo não listar como pendência
+             * algo que já está na Agenda. Buscá-los aqui seria uma consulta a
+             * mais no caminho quente, e o prejuízo é pequeno: este resumo é lido
+             * pelo **modelo**, que já recebe os compromissos na seção "Esta
+             * conversa" do prompt.
+             */
+            { role: 'user', content: `Agendamentos já marcados na Agenda: nenhum.\n\n${transcrever(cronologicas)}` },
+        ])
+
+        try {
+            await trackUsage('openai', MODELO_DO_RESUMO, r.usage, {
+                workspaceId,
+                agentId,
+                metadata: { channel: 'compactacao', conversationId },
+            })
+        } catch (error) {
+            log.error('usage tracking da compactação falhou', error)
+        }
+
+        await prisma.conversation.update({
+            where: { id: conversationId },
+            data: {
+                summaryText: r.content,
+                summaryAt: new Date(),
+                summaryUntilId: cronologicas[cronologicas.length - 1].id,
+            },
+        })
+
+        log.info(`conversation ${conversationId} compactada (${total} mensagens)`)
+    } catch (error) {
+        log.error(`could not compact conversation ${conversationId}`, error)
+    }
 }
 
 interface SinaisDaLacuna {

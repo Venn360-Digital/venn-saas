@@ -133,7 +133,16 @@ export interface AiReplyJob {
  * agrupadas por `type::title` **sem filtrar tipo** — e o DELETE dela apaga por
  * essa chave. Com tipo próprio, a aba ignora o que não é dela e o DELETE recusa.
  */
-export type RagDocType = 'faq' | 'doc' | 'website' | 'treinamento'
+/**
+ * O tipo de um trecho do acervo.
+ *
+ * `cenario` é o do passo 6, e existe para o prompt poder apresentar o trecho
+ * como **ordem de execução** em vez de fonte de verdade. Sem a distinção, os
+ * passos de um procedimento entrariam em "Base de conhecimento" e o modelo os
+ * leria *para* o paciente em vez de executá-los — que é o defeito mais provável
+ * de um cenário recuperado.
+ */
+export type RagDocType = 'faq' | 'doc' | 'website' | 'treinamento' | 'cenario'
 
 export interface RagIndexJob {
     agentId: string

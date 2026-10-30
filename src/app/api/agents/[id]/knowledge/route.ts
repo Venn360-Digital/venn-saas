@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { manageAgent, readAgent } from '@/lib/auth/agent'
-import { TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
+import { ehDeTreinamento, TIPOS_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
 
 export async function GET(
     request: NextRequest,
@@ -32,7 +32,8 @@ export async function GET(
          * dizendo "34 trechos" com zero no banco.
          */
         const chunks = await prisma.knowledgeDocument.findMany({
-            where: { agentId, type: { not: TIPO_DE_TREINAMENTO } },
+            // Os dois tipos de treinamento, não só um: ver `TIPOS_DE_TREINAMENTO`.
+            where: { agentId, type: { notIn: [...TIPOS_DE_TREINAMENTO] } },
             orderBy: { createdAt: 'asc' },
             select: {
                 id: true,
@@ -164,7 +165,7 @@ export async function DELETE(
          * continuaria batendo. Esvaziar o campo na tela de treinamento é o
          * caminho, e ele limpa o carimbo junto.
          */
-        if (type === TIPO_DE_TREINAMENTO) {
+        if (ehDeTreinamento(type)) {
             return NextResponse.json(
                 {
                     error:

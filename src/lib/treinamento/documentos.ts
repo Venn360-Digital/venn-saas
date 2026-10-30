@@ -35,7 +35,20 @@
 
 import { modeloEscrito } from './modelos'
 
-export type ModoDoDocumento = 'prompt' | 'rag'
+/**
+ * Onde o texto do documento chega ao modelo.
+ *
+ *   - `prompt`: inteiro, em toda mensagem. Carrega identidade e limites.
+ *   - `rag`: por busca, quando a conversa pede. Carrega fatos.
+ *   - `procedimento`: **catálogo no prompt, corpo por busca.** É divulgação
+ *     progressiva — o agente sabe que o procedimento existe sem carregá-lo, e o
+ *     corpo entra quando a conversa chega nele. Ver `lib/treinamento/cenarios.ts`.
+ *
+ * `procedimento` é indexado como `rag` (o indexador só pula `prompt`), mas o
+ * trecho leva `type: 'cenario'` em vez de `treinamento` — é o que permite ao
+ * prompt apresentá-lo como ordem de execução e não como fonte de verdade.
+ */
+export type ModoDoDocumento = 'prompt' | 'rag' | 'procedimento'
 
 export interface DocumentoDeTreinamento {
     /**
@@ -210,6 +223,29 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
             'Tem a maior precedência de todas: quando qualquer outro documento ' +
             'conflita com este, este ganha.',
     },
+    {
+        slug: 'cenarios',
+        titulo: 'Cenários de atendimento',
+        item: 'Cenários',
+        modo: 'procedimento',
+        teto: 50_000,
+        /**
+         * Precedência 4: depois dos limites, da identidade e do processo, antes
+         * dos fatos e da técnica de venda.
+         *
+         * Um procedimento diz **o que fazer**, e tem de ceder ao que a clínica
+         * não faz (Privacidade) e a quem o agente é (Centrais). Mas ganha de um
+         * fato recuperado: quando o cenário manda passar para a equipe, achar um
+         * preço no acervo não autoriza responder o preço e seguir.
+         */
+        precedencia: 4,
+        secoes: ['Cenários', SECAO_EXEMPLOS],
+        explicacao:
+            'Situações com passo a passo: quando acontece X, faça 1, 2, 3. Um ' +
+            'subtítulo por situação, com uma linha "Quando:" e uma lista "Passos:". ' +
+            'Só o título e o gatilho vão no prompt de toda mensagem; os passos ' +
+            'chegam quando a conversa entra na situação.',
+    },
 ]
 
 /**
@@ -240,8 +276,23 @@ export function documentosDoPrompt(): DocumentoDeTreinamento[] {
     )
 }
 
-/** Os que são indexados para busca. */
+/**
+ * Os que são indexados para busca — **`rag` e `procedimento`**.
+ *
+ * `procedimento` entra porque ele é recuperado: o catálogo vai no prompt, mas é
+ * o corpo vindo da busca que diz os passos. Filtrar só `rag` aqui deixaria o
+ * documento de Cenários nunca ser indexado, e o catálogo prometeria um
+ * procedimento que nunca chega.
+ *
+ * O que separa os dois é o **tipo do trecho**, não a indexação: ver
+ * `tipoDoAcervo`.
+ */
 export function documentosDoAcervo(): DocumentoDeTreinamento[] {
+    return DOCUMENTOS.filter((d) => d.modo === 'rag' || d.modo === 'procedimento')
+}
+
+/** Só os de `rag`: os que carregam **fato**, não procedimento. */
+export function documentosDeFato(): DocumentoDeTreinamento[] {
     return DOCUMENTOS.filter((d) => d.modo === 'rag')
 }
 

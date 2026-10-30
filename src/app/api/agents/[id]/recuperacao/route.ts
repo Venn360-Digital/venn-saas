@@ -3,7 +3,7 @@ import { manageAgent } from '@/lib/auth/agent'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { montarConsulta } from '@/lib/rag/consulta'
 import { pisoDeSimilaridade, trechosDoAtendimento } from '@/lib/rag/parametros'
-import { TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
+import { ehDeTreinamento } from '@/lib/treinamento/indexar'
 import { createLogger } from '@/trabalhos/registro'
 
 const log = createLogger('RECUPERACAO')
@@ -133,7 +133,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
                     titulo: t.title,
                     // Documento de treinamento é indexado com o slug no título;
                     // o resto do Cérebro (PDF, site, FAQ) tem título próprio.
-                    deTreinamento: t.type === TIPO_DE_TREINAMENTO,
+                    deTreinamento: ehDeTreinamento(t.type),
                     similaridade: t.similarity,
                     // O começo basta para reconhecer o trecho sem despejar o
                     // acervo inteiro na saída do medidor.

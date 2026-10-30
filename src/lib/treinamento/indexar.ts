@@ -1,4 +1,5 @@
-import { acharDocumento, type DocumentoDeTreinamento } from './documentos'
+import { acharDocumento, type DocumentoDeTreinamento, type ModoDoDocumento } from './documentos'
+import type { RagDocType } from '@/lib/queue/definitions'
 import { semComentarios } from '@/lib/rag/secoes'
 import { semExemplos } from './exemplos'
 
@@ -20,6 +21,41 @@ import { semExemplos } from './exemplos'
  * `indexedChunks` dizendo "34 trechos" com zero no banco.
  */
 export const TIPO_DE_TREINAMENTO = 'treinamento'
+
+/** O tipo dos trechos de um documento de **procedimento**. Ver `RagDocType`. */
+export const TIPO_DE_CENARIO = 'cenario'
+
+/**
+ * Os tipos que vêm de **documento de treinamento**, os dois.
+ *
+ * Existe porque três lugares perguntam "este trecho é de treinamento?" e a
+ * resposta deixou de ser uma comparação simples quando `cenario` apareceu:
+ *
+ *   - a aba Cérebro lista o que **não** é de treinamento, e apagar por lá um
+ *     trecho de treinamento deixaria `indexedChunks` dizendo "34 trechos" com
+ *     zero no banco;
+ *   - a medição de recuperação marca quais trechos vieram do treinamento.
+ *
+ * Com um array, somar um terceiro modo no futuro é somar um item aqui — e os
+ * três lugares acompanham.
+ */
+export const TIPOS_DE_TREINAMENTO = [TIPO_DE_TREINAMENTO, TIPO_DE_CENARIO] as const
+
+/** O trecho veio de um documento de treinamento? */
+export function ehDeTreinamento(type: string): boolean {
+    return (TIPOS_DE_TREINAMENTO as readonly string[]).includes(type)
+}
+
+/**
+ * Qual tipo os trechos deste documento levam.
+ *
+ * É o que separa fato de procedimento no acervo — e a separação acontece aqui,
+ * na indexação, porque o prompt precisa dela **na recuperação**, quando já não há
+ * como saber de que documento o trecho veio sem uma segunda consulta.
+ */
+export function tipoDoAcervo(modo: ModoDoDocumento): RagDocType {
+    return modo === 'procedimento' ? TIPO_DE_CENARIO : TIPO_DE_TREINAMENTO
+}
 
 /**
  * O título dos trechos é o **slug**, não o título humano.

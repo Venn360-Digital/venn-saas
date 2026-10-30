@@ -1,8 +1,10 @@
 import prisma from '@/lib/prisma'
 import { DocumentEmbedder } from '@/lib/rag/embedder'
+import { acharDocumento } from '@/lib/treinamento/documentos'
 import {
     hashDoConteudo,
     textoParaAcervo,
+    tipoDoAcervo,
     TIPO_DE_TREINAMENTO,
     tituloDoAcervo,
 } from '@/lib/treinamento/indexar'
@@ -124,15 +126,27 @@ async function indexarDocumentoDeTreinamento(agentId: string, slug: string): Pro
 
     const titulo = tituloDoAcervo(slug)
 
+    /**
+     * O tipo vem do **modo do documento**, não é fixo.
+     *
+     * Documento de `procedimento` (Cenários) é indexado como qualquer outro, mas
+     * o trecho leva `cenario` — é o que permite ao prompt apresentá-lo como ordem
+     * de execução em vez de fonte de verdade. O `deleteMany` usa o mesmo tipo,
+     * senão a reindexação apagaria por uma chave e gravaria por outra, deixando
+     * duas gerações de trechos no acervo.
+     */
+    const catalogo = acharDocumento(slug)
+    const tipo = tipoDoAcervo(catalogo?.modo ?? 'rag')
+
     const removidos = await prisma.knowledgeDocument.deleteMany({
-        where: { agentId, title: titulo, type: TIPO_DE_TREINAMENTO },
+        where: { agentId, title: titulo, type: tipo },
     })
     if (removidos.count > 0) {
         log.info(`removed ${removidos.count} stale chunk(s) for training doc "${slug}"`)
     }
 
     const embedder = new DocumentEmbedder()
-    const trechos = await embedder.processDocument(agentId, titulo, conteudo, TIPO_DE_TREINAMENTO)
+    const trechos = await embedder.processDocument(agentId, titulo, conteudo, tipo)
 
     await prisma.agentTrainingDoc.update({
         where: { agentId_slug: { agentId, slug } },
