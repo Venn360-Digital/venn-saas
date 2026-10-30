@@ -51,70 +51,48 @@ export async function PUT(
             })
             .parse(await request.json())
 
-        const anterior = await prisma.agentTrainingDoc.findUnique({
+        /**
+         * **Salvar grava rascunho. Publicar é outro botão.**
+         *
+         * Até o passo 4 esta rota escrevia `content` e enfileirava a indexação:
+         * salvar era publicar, e o agente respondia pelo texto novo na mensagem
+         * seguinte. Isso tornava impossível o princípio 5 do estudo — nenhuma
+         * mudança de treinamento publica sem número —, porque nunca havia dois
+         * estados para comparar.
+         *
+         * Nada de indexação aqui, por consequência: vetorizar o rascunho
+         * misturaria no acervo o texto que ainda não foi aprovado, e o agente
+         * passaria a responder por ele. O embedding é pago uma vez, ao publicar.
+         *
+         * **Rascunho idêntico ao publicado é apagado**, não gravado. A tela
+         * salva os sete juntos, e sem isto desfazer uma edição à mão deixaria
+         * para trás um rascunho que não propõe nada — e a tela diria "há
+         * mudanças para publicar" mentindo.
+         */
+        const atual = await prisma.agentTrainingDoc.findUnique({
             where: { agentId_slug: { agentId, slug } },
-            select: { indexedHash: true },
+            select: { content: true },
         })
+
+        const igualAoPublicado = (atual?.content ?? '') === corpo.content
 
         const gravado = await prisma.agentTrainingDoc.upsert({
             where: { agentId_slug: { agentId, slug } },
-            create: { agentId, slug, content: corpo.content },
-            update: { content: corpo.content },
+            /**
+             * No documento que ainda não existe, `content` nasce **vazio** e o
+             * texto vai para o rascunho.
+             *
+             * É o que mantém a promessa: nada chega ao agente sem passar por
+             * Publicar, nem no primeiro texto que a clínica escreve.
+             */
+            create: { agentId, slug, content: '', draftContent: corpo.content },
+            update: { draftContent: igualAoPublicado ? null : corpo.content },
             select: { indexedAt: true, indexedChunks: true, updatedAt: true },
         })
 
-        const decisao = await decidirIndexacao({
-            doc,
-            content: corpo.content,
-            hashGravado: anterior?.indexedHash ?? null,
-        })
-
-        if (decisao.acao === 'apagar') {
-            /**
-             * Esvaziado: os trechos saem **agora**, não por fila.
-             *
-             * Apagar é instantâneo e não custa embedding, e deixar para a fila
-             * manteria o agente respondendo pelo que a conta acabou de apagar
-             * durante a janela do job. O carimbo é limpo junto, senão a tela
-             * continuaria dizendo "indexado em 34 trechos".
-             */
-            const removidos = await prisma.knowledgeDocument.deleteMany({
-                where: { agentId, title: tituloDoAcervo(slug), type: TIPO_DE_TREINAMENTO },
-            })
-            await prisma.agentTrainingDoc.update({
-                where: { agentId_slug: { agentId, slug } },
-                data: { indexedHash: null, indexedAt: null, indexedChunks: null },
-            })
-
-            return NextResponse.json({
-                salvo: true,
-                acervo: 'apagado',
-                trechosRemovidos: removidos.count,
-            })
-        }
-
-        if (decisao.acao === 'indexar') {
-            await entregar(
-                QUEUE.RAG_INDEX,
-                {
-                    agentId,
-                    documentTitle: tituloDoAcervo(slug),
-                    // Vazio de propósito: quem lê o conteúdo é o processador.
-                    content: '',
-                    type: TIPO_DE_TREINAMENTO,
-                    replaceExisting: true,
-                    trainingSlug: slug,
-                },
-                { nome: 'index-training-doc' }
-            )
-
-            return NextResponse.json({ salvo: true, acervo: 'enfileirado' })
-        }
-
         return NextResponse.json({
             salvo: true,
-            acervo: 'inalterado',
-            motivo: decisao.motivo,
+            rascunho: !igualAoPublicado || atual === null,
             indexedAt: gravado.indexedAt,
             indexedChunks: gravado.indexedChunks,
         })

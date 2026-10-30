@@ -54,6 +54,8 @@
         "test:prompt": "tsx scripts/test-prompt.ts",
         "test:fusao": "tsx scripts/test-fusao.ts",
         "test:escalada": "tsx scripts/test-escalada.ts",
+        "test:juiz": "tsx scripts/test-juiz.ts",
+        "test:versao": "tsx scripts/test-versao.ts",
         "check:treinamento": "tsx scripts/check-treinamento.ts"
     },
     "dependencies": {

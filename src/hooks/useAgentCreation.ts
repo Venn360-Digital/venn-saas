@@ -78,6 +78,57 @@ export function useAgentCreation(workspaceId: string) {
     )
 
     /**
+     * A versão publicada e o que está pendente de publicação.
+     *
+     * Vivem aqui e não na tela porque quem fala com a rota de treinamento é este
+     * hook: a tela que mostrasse pendência por conta própria divergiria do que o
+     * servidor sabe no primeiro salvar que falhasse.
+     *
+     * Zero quer dizer "nunca publicou", e a tela tem de dizer isso em vez de
+     * mostrar delta contra o vazio.
+     */
+    const [versao, setVersao] = useState(0)
+    const [pendentes, setPendentes] = useState<string[]>([])
+
+    /**
+     * Publica o que está em rascunho.
+     *
+     * **Salvar não publica, e esta é a diferença.** Salvar grava rascunho; o
+     * agente continua respondendo pelo texto anterior até alguém apertar aqui. É
+     * o que torna possível medir antes de publicar, que é o princípio 5 do
+     * estudo — e é a razão de a indexação ter saído do salvar e vindo para cá.
+     */
+    const [publicando, setPublicando] = useState(false)
+
+    const publicar = async (agentId: string) => {
+        setPublicando(true)
+        try {
+            const res = await fetch(`/api/agents/${agentId}/training/publicar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            })
+            const corpo = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(corpo?.error ?? String(res.status))
+
+            setVersao(corpo.versao)
+            setPendentes([])
+            toast.success(
+                corpo.enfileirados?.length > 0
+                    ? `Versão ${corpo.versao} publicada. O acervo está sendo reindexado.`
+                    : `Versão ${corpo.versao} publicada.`
+            )
+            return true
+        } catch (erro) {
+            console.error('[TREINAMENTO] publicar', erro)
+            toast.error(erro instanceof Error ? erro.message : 'Não foi possível publicar.')
+            return false
+        } finally {
+            setPublicando(false)
+        }
+    }
+
+    /**
      * O que veio do banco, para saber o que mudou.
      *
      * `useRef` e não estado: ninguém renderiza por causa disto, e em estado ele
@@ -369,15 +420,32 @@ export function useAgentCreation(workspaceId: string) {
         try {
             const res = await fetch(`/api/agents/${agentId}/training`)
             if (!res.ok) throw new Error(String(res.status))
-            const lista: Array<{
-                slug: string
-                content: string
-                indexedAt: string | null
-                indexedChunks: number | null
-            }> = await res.json()
+            /**
+             * A rota devolve objeto, não array, desde o passo 4.
+             *
+             * Além dos documentos vêm a **versão publicada** e quais slugs têm
+             * rascunho pendente — a tela precisa dos dois na mesma renderização
+             * para poder oferecer Publicar e dizer o que vai junto.
+             *
+             * `content` é o rascunho quando há rascunho: é o que a tela edita. O
+             * que está no ar vem em `publicado`, e é a diferença entre os dois que
+             * o aviso de pendência mostra.
+             */
+            const corpo: {
+                versao: number
+                pendentes: string[]
+                docs: Array<{
+                    slug: string
+                    content: string
+                    publicado: string
+                    temRascunho: boolean
+                    indexedAt: string | null
+                    indexedChunks: number | null
+                }>
+            } = await res.json()
 
             const porSlug: Record<string, DocumentoGravado> = {}
-            for (const item of lista) {
+            for (const item of corpo.docs) {
                 porSlug[item.slug] = {
                     content: item.content,
                     indexedAt: item.indexedAt,
@@ -386,6 +454,8 @@ export function useAgentCreation(workspaceId: string) {
                 originais.current[item.slug] = item.content
             }
             setDocumentos((atual) => ({ ...atual, ...porSlug }))
+            setVersao(corpo.versao)
+            setPendentes(corpo.pendentes)
         } catch (erro) {
             console.error('[TREINAMENTO] carregar', erro)
             toast.error('Não foi possível carregar os documentos de treinamento')
@@ -428,6 +498,24 @@ export function useAgentCreation(workspaceId: string) {
                     throw new Error(corpo?.error ?? String(res.status))
                 }
                 originais.current[slug] = doc.content
+                /**
+                 * Pendência marcada aqui, com o que o servidor acabou de
+                 * confirmar.
+                 *
+                 * O `rascunho: false` da rota quer dizer "o que você salvou é
+                 * igual ao que está no ar" — acontece quando alguém desfaz uma
+                 * edição à mão. Nesse caso o slug **sai** da lista, senão a tela
+                 * diria "há mudanças para publicar" e o Publicar recusaria com
+                 * "nada para publicar".
+                 */
+                const corpo = await res.clone().json().catch(() => null)
+                setPendentes((atual) =>
+                    corpo?.rascunho === false
+                        ? atual.filter((s) => s !== slug)
+                        : atual.includes(slug)
+                          ? atual
+                          : [...atual, slug]
+                )
             } catch (erro) {
                 falharam.push(acharDocumento(slug)?.titulo ?? slug)
                 console.error(`[TREINAMENTO] ${slug}`, erro)
@@ -443,6 +531,10 @@ export function useAgentCreation(workspaceId: string) {
         documentos,
         setDocumentos,
         carregarDocumentos,
+        versao,
+        pendentes,
+        publicar,
+        publicando,
         perfil,
         setPerfil,
         trabalho,

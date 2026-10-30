@@ -15,6 +15,12 @@ import { DOCUMENTOS } from '@/lib/treinamento/documentos'
  * "indexado em 34 trechos às 14h32". `indexedAt` nulo num documento de modo
  * `rag` significa "escrito e ainda não indexado"; num de modo `prompt` significa
  * "não se indexa", que é o estado correto dele.
+ *
+ * **A forma da resposta mudou no passo 4**, de array para objeto: além dos
+ * documentos, a tela precisa da versão publicada e de quais slugs têm rascunho
+ * pendente, para poder oferecer "Publicar" e dizer o que vai junto. Devolver
+ * isso num cabeçalho de resposta ou numa segunda requisição seria esconder
+ * estado que a tela usa na mesma renderização.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -32,37 +38,59 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         const auth = await manageAgent(agentId)
         if (!auth.ok) return auth.response
 
-        const gravados = await prisma.agentTrainingDoc.findMany({
-            where: { agentId },
-            select: {
-                slug: true,
-                content: true,
-                indexedAt: true,
-                indexedChunks: true,
-                updatedAt: true,
-            },
-        })
+        const [gravados, agente] = await Promise.all([
+            prisma.agentTrainingDoc.findMany({
+                where: { agentId },
+                select: {
+                    slug: true,
+                    content: true,
+                    draftContent: true,
+                    indexedAt: true,
+                    indexedChunks: true,
+                    updatedAt: true,
+                },
+            }),
+            prisma.agent.findUnique({ where: { id: agentId }, select: { trainingVersion: true } }),
+        ])
 
         const porSlug = new Map(gravados.map((d) => [d.slug, d]))
 
-        return NextResponse.json(
-            DOCUMENTOS.map((doc) => {
-                const gravado = porSlug.get(doc.slug)
-                return {
-                    slug: doc.slug,
-                    titulo: doc.titulo,
-                    item: doc.item,
-                    modo: doc.modo,
-                    teto: doc.teto,
-                    secoes: doc.secoes,
-                    explicacao: doc.explicacao,
-                    content: gravado?.content ?? '',
-                    indexedAt: gravado?.indexedAt ?? null,
-                    indexedChunks: gravado?.indexedChunks ?? null,
-                    updatedAt: gravado?.updatedAt ?? null,
-                }
-            })
-        )
+        /**
+         * `content` é o **rascunho quando há rascunho**, e isso não é confusão.
+         *
+         * A tela edita o rascunho; o que está no ar é outra coisa, e vem em
+         * `publicado`. Se o campo editável devolvesse o publicado, abrir a tela
+         * depois de salvar mostraria o texto antigo e a pessoa escreveria tudo de
+         * novo — o rascunho existiria e seria invisível, que é a pior forma de
+         * existir.
+         */
+        const docs = DOCUMENTOS.map((doc) => {
+            const gravado = porSlug.get(doc.slug)
+            const publicado = gravado?.content ?? ''
+            const rascunho = gravado?.draftContent ?? null
+
+            return {
+                slug: doc.slug,
+                titulo: doc.titulo,
+                item: doc.item,
+                modo: doc.modo,
+                teto: doc.teto,
+                secoes: doc.secoes,
+                explicacao: doc.explicacao,
+                content: rascunho ?? publicado,
+                publicado,
+                temRascunho: rascunho !== null && rascunho !== publicado,
+                indexedAt: gravado?.indexedAt ?? null,
+                indexedChunks: gravado?.indexedChunks ?? null,
+                updatedAt: gravado?.updatedAt ?? null,
+            }
+        })
+
+        return NextResponse.json({
+            versao: agente?.trainingVersion ?? 0,
+            pendentes: docs.filter((d) => d.temRascunho).map((d) => d.slug),
+            docs,
+        })
     } catch (error) {
         console.error('[TRAINING_GET]', error)
         return new NextResponse('Internal Error', { status: 500 })
