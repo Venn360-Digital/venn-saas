@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { manageAgent } from '@/lib/auth/agent'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { montarConsulta } from '@/lib/rag/consulta'
+import { pisoDeSimilaridade, trechosDoAtendimento } from '@/lib/rag/parametros'
 import { TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
 import { createLogger } from '@/trabalhos/registro'
 
@@ -10,8 +11,19 @@ const log = createLogger('RECUPERACAO')
 /** Quantas perguntas cabem numa medição. Cada uma custa um embedding. */
 const MAX_PERGUNTAS = 50
 
-/** Quantos trechos trazer. Acima do limite do atendimento, de propósito. */
-const LIMITE_PADRAO = 8
+/**
+ * Quantos trechos trazer. **O mesmo do atendimento, e isso foi um conserto.**
+ *
+ * Era 8 — "acima do limite do atendimento, de propósito" —, e o medidor nunca
+ * mandava `limite`. O efeito era uma taxa de acerto inflada: o acerto é "o
+ * documento esperado está entre os trechos devolvidos", então um documento que
+ * chegava em 5º, 6º, 7º ou 8º lugar contava como acerto na medição e **nunca
+ * chegava ao modelo** numa conversa real, que entrega `AI_RAG_CHUNKS`.
+ *
+ * Medir com folga só faz sentido quando a folga é dita: quem quiser ver o que
+ * vem logo abaixo do corte continua podendo pedir um `limite` maior, de
+ * propósito e por escrito.
+ */
 const LIMITE_MAXIMO = 20
 
 const MAX_CARACTERES = 1000
@@ -79,7 +91,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
 
         const limite = Math.min(
-            Math.max(typeof corpo.limite === 'number' ? corpo.limite : LIMITE_PADRAO, 1),
+            Math.max(typeof corpo.limite === 'number' ? corpo.limite : trechosDoAtendimento(), 1),
             LIMITE_MAXIMO
         )
 
@@ -127,7 +139,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
         log.info(`medição de recuperação: ${perguntas.length} pergunta(s) no agente ${agentId}`)
 
-        return NextResponse.json({ limite, resultados })
+        /**
+         * O `piso` volta na resposta para o medidor não ter a cópia dele.
+         *
+         * Quem desenha a barra e marca "raspando o piso" é o script, e ele tinha
+         * `0.35` cravado: mudar `AI_RAG_MIN_SIMILARITY` deixava a saída do
+         * medidor descrevendo um corte que o atendimento não usa mais.
+         */
+        return NextResponse.json({ limite, piso: pisoDeSimilaridade(), resultados })
     } catch (error) {
         log.error('falha ao medir a recuperação', error)
         return NextResponse.json({ error: 'Não foi possível medir agora.' }, { status: 500 })

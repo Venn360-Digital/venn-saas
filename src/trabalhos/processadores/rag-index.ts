@@ -1,7 +1,11 @@
 import prisma from '@/lib/prisma'
 import { DocumentEmbedder } from '@/lib/rag/embedder'
-import { semComentarios } from '@/lib/rag/secoes'
-import { hashDoConteudo, TIPO_DE_TREINAMENTO, tituloDoAcervo } from '@/lib/treinamento/indexar'
+import {
+    hashDoConteudo,
+    textoParaAcervo,
+    TIPO_DE_TREINAMENTO,
+    tituloDoAcervo,
+} from '@/lib/treinamento/indexar'
 import { createLogger } from '@/trabalhos/registro'
 import type { RagIndexJob } from '@/lib/queue/definitions'
 
@@ -77,20 +81,45 @@ async function indexarDocumentoDeTreinamento(agentId: string, slug: string): Pro
         return
     }
 
-    // Comentário de HTML é nota de quem escreve. Sem tirá-lo, "confirmar preço
-    // com a recepção" seria vetorizado e apresentado ao modelo como fonte de
-    // verdade.
-    const conteudo = semComentarios(doc.content).trim()
+    /**
+     * A mesma normalização que a rota usa para decidir — ver `textoParaAcervo`.
+     *
+     * Tira o comentário de HTML, que é nota de quem escreve (sem isso,
+     * "confirmar preço com a recepção" seria vetorizado e apresentado ao modelo
+     * como fonte de verdade), e tira a **seção reservada de exemplos**, que o
+     * catálogo sempre declarou ser exemplo de estilo e nunca corpo de fatos —
+     * mas que o indexador tratava como qualquer outra seção. Ver
+     * `lib/treinamento/exemplos.ts` para o defeito que isso causava.
+     */
+    const { texto: conteudo, exemplosRetirados } = textoParaAcervo(doc.content)
 
     if (!conteudo) {
         log.warn(`training doc "${slug}" of agent ${agentId} is empty; nothing to index`)
         return
     }
 
+    /**
+     * O hash é do texto **que vai ser indexado**, e isto é o que faz a mudança
+     * alcançar quem já está no ar.
+     *
+     * Se o carimbo continuasse sendo do documento inteiro, todo documento já
+     * indexado teria hash igual, seria pulado aqui, e as seções de exemplo
+     * seguiriam no acervo para sempre — a correção valeria só para quem editasse
+     * o documento depois. Hasheando o que é indexado, documento **com** exemplos
+     * muda de hash e é recortado; documento **sem** exemplos tem hash idêntico e
+     * não paga embedding por nada.
+     */
     const hash = await hashDoConteudo(conteudo)
     if (hash === doc.indexedHash) {
         log.info(`training doc "${slug}" of agent ${agentId} unchanged; skipping embedding`)
         return
+    }
+
+    if (exemplosRetirados.length > 0) {
+        log.info(
+            `training doc "${slug}" of agent ${agentId}: ` +
+            `${exemplosRetirados.length} example section(s) kept out of the corpus`
+        )
     }
 
     const titulo = tituloDoAcervo(slug)

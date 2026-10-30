@@ -3,8 +3,8 @@
  *
  *   npm run check:treinamento -- ./caminho/da/pasta
  *
- * Usa **as mesmas funções da tela e do indexador** — `secionarMarkdown`,
- * `semComentarios` e `conferirEstrutura`. Não é uma segunda implementação da
+ * Usa **as mesmas funções da tela e do indexador** — `textoParaAcervo`,
+ * `secionarMarkdown` e `conferirEstrutura`. Não é uma segunda implementação da
  * regra: é a mesma, chamada de outro lugar. Se divergisse, o verificador
  * aprovaria documento que a tela recusa, que é pior que não ter verificador.
  *
@@ -17,6 +17,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { DOCUMENTOS, conferirEstrutura, orcamentoDoPrompt } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
+import { textoParaAcervo } from '@/lib/treinamento/indexar'
 
 const pasta = process.argv[2]
 if (!pasta) {
@@ -40,7 +41,15 @@ for (const doc of DOCUMENTOS) {
     }
 
     const texto = readFileSync(caminho, 'utf8')
-    const secoes = secionarMarkdown(semComentarios(texto))
+    /**
+     * A conta é sobre o texto que vai ser indexado, não sobre o arquivo.
+     *
+     * Nos documentos de acervo isso exclui a seção reservada de exemplos, que
+     * desde o conserto do indexador **não vira trecho** — contá-la aqui faria o
+     * verificador prometer mais trechos do que o acervo recebe.
+     */
+    const paraConferir = doc.modo === 'rag' ? textoParaAcervo(texto).texto : semComentarios(texto)
+    const secoes = secionarMarkdown(paraConferir)
     const c = conferirEstrutura(secoes)
     const excedeu = texto.length > doc.teto
     if (doc.modo === 'prompt') conteudoDoPrompt[doc.slug] = texto

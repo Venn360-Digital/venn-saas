@@ -16,6 +16,15 @@ export interface UsageData {
     promptTokens: number
     completionTokens: number
     totalTokens: number
+    /**
+     * Tokens do prompt que o provedor cobrou com desconto de cache.
+     *
+     * Entra no `metadata` do registro, e não em coluna: é instrumentação da
+     * nossa margem, não da carteira do cliente. É também a **única** prova de
+     * que a ordenação estável→volátil do prompt está valendo — sem registrar,
+     * o prefixo pode voltar a ser quebrado sem ninguém notar.
+     */
+    cachedTokens?: number
 }
 
 export interface TrackingContext {
@@ -102,7 +111,12 @@ export async function trackUsage(
             completionTokens: usage.completionTokens,
             totalTokens: usage.totalTokens,
             costUsd: new Prisma.Decimal(costUsd),
-            metadata: context.metadata as Prisma.InputJsonValue ?? undefined,
+            metadata: {
+                ...(context.metadata ?? {}),
+                // Zero é informação: diz que o prefixo **não** foi aproveitado.
+                // Ausente, não dá para distinguir "sem cache" de "não medido".
+                cachedTokens: usage.cachedTokens ?? 0,
+            } as Prisma.InputJsonValue,
         }
     })
 

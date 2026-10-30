@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PISO_PADRAO, TRECHOS_PADRAO } from '@/lib/rag/parametros'
 
 /**
  * O ambiente que o trabalho de fila precisa — e só ele.
@@ -43,8 +44,24 @@ const esquema = z.object({
     /** Quantas mensagens passadas alimentam o modelo como contexto. */
     AI_HISTORY_LIMIT: z.coerce.number().int().positive().default(20),
 
-    /** Trechos de conhecimento injetados no prompt. Zero desliga o RAG. */
-    AI_RAG_CHUNKS: z.coerce.number().int().min(0).default(4),
+    /**
+     * Trechos de conhecimento injetados no prompt. Zero desliga o RAG.
+     *
+     * O padrão vem de `lib/rag/parametros`, que é também quem o medidor e o
+     * console de ensaio leem — o número que governa a busca não pode ter uma
+     * cópia por leitor.
+     */
+    AI_RAG_CHUNKS: z.coerce.number().int().min(0).max(50).default(TRECHOS_PADRAO),
+
+    /**
+     * Piso de similaridade para um trecho entrar na resposta.
+     *
+     * Declarado aqui para o Worker **validar** o que recebe: antes era lido cru
+     * de `process.env` dentro do retriever, então um valor inválido caía no
+     * padrão sem avisar ninguém. O padrão e as outras leituras vivem em
+     * `lib/rag/parametros`.
+     */
+    AI_RAG_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(PISO_PADRAO),
 
     /**
      * Segundos de espera por mais mensagens do mesmo contato antes de responder.

@@ -127,8 +127,10 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
             SECAO_EXEMPLOS,
         ],
         explicacao:
-            'Os fatos sobre a empresa. O agente consulta quando a conversa pede — ' +
-            'então pode ser longo sem pesar em toda resposta.',
+            'Os fatos sobre a empresa: endereço, horário, diferenciais. Vai em toda ' +
+            'mensagem — a medição mostrou que a busca não o encontrava de forma ' +
+            'confiável (“onde vocês ficam?” vinha raspando o piso). Escreva o ' +
+            'essencial, não a história da clínica.',
     },
     {
         slug: 'servicos',
@@ -172,8 +174,10 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         precedencia: 7,
         secoes: ['Princípios', 'Descoberta de necessidade', 'Objeções', SECAO_EXEMPLOS],
         explicacao:
-            'Como conduzir e como responder a objeção. Consultado quando a conversa ' +
-            'chega nesse ponto — e sempre subordinado aos limites de Privacidade.',
+            'Como conduzir e como responder a objeção. Vai em toda mensagem — a ' +
+            'medição mostrou que a busca não o alcançava (“depois eu vejo isso” não ' +
+            'recuperava nada), e objeção é o momento em que ele mais precisa valer. ' +
+            'Sempre subordinado aos limites de Privacidade.',
     },
     {
         slug: 'faq',
@@ -247,9 +251,7 @@ export function documentosDoAcervo(): DocumentoDeTreinamento[] {
  * **Isto informa, não impede.** Quem limita é o teto de cada documento, e ter os
  * dois bloqueando era redundância: dois limites rígidos para a mesma coisa, e
  * nenhum dos dois ensinando nada. O `TETO_ABSOLUTO_DO_PROMPT` de 120.000 saiu
- * junto com a faixa `excessivo` — com três documentos de prompt a 10.000 cada, o
- * máximo possível é 30.000, então aquele teto era inalcançável e as duas faixas
- * de cima eram código morto.
+ * junto com a faixa `excessivo`, porque era inalcançável.
  *
  * A consequência que a faixa comunica é real e tem duas metades de gravidade
  * diferente:
@@ -263,10 +265,22 @@ export function documentosDoAcervo(): DocumentoDeTreinamento[] {
  *     remédio é o texto ser regra e não manual.
  *
  * Os cortes são calibrados contra **dado real**, não contra estimativa — foi
- * assim que o teto de 11.000 nasceu errado da primeira vez. O conjunto de um
- * cliente pequeno de verdade soma 11.790, e isso precisa ler "confortável": uma
- * faixa que chama de pesado o uso normal não informa, assusta. Daí 15.000 e
- * 25.000, contra um máximo possível de 30.000 (três documentos de 10.000).
+ * assim que o teto de 11.000 nasceu errado da primeira vez. Uma faixa que chama
+ * de pesado o uso normal não informa, assusta.
+ *
+ * **Recalibrados quando o conjunto de prompt passou de três documentos para
+ * cinco.** `Empresa` e `Metodologia de venda` migraram de acervo para prompt por
+ * decisão da medição, e com isso o máximo possível subiu de 30.000 para 50.000
+ * (cinco documentos de 10.000). Os cortes antigos — 15.000 e 25.000 — foram
+ * desenhados contra o máximo de 30.000, e tinham duas consequências que
+ * deixaram de fazer sentido: o conjunto real do cliente pequeno passou a somar
+ * 17.952 e seria chamado de "pesado" por crescer do jeito que nós mandamos, e
+ * `muito-pesado` passou a acender em pouco mais da metade do que é permitido.
+ *
+ * 25.000 e 40.000 mantêm a proporção contra o novo máximo (metade e quatro
+ * quintos), deixam o conjunto real medido em "confortável" com folga, e põem
+ * `muito-pesado` em ~11.400 tokens — que é a ordem de grandeza onde a análise
+ * original já apontava perda de atenção no meio do contexto.
  */
 
 /** Português corrido gira em torno de 3,5 caracteres por token. */
@@ -283,7 +297,7 @@ export function orcamentoDoPrompt(porSlug: Record<string, string>): {
     const tokens = Math.round(usado / CARACTERES_POR_TOKEN)
 
     const faixa: FaixaDoOrcamento =
-        usado > 25_000 ? 'muito-pesado' : usado > 15_000 ? 'pesado' : 'confortavel'
+        usado > 40_000 ? 'muito-pesado' : usado > 25_000 ? 'pesado' : 'confortavel'
 
     return { usado, tokens, faixa }
 }

@@ -246,6 +246,7 @@ conferir('e o cadastro da empresa', prefixo.includes('Av. Afonso Pena, 1500'), t
 conferir('as fases do funil, que são da conta', prefixo.includes('## O que você pode fazer'), true)
 conferir('o que pode ser agendado, que é cadastro', prefixo.includes('## Agendamento'), true)
 conferir('o formato fecha o prefixo', prefixo.includes('## Formato'), true)
+conferir('e a instrução de recuo também é prefixo', prefixo.includes('## Quando não souber'), true)
 
 // O que NÃO pode estar no prefixo: se estivesse, seria porque não muda — e aí o
 // agente estaria respondendo com o relógio ou o acervo da mensagem anterior.
@@ -261,12 +262,52 @@ const inicioDoVolatil = Math.min(
         .map((s) => primeira.indexOf(s))
         .filter((i) => i >= 0)
 )
-const estaveisDepois = ['## Empresa', '## Estilo de comunicação', '## O que você pode fazer', '## Agendamento', '## Formato']
-    .filter((s) => primeira.indexOf(s) > inicioDoVolatil)
+const estaveisDepois = [
+    '## Empresa',
+    '## Estilo de comunicação',
+    '## O que você pode fazer',
+    '## Agendamento',
+    '## Formato',
+    '## Quando não souber',
+].filter((s) => primeira.indexOf(s) > inicioDoVolatil)
 
 conferir('nenhuma seção estável depois do volátil', estaveisDepois, [])
 
 // E o acervo é a última coisa antes da pergunta, que é onde ele é mais usado.
 conferir('a base de conhecimento é a última seção', primeira.trimEnd().endsWith('Ortodontia a partir de R$ 180.'), true)
+
+/**
+ * A instrução de recuo existe **justamente quando a busca não trouxe nada**.
+ *
+ * Era o inverso: a única frase de recuo do sistema vivia dentro de `## Base de
+ * conhecimento`, que só é emitida quando há trecho recuperado. No caso em que o
+ * recuo mais importa — acervo vazio, pergunta sem resposta em lugar nenhum — o
+ * modelo não recebia instrução nenhuma e decidia sozinho o que dizer.
+ *
+ * Invisível porque o agente responde de qualquer jeito. Só responde inventando.
+ */
+console.log('\nO recuo quando não se sabe — existe com ou sem acervo')
+
+const semAcervo = buildSystemPrompt(agenteDeTeste(), [], undefined, [])
+const comAcervo = buildSystemPrompt(
+    agenteDeTeste(),
+    [{ title: 'servicos', content: 'Ortodontia a partir de R$ 180.' }],
+    undefined,
+    []
+)
+
+conferir('sem trecho recuperado, a instrução de recuo está lá', semAcervo.includes('## Quando não souber'), true)
+conferir('e proíbe inventar valor, horário e prazo', semAcervo.includes('Nunca invente valor, horário, prazo'), true)
+conferir('com trecho recuperado, continua lá', comAcervo.includes('## Quando não souber'), true)
+conferir(
+    'a seção de acervo não carrega mais o recuo — ele não é mais condicional',
+    comAcervo.includes('diga que vai verificar em vez de inventar'),
+    false
+)
+conferir(
+    'o pedido de passar para a equipe é dito',
+    semAcervo.includes('passar o atendimento para a equipe'),
+    true
+)
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

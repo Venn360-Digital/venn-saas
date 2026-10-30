@@ -187,6 +187,27 @@ export interface GeneratedReply {
  */
 const MAX_RODADAS_DE_FERRAMENTA = 3
 
+/**
+ * Teto de tokens da resposta — e por que existir um.
+ *
+ * Até aqui `maxTokens` nunca era preenchido no caminho do atendimento: a única
+ * contenção do tamanho era a frase de `## Formato` pedindo mensagem curta. Pedir
+ * não é limitar — um modelo que decide escrever três parágrafos escreve, e o
+ * paciente recebe no WhatsApp uma parede de texto que ninguém lê, cobrada por
+ * token de saída, que é a metade caríssima da conta.
+ *
+ * 450 e não 300: o teto vale **também** para a rodada em que o modelo escreve os
+ * argumentos da ferramenta em JSON, e cortar ali deixaria a chamada malformada.
+ * Com ~3,5 caracteres por token em português, 450 dão ~1.575 caracteres — bem
+ * acima do que uma resposta de WhatsApp precisa e do teto da fala
+ * (`AGENT_SPEECH_MAX_CHARS`, 900).
+ *
+ * O teto **corta no meio da frase** quando é alcançado, e por isso
+ * `finishReason` é registrado: resposta truncada tem de aparecer no rastro, não
+ * virar um mistério na conversa.
+ */
+const TETO_DA_RESPOSTA = 450
+
 export async function generateReply(input: GenerateReplyInput): Promise<GeneratedReply> {
     const { agent, workspaceId, conversationId } = input
 
@@ -234,6 +255,17 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
         model: agent.llmModel,
         temperature: agent.temperature,
+        maxTokens: TETO_DA_RESPOSTA,
+        /**
+         * A chave do cache é **do agente**, não da conversa.
+         *
+         * O que se quer reaproveitar é o bloco estável do prompt — instruções,
+         * documentos de comportamento, cadastro da empresa —, e ele é idêntico
+         * em todas as conversas deste agente. Chavear por conversa jogaria fora
+         * o acerto entre pacientes diferentes, que é a maioria do tráfego de uma
+         * clínica.
+         */
+        promptCacheKey: `agente-${agent.id}`,
     })
 
     /**
@@ -242,11 +274,18 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
      * Uma conversa com ferramenta custa duas ou três chamadas, e cobrar só a
      * final daria à clínica um consumo que não bate com a fatura da OpenAI.
      */
-    const total: LLMResponse['usage'] = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-    const cobrar = async (usage: LLMResponse['usage'], rodada: number) => {
+    const total: LLMResponse['usage'] = {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        cachedTokens: 0,
+    }
+    const cobrar = async (resposta: LLMResponse, rodada: number) => {
+        const { usage } = resposta
         total.promptTokens += usage.promptTokens
         total.completionTokens += usage.completionTokens
         total.totalTokens += usage.totalTokens
+        total.cachedTokens = (total.cachedTokens ?? 0) + (usage.cachedTokens ?? 0)
         // Contabilizar não pode engolir uma resposta pronta: se o livro-caixa
         // falhar, o paciente ainda tem que receber o que foi gerado.
         try {
@@ -258,6 +297,13 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
                     channel: 'whatsapp',
                     knowledgeChunks: knowledge.length,
                     toolRound: rodada,
+                    /**
+                     * Registrado por ida ao modelo, porque é por ida que o cache
+                     * acerta ou não: a primeira rodada reaproveita o prefixo da
+                     * mensagem anterior, e as rodadas de ferramenta
+                     * reaproveitam o prefixo da própria resposta em curso.
+                     */
+                    finishReason: resposta.finishReason ?? null,
                 },
             })
         } catch (error) {
@@ -284,7 +330,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
         toolContext && !input.semFerramentas ? AGENT_TOOL_DEFINITIONS : undefined
 
     let response = await llm.generate(messages, ferramentas)
-    await cobrar(response.usage, 0)
+    await cobrar(response, 0)
 
     for (
         let rodada = 1;
@@ -302,7 +348,20 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
 
         for (const call of response.toolCalls) {
             const resultado = await runAgentTool(call.name, call.arguments, toolContext)
-            log.info(`tool ${call.name} on conversation ${conversationId}: ${resultado.slice(0, 80)}`)
+            /**
+             * O log diz **o tamanho e se deu erro**, nunca o conteúdo.
+             *
+             * Eram os 80 primeiros caracteres do resultado — e o resultado de
+             * `consultar_agenda_do_paciente` começa justamente pelo nome da
+             * pessoa e pela data da consulta dela. Isso é dado de paciente no
+             * log do Worker, que é o oposto do que a política de privacidade
+             * exige. O que o log precisa responder é "a ferramenta rodou e
+             * devolveu algo?", e para isso bastam o nome, o tamanho e o erro.
+             */
+            log.info(
+                `tool ${call.name} on conversation ${conversationId}: ` +
+                `${resultado.startsWith('Erro') ? 'erro' : 'ok'}, ${resultado.length} car.`
+            )
             messages.push({ role: 'tool', content: resultado, toolCallId: call.id })
         }
 
@@ -315,12 +374,23 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
          */
         const ultima = rodada === MAX_RODADAS_DE_FERRAMENTA
         response = await llm.generate(messages, ultima ? undefined : ferramentas)
-        await cobrar(response.usage, rodada)
+        await cobrar(response, rodada)
+    }
+
+    if (response.finishReason === 'length') {
+        // Não é erro de código: é o teto fazendo o que foi pedido. Mas a
+        // resposta saiu cortada, e isso tem de ser visível — é o sinal de que o
+        // teto ficou apertado para este agente.
+        log.warn(
+            `reply for conversation ${conversationId} hit the token ceiling ` +
+            `(${TETO_DA_RESPOSTA}); the patient got a truncated message`
+        )
     }
 
     log.info(
         `generated reply for conversation ${conversationId} ` +
-        `(${total.totalTokens} tokens, ${knowledge.length} chunks)`
+        `(${total.totalTokens} tokens, ${total.cachedTokens ?? 0} em cache, ` +
+        `${knowledge.length} chunks)`
     )
 
     return { content: response.content, usage: total }
@@ -400,6 +470,10 @@ export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult>
     const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
         model: agent.llmModel,
         temperature: agent.temperature,
+        // O ensaio só vale como homologação se responder sob as mesmas
+        // restrições do atendimento — o teto é uma delas.
+        maxTokens: TETO_DA_RESPOSTA,
+        promptCacheKey: `agente-${agent.id}`,
     })
 
     // Sem ferramenta, e portanto sem laço de rodadas: uma ida ao modelo.
@@ -411,7 +485,11 @@ export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult>
             agentId: agent.id,
             // `canal: 'ensaio'` é o que permite separar, no medidor, o que foi
             // teste do que foi atendimento de verdade.
-            metadata: { channel: 'ensaio', knowledgeChunks: pecas.knowledge.length },
+            metadata: {
+                channel: 'ensaio',
+                knowledgeChunks: pecas.knowledge.length,
+                finishReason: response.finishReason ?? null,
+            },
         })
     } catch (error) {
         log.error(`usage tracking failed for workspace ${workspaceId}`, error)

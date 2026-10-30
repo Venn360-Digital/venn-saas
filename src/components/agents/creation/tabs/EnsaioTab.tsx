@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useEdicaoNaoSalva } from '@/components/agents/creation/unsaved'
 import { cn } from '@/lib/utils'
+import { FOLGA_MINIMA, PISO_PADRAO } from '@/lib/rag/parametros'
 
 /**
  * O console de ensaio — homologação dinâmica, sem passar por canal nenhum.
@@ -58,6 +59,8 @@ interface Resposta {
     consulta: string
     prompt: string
     uso: { promptTokens: number; completionTokens: number; totalTokens: number }
+    /** O piso de corte do atendimento, dito pela rota. Ver `lib/rag/parametros`. */
+    piso?: number
 }
 
 /** Um turno já trocado. O do agente carrega o que explica a resposta dele. */
@@ -80,20 +83,26 @@ interface EnsaioTabProps {
     canManage?: boolean
 }
 
-function Similaridade({ valor }: { valor?: number }) {
+function Similaridade({ valor, piso }: { valor?: number; piso: number }) {
     if (typeof valor !== 'number') return null
     /**
-     * O piso de corte é 0,35 (`AI_RAG_MIN_SIMILARITY`). Perto dele o trecho
-     * entrou raspando, e é isso que o instrutor precisa enxergar: um documento
-     * que só é encontrado a 0,36 vai deixar de ser encontrado com qualquer
-     * mudança na pergunta.
+     * Perto do piso o trecho entrou raspando, e é isso que o instrutor precisa
+     * enxergar: um documento que só é encontrado a 0,36 deixa de ser encontrado
+     * com qualquer mudança na pergunta.
+     *
+     * **O piso vem da rota**, com `FOLGA_MINIMA` por cima — era `0.45` cravado
+     * aqui, um terceiro número ao lado dos dois do atendimento e do medidor.
+     * Com o piso em 0,35, aquele 0,45 chamava de fraco um trecho com 0,10 de
+     * folga, que é justamente o que o medidor considera folga suficiente.
      */
-    const fraco = valor < 0.45
+    const fraco = valor < piso + FOLGA_MINIMA
     return (
         <span
             className={cn(
                 'shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px]',
-                fraco ? 'bg-amber-100 text-amber-900' : 'bg-muted text-muted-foreground'
+                fraco
+                    ? 'bg-warning-subtle text-warning-subtle-foreground'
+                    : 'bg-muted text-muted-foreground'
             )}
             title={fraco ? 'Entrou perto do piso de similaridade — escrita ou corte podem melhorar' : undefined}
         >
@@ -151,7 +160,10 @@ function DetalheDaResposta({ detalhe }: { detalhe: Omit<Resposta, 'resposta'> })
                                     <span className="min-w-0 flex-1 truncate text-xs font-semibold">
                                         {t.title}
                                     </span>
-                                    <Similaridade valor={t.similarity} />
+                                    <Similaridade
+                                        valor={t.similarity}
+                                        piso={detalhe.piso ?? PISO_PADRAO}
+                                    />
                                 </div>
                                 <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">
                                     {t.content}
@@ -272,7 +284,7 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
             </p>
 
             {haEdicao ? (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                <div className="flex items-start gap-2 rounded-lg border border-warning bg-warning-subtle px-4 py-3 text-xs text-warning-subtle-foreground">
                     <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                     <p>
                         Você tem alterações não salvas. O ensaio usa o que está{' '}
