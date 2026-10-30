@@ -7,6 +7,7 @@ import { resolveConversationLine } from '@/lib/conversation-line'
 import { QUEUE } from '@/lib/queue/definitions'
 import { createLogger } from '@/trabalhos/registro'
 import { enfileirar } from '@/trabalhos/filas'
+import { isHumanHandled } from '@/trabalhos/servicos/conversation'
 import { diaDaSemanaNoFuso, horaNoFuso } from '@/lib/fuso'
 
 const log = createLogger('CRON:AUTOSEND')
@@ -110,10 +111,12 @@ export async function runAutoFollowUp(): Promise<void> {
             const conversation = await prisma.conversation.findFirst({
                 where: { workspaceId: stage.workspaceId, contactId: contact.id },
                 orderBy: [{ status: 'asc' }, { lastMessageAt: 'desc' }],
-                select: { id: true, assignedTo: true, agentId: true, integrationId: true },
+                select: { id: true, assignedTo: true, handoffAt: true, agentId: true, integrationId: true },
             })
 
-            if (conversation?.assignedTo) continue
+            // Entregue à equipe também não recebe follow-up do agente: a
+            // conversa já está com gente, mesmo sem responsável definido.
+            if (conversation && isHumanHandled(conversation)) continue
 
             const lastInbound = conversation
                 ? await prisma.message.findFirst({
@@ -180,7 +183,7 @@ export async function runAutoFollowUp(): Promise<void> {
                         channel: 'whatsapp',
                         status: 'active',
                     },
-                    select: { id: true, assignedTo: true, agentId: true, integrationId: true },
+                    select: { id: true, assignedTo: true, handoffAt: true, agentId: true, integrationId: true },
                 }))
 
             /**

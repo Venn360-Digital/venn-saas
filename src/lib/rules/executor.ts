@@ -9,6 +9,7 @@ import {
 } from '@/types/rules'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { horaMinutoNoFuso } from '@/lib/fuso'
+import { resolverResponsavel } from '@/lib/rules/atribuicao'
 
 /**
  * Carries out a matched rule's actions against the database.
@@ -92,28 +93,57 @@ export class RuleExecutor {
     }
 
     /**
-     * Hand the thread to a person: assign it and drop an internal note so the
-     * operator sees why it arrived.
+     * Entrega a conversa a gente: marca a entrega, atribui quando há destino, e
+     * deixa a nota que explica ao atendente por que ela chegou.
+     *
+     * **Dois defeitos consertados aqui, e o segundo era grave.**
+     *
+     * O primeiro: `assignedTo: assignee ?? null` **apagava** o responsável que já
+     * existisse. Uma regra sem destino, disparada numa conversa que uma pessoa já
+     * tinha assumido, tirava a conversa dela — e ninguém era avisado.
+     *
+     * O segundo: sem destino, a conversa ficava com `assignedTo` nulo, e
+     * `isHumanHandled` lia só essa coluna. Então a regra anunciava a transferência
+     * ao paciente e o agente respondia a mensagem seguinte normalmente. O
+     * `result.handedToHuman` calava o agente **naquela** mensagem e só nela.
+     * Agora `handoffAt` carrega a entrega adiante.
      */
     private async notifyHuman(
         params: Record<string, unknown>,
         context: RuleContext,
         result: RuleExecutionResult
     ): Promise<void> {
-        const assignee = await this.resolveAssignee(params, context.workspaceId)
+        const assignee = await resolverResponsavel({
+            workspaceId: context.workspaceId,
+            userId: params.userId ? String(params.userId) : null,
+            departmentId: params.departmentId ? String(params.departmentId) : null,
+        })
 
         await prisma.conversation.update({
             where: { id: context.conversationId },
             data: {
-                assignedTo: assignee ?? null,
                 status: 'active',
+                handoffAt: new Date(),
+                handoffReason: 'regra',
+                // Só escreve quando resolveu alguém: sem destino, quem já atende
+                // continua atendendo.
+                ...(assignee ? { assignedTo: assignee } : {}),
             },
         })
 
         await prisma.message.create({
             data: {
                 conversationId: context.conversationId,
-                direction: 'outbound',
+                /**
+                 * `internal`, e não `outbound`.
+                 *
+                 * A nota já vinha com `isInternal: true` e nunca saiu para o
+                 * paciente, mas a direção dizia o contrário — e é por direção que
+                 * os relatórios contam mensagem enviada. Cada regra de
+                 * transferência inflava o volume de saída da clínica com uma
+                 * mensagem que ninguém mandou.
+                 */
+                direction: 'internal',
                 content: String(params.note ?? 'Atendimento transferido para um humano por regra do agente.'),
                 contentType: 'text',
                 sentBy: 'agent',
@@ -122,47 +152,9 @@ export class RuleExecutor {
             },
         })
 
-        // Even without an explicit assignee the agent must stop answering, or it
-        // would keep replying over the operator about to pick the thread up.
         result.handedToHuman = true
     }
 
-    /**
-     * Resolve `params.userId` / `params.departmentId` to a workspace member.
-     * Returns undefined to leave the thread unassigned ("em espera").
-     */
-    private async resolveAssignee(
-        params: Record<string, unknown>,
-        workspaceId: string
-    ): Promise<string | undefined> {
-        if (params.userId) {
-            const member = await prisma.workspaceUser.findFirst({
-                where: { workspaceId, userId: String(params.userId), isActive: true },
-                select: { userId: true },
-            })
-            return member?.userId
-        }
-
-        if (params.departmentId) {
-            // Quem é **daquele** departamento, agora que uma pessoa pode ser de
-            // vários: o filtro passa pela tabela de junção em vez de comparar
-            // uma coluna. O mais antigo do departamento continua sendo a
-            // escolha — é o critério que já valia, e trocá-lo mudaria para
-            // quem as regras existentes atribuem.
-            const member = await prisma.workspaceUser.findFirst({
-                where: {
-                    workspaceId,
-                    isActive: true,
-                    departments: { some: { departmentId: String(params.departmentId) } },
-                },
-                select: { userId: true },
-                orderBy: { createdAt: 'asc' },
-            })
-            return member?.userId
-        }
-
-        return undefined
-    }
 
     /** Tag the conversation and the contact, creating the tag on first use. */
     private async addTag(params: Record<string, unknown>, context: RuleContext): Promise<void> {
@@ -268,7 +260,11 @@ export class RuleExecutor {
         // `getHours()` gravaria a hora UTC — 14h viraria "17:00" no banco.
         const [hours, minutes] = horaMinutoNoFuso(dueAt).split(':')
 
-        const owner = await this.resolveAssignee(params, context.workspaceId)
+        const owner = await resolverResponsavel({
+            workspaceId: context.workspaceId,
+            userId: params.userId ? String(params.userId) : null,
+            departmentId: params.departmentId ? String(params.departmentId) : null,
+        })
 
         await prisma.activity.create({
             data: {

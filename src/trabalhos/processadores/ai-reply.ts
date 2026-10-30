@@ -4,8 +4,12 @@ import prisma from '@/lib/prisma'
 import { findIntegrationById, providerFor } from '@/trabalhos/servicos/integration'
 import { createLogger } from '@/trabalhos/registro'
 import type { AiReplyJob } from '@/lib/queue/definitions'
-import { OutOfCreditsError, generateReply } from '@/trabalhos/servicos/ai-reply'
+import { OutOfCreditsError, generateReply, type GeneratedReply } from '@/trabalhos/servicos/ai-reply'
 import { readPreferences } from '@/trabalhos/servicos/prompt'
+import { isHumanHandled } from '@/trabalhos/servicos/conversation'
+import { deveEscalar, ehLacuna, melhorSimilaridade } from '@/lib/atendimento/escalada'
+import { pisoDeSimilaridade } from '@/lib/rag/parametros'
+import { entregarAEquipe } from '@/trabalhos/servicos/entrega'
 import { enqueueOutboundAudio, enqueueOutboundText } from '@/trabalhos/servicos/outbound'
 import { MIMETYPE_DA_FALA, falar } from '@/trabalhos/servicos/speech'
 import { spendAiCredits, trackSpeechUsage } from '@/lib/llm/usage-tracker'
@@ -94,7 +98,7 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
 
     const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        select: { id: true, status: true, assignedTo: true, closedAt: true },
+        select: { id: true, status: true, assignedTo: true, handoffAt: true, closedAt: true },
     })
 
     if (!conversation) {
@@ -102,10 +106,13 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
         return
     }
 
-    // Re-checked here, not only at enqueue time: an operator may have taken the
-    // thread over during the debounce window.
-    if (conversation.assignedTo) {
-        log.info(`conversation ${conversationId} was taken over by a human; skipping`)
+    /**
+     * Reconferido aqui, e não só ao enfileirar: alguém pode ter assumido a
+     * conversa durante a janela de debounce — ou o próprio agente pode tê-la
+     * entregue na resposta anterior, que é o caso que `handoffAt` cobre.
+     */
+    if (isHumanHandled(conversation)) {
+        log.info(`conversation ${conversationId} is human-handled; skipping`)
         return
     }
 
@@ -173,22 +180,28 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
             `(${agentReplies}/${prefs.interactionLimit}); handing over`
         )
 
-        const notice = await claimAutoNotice(conversationId, 'interaction_limit')
-        if (notice) {
-            await prisma.message.create({
-                data: {
-                    conversationId,
-                    direction: 'internal',
-                    content:
-                        `O agente atingiu o limite de ${prefs.interactionLimit} interações ` +
-                        'neste atendimento e parou de responder. A conversa está aguardando a equipe.',
-                    contentType: 'text',
-                    sentBy: 'agent',
-                    isInternal: true,
-                    status: 'sent',
-                },
-            })
+        /**
+         * O teto entrega a conversa, em vez de só parar de responder.
+         *
+         * Antes daqui ele contava com a conversa **já** estar sem responsável
+         * para "aparecer em Em espera". Dava certo por acidente: a próxima
+         * mensagem do paciente reenfileirava o job, a contagem passava do teto de
+         * novo, e `claimAutoNotice` recusava repetir o aviso — então o paciente
+         * ficava sem resposta e sem explicação, e a conversa não tinha nada que
+         * dissesse à equipe que era vez dela.
+         */
+        const entrega = await entregarAEquipe({
+            workspaceId,
+            conversationId,
+            integrationId,
+            motivo: 'limite',
+            nota:
+                `O agente atingiu o limite de ${prefs.interactionLimit} interações ` +
+                'neste atendimento e parou de responder. A conversa está aguardando a equipe.',
+        })
 
+        const notice = entrega.jaEstava ? null : await claimAutoNotice(conversationId, 'interaction_limit')
+        if (notice) {
             await enqueueOutboundText({
                 conversationId,
                 content: notice,
@@ -252,14 +265,17 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
     }
 
     let content: string
+    let trechos: GeneratedReply['trechos'] = []
     try {
         const reply = await generateReply({
             agent,
             workspaceId,
             conversationId,
             semFerramentas: economia,
+            integrationId,
         })
         content = reply.content.trim()
+        trechos = reply.trechos
     } catch (error) {
         if (error instanceof OutOfCreditsError) {
             // Retrying will not create credits. Leave an internal note so the
@@ -396,5 +412,113 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
         } catch {
             // Clearing the indicator is best-effort.
         }
+    }
+
+    /**
+     * **Depois de entregar a resposta, nunca antes.**
+     *
+     * Registrar a lacuna e decidir a escalada são duas idas ao banco que não
+     * mudam uma vírgula do que o paciente recebe. Pô-las antes do envio
+     * atrasaria toda mensagem para medir; pô-las depois é instrumentação, e se
+     * falharem o paciente já tem a resposta na mão. Por isso o bloco inteiro é
+     * `try`: lacuna perdida é um dado perdido, resposta perdida é um paciente
+     * perdido.
+     */
+    await registrarLacuna({
+        workspaceId,
+        agentId: agent.id,
+        conversationId,
+        integrationId,
+        closedAt: conversation.closedAt,
+        resposta: content,
+        trechos,
+    })
+}
+
+interface SinaisDaLacuna {
+    workspaceId: string
+    agentId: string
+    conversationId: string
+    integrationId: string | null
+    closedAt: Date | null
+    resposta: string
+    trechos: GeneratedReply['trechos']
+}
+
+/**
+ * Guarda a pergunta que o agente não soube responder, e escala na segunda.
+ *
+ * A decisão é pura (`lib/atendimento/escalada.ts`); aqui é só a casca: ler a
+ * fala do paciente, gravar, contar e entregar.
+ */
+async function registrarLacuna(sinais: SinaisDaLacuna): Promise<void> {
+    try {
+        if (!ehLacuna({ trechos: sinais.trechos, piso: pisoDeSimilaridade(), resposta: sinais.resposta })) {
+            return
+        }
+
+        /**
+         * A pergunta é a **última fala do paciente**, com as palavras dele.
+         *
+         * Não a consulta expandida que foi para a busca: o passo 5 vai agrupar
+         * perguntas por similaridade e propor FAQ a partir delas, e o texto
+         * expandido traz pedaços de outras mensagens que sujariam o agrupamento.
+         */
+        const ultima = await prisma.message.findFirst({
+            where: { conversationId: sinais.conversationId, direction: 'inbound', isInternal: false },
+            orderBy: { createdAt: 'desc' },
+            select: { content: true },
+        })
+
+        const pergunta = (ultima?.content ?? '').trim()
+        if (!pergunta) return
+
+        await prisma.knowledgeGap.create({
+            data: {
+                workspaceId: sinais.workspaceId,
+                agentId: sinais.agentId,
+                conversationId: sinais.conversationId,
+                question: pergunta,
+                source: 'automatica',
+                bestSimilarity: melhorSimilaridade(sinais.trechos),
+                chunkCount: sinais.trechos.length,
+            },
+        })
+
+        /**
+         * A contagem é **deste atendimento**, pelo mesmo recorte do teto de
+         * interações: finalizar a conversa recomeça. Sem o recorte, um paciente
+         * com duas lacunas em meses diferentes seria escalado na primeira
+         * pergunta difícil do terceiro atendimento.
+         */
+        const lacunas = await prisma.knowledgeGap.count({
+            where: {
+                conversationId: sinais.conversationId,
+                createdAt: { gte: desdeQuandoContar(sinais.closedAt) },
+            },
+        })
+
+        const conversa = await prisma.conversation.findUnique({
+            where: { id: sinais.conversationId },
+            select: { assignedTo: true, handoffAt: true },
+        })
+
+        if (!deveEscalar({ lacunasNoAtendimento: lacunas, jaEntregue: conversa ? isHumanHandled(conversa) : true })) {
+            log.info(`conversation ${sinais.conversationId}: lacuna ${lacunas} registrada`)
+            return
+        }
+
+        await entregarAEquipe({
+            workspaceId: sinais.workspaceId,
+            conversationId: sinais.conversationId,
+            integrationId: sinais.integrationId,
+            motivo: 'lacunas',
+            nota:
+                `O agente ficou sem resposta ${lacunas} vezes neste atendimento e passou ` +
+                'a conversa para a equipe. A última pergunta sem resposta foi registrada ' +
+                'em Lacunas.',
+        })
+    } catch (error) {
+        log.error(`could not record the knowledge gap for ${sinais.conversationId}`, error)
     }
 }

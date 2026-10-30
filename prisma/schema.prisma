@@ -471,6 +471,7 @@ model Workspace {
   contacts       Contact[]
   deals          Deal[]
   conversations  Conversation[]
+  knowledgeGaps  KnowledgeGap[]
   integrations   Integration[]
   departments    Department[]
   tags           Tag[]
@@ -633,6 +634,7 @@ model Agent {
   workspace     Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   rules         AgentRule[]
   conversations Conversation[]
+  knowledgeGaps KnowledgeGap[]
   knowledgeDocs KnowledgeDocument[]
   trainingDocs  AgentTrainingDoc[]
   integrations  AgentIntegration[]
@@ -1258,6 +1260,26 @@ model Conversation {
   status     String  @default("active") // "active", "closed", "snoozed"
   assignedTo String? // User ID
 
+  /// Quando esta conversa foi entregue a gente, e por quê.
+  ///
+  /// **`assignedTo` responde a outra pergunta.** Ele significa "um humano está
+  /// atendendo agora", e é o mutex que cala o agente. Mas a regra `notify_human`
+  /// sem destino e o teto de interações entregavam a conversa deixando
+  /// `assignedTo` nulo — e o agente voltava a responder na mensagem seguinte,
+  /// por cima de uma entrega já anunciada ao paciente.
+  ///
+  /// `handoffAt` é o que torna a entrega verdadeira mesmo sem responsável. É
+  /// lido por `isHumanHandled` junto de `assignedTo`, e **limpo** nos mesmos
+  /// três pontos que limpam o responsável: devolver ao bot, reabrir, e o
+  /// paciente que volta a escrever depois de finalizada. Sem a limpeza, uma
+  /// entrega calaria o agente para aquele paciente para sempre.
+  ///
+  /// `handoffReason` é fechado em `MotivoDaEntrega` (ver
+  /// `lib/atendimento/escalada.ts`) porque é o que o Andar 3 da medição agrupa:
+  /// "% de conversas escaladas, e por qual motivo".
+  handoffAt     DateTime?
+  handoffReason String?
+
   /// Quando esta conversa foi finalizada pela última vez.
   ///
   /// Marca o fim de um atendimento, e é por isso que ela existe: o limite de
@@ -1285,12 +1307,13 @@ model Conversation {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact     Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  agent       Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  integration AgentIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
-  messages    Message[]
-  tags        ConversationTag[]
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact       Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent         Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  integration   AgentIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  messages      Message[]
+  knowledgeGaps KnowledgeGap[]
+  tags          ConversationTag[]
 
   @@index([workspaceId])
   @@index([contactId])
@@ -1302,6 +1325,56 @@ model Conversation {
   /// pergunta "tem conversa atribuída a mim?" em toda listagem.
   @@index([assignedTo])
   @@map("conversations")
+}
+
+/**
+ * O que o agente não soube responder.
+ *
+ * Uma linha por pergunta que terminou em promessa de confirmação **com busca
+ * fraca** — a conjunção dos dois sinais, decidida em `lib/atendimento/escalada.ts`.
+ *
+ * Existe para o passo 5 do estudo (mineração de lacunas e FAQ sugerida). Sem
+ * guardar a pergunta no instante em que ela falha, a mineração teria de
+ * redescobri-la relendo conversas inteiras com um modelo — caro, e impreciso
+ * justamente nas conversas longas, que são as que mais importam.
+ *
+ * A conta "quantas lacunas neste atendimento?" roda a cada resposta e é o que
+ * decide a escalada: duas no mesmo atendimento entregam a conversa à equipe.
+ */
+model KnowledgeGap {
+  id          String @id @default(cuid())
+  workspaceId String
+  agentId     String
+
+  /// Nula quando a conversa foi apagada: a lacuna sobrevive ao atendimento, que
+  /// é o ponto dela.
+  conversationId String?
+
+  /// A fala do paciente que ficou sem resposta.
+  question String @db.Text
+
+  /// `automatica` (os dois sinais) ou `ferramenta` (o modelo chamou
+  /// `nao_encontrei` sobre material que a busca de fato trouxe). A distinção
+  /// importa: a primeira diz "falta documento", a segunda diz "o documento
+  /// existe e não foi encontrado" — consertos diferentes.
+  source String @default("automatica")
+
+  /// A melhor similaridade da busca, quando houve alguma. Nula quando a busca
+  /// não devolveu nada, ou devolveu só acerto lexical sem vetor.
+  bestSimilarity Float?
+  chunkCount     Int    @default(0)
+
+  /// Preenchido pelo passo 5: `nova` | `agrupada` | `aprovada` | `descartada`.
+  status    String   @default("nova")
+  createdAt DateTime @default(now())
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent        Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, status, createdAt])
+  @@index([conversationId, createdAt])
+  @@map("knowledge_gaps")
 }
 
 model Message {
