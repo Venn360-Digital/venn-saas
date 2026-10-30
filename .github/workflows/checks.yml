@@ -90,6 +90,7 @@ jobs:
           npm run test:escalada
           npm run test:juiz
           npm run test:versao
+          npm run test:agrupar
           npm run test:regras
           npm run test:condicoes
 

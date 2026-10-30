@@ -141,7 +141,7 @@ async function main() {
      * workflow nenhum**. Agora está.
      */
     const tarefas = [...new Set(naAgenda)]
-    ok('cron: as 14 tarefas estão na agenda', tarefas.length === 14, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
+    ok('cron: as 15 tarefas estão na agenda', tarefas.length === 15, `${tarefas.length} tarefas em ${naAgenda.length} entradas`)
     for (const task of naAgenda) {
         ok(`cron: "${task}" tem despacho`, noDespacho.has(task))
     }

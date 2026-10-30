@@ -474,6 +474,7 @@ model Workspace {
   knowledgeGaps   KnowledgeGap[]
   evaluationCases EvaluationCase[]
   evaluations     Evaluation[]
+  gapSuggestions  GapSuggestion[]
   integrations    Integration[]
   departments     Department[]
   tags            Tag[]
@@ -647,6 +648,7 @@ model Agent {
   trainingVersions AgentTrainingVersion[]
   evaluationCases  EvaluationCase[]
   evaluations      Evaluation[]
+  gapSuggestions   GapSuggestion[]
   knowledgeDocs    KnowledgeDocument[]
   trainingDocs     AgentTrainingDoc[]
   integrations     AgentIntegration[]
@@ -1373,17 +1375,75 @@ model KnowledgeGap {
   bestSimilarity Float?
   chunkCount     Int    @default(0)
 
+  /// A qual sugestão esta lacuna foi atribuída pela mineração.
+  ///
+  /// `SetNull` porque descartar uma sugestão não pode apagar as lacunas: elas são
+  /// o registro do que o agente não soube, e continuam valendo para a semana
+  /// seguinte. É o mesmo raciocínio que fez a lacuna sobreviver à conversa.
+  suggestionId String?
+
   /// Preenchido pelo passo 5: `nova` | `agrupada` | `aprovada` | `descartada`.
   status    String   @default("nova")
   createdAt DateTime @default(now())
 
-  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  agent        Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent        Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversation Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  suggestion   GapSuggestion? @relation(fields: [suggestionId], references: [id], onDelete: SetNull)
 
   @@index([agentId, status, createdAt])
+  @@index([agentId, suggestionId])
   @@index([conversationId, createdAt])
   @@map("knowledge_gaps")
+}
+
+/**
+ * A fila de aprovação da mineração de lacunas.
+ * Uma linha por **grupo** de lacunas, não por lacuna. Lista crua é inútil depois
+ * da primeira semana: "quanto custa clareamento", "qual o valor do clareamento" e
+ * "clareamento é caro?" são três lacunas e **um** documento faltando — e a
+ * contagem de demanda, que é o que ordena a fila, ficaria errada por desenho.
+ * **A sugestão não traz a resposta.** Ela traz a pergunta bem escrita, os
+ * sinônimos, a demanda, e um branco marcado num comentário de HTML. A lacuna
+ * existe justamente porque a resposta não está em lugar nenhum do acervo; um
+ * modelo que a escrevesse estaria inventando preço, horário ou prazo — e um
+ * instrutor aprovando vinte sugestões em sequência transformaria isso em fonte de
+ * verdade do agente. Ver `lib/lacunas/rascunho.ts`.
+ */
+model GapSuggestion {
+  id          String @id @default(cuid())
+  workspaceId String
+  agentId     String
+
+  /// A formulação mais central do grupo. Não a primeira (seria a mais antiga,
+  /// por acidente de ordem) nem a mais curta (seria "quanto?").
+  question String @db.Text
+
+  /// Quantas lacunas caíram neste grupo. Ordena a fila.
+  demand Int @default(1)
+
+  /// `servicos` ou `faq` — só documento de acervo. Documento de modo `prompt`
+  /// nunca é alvo: sugestão automática não mexe na precedência do prompt, que é a
+  /// parte do sistema em que um erro não tem como ser percebido depois.
+  targetSlug String
+
+  /// O texto proposto, com o branco marcado. Aprovar sem preencher não entrega
+  /// resposta errada ao modelo — `semComentarios` descarta o marcador antes de o
+  /// texto ir para o acervo, e a pergunta volta a aparecer como lacuna.
+  draftText String @db.Text
+
+  /// `nova` | `aprovada` | `descartada`.
+  status    String    @default("nova")
+  decidedBy String?
+  decidedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent     Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  gaps      KnowledgeGap[]
+
+  @@index([agentId, status, demand])
+  @@map("gap_suggestions")
 }
 
 model Message {

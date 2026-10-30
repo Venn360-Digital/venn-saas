@@ -155,6 +155,24 @@ export const ROTINAS: Rotina[] = [
      * não tira nem 1% da folga. */
     { task: 'instagram-token-refresh', brt: '48 7-20 * * *' },
 
+    /**
+     * A mineração de lacunas: **segunda-feira de manhã, e é a primeira rotina
+     * semanal do sistema**.
+     *
+     * Semanal porque agrupar exige ter o conjunto na mão: a terceira formulação
+     * de uma pergunta só revela que as duas primeiras eram a mesma coisa.
+     * Segunda cedo porque ela lê a semana que acabou, e porque a fila de
+     * aprovação chega junto com quem senta para trabalhar.
+     *
+     * **6 h e não 21 h**, e não é estética: `paraUTC` recusa hora que cruza a
+     * meia-noite **quando o padrão restringe dia**, porque avançar o dia da
+     * semana num campo de cron tem casos de borda que não valem para um uso. 6 h
+     * BRT viram 9 h UTC no mesmo dia; 21 h virariam 0 h de terça, e a rotina
+     * rodaria no dia errado. O erro apareceria em `check:filas`, não em
+     * produção — mas aparecer no teste também custa tempo.
+     */
+    { task: 'minerar-lacunas', brt: '26 6 * * 1' },
+
     { task: 'billing-dunning', brt: '27 5 * * *' },
     { task: 'billing-reconcile', brt: '47 5 * * *' },
 

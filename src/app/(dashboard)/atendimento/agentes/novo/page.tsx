@@ -15,6 +15,7 @@ import { TrabalhoTab } from '@/components/agents/creation/tabs/TrabalhoTab'
 import { CerebroTab } from '@/components/agents/creation/tabs/CerebroTab'
 import { VozTab } from '@/components/agents/creation/tabs/VozTab'
 import { EnsaioTab } from '@/components/agents/creation/tabs/EnsaioTab'
+import { LacunasTab } from '@/components/agents/creation/tabs/LacunasTab'
 import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
 import { acharDocumento } from '@/lib/treinamento/documentos'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
@@ -313,6 +314,14 @@ function NovoAgenteContent() {
                  * salvar.
                  */
                 return <EnsaioTab agentId={urlAgentId} canManage={canManage} />
+            case 'lacunas':
+                /**
+                 * `urlAgentId` e não `agentIdRef`, igual ao Ensaio e pelo mesmo
+                 * motivo: a guia não edita nada do agente, ela lê o que está
+                 * gravado. Agente que acabou de ser criado não tem lacuna
+                 * nenhuma para colher.
+                 */
+                return <LacunasTab agentId={urlAgentId} canManage={canManage} />
             case 'voz':
                 return (
                     <VozTab

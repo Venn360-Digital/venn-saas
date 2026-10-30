@@ -42,7 +42,31 @@ async function main() {
     // O número é fixo de propósito — é o que faz uma rotina acrescentada ou
     // removida aparecer aqui, e não em produção. Estava em 14 desde antes de
     // `broadcast-dispatch` entrar, e por isso esta prova vinha vermelha.
-    ok('as 15 entradas da agenda convertem sem erro', rotinasEmUTC().length === 15)
+    ok('as 16 entradas da agenda convertem sem erro', rotinasEmUTC().length === 16)
+
+    /**
+     * A primeira rotina **semanal** do sistema, e a primeira com restrição de
+     * dia.
+     *
+     * `paraUTC` recusa hora que cruza a meia-noite quando o padrão restringe
+     * dia, porque avançar o dia da semana num campo de cron tem casos de borda
+     * que não valem para um uso. Esta prova é o que impede alguém de mover a
+     * mineração para a noite e descobrir em produção que ela roda na terça.
+     */
+    const semanal = rotinasEmUTC().find((r) => r.task === 'minerar-lacunas')
+    ok(
+        'a mineração é semanal, na segunda, e a conversão preserva o dia',
+        semanal?.utc === '26 9 * * 1',
+        semanal?.utc ?? '(ausente)'
+    )
+
+    let recusouNoite = false
+    try {
+        paraUTC('26 21 * * 1')
+    } catch {
+        recusouNoite = true
+    }
+    ok('e hora da noite com restrição de dia é RECUSADA, não meio-convertida', recusouNoite)
 
     // Os cinco de hora fixa, um a um. Fixados de propósito: se alguém mudar o
     // deslocamento ou a tabela, é aqui que aparece — não em produção.
