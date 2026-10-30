@@ -392,6 +392,20 @@ async function main() {
 
     ok('o agente nasce na versão 0 — "nunca publicou"', agenteDaVersao.trainingVersion === 0)
 
+    /**
+     * O retrofit da versão 1 não inventa versão para agente sem treinamento.
+     *
+     * A migração `versao_inicial_do_que_ja_existe` declara o estado anterior como
+     * versão 1, porque dizer "nunca publicado" sobre sete documentos que estão no
+     * ar é falso e deixa a volta atrás sem piso. Mas ela tem de pular o agente
+     * que de fato nunca escreveu nada — e este agente, criado agora e sem
+     * documento, é esse caso.
+     */
+    ok(
+        'retrofit: agente sem documento de treinamento continua na versão 0',
+        (await prisma.agentTrainingVersion.count({ where: { agentId: agenteDaVersao.id } })) === 0
+    )
+
     const docDeTreino = await prisma.agentTrainingDoc.create({
         data: { agentId: agenteDaVersao.id, slug: 'servicos', content: '', draftContent: 'rascunho' },
         select: { content: true, draftContent: true },
