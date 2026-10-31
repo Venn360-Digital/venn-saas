@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
     CalendarPlus,
     ChevronDown,
+    GraduationCap,
     LifeBuoy,
     Mail,
     MessageCircle,
     QrCode,
     Search,
+    Sparkles,
     Users,
 } from 'lucide-react'
 
@@ -21,6 +23,12 @@ import {
     CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { EmptyState } from '@/components/shared/EmptyState'
+import {
+    DOCUMENTOS,
+    SECAO_EXEMPLOS,
+    type DocumentoDeTreinamento,
+    type ModoDoDocumento,
+} from '@/lib/treinamento/documentos'
 import { cn } from '@/lib/utils'
 import { normalizeSearch } from '@/lib/search'
 
@@ -160,6 +168,149 @@ const PASSOS = [
     },
 ]
 
+// ─── Treinamento do agente ────────────────────────────────────────────────
+/**
+ * O roteiro de preenchimento dos oito documentos.
+ *
+ * **Deriva do catálogo, e isso não é elegância — é a única forma de não
+ * mentir.** Se esta tela repetisse à mão os nomes das seções, os modos e os
+ * tetos, divergiria do produto no primeiro ajuste do catálogo, e uma ajuda que
+ * ensina a escrever um documento que o sistema já não aceita é pior que
+ * nenhuma. Aqui o nome, o modo, o teto e as seções vêm de
+ * `lib/treinamento/documentos.ts`; o que mora nesta tela é só o conselho.
+ */
+
+/** O que cada modo significa para quem escreve — não para quem programa. */
+const MODO: Record<ModoDoDocumento, { rotulo: string; onde: string }> = {
+    prompt: {
+        rotulo: 'Vai em toda mensagem',
+        onde: 'O agente lê este documento inteiro a cada resposta. É onde mora o que não pode depender de a busca acertar.',
+    },
+    rag: {
+        rotulo: 'Consultado quando a conversa pede',
+        onde: 'O agente busca aqui o trecho que responde à pergunta. É onde mora o fato, que custaria caro se fosse em toda mensagem.',
+    },
+    procedimento: {
+        rotulo: 'Entra quando a situação acontece',
+        onde: 'Só o título e o gatilho vão em toda mensagem. Os passos chegam quando a conversa entra na situação.',
+    },
+}
+
+/**
+ * O conselho por documento: o que escrever, e o erro que mais aparece.
+ *
+ * Cada "erro comum" saiu de documento de cliente real ou de medição, não de
+ * suposição sobre o que alguém poderia errar.
+ */
+const CONSELHO: Record<string, { escreva: string; erro: string }> = {
+    'instrucoes-centrais': {
+        escreva: 'Quem o agente é, como escreve, o que ele busca na conversa, e o que o sistema não deixa ele fazer. Seja concreto no tom: tamanho da mensagem, emoji ou não, uma pergunta por vez.',
+        erro: '“Seja simpático” não muda comportamento nenhum — o modelo não sabe o que fazer com isso. E limite de conduta profissional não é daqui: é de Privacidade, que tem precedência maior que a deste documento.',
+    },
+    empresa: {
+        escreva: 'Endereço com uma referência de como chegar, horário incluindo o que não abre, e dois ou três diferenciais verificáveis.',
+        erro: 'Contar a história da empresa. Este documento vai em toda mensagem — escreva o que o paciente pergunta, não o institucional.',
+    },
+    servicos: {
+        escreva: 'Um subtítulo de terceiro nível (###) por serviço, com o que é, para quem serve e quanto tempo leva. E o que não está incluído, que é a maior fonte de frustração depois da venda.',
+        erro: 'Pôr tudo sob um cabeçalho só. Cada subtítulo vira um trecho da busca; com um bloco único, a pergunta sobre um serviço devolve o documento inteiro e o agente se perde. Seção maior que 1.500 caracteres é cortada por dentro, no meio da frase.',
+    },
+    'processo-comercial': {
+        escreva: 'A sequência que o agente segue, o que perguntar antes de encaminhar, e o que ele não faz por política — preço, prazo, desconto.',
+        erro: 'Escrever o manual em vez da regra. O que vai em toda mensagem custa em toda mensagem, e texto longo aqui disputa a atenção do modelo em cada resposta.',
+    },
+    'tecnicas-de-venda': {
+        escreva: 'Os princípios de condução, as perguntas que fazem a pessoa falar do problema, e um subtítulo de terceiro nível (###) por objeção que você de fato ouve.',
+        erro: 'Escrever a resposta pronta para decorar. Roteiro decorado soa decorado, e a pessoa percebe. Escreva o princípio da resposta.',
+    },
+    faq: {
+        escreva: 'Um subtítulo de terceiro nível (###) por pergunta, com as palavras que o paciente usa — inclusive erradas. E a lista de sinônimos: como ele chama, seguido do termo que a clínica usa.',
+        erro: 'Escrever a pergunta no termo técnico. “Formas de pagamento” não é recuperado por quem digita “vcs aceita pix?”. A seção de sinônimos é a mais subestimada do método: sem ela, a busca não acha o assunto pelo nome popular.',
+    },
+    privacidade: {
+        escreva: 'O que o agente nunca faz por ser papel de um profissional, o que fazer com quem já é paciente, e que dado ele não pede.',
+        erro: 'Deixar vazio por parecer burocrático. Este documento tem a maior precedência de todas: quando qualquer outro conflita com ele, ele ganha. É o que impede o palpite que prejudica alguém.',
+    },
+    cenarios: {
+        escreva: 'Um subtítulo de terceiro nível (###) por situação, com uma linha “Quando:” descrevendo o gatilho e uma lista “Passos:” numerada.',
+        erro: 'Esquecer o “Quando:” ou os “Passos:”. Sem gatilho o cenário nunca é reconhecido; sem passos não há o que executar. O formato não é enfeite — é o que o sistema lê.',
+    },
+}
+
+/**
+ * O prompt que organiza material fora do padrão, montado **a partir do
+ * catálogo**.
+ *
+ * Quem já tem material escrito — um manual de atendimento, um documento do
+ * consultor, um PDF de treinamento — não deveria ter de redigitar tudo em oito
+ * blocos. Este prompt faz a separação, e a parte que importa dele é a divisão
+ * entre o que vai no prompt e o que vai na busca: é a decisão que o cliente não
+ * tem como adivinhar sozinho, e a que mais custa caro quando sai errada.
+ *
+ * Montado por função e não escrito à mão pelo mesmo motivo do resto desta tela:
+ * catálogo que muda sem o prompt acompanhar produziria arquivos que o sistema
+ * recusa.
+ */
+function promptDeConversao(): string {
+    const linha = (d: DocumentoDeTreinamento) =>
+        `${d.slug}.md — ${d.titulo}\n` +
+        `  Destino: ${d.modo === 'prompt' ? 'PROMPT (lido em toda mensagem)' : d.modo === 'rag' ? 'RAG (buscado quando a conversa pede)' : 'PROCEDIMENTO (gatilho no prompt, passos sob demanda)'}\n` +
+        `  Seções obrigatórias, nesta ordem e com dois ##:\n` +
+        d.secoes.map((s) => `    ## ${s}`).join('\n') +
+        `\n  Teto: ${d.teto.toLocaleString('pt-BR')} caracteres.`
+
+    return [
+        'Você vai reorganizar o material de treinamento abaixo em arquivos Markdown separados, seguindo exatamente a estrutura que eu descrevo. Não invente conteúdo: use só o que está no material. O que faltar, deixe como comentário de HTML no formato <!-- confirmar: o que falta -->.',
+        '',
+        'A REGRA QUE DECIDE ONDE CADA COISA VAI',
+        '',
+        'Há três tipos de texto, e cada um tem um destino:',
+        '',
+        '1. REGRA — quem o agente é, o que ele nunca faz, como conduz, os limites. Vai no PROMPT, porque o agente precisa disso em toda resposta e não pode depender de uma busca acertar.',
+        '2. FATO — serviços, preços, endereço, horário, perguntas e respostas. Vai no RAG, porque é consultado quando a conversa pede e custaria caro em toda mensagem.',
+        '3. PROCEDIMENTO — "quando acontecer X, faça 1, 2, 3". Vai no documento de cenários: o gatilho fica sempre à mão e os passos chegam quando a situação aparece.',
+        '',
+        'Na dúvida entre regra e fato, pergunte: "se a busca não encontrar isto, o agente erra feio?" Se sim, é regra e vai no prompt.',
+        '',
+        'OS ARQUIVOS QUE VOCÊ DEVE PRODUZIR',
+        '',
+        DOCUMENTOS.map(linha).join('\n\n'),
+        '',
+        'REGRAS DE FORMATO, TODAS OBRIGATÓRIAS',
+        '',
+        '- Cada arquivo começa com um único "# " e o título indicado.',
+        '- Os cabeçalhos "##" são exatamente os listados, sem acrescentar nem omitir.',
+        `- Nos documentos de RAG e de procedimento, use "###" por item dentro da seção: um "###" por serviço, um por pergunta, um por objeção, um por situação. Cada "###" vira um trecho da busca; um bloco único faz a pergunta devolver o documento inteiro.`,
+        '- Nenhuma seção pode passar de 1.500 caracteres, ou ela é cortada no meio de uma frase. Se passar, divida em mais "###".',
+        `- No documento de cenários, cada "###" precisa de uma linha "Quando:" com o gatilho e uma lista "Passos:" numerada. Sem as duas, o cenário é ignorado.`,
+        `- A seção "${SECAO_EXEMPLOS}" é reservada: coloque ali as falas de exemplo, e só ali. Elas mostram o jeito de responder e nunca são usadas como fonte de verdade.`,
+        '- Não escreva preço, prazo, condição comercial ou política que não esteja no material. Prefira deixar <!-- confirmar: ... --> a escrever um número que ninguém confirmou.',
+        '',
+        'SAÍDA',
+        '',
+        'Devolva um arquivo de cada vez, com o nome dele antes do conteúdo. No fim, liste o que você deixou marcado como "confirmar" e o que do material original não coube em nenhum arquivo.',
+        '',
+        'MATERIAL A REORGANIZAR',
+        '',
+        '<cole aqui o seu material>',
+    ].join('\n')
+}
+
+const PROMPT_DE_CONVERSAO = promptDeConversao()
+
+/** Tudo o que a seção de treinamento diz, para a busca varrer. */
+const TEXTO_TREINAMENTO = normalizeSearch(
+    [
+        'treinamento do agente roteiro preencher documentos prompt rag',
+        ...DOCUMENTOS.map(
+            (d) =>
+                `${d.titulo} ${d.item} ${d.explicacao} ${MODO[d.modo].rotulo} ${MODO[d.modo].onde} ` +
+                `${CONSELHO[d.slug]?.escreva ?? ''} ${CONSELHO[d.slug]?.erro ?? ''} ${d.secoes.join(' ')}`
+        ),
+        PROMPT_DE_CONVERSAO,
+    ].join(' ')
+)
+
 // ─── Perguntas frequentes ────────────────────────────────────────────────
 const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
     {
@@ -241,6 +392,7 @@ const INDICE_PASSOS = new Map(
 export default function SuportePage() {
     const [busca, setBusca] = useState('')
     const [topico, setTopico] = useState<string>('todos')
+    const [promptCopiado, setPromptCopiado] = useState(false)
     const [contexto, setContexto] = useState('')
 
     /**
@@ -304,9 +456,18 @@ export default function SuportePage() {
         [termo, buscando]
     )
 
+    /**
+     * O roteiro de treinamento também é resultado de busca.
+     *
+     * Quem digita "prompt", "rag", "cenários" ou "como preencho os documentos"
+     * tem aqui a melhor resposta do produto inteiro — escondê-la durante a
+     * busca seria esconder justamente o que a pessoa procurou.
+     */
+    const mostrarTreinamento = !buscando || TEXTO_TREINAMENTO.includes(termo)
+
     const achadosFaq = resultado.reduce((n, g) => n + g.itens.length, 0)
     /** Guia encontrado é resultado como outro qualquer — e às vezes o melhor. */
-    const achados = achadosFaq + (buscando ? guias.length : 0)
+    const achados = achadosFaq + (buscando ? guias.length + (mostrarTreinamento ? 1 : 0) : 0)
 
     return (
         <div className="pb-16">
@@ -420,6 +581,154 @@ export default function SuportePage() {
                                     </p>
                                 </article>
                             ))}
+                        </div>
+                    </section>
+                ) : null}
+
+                {/* ─── Treinamento do agente ───────────────────────────────
+                    Seção própria, e não mais um cartão em Guias: os guias são
+                    tarefas de três passos, e isto é um roteiro de oito
+                    documentos com uma decisão de fundo. O DESIGN.md previa que
+                    treinamento nasceria aqui (Tela 05). ─────────────────── */}
+                {mostrarTreinamento ? (
+                    <section className="pt-10" aria-labelledby="treinamento">
+                        <h2
+                            id="treinamento"
+                            className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                        >
+                            Treinamento do agente
+                        </h2>
+
+                        <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
+                            <div className="border-b border-border p-5">
+                                <span className="flex size-9 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
+                                    <GraduationCap className="size-[18px]" />
+                                </span>
+                                <h3 className="mt-3 text-[15px] font-bold leading-snug">
+                                    Como preencher os {DOCUMENTOS.length} documentos
+                                </h3>
+                                <p className="mt-1.5 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">
+                                    Treinar o agente é escrever oito documentos, não ajustar dezenas de
+                                    campos. Antes de começar, a regra que decide onde cada coisa vai —
+                                    é a única decisão que erra caro.
+                                </p>
+
+                                <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+                                    {[
+                                        { t: 'Regra', d: 'Quem o agente é, o que ele nunca faz, como conduz. Vai no prompt: não pode depender de a busca acertar.' },
+                                        { t: 'Fato', d: 'Serviços, endereço, horário, perguntas e respostas. Vai na busca: não pode custar em toda mensagem.' },
+                                        { t: 'Procedimento', d: '“Quando acontecer X, faça 1, 2, 3.” O gatilho fica à mão; os passos chegam na hora.' },
+                                    ].map((x) => (
+                                        <div key={x.t} className="rounded-lg border border-border bg-muted/40 p-3">
+                                            <dt className="text-[13px] font-semibold">{x.t}</dt>
+                                            <dd className="mt-1 text-xs leading-relaxed text-muted-foreground">{x.d}</dd>
+                                        </div>
+                                    ))}
+                                </dl>
+
+                                <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+                                    Na dúvida entre regra e fato, pergunte: <strong>se a busca não
+                                    encontrar isto, o agente erra feio?</strong> Se sim, é regra.
+                                </p>
+                            </div>
+
+                            {/* Um bloco por documento, na ordem em que as guias
+                                aparecem na tela do agente — quem lê aqui está
+                                com aquela tela aberta do lado. */}
+                            <ol className="divide-y divide-border">
+                                {DOCUMENTOS.map((d, i) => (
+                                    <li key={d.slug} className="grid gap-x-5 gap-y-2 p-5 md:grid-cols-[200px_1fr]">
+                                        <div>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="num text-[11px] font-semibold text-muted-foreground">
+                                                    {i + 1}
+                                                </span>
+                                                <h4 className="text-[14px] font-bold leading-snug">{d.item}</h4>
+                                            </div>
+                                            <p className="mt-1 text-xs text-muted-foreground">{d.titulo}</p>
+                                            <span className="mt-2 inline-flex rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                                {MODO[d.modo].rotulo}
+                                            </span>
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] leading-relaxed">
+                                                {CONSELHO[d.slug]?.escreva}
+                                            </p>
+                                            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                                                <strong className="font-semibold text-foreground">
+                                                    O erro mais comum:
+                                                </strong>{' '}
+                                                {CONSELHO[d.slug]?.erro}
+                                            </p>
+                                            <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+                                                Seções, nesta ordem:{' '}
+                                                {d.secoes.map((s, j) => (
+                                                    <span key={s}>
+                                                        {j > 0 ? ' · ' : ''}
+                                                        <code className="rounded bg-muted px-1 py-0.5 text-[11px]">{s}</code>
+                                                    </span>
+                                                ))}
+                                            </p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ol>
+
+                            <p className="border-t border-border bg-muted/40 px-5 py-3 text-xs leading-relaxed text-muted-foreground">
+                                A seção <code className="rounded bg-muted px-1 py-0.5">{SECAO_EXEMPLOS}</code> existe
+                                em todos os oito e é reservada: ela mostra o jeito de responder e nunca
+                                é usada como fonte de verdade. Escreva ali as falas de exemplo — elas
+                                não entram na base consultável, de propósito.
+                            </p>
+                        </div>
+
+                        {/* ─── O prompt de conversão ──────────────────────────
+                            Para quem já tem material escrito e não quer
+                            redigitar tudo em oito blocos. ───────────────── */}
+                        <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
+                            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-5">
+                                <div className="min-w-0">
+                                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
+                                        <Sparkles className="size-[18px]" />
+                                    </span>
+                                    <h3 className="mt-3 text-[15px] font-bold leading-snug">
+                                        Já tem material escrito? Use este prompt
+                                    </h3>
+                                    <p className="mt-1.5 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">
+                                        Se a clínica já tem manual de atendimento, roteiro do
+                                        consultor ou documento de treinamento, não redigite nada. Copie
+                                        o prompt abaixo, cole numa inteligência artificial junto com o
+                                        seu material, e ela devolve os oito arquivos já separados entre
+                                        o que vai no prompt e o que vai na busca.
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 shrink-0"
+                                    onClick={() => {
+                                        void navigator.clipboard.writeText(PROMPT_DE_CONVERSAO)
+                                        setPromptCopiado(true)
+                                        setTimeout(() => setPromptCopiado(false), 2000)
+                                    }}
+                                >
+                                    {promptCopiado ? 'Copiado' : 'Copiar prompt'}
+                                </Button>
+                            </div>
+
+                            <pre className="max-h-80 overflow-auto bg-muted/40 p-5 text-[12px] leading-relaxed">
+                                <code>{PROMPT_DE_CONVERSAO}</code>
+                            </pre>
+
+                            <p className="border-t border-border px-5 py-3 text-xs leading-relaxed text-muted-foreground">
+                                Revise antes de publicar. A inteligência artificial organiza o que você
+                                deu, mas não confirma preço, prazo nem política — o que faltar vem
+                                marcado como <code className="rounded bg-muted px-1 py-0.5">{'<!-- confirmar: ... -->'}</code>,
+                                e comentário assim não chega ao agente. Depois é só usar{' '}
+                                <strong className="font-semibold text-foreground">Importar .md</strong>{' '}
+                                em cada guia de Treinamento, conferir, e publicar.
+                            </p>
                         </div>
                     </section>
                 ) : null}
