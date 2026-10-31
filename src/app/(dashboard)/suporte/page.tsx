@@ -717,7 +717,12 @@ export default function SuportePage() {
                                 </Button>
                             </div>
 
-                            <pre className="max-h-80 overflow-auto bg-muted/40 p-5 text-[12px] leading-relaxed">
+                            {/* `whitespace-pre-wrap` e não `pre`: as linhas
+                                deste prompt são parágrafos, não código. Com
+                                rolagem horizontal, 2.027px de texto couberam em
+                                537px e quem lia via a frase cortada no meio —
+                                ninguém rola um bloco para a direita para ler. */}
+                            <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words bg-muted/40 p-5 text-[12px] leading-relaxed">
                                 <code>{PROMPT_DE_CONVERSAO}</code>
                             </pre>
 
