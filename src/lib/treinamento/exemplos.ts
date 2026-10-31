@@ -88,8 +88,8 @@ const SOBRE_RESPOSTA = /\brespostas?\b/
  * depender de lista de títulos conhecidos.
  *
  * **O que fica de fora, de propósito:** `Exemplo completo` e `Exemplo de
- * abertura` (vistos no conjunto do Stagent) não têm a palavra `resposta` e não
- * são reconhecidos. Hoje é inofensivo — os dois estão em documento de modo
+ * abertura` (vistos em conjunto real de cliente) não têm a palavra `resposta` e
+ * não são reconhecidos. Hoje é inofensivo — os dois estão em documento de modo
  * `prompt`, que não passa por aqui — e o conserto certo é o modelo ensinar o
  * nome declarado, não esta função crescer uma lista de sinônimos que envelhece.
  */

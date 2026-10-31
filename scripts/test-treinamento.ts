@@ -641,10 +641,10 @@ conferir(
 /**
  * O limite declarado: sem a palavra `resposta`, não reconhece.
  *
- * `Exemplo completo` e `Exemplo de abertura` existem no conjunto do Stagent, e
- * hoje não chegam aqui — estão em documento de modo `prompt`. O teste guarda o
- * comportamento para que a escolha fique visível: o conserto é o modelo ensinar
- * o nome declarado, não esta função virar lista de sinônimos.
+ * `Exemplo completo` e `Exemplo de abertura` existem em conjunto real de
+ * cliente, e hoje não chegam aqui — estão em documento de modo `prompt`. O teste
+ * guarda o comportamento para que a escolha fique visível: o conserto é o modelo
+ * ensinar o nome declarado, não esta função virar lista de sinônimos.
  */
 conferir(
     'exemplo sem a palavra resposta NÃO é reconhecido, e é decisão',
