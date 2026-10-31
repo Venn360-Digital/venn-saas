@@ -1,7 +1,7 @@
 /**
  * O catálogo dos documentos de treinamento do agente — a espinha do método.
  *
- * O treinamento deixa de ser uma dúzia de campos avulsos e passa a ser **sete
+ * O treinamento deixa de ser uma dúzia de campos avulsos e passa a ser **oito
  * documentos em Markdown**, cada um com um assunto e um lugar de atuação. Tudo o
  * mais pendura aqui: a tela desenha a partir deste catálogo, o indexador sabe o
  * que vetorizar por ele, e o construtor de prompt monta a ordem por ele.
@@ -13,7 +13,7 @@
  *
  * **A decisão mais importante está em `modo`, e ela não é do admin.**
  *
- * Mandar os sete documentos no prompt a cada mensagem seria trocar ~2 mil tokens
+ * Mandar os oito documentos no prompt a cada mensagem seria trocar ~2 mil tokens
  * por ~12 mil, e isso piora de duas formas ao mesmo tempo: o modelo atende pior
  * ao **meio** de um contexto longo, então a regra de preço enterrada no meio de
  * 12 mil tokens fica *menos* confiável do que está hoje; e a conta cai inteira
@@ -297,6 +297,17 @@ export function documentosDeFato(): DocumentoDeTreinamento[] {
 }
 
 /**
+ * Os de `procedimento`.
+ *
+ * Existe para a lista escrita de precedência do prompt: o corpo deles chega por
+ * busca, mas a **posição** deles na hierarquia tem de ser dita ao modelo, senão
+ * um passo a passo recuperado vira a instrução menos subordinada do conjunto.
+ */
+export function documentosDeProcedimento(): DocumentoDeTreinamento[] {
+    return DOCUMENTOS.filter((d) => d.modo === 'procedimento')
+}
+
+/**
  * O que os documentos de comportamento ocupam, somados — e o que isso custa.
  *
  * **Isto informa, não impede.** Quem limita é o teto de cada documento, e ter os
@@ -369,7 +380,7 @@ export function modeloDoDocumento(doc: DocumentoDeTreinamento): string {
      *
      * `modelos.ts` guarda o `.md` de cada documento quando ele existe; enquanto
      * não existe, saem só os cabeçalhos do catálogo. Assim o botão funciona nos
-     * sete desde já, e cada modelo real entra sem tocar em tela nem em rota.
+     * oito desde já, e cada modelo real entra sem tocar em tela nem em rota.
      */
     const escrito = modeloEscrito(doc.slug)
     if (escrito) return escrito
@@ -378,18 +389,23 @@ export function modeloDoDocumento(doc: DocumentoDeTreinamento): string {
 }
 
 /**
- * **Sem comentário de HTML no modelo**, e isso foi deliberado.
+ * **Comentário de HTML no modelo: as duas objeções originais foram consertadas.**
  *
- * A primeira versão trazia `<!-- como preencher -->` sob a seção de exemplos. O
- * teste mostrou o defeito: comentário é corpo. A seção passava por preenchida na
- * conferência de estrutura, e — pior — o texto da nossa própria dica seria
- * vetorizado e apresentado ao modelo como fonte de verdade. A orientação mora em
- * `explicacao`, que é texto de tela e nunca é indexado.
+ * A primeira versão trazia `<!-- como preencher -->` e foi recusada por duas
+ * razões, as duas corretas na época: comentário contava como corpo na
+ * conferência de estrutura, e o texto da nossa própria dica seria vetorizado e
+ * apresentado ao modelo como fonte de verdade.
  *
- * Fica a lacuna conhecida: o admin ainda pode escrever um comentário dele, e
- * esse vai para o acervo. Limpar `<!-- … -->` antes de indexar — respeitando
- * cerca de código — é conserto para quando a indexação dos documentos existir, e
- * não antes: função sem chamador é código morto.
+ * Nenhuma das duas vale mais. `semComentarios` roda antes do corte (ver
+ * `lib/rag/secoes.ts`), antes da montagem do prompt, e desde 2026-10-31 também
+ * no caminho do catálogo de Cenários, que era o último furo. A conferência de
+ * estrutura da tela já aplica a mesma limpeza. Então comentário **não** conta
+ * como corpo e **não** chega ao modelo por caminho nenhum.
+ *
+ * O que sobra é a asserção em `scripts/test-treinamento.ts`, que ainda proíbe
+ * `<!--` num modelo escrito citando o motivo antigo. Ela é o único obstáculo ao
+ * desenho aprovado para o passo 7 — exemplo de forma dentro de comentário, por
+ * seção — e sai junto do primeiro modelo embarcado, não antes.
  */
 
 /**

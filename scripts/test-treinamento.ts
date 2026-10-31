@@ -317,10 +317,64 @@ conferir(
     0
 )
 
+/**
+ * **O invariante dos modelos, e ele substitui uma proibição que envelheceu.**
+ *
+ * Aqui havia `modelo.includes('<!--') === false`, com o motivo "comentário é
+ * corpo, e seria indexado". O motivo deixou de ser verdade: `semComentarios` é
+ * aplicado na montagem do prompt, na indexação do acervo e na leitura do
+ * catálogo de Cenários — as provas estão neste mesmo arquivo, logo abaixo.
+ * A proibição sobreviveu ao motivo, e era o único obstáculo ao desenho dos
+ * modelos: exemplo de forma dentro de comentário, junto da seção que ilustra.
+ *
+ * O que vale conferir é o oposto, e é mais forte: **modelo inserido não produz
+ * conteúdo nenhum**. Todo o texto do modelo é comentário, então depois de
+ * `semComentarios` sobra título + cabeçalhos sem corpo. Isso significa zero
+ * trecho no acervo e zero token no prompt — o cliente insere, lê a orientação
+ * enquanto escreve, e nada do nosso texto chega ao modelo de linguagem.
+ *
+ * Se alguém escrever um modelo com orientação no corpo, isto reprova. É o que
+ * impede "Escreva aqui um subtítulo por serviço" de ser vetorizado e devolvido
+ * ao agente sob "use os trechos como fonte de verdade".
+ */
 conferir(
-    'o modelo não traz comentário de HTML — comentário é corpo, e seria indexado',
-    modelo.includes('<!--'),
-    false
+    'nenhum modelo produz corpo: depois de semComentarios sobram só cabeçalhos',
+    Object.entries(MODELOS)
+        .map(([slug, texto]) => {
+            const comConteudo = secionarMarkdown(semComentarios(texto)).filter(
+                (sec) => sec.corpo.trim() !== ''
+            )
+            return comConteudo.length > 0
+                ? `${slug}: ${comConteudo.length} seção(ões) com corpo — ${comConteudo
+                      .map((sec) => sec.caminho.at(-1))
+                      .join(', ')}`
+                : null
+        })
+        .filter(Boolean),
+    []
+)
+
+/**
+ * E a outra metade: o modelo **tem** de trazer orientação, senão é só esqueleto.
+ *
+ * Sem esta prova, "nenhum corpo" seria satisfeito por um modelo vazio — que é
+ * exatamente o que `modeloDoDocumento` já devolve sozinho quando não há modelo
+ * escrito. O modelo existe para ensinar a escrever; se não tem comentário, não
+ * ensina nada e não deveria estar aqui.
+ */
+conferir(
+    'todo modelo escrito traz orientação em comentário, uma por seção',
+    Object.entries(MODELOS)
+        .map(([slug, texto]) => {
+            const doc = acharDocumento(slug)!
+            const comentarios = (texto.match(/<!--/g) ?? []).length
+            // Um por seção, mais o aviso de abertura.
+            return comentarios < doc.secoes.length + 1
+                ? `${slug}: ${comentarios} comentário(s) para ${doc.secoes.length} seção(ões)`
+                : null
+        })
+        .filter(Boolean),
+    []
 )
 
 const preenchido = `# Serviços prestados
@@ -464,6 +518,60 @@ conferir(
     { acao: 'apagar' }
 )
 
+/**
+ * **"Vazio" é vazio para o ACERVO, e isto é a invariante que duas rotas usam.**
+ *
+ * Documento reduzido a comentários tem texto cru. Até 2026-10-31 a rota de
+ * publicação decidia por `texto.trim()`, então ele passava por "não vazio", era
+ * enfileirado, e o processador descobria lá que não havia o que indexar — logava
+ * um aviso e **saía sem apagar**. Os trechos da geração anterior sobreviviam, o
+ * carimbo seguia dizendo "34 trechos", e o agente continuava respondendo pelo
+ * texto que o cliente acabou de remover.
+ *
+ * As duas pontas agora decidem por `textoParaAcervo`, e é esta prova que diz o
+ * que elas vão ver.
+ */
+conferir(
+    'documento reduzido a COMENTÁRIOS é vazio para o acervo',
+    textoParaAcervo('<!-- exemplo: a avaliação é gratuita -->\n<!-- outra nota -->').texto,
+    ''
+)
+
+conferir(
+    'e com acervo gravado, ele manda APAGAR — não "pular"',
+    await decidirIndexacao({
+        doc: docRag,
+        content: '<!-- exemplo: Ortodontia a partir de R$ 180 -->',
+        hashGravado: hashDele,
+    }),
+    { acao: 'apagar' }
+)
+
+/**
+ * **Título e cabeçalho sobrevivem, e isso é bom saber antes de embarcar modelo.**
+ *
+ * `semComentarios` tira o comentário e deixa o `#` e os `##`. Então um modelo
+ * que é título + cabeçalhos + exemplos em comentário **não** é vazio para o
+ * acervo: ele é enfileirado, o corte descarta cabeçalho sem corpo, e o
+ * documento acaba com zero trecho — depois de a reindexação ter apagado a
+ * geração anterior. É o desfecho correto, e é o que o passo 7 vai produzir.
+ *
+ * A prova existe para que ninguém "conserte" `textoParaAcervo` para também
+ * descartar cabeçalho: isso jogaria o modelo inserido na trilha de apagar, e aí
+ * inserir um modelo apagaria o acervo de quem já tinha texto.
+ */
+conferir(
+    'título e cabeçalhos sobrevivem: modelo com exemplos em comentário NÃO é vazio',
+    textoParaAcervo('# Serviços prestados\n\n## Ortodontia\n\n<!-- exemplo: a partir de R$ 180 -->').texto,
+    '# Serviços prestados\n\n## Ortodontia'
+)
+
+conferir(
+    'documento com SÓ a seção reservada de exemplos também é vazio para o acervo',
+    textoParaAcervo(`## ${SECAO_EXEMPLOS}\n\nA avaliação é gratuita.`).texto,
+    ''
+)
+
 conferir(
     'documento vazio que nunca teve acervo não tem nada a fazer',
     await decidirIndexacao({ doc: docRag, content: '', hashGravado: null }),
@@ -542,6 +650,87 @@ conferir(
     ehSecaoDeExemplos(SECAO_EXEMPLOS),
     true
 )
+
+/**
+ * **Os títulos reais, e o motivo de a comparação por prefixo ter caído.**
+ *
+ * Estes seis saíram dos dois conjuntos de documentos de cliente lidos em
+ * 2026-10-31. Com a regra antiga (prefixo contra `"exemplos de resposta"`),
+ * **só o primeiro** era reconhecido: os outros têm o singular, ou "ou sugestão"
+ * no meio, ou um enumerador na frente. Os dois marcados `faq`/`servicos` são de
+ * documento de **acervo** — iriam vetorizados como fonte de verdade, que é o
+ * defeito que este módulo existe para evitar.
+ */
+conferir(
+    'os títulos reais de cliente são reconhecidos',
+    [
+        ehSecaoDeExemplos('Exemplos de resposta'),
+        ehSecaoDeExemplos('Exemplo de resposta'),
+        ehSecaoDeExemplos('Exemplos ou sugestões de resposta'), // servicos
+        ehSecaoDeExemplos('Exemplo ou sugestão de resposta — convênio'), // faq
+        ehSecaoDeExemplos('Exemplos ou sugestões de resposta — agenda'),
+        ehSecaoDeExemplos('8. Exemplo de resposta'),
+    ],
+    [true, true, true, true, true, true]
+)
+
+/**
+ * O outro lado da regra, e é por isso que `exemplo` sozinho não basta.
+ *
+ * Seção de fato retirada do acervo cala o agente sobre o que a conta escreveu, e
+ * cala em silêncio. Exigir a palavra `resposta` é o que separa "exemplo de como
+ * responder" de "exemplos de coisas que existem".
+ */
+conferir(
+    'seção de fato que começa com "Exemplos" continua indexada',
+    [
+        ehSecaoDeExemplos('Exemplos de cursos oferecidos'),
+        ehSecaoDeExemplos('Exemplos de documentos aceitos'),
+        ehSecaoDeExemplos('Respostas rápidas'),
+        ehSecaoDeExemplos('Perguntas e respostas'),
+    ],
+    [false, false, false, false]
+)
+
+/**
+ * O limite declarado: sem a palavra `resposta`, não reconhece.
+ *
+ * `Exemplo completo` e `Exemplo de abertura` existem em conjunto real de
+ * cliente, e hoje não chegam aqui — estão em documento de modo `prompt`. O teste
+ * guarda o comportamento para que a escolha fique visível: o conserto é o modelo
+ * ensinar o nome declarado, não esta função virar lista de sinônimos.
+ */
+conferir(
+    'exemplo sem a palavra resposta NÃO é reconhecido, e é decisão',
+    [ehSecaoDeExemplos('8. Exemplo completo'), ehSecaoDeExemplos('Exemplo de abertura')],
+    [false, false]
+)
+
+/**
+ * A prova de ponta a ponta: o documento de acervo como o cliente escreveu.
+ *
+ * Com a regra antiga este `fatos` saía com o diálogo inteiro dentro, pronto para
+ * ser vetorizado e repetido literalmente pelo agente.
+ */
+{
+    const comoOClienteEscreveu = [
+        '# Serviços prestados',
+        '',
+        '## Implante dentário',
+        'Reposição de dente perdido com pino de titânio.',
+        '',
+        '## Exemplos ou sugestões de resposta',
+        '',
+        '"Posso te explicar como funciona o implante?"',
+    ].join('\n')
+
+    const { fatos, retiradas } = semExemplos(comoOClienteEscreveu)
+    conferir('o exemplo do cliente sai do acervo', retiradas, [
+        'Exemplos ou sugestões de resposta',
+    ])
+    conferir('e o fato do cliente fica', fatos.includes('pino de titânio'), true)
+    conferir('e a fala sugerida não vai ao acervo', fatos.includes('Posso te explicar'), false)
+}
 
 /**
  * `textoParaAcervo` é a normalização única. Antes a rota hasheava o conteúdo cru

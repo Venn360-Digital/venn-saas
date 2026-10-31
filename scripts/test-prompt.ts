@@ -127,6 +127,17 @@ conferir(
         acharDocumento(PRIVACIDADE)!.titulo,
         acharDocumento(CENTRAIS)!.titulo,
         acharDocumento(PROCESSO)!.titulo,
+        /**
+         * Cenários entrou na hierarquia em 2026-10-31, e isto era uma falta.
+         *
+         * Ele é modo `procedimento`, então não saía de `documentosDoPrompt()` e
+         * **não aparecia em posição nenhuma** — enquanto o corpo dele chega no
+         * bloco volátil, na posição de maior recência, dizendo "execute os
+         * passos". Um procedimento pré-escrito era a instrução menos
+         * subordinada do conjunto. Entra pela precedência 4 do catálogo, sem o
+         * texto: no prompt dele continua só o catálogo de títulos e gatilhos.
+         */
+        acharDocumento('cenarios')!.titulo,
         'A base de conhecimento consultada durante a conversa',
     ]
 )
@@ -418,3 +429,14 @@ conferir(
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
+
+/**
+ * **Faltava o código de saída, e sem ele esta prova não derrubava nada.**
+ *
+ * Todos os outros `scripts/test-*.ts` terminam assim; este não terminava. O
+ * efeito é o pior que um verificador pode ter: ele reprovava, imprimia `XX` na
+ * saída, e o CI seguia **verde** — porque `npm run` só olha o código de saída.
+ * Descoberto em 2026-10-31, quando a prova da precedência reprovou de verdade e
+ * o `exit` veio 0.
+ */
+process.exit(falhou > 0 ? 1 : 0)

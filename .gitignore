@@ -98,3 +98,10 @@ src/generated/
 # acrescentados na Fase 02 (completude)
 .dev.vars*
 .open-next/
+
+# Documentos de treinamento de cliente real, usados para medir e para destilar os
+# modelos. Nunca entram no repositório: carregam nome de cliente, política
+# comercial e — em VALORES_INTERNOS_RESTRITO.md — tabela de preço marcada "USO
+# EXCLUSIVO INTERNO, NÃO DISPONIBILIZAR". Um `git add -A` já tentou levá-los uma
+# vez; apagar do índice depois não tira do histórico.
+/public/treinamento/
