@@ -93,10 +93,41 @@ async function indexarDocumentoDeTreinamento(agentId: string, slug: string): Pro
      * mas que o indexador tratava como qualquer outra seção. Ver
      * `lib/treinamento/exemplos.ts` para o defeito que isso causava.
      */
+    /**
+     * O catálogo vem antes do texto porque **as duas saídas precisam dele**: a
+     * de apagar, para saber o tipo do trecho, e a de indexar, pelo mesmo motivo.
+     */
+    const catalogo = acharDocumento(slug)
+
     const { texto: conteudo, exemplosRetirados } = textoParaAcervo(doc.content)
 
+    /**
+     * Vazio para o acervo: **apaga**, não volta.
+     *
+     * Era `return` seco, e era o mesmo defeito por outra porta. Documento que
+     * tinha trechos e foi reduzido a comentários chegava aqui, o texto do acervo
+     * saía vazio, e o processador voltava **deixando a geração anterior no
+     * banco** — com o carimbo intacto. O cliente apagava o texto e o agente
+     * seguia respondendo por ele.
+     *
+     * A rota de publicação agora decide pelo mesmo critério e não chega a
+     * enfileirar nesse caso. Isto fica como segunda camada, porque o processador
+     * também é alcançado pelo caminho antigo da fila — e porque um `return` que
+     * deixa estado velho no banco é a classe de defeito que não aparece em
+     * nenhuma tela.
+     */
     if (!conteudo) {
-        log.warn(`training doc "${slug}" of agent ${agentId} is empty; nothing to index`)
+        const removidos = await prisma.knowledgeDocument.deleteMany({
+            where: { agentId, title: tituloDoAcervo(slug), type: tipoDoAcervo(catalogo?.modo ?? 'rag') },
+        })
+        await prisma.agentTrainingDoc.update({
+            where: { agentId_slug: { agentId, slug } },
+            data: { indexedHash: null, indexedAt: null, indexedChunks: null },
+        })
+        log.info(
+            `training doc "${slug}" of agent ${agentId} is empty for the corpus; ` +
+            `removed ${removidos.count} stale chunk(s)`
+        )
         return
     }
 
@@ -135,7 +166,6 @@ async function indexarDocumentoDeTreinamento(agentId: string, slug: string): Pro
      * senão a reindexação apagaria por uma chave e gravaria por outra, deixando
      * duas gerações de trechos no acervo.
      */
-    const catalogo = acharDocumento(slug)
     const tipo = tipoDoAcervo(catalogo?.modo ?? 'rag')
 
     const removidos = await prisma.knowledgeDocument.deleteMany({

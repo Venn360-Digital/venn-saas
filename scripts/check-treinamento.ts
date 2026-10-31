@@ -48,7 +48,11 @@ for (const doc of DOCUMENTOS) {
      * desde o conserto do indexador **não vira trecho** — contá-la aqui faria o
      * verificador prometer mais trechos do que o acervo recebe.
      */
-    const paraConferir = doc.modo === 'rag' ? textoParaAcervo(texto).texto : semComentarios(texto)
+    // `!== 'prompt'` e não `=== 'rag'`: Cenários é modo `procedimento` e também
+    // é indexado, então conferir a estrutura dele contra o texto cru esconderia
+    // o que o corte de fato vai ver. É o mesmo critério da tela — divergir dela
+    // faria o verificador e o editor discordarem sobre o mesmo documento.
+    const paraConferir = doc.modo !== 'prompt' ? textoParaAcervo(texto).texto : semComentarios(texto)
     const secoes = secionarMarkdown(paraConferir)
     const c = conferirEstrutura(secoes)
     const excedeu = texto.length > doc.teto

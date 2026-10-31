@@ -464,6 +464,60 @@ conferir(
     { acao: 'apagar' }
 )
 
+/**
+ * **"Vazio" é vazio para o ACERVO, e isto é a invariante que duas rotas usam.**
+ *
+ * Documento reduzido a comentários tem texto cru. Até 2026-10-31 a rota de
+ * publicação decidia por `texto.trim()`, então ele passava por "não vazio", era
+ * enfileirado, e o processador descobria lá que não havia o que indexar — logava
+ * um aviso e **saía sem apagar**. Os trechos da geração anterior sobreviviam, o
+ * carimbo seguia dizendo "34 trechos", e o agente continuava respondendo pelo
+ * texto que o cliente acabou de remover.
+ *
+ * As duas pontas agora decidem por `textoParaAcervo`, e é esta prova que diz o
+ * que elas vão ver.
+ */
+conferir(
+    'documento reduzido a COMENTÁRIOS é vazio para o acervo',
+    textoParaAcervo('<!-- exemplo: a avaliação é gratuita -->\n<!-- outra nota -->').texto,
+    ''
+)
+
+conferir(
+    'e com acervo gravado, ele manda APAGAR — não "pular"',
+    await decidirIndexacao({
+        doc: docRag,
+        content: '<!-- exemplo: Ortodontia a partir de R$ 180 -->',
+        hashGravado: hashDele,
+    }),
+    { acao: 'apagar' }
+)
+
+/**
+ * **Título e cabeçalho sobrevivem, e isso é bom saber antes de embarcar modelo.**
+ *
+ * `semComentarios` tira o comentário e deixa o `#` e os `##`. Então um modelo
+ * que é título + cabeçalhos + exemplos em comentário **não** é vazio para o
+ * acervo: ele é enfileirado, o corte descarta cabeçalho sem corpo, e o
+ * documento acaba com zero trecho — depois de a reindexação ter apagado a
+ * geração anterior. É o desfecho correto, e é o que o passo 7 vai produzir.
+ *
+ * A prova existe para que ninguém "conserte" `textoParaAcervo` para também
+ * descartar cabeçalho: isso jogaria o modelo inserido na trilha de apagar, e aí
+ * inserir um modelo apagaria o acervo de quem já tinha texto.
+ */
+conferir(
+    'título e cabeçalhos sobrevivem: modelo com exemplos em comentário NÃO é vazio',
+    textoParaAcervo('# Serviços prestados\n\n## Ortodontia\n\n<!-- exemplo: a partir de R$ 180 -->').texto,
+    '# Serviços prestados\n\n## Ortodontia'
+)
+
+conferir(
+    'documento com SÓ a seção reservada de exemplos também é vazio para o acervo',
+    textoParaAcervo(`## ${SECAO_EXEMPLOS}\n\nA avaliação é gratuita.`).texto,
+    ''
+)
+
 conferir(
     'documento vazio que nunca teve acervo não tem nada a fazer',
     await decidirIndexacao({ doc: docRag, content: '', hashGravado: null }),

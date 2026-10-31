@@ -6,7 +6,7 @@ import { manageAgent } from '@/lib/auth/agent'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
 import { acharDocumento, DOCUMENTOS } from '@/lib/treinamento/documentos'
-import { tipoDoAcervo, tituloDoAcervo } from '@/lib/treinamento/indexar'
+import { textoParaAcervo, tipoDoAcervo, tituloDoAcervo } from '@/lib/treinamento/indexar'
 import {
     aplicarRascunhos,
     proximaVersao,
@@ -132,7 +132,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
             const texto = instantaneo.find((d) => d.slug === slug)?.content ?? ''
 
-            if (!texto.trim()) {
+            /**
+             * **"Vazio" é vazio PARA O ACERVO, não para o editor.**
+             *
+             * Era `!texto.trim()`, e isso media a coisa errada. Documento
+             * reduzido a comentários — ou a só a seção reservada de exemplos —
+             * tem texto cru, então ele passava por "não vazio", era enfileirado,
+             * e o processador descobria lá que não havia nada a indexar: ele
+             * logava um aviso e **saía sem apagar**. Os trechos da geração
+             * anterior sobreviviam, o carimbo seguia dizendo "34 trechos", e o
+             * agente continuava respondendo pelo texto que o cliente acabou de
+             * remover.
+             *
+             * `textoParaAcervo` é a mesma normalização que o processador aplica
+             * — tira comentário e tira a seção de exemplos. Decidir por ela é o
+             * que faz as duas pontas concordarem sobre o que é vazio.
+             */
+            const { texto: paraOAcervo } = textoParaAcervo(texto)
+
+            if (!paraOAcervo) {
                 await prisma.knowledgeDocument.deleteMany({
                     where: { agentId, title: tituloDoAcervo(slug), type: tipoDoAcervo(doc.modo) },
                 })

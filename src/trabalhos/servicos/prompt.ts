@@ -6,7 +6,7 @@ import {
     readAgentPreferences,
 } from '@/types/agent-preferences'
 import { semComentarios } from '@/lib/rag/secoes'
-import { documentosDoPrompt } from '@/lib/treinamento/documentos'
+import { documentosDeProcedimento, documentosDoPrompt } from '@/lib/treinamento/documentos'
 import { catalogoDeCenarios, lerCenarios, procedimentoParaOPrompt } from '@/lib/treinamento/cenarios'
 import { resumoParaOPrompt } from '@/lib/conversas/resumo'
 
@@ -139,7 +139,24 @@ function blocosDeTreinamento(docs: DocumentoNoPrompt[]): {
      * das seções voláteis, e isso vale para todo agente, com ou sem `.md`. O
      * conteúdo é o mesmo; a ordem, de propósito, não.
      */
-    const ordem = naOrdem.map((d) => d.titulo)
+    /**
+     * **A ordem inclui os Cenários, pelo nome, e isso era uma falta.**
+     *
+     * A lista saía de `documentosDoPrompt()`, que filtra modo `prompt`. Cenários
+     * é modo `procedimento`, então ele **não aparecia em posição nenhuma** —
+     * enquanto o corpo dele chega no bloco volátil, na posição de maior
+     * recência, dizendo "execute os passos". Um procedimento pré-escrito era,
+     * na prática, a instrução menos subordinada do conjunto.
+     *
+     * Ele entra pela precedência que o catálogo declara (4), ordenado junto dos
+     * outros, e sem o texto: o que vai no prompt dele continua sendo só o
+     * catálogo de títulos e gatilhos.
+     */
+    const comProcedimento = [...naOrdem, ...documentosDeProcedimento()].sort(
+        (a, b) => a.precedencia - b.precedencia
+    )
+
+    const ordem = comProcedimento.map((d) => d.titulo)
     const precedencia =
         '## Precedência\n' +
         'Quando duas instruções suas se contradisserem, vale a que estiver mais ' +
@@ -324,7 +341,22 @@ export function buildSystemPrompt(
      * situação", quando a conversa entra na situação.
      */
     if (cenariosCru) {
-        const catalogo = catalogoDeCenarios(lerCenarios(cenariosCru).cenarios)
+        /**
+         * **`semComentarios` aqui, e isto era um furo aberto.**
+         *
+         * Os documentos de modo `prompt` são limpos na montagem dos blocos de
+         * treinamento. Cenários não passa por ali: ele é separado em
+         * `pecasDoPrompt` e chega **cru** neste parâmetro, de propósito, para
+         * que só o catálogo saia dele.
+         *
+         * O efeito do furo era específico e ruim: `lerCenarios` captura a linha
+         * inteira do `Quando:`, então um `Quando: o cliente pede desconto
+         * <!-- confirmar: a partir de quanto -->` entrava no **bloco estável e
+         * cacheado**, em toda mensagem de toda conversa. Comentário é nota de
+         * quem escreve — nunca foi para o modelo em nenhum outro caminho, e não
+         * podia ser neste.
+         */
+        const catalogo = catalogoDeCenarios(lerCenarios(semComentarios(cenariosCru)).cenarios)
         if (catalogo) estaveis.push(catalogo)
     }
 

@@ -18,7 +18,7 @@ import { acharDocumento, SECAO_EXEMPLOS, type DocumentoDeTreinamento } from './d
  * modelo** — era isso que não dava para fazer antes do descarte de comentário
  * existir.
  *
- * Quatro dos sete não têm origem nenhuma nos campos antigos (serviços, técnicas
+ * Cinco dos oito não têm origem nenhuma nos campos antigos (serviços, técnicas
  * de venda, FAQ, privacidade): para eles não há rascunho, e devolver `null` é
  * mais honesto que devolver um modelo vazio disfarçado de conteúdo gerado.
  */
@@ -83,7 +83,11 @@ function montar(doc: DocumentoDeTreinamento, secoes: (string | null)[]): string 
      * Sem elas, o rascunho pareceria completo: a conferência de estrutura diria
      * "todas as seções preenchidas" porque as que faltam nem existiriam no
      * texto. Com o cabeçalho presente e sem corpo, o corte as descarta e a tela
-     * diz "sem conteúdo em: …" — que é a verdade.
+     * conta zero trecho para elas — que é a verdade.
+     *
+     * (O comentário antigo citava a mensagem "sem conteúdo em: …". Ela foi
+     * removida da tela quando se descobriu que as seções são da clínica, não
+     * nossas; hoje o que aparece é o contador de trechos.)
      */
     const escritas = new Set(
         corpo.map((s) => s.slice(3, s.indexOf('\n')).trim())

@@ -9,14 +9,21 @@
  *
  * **Vazio cai no esqueleto.** Enquanto um slug não tem modelo escrito aqui,
  * `modeloDoDocumento` devolve só os cabeçalhos do catálogo. O botão funciona nos
- * sete desde já, e cada modelo real entra sem tocar em tela nem em rota.
+ * oito desde já, e cada modelo real entra sem tocar em tela nem em rota.
  *
  * **Os cabeçalhos de 2º nível TÊM de ser os do catálogo**, e isso é conferido
- * por teste. Se divergirem, a conferência de estrutura passa a acusar falta no
- * próprio modelo que acabou de ser inserido — a pessoa clica em "Inserir
- * modelo" e a tela responde "sem conteúdo em: …", o que destrói a confiança na
- * conferência inteira. É a mesma forma de defeito de sempre: um valor em dois
- * lugares, e o segundo não acompanha.
+ * por teste.
+ *
+ * O motivo mudou de forma, e o comentário antigo citava um sintoma que a tela
+ * **não produz mais**: a mensagem "sem conteúdo em: …" foi removida quando se
+ * descobriu que as seções são da clínica, não nossas. O que a tela mostra hoje é
+ * um contador de trechos — e aí está o problema de verdade. Um modelo cujos
+ * cabeçalhos divergem do catálogo exibe "0 trechos" com **ícone de aprovado**,
+ * porque zero trecho não é erro de estrutura. A pessoa insere o modelo, lê um
+ * visto verde, e salva um documento que o método não reconhece.
+ *
+ * É a mesma forma de defeito de sempre: um valor em dois lugares, e o segundo
+ * não acompanha. O teste é o que impede o segundo de divergir.
  */
 
 /**

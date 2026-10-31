@@ -27,6 +27,8 @@ import {
     transcrever,
 } from '@/lib/conversas/resumo'
 import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPrompt } from '@/lib/treinamento/documentos'
+import { buildSystemPrompt } from '@/trabalhos/servicos/prompt'
+import type { Agent } from '#prisma'
 import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
 
 let passou = 0
@@ -42,6 +44,20 @@ function conferir(nome: string, real: unknown, esperado: unknown) {
         falhou++
         console.log(`  XX  ${nome}\n        esperado: ${b}\n        veio:     ${a}`)
     }
+}
+
+
+/** O mínimo que `buildSystemPrompt` lê do agente. */
+function agenteDeProva(): Agent {
+    return {
+        id: 'a',
+        name: 'Agente',
+        systemPrompt: 'base',
+        timezone: 'America/Sao_Paulo',
+        llmProvider: 'openai',
+        llmModel: 'gpt-4o-mini',
+        temperature: 0.5,
+    } as unknown as Agent
 }
 
 const doc = `# Cenários de atendimento
@@ -176,6 +192,87 @@ conferir(
     (acharDocumento('cenarios')!.precedencia > acharDocumento('privacidade')!.precedencia) &&
         (acharDocumento('cenarios')!.precedencia < acharDocumento('servicos')!.precedencia),
     true
+)
+
+console.log('\nComentário NÃO chega ao catálogo — era um furo aberto')
+
+/**
+ * Os documentos de modo `prompt` são limpos na montagem dos blocos de
+ * treinamento. Cenários não passa por ali: ele chega cru ao construtor, de
+ * propósito, para que só o catálogo saia dele. Até 2026-10-31 isso significava
+ * que um comentário no `Quando:` entrava no **bloco estável e cacheado**, em
+ * toda mensagem de toda conversa.
+ *
+ * `lerCenarios` captura a linha inteira do `Quando:`, então o teste tem de
+ * passar pelo construtor de prompt, não só pelo leitor.
+ */
+const COM_COMENTARIO = `# Cenários
+
+## Desconto
+
+Quando: o cliente pede desconto <!-- confirmar: a partir de quanto -->
+
+Passos:
+1. Não prometa <!-- confirmar: qual o teto -->
+`
+
+const promptComCenario = buildSystemPrompt(
+    agenteDeProva(),
+    [],
+    undefined,
+    [],
+    COM_COMENTARIO,
+    null
+)
+
+conferir(
+    'o texto do comentário NÃO chega ao prompt',
+    promptComCenario.includes('a partir de quanto') || promptComCenario.includes('qual o teto'),
+    false
+)
+conferir('nem o marcador', promptComCenario.includes('<!--'), false)
+conferir(
+    'e o gatilho chega limpo, sem o rabo do comentário',
+    promptComCenario.includes('- **Desconto** — quando o cliente pede desconto'),
+    true
+)
+
+console.log('\nCenários entra na precedência escrita')
+
+/**
+ * A lista saía de `documentosDoPrompt()`, que filtra modo `prompt`. Cenários é
+ * `procedimento`, então não aparecia em posição nenhuma — enquanto o corpo dele
+ * chega no bloco volátil, na posição de maior recência, dizendo "execute os
+ * passos". Um procedimento pré-escrito era a instrução menos subordinada do
+ * conjunto.
+ */
+const comPrecedencia = buildSystemPrompt(
+    agenteDeProva(),
+    [],
+    undefined,
+    [
+        { slug: 'privacidade', content: '# Informações e privacidade\n\n## Limites clínicos\nNão diagnostique.' },
+        { slug: 'processo-comercial', content: '# Processo comercial e políticas\n\n## Etapas do atendimento\nConduza.' },
+    ],
+    COM_COMENTARIO,
+    null
+)
+
+const listaDePrecedencia = comPrecedencia
+    .slice(comPrecedencia.indexOf('## Precedência'))
+    .split('\n')
+    .filter((l) => /^\d+\. /.test(l))
+    .map((l) => l.replace(/^\d+\. /, ''))
+
+conferir(
+    'Cenários é nomeado na hierarquia, e fica entre os limites e o acervo',
+    listaDePrecedencia,
+    [
+        'Informações e privacidade',
+        'Processo comercial e políticas',
+        'Cenários de atendimento',
+        'A base de conhecimento consultada durante a conversa',
+    ]
 )
 
 console.log('\nQuando compactar')
