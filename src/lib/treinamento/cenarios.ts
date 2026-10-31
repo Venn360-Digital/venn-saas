@@ -1,4 +1,5 @@
 import { secionarMarkdown } from '@/lib/rag/secoes'
+import { ehSecaoDeExemplos } from './exemplos'
 
 /**
  * Os cenários: o oitavo documento de treinamento, e o primeiro de modo
@@ -87,6 +88,36 @@ export function lerCenarios(markdown: string): { cenarios: Cenario[]; problemas:
          */
         const titulo = secao.caminho[secao.caminho.length - 1]
         if (!titulo) continue
+
+        /**
+         * **A seção reservada de exemplos não produz cenário, e isto conserta um
+         * defeito medido.**
+         *
+         * O catálogo declara `Exemplos de resposta` como reservada nos oito
+         * documentos: ela mostra o jeito de responder e nunca é fonte de verdade.
+         * `lerCenarios` não sabia disso, e identificava cenário por **ter
+         * gatilho e passos** — o que é certo para o corpo do documento e errado
+         * aqui.
+         *
+         * O efeito, medido com um exemplo escrito no mesmo formato que o modelo
+         * ensina:
+         *
+         *     ## Exemplos de resposta
+         *     ### Como respondemos quando pedem desconto
+         *     Quando: a pessoa pede desconto.
+         *     Passos:
+         *     1. Ofereça 20% de desconto à vista.
+         *
+         * Isso entrava no catálogo do prompt estável como cenário de verdade. Uma
+         * **ilustração** de política virava **ordem a executar**, em toda conversa
+         * que casasse com o gatilho. É a mesma classe do defeito que
+         * `lib/treinamento/exemplos.ts` conserta no acervo, entrando pela porta
+         * do prompt.
+         *
+         * Confere o **caminho inteiro**, não só a folha: o cenário falso é a
+         * subseção, e quem é reservado é o cabeçalho acima dela.
+         */
+        if (secao.caminho.some(ehSecaoDeExemplos)) continue
 
         const linhas = secao.corpo.split('\n')
         const quando = linhas.map((l) => l.match(RE_QUANDO)?.[1]?.trim()).find((q): q is string => !!q)

@@ -339,5 +339,95 @@ conferir('resumo vazio devolve nulo', resumoParaOPrompt(''), null)
 conferir('nulo devolve nulo', resumoParaOPrompt(null), null)
 conferir('só espaço devolve nulo', resumoParaOPrompt('   \n  '), null)
 
+console.log('\nA seção reservada de exemplos não produz cenário')
+
+/**
+ * **Medido com documento real, e era grave.**
+ *
+ * `lerCenarios` identificava cenário por ter `Quando:` e `Passos:`, o que é
+ * certo no corpo do documento. Na seção reservada de exemplos, não: ali o
+ * cliente escreve "assim respondemos quando X", que é ilustração.
+ *
+ * Sem a exclusão, o exemplo abaixo entrava no catálogo do prompt estável como
+ * cenário de verdade — e "Ofereça 20% de desconto à vista", que o cliente
+ * escreveu para ilustrar o jeito de falar, virava ordem a executar em toda
+ * conversa que casasse com o gatilho.
+ *
+ * É a mesma classe do defeito que `exemplos.ts` conserta no acervo, entrando
+ * pela porta do prompt.
+ */
+{
+    const comExemploNoFormato = [
+        '# Cenários de atendimento',
+        '',
+        '## Cenários',
+        '',
+        '### Pede para falar com uma pessoa',
+        '',
+        'Quando: a pessoa pede atendente.',
+        'Passos:',
+        '1. Chame passar_para_equipe.',
+        '',
+        '## Exemplos de resposta',
+        '',
+        '### Como respondemos quando pedem desconto',
+        '',
+        'Quando: a pessoa pede desconto.',
+        'Passos:',
+        '1. Ofereça 20% de desconto à vista.',
+    ].join('\n')
+
+    const { cenarios, problemas } = lerCenarios(comExemploNoFormato)
+
+    conferir('só o cenário de verdade é lido', cenarios.map((c) => c.titulo), [
+        'Pede para falar com uma pessoa',
+    ])
+    conferir('e o exemplo não vira problema tampouco', problemas, [])
+    conferir(
+        'a política do exemplo não chega ao prompt',
+        (catalogoDeCenarios(cenarios) ?? '').includes('desconto'),
+        false
+    )
+}
+
+/**
+ * E o caminho inteiro é conferido, não só a folha: o cenário falso é a
+ * subseção, e quem é reservado é o cabeçalho acima dela. Aqui o exemplo está
+ * dois níveis abaixo.
+ */
+conferir(
+    'exemplo aninhado mais fundo também é ignorado',
+    lerCenarios(
+        [
+            '## Exemplos de resposta',
+            '### Agendamento',
+            '#### Quando pedem horário',
+            'Quando: pedem horário.',
+            'Passos:',
+            '1. Prometa terça às 14h.',
+        ].join('\n')
+    ),
+    { cenarios: [], problemas: [] }
+)
+
+/**
+ * O outro lado: cabeçalho que só *parece* de exemplo não some. "Exemplos de
+ * atendimento" não tem a palavra `resposta`, então é seção comum — e um cenário
+ * escrito ali continua valendo.
+ */
+conferir(
+    'cabeçalho que não é a seção reservada continua produzindo cenário',
+    lerCenarios(
+        [
+            '## Exemplos de atendimento',
+            '### Pede humano',
+            'Quando: pede atendente.',
+            'Passos:',
+            '1. Passe para a equipe.',
+        ].join('\n')
+    ).cenarios.map((c) => c.titulo),
+    ['Pede humano']
+)
+
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)
