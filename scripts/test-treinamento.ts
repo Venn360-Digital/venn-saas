@@ -317,10 +317,64 @@ conferir(
     0
 )
 
+/**
+ * **O invariante dos modelos, e ele substitui uma proibição que envelheceu.**
+ *
+ * Aqui havia `modelo.includes('<!--') === false`, com o motivo "comentário é
+ * corpo, e seria indexado". O motivo deixou de ser verdade: `semComentarios` é
+ * aplicado na montagem do prompt, na indexação do acervo e na leitura do
+ * catálogo de Cenários — as provas estão neste mesmo arquivo, logo abaixo.
+ * A proibição sobreviveu ao motivo, e era o único obstáculo ao desenho dos
+ * modelos: exemplo de forma dentro de comentário, junto da seção que ilustra.
+ *
+ * O que vale conferir é o oposto, e é mais forte: **modelo inserido não produz
+ * conteúdo nenhum**. Todo o texto do modelo é comentário, então depois de
+ * `semComentarios` sobra título + cabeçalhos sem corpo. Isso significa zero
+ * trecho no acervo e zero token no prompt — o cliente insere, lê a orientação
+ * enquanto escreve, e nada do nosso texto chega ao modelo de linguagem.
+ *
+ * Se alguém escrever um modelo com orientação no corpo, isto reprova. É o que
+ * impede "Escreva aqui um subtítulo por serviço" de ser vetorizado e devolvido
+ * ao agente sob "use os trechos como fonte de verdade".
+ */
 conferir(
-    'o modelo não traz comentário de HTML — comentário é corpo, e seria indexado',
-    modelo.includes('<!--'),
-    false
+    'nenhum modelo produz corpo: depois de semComentarios sobram só cabeçalhos',
+    Object.entries(MODELOS)
+        .map(([slug, texto]) => {
+            const comConteudo = secionarMarkdown(semComentarios(texto)).filter(
+                (sec) => sec.corpo.trim() !== ''
+            )
+            return comConteudo.length > 0
+                ? `${slug}: ${comConteudo.length} seção(ões) com corpo — ${comConteudo
+                      .map((sec) => sec.caminho.at(-1))
+                      .join(', ')}`
+                : null
+        })
+        .filter(Boolean),
+    []
+)
+
+/**
+ * E a outra metade: o modelo **tem** de trazer orientação, senão é só esqueleto.
+ *
+ * Sem esta prova, "nenhum corpo" seria satisfeito por um modelo vazio — que é
+ * exatamente o que `modeloDoDocumento` já devolve sozinho quando não há modelo
+ * escrito. O modelo existe para ensinar a escrever; se não tem comentário, não
+ * ensina nada e não deveria estar aqui.
+ */
+conferir(
+    'todo modelo escrito traz orientação em comentário, uma por seção',
+    Object.entries(MODELOS)
+        .map(([slug, texto]) => {
+            const doc = acharDocumento(slug)!
+            const comentarios = (texto.match(/<!--/g) ?? []).length
+            // Um por seção, mais o aviso de abertura.
+            return comentarios < doc.secoes.length + 1
+                ? `${slug}: ${comentarios} comentário(s) para ${doc.secoes.length} seção(ões)`
+                : null
+        })
+        .filter(Boolean),
+    []
 )
 
 const preenchido = `# Serviços prestados
