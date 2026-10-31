@@ -598,6 +598,87 @@ conferir(
 )
 
 /**
+ * **Os títulos reais, e o motivo de a comparação por prefixo ter caído.**
+ *
+ * Estes seis saíram dos dois conjuntos de documentos de cliente lidos em
+ * 2026-10-31. Com a regra antiga (prefixo contra `"exemplos de resposta"`),
+ * **só o primeiro** era reconhecido: os outros têm o singular, ou "ou sugestão"
+ * no meio, ou um enumerador na frente. Os dois marcados `faq`/`servicos` são de
+ * documento de **acervo** — iriam vetorizados como fonte de verdade, que é o
+ * defeito que este módulo existe para evitar.
+ */
+conferir(
+    'os títulos reais de cliente são reconhecidos',
+    [
+        ehSecaoDeExemplos('Exemplos de resposta'),
+        ehSecaoDeExemplos('Exemplo de resposta'),
+        ehSecaoDeExemplos('Exemplos ou sugestões de resposta'), // servicos
+        ehSecaoDeExemplos('Exemplo ou sugestão de resposta — convênio'), // faq
+        ehSecaoDeExemplos('Exemplos ou sugestões de resposta — agenda'),
+        ehSecaoDeExemplos('8. Exemplo de resposta'),
+    ],
+    [true, true, true, true, true, true]
+)
+
+/**
+ * O outro lado da regra, e é por isso que `exemplo` sozinho não basta.
+ *
+ * Seção de fato retirada do acervo cala o agente sobre o que a conta escreveu, e
+ * cala em silêncio. Exigir a palavra `resposta` é o que separa "exemplo de como
+ * responder" de "exemplos de coisas que existem".
+ */
+conferir(
+    'seção de fato que começa com "Exemplos" continua indexada',
+    [
+        ehSecaoDeExemplos('Exemplos de cursos oferecidos'),
+        ehSecaoDeExemplos('Exemplos de documentos aceitos'),
+        ehSecaoDeExemplos('Respostas rápidas'),
+        ehSecaoDeExemplos('Perguntas e respostas'),
+    ],
+    [false, false, false, false]
+)
+
+/**
+ * O limite declarado: sem a palavra `resposta`, não reconhece.
+ *
+ * `Exemplo completo` e `Exemplo de abertura` existem no conjunto do Stagent, e
+ * hoje não chegam aqui — estão em documento de modo `prompt`. O teste guarda o
+ * comportamento para que a escolha fique visível: o conserto é o modelo ensinar
+ * o nome declarado, não esta função virar lista de sinônimos.
+ */
+conferir(
+    'exemplo sem a palavra resposta NÃO é reconhecido, e é decisão',
+    [ehSecaoDeExemplos('8. Exemplo completo'), ehSecaoDeExemplos('Exemplo de abertura')],
+    [false, false]
+)
+
+/**
+ * A prova de ponta a ponta: o documento de acervo como o cliente escreveu.
+ *
+ * Com a regra antiga este `fatos` saía com o diálogo inteiro dentro, pronto para
+ * ser vetorizado e repetido literalmente pelo agente.
+ */
+{
+    const comoOClienteEscreveu = [
+        '# Serviços prestados',
+        '',
+        '## Implante dentário',
+        'Reposição de dente perdido com pino de titânio.',
+        '',
+        '## Exemplos ou sugestões de resposta',
+        '',
+        '"Posso te explicar como funciona o implante?"',
+    ].join('\n')
+
+    const { fatos, retiradas } = semExemplos(comoOClienteEscreveu)
+    conferir('o exemplo do cliente sai do acervo', retiradas, [
+        'Exemplos ou sugestões de resposta',
+    ])
+    conferir('e o fato do cliente fica', fatos.includes('pino de titânio'), true)
+    conferir('e a fala sugerida não vai ao acervo', fatos.includes('Posso te explicar'), false)
+}
+
+/**
  * `textoParaAcervo` é a normalização única. Antes a rota hasheava o conteúdo cru
  * e o processador hasheava sem comentário de HTML: documento com um
  * `<!-- confirmar -->` nunca batia, e **todo salvar** enfileirava um job para o

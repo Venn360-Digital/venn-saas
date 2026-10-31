@@ -36,8 +36,6 @@
  * mudaria silenciosamente o corte de todo o resto do documento.
  */
 
-import { SECAO_EXEMPLOS } from './documentos'
-
 /** ``` ou ~~~, com até três espaços de recuo, como o CommonMark permite. */
 const CERCA = /^ {0,3}(```|~~~)/
 const CABECALHO = /^(#{1,6})\s+(.+?)\s*#*\s*$/
@@ -52,18 +50,52 @@ function normalizar(titulo: string): string {
         .trim()
 }
 
-const ALVO = normalizar(SECAO_EXEMPLOS)
+/**
+ * Enumerador no começo do título — "8.", "3)", "02 -".
+ *
+ * A pontuação já saiu em `normalizar`, então o que chega aqui é "8 exemplo...".
+ * Existe porque documento numerado é comum em material trazido de fora, e sem
+ * isto "## 8. Exemplo de resposta" não seria reconhecido por causa do dígito.
+ */
+const ENUMERADOR = /^\d+\s*/
+
+/** A primeira palavra, que é o que distingue a seção reservada. Cobre o plural. */
+const ABRE_COM = 'exemplo'
+
+/** "resposta" ou "respostas" como palavra inteira. */
+const SOBRE_RESPOSTA = /\brespostas?\b/
 
 /**
  * O cabeçalho abre a seção de exemplos?
  *
- * Compara por prefixo normalizado, de propósito: quem preenche escreve
- * "Exemplos de respostas", "Exemplos de resposta (WhatsApp)" ou "exemplos de
- * resposta", e as três são a mesma seção. Exigir o título exato do modelo faria a
- * reserva valer só para quem clicou em "Inserir modelo" e não mexeu.
+ * **Duas condições, e as duas são necessárias — medido contra título real.**
+ * A versão anterior comparava por prefixo contra o título declarado
+ * (`"exemplos de resposta"`), e isso reconhecia só quem escreveu exatamente
+ * aquilo, com sufixo opcional. Nos dois conjuntos de cliente lidos em
+ * 2026-10-31, **nenhum** dos títulos escritos casava:
+ *
+ *   - `Exemplo ou sugestão de resposta — convênio` (em `faq`)
+ *   - `Exemplos ou sugestões de resposta` (em `servicos`)
+ *
+ * As duas são seções de acervo, as duas iriam vetorizadas para o Cérebro como
+ * fonte de verdade — o defeito que este módulo existe para evitar, entrando
+ * pela porta do título. "Prefixo" tolerava sufixo e nada mais: não o singular,
+ * não "ou sugestão" no meio.
+ *
+ * Por que não só `exemplo`: "Exemplos de cursos oferecidos" e "Exemplos de
+ * documentos aceitos" são **fato**, e retirá-los calaria o agente sobre o que a
+ * conta escreveu. Exigir a palavra `resposta` separa as duas famílias sem
+ * depender de lista de títulos conhecidos.
+ *
+ * **O que fica de fora, de propósito:** `Exemplo completo` e `Exemplo de
+ * abertura` (vistos no conjunto do Stagent) não têm a palavra `resposta` e não
+ * são reconhecidos. Hoje é inofensivo — os dois estão em documento de modo
+ * `prompt`, que não passa por aqui — e o conserto certo é o modelo ensinar o
+ * nome declarado, não esta função crescer uma lista de sinônimos que envelhece.
  */
 export function ehSecaoDeExemplos(titulo: string): boolean {
-    return normalizar(titulo).startsWith(ALVO)
+    const limpo = normalizar(titulo).replace(ENUMERADOR, '')
+    return limpo.startsWith(ABRE_COM) && SOBRE_RESPOSTA.test(limpo)
 }
 
 export interface TextoSemExemplos {
