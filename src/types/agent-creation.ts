@@ -113,6 +113,11 @@ export interface DocumentoGravado {
     content: string
     indexedAt: string | null
     indexedChunks: number | null
+    /**
+     * O acervo está atrasado: o que está indexado não é o que o texto publicado
+     * daria hoje. Só o servidor sabe disso — depende de `indexedHash`.
+     */
+    desatualizado: boolean
 }
 
 export interface CerebroData {

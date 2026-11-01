@@ -6,11 +6,13 @@ import { manageAgent } from '@/lib/auth/agent'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
 import { acharDocumento, DOCUMENTOS } from '@/lib/treinamento/documentos'
-import { textoParaAcervo, tipoDoAcervo, tituloDoAcervo } from '@/lib/treinamento/indexar'
+import { hashDoAcervo, textoParaAcervo, tipoDoAcervo, tituloDoAcervo } from '@/lib/treinamento/indexar'
 import {
     aplicarRascunhos,
     proximaVersao,
+    slugsDesatualizados,
     slugsQueMudam,
+    type AcervoDoDocumento,
     type DocumentoComRascunho,
 } from '@/lib/treinamento/versao'
 
@@ -34,6 +36,25 @@ import {
  * e o acervo fica atrasado — chato, e visível na tela, que mostra "escrito e
  * ainda não indexado". O inverso (indexar antes de publicar) poria no acervo
  * trechos de um texto que a transação seguinte poderia não gravar.
+ *
+ * ## Reindexar não exige mudança de texto
+ *
+ * **Duas coisas distintas decidem o que esta rota faz**, e confundi-las foi um
+ * defeito real:
+ *
+ *   - **texto mudou** (`rascunho ≠ publicado`) é o que gera versão, instantâneo
+ *     e `changed`. É mudança humana, e é o que a volta atrás restaura;
+ *   - **acervo atrasado** (`indexedHash ≠ o hash que o texto daria hoje`) é o
+ *     que gera reindexação. Pode acontecer **sem ninguém editar nada**: quando
+ *     muda o código que decide o que vai para o acervo (`textoParaAcervo`), todo
+ *     documento já indexado fica obsoleto de uma vez.
+ *
+ * Por isso a rota aceita publicar com `mudaram` vazio desde que haja
+ * `desatualizados` — e, nesse caso, **não cria versão nova**: um instantâneo
+ * idêntico ao anterior com `changed: []` sujaria o histórico e ofereceria à volta
+ * atrás uma versão indistinguível da de antes. Reindexar não é publicar texto.
+ *
+ * Ver `slugsDesatualizados` em `lib/treinamento/versao.ts` para o caso de 2026-10-31.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -54,7 +75,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         const gravados = await prisma.agentTrainingDoc.findMany({
             where: { agentId },
-            select: { slug: true, content: true, draftContent: true },
+            // `indexedHash` vem junto porque é a metade da comparação que
+            // descobre acervo atrasado — ver o cabeçalho.
+            select: { slug: true, content: true, draftContent: true, indexedHash: true },
         })
 
         /**
@@ -72,12 +95,40 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }))
 
         const mudaram = slugsQueMudam(docs)
-        if (mudaram.length === 0) {
-            return NextResponse.json({ error: 'Nada para publicar: não há rascunho pendente.' }, { status: 409 })
+
+        /**
+         * O instantâneo vem antes da conta do acervo porque é **ele** que diz o
+         * que estará no ar: o hash tem de ser do texto publicado, não do que
+         * está lá agora. Hashear o `content` atual faria um documento com
+         * rascunho pendente ser comparado contra a versão que está saindo.
+         */
+        const instantaneo = aplicarRascunhos(docs)
+        const noAr = new Map(instantaneo.map((d) => [d.slug, d.content]))
+
+        const acervo: AcervoDoDocumento[] = await Promise.all(
+            DOCUMENTOS.map(async (d) => ({
+                slug: d.slug,
+                ehAcervo: d.modo !== 'prompt',
+                indexado: porSlug.get(d.slug)?.indexedHash ?? null,
+                agora: await hashDoAcervo(noAr.get(d.slug) ?? ''),
+            }))
+        )
+        const desatualizados = slugsDesatualizados(acervo)
+
+        if (mudaram.length === 0 && desatualizados.length === 0) {
+            return NextResponse.json(
+                { error: 'Nada para publicar: não há rascunho pendente nem acervo atrasado.' },
+                { status: 409 }
+            )
         }
 
-        const instantaneo = aplicarRascunhos(docs)
-        const versao = proximaVersao(agente.trainingVersion)
+        /**
+         * Versão nova só quando **texto** mudou.
+         *
+         * Reindexação pura mantém a versão: o que o agente lê não mudou, e a
+         * volta atrás não tem o que oferecer. Ver o cabeçalho.
+         */
+        const versao = mudaram.length > 0 ? proximaVersao(agente.trainingVersion) : agente.trainingVersion
 
         /**
          * Tudo numa transação: publicar pela metade é o pior estado possível.
@@ -86,36 +137,43 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          * rascunho, com a versão do agente dizendo uma coisa e o instantâneo
          * outra — e a volta atrás restauraria um agente que nunca existiu, que é
          * exatamente o que o versionamento veio evitar.
+         *
+         * **Reindexação pura não entra aqui.** Sem rascunho pendente o
+         * instantâneo seria idêntico ao `content` que já está gravado: sete
+         * `upsert` que não mudam nada, mais uma versão nova sem texto novo. O
+         * trabalho é só na fila.
          */
-        await prisma.$transaction([
-            ...instantaneo.map((d) =>
-                prisma.agentTrainingDoc.upsert({
-                    where: { agentId_slug: { agentId, slug: d.slug } },
-                    create: { agentId, slug: d.slug, content: d.content, draftContent: null },
-                    update: { content: d.content, draftContent: null },
-                })
-            ),
-            prisma.agentTrainingVersion.create({
-                data: {
-                    agentId,
-                    version: versao,
-                    /**
-                     * O `as` existe porque `Json` do Prisma não aceita um tipo
-                     * nomeado com campos próprios sem assinatura de índice. É
-                     * conversão de forma, não de conteúdo: o instantâneo é
-                     * `{ slug, content }[]`, que é JSON válido por construção.
-                     */
-                    docs: instantaneo as unknown as Prisma.InputJsonValue,
-                    changed: mudaram,
-                    note: corpo.note ?? null,
-                    publishedBy: auth.member.userId,
-                },
-            }),
-            prisma.agent.update({ where: { id: agentId }, data: { trainingVersion: versao } }),
-        ])
+        if (mudaram.length > 0) {
+            await prisma.$transaction([
+                ...instantaneo.map((d) =>
+                    prisma.agentTrainingDoc.upsert({
+                        where: { agentId_slug: { agentId, slug: d.slug } },
+                        create: { agentId, slug: d.slug, content: d.content, draftContent: null },
+                        update: { content: d.content, draftContent: null },
+                    })
+                ),
+                prisma.agentTrainingVersion.create({
+                    data: {
+                        agentId,
+                        version: versao,
+                        /**
+                         * O `as` existe porque `Json` do Prisma não aceita um tipo
+                         * nomeado com campos próprios sem assinatura de índice. É
+                         * conversão de forma, não de conteúdo: o instantâneo é
+                         * `{ slug, content }[]`, que é JSON válido por construção.
+                         */
+                        docs: instantaneo as unknown as Prisma.InputJsonValue,
+                        changed: mudaram,
+                        note: corpo.note ?? null,
+                        publishedBy: auth.member.userId,
+                    },
+                }),
+                prisma.agent.update({ where: { id: agentId }, data: { trainingVersion: versao } }),
+            ])
+        }
 
         /**
-         * O acervo só dos que mudaram **e** são de busca.
+         * O acervo só de quem tem motivo **e** é de busca.
          *
          * Documento de modo `prompt` não é indexado — ele vai inteiro no prompt —,
          * e enfileirá-lo faria o processador descobrir isso depois de já ter
@@ -126,7 +184,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const enfileirados: string[] = []
         const limpos: string[] = []
 
-        for (const slug of mudaram) {
+        /**
+         * A união dos dois motivos, na ordem do catálogo.
+         *
+         * `Set` porque um documento pode estar nas duas listas — texto mudou
+         * **e** o acervo já estava atrasado —, e enfileirá-lo duas vezes pagaria
+         * o embedding duas vezes para chegar ao mesmo texto.
+         */
+        const motivos = new Set([...mudaram, ...desatualizados])
+        const aReindexar = DOCUMENTOS.map((d) => d.slug).filter((slug) => motivos.has(slug))
+
+        for (const slug of aReindexar) {
             const doc = acharDocumento(slug)
             if (!doc || doc.modo === 'prompt') continue
 
@@ -178,7 +246,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             enfileirados.push(slug)
         }
 
-        return NextResponse.json({ publicado: true, versao, mudaram, enfileirados, limpos })
+        return NextResponse.json({ publicado: true, versao, mudaram, desatualizados, enfileirados, limpos })
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues[0]?.message ?? 'inválido' }, { status: 400 })
