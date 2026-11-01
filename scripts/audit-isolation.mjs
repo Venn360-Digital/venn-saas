@@ -17,6 +17,7 @@
  * Sem dependências externas. Node >= 18.
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join, relative, extname, basename } from 'node:path';
 
 const ROOT = process.cwd();
@@ -28,6 +29,10 @@ const PLACEHOLDER = '__FASE07__';
 const IGNORE_DIRS = new Set([
   '.git', 'node_modules', '.wrangler', '.open-next', '.next', 'dist', 'build',
   'coverage', '.turbo', '.vercel', '.cache',
+  // `.claude/` carrega worktrees locais com CÓPIAS de infra/ (fingerprints dos
+  // outros apps inclusive) — era a fonte de 347 "erros" no --strict desta
+  // máquina, nenhum deles do código publicado. No CI o diretório nem existe.
+  '.claude',
 ]);
 // Caminhos onde menções a outros apps são legítimas (documentação, inventários, listas proibidas)
 const IGNORE_PREFIXES = [
@@ -93,6 +98,36 @@ function stripJsonc(src) {
   return out.replace(/,(\s*[}\]])/g, '$1');
 }
 
+/**
+ * A lista de arquivos vem do GIT, não do disco — e isso foi um conserto.
+ *
+ * A varredura por diretório lia tudo que estivesse na pasta, inclusive o que o
+ * git nem rastreia: logs de sessão (`.playwright-mcp/`), worktrees em
+ * `.claude/`, anotações soltas. Medido em 01/11: 347 "erros" no `--strict`
+ * desta máquina, **zero** deles em código publicável — e o portão de deploy
+ * usa `--strict`, então a auditoria reprovava um deploy por causa de um log
+ * local. O contêiner de build clona o repositório limpo: o que define o que é
+ * auditável é o índice do git, e agora o local confere exatamente o mesmo
+ * conjunto que o CI confere.
+ *
+ * O `walk` fica como reserva para ambiente sem git.
+ */
+function arquivosDoGit() {
+  const saida = execSync('git ls-files -z', { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });
+  const lista = [];
+  for (const rel of saida.toString('utf8').split('\0')) {
+    if (!rel) continue;
+    const partes = rel.split('/');
+    if (partes.some((seg) => IGNORE_DIRS.has(seg))) continue;
+    if (IGNORE_PREFIXES.some((p) => rel === p.replace(/\/$/, '') || rel.startsWith(p))) continue;
+    let st;
+    try { st = statSync(join(ROOT, rel)); } catch { continue; } // deletado localmente
+    if (st.isDirectory()) continue;
+    lista.push({ rel, binary: BINARY_EXT.has(extname(rel).toLowerCase()) || st.size > 2_000_000 });
+  }
+  return lista;
+}
+
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     if (IGNORE_DIRS.has(name)) continue;
@@ -149,7 +184,8 @@ for (const f of forbidden) {
 }
 
 // ---------- 2. varredura do repositório ----------
-const files = walk(ROOT);
+let files;
+try { files = arquivosDoGit(); } catch { files = walk(ROOT); }
 for (const { rel, binary } of files) {
   const relLower = rel.toLowerCase();
   for (const f of forbidden) {
