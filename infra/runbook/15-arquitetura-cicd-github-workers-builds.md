@@ -123,6 +123,11 @@ Sem workflow vivo (workflow que nunca roda apodrece; o `deploy.yml` em 401 foi a
 7. **Trava anti-regressão:** desativar GitHub Actions para novos workflows de deploy? Não existe trava técnica no plano Free — a regra fica escrita aqui: *workflow novo com segredo de deploy é regressão deste modelo.*
 
 ### 7.3 Odontobox-stg (depois; roteiro pronto)
+
+> **Execução em 01/11:** config com `DEPLOY_ENV` + scripts `:stg` = PR #120
+> (produção provada idêntica; assimétrica aos clones — recursos de produção da
+> Odontobox não têm sufixo). Buckets `odontobox-stg-public/-private` criados.
+> Falta o que é escrita na CF / segredo do André (lista de aplicação).
 Branch `staging` no git; `DEPLOY_ENV` introduzido no config (NOME: `odontobox` em produção, `odontobox-stg` em stg — produção **não muda de nome**; recursos novos `odontobox-stg-*`); buckets stg; Worker `odontobox-stg` ← `staging` com os comandos da §6.2; sentinela `odontobox/stg` já existe na branch staging do Neon; decisão aberta: Evolution-stg na VPS de 1 GB **ou** homolog sem canal. Ao entrar no fluxo: matar o job `banco` do CI + `NEON_API_KEY`, e repontar o preview para o banco de staging (hoje aponta para produção).
 
 ### 7.4 Go-live dos clones e sites
