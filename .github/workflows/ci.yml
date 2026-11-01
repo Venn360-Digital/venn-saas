@@ -1,0 +1,309 @@
+name: CI
+
+# O GitHub só VERIFICA — nenhum build de Worker, nenhum deploy, nenhum segredo
+# de runtime. Build, preview e publicação moram no Cloudflare Workers Builds,
+# com o portão (migração guardada + auditoria) no deploy command. Decisão de
+# 01/11/2026, depois de outubro provar o contrário: os builds pesados aqui
+# (preview 1.286 min + checks 780 min) estouraram a franquia e deixaram o
+# deploy refém da cota de verificação por três dias.
+#
+# `push: [main]` existe para UM job só (gitleaks): sem proteção de branch no
+# plano atual do GitHub, um push direto em `main` pula o CI de PR inteiro — a
+# varredura de segredos é a única que precisa alcançá-lo aqui, porque as demais
+# re-rodam no build da Cloudflare.
+on:
+  pull_request:
+    # `closed` entra por causa do job de coleta de lixo do preview — os outros
+    # jobs se excluem dele pelo `if`.
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Um PR que recebe três pushes seguidos cancela os dois primeiros. Economiza
+  # minuto de CI e evita um resultado velho chegar depois do novo.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ==========================================================================
+  # O que não precisa de banco. Roda em PR, e é o que reprova mais rápido.
+  # Os builds (`build`, `build:vinext`) saíram daqui de propósito: o preview do
+  # Workers Builds compila o vinext de verdade a cada push de PR — era a única
+  # coisa que os ~12 minutos de build compravam, e o alvo Node não é publicado
+  # por ninguém (perda declarada; `typecheck` + `typecheck:cloudflare` são a
+  # rede que fica).
+  # ==========================================================================
+  estatico:
+    name: Tipos, lint e provas
+    runs-on: ubuntu-latest
+    if: ${{ (github.event_name == 'pull_request' && github.event.action != 'closed') || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # A mesma do desenvolvimento. Divergir aqui é como um defeito aparece
+          # só no CI e ninguém consegue reproduzir.
+          node-version: '24'
+          cache: npm
+
+      # `npm ci` e não `npm install`: o lockfile é a verdade, e `install` pode
+      # resolver versão diferente da que foi revisada no PR.
+      - run: npm ci
+
+      # Antes de qualquer typecheck: o cliente do Prisma é gerado, e sem ele
+      # metade dos arquivos não compila.
+      - run: npx prisma generate
+
+      - name: Tipos — aplicação
+        run: npm run typecheck
+
+      - name: Tipos — Worker da Cloudflare
+        # Os Durable Objects e a configuração, contra os tipos reais da
+        # Cloudflare. Com os builds fora do CI, esta é a única verificação
+        # desse código antes do build de preview na Cloudflare.
+        run: npm run typecheck:cloudflare
+
+      - run: npm run lint
+
+      - name: Auditoria de isolamento (recursos de outros apps)
+        # `--strict` — o mesmo modo do portão de deploy. Rodar aqui um modo
+        # mais frouxo do que o portão roda era descobrir a reprovação só no
+        # deploy; validado verde em 01/11 depois de a auditoria passar a varrer
+        # o que o git rastreia.
+        run: npm run audit:isolation -- --strict
+
+      # Os verificadores próprios do projeto. Rodados um a um — o `prebuild` já
+      # os chama, mas em bloco: separados, a falha diz qual foi.
+      - name: Verificadores do projeto
+        run: |
+          npm run lint:colors
+          npm run lint:workspace
+          npm run lint:fuso
+          npm run check:widget
+
+      - name: Provas que não precisam de banco
+        # Verificador que ninguém executa é verificador que não existe, com o
+        # agravante de parecer que existe — `check:trabalhos` ficou meses
+        # reprovando sem ninguém saber, até ser posto aqui.
+        run: |
+          npm run check:cofre
+          npm run check:storage
+          npm run check:tempo-real
+          npm run check:envelopes
+          npm run check:fuso
+          npm run check:trabalhos
+          npm run check:operacao
+          npm run check:period
+          npm run test:availability
+          npm run test:audio
+          npm run test:chunker
+          npm run test:consulta
+          npm run test:treinamento
+          npm run test:prompt
+          npm run test:fusao
+          npm run test:escalada
+          npm run test:juiz
+          npm run test:versao
+          npm run test:agrupar
+          npm run test:cenarios
+          npm run test:regras
+          npm run test:condicoes
+
+      # O mesmo conjunto, com o relógio do runner em UTC — que é como o Worker
+      # roda. É o que impede a volta do defeito: na VPS o `TZ` era
+      # `America/Sao_Paulo` e mascarava toda conta de data feita em hora local.
+      - name: Provas de fuso, com o relógio em UTC
+        run: npm run check:fuso
+        env:
+          TZ: UTC
+
+  # ==========================================================================
+  # Migração nova tem de ser compatível com o código que está no ar.
+  # O portão roda a migração no deploy command, ANTES de o código novo assumir:
+  # DDL destrutivo sem o marcador `-- contract` reprova aqui, no PR, onde é
+  # barato — não no deploy, onde seria incidente. Job próprio porque precisa do
+  # histórico (fetch-depth: 0) e de nada mais.
+  # ==========================================================================
+  migracoes:
+    name: Lint de migração (expand/contract)
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: node scripts/lint-migracoes.mjs ${{ github.event.pull_request.base.sha }}
+
+  # ==========================================================================
+  # O que precisa de Postgres. Em branch própria do Neon, descartada ao fim.
+  #
+  # PEÇA TRANSITÓRIA, com condição de morte escrita: este job é a única prova
+  # de migração ANTES do merge enquanto a Odontobox não tem ambiente de
+  # staging. Quando `odontobox-stg` entrar no fluxo (PR → staging → main), o
+  # deploy de staging passa a exercitar `migrate-guarded` contra banco real
+  # antes de qualquer merge em `main` — e este job morre junto com o segredo
+  # `NEON_API_KEY` deste repositório. Não replicar nos clones: o staging deles
+  # já cumpre esse papel.
+  # ==========================================================================
+  banco:
+    name: Provas contra o Neon
+    runs-on: ubuntu-latest
+    # Sem o token, o job é pulado em vez de falhar: um fork não tem segredo, e
+    # reprovar o PR dele por isso seria reprovar a contribuição, não o código.
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+    env:
+      NEON_PROJECT_ID: polished-shape-42069569
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Criar branch do Neon para esta execução
+        id: neon
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -z "$NEON_API_KEY" ]; then
+            echo "pular=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::NEON_API_KEY ausente — provas contra o banco puladas."
+            exit 0
+          fi
+
+          # Branch por execução, não compartilhada. As provas criam e apagam
+          # linhas, e dois PRs na mesma branch se atropelariam — `check:filas`
+          # apaga chaves de idempotência por fila, o que varreria o dado do
+          # outro. Copy-on-write: custo próximo de zero.
+          NOME="ci-${GITHUB_RUN_ID}"
+          RESP=$(curl -sS -X POST \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches" \
+            -H "Authorization: Bearer ${NEON_API_KEY}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"branch\":{\"name\":\"${NOME}\"},\"endpoints\":[{\"type\":\"read_write\"}]}")
+
+          ID=$(echo "$RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin)["branch"]["id"])')
+          # A string de conexão não é impressa: `::add-mask::` a esconde de
+          # qualquer linha de log, inclusive das que um passo futuro imprimir
+          # por descuido.
+          URI=$(echo "$RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin)["connection_uris"][0]["connection_uri"])')
+          echo "::add-mask::$URI"
+          echo "branch_id=$ID" >> "$GITHUB_OUTPUT"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+          echo "pular=false" >> "$GITHUB_OUTPUT"
+
+      - name: Migrações
+        if: steps.neon.outputs.pular != 'true'
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.uri }}
+        run: npx prisma migrate deploy
+
+      - name: Provas contra o banco
+        if: steps.neon.outputs.pular != 'true'
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.uri }}
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+        run: |
+          # Segredo de assinatura descartável, gerado para esta execução. Não é
+          # um valor fixo no repositório — e não precisa ser, porque nenhuma
+          # sessão criada aqui sobrevive ao job.
+          export BETTER_AUTH_SECRET="$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")"
+          npm run check:neon
+          npm run check:auth
+          npm run check:filas
+          npm run check:tenant
+
+      - name: Apagar a branch do Neon
+        # `always()`: a branch tem de sair mesmo quando a prova falha, senão
+        # cada execução vermelha deixa uma para trás.
+        if: ${{ always() && steps.neon.outputs.pular != 'true' && steps.neon.outputs.branch_id != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          curl -sS -X DELETE \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${{ steps.neon.outputs.branch_id }}" \
+            -H "Authorization: Bearer ${NEON_API_KEY}" > /dev/null
+
+  # ==========================================================================
+  # Varredura de segredos. Em PR, só o diff; em push/manual, o histórico
+  # inteiro — o gatilho de push é o único verificador que alcança um push
+  # direto em `main`, que sem proteção de branch pula todo o resto.
+  # ==========================================================================
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
+    steps:
+      - name: Checkout (histórico completo)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar gitleaks
+        run: |
+          VERSION=8.30.1
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Varredura
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # só o diff da PR
+            gitleaks detect --no-banner \
+              --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            gitleaks detect --no-banner --log-opts="--all"
+          fi
+
+  # ==========================================================================
+  # Coleta de lixo do preview quando o PR fecha. O vazamento é medido: 16
+  # namespaces de Durable Objects órfãos até o PR 11. O Workers Builds cria
+  # previews e não os recolhe.
+  #
+  # Exceção nomeada nº 1 à regra "zero segredos de deploy no GitHub": este
+  # token apaga previews, não publica produção. Sem o token, o job avisa e sai
+  # verde — apagar preview é higiene, não portão.
+  # ==========================================================================
+  preview-gc:
+    name: Apagar o preview do PR
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+
+      # `--worker` é obrigatório e `-f` pula a confirmação interativa. O erro de
+      # "preview não existe" vira AVISO visível em vez de reprovar — mas não
+      # vira verde mudo: a mensagem aponta onde conferir os órfãos.
+      - name: Apagar
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NOME: pr-${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN ausente — preview $NOME não foi apagado; conferir Durable Objects órfãos em Workers → odontobox"
+            exit 0
+          fi
+          if npx cf previews delete "$NOME" --worker odontobox -f; then
+            echo "preview $NOME apagado"
+          else
+            echo "::warning::Não foi possível apagar o preview $NOME — conferir Durable Objects órfãos em Workers → odontobox"
+          fi

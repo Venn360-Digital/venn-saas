@@ -425,6 +425,25 @@ export default defineConfig({
             PRIVATE_STORAGE_BUCKET: bindings.text('odontobox-private'),
 
             /**
+             * A identidade declarada — e isto LIGA a trava que estava inerte.
+             *
+             * `lib/identidade/guarda.ts` compara `APP_SLUG`/`APP_ENV` com a
+             * sentinela `app_identity` do banco na primeira requisição de cada
+             * isolate; sem as duas variáveis ela não faz nada, por desenho. A
+             * ordem obrigatória era sentinela primeiro: `odontobox/production`
+             * foi gravada e conferida por SQL em 29/10, e `odontobox/stg` na
+             * branch staging do Neon no mesmo dia. Os previews apontam para o
+             * banco de produção e herdam este config, então leem
+             * `production` e casam com a sentinela de lá.
+             *
+             * É também o que faz `/api/_internal/identity` responder slug/env
+             * de verdade — sem isto o smoke de identidade compararia
+             * `undefined` com o manifesto.
+             */
+            APP_SLUG: bindings.text('odontobox'),
+            APP_ENV: bindings.text('production'),
+
+            /**
              * `auto` é o que o R2 espera como região da API S3. `lerConfig` a
              * trata como opcional, mas o SDK assina a requisição com ela — e
              * assinatura com região errada falha em tempo de execução.
