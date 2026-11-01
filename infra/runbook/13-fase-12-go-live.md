@@ -41,42 +41,57 @@
 ### 2.1 Pré-requisitos — sem estes o primeiro deploy falha
 
 - [ ] **O Worker de produção existe.** Hoje a conta tem só `{slug}-stg`. O
-      primeiro build do Workers Builds cria `{slug}-prod`.
-- [ ] **Os segredos de produção estão gravados** no Worker `{slug}-prod`. O
+      primeiro build do Workers Builds cria o Worker de produção com **nome
+      limpo** — `stagent` / `conecta`, sem sufixo (decisão de 01/11; o
+      `cloudflare.config.ts` já desacopla o nome do Worker do prefixo dos
+      recursos, que continuam `{slug}-prod-*`).
+- [ ] **Os segredos de produção estão gravados** no Worker de produção. O
       `cloudflare.config.ts` os declara com `bindings.secret()`, e **declarar é
       exigir no deploy**: faltando um, o deploy falha antes de publicar. São os
       mesmos ~16 de `{slug}-stg`, com valores de produção.
-- [ ] **`DATABASE_URL_MIGRATOR` como variável de build** no Workers Builds (não
-      é segredo de runtime: é o papel de DDL, usado só durante o build). Sem ele
-      o portão aborta com "DATABASE_URL_MIGRATOR ausente", que é o
-      comportamento certo.
+- [ ] **`DATABASE_URL_MIGRATOR` e `IDENTITY_TOKEN` como variáveis de build**
+      no Workers Builds (não são segredos de runtime: o primeiro é o papel de
+      DDL do portão, o segundo é o que o smoke usa para ler a rota de
+      identidade). Sem o primeiro, o portão aborta com "DATABASE_URL_MIGRATOR
+      ausente" — comportamento certo.
 - [ ] **A sentinela `({slug}, production)` existe** em `app_identity` da branch
       `production` do Neon. Sem linha, `migrate-guarded` **aborta** — é a trava
       que impede migrar o banco de um app com o código de outro.
 
 ### 2.2 Configuração do Workers Builds (produção)
 
-No painel do Worker `{slug}-prod` → Settings → Builds:
+> **Corrigido em 2026-11-01.** A versão de 29/10 desta tabela punha o portão no
+> *build command*. Estava errado: build falho depois de migrar deixaria o banco
+> novo sem código novo **sem nem tentar publicar**. O portão mora no **deploy
+> command** — build falho nunca toca o banco; se a migração falhar, o publish
+> não acontece. A fonte desta configuração é o arquivo
+> `15-arquitetura-cicd-github-workers-builds.md` (§6.2).
+
+No painel do Worker de produção → Settings → Builds:
 
 | campo | valor |
 |---|---|
 | Branch | `main` |
-| Build command | `npx prisma generate && npm run portao:prod && npm run build:prod` |
-| Deploy command | `npm run deploy:prod && npm run smoke:prod` |
-| Build variables | `DATABASE_URL_MIGRATOR` |
+| Build command | `npx prisma generate && npm run typecheck && npm run build:prod` |
+| Deploy command | `npm run portao:prod && npm run deploy:prod && npm run smoke:prod` |
+| Build variables | `DATABASE_URL_MIGRATOR`, `IDENTITY_TOKEN` |
 
-`portao:prod` é o portão, e ele roda **antes** do build:
+`portao:prod` é o portão, e ele roda no deploy command, **depois do build e
+antes do publish**:
 
 1. `migrate:prod` — `migrate-guarded --expect-slug {slug} --expect-env production`.
    Lê `app_identity` antes de migrar e aborta se o banco não for o esperado.
 2. `audit:isolation --strict` — recusa vazamento de identidade entre os apps.
 
-`smoke:prod` roda **depois** do deploy e confere, de fora, que a identidade
-publicada bate com `infra/manifest.json`.
+`smoke:prod` roda **depois** do publish e confere, de fora, que a identidade
+publicada bate com `infra/manifest.json`. Smoke falho é alarme, não portão:
+diagnóstico pela árvore de rollback do arquivo 15 (§6.3), nunca rollback
+automático.
 
-A ordem importa e não é estética: migração antes do build garante que o código
-publicado nunca encontra um schema que não existe; o smoke depois do deploy é a
-única prova que enxerga o que foi de fato publicado.
+A ordem importa e não é estética: o build nunca tem efeito colateral (falhou,
+nada aconteceu); a migração roda colada no publish, encolhendo a janela
+código-velho/schema-novo; e toda migração é expand (compatível com o código
+anterior) por regra verificada — `lint:migracoes` no CI.
 
 ### 2.3 O deploy
 
