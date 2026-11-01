@@ -169,6 +169,10 @@ Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`
 
 ## Apêndice C — Segredos que viveram no GitHub (rotação)
 Regra: apagar do GitHub **não desfaz** a exposição passada — todo segredo que viveu lá é tratado como potencialmente vazado e trocado, DEPOIS do corte (rotacionar antes quebraria o `deploy-stg.yml` ainda ativo). Donos e locais:
-- 18 segredos de runtime × clone (lista exata: `gh secret list -R venn360/<repo>` na fase 7.2.6): trocar **no Worker** e, para `EVOLUTION_*`, também na VPS do app. Dono: André.
+- **Por clone** (medido 01/11; vivem em GitHub *Environments*, não no nível do repo — apagar com `gh secret delete <NOME> -R venn360/<repo> -e <env>`):
+  - env `stg` (19): `BETTER_AUTH_SECRET`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `DATABASE_URL`, `DATABASE_URL_MIGRATOR`, `EVOLUTION_GO_API_KEY`, `EVOLUTION_WEBHOOK_SECRET`, `IDENTITY_TOKEN`, `OPENAI_API_KEY`, `PRIVATE_STORAGE_*` (3), `PUBLIC_STORAGE_*` (3), `TOKEN_ENCRYPTION_KEY`, `WEBHOOK_BASE_URL`;
+  - env `production` (5): `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `DATABASE_URL_MIGRATOR`, `IDENTITY_TOKEN`, `OPENAI_API_KEY`.
+  Rotacionar **no Worker** (e `EVOLUTION_*` também na VPS do app); `CLOUDFLARE_ACCOUNT_ID` não é segredo, só apagar.
+- **Odontobox**: nível de repo `CLOUDFLARE_API_TOKEN` (o inválido do 401) + `CLOUDFLARE_ACCOUNT_ID` + `NEON_API_KEY`; envs `Preview`/`Production` com `DATABASE_URL_DIRECT` (resíduo da era Vercel — apagar e rotacionar a senha dessa role no Neon). Dono: André.
 - Tokens Cloudflare do GH — dos 3 apps (o inválido da Odontobox incluído) **e dos sites** `janainaleiteadv` (em uso pelo `deploy.yml` até o corte) e `visuallawdigital` (órfão desde 25/10, sem workflow que o use): revogar na CF e apagar do GitHub; criar o token de emergência novo (gerenciador de senhas) e o `CLOUDFLARE_PREVIEW_GC_TOKEN` (escopo: previews).
 - `NEON_API_KEY` (Odontobox): fica até o job `banco` morrer (§7.3); rotacionar ao removê-lo.
