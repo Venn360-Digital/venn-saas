@@ -45,8 +45,8 @@
 | Conecta | App | **X** (criar: Worker `conecta`, go-live) | **X** (existe: `conecta-stg`) | Neon `production` + `staging` (existem) | prod + stg existem |
 | venn360 | Site | **X** | — | — | — |
 | advogadamohs | Site | **X** | — | — | — |
-| janainaleiteadv | Site | **X** | — | D1 (conferir migrações — Apêndice B) | — |
-| visuallaw | Site | **X** | — | (inventariar) | — |
+| janainaleiteadv | Site | **X** | — | D1 (1 migração, aplicada à mão na criação — §7.4) | — |
+| visuallaw | Site | **X** | — | Neon (schema em `db/schema.sql`, aplicado à mão) | — |
 
 **Site sem staging — impacto:** nenhum relevante. O preview de PR mostra o site inteiro antes do merge, com o mesmo build que vai ao ar; sem banco com migração, não existe o risco que o staging dos apps protege. Regra: **se um site ganhar banco com migração, ganha portão e reavalia staging.** Sites têm zero workflows no GitHub.
 
@@ -126,7 +126,16 @@ Sem workflow vivo (workflow que nunca roda apodrece; o `deploy.yml` em 401 foi a
 Branch `staging` no git; `DEPLOY_ENV` introduzido no config (NOME: `odontobox` em produção, `odontobox-stg` em stg — produção **não muda de nome**; recursos novos `odontobox-stg-*`); buckets stg; Worker `odontobox-stg` ← `staging` com os comandos da §6.2; sentinela `odontobox/stg` já existe na branch staging do Neon; decisão aberta: Evolution-stg na VPS de 1 GB **ou** homolog sem canal. Ao entrar no fluxo: matar o job `banco` do CI + `NEON_API_KEY`, e repontar o preview para o banco de staging (hoje aponta para produção).
 
 ### 7.4 Go-live dos clones e sites
-Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`conecta` nascem do primeiro build com os comandos da §6.2; segredos de produção = André. Sites: inventário de 1 parágrafo por site, conectar ao Workers Builds no perfil §6.5, responder a pergunta do D1.
+Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`conecta` nascem do primeiro build com os comandos da §6.2; segredos de produção = André.
+
+**Inventário dos sites (medido 01/11).** Nenhum dos 4 Workers de site está ligado ao Workers Builds hoje — cada um publica por um caminho diferente, e três dos quatro caminhos têm defeito:
+
+- **venn360.com** — Next/vinext, Worker `venn360`. Último deploy 24/10 por `cf` CLI manual; zero workflows, zero segredos no GitHub. Defeito: o build do vinext não roda nesta máquina, então **não existe caminho reprodutível de deploy** — publicar depende de onde quer que o deploy de 24/10 tenha rodado. Enquadrar primeiro.
+- **janainaleiteadv** — Next/vinext, Worker `janainaleiteadv`, D1. Deploy por GitHub Actions (`deploy.yml`, push em `main`) com `CLOUDFLARE_API_TOKEN` no GitHub — exatamente o padrão que este modelo elimina (e refém da cota: era o único caminho). **Resposta à pergunta do D1:** uma única migração (`0001_init`), gerada por `prisma migrate diff` e aplicada à mão na criação; o deploy não migra nada. Sem migração recorrente ⇒ sem portão, regra do Quadro 2 escrita. O `infra-zona.mjs` (vigia de zona, read-only) passa a rodar no CI de PR, sem token de deploy.
+- **advogadamohs** — Astro, Worker `advogadamohs`. Deploy por `wrangler` local (Astro builda em macOS 12.6); zero GitHub. Funciona, mas é "só desta máquina".
+- **visuallawdigital** — Astro, Worker `visuallawdigital`, **Neon** (schema versionado em `db/schema.sql`, aplicado à mão). O commit 7ae13c4 tirou o deploy do GitHub Actions *anunciando* Workers Builds, mas a conexão nunca foi feita — e o run de 31/10 morreu em 3 s no bloqueio de cota, provando que site também ficava refém. Hoje publica por `wrangler` local; o deploy de 01/11 16:42 saiu **antes do push** (o ar ficou na frente do git — a deriva que o modelo proíbe). Os segredos `CLOUDFLARE_*` de 25/10 continuam no GitHub sem workflow que os use: apagar e rotacionar (Apêndice C).
+
+**Enquadramento (perfil §6.5, os 4):** ligar cada Worker ao repositório no Workers Builds — build `npm run build` (Astro) / `npm run build:vinext` (vinext), deploy `npx wrangler deploy` / `npm run deploy:vinext` — branch `main`, preview por PR; apagar `deploy.yml` e os segredos do janainaleiteadv e do visuallawdigital; depois disso, deploy local vira exceção, não rotina. Sem portão em nenhum site enquanto a migração de schema não virar rotina (hoje: zero sites migram no deploy).
 
 ## 8. Glossário
 - **Portão**: `migrate-guarded` (migração que aborta se a sentinela do banco não for a esperada) + `audit:isolation --strict` (reprova referência a recurso de outro app). Roda antes do publish, no deploy command.
@@ -148,16 +157,18 @@ Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`
 7. Sentinelas conferidas por SQL: `odontobox/production` (29/10 e 01/11), `odontobox/stg` (29/10), `stagent/production`, `conecta/production` (29/10).
 8. Preview não aceita `triggers` (medido 21/10) — "o preview serve para olhar tela, não para processar trabalho".
 9. Rota de identidade: Odontobox `/api/_internal/identity` (underscore); clones `/api/internal/identity`.
+10. Sites: nenhum dos 4 Workers ligado ao Workers Builds; fontes do último deploy — `venn360` cf_cli 24/10, `janainaleiteadv` GH Actions 19/10, `advogadamohs` wrangler 18/10, `visuallawdigital` wrangler 01/11 16:42 **com commit ainda não enviado ao remoto**. Run de deploy do visuallaw em 31/10 morto em 3 s pelo bloqueio de cota.
 
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
 - [ ] Composição dos ~US$ 12/mês atuais do GitHub (André).
-- [ ] janainaleiteadv: D1 tem migrações próprias? (inventário §7.4)
+- [x] janainaleiteadv: D1 tem migrações próprias? **Respondido em 01/11 (§7.4):** uma, aplicada à mão na criação; o deploy não migra.
+- [ ] venn360.com: de onde saiu o deploy de 24/10 (`cf` CLI, mas o vinext não builda nesta máquina)? Vira irrelevante quando o Worker for ligado ao Builds — mas conferir antes que não há outro caminho vivo (André).
 - [ ] Hipótese do deploy local com artefato arquivado (§6.4) — medir UMA vez; a memória da máquina diz que o deploy do vinext falha localmente.
 
 ## Apêndice C — Segredos que viveram no GitHub (rotação)
 Regra: apagar do GitHub **não desfaz** a exposição passada — todo segredo que viveu lá é tratado como potencialmente vazado e trocado, DEPOIS do corte (rotacionar antes quebraria o `deploy-stg.yml` ainda ativo). Donos e locais:
 - 18 segredos de runtime × clone (lista exata: `gh secret list -R venn360/<repo>` na fase 7.2.6): trocar **no Worker** e, para `EVOLUTION_*`, também na VPS do app. Dono: André.
-- Tokens Cloudflare do GH (o inválido da Odontobox incluído): revogar na CF; criar o token de emergência novo (gerenciador de senhas) e o `CLOUDFLARE_PREVIEW_GC_TOKEN` (escopo: previews).
+- Tokens Cloudflare do GH — dos 3 apps (o inválido da Odontobox incluído) **e dos sites** `janainaleiteadv` (em uso pelo `deploy.yml` até o corte) e `visuallawdigital` (órfão desde 25/10, sem workflow que o use): revogar na CF e apagar do GitHub; criar o token de emergência novo (gerenciador de senhas) e o `CLOUDFLARE_PREVIEW_GC_TOKEN` (escopo: previews).
 - `NEON_API_KEY` (Odontobox): fica até o job `banco` morrer (§7.3); rotacionar ao removê-lo.
