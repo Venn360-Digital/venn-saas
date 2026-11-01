@@ -393,6 +393,8 @@ export default function SuportePage() {
     const [busca, setBusca] = useState('')
     const [topico, setTopico] = useState<string>('todos')
     const [promptCopiado, setPromptCopiado] = useState(false)
+    /** Os oito documentos nascem fechados; a busca os abre (ver o Collapsible). */
+    const [docsAbertos, setDocsAbertos] = useState(false)
     const [contexto, setContexto] = useState('')
 
     /**
@@ -632,10 +634,32 @@ export default function SuportePage() {
                                 </p>
                             </div>
 
+                            {/* ─── Os oito, atrás de um clique ─────────────────
+                                A lista inteira são ~2.500px, quase três telas.
+                                Quem abre a central por outro motivo ("o agente
+                                parou", "acabou o crédito") rolava tudo isso
+                                antes de chegar na pergunta dele.
+
+                                **Mas abre sozinho durante a busca.** Conteúdo
+                                colapsado é conteúdo que ninguém acha, e sem
+                                isto procurar "cenários" mostraria a seção com a
+                                resposta escondida dentro — o pior dos dois
+                                mundos. É por isso que o `open` é controlado e
+                                não um `defaultOpen`. ──────────────────────── */}
+                            <Collapsible
+                                open={docsAbertos || buscando}
+                                onOpenChange={setDocsAbertos}
+                                className="border-t border-border"
+                            >
+                                <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[13.5px] font-semibold hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+                                    Ver os {DOCUMENTOS.length} documentos, um a um
+                                    <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
                             {/* Um bloco por documento, na ordem em que as guias
                                 aparecem na tela do agente — quem lê aqui está
                                 com aquela tela aberta do lado. */}
-                            <ol className="divide-y divide-border">
+                            <ol className="divide-y divide-border border-t border-border">
                                 {DOCUMENTOS.map((d, i) => (
                                     <li key={d.slug} className="grid gap-x-5 gap-y-2 p-5 md:grid-cols-[200px_1fr]">
                                         <div>
@@ -674,6 +698,8 @@ export default function SuportePage() {
                                     </li>
                                 ))}
                             </ol>
+                                </CollapsibleContent>
+                            </Collapsible>
 
                             <p className="border-t border-border bg-muted/40 px-5 py-3 text-xs leading-relaxed text-muted-foreground">
                                 A seção <code className="rounded bg-muted px-1 py-0.5">{SECAO_EXEMPLOS}</code> existe
