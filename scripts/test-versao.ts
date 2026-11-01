@@ -6,15 +6,24 @@
  * O laço de melhoria do estudo não funciona sem duas versões na mesa: a medição
  * compara rascunho com publicado, e "piorou" só existe se houver um "antes".
  * O que decide está aqui, e é puro — quem grava é a rota de publicação.
+ *
+ * Cobre também o **acervo atrasado**: publicar não depende só de alguém ter
+ * editado texto. Quando muda o código que decide o que vai para o acervo, todo
+ * documento já indexado fica obsoleto de uma vez — e o incidente de 2026-10-31
+ * está reproduzido aqui, com a regra de recorte antiga contra a nova.
  */
 import {
     aplicarRascunhos,
     proximaVersao,
     rascunhosDaRestauracao,
+    slugsDesatualizados,
     slugsQueMudam,
     temRascunhoPendente,
+    type AcervoDoDocumento,
     type DocumentoComRascunho,
 } from '@/lib/treinamento/versao'
+import { hashDoAcervo, hashDoConteudo } from '@/lib/treinamento/indexar'
+import { semComentarios } from '@/lib/rag/secoes'
 
 let passou = 0
 let falhou = 0
@@ -55,6 +64,119 @@ conferir(
     false
 )
 conferir('lista vazia não tem pendência', temRascunhoPendente([]), false)
+
+console.log('\nO acervo atrasado — mudança de CÓDIGO, não de texto')
+
+/*
+ * O defeito de 2026-10-31: `textoParaAcervo` passou a retirar mais seções, e
+ * todo documento já indexado ficou obsoleto sem ninguém editar nada. Sem
+ * rascunho pendente, `slugsQueMudam` não via nada e a tela não tinha como
+ * reindexar — o conserto saiu por SQL à mão.
+ */
+const acervo: AcervoDoDocumento[] = [
+    // Indexado com um texto que o corte de hoje não produz mais.
+    { slug: 'faq', ehAcervo: true, indexado: 'aaa', agora: 'bbb' },
+    // Em dia: não pode entrar, senão todo Publicar reindexaria o acervo inteiro.
+    { slug: 'servicos', ehAcervo: true, indexado: 'ccc', agora: 'ccc' },
+    // Nunca indexado. Job em voo ou job que falhou — reindexar não é o remédio,
+    // e acender o aviso aqui faria a tela pedir reindexação logo após publicar.
+    { slug: 'cenarios', ehAcervo: true, indexado: null, agora: 'ddd' },
+    // Modo prompt: vai inteiro no prompt, não tem acervo para comparar.
+    { slug: 'privacidade', ehAcervo: false, indexado: 'eee', agora: 'fff' },
+    // Tem trechos no acervo para um texto que hoje não renderia trecho nenhum.
+    // É o caso mais grave: o agente responde pelo que já não existe.
+    { slug: 'empresa', ehAcervo: true, indexado: 'ggg', agora: null },
+]
+
+conferir('indexado ≠ o que seria indexado agora conta', slugsDesatualizados(acervo), ['faq', 'empresa'])
+conferir('em dia NÃO conta', slugsDesatualizados(acervo).includes('servicos'), false)
+conferir('nunca indexado NÃO conta', slugsDesatualizados(acervo).includes('cenarios'), false)
+conferir('documento de prompt NÃO conta', slugsDesatualizados(acervo).includes('privacidade'), false)
+conferir('indexado com acervo hoje vazio conta', slugsDesatualizados(acervo).includes('empresa'), true)
+conferir('lista vazia não tem atrasado', slugsDesatualizados([]), [])
+
+console.log('\nO hash do acervo — a outra metade da comparação')
+
+/*
+ * Tem de ser o MESMO cálculo que o processador grava em `indexedHash`, senão a
+ * comparação acusa atraso em todo documento e reindexa o acervo inteiro a cada
+ * publicação. O processador hasheia `textoParaAcervo(content).texto`.
+ */
+const comExemplos = [
+    '# Perguntas frequentes',
+    '',
+    '## Dói?',
+    'Com anestesia, não.',
+    '',
+    '## Exemplos ou sugestões de resposta',
+    '- "Oi! Tudo bem?"',
+].join('\n')
+
+const soOsFatos = ['# Perguntas frequentes', '', '## Dói?', 'Com anestesia, não.'].join('\n')
+
+conferir(
+    'hasheia o texto DEPOIS do recorte: com e sem a seção de exemplos dá o mesmo hash',
+    await hashDoAcervo(comExemplos),
+    await hashDoAcervo(soOsFatos)
+)
+conferir(
+    'e é o mesmo número que o processador grava em indexedHash',
+    await hashDoAcervo(comExemplos),
+    await hashDoConteudo(soOsFatos)
+)
+conferir('documento vazio não tem hash de acervo: é nulo, não string vazia', await hashDoAcervo(''), null)
+conferir(
+    'documento só com comentário de quem escreve também é nulo',
+    await hashDoAcervo('<!-- confirmar preço com a recepção -->'),
+    null
+)
+conferir(
+    'e documento reduzido à seção de exemplos também — nada de fato a indexar',
+    await hashDoAcervo('## Exemplos ou sugestões de resposta\n- "Oi!"'),
+    null
+)
+
+console.log('\nO incidente de 2026-10-31, reproduzido')
+
+/*
+ * O caso real, de ponta a ponta e sem banco: o documento está no ar com o
+ * carimbo que a regra ANTIGA de recorte produziu — ela só tirava comentário, e
+ * deixava a seção de exemplos entrar no acervo. Depois do conserto de
+ * `ehSecaoDeExemplos`, o mesmo texto passa a dar outro recorte.
+ *
+ * Ninguém editou nada: `slugsQueMudam` não vê nada, e sem `slugsDesatualizados`
+ * a tela ficava mostrando "indexado em 10 trechos" ao lado de "8 trechos" sem
+ * botão nenhum, enquanto três diálogos de exemplo seguiam sendo servidos ao
+ * modelo como fonte de verdade.
+ */
+const noAr = [
+    '# Perguntas frequentes',
+    '',
+    '## Quanto custa a avaliação?',
+    'A primeira avaliação é gratuita.',
+    '',
+    '## Exemplos ou sugestões de resposta',
+    '- "Oi! A primeira avaliação é por nossa conta."',
+    '- "Posso já reservar um horário para você?"',
+].join('\n')
+
+/* O que o indexador de antes do conserto teria gravado em `indexedHash`. */
+const carimboAntigo = await hashDoConteudo(semComentarios(noAr).trim())
+
+const comoEstava: DocumentoComRascunho[] = [{ slug: 'faq', content: noAr, draftContent: null }]
+const acervoDeHoje: AcervoDoDocumento[] = [
+    { slug: 'faq', ehAcervo: true, indexado: carimboAntigo, agora: await hashDoAcervo(noAr) },
+]
+
+conferir('o texto não mudou, então não há o que publicar', slugsQueMudam(comoEstava), [])
+conferir('mas o acervo está atrasado, e agora a tela sabe', slugsDesatualizados(acervoDeHoje), ['faq'])
+conferir(
+    'e depois de reindexar o carimbo bate — reindexar de novo não paga embedding',
+    slugsDesatualizados([
+        { slug: 'faq', ehAcervo: true, indexado: await hashDoAcervo(noAr), agora: await hashDoAcervo(noAr) },
+    ]),
+    []
+)
 
 console.log('\nO instantâneo')
 

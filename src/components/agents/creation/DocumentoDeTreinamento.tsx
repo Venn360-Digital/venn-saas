@@ -50,6 +50,17 @@ interface Props {
     /** Quando e em quantos trechos foi indexado. Nulo em documento de prompt. */
     indexadoEm?: string | null
     trechos?: number | null
+    /**
+     * O acervo está atrasado: o que está indexado não é o que o texto publicado
+     * daria hoje.
+     *
+     * Quem decide é o servidor, e tem de ser: a conta depende de `indexedHash`,
+     * que a tela não recebe. Comparar os dois números que a tela já mostra
+     * — "indexado em 10 trechos" contra "8 trechos" — pareceria suficiente e não
+     * é: o contador da direita é do **rascunho** em edição, e o da esquerda é do
+     * publicado. Divergir é o normal enquanto se escreve.
+     */
+    desatualizado?: boolean
     somenteLeitura?: boolean
     /**
      * Os campos antigos do cadastro, para o rascunho da transição.
@@ -68,6 +79,7 @@ export function DocumentoDeTreinamento({
     onChange,
     indexadoEm,
     trechos,
+    desatualizado = false,
     somenteLeitura = false,
     camposAntigos,
 }: Props) {
@@ -288,7 +300,13 @@ export function DocumentoDeTreinamento({
                     {doc.modo === 'prompt' ? (
                         <span className="text-muted-foreground">Não se indexa</span>
                     ) : indexadoEm ? (
-                        <span className="text-muted-foreground">
+                        <span
+                            className={cn(
+                                desatualizado
+                                    ? 'text-warning-subtle-foreground'
+                                    : 'text-muted-foreground'
+                            )}
+                        >
                             Indexado em {trechos?.toLocaleString('pt-BR')} trecho
                             {trechos === 1 ? '' : 's'},{' '}
                             {new Date(indexadoEm).toLocaleString('pt-BR', {
@@ -297,10 +315,28 @@ export function DocumentoDeTreinamento({
                                 hour: '2-digit',
                                 minute: '2-digit',
                             })}
+                            {/*
+                              * **O carimbo precisa saber mentir menos.**
+                              *
+                              * "Indexado em 10 trechos" é uma afirmação sobre o
+                              * acervo, e ela ficava verdadeira no número e falsa
+                              * no sentido: os 10 trechos eram de um texto que o
+                              * corte de hoje não produz mais. Aconteceu quando o
+                              * código que decide o que vai para o acervo mudou —
+                              * ninguém editou nada, e o agente seguiu servindo
+                              * diálogos de exemplo como fato.
+                              *
+                              * Dizer "desatualizado" aqui, colado no número que
+                              * está errado, é o que liga o aviso ao botão de
+                              * reindexar no cabeçalho.
+                              */}
+                            {desatualizado ? ' — desatualizado' : null}
                         </span>
                     ) : temConteudo ? (
+                        // "Publique", não "salve": a indexação saiu do salvar e
+                        // mora no Publicar desde o passo 4.
                         <span className="text-warning-subtle-foreground">
-                            Escrito e ainda não indexado — salve para o agente aprender
+                            Escrito e ainda não indexado — publique para o agente aprender
                         </span>
                     ) : null}
                 </div>
@@ -339,6 +375,15 @@ export function DocumentoDeTreinamento({
                     )
                 ) : null}
             </div>
+
+            {desatualizado ? (
+                <p className="text-xs text-warning-subtle-foreground">
+                    <strong className="font-semibold">O acervo deste documento está atrasado.</strong>{' '}
+                    O que está indexado não é o que este texto daria hoje — o que mudou foi a regra
+                    de recorte, não o texto. Use “Reindexar” no cabeçalho para o agente voltar a
+                    responder pelo que está escrito aqui.
+                </p>
+            ) : null}
 
             {exemplosFora.length > 0 ? (
                 <p className="text-xs text-muted-foreground">

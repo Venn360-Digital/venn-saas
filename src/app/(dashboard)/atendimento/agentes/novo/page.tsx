@@ -79,6 +79,7 @@ function NovoAgenteContent() {
         isSaving,
         versao,
         pendentes,
+        desatualizados,
         publicar,
         publicando,
     } = useAgentCreation(workspaceId)
@@ -350,6 +351,7 @@ function NovoAgenteContent() {
                         camposAntigos={camposAntigos}
                         indexadoEm={gravado?.indexedAt ?? null}
                         trechos={gravado?.indexedChunks ?? null}
+                        desatualizado={gravado?.desatualizado ?? false}
                         onChange={(content) => {
                             marcarSujo(true)
                             setDocumentos((atual) => ({
@@ -384,8 +386,17 @@ function NovoAgenteContent() {
                      * aceso convidaria a publicar o nada, e a rota recusaria com
                      * "nada para publicar": botão que só sabe recusar é pior que a
                      * sua ausência, o mesmo critério que já vale para o Salvar.
+                     *
+                     * **Pendência tem dois motivos, e o rótulo muda com eles.**
+                     * Sem rascunho nenhum, o acervo ainda pode estar atrasado:
+                     * quando muda o código que decide o que vai para ele, todo
+                     * documento já indexado fica obsoleto sem ninguém ter
+                     * editado nada. Era o estado em que não havia botão — a tela
+                     * mostrava os números divergindo e não oferecia saída, e o
+                     * conserto saiu por SQL à mão. Mesma rota, outro nome: aqui
+                     * não se publica texto, se recorta o que já está no ar.
                      */}
-                    {pendentes.length > 0 ? (
+                    {pendentes.length + desatualizados.length > 0 ? (
                         <Button
                             onClick={async () => {
                                 const id = agentIdRef.current
@@ -395,11 +406,20 @@ function NovoAgenteContent() {
                             variant="outline"
                             className="h-8"
                             disabled={publicando || isSaving || loading}
+                            title={
+                                pendentes.length > 0 && desatualizados.length > 0
+                                    ? `Publica o rascunho e reindexa ${desatualizados.length} documento(s) com acervo atrasado`
+                                    : undefined
+                            }
                         >
                             {publicando ? <Loader2 className="size-4 animate-spin" /> : null}
                             {publicando
-                                ? 'Publicando…'
-                                : `Publicar ${pendentes.length} ${pendentes.length === 1 ? 'mudança' : 'mudanças'}`}
+                                ? pendentes.length > 0
+                                    ? 'Publicando…'
+                                    : 'Reindexando…'
+                                : pendentes.length > 0
+                                  ? `Publicar ${pendentes.length} ${pendentes.length === 1 ? 'mudança' : 'mudanças'}`
+                                  : `Reindexar ${desatualizados.length} ${desatualizados.length === 1 ? 'documento' : 'documentos'}`}
                         </Button>
                     ) : (
                         <span className="text-xs text-muted-foreground">

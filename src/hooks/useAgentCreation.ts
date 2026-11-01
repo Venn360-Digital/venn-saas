@@ -73,7 +73,10 @@ export function useAgentCreation(workspaceId: string) {
      */
     const [documentos, setDocumentos] = useState<Record<string, DocumentoGravado>>(() =>
         Object.fromEntries(
-            DOCUMENTOS.map((doc) => [doc.slug, { content: '', indexedAt: null, indexedChunks: null }])
+            DOCUMENTOS.map((doc) => [
+                doc.slug,
+                { content: '', indexedAt: null, indexedChunks: null, desatualizado: false },
+            ])
         )
     )
 
@@ -89,6 +92,19 @@ export function useAgentCreation(workspaceId: string) {
      */
     const [versao, setVersao] = useState(0)
     const [pendentes, setPendentes] = useState<string[]>([])
+
+    /**
+     * Os slugs cujo acervo está atrasado — **sem rascunho nenhum pendente**.
+     *
+     * Lista separada de `pendentes` porque os dois motivos para reindexar são
+     * diferentes: rascunho é mudança de texto que alguém escreveu; atrasado é o
+     * acervo que ficou para trás quando o código que decide o que vai para ele
+     * mudou. Somar os dois numa lista só faria a tela dizer "publicar 3
+     * mudanças" para duas edições e um documento que ninguém tocou.
+     *
+     * Quem calcula é o servidor: depende de `indexedHash`, que a tela não vê.
+     */
+    const [desatualizados, setDesatualizados] = useState<string[]>([])
 
     /**
      * Publica o que está em rascunho.
@@ -113,10 +129,21 @@ export function useAgentCreation(workspaceId: string) {
 
             setVersao(corpo.versao)
             setPendentes([])
+            /**
+             * Limpa junto, otimista, pelo mesmo critério de `pendentes`: o job
+             * de indexação já está na fila. O carimbo no banco só muda quando o
+             * processador roda, e manter o aviso aceso até lá faria a tela
+             * oferecer reindexar o que acabou de ser enfileirado.
+             */
+            setDesatualizados([])
             toast.success(
-                corpo.enfileirados?.length > 0
-                    ? `Versão ${corpo.versao} publicada. O acervo está sendo reindexado.`
-                    : `Versão ${corpo.versao} publicada.`
+                // Sem texto novo, não houve publicação: dizer "versão publicada"
+                // seria anunciar uma versão que a rota não criou.
+                corpo.mudaram?.length === 0
+                    ? 'Acervo em reindexação.'
+                    : corpo.enfileirados?.length > 0
+                      ? `Versão ${corpo.versao} publicada. O acervo está sendo reindexado.`
+                      : `Versão ${corpo.versao} publicada.`
             )
             return true
         } catch (erro) {
@@ -434,6 +461,7 @@ export function useAgentCreation(workspaceId: string) {
             const corpo: {
                 versao: number
                 pendentes: string[]
+                desatualizados: string[]
                 docs: Array<{
                     slug: string
                     content: string
@@ -441,6 +469,7 @@ export function useAgentCreation(workspaceId: string) {
                     temRascunho: boolean
                     indexedAt: string | null
                     indexedChunks: number | null
+                    desatualizado: boolean
                 }>
             } = await res.json()
 
@@ -450,12 +479,14 @@ export function useAgentCreation(workspaceId: string) {
                     content: item.content,
                     indexedAt: item.indexedAt,
                     indexedChunks: item.indexedChunks,
+                    desatualizado: item.desatualizado,
                 }
                 originais.current[item.slug] = item.content
             }
             setDocumentos((atual) => ({ ...atual, ...porSlug }))
             setVersao(corpo.versao)
             setPendentes(corpo.pendentes)
+            setDesatualizados(corpo.desatualizados ?? [])
         } catch (erro) {
             console.error('[TREINAMENTO] carregar', erro)
             toast.error('Não foi possível carregar os documentos de treinamento')
@@ -533,6 +564,7 @@ export function useAgentCreation(workspaceId: string) {
         carregarDocumentos,
         versao,
         pendentes,
+        desatualizados,
         publicar,
         publicando,
         perfil,

@@ -124,6 +124,23 @@ export async function hashDoConteudo(content: string): Promise<string> {
 }
 
 /**
+ * O hash do que o acervo **teria** a partir deste conteúdo — nulo se não teria nada.
+ *
+ * É exatamente o que o processador grava em `indexedHash`: o hash do texto
+ * depois de `textoParaAcervo`. Existe como função própria porque dois lugares
+ * precisam comparar "o que está indexado" com "o que seria indexado agora" sem
+ * repetir a composição — a rota de publicação, para reindexar quem ficou para
+ * trás, e a rota que a tela lê, para poder avisar.
+ *
+ * Nulo e não string vazia: "não haveria acervo" é um estado, não um hash. Quem
+ * compara precisa distinguir isso de um texto qualquer.
+ */
+export async function hashDoAcervo(content: string): Promise<string | null> {
+    const { texto } = textoParaAcervo(content)
+    return texto.length === 0 ? null : hashDoConteudo(texto)
+}
+
+/**
  * Decide o que fazer com um documento que acabou de ser gravado.
  *
  * O `hashGravado` é o do último conteúdo indexado (`indexedHash`). Comparar com
