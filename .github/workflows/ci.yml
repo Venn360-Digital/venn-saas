@@ -294,12 +294,15 @@ jobs:
       # vira verde mudo: a mensagem aponta onde conferir os órfãos.
       - name: Apagar
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Token DEDICADO, escopo de previews — nunca o token de deploy
+          # legado, que está na lista de remoção: amarrar o GC a ele quebraria
+          # a limpeza no dia da faxina.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PREVIEW_GC_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NOME: pr-${{ github.event.pull_request.number }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::warning::CLOUDFLARE_API_TOKEN ausente — preview $NOME não foi apagado; conferir Durable Objects órfãos em Workers → odontobox"
+            echo "::warning::CLOUDFLARE_PREVIEW_GC_TOKEN ausente — preview $NOME não foi apagado; conferir Durable Objects órfãos em Workers → odontobox"
             exit 0
           fi
           if npx cf previews delete "$NOME" --worker odontobox -f; then
