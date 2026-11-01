@@ -20,6 +20,8 @@ Pacote de prompts para o **Claude Code**: cada fase é um arquivo e termina em u
 | 11 | `12-fase-11-testes-isolamento.md` | homologação | nada (testes) |
 | 12 | `13-fase-12-go-live.md` | produção do app novo | go-live |
 | 13 | `14-fase-13-retrospectiva-e-conecta360.md` | — | retro + repete 05→12 para o Conecta360 |
+| — | `15-arquitetura-cicd-github-workers-builds.md` | **a arquitetura definitiva de CI/CD** (GitHub = código/PR/verificação; Workers Builds = build/preview/deploy com portão). Corrige e supera o que as Fases 10 e 12 diziam sobre deploy | todos os projetos |
+| — | `16-emergencia-deploy.md` | deploy de emergência com o Workers Builds fora do ar (YAML pronto + token fora do GitHub; code-only) | emergência |
 
 **Em paralelo:** comece a **Fase 09, Parte A** (criar projetos Google e apps Meta e pedir verificações) logo depois da Fase 01. As aprovações levam semanas e são o caminho crítico.
 

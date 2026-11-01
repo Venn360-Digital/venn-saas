@@ -1,5 +1,15 @@
 # FASE 10 — Secrets, CI/CD e primeiro deploy em homologação
 
+> **SUPERADO em 2026-11-01 — leia primeiro o arquivo
+> `15-arquitetura-cicd-github-workers-builds.md`.** Esta fase foi executada e
+> descreve a arquitetura da época: deploy por GitHub Actions
+> (`deploy-stg.yml`/`deploy-prod.yml`), GitHub Environments e segredos de deploy
+> no GitHub. **Nada disso vale mais**: o deploy é só pelo Cloudflare Workers
+> Builds, o GitHub não guarda segredo de runtime nem de deploy, e o portão roda
+> no deploy command do Worker. A §1 (segredos **no Worker** via
+> `wrangler secret put` + fingerprints) continua válida; as §§2–3 (Environments
+> e workflows de deploy) são história, mantidas só como registro.
+
 **Onde executar:** repositório do novo app, branch `chore/dup-cicd`.
 **Modo:** Plan mode. Leia `infra/runbook/01-REGRAS-GLOBAIS.md` (R8).
 
