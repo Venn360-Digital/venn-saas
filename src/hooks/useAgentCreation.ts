@@ -136,6 +136,14 @@ export function useAgentCreation(workspaceId: string) {
              * oferecer reindexar o que acabou de ser enfileirado.
              */
             setDesatualizados([])
+            /* E o aviso por documento junto, senão o botão sai e a frase
+               "o acervo deste documento está atrasado" fica acesa até alguém
+               recarregar a tela. */
+            setDocumentos((atual) =>
+                Object.fromEntries(
+                    Object.entries(atual).map(([slug, doc]) => [slug, { ...doc, desatualizado: false }])
+                )
+            )
             toast.success(
                 // Sem texto novo, não houve publicação: dizer "versão publicada"
                 // seria anunciar uma versão que a rota não criou.
