@@ -179,6 +179,42 @@ Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`
 9. Rota de identidade: Odontobox `/api/_internal/identity` (underscore); clones `/api/internal/identity`.
 10. Sites: nenhum dos 4 Workers ligado ao Workers Builds; fontes do último deploy — `venn360` cf_cli 24/10, `janainaleiteadv` GH Actions 19/10, `advogadamohs` wrangler 18/10, `visuallawdigital` wrangler 01/11 16:42 **com commit ainda não enviado ao remoto**. Run de deploy do visuallaw em 31/10 morto em 3 s pelo bloqueio de cota.
 
+## Perigo medido: editar um Worker pelo painel trava o deploy seguinte
+
+Medido em 2026-11-02, nos dois clones. Sequência inequívoca: deploy pelo Workers
+Builds verde às 02:53 → segredo rotacionado **pelo Dashboard** às 03:09 → todo
+deploy desde então aborta com:
+
+    ▲ A configuração local difere da remota, definida pelo Dashboard
+    ■ Aborting the upload operation because of conflicts.
+      To override and upload anyway, remove the `--strict` flag
+
+Três fatos apurados:
+
+1. **O domínio existia só no remoto.** `cloudflare.config.ts` nunca declarou
+   `homolog-<slug>.venn360.com`. Qualquer override teria **apagado o domínio** e
+   derrubado o ambiente. Consertado: o config agora declara `domains`
+   (derivado de `APP_URL`, `previews: false`). Isso era bomba armada
+   independente deste episódio.
+2. **O resto do diff não fecha por config.** Sobram só adições do lado local —
+   os 9 consumidores de fila, `script_name` nos Durable Objects e a ordem dos
+   crons. O snapshot do Dashboard **não registra consumidores de fila**, então
+   igualar exigiria removê-los, que é inaceitável.
+3. **A mensagem de erro é contraditória.** `--strict` **não é argumento válido**
+   de `cf deploy` (`Unknown argument: strict`, medido), e o vinext não o passa —
+   é ligado internamente. Não há escape em CI. Código idêntico na `beta.20`
+   (instalada) e na `beta.26` (última), então **subir versão não resolve**.
+
+**Regra operacional, a partir de agora:** segredo e variável de Worker se gravam
+por **API/CLI, nunca pelo painel**. É a mesma lógica de "nenhuma lógica em campo
+de painel" (§6.1), agora com custo medido: uma madrugada e o staging sem
+publicar. O risco maior é repetir isso na **produção** durante um incidente.
+
+**Estado:** homolog dos dois clones no ar e saudável (versão de 02:53);
+publicar está bloqueado. Produção da Odontobox intocada — e continua assim
+enquanto ninguém editar seu Worker pelo painel. Pendente: reportar upstream
+(vinext/cf).
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
