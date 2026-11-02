@@ -50,7 +50,20 @@ if (id.app?.slug !== slug) falhas.push(`app.slug ${id.app?.slug} != ${slug}`)
 if (id.app?.env !== env) falhas.push(`app.env ${id.app?.env} != ${env}`)
 if (id.db?.sentinela?.slug !== slug || id.db?.sentinela?.environment !== env)
     falhas.push(`sentinela ${JSON.stringify(id.db?.sentinela)} != (${slug}, ${env})`)
-if (id.db?.host && amb.neon.endpointHost && id.db.host !== amb.neon.endpointHost)
+/**
+ * O host do Neon, comparado sem o sufixo `-pooler`.
+ *
+ * `ep-x-pooler.<...>` e `ep-x.<...>` são **o mesmo endpoint** em dois modos de
+ * acesso: o app usa o pooled (muitas conexões curtas num runtime serverless) e
+ * o migrador usa o direto (DDL e trava de aviso não passam pelo pgbouncer). O
+ * manifesto registra o direto; comparar cru reprovava a produção por uma
+ * diferença que não é divergência — medido em 2026-11-02.
+ *
+ * A conferência continua valendo para o que importa: endpoint de outro projeto
+ * ou de outra branch tem identificador diferente, e aí a falha é real.
+ */
+const semPooler = (h) => (h ?? '').replace('-pooler.', '.')
+if (id.db?.host && amb.neon.endpointHost && semPooler(id.db.host) !== semPooler(amb.neon.endpointHost))
     falhas.push(`db.host ${id.db.host} != ${amb.neon.endpointHost}`)
 const evoHost = amb.hostnames.evolution
 if (id.evolution?.host && evoHost && id.evolution.host !== evoHost)
