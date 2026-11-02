@@ -542,6 +542,35 @@ gravação e leitura de arquivo em produção falha com
   (`DATABASE_URL_MIGRATOR` e `IDENTITY_TOKEN`) são coladas na **mesma tela** em
   que o Git é conectado, do cofre, em vez de passarem por esta sessão.
 
+### Preview no Worker de produção dos clones: DESLIGADO, de propósito
+
+`GET /accounts/{id}/builds/workers/{tag}` devolve a configuração inteira —
+`production_settings`, `previews_base_config` e as variáveis de build de cada
+lado (com `is_secret: true, value: null` nas secretas). Foi lendo isso que
+apareceu o problema.
+
+Nos clones existem **dois** Workers por app ligados ao **mesmo** repositório:
+`<slug>-stg` (branch `staging`) e `<slug>` (branch `main`). Preview no Workers
+Builds dispara em push de branch que não é a de produção — e o listado mostra
+preview para praticamente toda branch. Ligar o Worker de produção com
+`previews_enabled: true` faria **todo push de branch disparar dois builds**,
+um por Worker. É literalmente o "dois builds em paralelo" que o André já
+recusou.
+
+E o segundo seria errado além de caro: `deploy:preview` dos clones é
+`DEPLOY_ENV=stg … previews deploy`. Rodando no Worker de produção, ele
+construiria com a configuração de homolog e publicaria como preview do Worker
+de produção. Na Odontobox isso não aparece porque lá `build:preview` não passa
+`DEPLOY_ENV` — e o padrão da config é `production`, que é o único ambiente dela.
+
+Regra: **preview é do `-stg`**, que é onde os PRs caem (os PRs dos clones vão
+contra `staging`). O Worker de produção fica com `previews_enabled: false` e
+cuida só de `main`. Na Odontobox, que tem um Worker só, preview continua ligado.
+
+Isto acrescenta um oitavo item à verificação do §6.1.3: **conferir de que lado
+o preview está ligado** — e, quando está, que o `build_token_uuid` do
+`previews_base_config` é o mesmo do `production_settings`.
+
 ### Estado dos tokens de build (02/11)
 
 Os 7 Workers ligados têm **um token distinto cada** — a regra do §6.1.4 está
@@ -580,7 +609,7 @@ build, arquivo do cofre). Fica como pendência do Apêndice B, não como consert
 - [ ] venn360.com: de onde saiu o deploy de 24/10 (`cf` CLI, mas o vinext não builda nesta máquina)? Vira irrelevante quando o Worker for ligado ao Builds — mas conferir antes que não há outro caminho vivo (André).
 - [ ] `IDENTITY_TOKEN` de **homolog** no cofre está velho (rotacionado por API em 02/11 e não reescrito). Conserto = rotacionar uma vez e gravar nos TRÊS lugares (segredo do Worker, variável de build, `worker-stg.env`). Vale para stagent e conecta.
 - [ ] Commit só de documentação em `main` dispara build **e deploy** de produção (`path_includes: ["*"]`): medido em 02/11 na Odontobox, 4 builds `success` seguidos sem mudança de código. Gasta minuto da franquia. Conserto candidato é `path_excludes: ["infra/runbook/*"]` — **não aplicado de propósito**: filtro errado deixa de publicar mudança de código em silêncio, que é pior que gastar minuto. Provar primeiro num Worker `-stg`.
-- [ ] `NEXT_PUBLIC_SUPPORT_EMAIL` e `NEXT_PUBLIC_SUPPORT_WHATSAPP` não estão nas variáveis de build dos clones; sem elas a tela `/suporte` aparece vazia com a mensagem "Defina NEXT_PUBLIC_…". Degrada visível, não quebra. O endereço de suporte dos clones ainda não foi decidido (o manifesto trazia `suporte@<slug>.venn360.com`, domínio sem MX) e número de contato não confirmado não se publica.
+- [x] `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_WHATSAPP`: **resolvido em 02/11.** `GET /builds/workers/{tag}` devolve as variáveis de build (nome e, quando não são segredo, o valor), e os três Workers ligados já usam `suporte@venn360.com` e `553131918000` — valores da Venn360, não do produto, portanto replicáveis na produção dos clones sem inventar contato.
 - [ ] Dois build tokens órfãos (`2ab18040-…` e `dd99d033-…`): credenciais vivas sem Worker. Revogar — ato do André.
 - [ ] Hipótese do deploy local com artefato arquivado (§6.4) — medir UMA vez; a memória da máquina diz que o deploy do vinext falha localmente.
 
