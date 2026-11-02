@@ -230,6 +230,50 @@ secret put ...` e cole o mesmo `$T` na build variable.
 **Prova (02/11, ambos os clones):** `migrate-guarded` → `No pending migrations`
 → `audit --strict OK` → `◆ Deploy complete` → `smoke:stg` → `✨ Success!`.
 
+## Fases 3 e 4 fechadas nos três apps (02/11/2026)
+
+Ciclo completo provado com tráfego real nos três. Log de cada um:
+`migrate-guarded` (sentinela conferida, nada pendente) → `audit:isolation
+--strict` → `cf deploy` → `smoke` → `✨ Success`.
+
+| Worker | branch | deploy command | prova |
+|---|---|---|---|
+| `odontobox` | `main` | `portao:prod && deploy:prod && smoke:prod` | `Smoke OK: odontobox.venn360.com = odontobox/production` |
+| `stagent-stg` | `staging` | `portao:stg && deploy:stg && smoke:stg` | verde |
+| `conecta-stg` | `staging` | idem | verde |
+
+Build command nos três: `npx prisma generate && npm run typecheck && npm run
+build:<env>`. Previews intocados (`build:preview`/`deploy:preview`, sem portão).
+Plano **Workers Paid** confirmado pelo painel (470 / 6.000 min).
+
+**Quatro defeitos que só apareceram porque o portão passou a rodar** — todos
+latentes antes, nenhum detectável pelo CI:
+
+1. **Auditoria vermelha desde 01/11** nos clones: dois comentários do `ci.yml`
+   citavam o app de origem pelo nome. O PR de fundação foi mesclado com o
+   `verificar` falhando.
+2. **Domínio só no remoto** nos três: `cloudflare.config.ts` não declarava o
+   hostname. Qualquer override de config o teria apagado — na Odontobox isso
+   seria a produção fora do ar. Agora é `domains` no config.
+3. **Rota de identidade morta na Odontobox**, por dois motivos empilhados: a
+   pasta `_internal` não é roteável (prefixo `_` = privada no App Router) e,
+   por baixo dela, o middleware de sessão barrava `/api/internal/`. Os clones
+   tinham a liberação; ela nunca foi notada na Odontobox porque a rota já não
+   respondia.
+4. **Comparação de host do Neon** reprovava `-pooler` × direto, que são o mesmo
+   endpoint em modos diferentes. Normalizado nos três.
+
+**Diagnóstico que custou caro e vale guardar:** o log do Workers Builds vem
+**truncado** (`truncated: true` + `cursor`). Ler só a primeira página esconde
+justamente a causa — a linha final do erro. Sempre paginar pelo cursor.
+
+**Leitura do painel.** Uma linha *"Manually deployed · by andre"* logo após um
+build **não** é um segundo oleoduto: é a versão que o `cf deploy` daquele build
+criou (o `Current Version ID` do log bate com ela). Todas as credenciais da
+conta são do André, então a coluna de autor não distingue origem — quem
+distingue é a coluna **fonte** (`cf_cli` = build, `wrangler`/`api` = CLI,
+`dash` = painel).
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
