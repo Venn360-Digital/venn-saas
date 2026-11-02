@@ -88,6 +88,51 @@ Mais dois pontos medidos: (a) dois oleodutos publicando o mesmo Worker (GH + CF 
 4. Aprovação humana de produção = merge em `main` (disciplina declarada, não trava — §1).
 5. Vocabulário único nos 3 apps: `build:prod|stg`, `deploy:prod|stg`, `portao:prod|stg`, `migrate:prod|stg`, `smoke:prod|stg`, `build:preview`, `deploy:preview`, `lint:migracoes`.
 
+### 6.1.1 A fonte da verdade, e sua fronteira
+
+**O GitHub é a fonte da verdade do código e da configuração. Os segredos nunca
+moram nele.** Decisão do André em 2026-11-02, depois do episódio da madrugada.
+A fronteira importa: sem ela, "padronizar no GitHub" acaba devolvendo token de
+deploy para lá, que é exatamente o custo de segurança que este modelo removeu.
+
+| o quê | onde mora | por quê |
+|---|---|---|
+| Código, migrações, comandos (scripts npm) | **Git** | tem diff, PR, histórico e reversão |
+| Configuração do Worker — nome, filas, DOs, buckets, **domínio** | **Git** (`cloudflare.config.ts`) | o que o painel "possui" diverge e trava o deploy (medido) |
+| Variáveis de **build** (`DATABASE_URL_MIGRATOR`, `IDENTITY_TOKEN`) | painel do **Builds** ou API | é config do Builds, não do Worker — não causa divergência |
+| **Segredos de runtime** do Worker | **`wrangler versions secret put`** | nunca o painel: cria versão que o `cf deploy` recusa depois |
+| Token de deploy | **não existe** no GitHub | o deploy acontece dentro da Cloudflare, pelo GitHub App |
+
+Corolário operacional: **todo build nasce de um commit.** Disparar build pela
+API funciona, mas deixa a linha do painel sem commit nem mensagem ("Empty commit
+message", autor = API token) e quebra a rastreabilidade entre o que está no ar e
+o que está no git. Usar só em diagnóstico, nunca como rotina.
+
+### 6.1.2 Do commit ao deploy
+
+```mermaid
+flowchart TD
+    A["1. Commit e Pull Request<br/><i>branch de trabalho, nunca direto na main</i>"] --> B["2. GitHub — ci.yml<br/><i>typecheck, lint, provas, auditoria, gitleaks</i>"]
+    B --> C{"3. Merge em main ou staging<br/><i>a aprovação humana</i>"}
+    C --> D["4. Workers Builds — build command<br/><i>prisma generate, typecheck, build — sem efeito colateral</i>"]
+    D --> E{"5. Deploy command — O PORTÃO<br/><i>migrate-guarded confere a sentinela + audit --strict</i>"}
+    E -->|reprovou| X["Nada é publicado<br/><i>o que está no ar continua no ar</i>"]
+    E -->|passou| F["6. cf deploy publica a versão<br/><i>depois o smoke confere a identidade de fora</i>"]
+    F --> G["Alarme se o smoke falhar<br/><i>diagnóstico, nunca rollback automático</i>"]
+```
+
+Como ler a linha do tempo do painel (três espécies na mesma lista):
+
+| badge | o que é | autor mostrado |
+|---|---|---|
+| **Build** + branch | build do Workers Builds, a partir do repositório | autor do **commit** (push/merge) ou "API token" se disparado por API sem commit |
+| **Wrangler** | **não é build** — versão criada por comando wrangler (segredo) | o dono da conta |
+| **Unknown** / "Manually deployed" | **não é build** — registro de *deployment* (promoção a 100%), criado pelo `cf deploy` de dentro do build | o dono da conta |
+
+Todas as credenciais da conta são do André, então a coluna de autor **não**
+distingue origem. Quem distingue é a **fonte**: `cf_cli` = build, `wrangler` /
+`api` = CLI, `dash` = painel (o que não se faz mais).
+
 ### 6.2 Perfil App — comandos literais por Worker
 
 | Worker | branch | Build command | Deploy command | Build vars (valores: André) |
