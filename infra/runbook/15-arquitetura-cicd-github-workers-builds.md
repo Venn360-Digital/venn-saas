@@ -126,8 +126,11 @@ Sem workflow vivo (workflow que nunca roda apodrece; o `deploy.yml` em 401 foi a
 > staging) gravado. Preview de ambos conferido intacto (`build:preview`/
 > `deploy:preview`, sem portão). Sentinelas `stagent/stg` e `conecta/stg`
 > conferidas por SQL — o portão passa no próximo push. **Falta nos clones:**
-> `IDENTITY_TOKEN` + `CF_ACCESS_CLIENT_ID/SECRET` como build vars e o
-> `&& smoke:stg` no deploy (valores de segredo = André). **Odontobox:** só o
+> `IDENTITY_TOKEN` como build var (gravado pelo André) e o `&& smoke:stg` no
+> deploy — **ambos feitos**; os clones estão com o perfil App completo.
+> `CF_ACCESS_*` **não** é necessário: medido em 01/11, o homolog responde o 401
+> da própria rota, sem desafio do Access; e no `smoke-identity.mjs` essas duas
+> variáveis são opcionais (só entram se existirem). **Odontobox:** só o
 > build command recebeu typecheck; o deploy (portão + migrator de produção +
 > smoke) é mudança de produção que depende do migrator e do `IDENTITY_TOKEN`
 > de runtime do André.
