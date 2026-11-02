@@ -179,41 +179,56 @@ Go-live: Fase 12 (arquivo 13) já alinhada a este modelo — Workers `stagent`/`
 9. Rota de identidade: Odontobox `/api/_internal/identity` (underscore); clones `/api/internal/identity`.
 10. Sites: nenhum dos 4 Workers ligado ao Workers Builds; fontes do último deploy — `venn360` cf_cli 24/10, `janainaleiteadv` GH Actions 19/10, `advogadamohs` wrangler 18/10, `visuallawdigital` wrangler 01/11 16:42 **com commit ainda não enviado ao remoto**. Run de deploy do visuallaw em 31/10 morto em 3 s pelo bloqueio de cota.
 
-## Perigo medido: editar um Worker pelo painel trava o deploy seguinte
+## RESOLVIDO: editar um Worker pelo painel trava TODO deploy — causa e cura
 
-Medido em 2026-11-02, nos dois clones. Sequência inequívoca: deploy pelo Workers
-Builds verde às 02:53 → segredo rotacionado **pelo Dashboard** às 03:09 → todo
-deploy desde então aborta com:
+Medido em 2026-11-02 nos dois clones, com o ciclo fechado verde no fim.
+
+**Sintoma.** Deploy verde às 02:53 → segredo rotacionado **pelo Dashboard** às
+03:09 → todo deploy passa a abortar:
 
     ▲ A configuração local difere da remota, definida pelo Dashboard
     ■ Aborting the upload operation because of conflicts.
       To override and upload anyway, remove the `--strict` flag
 
-Três fatos apurados:
+**Não era o Workers Builds.** O `deploy-stg.yml` do GitHub, com invocação
+diferente (`cf deploy --secrets-file` em vez de `--prebuilt`), bateu no mesmo
+erro no mesmo minuto. Os dois caminhos chamam `cf deploy`; o bloqueio é do
+**estado do Worker**. Voltar para o GitHub não resolveria nada — só devolveria
+o custo de segurança.
 
-1. **O domínio existia só no remoto.** `cloudflare.config.ts` nunca declarou
-   `homolog-<slug>.venn360.com`. Qualquer override teria **apagado o domínio** e
-   derrubado o ambiente. Consertado: o config agora declara `domains`
-   (derivado de `APP_URL`, `previews: false`). Isso era bomba armada
-   independente deste episódio.
-2. **O resto do diff não fecha por config.** Sobram só adições do lado local —
-   os 9 consumidores de fila, `script_name` nos Durable Objects e a ordem dos
-   crons. O snapshot do Dashboard **não registra consumidores de fila**, então
-   igualar exigiria removê-los, que é inaceitável.
-3. **A mensagem de erro é contraditória.** `--strict` **não é argumento válido**
-   de `cf deploy` (`Unknown argument: strict`, medido), e o vinext não o passa —
-   é ligado internamente. Não há escape em CI. Código idêntico na `beta.20`
-   (instalada) e na `beta.26` (última), então **subir versão não resolve**.
+**Causa raiz.** O `cf deploy` compara a config local contra a **última versão**
+do Worker (não contra a implantada — reverter a implantada não adianta, testado).
+Versão criada pelo **Dashboard** não carrega os consumidores de fila, então a
+comparação sempre acusa conflito. Em CI ele aborta, citando `--strict`, que
+**não é argumento válido** do comando (`Unknown argument: strict`, medido) e que
+nem o vinext passa. Código idêntico na `beta.20` e na `beta.26`: subir versão
+não resolve.
 
-**Regra operacional, a partir de agora:** segredo e variável de Worker se gravam
-por **API/CLI, nunca pelo painel**. É a mesma lógica de "nenhuma lógica em campo
-de painel" (§6.1), agora com custo medido: uma madrugada e o staging sem
-publicar. O risco maior é repetir isso na **produção** durante um incidente.
+**Cura.** Fazer a última versão vir da API, não do painel:
 
-**Estado:** homolog dos dois clones no ar e saudável (versão de 02:53);
-publicar está bloqueado. Produção da Odontobox intocada — e continua assim
-enquanto ninguém editar seu Worker pelo painel. Pendente: reportar upstream
-(vinext/cf).
+    npx wrangler versions secret put IDENTITY_TOKEN --name <worker>
+
+e promovê-la (a última versão **tem de ser** a implantada — senão o próprio
+wrangler recusa editar segredo, erro 10215). Feito isso, o `cf deploy` voltou a
+publicar nos dois clones.
+
+**Dois consertos permanentes que saíram daqui:**
+
+1. **`domains` declarado no config.** O domínio existia só no remoto; qualquer
+   override teria **apagado** `homolog-<slug>.venn360.com`. Agora é código
+   versionado, derivado de `APP_URL`, com `previews: false`.
+2. **Regra: segredo de Worker se grava por `wrangler versions secret put`,
+   NUNCA pelo painel.** É a mesma lógica de "nenhuma lógica em campo de painel"
+   (§6.1), agora com custo medido: uma madrugada. Variável de **build**
+   (`Settings → Build`) pelo painel é segura — é config do Builds, não do Worker.
+
+**Armadilha de colagem.** O token precisa ser idêntico nos dois lados (runtime e
+build var). Colar com quebra de linha dá 401 no smoke. Gere e grave numa linha
+só: `T=$(openssl rand -base64 32) && printf '%s' "$T" | npx wrangler versions
+secret put ...` e cole o mesmo `$T` na build variable.
+
+**Prova (02/11, ambos os clones):** `migrate-guarded` → `No pending migrations`
+→ `audit --strict OK` → `◆ Deploy complete` → `smoke:stg` → `✨ Success!`.
 
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
