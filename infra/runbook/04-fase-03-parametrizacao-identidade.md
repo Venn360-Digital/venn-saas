@@ -86,7 +86,7 @@ Implemente no ponto de entrada do servidor (middleware/handler raiz) uma verific
 
 ### T4 — Endpoint de identidade
 
-`GET /api/_internal/identity` exige o header `x-identity-token` igual ao secret `IDENTITY_TOKEN`. Responde JSON com:
+`GET /api/internal/identity` exige o header `x-identity-token` igual ao secret `IDENTITY_TOKEN`. Responde JSON com:
 
 - `app` (APP_SLUG/APP_ENV);
 - `db` (sentinela + host do Hyperdrive/origem, sem usuário e senha);

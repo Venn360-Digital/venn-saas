@@ -171,7 +171,7 @@ Estas travas são implantadas nas Fases 03 e 10 e valem para os três apps.
 
   Em banco vazio, só prossegue com `--init --expect-slug X --expect-env Y`.
 - **T3 — Verificação em runtime.** Na primeira requisição de cada isolate, o Worker compara `APP_SLUG`/`APP_ENV` com a sentinela. Se divergirem, responde 503 em tudo e registra log crítico.
-- **T4 — Endpoint de identidade.** `GET /api/_internal/identity`, protegido por token, retorna:
+- **T4 — Endpoint de identidade.** `GET /api/internal/identity`, protegido por token, retorna:
   - slug e env (vars);
   - slug e env da sentinela;
   - host do banco (sem credencial);

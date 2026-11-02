@@ -7,7 +7,7 @@ import { APP } from '@/config/app.config'
 /**
  * T4 — Endpoint de identidade.
  *
- * `GET /api/_internal/identity`, protegido pelo header `x-identity-token` igual
+ * `GET /api/internal/identity`, protegido pelo header `x-identity-token` igual
  * ao secret `IDENTITY_TOKEN`. O smoke test do CI compara a resposta com
  * `infra/manifest.json` — é o que prova, de fora, que o deploy aponta para o
  * banco/Evolution/buckets certos.

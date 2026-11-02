@@ -18,5 +18,11 @@ deriva.
 Decisões fechadas (01/11): GitHub = código/PR/verificação barata/gitleaks;
 Workers Builds = único build/preview/deploy, portão no deploy command;
 aprovação de produção = merge em `main`; GitHub Pro recusado (risco de push
-direto documentado com dono); Workers de produção dos clones = `stagent` /
-`conecta` (nomes limpos); zero compra de créditos de Actions — permanente.
+direto documentado com dono); Workers de produção dos apps derivados nascem com
+nome limpo, sem sufixo de ambiente; zero compra de créditos de Actions —
+permanente.
+
+(Os nomes dos outros apps não aparecem neste arquivo de propósito: a raiz do
+repositório é varrida pela auditoria de isolamento, e nomeá-los aqui a reprova —
+foi o que aconteceu em 01/11. Os nomes estão no estudo, dentro de
+`infra/runbook/`, que é prefixo ignorado pela auditoria.)

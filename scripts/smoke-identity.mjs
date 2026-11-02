@@ -3,10 +3,13 @@
  * Smoke test de identidade.
  *
  * Portado dos clones em 01/11/2026 com UMA diferença: aqui a rota é
- * `/api/_internal/identity` (underscore) — os clones usam `/api/internal/…`.
+ * `/api/internal/identity` — o mesmo caminho dos clones. Era
+ * `/api/_internal/…`, e o underscore **matava a rota**: no App Router, pasta
+ * com prefixo `_` é privada e fica fora do roteamento. Medido em 01/11: o
+ * caminho devolvia o mesmo 401 genérico de um caminho inexistente.
  * Copiar sem ajustar dava 404, que pareceria "identidade quebrada".
  *
- * Chama GET https://<host>/api/_internal/identity com `x-identity-token` (e, em
+ * Chama GET https://<host>/api/internal/identity com `x-identity-token` (e, em
  * stg, os headers do service token do Access) e compara a resposta com
  * infra/manifest.json. Divergência → exit 1. É a prova, de fora, de que o deploy
  * aponta para o banco/Evolution/buckets certos — e não para os de outro app.
@@ -35,7 +38,7 @@ if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
     headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET
 }
 
-const url = `https://${host}/api/_internal/identity`
+const url = `https://${host}/api/internal/identity`
 const falhas = []
 
 const r = await fetch(url, { headers })
