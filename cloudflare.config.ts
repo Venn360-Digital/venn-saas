@@ -21,6 +21,19 @@ import { ALL_QUEUES, TENTATIVAS } from './src/lib/queue/definitions.ts'
  */
 
 /**
+ * O ambiente do deploy. Sem valor vale `production`, de propósito: todo caminho
+ * que existe hoje — o build de produção e o preview — **não** passa
+ * `DEPLOY_ENV`, e cair em produção mantém o comportamento atual intacto. Só o
+ * staging é opt-in, via `DEPLOY_ENV=stg` em `build:stg`/`deploy:stg`.
+ */
+const DEPLOY_ENV = ((): 'production' | 'stg' => {
+    const v = process.env.DEPLOY_ENV ?? 'production'
+    if (v !== 'production' && v !== 'stg')
+        throw new Error(`DEPLOY_ENV deve ser 'production' ou 'stg' (recebido: ${v})`)
+    return v
+})()
+
+/**
  * O nome do Worker, e ele é a IDENTIDADE do recurso na Cloudflare.
  *
  * Decisão do André em 2026-10-21: `odontobox`. Era `venn-odontobox360`, herdado
@@ -30,11 +43,22 @@ import { ALL_QUEUES, TENTATIVAS } from './src/lib/queue/definitions.ts'
  * no Cloudflare: publicar com nome novo cria OUTRO Worker, e o antigo fica com
  * os Durable Objects, as filas vinculadas e a rota. Trocar depois significa
  * migrar estado de DO, não editar um campo.
+ *
+ * **Assimetria proposital em relação aos clones.** Nos clones o prefixo de
+ * recurso leva `-prod-` até em produção, porque o Worker de produção deles
+ * nasceu depois e o nome teve de ser desacoplado dos buckets já criados. Aqui a
+ * produção veio primeiro e seus recursos NÃO têm sufixo de ambiente
+ * (`odontobox-public`, `odontobox-whatsapp-inbound`). Por isso
+ * `PREFIXO_RECURSOS` é o próprio `NOME`: em produção resolve exatamente para
+ * `odontobox` (recursos intactos), e só o staging ganha `odontobox-stg-*`.
+ * Inverter isto faria o próximo deploy de produção procurar fila/bucket que não
+ * existe.
  */
-const NOME = 'odontobox'
+const NOME = DEPLOY_ENV === 'production' ? 'odontobox' : `odontobox-${DEPLOY_ENV}`
+const PREFIXO_RECURSOS = NOME
 
 /** O nome da fila na conta, a partir do nome lógico. */
-const naConta = (fila: string) => `odontobox-${fila}`
+const naConta = (fila: string) => `${PREFIXO_RECURSOS}-${fila}`
 
 /**
  * As políticas de consumo, derivadas de `DEFAULT_JOB_OPTIONS` do BullMQ.
@@ -400,7 +424,7 @@ export default defineConfig({
              */
             WEBHOOK_BASE_URL: bindings.secret(),
 
-            PUBLICO: bindings.r2({ name: 'odontobox-public' }),
+            PUBLICO: bindings.r2({ name: `${PREFIXO_RECURSOS}-public` }),
 
             // Variáveis, só o que não é segredo.
             TZ: bindings.text('America/Sao_Paulo'),
@@ -421,8 +445,8 @@ export default defineConfig({
              * segredo logo abaixo, porque carrega o ID da conta — que o André
              * guarda como segredo no GitHub, e eu respeito a mesma classificação.
              */
-            PUBLIC_STORAGE_BUCKET: bindings.text('odontobox-public'),
-            PRIVATE_STORAGE_BUCKET: bindings.text('odontobox-private'),
+            PUBLIC_STORAGE_BUCKET: bindings.text(`${PREFIXO_RECURSOS}-public`),
+            PRIVATE_STORAGE_BUCKET: bindings.text(`${PREFIXO_RECURSOS}-private`),
 
             /**
              * A identidade declarada — e isto LIGA a trava que estava inerte.
@@ -441,7 +465,7 @@ export default defineConfig({
              * `undefined` com o manifesto.
              */
             APP_SLUG: bindings.text('odontobox'),
-            APP_ENV: bindings.text('production'),
+            APP_ENV: bindings.text(DEPLOY_ENV),
 
             /**
              * `auto` é o que o R2 espera como região da API S3. `lerConfig` a
