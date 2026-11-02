@@ -436,7 +436,7 @@ export default defineConfig({
              * banco de produção e herdam este config, então leem
              * `production` e casam com a sentinela de lá.
              *
-             * É também o que faz `/api/_internal/identity` responder slug/env
+             * É também o que faz `/api/internal/identity` responder slug/env
              * de verdade — sem isto o smoke de identidade compararia
              * `undefined` com o manifesto.
              */

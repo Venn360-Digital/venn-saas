@@ -13,7 +13,7 @@ Fase 03 é plan-mode e de alto risco (mexe no login de produção; regra de ouro
 - **T1** — migration `20261027120000_app_identity` (cria a tabela + índice singleton; **não insere linha**; aplica só no próximo `migrate deploy`).
 - **T2** — `scripts/migrate-guarded.mjs` (+ scripts `db:migrate:guarded` e `db:migrate:unsafe`). Lê a sentinela com `DATABASE_URL_MIGRATOR`, aborta em divergência / banco não identificado; `--init` provisiona banco vazio e grava a sentinela.
 - **T3** — `src/lib/identidade/guarda.ts` (`verificarIdentidade()`, memoizada por isolate, **no-op enquanto não configurada**; log `IDENTITY_MISMATCH` fail-closed). Hoje consumida por `/api/health` e pelo endpoint T4.
-- **T4** — `GET /api/_internal/identity` (header `x-identity-token` = `IDENTITY_TOKEN`; retorna app/sentinela/hosts/buckets/version; 503 enquanto sem token).
+- **T4** — `GET /api/internal/identity` (header `x-identity-token` = `IDENTITY_TOKEN`; retorna app/sentinela/hosts/buckets/version; 503 enquanto sem token).
 - **T5** — Better Auth: `advanced.cookiePrefix = AUTH_COOKIE_PREFIX || undefined` (vazio = default `better-auth`, **sessões preservadas**) e `crossSubDomainCookies: { enabled:false }` explícito. `useSecureCookies` deixado no default (não forçado sem poder validar).
 - **T6** — `scripts/audit-isolation.mjs` copiado + script `audit:isolation`. Roda e passa (0 vazamentos).
 
