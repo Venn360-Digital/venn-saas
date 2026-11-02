@@ -119,6 +119,18 @@ Sem workflow vivo (workflow que nunca roda apodrece; o `deploy.yml` em 401 foi a
 `ci.yml` consolidado (sem builds; gitleaks com push; lint de migração; GC de preview com token dedicado); vocabulário `:prod` unificado; smoke portado para a Odontobox (rota `/api/_internal/identity`); `APP_SLUG`/`APP_ENV` declarados na Odontobox (sentinelas conferidas antes); auditoria por `git ls-files` (347 falsos erros → 0); `NOME` desacoplado nos clones (Worker limpo em produção, recursos com prefixo de ambiente); `deploy.yml` (401) e `gitleaks.yml` removidos.
 
 ### 7.2 Corte — ordem OBRIGATÓRIA (apagar antes de provar = ficar sem migração)
+
+> **Execução em 01/11 (via API, com a escrita liberada):** passo 3 feito nos
+> clones — `stagent-stg` e `conecta-stg` com build `...&& typecheck && build:stg`,
+> deploy `portao:stg && deploy:stg`, e `DATABASE_URL_MIGRATOR` (migrator de
+> staging) gravado. Preview de ambos conferido intacto (`build:preview`/
+> `deploy:preview`, sem portão). Sentinelas `stagent/stg` e `conecta/stg`
+> conferidas por SQL — o portão passa no próximo push. **Falta nos clones:**
+> `IDENTITY_TOKEN` + `CF_ACCESS_CLIENT_ID/SECRET` como build vars e o
+> `&& smoke:stg` no deploy (valores de segredo = André). **Odontobox:** só o
+> build command recebeu typecheck; o deploy (portão + migrator de produção +
+> smoke) é mudança de produção que depende do migrator e do `IDENTITY_TOKEN`
+> de runtime do André.
 1. (André) Confirmar **Workers Paid** no painel. 2. (André) Gravar as build vars da §6.2 nos 3 Workers. 3. PATCH dos deploy commands + GET conferindo a base de previews intocada. 4. **Prova com tráfego real**: push em `staging` dos clones e merge na Odontobox — log do build mostra `migrate-guarded` + `audit --strict` (+ smoke onde houver token). 5. Desabilitar `deploy-stg.yml`/`deploy-prod.yml`/`preview.yml`/`migrate.yml` via API (reversível) → observar 1 ciclo → PR apagando. 6. `gh secret delete` de todos os segredos de deploy/runtime nos 3 repos (fica só o par do GC de preview e, transitoriamente, `NEON_API_KEY` da Odontobox) → rotação (Apêndice C). **Conferências pedidas pelo André:** todos os Workers ligados ao repositório GitHub com os comandos da §6.2; nenhum segredo de runtime restante no GitHub.
 7. **Trava anti-regressão:** desativar GitHub Actions para novos workflows de deploy? Não existe trava técnica no plano Free — a regra fica escrita aqui: *workflow novo com segredo de deploy é regressão deste modelo.*
 
