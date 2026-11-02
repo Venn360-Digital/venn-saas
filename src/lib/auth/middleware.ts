@@ -82,6 +82,9 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
         pathname.startsWith('/auth') ||
         // Providers post here with their own API key; they carry no session.
         pathname.startsWith('/api/webhooks/') ||
+        // Endpoint de identidade (trava T4): protegido pelo header `x-identity-token`,
+        // não por sessão — é o smoke test do deploy que o chama.
+        pathname.startsWith('/api/internal/') ||
         /**
          * A volta do checkout do Asaas: uma frase e um `postMessage`.
          *
