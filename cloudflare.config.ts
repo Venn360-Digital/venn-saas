@@ -57,6 +57,9 @@ const DEPLOY_ENV = ((): 'production' | 'stg' => {
 const NOME = DEPLOY_ENV === 'production' ? 'odontobox' : `odontobox-${DEPLOY_ENV}`
 const PREFIXO_RECURSOS = NOME
 
+/** O hostname que serve o ambiente. Produção veio primeiro e não tem sufixo. */
+const HOST = DEPLOY_ENV === 'production' ? 'odontobox.venn360.com' : 'homolog-odontobox.venn360.com'
+
 /** O nome da fila na conta, a partir do nome lógico. */
 const naConta = (fila: string) => `${PREFIXO_RECURSOS}-${fila}`
 
@@ -236,6 +239,20 @@ export default defineConfig({
          */
         workersDev: false,
         previewUrls: true,
+
+        /**
+         * O domínio, declarado aqui e não só preso pelo painel.
+         *
+         * Medido em 2026-11-02 nos clones: quando a config remota e a local
+         * divergem, o `cf deploy` **aborta** — e a única saída seria publicar
+         * sobrescrevendo, o que **apagaria** um domínio que existe só no
+         * remoto. Aqui isso seria a produção saindo do ar.
+         *
+         * `previews: false` porque as URLs de versão usam outro mecanismo
+         * (`previewUrls` acima); subdomínio de preview neste hostname serviria
+         * tráfego real de preview, que é o que não se quer.
+         */
+        domains: [{ hostname: HOST, production: true, previews: false }],
 
         assets: {
             htmlHandling: 'none',
