@@ -374,6 +374,52 @@ conta são do André, então a coluna de autor não distingue origem — quem
 distingue é a coluna **fonte** (`cf_cli` = build, `wrangler`/`api` = CLI,
 `dash` = painel).
 
+## Fases 5 e 6 executadas — o corte (02/11/2026)
+
+Todos os ambientes existentes ajustados **antes** do go-live, a pedido do André.
+
+**Workflows apagados.** Clones: `deploy-stg.yml` (o segundo oleoduto, que
+publicava o mesmo Worker a cada push) e `deploy-prod.yml` (nunca publicou —
+o Worker de produção não existe). Odontobox: `preview.yml` (token em 401
+permanente) e `migrate.yml` (substituído pelo portão no deploy command).
+Sobrou **só `ci.yml`** nos sete repositórios.
+
+**Segredos removidos: 52.** 19 (`stg`) + 5 (`production`) por clone, mais
+`CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` da Odontobox e dos dois sites.
+Resíduo da era Vercel também: `DATABASE_URL_DIRECT` e os environments
+`Preview`/`Production` da Odontobox, que nenhum workflow usava.
+
+**O único segredo que fica:** `NEON_API_KEY` na Odontobox, usado pelo job
+`banco` do `ci.yml` (branch efêmera do Neon em PR com migração). Morre quando
+o `odontobox-stg` entrar no fluxo.
+
+**O corte não quebrou nada.** Depois de apagar workflows e segredos, os três
+apps rodaram o ciclo completo verde — o `deploy-stg.yml` morreu sem deixar
+falta, porque o Workers Builds já era o caminho real.
+
+### O defeito que se repetiu três vezes: o token de identidade
+
+`IDENTITY_TOKEN` quebrou no conecta, na Odontobox e no stagent. Sempre a mesma
+causa: **o valor tem de ser idêntico em dois lugares** (segredo de runtime do
+Worker e build variable), e digitar em dois lugares diverge — espaço, quebra de
+linha, ou o arquivo errado do cofre.
+
+**Cura definitiva:** gerar e gravar os dois lados **por API, de uma fonte só**.
+Nunca por digitação. Em código:
+
+    const T = <gerar>
+    PUT  /accounts/{id}/workers/scripts/{worker}/secrets        { name, text: T }
+    PATCH /accounts/{id}/builds/triggers/{uuid}/environment_variables
+                                                                { IDENTITY_TOKEN: { value: T, is_secret: true } }
+
+Pré-requisito: a **última versão tem de ser a implantada**, senão a escrita de
+segredo falha com o erro 10215. Depois da escrita, promover a versão criada.
+
+**Rotação pendente (dono: André).** Apagar do GitHub não desfaz a exposição: os
+52 segredos viveram lá. Trocar no Worker (`wrangler versions secret put`), e os
+`EVOLUTION_*` também na VPS de cada produto. Os 5 do environment `production`
+dos clones nunca publicaram nada — recomendação é **gerar novos** no go-live.
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
