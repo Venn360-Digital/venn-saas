@@ -133,6 +133,61 @@ Todas as credenciais da conta são do André, então a coluna de autor **não**
 distingue origem. Quem distingue é a **fonte**: `cf_cli` = build, `wrangler` /
 `api` = CLI, `dash` = painel (o que não se faz mais).
 
+### 6.1.3 Verificação padrão de um Worker — os DOIS lados
+
+Um Worker do Workers Builds tem **duas configurações paralelas**, e conferir só
+uma é o erro que já cometi três vezes nesta implantação:
+
+| | `production_settings` (+ o gatilho) | `previews_base_config` |
+|---|---|---|
+| Quando roda | push na branch vigiada | em cada PR |
+| Comandos | próprios | **próprios** |
+| Variáveis de build | próprias | **próprias** |
+| **Token de build** | próprio | **próprio — `build_token_uuid` separado** |
+
+O token do preview **não é herdado**. Medido em 2026-11-02: ao trocar os tokens
+por Worker, o `previews_base_config` continuou apontando para os tokens antigos,
+e isso só apareceria quando alguém abrisse um PR — falha silenciosa até o pior
+momento.
+
+**Checklist, a rodar depois de qualquer mexida em token, reconexão de
+repositório ou renomeação de Worker:**
+
+1. nome do Worker e **tag** do script (tag igual = mesmo Worker; nome diferente
+   com tag diferente = Worker novo, e o antigo ficou órfão com os DOs e o domínio);
+2. `branch_includes` do gatilho (nunca `*` — medido no `venn360`, que publicava
+   produção a partir de qualquer branch);
+3. `build_command` e `deploy_command` de **produção**;
+4. `build_command` e `deploy_command` de **preview**;
+5. variáveis de build dos **dois** lados;
+6. `build_token_uuid` dos **dois** lados, e se cada um existe em
+   `GET /accounts/{id}/builds/tokens`;
+7. domínio ainda atribuído ao Worker (`/accounts/{id}/workers/domains?service=…`).
+
+**Esperar alguns segundos antes de validar um gatilho recém-criado.** Ler logo
+após a criação devolve as variáveis vazias e produz alarme falso — aconteceu na
+Odontobox em 02/11.
+
+### 6.1.4 Um token de build por Worker
+
+Decisão do André em 2026-11-02, aplicada aos sete Workers. Cada um tem o seu,
+nomeado `Workers Builds | <domínio> | <data>`, com **a menor permissão que
+aquele Worker usa**:
+
+- apps e sites com **domínio customizado** (`domains` no config): só o escopo
+  padrão do Builds, **sem permissão de zona**;
+- site com **rota de zona** (hoje só o `visuallawdigital`): mais
+  `Zone · Workers Routes · Edit`, **restrito à zona dele**.
+
+O que a separação compra: rotação, auditoria e revogação independentes. O que
+ela **não** compra: muro de publicação — `Workers Scripts · Edit` é permissão de
+**conta**, então qualquer token do Builds consegue publicar qualquer Worker. O
+muro da produção continua sendo o merge em `main` mais o portão.
+
+**Risco residual, com dono (André):** os tokens do Workers Builds são
+`owner_type: user` — a ferramenta não oferece token de conta no seletor. Se a
+conta ganhar outro membro ou mudar de mãos, revisar.
+
 ### 6.2 Perfil App — comandos literais por Worker
 
 | Worker | branch | Build command | Deploy command | Build vars (valores: André) |
