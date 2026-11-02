@@ -420,12 +420,168 @@ segredo falha com o erro 10215. Depois da escrita, promover a versão criada.
 `EVOLUTION_*` também na VPS de cada produto. Os 5 do environment `production`
 dos clones nunca publicaram nada — recomendação é **gerar novos** no go-live.
 
+## Go-live dos clones — o nascimento do Worker de produção (02/11/2026)
+
+O §7.4 presumia um Worker já existente. Ele não existia, e o impasse era
+circular: `bindings.secret()` **exige** o segredo no deploy, não se grava
+segredo em Worker que não existe, e não se liga ao Workers Builds um Worker
+que não existe. O `deploy-stg.yml` resolvia isso com `cf deploy
+--secrets-file`, que criava o Worker e gravava os segredos na mesma operação —
+e esse workflow morreu no corte (§7.2), levando a saída com ele.
+
+### A cura: o Worker nasce de um placeholder publicado pelo wrangler
+
+Um Worker mínimo (um `fetch` que devolve 503, `workers_dev: false`, nenhum
+binding), publicado desta máquina com `wrangler deploy` a partir de um
+diretório fora do repositório. O Worker passa a existir, os 16 segredos podem
+ser gravados, o Builds pode ser ligado, e o primeiro build de `main` substitui
+o placeholder inteiro.
+
+**Por que wrangler e não o painel, e não a API de scripts.** Lido no código do
+`cf` (`node_modules/cf/dist/containers-CcZHRM9g.mjs`), há três comportamentos
+distintos conforme a origem da última atualização do Worker:
+
+| `last_deployed_from` | o que o `cf deploy` faz |
+|---|---|
+| `dash` | calcula a diferença entre a config local e a remota e, se ela **não** for `nonDestructive`, avisa e **pede confirmação** |
+| `api` | avisa que "edits made via the script API will be overridden" e **pede confirmação** |
+| `wrangler` / `cf_cli` | **nada** — segue direto |
+
+E a confirmação é `confirm(mensagem)` sem opções, cujo fallback em contexto
+não-interativo é **`yes`** (`prompt-Y5OBwDVE.mjs`: *"Using fallback value in
+non-interactive context"*). Ou seja: em CI o caso `api` passa; o caso `dash`
+também passaria a confirmação, mas só depois de a diferença destrutiva ser
+calculada — e é exatamente ali que o deploy da Odontobox travou em 01/11 (ver
+a seção "RESOLVIDO" acima). Publicar pelo wrangler evita os dois caminhos.
+
+Isto dá a razão *mecânica* da regra que já estava escrita por experiência:
+**nunca editar um Worker pelo painel.** Não é higiene, é o que decide se o
+`cf deploy` compara configurações ou não.
+
+Pré-requisito aproveitado: `wrangler deploy` deixa última versão == versão
+implantada, que é a condição para gravar segredo sem o erro **10215**
+(conferido nos cinco Workers antes de gravar).
+
+### O que já existia, e o que faltava (medido em 02/11)
+
+| peça | stagent | conecta | observação |
+|---|---|---|---|
+| 9 filas `<slug>-prod-*` | ✅ | ✅ | sem consumidor e sem produtor; as 9 DLQs nascem no deploy |
+| 2 buckets `<slug>-prod-{public,private}` | ✅ | ✅ | |
+| banco Neon `production` | ✅ | ✅ | **vazio**: 60 tabelas, 50 linhas, todas de controle |
+| sentinela `app_identity` | ✅ | ✅ | `(<slug>, production)` — o portão passa |
+| extensões | ✅ | ✅ | `pg_trgm`, `unaccent`, `vector@0.8.6`, PG 18.6 — idênticas a homolog |
+| `ALTER DEFAULT PRIVILEGES` | ✅ | ✅ | `<slug>_app=arwd/<slug>_migrator`; as 6 tabelas novas já nascem acessíveis |
+| Evolution de produção | ✅ | ✅ | `/instance/all` responde 200 com o service token **de produção** |
+| domínio de envio de e-mail | ✅ | ✅ | `mail.venn360.com` com DKIM, SPF, DMARC e MX de bounce na zona |
+| DNS `<slug>.venn360.com` | — | — | **não precisa criar**: o `domains` da config faz o `cf deploy` criar o `AAAA 100::` |
+| Worker | criado em 02/11 | criado em 02/11 | placeholder, à espera do primeiro build |
+| 16 segredos | 11 gravados | 11 gravados | faltam 5, abaixo |
+| gatilho do Builds | falta | falta | depende do build token |
+
+### As 7 migrações pendentes em produção não têm risco
+
+`main` estava 89 commits (stagent) e 71 (conecta) atrás de `staging`, e o
+banco de produção tinha **49 das 56** migrações. As 7 que faltam:
+`degenericizar_agenda`, `documentos_de_treinamento`, `busca_hibrida_no_acervo`,
+`escalada_e_lacunas`, `versao_e_avaliacao`,
+`versao_inicial_do_que_ja_existe`, `sugestoes_de_lacuna`.
+
+Três medições tiram o risco: **(a)** as 7 já estão aplicadas em homolog nos dois
+apps, sem falha e sem divergência (nenhuma migração aplicada que não esteja no
+repo); **(b)** produção está vazia — não há dado para corromper; **(c)** as 6
+tabelas novas não trazem `GRANT`, e não precisam: o `pg_default_acl` do
+migrador já concede à role de runtime, conferido nos quatro bancos.
+
+### Os 5 segredos que esta sessão não consegue originar
+
+Dos 16, 11 saíram do cofre (`~/.venn360-secrets/<app>/`) ou de derivação
+(`WEBHOOK_BASE_URL` = `https://<slug>.venn360.com`; `*_STORAGE_ENDPOINT` =
+`https://<conta>.r2.cloudflarestorage.com`). Os outros 5 são credenciais de
+terceiro ou exigem permissão que esta sessão não tem:
+
+- `OPENAI_API_KEY` — chave real (o gateway `stagent` registra chamadas 200;
+  **não** é placeholder). O gateway é um por produto, compartilhado por
+  homolog e produção, então é a mesma chave de homolog.
+- `PUBLIC_STORAGE_ACCESS_KEY_ID`, `PUBLIC_STORAGE_SECRET_ACCESS_KEY`,
+  `PRIVATE_STORAGE_ACCESS_KEY_ID`, `PRIVATE_STORAGE_SECRET_ACCESS_KEY` — um
+  token de API do R2 por app, com escopo nos dois buckets `<slug>-prod-*`.
+  Criar token de API é barrado (`/accounts/.../tokens` devolve 403 pelo MCP e
+  o OAuth do wrangler não tem escopo `r2`).
+
+**Elas são runtime, não decoração.** `src/lib/storage/s3.ts` fala S3 de
+propósito (portabilidade para a Magalu Cloud) em vez de usar o binding do R2,
+e `lerConfig` lê essas quatro variáveis em cada requisição: sem elas, toda
+gravação e leitura de arquivo em produção falha com
+`ProvedorNaoConfiguradoError`.
+
+### Build token: dá para listar, não dá para criar
+
+- `GET /accounts/{id}/builds/tokens` **lista** os tokens (uuid + nome) — então
+  ninguém precisa copiar UUID à mão: basta criar e esta sessão descobre pelo nome.
+- `POST` no mesmo caminho existe mas recusa todo corpo tentado
+  (`Invalid request body`); por baixo ele cria um **API token de usuário**
+  (`owner_type: "user"` em todos os 9 existentes), fora do alcance deste OAuth.
+- `POST /accounts/{id}/builds/triggers` é o caminho de criação do gatilho (não
+  `/builds/workers/{tag}/triggers`, que é só leitura) e o corpo abaixo é
+  aceito — a única coisa que faltava era um `build_token_uuid` real:
+
+  ```json
+  { "external_script_id": "<tag>", "trigger_name": "<tag>",
+    "repo_connection_uuid": "<reaproveitável: o mesmo repo já está conectado>",
+    "build_command": "npx prisma generate && npm run typecheck && npm run build:prod",
+    "deploy_command": "npm run portao:prod && npm run deploy:prod && npm run smoke:prod",
+    "root_directory": "/", "branch_includes": ["main"], "branch_excludes": [],
+    "path_includes": ["*"], "path_excludes": [], "build_caching_enabled": false }
+  ```
+
+- **Variável de build não tem CLI nem leitura.** `wrangler` não tem comando
+  para ela, e nenhum caminho de GET a devolve (é de escrita só). Consequência
+  prática: quem grava uma variável de build é o painel ou uma chamada de API
+  com o valor no corpo — e por isso as variáveis de build de produção
+  (`DATABASE_URL_MIGRATOR` e `IDENTITY_TOKEN`) são coladas na **mesma tela** em
+  que o Git é conectado, do cofre, em vez de passarem por esta sessão.
+
+### Estado dos tokens de build (02/11)
+
+Os 7 Workers ligados têm **um token distinto cada** — a regra do §6.1.4 está
+cumprida. Sobram **dois órfãos**, que são credenciais vivas sem Worker:
+`2ab18040-…` ("Workers Builds - 2026-10-23 18:51", da era anterior ao corte) e
+`dd99d033-…` ("advogadamohs build token", o que o André criou à mão e o
+contêiner nunca adotou). Revogar é ato dele.
+
+### Ordem de execução do go-live
+
+1. (feito) Worker nasce do placeholder; 11 segredos gravados.
+2. (André) Token de API do R2 por app + `OPENAI_API_KEY` → os 5 segredos que faltam.
+3. (André, uma tela por Worker) Connect to Git em `stagent` e `conecta`, branch
+   `main`, e as 2 variáveis de build do cofre.
+4. (sessão) Corrigir comandos, `branch_includes` e o espelho de `previews_base_config`
+   pela API, conferindo os 7 itens do §6.1.3 — **inclusive o token do preview**.
+5. (André) Mesclar `staging` → `main`. O merge é a aprovação; o build nasce dele.
+6. (sessão) Ler o log até o fim (ele é paginado: `truncated` + `cursor`), e só
+   então dar por pronto.
+
+### Deriva encontrada no cofre
+
+O `IDENTITY_TOKEN` de **homolog** no cofre (`worker-stg.env`) está velho: foi
+rotacionado por API em 02/11 e não foi escrito de volta. O pipeline não sofre
+(Worker e variável de build concordam — o build verde prova), mas uma chamada à
+mão com o valor do cofre devolve 401. Rotacionar de novo é a única recuperação:
+gerar uma vez e escrever nos **três** lugares (segredo do Worker, variável de
+build, arquivo do cofre). Fica como pendência do Apêndice B, não como conserto
+às pressas — o valor teria de passar pela sessão para chegar à variável de build.
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
 - [ ] Composição dos ~US$ 12/mês atuais do GitHub (André).
 - [x] janainaleiteadv: D1 tem migrações próprias? **Respondido em 01/11 (§7.4):** uma, aplicada à mão na criação; o deploy não migra.
 - [ ] venn360.com: de onde saiu o deploy de 24/10 (`cf` CLI, mas o vinext não builda nesta máquina)? Vira irrelevante quando o Worker for ligado ao Builds — mas conferir antes que não há outro caminho vivo (André).
+- [ ] `IDENTITY_TOKEN` de **homolog** no cofre está velho (rotacionado por API em 02/11 e não reescrito). Conserto = rotacionar uma vez e gravar nos TRÊS lugares (segredo do Worker, variável de build, `worker-stg.env`). Vale para stagent e conecta.
+- [ ] Commit só de documentação em `main` dispara build **e deploy** de produção (`path_includes: ["*"]`): medido em 02/11 na Odontobox, 4 builds `success` seguidos sem mudança de código. Gasta minuto da franquia. Conserto candidato é `path_excludes: ["infra/runbook/*"]` — **não aplicado de propósito**: filtro errado deixa de publicar mudança de código em silêncio, que é pior que gastar minuto. Provar primeiro num Worker `-stg`.
+- [ ] `NEXT_PUBLIC_SUPPORT_EMAIL` e `NEXT_PUBLIC_SUPPORT_WHATSAPP` não estão nas variáveis de build dos clones; sem elas a tela `/suporte` aparece vazia com a mensagem "Defina NEXT_PUBLIC_…". Degrada visível, não quebra. O endereço de suporte dos clones ainda não foi decidido (o manifesto trazia `suporte@<slug>.venn360.com`, domínio sem MX) e número de contato não confirmado não se publica.
+- [ ] Dois build tokens órfãos (`2ab18040-…` e `dd99d033-…`): credenciais vivas sem Worker. Revogar — ato do André.
 - [ ] Hipótese do deploy local com artefato arquivado (§6.4) — medir UMA vez; a memória da máquina diz que o deploy do vinext falha localmente.
 
 ## Apêndice C — Segredos que viveram no GitHub (rotação)
