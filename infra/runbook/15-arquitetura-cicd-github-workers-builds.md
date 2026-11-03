@@ -662,6 +662,90 @@ gerar uma vez e escrever nos **três** lugares (segredo do Worker, variável de
 build, arquivo do cofre). Fica como pendência do Apêndice B, não como conserto
 às pressas — o valor teria de passar pela sessão para chegar à variável de build.
 
+## Go-live dos clones FEITO (03/11/2026)
+
+`stagent` e `conecta` estão em produção. Os dois merges `staging` → `main`
+foram feitos com **merge commit**, não squash: espremer 92 e 74 commits faria
+`main` divergir de `staging` e o ciclo de promoção seguinte nasceria em
+conflito.
+
+| | stagent | conecta |
+|---|---|---|
+| build | `b5a3cb95`, 3 min, verde | `2f0359ed`, 3 min, verde |
+| migrações | 7 aplicadas, "All migrations have been successfully applied" | idem |
+| auditoria estrita | nenhum vazamento (329 avisos) | idem |
+| Durable Objects | `Created: AgendaDaConversa, SalaDoWorkspace, TravaDeContato` | idem |
+| filas | 9 com consumidor, **9 DLQs criadas no deploy** | idem |
+| crons | 13 publicados | 13 |
+| domínio | `stagent.venn360.com [production: enabled, previews: disabled]` | `conecta.venn360.com`, idem |
+| smoke | `Smoke OK: … = stagent/production` | `… = conecta/production` |
+| banco depois | 56 migrações, 0 falhas, 66 tabelas | idem |
+| DNS | `AAAA 100:: proxied` criado pelo deploy | idem |
+
+Conferido **por fora**, independente do log: domínio responde 307, o endpoint
+de identidade aceita o token lido do **cofre** (prova de ponta a ponta que
+segredo do Worker, variável de build e cofre são o mesmo valor — o defeito que
+se repetiu três vezes), e o RENAME pegou (`professionals` existe,
+`specialists` não).
+
+`last_deployed_from` dos dois é `cf_cli`. O placeholder do wrangler cumpriu o
+papel e saiu.
+
+### Três coisas que o go-live descobriu, e que nenhuma tinha a ver com código
+
+**1. Checksum de migração: quem estava velho era o `main`.** O diff mostrava
+`20261027120000_app_identity` **modificada** — motivo suficiente para o Prisma
+recusar o deploy. Medido antes de concluir: a mudança é só um comentário da
+degenericização, e o checksum gravado nos quatro bancos (produção e homolog dos
+dois apps) é o da versão de `staging`. A fórmula (`sha256` do arquivo) foi
+validada em 5 de 5 migrações antigas antes de a comparação valer. O merge
+alinhou o arquivo ao que o banco já registrava.
+
+**2. A allowlist do gitleaks foi copiada com os hashes da linhagem comum.** O
+PR do conecta reprovou com `leaks found: 1` — e **sem dizer onde**, que é o
+defeito que importa. Reproduzido aqui com a mesma versão (8.30.1) e o mesmo
+intervalo: `useSoundEnabled.ts:5`, `const KEY = 'conecta360-sound-enabled'`,
+chave de localStorage, o falso positivo que o comentário da própria allowlist
+descrevia. Escapou porque o rebranding da Fase 05 **reescreveu** a linha, e
+commit novo é impressão digital nova. O stagent tem o mesmo latente e passou só
+porque o commit de rebranding dele não entra no intervalo do PR — diferença de
+ancestralidade, não de conteúdo. Cura permanente: a varredura roda com
+`--verbose --redact` nos três apps, então imprime arquivo, linha, regra e
+impressão digital, com o valor fora do log — e a impressão digital é o formato
+que a `.gitleaksignore` espera.
+
+**3. O lint expand/contract estava certo, e a cura óbvia não servia.**
+`degenericizar_agenda` faz RENAME sem o marcador `-- contract`. Pôr o marcador
+no arquivo mudaria o checksum de uma migração **já aplicada em homolog** e o
+`migrate deploy` passaria a recusar aquele ambiente — trocar PR vermelho por
+pipeline de homolog quebrado. Saída: `prisma/lint-migracoes.excecoes.json`,
+para o caso estreito de migração anterior ao lint e já aplicada, com duas
+travas — a exceção é **impressa** quando usada (exceção calada vira regra) e a
+razão é obrigatória. A razão registrada diz por que não serve de modelo: é
+seguro porque na produção destes apps não existia código anterior. Migração
+nova continua obrigada ao marcador no arquivo, que aparece no diff do PR.
+Provado nos três caminhos: destrutiva não registrada reprova com saída 1; com
+marcador passa; com exceção passa imprimindo o aviso.
+
+### O que sobrou aberto
+
+- **Odontobox-stg não é um "conectar".** O `cloudflare.config.ts` da Odontobox
+  lê `DEPLOY_ENV ?? 'production'`, então um contêiner novo criado pelo fluxo de
+  importar repositório, com comandos padrão e sem variável, resolveria
+  `production` e o `cf deploy` publicaria **no Worker de produção**. Nos clones
+  isso não existe porque lá `DEPLOY_ENV` sem valor é erro de propósito. Antes
+  de ligar qualquer coisa faltam: branch `staging` no repositório (não existe),
+  as 9 filas `odontobox-stg-*` (nenhuma), o Worker (nasce de placeholder pelo
+  wrangler, como os clones), ~21 segredos de homolog e a decisão do Evolution.
+  Buckets e credencial de R2 já estão prontos.
+- **Build token compartilhado dentro de cada app**: `stagent` com
+  `stagent-stg`, `conecta` com `conecta-stg`. Não afrouxa permissão —
+  `Workers Scripts: Edit` é de conta inteira em qualquer caso — custa
+  granularidade de rotação. Fechar são dois tokens.
+- **Produção ⟷ homolog no R2 dentro do mesmo app.** O token de cada app cobre
+  os 4 buckets dele. Essa credencial passou a ser a única coisa no Worker de
+  homolog que alcança recurso de produção.
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.

@@ -26,9 +26,30 @@
  * Grep de 60 linhas, zero dependência. Falso positivo se resolve com o
  * marcador; falso negativo é aceito — isto é um tropeço consciente, não prova
  * formal de compatibilidade.
+ *
+ * **Exceções registradas.** Existe uma lista em
+ * `prisma/lint-migracoes.excecoes.json`, e ela existe por um motivo estreito:
+ * migração ANTERIOR a este lint que já foi aplicada em algum banco não pode
+ * receber o marcador, porque editar o arquivo muda o checksum e o
+ * `prisma migrate deploy` passa a recusar o ambiente onde ela já rodou. Para
+ * essas, a justificativa mora na lista, com o nome do diretório como chave.
+ *
+ * A lista NÃO é atalho para migração nova: nova usa o marcador no arquivo, que
+ * aparece no diff do PR e o revisor cobra. E a exceção é impressa no log quando
+ * usada — passar por ela é visível, não silencioso.
  */
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+
+/** Exceções registradas, por nome do diretório da migração. Ver o cabeçalho. */
+function excecoes() {
+    try {
+        const bruto = JSON.parse(readFileSync('prisma/lint-migracoes.excecoes.json', 'utf8'))
+        return Object.fromEntries(Object.entries(bruto).filter(([k]) => !k.startsWith('$')))
+    } catch {
+        return {}
+    }
+}
 
 const base = process.argv[2] || process.env.LINT_MIGRACOES_BASE || ''
 
@@ -55,6 +76,7 @@ const DESTRUTIVOS = [
     [/\bSET\s+NOT\s+NULL\b/i, 'SET NOT NULL'],
 ]
 
+const REGISTRADAS = excecoes()
 const arquivos = novasMigracoes()
 if (arquivos.length === 0) {
     console.log('lint de migração: nenhuma migração nova no diff')
@@ -71,11 +93,18 @@ for (const arquivo of arquivos) {
     }
     const temMarcador = /^\s*--\s*contract\b/im.test(sql)
     const achados = DESTRUTIVOS.filter(([re]) => re.test(sql)).map(([, nome]) => nome)
+    const nomeDaMigracao = arquivo.split('/').at(-2)
+    const razao = REGISTRADAS[nomeDaMigracao]
     // SET NOT NULL com DEFAULT na mesma migração é o caso comum e seguro.
     const soNotNullComDefault =
         achados.length === 1 && achados[0] === 'SET NOT NULL' && /\bDEFAULT\b/i.test(sql)
 
     if (achados.length > 0 && !temMarcador && !soNotNullComDefault) {
+        if (razao) {
+            // Visível de propósito: exceção que passa calada vira regra.
+            console.warn(`⚠ ${arquivo}: ${achados.join(', ')} — exceção registrada: ${razao}`)
+            continue
+        }
         falhas++
         console.error(`✖ ${arquivo}: ${achados.join(', ')} sem o marcador "-- contract"`)
     }
