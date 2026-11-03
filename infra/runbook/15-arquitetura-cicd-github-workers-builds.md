@@ -828,10 +828,11 @@ Redisparar é pelo painel, ou por um commit novo — que é o caminho desenhado
 
 ## Homolog da Odontobox: o que foi provisionado e os quatro tropeços (03/11/2026)
 
-Estado: **16 dos 21 segredos**, Worker nascido de placeholder, 9 filas, 2
+Estado: **os 21 segredos completos** (03/11), Worker nascido de placeholder, 9 filas, 2
 buckets, branch `staging`, gatilho ligado a `venn.odontobox360@staging` com os
-comandos do portão, e o preview migrado para cá. Faltam 5, todos de terceiro:
-`OPENAI_API_KEY` e os quatro `PLATFORM_*` (Asaas e Google).
+comandos do portão, e o preview migrado para cá. Os cinco últimos — `OPENAI_API_KEY` e os quatro
+`PLATFORM_*` — vieram do André em 03/11, e a chave da OpenAI foi validada ao
+vivo (HTTP 200) antes de ser gravada.
 
 ### 1. Segredo que nenhum painel emite — e onde ele mora de verdade
 
@@ -883,6 +884,38 @@ Detalhes que custaram tentativa:
   dela, criei um token temporário, testei e apaguei: **401 do Evolution** com os
   headers (Access passou) e **403 do Access** sem eles. Com o par definitivo e a
   apikey juntos, **HTTP 200** com dados reais.
+
+### Credencial de plataforma: por produto ou compartilhada?
+
+A pergunta é do André e a resposta difere por provedor — medido no código, não
+suposto.
+
+**Google: cliente PRÓPRIO por produto.** `redirectUriFor(origin)` monta
+`${origin}/api/integrations/google/callback`, uma URL por domínio, então um
+cliente só precisaria das três registradas — tecnicamente possível. O que
+impede é a tela de consentimento: ela carrega nome e marca do **cliente**, logo
+um cliente do Stagent autorizaria um app chamado "OdontoBox360". E a
+verificação do Google exige que marca e domínio batam, então um problema de
+verificação num produto travaria os três.
+
+**Asaas: compartilhado serve, se a conta for uma.** A credencial identifica a
+**plataforma** Venn360 junto ao Asaas, não o produto — mesma natureza de
+`mail.venn360.com`. Um app por produto só se cada um precisar de conta Asaas
+própria, com conciliação e repasse separados. Decisão do André, em aberto.
+
+**Os clones não precisam disso agora, e é desenho.** O
+`cloudflare.config.ts` deles menciona `PLATFORM_*` só em comentário, com a regra
+"os `PLATFORM_*` NÃO entram aqui até existirem — e a ordem é lei": primeiro
+gravar o segredo, depois declarar no MESMO commit que o põe em uso. Declarar
+antes aborta o deploy com `The following required secrets have not been set`.
+Eles entram na Fase 09, um provedor por vez.
+
+**Armadilha que não reprova o build:** a URL de retorno de cada ambiente tem de
+estar registrada no cliente OAuth. Para homolog da Odontobox é
+`https://homolog-odontobox.venn360.com/api/integrations/google/callback`. Sem
+ela o deploy passa e o fluxo morre com `redirect_uri_mismatch` só quando alguém
+tenta conectar — o próprio `google-oauth-client.ts` registra, no cabeçalho, que
+é assim que esse fluxo costuma morrer.
 
 ### 4. O Connect to Git criou um gatilho CURINGA
 
