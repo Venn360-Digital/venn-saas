@@ -774,6 +774,58 @@ marcador passa; com exceção passa imprimindo o aviso.
   os 4 buckets dele. Essa credencial passou a ser a única coisa no Worker de
   homolog que alcança recurso de produção.
 
+## Vermelho NÃO significa "não publicou nada" (03/11/2026)
+
+A suposição confortável — build vermelho não mexe em produção — é **falsa**, e
+isto foi medido num incidente real. O merge do PR #126 (duas linhas de
+`scripts` no `package.json`) deu build `5221a377` reprovado. O que o log mostra:
+
+```
+┌ Error
+│ Trigger configuration for "odontobox" was only partially updated:
+│   Queue consumers:
+│ - A request to the Cloudflare API (…/queues/8ae4275d…/consumers/510332…) failed.
+│ - An unknown error has occurred. [code: 10013]
+│ Successful trigger changes were not rolled back.
+└
+cf deploy failed with exit code 1.
+```
+
+**A ordem do `cf deploy` é: publica o código, depois atualiza os gatilhos — e
+não desfaz o que já aplicou.** Então um erro na etapa de gatilho deixa produção
+com **código novo** e gatilhos a meio caminho. Neste caso o deployment
+`52aca8b1` ficou no ar e o log listou 9 produtores mas só 8 consumidores: o que
+faltou foi o da `odontobox-ai-reply`, que é a fila das respostas do agente.
+
+Não houve dano, e o motivo importa: **este build não mudava gatilho nenhum**. A
+atualização falhou tentando escrever o que já estava lá. Conferido por API
+depois: as 9 filas com 1 consumidor cada apontando para `odontobox`, e as
+configurações de `ai-reply` íntegras (lote 1, 2 retentativas, 5 s de atraso,
+`odontobox-ai-reply-dlq`). Erro transitório da plataforma (10013 é "unknown
+error"), não do nosso lado.
+
+**O que fazer quando acontecer de novo**, em ordem:
+
+1. Ler o log **até o fim** e identificar em que etapa parou. Se parou depois de
+   `Uploaded <worker>`, o código **está no ar**.
+2. Conferir os consumidores por API (`/accounts/{id}/queues` e
+   `…/queues/{id}/consumers`): quantidade, script, lote, retentativas e DLQ.
+   O log do deploy lista produtores e consumidores — contar as duas listas
+   acusa a divergência na hora.
+3. Conferir crons, domínio e handlers (`/workers/services/{nome}`).
+4. Só então redisparar. Se o build mudava gatilho de verdade, não espere o
+   retry: o estado parcial pode estar valendo em produção.
+
+**E uma consequência de processo:** o smoke é a última etapa do deploy command,
+então um erro na etapa de gatilho significa **deploy publicado sem smoke**. A
+prova de identidade não rodou naquele deploy. Redisparar é o que fecha isso —
+não é higiene opcional.
+
+**Limitação medida:** `POST /accounts/{id}/builds/builds/{uuid}/retry` responde
+*"Method not allowed for this authentication scheme"* com o OAuth desta sessão.
+Redisparar é pelo painel, ou por um commit novo — que é o caminho desenhado
+("todo build nasce de um commit") e foi como este registro subiu.
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
