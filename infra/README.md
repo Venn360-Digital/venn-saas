@@ -34,7 +34,7 @@ antiga, e as unidades de lá sobrescreviam as variáveis — com aquele host
 desligado, o padrão antigo deixava o vigia **falhando em silêncio** para quem o
 rodasse à mão.
 
-## Os dois vigias do Evolution Go
+## Os vigias do Evolution Go
 
 A imagem `evoapicloud/evolution-go` tem dois defeitos que não são nossos e que
 nenhum código da aplicação contorna de dentro. Os dois são tratados por
@@ -53,6 +53,24 @@ Go, todas ociosas, acumuladas desde a véspera. O sintoma que chega ao cliente �
 Failed to create container: failed to upgrade database:
 pq: sorry, too many clients already
 ```
+
+### O terceiro defeito: a biblioteca apodrece sozinha
+
+Não há vigia de host que resolva este. O whatsmeow compilado na imagem é de
+junho/2026 e o WhatsApp **cortou o atendimento a ele** em 02/11/2026 — todas as
+linhas dos três produtos caíram no mesmo instante, com `405 Client outdated`,
+sem deploy nosso. A cura foi recompilar a 0.7.2 com o whatsmeow de 02/11, e a
+imagem que roda nos três VPS passou a ser nossa: `evolution-go:0.7.2-whatsmeow-nov`.
+
+Consequência permanente: **atualizar a biblioteca do WhatsApp é dependência
+operacional dos três produtos**, e o corte não avisa. Receita, adaptações de
+API e como provar a cura sem número real: runbook 09, seção do `405 Client
+outdated`.
+
+O que vigia este defeito não é um serviço do host e sim o alerta da aplicação
+(`src/lib/alertas/linha-caiu.ts`), que manda e-mail para `suporte@venn360.com`
+no instante em que uma linha cai. Sem ele, um corte deste tipo só aparece
+quando o cliente reclama.
 
 Reiniciar devolve as conexões (100 → 6) e **as sessões voltam sozinhas** pelo JID
 guardado, porque `CONNECT_ON_STARTUP=true`. Nenhum número precisa ser pareado de
