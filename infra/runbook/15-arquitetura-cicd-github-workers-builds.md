@@ -826,6 +826,89 @@ não é higiene opcional.
 Redisparar é pelo painel, ou por um commit novo — que é o caminho desenhado
 ("todo build nasce de um commit") e foi como este registro subiu.
 
+## Homolog da Odontobox: o que foi provisionado e os quatro tropeços (03/11/2026)
+
+Estado: **16 dos 21 segredos**, Worker nascido de placeholder, 9 filas, 2
+buckets, branch `staging`, gatilho ligado a `venn.odontobox360@staging` com os
+comandos do portão, e o preview migrado para cá. Faltam 5, todos de terceiro:
+`OPENAI_API_KEY` e os quatro `PLATFORM_*` (Asaas e Google).
+
+### 1. Segredo que nenhum painel emite — e onde ele mora de verdade
+
+O André pediu "o link de acesso" da plataforma do Evolution Go para buscar a
+API key. **Não existe**: a chave não é emitida por painel nenhum, é um valor
+configurado no contêiner, e o `/manager` da Evolution *pede* essa chave para
+entrar — nunca pode ser a origem dela.
+
+Ela vive no VPS. Caminho medido: `/opt/evolution/compose.yaml` traz
+`GLOBAL_API_KEY: ${EVOLUTION_GO_API_KEY}` — uma **referência**; o valor está em
+`/opt/evolution/.env.evolution-vps` (modo 600) e resolvido no ambiente do
+contêiner, que é de onde se lê com `docker exec … printenv`.
+
+Primeira tentativa pegou a string `${EV…` literal do compose, e a guarda que eu
+havia posto no comando reprovou: **HTTP 401** contra o Evolution. Lido do
+contêiner, **HTTP 200** em `/instance/all`. Regra: ao extrair credencial, provar
+contra o serviço antes de gravar — sem a guarda, eu teria gravado uma string de
+template e descoberto semanas depois.
+
+### 2. Chave de terceiro em `.env` local pode estar morta
+
+O `.env` deste repositório tinha `OPENAI_API_KEY`. Testada: **401**. Controle
+com as chaves dos clones no mesmo teste: **200** nas duas. Ou seja, a do
+arquivo local está revogada, e cada produto tem a sua chave (não é uma só da
+conta). A produção está bem — o gateway registra 200 — então o resíduo é só do
+arquivo local. **Não gravei.** Chave inválida gravada em homolog falharia com um
+401 confuso semanas depois, longe da causa.
+
+### 3. Service token do Access: criar e gravar na MESMA chamada
+
+Dá para criar o service token e gravar `CF_ACCESS_CLIENT_ID`/`SECRET` no Worker
+numa única execução no sandbox do MCP — o segredo nunca passa pela sessão nem
+pelo disco. Fiz assim primeiro, e o efeito colateral é que **ninguém** consegue
+lê-lo depois (a Cloudflare não devolve segredo de service token após a criação).
+A pedido do André, rotacionei para o padrão dos clones: cópia no cofre
+(`odontobox/access.env`).
+
+Fica registrado o trade-off, porque ele reaparece: criar-e-gravar é mais
+estrito; cópia no cofre é conferível e uniforme. A casa escolheu o cofre.
+
+Detalhes que custaram tentativa:
+- A política do app é **reutilizável**, então `PUT` no endpoint do app devolve
+  *"can not update reusable policies through this endpoint"*. O caminho é
+  `PUT /accounts/{id}/access/policies/{id}`.
+- O sandbox do MCP tem **allowlist de egresso**: `fetch` para
+  `evo-odontobox.venn360.com` devolve 403 do proxy da Cloudflare, não do Access.
+  Prova de rede se faz do shell, não de dentro do `execute`.
+- Para provar que a edição da política não quebrou produção sem ter o segredo
+  dela, criei um token temporário, testei e apaguei: **401 do Evolution** com os
+  headers (Access passou) e **403 do Access** sem eles. Com o par definitivo e a
+  apikey juntos, **HTTP 200** com dados reais.
+
+### 4. O Connect to Git criou um gatilho CURINGA
+
+O contêiner nasceu com **dois** gatilhos: o de produção em `staging` e um
+`Deploy non-production branches` com `branch_includes: ["*"]` — o mecanismo
+antigo de preview. É exatamente o curinga que o §6.1.3 proíbe, e ele convive mal
+com `previews_enabled`: a API recusa ligar previews com a mensagem *"Cannot
+enable preview settings while a non-production trigger exists. Use the
+migrate_to_previews endpoint instead."*
+
+Cura: `POST /accounts/{id}/builds/workers/{tag}/migrate_to_previews` com
+`{ "deploy_command": "npm run deploy:preview" }` no corpo — sem o corpo ele
+recusa, porque o comando não está na lista de migração automática. Depois: um
+gatilho só, em `staging`, e preview ligado com o mesmo build token dos dois
+lados. **Conferir isto em todo contêiner recém-conectado.**
+
+### 5. O cofre quebrava no `source` por falta de aspas
+
+`DATABASE_URL` do Neon tem `&channel_binding=require`, e `. arquivo` interpreta
+`&` como separador de comando — a variável chegava **vazia** ao script, que
+abortava dizendo "ausente". As URLs dos clones não tinham `&`, então o defeito
+só apareceu agora. Corrigido: valores com caractere de shell passam a ser
+escritos entre aspas, varri os 16 arquivos do cofre (só 1 linha precisava) e os
+três scripts de gravação agora citam por padrão. Conferido: os 16 arquivos
+carregam sem erro.
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.

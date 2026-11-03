@@ -219,15 +219,15 @@
             "name": "evolution-go",
             "id": "2e5772ad-ba25-400f-b26c-047698638072",
             "domain": "evo-odontobox.venn360.com",
-            "_nota": "COMPARTILHADO com produção — um Evolution por produto"
+            "_nota": "COMPARTILHADO com produção — um Evolution por produto. A política aceita os DOIS service tokens, cada ambiente com o seu."
           }
         ],
         "accessServiceTokens": [
           {
-            "name": "odontobox-worker",
-            "clientId": "892e1e51de799e177bbf9a0b85ba5259.access",
-            "id": "a0f7469a-d1a9-4cc5-89a9-2240c5e61a13",
-            "_nota": "COMPARTILHADO com produção"
+            "name": "odontobox-worker-evo-stg",
+            "clientId": "35d61a94e76e106d818c7e287a3e48de.access",
+            "id": "ad69cc28-38cb-4c16-9b6f-50b7e2e13389",
+            "_nota": "PRÓPRIO de homolog, criado em 03/11/2026 — não é o de produção. Está no include da mesma política do app de Access do Evolution (`só o worker`), ao lado do token de produção, porque o Evolution é um por produto. Segredo no cofre (`odontobox/access.env`) e no segredo do Worker."
           }
         ]
       },
