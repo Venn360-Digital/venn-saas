@@ -262,10 +262,10 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # só o diff da PR
-            gitleaks detect --no-banner \
+            gitleaks detect --no-banner --verbose --redact \
               --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
           else
-            gitleaks detect --no-banner --log-opts="--all"
+            gitleaks detect --no-banner --verbose --redact --log-opts="--all"
           fi
 
   # ==========================================================================
