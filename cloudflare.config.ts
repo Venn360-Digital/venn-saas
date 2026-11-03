@@ -60,6 +60,13 @@ const PREFIXO_RECURSOS = NOME
 /** O hostname que serve o ambiente. Produção veio primeiro e não tem sufixo. */
 const HOST = DEPLOY_ENV === 'production' ? 'odontobox.venn360.com' : 'homolog-odontobox.venn360.com'
 
+/**
+ * O host do Evolution, **igual nos dois ambientes**: há um contêiner por
+ * produto, nunca por ambiente. O que separa produção de homolog é o webhook,
+ * que é por instância, e o `EVOLUTION_WEBHOOK_SECRET`, que é próprio de cada um.
+ */
+const EVOLUTION_BASE = 'https://evo-odontobox.venn360.com'
+
 /** O nome da fila na conta, a partir do nome lógico. */
 const naConta = (fila: string) => `${PREFIXO_RECURSOS}-${fila}`
 
@@ -382,12 +389,25 @@ export default defineConfig({
              * ao caminho HTTP do provider (`EVOLUTION_GO_URL`), e a API admin
              * fica atrás do Tunnel (sem porta aberta no VPS).
              *
-             * `EVOLUTION_GO_URL` é o hostname do Tunnel; segredo porque é a
-             * topologia da rede. `EVOLUTION_WEBHOOK_SECRET` é o que o Evolution
-             * no VPS carrega no caminho do webhook para a app autenticar a
-             * entrada (ver `src/app/api/webhooks/evolution-go/[secret]`).
+             * `EVOLUTION_GO_URL` é o hostname do Tunnel, e **não é segredo** —
+             * era declarado como tal, com a justificativa de "topologia da rede",
+             * e isso não resistiu à conferência de 03/11: o host é registro
+             * PÚBLICO de DNS na zona (`CNAME … cfargotunnel.com`, proxied), já
+             * aparece em texto claro no `infra/manifest.json` versionado, e o
+             * próprio `/api/internal/identity` o devolve na resposta. Quem
+             * protege o Evolution é o Cloudflare Access, não o desconhecimento
+             * do nome.
+             *
+             * Classificar como segredo custava três coisas: o valor não podia
+             * ser lido de volta, entrava na lista do que precisa rotacionar, e
+             * divergia dos apps irmãos, que já o declaravam como texto — com
+             * este mesmo comentário desatualizado herdado na clonagem.
+             *
+             * `EVOLUTION_WEBHOOK_SECRET` é outra história e continua segredo: é
+             * o que o Evolution no VPS carrega no caminho do webhook para a app
+             * autenticar a entrada (ver `src/app/api/webhooks/evolution-go/[secret]`).
              */
-            EVOLUTION_GO_URL: bindings.secret(),
+            EVOLUTION_GO_URL: bindings.text(EVOLUTION_BASE),
             EVOLUTION_WEBHOOK_SECRET: bindings.secret(),
 
             /**
@@ -434,8 +454,12 @@ export default defineConfig({
              * prefere `WEBHOOK_BASE_URL`, então esta sozinha resolve e não
              * encosta na autenticação.
              *
-             * Segredo pelo mesmo motivo de `EVOLUTION_GO_URL`: é topologia, e
-             * o valor muda quando o domínio virar — e o valor gravado em cada
+             * Continua segredo, mas **não** pelo motivo que estava escrito aqui
+             * ("mesmo motivo de `EVOLUTION_GO_URL`"): aquele motivo caiu em
+             * 03/11, e este valor também é público (é o próprio host do app).
+             * Fica como está por uniformidade — os três apps irmãos o declaram
+             * como segredo —, e reclassificá-lo é trabalho separado, com uma
+             * consequência própria: o valor muda quando o domínio virar, e o
              * linha do Evolution é o que o rearme reaplica, então trocá-lo
              * exige reconectar as linhas (ver `infra/scripts/wa-webhook-guard.sh`).
              */
