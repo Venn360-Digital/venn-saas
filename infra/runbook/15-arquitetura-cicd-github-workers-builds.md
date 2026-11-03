@@ -542,6 +542,47 @@ gravação e leitura de arquivo em produção falha com
   (`DATABASE_URL_MIGRATOR` e `IDENTITY_TOKEN`) são coladas na **mesma tela** em
   que o Git é conectado, do cofre, em vez de passarem por esta sessão.
 
+### O token do R2 nasce com escopo de CONTA INTEIRA — medido em 02/11
+
+O diálogo de criação de token de API do R2 traz "apply to all buckets" como
+**padrão**, e "specify bucket(s)" é uma escolha que precisa ser feita de
+propósito. Os tokens criados para a produção dos clones saíram no padrão. O
+alcance real, medido com HEAD somente-leitura numa chave inexistente (404 =
+autorizado, 403 = recusado):
+
+| bucket | credencial do stagent |
+|---|---|
+| `stagent-prod-public` / `-private` | autorizado (correto) |
+| `conecta-prod-public` | autorizado — **e provado com gravar/ler/apagar** |
+| `odontobox-public` | autorizado |
+| **`odontobox-private`** | **autorizado** |
+| `odontobox-stg-private` | autorizado |
+| `visuallaw-iscas` | autorizado |
+
+`ListObjectsV2` também responde 200 em bucket de outro app. Ou seja: um único
+segredo vazado do Worker do stagent dava leitura e escrita no acervo clínico da
+**produção da Odontobox**. É exatamente a fronteira que este projeto existe
+para manter, e ela não estava de pé.
+
+**Regra:** token de API do R2 é criado com *specify bucket(s)*, sempre, e com
+permissão **Object Read & Write** — nunca Admin, porque o adaptador só faz PUT,
+GET, DELETE e HEAD (`src/lib/storage/s3.ts`). Um token por app no mínimo; um
+por classe (público/privado) é melhor, embora o ganho seja menor do que parece
+porque as duas credenciais são lidas pelo MESMO Worker — o que separar de fato
+protege é app contra app.
+
+**Como provar depois de criar** (não é opcional; o escopo não se lê no painel
+depois de salvo): rodar `npm run check:storage` com as variáveis de produção
+no ambiente — ele faz o ciclo gravar/ler/apagar de verdade — e depois repetir
+apontando o bucket de OUTRO app, onde o esperado é **403**. Foi assim que este
+achado apareceu.
+
+Suspeita aberta, não medida: as credenciais de storage de **homolog** foram
+criadas no mesmo diálogo, meses antes, e muito provavelmente têm o mesmo
+escopo de conta. Não há como ler o valor de um segredo de Worker para testar,
+então isso entra na rotação do Apêndice C — ao trocar os `*_STORAGE_*` de
+homolog, recriar com escopo por bucket e provar do mesmo jeito.
+
 ### Preview no Worker de produção dos clones: DESLIGADO, de propósito
 
 `GET /accounts/{id}/builds/workers/{tag}` devolve a configuração inteira —
@@ -610,6 +651,7 @@ build, arquivo do cofre). Fica como pendência do Apêndice B, não como consert
 - [ ] `IDENTITY_TOKEN` de **homolog** no cofre está velho (rotacionado por API em 02/11 e não reescrito). Conserto = rotacionar uma vez e gravar nos TRÊS lugares (segredo do Worker, variável de build, `worker-stg.env`). Vale para stagent e conecta.
 - [ ] Commit só de documentação em `main` dispara build **e deploy** de produção (`path_includes: ["*"]`): medido em 02/11 na Odontobox, 4 builds `success` seguidos sem mudança de código. Gasta minuto da franquia. Conserto candidato é `path_excludes: ["infra/runbook/*"]` — **não aplicado de propósito**: filtro errado deixa de publicar mudança de código em silêncio, que é pior que gastar minuto. Provar primeiro num Worker `-stg`.
 - [x] `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_WHATSAPP`: **resolvido em 02/11.** `GET /builds/workers/{tag}` devolve as variáveis de build (nome e, quando não são segredo, o valor), e os três Workers ligados já usam `suporte@venn360.com` e `553131918000` — valores da Venn360, não do produto, portanto replicáveis na produção dos clones sem inventar contato.
+- [ ] Storage de **homolog**: recriar os tokens do R2 com escopo por bucket e provar com o 403 (ver a seção do escopo de conta). Provável que hoje também sejam de conta inteira.
 - [ ] Dois build tokens órfãos (`2ab18040-…` e `dd99d033-…`): credenciais vivas sem Worker. Revogar — ato do André.
 - [ ] Hipótese do deploy local com artefato arquivado (§6.4) — medir UMA vez; a memória da máquina diz que o deploy do vinext falha localmente.
 
