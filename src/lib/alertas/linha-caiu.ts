@@ -2,6 +2,7 @@ import 'server-only'
 
 import { APP } from '@/config/app.config'
 import { sendEmail } from '@/lib/email/send'
+import { BRAND_HEX } from '@/lib/palette'
 import prisma from '@/lib/prisma'
 import { createLogger } from '@/trabalhos/registro'
 
@@ -65,7 +66,7 @@ function moldura(titulo: string, cor: string, linhas: string[]): string {
 }
 
 const campo = (rotulo: string, valor: string) =>
-    `<tr><td style="color:#666">${rotulo}</td><td><strong>${valor}</strong></td></tr>`
+    `<tr><td style="color:${BRAND_HEX.slate}">${rotulo}</td><td><strong>${valor}</strong></td></tr>`
 
 /** A identificação do ambiente vem primeiro: são 3 apps × 2 ambientes. */
 const identidade = () => [
@@ -87,7 +88,7 @@ export async function avisarQuedaDeLinha(input: {
 
     try {
         const ctx = await contexto(input.integrationId, input.agentId)
-        const html = moldura('Linha de WhatsApp fora do ar', '#b00020', [
+        const html = moldura('Linha de WhatsApp fora do ar', BRAND_HEX.red, [
             ...identidade(),
             campo('Linha', input.label || ctx.integrationId),
             campo('Número', input.phoneNumber || '(não pareado)'),
@@ -128,7 +129,7 @@ export async function avisarRetornoDeLinha(input: {
 
     try {
         const ctx = await contexto(input.integrationId, input.agentId)
-        const html = moldura('Linha de WhatsApp voltou', '#1b7f3b', [
+        const html = moldura('Linha de WhatsApp voltou', BRAND_HEX.mintDeep, [
             ...identidade(),
             campo('Linha', input.label || ctx.integrationId),
             campo('Número', input.phoneNumber || '(não pareado)'),
