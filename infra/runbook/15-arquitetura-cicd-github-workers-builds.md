@@ -1049,3 +1049,67 @@ Regra: apagar do GitHub **não desfaz** a exposição passada — todo segredo q
 - **Odontobox**: nível de repo `CLOUDFLARE_API_TOKEN` (o inválido do 401) + `CLOUDFLARE_ACCOUNT_ID` + `NEON_API_KEY`; envs `Preview`/`Production` com `DATABASE_URL_DIRECT` (resíduo da era Vercel — apagar e rotacionar a senha dessa role no Neon). Dono: André.
 - Tokens Cloudflare do GH — dos 3 apps (o inválido da Odontobox incluído) **e dos sites** `janainaleiteadv` (em uso pelo `deploy.yml` até o corte) e `visuallawdigital` (órfão desde 25/10, sem workflow que o use): revogar na CF e apagar do GitHub; criar o token de emergência novo (gerenciador de senhas) e o `CLOUDFLARE_PREVIEW_GC_TOKEN` (escopo: previews).
 - `NEON_API_KEY` (Odontobox): fica até o job `banco` morrer (§7.3); rotacionar ao removê-lo.
+
+---
+
+## MEDIDO: PR contra `main` não recebe build nenhum da Cloudflare (03/11/2026)
+
+### O estado, lido pela API
+
+`previews_enabled` nos seis Workers:
+
+| Worker | Preview por PR |
+|---|:-:|
+| `odontobox` · `stagent` · `conecta` (produção) | **desligado** |
+| `odontobox-stg` · `stagent-stg` · `conecta-stg` | ligado |
+
+Isso veio do PR #126, que moveu o preview para o Worker de homolog — conserto
+**certo**, porque preview pertence ao contêiner cuja configuração o comando de
+preview realmente constrói. O efeito colateral não foi notado na hora: **PR
+contra `main` deixou de ter qualquer build da Cloudflare**, e o primeiro build
+de produção passou a acontecer no próprio merge.
+
+Comparação que mostra a virada, pelos `detailsUrl` dos checks:
+
+- #124 (→ `main`, antes do #126): `Workers Builds: odontobox`.
+- #128 (→ `staging`): `Workers Builds: odontobox-stg`, apontando para
+  `/previews/<ramo>/builds/…`.
+- #126 e #130 (→ `main`, depois do #126): **nenhum check de Workers Builds**.
+
+Por que isso dói aqui especificamente: `cf deploy` publica o código **antes**
+de atualizar os gatilhos e **não reverte**. Um merge que falha no build deixa
+produção com código novo e gatilhos pela metade — e sem build pré-merge não há
+sinal nenhum antes de o merge acontecer.
+
+### NÃO use fechar/reabrir para refazer o build
+
+O build de preview é disparado pelo **evento do PR**. Trocar a base de um PR já
+aberto (`gh pr edit --base`) **não** refaz o evento: não houve push, então não
+há build.
+
+Reabrir **dispara** o gatilho — mas fechar dispara antes o workflow *Apagar o
+preview do PR*, e a corrida entre os dois mata o build novo: ele fica
+`build_outcome: terminated` com `running_on: null` (nunca rodou), e o check vai
+a **FAILURE por motivo nenhum do código**. Medido no #130.
+
+Não há endpoint de reexecução: `POST …/builds/builds/{uuid}/retry` e `/rerun`
+respondem **405**. A única forma de refazer um build de preview é **um push no
+ramo**.
+
+Receita, então: **abra o PR já com a base certa.** Se a base estiver errada,
+troque a base **e empurre um commit** — não feche e reabra.
+
+### Decisão pendente
+
+Duas saídas, e a escolha é do André:
+
+1. **Todo PR passa por `staging` primeiro**, e `main` só recebe PR de promoção
+   `staging` → `main`. Não reabre o que o #126 consertou. Custa um merge a mais
+   por mudança.
+2. **Religar preview nos Workers de produção**, o que devolve o check em PR
+   contra `main` — mas é exatamente o que o #126 desfez, e reabre o problema de
+   preview construindo com a configuração errada.
+
+A leitura de quem escreveu isto é a **1**. Enquanto não houver decisão, a
+promoção para produção continua sendo merge em `main`, e o build de produção
+continua acontecendo só no merge.
