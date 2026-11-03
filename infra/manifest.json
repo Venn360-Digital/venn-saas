@@ -262,13 +262,13 @@
         "_nota": "Os campos de contêiner/VPS/banco são os DA PRODUÇÃO de propósito: há um Evolution por produto, nunca por ambiente. O que separa os ambientes é o webhook, que é por instância, e o `EVOLUTION_WEBHOOK_SECRET`, que em homolog é PRÓPRIO — assim um webhook de produção não é aceito por homolog nem o contrário."
       },
       "integrations": {
-        "googleProjectId": "(em platform_credentials / Vault — não em env)",
+        "googleProjectId": "(projeto de DESENVOLVIMENTO, separado do de produção)",
         "googleOAuthClientId": "",
         "metaAppId": "",
         "wabaId": "",
         "whatsappPhoneNumberIds": [],
         "asaas": "chave/token no Vault (provedor asaas); ambiente pelo prefixo da chave",
-        "_nota": "Credenciais de plataforma são globais (identificam os apps da Venn360 junto a Asaas/Meta/Google) e não variam por clínica; em homolog devem ser as de sandbox/dev, não as de produção."
+        "_nota": "Credenciais de plataforma identificam os apps da Venn360 junto a Asaas/Meta/Google e não variam por clínica. Em homolog são as de sandbox/dev, gravadas em 03/11/2026 — os 21 segredos do Worker estão completos. ATENÇÃO no cliente OAuth do Google: a URL de retorno deste ambiente (https://homolog-odontobox.venn360.com/api/integrations/google/callback) tem de estar registrada como redirect autorizado, senão o fluxo morre com `redirect_uri_mismatch` — o deploy passa e a falha só aparece quando alguém tenta conectar o Google. Por produto: Google exige cliente PRÓPRIO (a tela de consentimento carrega nome e marca do cliente, e a verificação exige que domínio e marca batam); Asaas pode ser compartilhado se os três produtos faturam na mesma conta — decisão do André, em aberto."
       }
     }
   }
