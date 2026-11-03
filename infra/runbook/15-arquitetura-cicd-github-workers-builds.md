@@ -624,9 +624,37 @@ construiria com a configuração de homolog e publicaria como preview do Worker
 de produção. Na Odontobox isso não aparece porque lá `build:preview` não passa
 `DEPLOY_ENV` — e o padrão da config é `production`, que é o único ambiente dela.
 
-Regra: **preview é do `-stg`**, que é onde os PRs caem (os PRs dos clones vão
-contra `staging`). O Worker de produção fica com `previews_enabled: false` e
-cuida só de `main`. Na Odontobox, que tem um Worker só, preview continua ligado.
+**CORRIGIDO em 03/11** — a regra acima estava mal formulada, e foi o André que
+pegou, perguntando se então não valeria desligar o preview dos `-stg` também.
+Não vale: nos clones o preview está ligado em exatamente UM dos dois
+contêineres, então já é um build por push; desligar nos dois tiraria o preview
+de PR por completo. O que vale não é "preview é do `-stg`":
+
+> **Preview pertence ao contêiner cuja configuração o comando de preview
+> realmente constrói.**
+
+Nos clones, `deploy:preview` passa `DEPLOY_ENV=stg` — o artefato é de homolog,
+logo pertence ao `-stg`. A assimetria vem do script, não do nome do contêiner.
+
+E a pergunta destapou um defeito maior na Odontobox. Lá `build:preview` não
+passava `DEPLOY_ENV`, e o padrão da config é `production`; `CF_PREVIEW=1` só
+remove os gatilhos (`...(EH_PREVIEW ? {} : { triggers: GATILHOS })`), não troca
+nome, banco nem bucket. Lido pela API, os bindings da versão do Worker
+`odontobox` são `APP_ENV: production`, `PUBLIC_STORAGE_BUCKET:
+odontobox-public` e o `DATABASE_URL` secreto de produção. Ou seja: **preview de
+PR da Odontobox rodava contra o banco e os buckets de produção**, protegido só
+por não consumir fila nem rodar cron. Sempre foi assim porque homolog não
+existia.
+
+Correção, em 03/11: `previews_enabled: false` no contêiner de produção da
+Odontobox (feito na hora, antes de mexer em script — na ordem inversa, um build
+de preview construiria homolog e tentaria publicar num Worker que não é o
+dele), scripts de preview alinhados aos dos clones com `DEPLOY_ENV=stg`, e o
+preview passa para o `odontobox-stg` quando ele for conectado.
+
+Troca consciente: o preview deixa de mostrar dados reais, o que para revisar
+tela era mais útil. É a troca certa — preview não deve poder escrever em
+produção — mas é uma troca.
 
 Isto acrescenta um oitavo item à verificação do §6.1.3: **conferir de que lado
 o preview está ligado** — e, quando está, que o `build_token_uuid` do
