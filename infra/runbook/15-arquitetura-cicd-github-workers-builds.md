@@ -577,6 +577,26 @@ no ambiente — ele faz o ciclo gravar/ler/apagar de verdade — e depois repeti
 apontando o bucket de OUTRO app, onde o esperado é **403**. Foi assim que este
 achado apareceu.
 
+**FECHADO para os clones em 02/11.** Tokens recriados com *specify bucket(s)*
+e o alcance medido com a sonda somente-leitura. Resultado:
+
+| credencial | alcança | recusa (403) |
+|---|---|---|
+| stagent | os 4 buckets `stagent-*` (prod e stg) | todos os 4 do conecta e os 4 da Odontobox |
+| conecta | os 4 buckets `conecta-*` | todos os 4 do stagent e os 4 da Odontobox |
+
+Saiu **um token por app**, não por Worker: cada um cobre produção e homolog do
+próprio app. A fronteira que alcançava `odontobox-private` está fechada e
+provada. O que resta aberto é produção ⟷ homolog **dentro** do mesmo app — e
+isso importa porque essa credencial passou a ser a **única** coisa no Worker de
+homolog que alcança um recurso de produção (o banco, o Evolution e os buckets
+de homolog são todos próprios). Fechar custa dois tokens a mais, um por Worker
+`-stg`.
+
+O ciclo real (gravar → ler os mesmos bytes → URL assinada → apagar) foi
+reprovado nos quatro buckets de produção com as credenciais novas, e os 16
+segredos de cada Worker de produção estão gravados.
+
 Suspeita aberta, não medida: as credenciais de storage de **homolog** foram
 criadas no mesmo diálogo, meses antes, e muito provavelmente têm o mesmo
 escopo de conta. Não há como ler o valor de um segredo de Worker para testar,
