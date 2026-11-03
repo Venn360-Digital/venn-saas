@@ -885,6 +885,48 @@ Detalhes que custaram tentativa:
   headers (Access passou) e **403 do Access** sem eles. Com o par definitivo e a
   apikey juntos, **HTTP 200** com dados reais.
 
+### O portão pagou o próprio custo: ele barrou um acidente entre apps
+
+Em 03/11, o primeiro build de `odontobox-stg` abortou assim:
+
+```
+Executing user deploy command: npm run portao:stg && npm run deploy:stg && npm run smoke:stg
+ABORTA [ep-misty-flower-b66fzdhu…]: sentinela diverge do esperado.
+        esperado=odontobox/stg  encontrado=stagent/production
+Failed: error occurred while running deploy command
+```
+
+`ep-misty-flower-b66fzdhu` é o banco de **produção do stagent**. A variável de
+build `DATABASE_URL_MIGRATOR` do contêiner de homolog da Odontobox apontava
+para lá. Sem a trava T2, o `prisma migrate deploy` teria aplicado as 5
+migrações da Odontobox **dentro do banco de produção de outro app** — que havia
+subido poucas horas antes.
+
+A trava lê `app_identity` ANTES de migrar, viu `stagent/production` onde
+esperava `odontobox/stg` e parou sem tocar em nada. Três builds falharam nesse
+contêiner e nenhum chegou a abrir transação em banco algum.
+
+Como o erro foi possível, para não se repetir:
+
+1. Eu passei o comando de copiar `DATABASE_URL` do cofre **antes** de esse
+   valor existir lá — o comando não copiou nada, e a área de transferência
+   ainda tinha o `DATABASE_URL_MIGRATOR` do stagent, de um passo anterior.
+   Por isso o `copiar.sh` passou a **abortar** quando a variável não existe, em
+   vez de dizer "copiado" com a área vazia.
+2. Os três endpoints do Neon se parecem, e a diferença é uma palavra:
+   `ep-lucky-pond-b6n42j1j` (odontobox/staging), `ep-icy-mode-b6mp2z8h`
+   (odontobox/produção), `ep-misty-flower-b66fzdhu` (stagent/produção).
+   **Conferência de 2 segundos antes de colar**: o host do migrador tem de
+   casar com `neon.endpointHost` do ambiente no `infra/manifest.json`.
+
+E um segundo tropeço no conserto: trocar `DATABASE_URL` pelo **painel** (é
+segredo de Worker, não variável de build) deixou `last_deployed_from: dash` —
+a marca que faz o `cf deploy` calcular diferença destrutiva. Curado regravando
+o segredo pelo wrangler a partir do cofre; mas atenção, porque isto não estava
+escrito: **`wrangler secret bulk` NÃO atualiza `last_deployed_from`** (só cria
+versão nova). Quem atualiza é um `wrangler deploy` completo — no caso, do
+próprio placeholder, que é inócuo e preserva os 21 segredos.
+
 ### Credencial de plataforma: por produto ou compartilhada?
 
 A pergunta é do André e a resposta difere por provedor — medido no código, não
