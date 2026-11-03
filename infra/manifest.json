@@ -23,33 +23,81 @@
         "customDomain": "odontobox.venn360.com",
         "hyperdrive": [],
         "r2": [
-          { "binding": "PUBLICO", "name": "odontobox-public" },
-          { "binding": "(via S3)", "name": "odontobox-private" }
+          {
+            "binding": "PUBLICO",
+            "name": "odontobox-public"
+          },
+          {
+            "binding": "(via S3)",
+            "name": "odontobox-private"
+          }
         ],
         "kv": [],
         "queues": [
-          { "name": "odontobox-whatsapp-inbound" },
-          { "name": "odontobox-whatsapp-event" },
-          { "name": "odontobox-whatsapp-outbound" },
-          { "name": "odontobox-ai-reply" },
-          { "name": "odontobox-rag-index" },
-          { "name": "odontobox-agent-webhook" },
-          { "name": "odontobox-asaas-event" },
-          { "name": "odontobox-broadcast" },
-          { "name": "odontobox-cron" }
+          {
+            "name": "odontobox-whatsapp-inbound"
+          },
+          {
+            "name": "odontobox-whatsapp-event"
+          },
+          {
+            "name": "odontobox-whatsapp-outbound"
+          },
+          {
+            "name": "odontobox-ai-reply"
+          },
+          {
+            "name": "odontobox-rag-index"
+          },
+          {
+            "name": "odontobox-agent-webhook"
+          },
+          {
+            "name": "odontobox-asaas-event"
+          },
+          {
+            "name": "odontobox-broadcast"
+          },
+          {
+            "name": "odontobox-cron"
+          }
         ],
         "durableObjects": [
-          { "binding": "SALA_DO_WORKSPACE", "class": "SalaDoWorkspace", "id": "f09c1361c214423c815f4efedbea74be" },
-          { "binding": "AGENDA_DA_CONVERSA", "class": "AgendaDaConversa", "id": "0e4fcb95bc6e45e282d0a72bb74a5bc7" },
-          { "binding": "TRAVA_DE_CONTATO", "class": "TravaDeContato", "id": "dad5c7bfca3a4c9cacf692be27b04885" }
+          {
+            "binding": "SALA_DO_WORKSPACE",
+            "class": "SalaDoWorkspace",
+            "id": "f09c1361c214423c815f4efedbea74be"
+          },
+          {
+            "binding": "AGENDA_DA_CONVERSA",
+            "class": "AgendaDaConversa",
+            "id": "0e4fcb95bc6e45e282d0a72bb74a5bc7"
+          },
+          {
+            "binding": "TRAVA_DE_CONTATO",
+            "class": "TravaDeContato",
+            "id": "dad5c7bfca3a4c9cacf692be27b04885"
+          }
         ],
-        "email": { "binding": "EMAIL", "type": "send_email", "from": "OdontoBox360 <noreply@mail.venn360.com>" },
+        "email": {
+          "binding": "EMAIL",
+          "type": "send_email",
+          "from": "OdontoBox360 <noreply@mail.venn360.com>"
+        },
         "turnstileSitekey": "",
         "accessApps": [
-          { "name": "evolution-go", "id": "2e5772ad-ba25-400f-b26c-047698638072", "domain": "evo-odontobox.venn360.com" }
+          {
+            "name": "evolution-go",
+            "id": "2e5772ad-ba25-400f-b26c-047698638072",
+            "domain": "evo-odontobox.venn360.com"
+          }
         ],
         "accessServiceTokens": [
-          { "name": "odontobox-worker", "clientId": "892e1e51de799e177bbf9a0b85ba5259.access", "id": "a0f7469a-d1a9-4cc5-89a9-2240c5e61a13" }
+          {
+            "name": "odontobox-worker",
+            "clientId": "892e1e51de799e177bbf9a0b85ba5259.access",
+            "id": "a0f7469a-d1a9-4cc5-89a9-2240c5e61a13"
+          }
         ],
         "cronTriggers": 12
       },
@@ -60,7 +108,10 @@
         "endpointHost": "ep-icy-mode-b6mp2z8h.c-2.sa-east-1.aws.neon.tech",
         "pgVersion": 18,
         "database": "neondb",
-        "roles": { "app": "neondb_owner", "migrator": "neondb_owner (sem separação; ver Fase 02)" }
+        "roles": {
+          "app": "neondb_owner",
+          "migrator": "neondb_owner (sem separação; ver Fase 02)"
+        }
       },
       "evolution": {
         "image": "evoapicloud/evolution-go:0.7.2",
@@ -88,23 +139,97 @@
       }
     },
     "stg": {
-      "_isolation": "NÃO ISOLADO — só a branch Neon é separada; Worker, filas, DO, R2, secrets, Evolution, e-mail e Access são COMPARTILHADOS com produção (previews efêmeros pr-N). Débito crítico da Fase 02.",
+      "_isolation": "ISOLADO em 03/11/2026, com três exceções conscientes. Próprios: Worker `odontobox-stg`, as 9 filas `odontobox-stg-*` (+ DLQs), os 3 Durable Objects, os buckets `odontobox-stg-*`, os 21 segredos, a branch Neon `staging` e o domínio `homolog-odontobox.venn360.com`. COMPARTILHADOS com produção, de propósito: o Evolution (um contêiner por produto, nunca por ambiente), o domínio de envio de e-mail (`mail.venn360.com` é da Venn360, não do produto) e o Access na frente do Evolution. Antes disto, homolog não existia: havia só preview efêmero em workers.dev produzindo nas filas de PRODUÇÃO.",
       "hostnames": {
-        "app": "(previews efêmeros em *.andre-7ee.workers.dev; sem host estável de staging)",
-        "evolution": "(compartilha evo-odontobox.venn360.com)",
-        "emailDomain": "(compartilha mail.venn360.com)",
-        "emailFrom": "(compartilha noreply@mail.venn360.com)",
-        "support": "suporte@odontobox.venn360.com"
+        "app": "homolog-odontobox.venn360.com",
+        "evolution": "evo-odontobox.venn360.com",
+        "emailDomain": "mail.venn360.com",
+        "emailFrom": "noreply@mail.venn360.com",
+        "support": "suporte@venn360.com"
       },
       "cloudflare": {
-        "worker": "(sem worker de staging; previews pr-N em workers.dev)",
+        "worker": "odontobox-stg",
+        "customDomain": "homolog-odontobox.venn360.com",
         "hyperdrive": [],
-        "r2": [{ "name": "odontobox-public (COMPARTILHADO)" }, { "name": "odontobox-private (COMPARTILHADO)" }],
+        "r2": [
+          {
+            "binding": "PUBLICO",
+            "name": "odontobox-stg-public"
+          },
+          {
+            "binding": "(via S3)",
+            "name": "odontobox-stg-private"
+          }
+        ],
         "kv": [],
-        "queues": [{ "name": "odontobox-* (COMPARTILHADO — previews produzem nas filas de produção)" }],
+        "queues": [
+          {
+            "name": "odontobox-stg-whatsapp-inbound"
+          },
+          {
+            "name": "odontobox-stg-whatsapp-event"
+          },
+          {
+            "name": "odontobox-stg-whatsapp-outbound"
+          },
+          {
+            "name": "odontobox-stg-ai-reply"
+          },
+          {
+            "name": "odontobox-stg-rag-index"
+          },
+          {
+            "name": "odontobox-stg-agent-webhook"
+          },
+          {
+            "name": "odontobox-stg-asaas-event"
+          },
+          {
+            "name": "odontobox-stg-broadcast"
+          },
+          {
+            "name": "odontobox-stg-cron"
+          }
+        ],
+        "durableObjects": [
+          {
+            "binding": "SALA_DO_WORKSPACE",
+            "class": "SalaDoWorkspace",
+            "id": "__NO_PRIMEIRO_DEPLOY__"
+          },
+          {
+            "binding": "AGENDA_DA_CONVERSA",
+            "class": "AgendaDaConversa",
+            "id": "__NO_PRIMEIRO_DEPLOY__"
+          },
+          {
+            "binding": "TRAVA_DE_CONTATO",
+            "class": "TravaDeContato",
+            "id": "__NO_PRIMEIRO_DEPLOY__"
+          }
+        ],
+        "email": {
+          "binding": "EMAIL",
+          "type": "send_email",
+          "from": "OdontoBox360 <noreply@mail.venn360.com>"
+        },
         "turnstileSitekey": "",
-        "accessApps": [{ "name": "evolution-go (COMPARTILHADO)" }],
-        "accessServiceTokens": [{ "name": "odontobox-worker (COMPARTILHADO)" }]
+        "accessApps": [
+          {
+            "name": "evolution-go",
+            "id": "2e5772ad-ba25-400f-b26c-047698638072",
+            "domain": "evo-odontobox.venn360.com",
+            "_nota": "COMPARTILHADO com produção — um Evolution por produto"
+          }
+        ],
+        "accessServiceTokens": [
+          {
+            "name": "odontobox-worker",
+            "clientId": "892e1e51de799e177bbf9a0b85ba5259.access",
+            "id": "a0f7469a-d1a9-4cc5-89a9-2240c5e61a13",
+            "_nota": "COMPARTILHADO com produção"
+          }
+        ]
       },
       "neon": {
         "projectId": "polished-shape-42069569",
@@ -113,21 +238,37 @@
         "endpointHost": "ep-lucky-pond-b6n42j1j.c-2.sa-east-1.aws.neon.tech",
         "pgVersion": 18,
         "database": "neondb",
-        "roles": { "app": "neondb_owner", "migrator": "neondb_owner" },
-        "_nota": "ATRÁS de produção — faltam as tabelas de marketing/broadcast (migrate deploy recente não aplicado)."
+        "roles": {
+          "app": "neondb_owner",
+          "migrator": "neondb_owner"
+        },
+        "_nota": "Fork de produção em 2026-10-21 (LSN 0/1BD2EE8), quando produção estava praticamente vazia: hoje tem 1 usuário, 1 workspace, nenhum paciente e nenhuma conversa — conferido em 03/11. Sem `platform_credentials` e sem `agent_integrations`, portanto nada cifrado com a chave de produção: `TOKEN_ENCRYPTION_KEY` de homolog é um valor PRÓPRIO, gerado em 03/11, e não a chave de produção. A sentinela `app_identity` já diz `odontobox/stg`. 5 migrações atrás do repo em 03/11; o portão as aplica no primeiro build."
       },
       "evolution": {
-        "container": "(compartilha o de produção — não há Evolution de staging)",
+        "image": "evoapicloud/evolution-go:0.7.2",
+        "container": "odontobox-evolution-evolution-go-1",
         "composeProject": "odontobox-evolution",
+        "directory": "/opt/evolution/compose.yaml",
+        "vpsInstanceId": "c7e5d07a-e0dc-42ef-9323-eb6e33c28683",
+        "vpsIp": "216.238.127.233",
+        "internalPort": 8080,
         "database": "evogo_auth,evogo_users",
+        "dbRole": "postgres",
+        "redisDb": null,
+        "redisPrefix": null,
         "instancePrefix": "",
-        "webhookUrl": "(compartilha produção)"
+        "webhookUrl": "https://homolog-odontobox.venn360.com/api/webhooks/evolution-go/<secret>",
+        "tunnelId": "8d90f2b1-c880-4a4b-a0e5-5b636219f3bd",
+        "_nota": "Os campos de contêiner/VPS/banco são os DA PRODUÇÃO de propósito: há um Evolution por produto, nunca por ambiente. O que separa os ambientes é o webhook, que é por instância, e o `EVOLUTION_WEBHOOK_SECRET`, que em homolog é PRÓPRIO — assim um webhook de produção não é aceito por homolog nem o contrário."
       },
       "integrations": {
-        "googleProjectId": "(compartilha as credenciais de plataforma de produção)",
+        "googleProjectId": "(em platform_credentials / Vault — não em env)",
+        "googleOAuthClientId": "",
         "metaAppId": "",
         "wabaId": "",
-        "whatsappPhoneNumberIds": []
+        "whatsappPhoneNumberIds": [],
+        "asaas": "chave/token no Vault (provedor asaas); ambiente pelo prefixo da chave",
+        "_nota": "Credenciais de plataforma são globais (identificam os apps da Venn360 junto a Asaas/Meta/Google) e não variam por clínica; em homolog devem ser as de sandbox/dev, não as de produção."
       }
     }
   }
