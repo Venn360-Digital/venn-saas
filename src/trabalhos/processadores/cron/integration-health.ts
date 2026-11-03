@@ -1,3 +1,4 @@
+import { avisarQuedaDeLinha, avisarRetornoDeLinha } from '@/lib/alertas/linha-caiu'
 import prisma from '@/lib/prisma'
 import { isWhatsAppChannel, resolveIntegration, webhookUrlFor } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'
@@ -69,12 +70,14 @@ export async function runIntegrationHealth(): Promise<void> {
             // Caiu, e já esteve pareada: tenta reatar pelo JID antes de aceitar
             // que está fora. É o mesmo `connect` do botão Reconectar, e foi
             // medido voltando em três segundos.
+            let tentouReatar = false
             if (!state.connected && integration.phoneNumber) {
                 const jid = provider.getOwnerJid
                     ? await provider.getOwnerJid(credentials).catch(() => undefined)
                     : undefined
 
                 if (jid) {
+                    tentouReatar = true
                     log.info(`integration ${integration.id} caída com JID guardado; reatando`)
                     await provider.connect(credentials, webhookUrlFor(provider.name))
                     await new Promise((resolve) => setTimeout(resolve, 3_000))
@@ -104,6 +107,32 @@ export async function runIntegrationHealth(): Promise<void> {
                     ...(actual === 'connected' ? { connectedAt: new Date() } : {}),
                 },
             })
+
+            // O aviso vem DEPOIS de gravar: se o e-mail falhar, o estado já
+            // está correto no banco — o contrário deixaria a tela mentindo.
+            // Cada função sai calada quando a transição não é a dela, então a
+            // queda que o webhook já avisou não vira segundo e-mail (ali o
+            // status já é `disconnected`, e o `continue` acima nem chega aqui).
+            if (actual === 'disconnected') {
+                await avisarQuedaDeLinha({
+                    integrationId: integration.id,
+                    agentId: integration.agentId,
+                    statusAnterior: integration.status,
+                    label: integration.label,
+                    phoneNumber: integration.phoneNumber,
+                    origem: 'verificacao',
+                    tentouReatar,
+                })
+            } else {
+                await avisarRetornoDeLinha({
+                    integrationId: integration.id,
+                    agentId: integration.agentId,
+                    statusAnterior: integration.status,
+                    label: integration.label,
+                    phoneNumber: integration.phoneNumber,
+                    origem: 'verificacao',
+                })
+            }
 
             drifted += 1
             log.warn(
