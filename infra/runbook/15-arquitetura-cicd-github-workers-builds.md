@@ -984,6 +984,49 @@ escritos entre aspas, varri os 16 arquivos do cofre (só 1 linha precisava) e os
 três scripts de gravação agora citam por padrão. Conferido: os 16 arquivos
 carregam sem erro.
 
+## RESOLVIDO: o que a mensagem do `--strict` realmente quer dizer (03/11/2026)
+
+Em 01/11 o deploy da Odontobox travou citando um `--strict` que o comando não
+aceita (`Unknown argument: strict`), e isso ficou meio explicado. Hoje a
+mensagem apareceu inteira, num terreno controlado, e o mecanismo está claro:
+
+```
+▲  Environment variable `EVOLUTION_GO_URL` conflicts with an existing remote secret.
+   This deployment will replace the remote secret with your environment variable.
+■  Aborting the upload operation because of conflicts. To override and upload anyway,
+   remove the `--strict` flag
+cf deploy failed with exit code 1.
+```
+
+**Não é comparação de configuração.** É **colisão de nome**: a config declara
+uma variável de texto com o mesmo nome de um **segredo remoto já gravado**. O
+`cf` se recusa a substituir segredo por texto em silêncio — e a dica do
+`--strict` é enganosa, porque a flag não existe nesse comando. O texto da dica
+vem do `cf` por baixo; quem chama é o `vinext-cloudflare deploy`, que não a
+expõe.
+
+**A ordem correta, e eu a tinha invertido.** Eu havia escrito que apagar o
+segredo residual vinha DEPOIS do deploy, com o raciocínio de que o config ainda
+o exigia. Errado: assim que o config passa a declarar `bindings.text()`, o
+segredo deixa de ser exigido e passa a ser resíduo — e é a existência dele que
+aborta. Então:
+
+1. mudar o config de `bindings.secret()` para `bindings.text(...)` e mesclar;
+2. **apagar o segredo remoto**
+   (`DELETE /accounts/{id}/workers/scripts/{worker}/secrets/{NOME}`);
+3. disparar o build.
+
+Entre (1) e (2) o build reprova — é o estado em que este ambiente ficou por
+alguns minutos. Nada publica, porque a recusa acontece **antes** do upload (o
+log mostra `Aborting the upload operation`), diferente do incidente de
+produção de hoje, em que a falha veio depois de `Uploaded`.
+
+**Por que isto foi descoberto em homolog e não em produção:** o PR foi aberto
+contra `staging` de propósito, justamente por causa da dúvida do nome
+duplicado. A produção da Odontobox ainda tem o segredo `EVOLUTION_GO_URL`
+gravado, e a promoção para `main` só vai depois de apagá-lo — na ordem certa,
+agora conhecida.
+
 ## Apêndice B — Pendências de verificação (cada uma com dono)
 - [ ] Plano Workers **Paid** confirmado no painel (André; a API de billing recusa o escopo OAuth desta sessão). Evidência indireta: 9 filas/app, Queues é pago.
 - [ ] Duração real de um build no Workers Builds (ler de `/builds/.../builds` após a fase 7.2) — substituir a estimativa de 6–8 min.
