@@ -83,3 +83,100 @@ Adicione containers, bancos e hostnames ao `infra/fingerprints/{slug}.json`.
 - [ ] Nenhum container, banco ou volume de outro app alterado ou reiniciado.
 - [ ] Portas não expostas publicamente.
 - [ ] **PARE e aguarde "OK fase 08".**
+
+---
+
+## RESOLVIDO: `405 Client outdated` derrubou o WhatsApp dos três produtos (02–03/11/2026)
+
+### O sintoma
+
+Todas as linhas caíram ao mesmo tempo, sem deploy nosso e sem mudança de
+configuração. Na tela do app: "Lendo QR-CODE" para sempre. No contêiner, a
+cada tentativa de conectar:
+
+```
+405 Client outdated
+```
+
+### A causa
+
+A biblioteca **whatsmeow** compilada dentro do `evoapicloud/evolution-go:0.7.2`
+é de **junho de 2026**. O WhatsApp cortou o atendimento a essa versão do
+protocolo. O corte é do lado deles: nada no nosso lado expira, nada reverte.
+
+Duas coisas que **não** são a causa, e foram descartadas com medição:
+
+- **Não é licença.** A licença do Evolution estava válida; renovar não mudou
+  nada. O e-mail de validação de licença que chegou no mesmo dia é
+  coincidência, não gatilho.
+- **Não são as variáveis `WHATSAPP_VERSION_*`.** Elas existem no Evolution Go,
+  mas **não participam do aperto de mão**. Mexer nelas não tem efeito sobre o
+  405. Não perca tempo aqui.
+
+E uma armadilha caríssima: a imagem **`0.7.2-beta`** (01/10) **não corrige** o
+405 **e apaga os JID, ID e token das instâncias**. Não a use. A recuperação
+exigiu restaurar o dump.
+
+### A cura
+
+Recompilar a 0.7.2 com o whatsmeow de **02/11/2026**. Quatro assinaturas
+mudaram na API nova, todas em `pkg/user/service/user_service.go`:
+
+| Antes | Depois |
+|---|---|
+| `UpdateBlocklist(ctx, jid, action)` (2 ocorrências) | `UpdateBlocklist(ctx, jid, action, "")` |
+| `GetBlocklist(ctx)` | `GetBlocklist(ctx, "")` |
+| `SetStatusMessage(ctx, data.Status)` | `SetStatusMessage(ctx, types.SetStatusInput{Text: &data.Status})` |
+
+A imagem resultante é `evolution-go:0.7.2-whatsmeow-nov` (303 MB), publicada
+nos três VPS.
+
+### Por que a imagem viaja em arquivo, e não por cano
+
+Os VPS dos clones têm **1 GB de RAM** — compilar Go lá não cabe. A imagem é
+construída no VPS da Odontobox e **transferida como arquivo com sha256
+conferido nas três pontas**.
+
+Não use `docker save | ssh | docker load`: o cano não tem como verificar o que
+chegou, e já falhou com `gzip: stdin: unexpected end of file` seguido de
+`unrecognized image format`. Carregar imagem truncada num host de produção
+falha de um jeito confuso, longe da causa.
+
+### Como provar que a cura pegou, sem número real
+
+Ausência de erro no log **não** prova nada: o 405 só aparece quando se tenta
+conectar. Crie uma instância descartável, conecte e confira que o QR nasce —
+QR gerado significa aperto de mão aceito pelo WhatsApp. Depois apague a
+instância.
+
+```bash
+K=$(grep -E "^EVOLUTION_GO_API_KEY" /opt/evolution/.env | cut -d= -f2-)
+TOK="zzteste$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+curl -s -X POST http://127.0.0.1:8080/instance/create -H "apikey: $K" \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"zz_teste_handshake\",\"token\":\"$TOK\"}"
+curl -s -X POST http://127.0.0.1:8080/instance/connect -H "apikey: $TOK" \
+  -H 'Content-Type: application/json' -d '{}'
+sleep 12
+curl -s http://127.0.0.1:8080/instance/status -H "apikey: $TOK"
+# esperado: {"Connected":true,"LoggedIn":false} + QR no log
+curl -s -X DELETE "http://127.0.0.1:8080/instance/delete/<id>" -H "apikey: $K"
+```
+
+Note a forma das rotas, que não é óbvia: `create` exige **`name`** (não
+`instanceName`) **e `token`** inventado pelo chamador; `connect` é
+**`POST /instance/connect`** sem parâmetro de caminho, autenticado com o
+**token da instância** — a chave global só serve nas rotas administrativas.
+
+### O que isso passa a significar para o produto
+
+**Atualizar a biblioteca do WhatsApp virou dependência operacional dos três
+produtos.** O corte parte do WhatsApp, atinge os três ao mesmo tempo e não
+avisa. Duas consequências práticas:
+
+1. A imagem recompilada é **nossa** agora — não há mais `docker pull` que
+   resolva. Quem recompilar precisa repetir as adaptações da tabela acima (ou
+   as que a API nova exigir no momento).
+2. O **terceiro vigia** (`src/lib/alertas/linha-caiu.ts`, e-mail imediato para
+   `suporte@venn360.com`) é o que transforma "o cliente descobriu" em "nós
+   descobrimos". Sem ele, este incidente só aparece quando alguém reclama.

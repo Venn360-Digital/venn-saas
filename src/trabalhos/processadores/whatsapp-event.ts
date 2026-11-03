@@ -15,6 +15,7 @@ import { QUEUE, type WhatsAppEventJob } from '@/lib/queue/definitions'
 import { findContactByJid, syncContactProfile } from '@/trabalhos/servicos/avatar'
 import { findIntegrationByRef, providerFor } from '@/trabalhos/servicos/integration'
 import { enfileirar } from '@/trabalhos/filas'
+import { avisarQuedaDeLinha, avisarRetornoDeLinha } from '@/lib/alertas/linha-caiu'
 import { avisarStatusDaMensagem , publicarAgora } from '@/lib/outbox/avisar'
 
 /** Measured: the forced logout lands ~105 s after PairSuccess; sync is done by ~15 s. */
@@ -254,6 +255,33 @@ async function handleConnection(event: NormalizedConnection, job: WhatsAppEventJ
             config: nextConfig as never,
         },
     })
+
+    // O caminho IMEDIATO do aviso. A verificação de dez minutos é a rede de
+    // segurança para quando este webhook se perde — e ele se perde, foi por isso
+    // que a verificação passou a existir. Aqui o status anterior ainda está em
+    // `integration`, carregado antes do update, e é ele que distingue queda de
+    // repetição: a função sai calada quando a transição não parte de `connected`.
+    if (status === 'disconnected') {
+        await avisarQuedaDeLinha({
+            integrationId: integration.id,
+            agentId: integration.agentId,
+            statusAnterior: integration.status,
+            label: integration.label,
+            phoneNumber: integration.phoneNumber,
+            origem: 'webhook',
+            // Este caminho não reata; quem tenta é a verificação.
+            tentouReatar: false,
+        })
+    } else if (status === 'connected') {
+        await avisarRetornoDeLinha({
+            integrationId: integration.id,
+            agentId: integration.agentId,
+            statusAnterior: integration.status,
+            label: integration.label,
+            phoneNumber: integration.phoneNumber,
+            origem: 'webhook',
+        })
+    }
 
     /**
      * E o número também na coluna, que é onde ele é único no sistema inteiro.

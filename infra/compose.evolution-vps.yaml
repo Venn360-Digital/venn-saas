@@ -78,12 +78,17 @@ services:
   # ---------------------------------------------------------------------------
   # Evolution Go (whatsmeow) — o canal QR
   # ---------------------------------------------------------------------------
-  # Fixado em 0.7.2 (a versão provada em 2026-10), não `latest`: numa atualização
-  # do autor o comportamento muda sem ninguém pedir. Ligado a 127.0.0.1:8080 só
-  # para a ativação de licença por túnel SSH; o tráfego real entra pela rede do
-  # compose (cloudflared → evolution-go:8080) e pelo webhook de saída.
+  # Imagem NOSSA, construída a partir da 0.7.2 com o whatsmeow de 2026-11-02.
+  # NÃO existe em registro: carregue-a com `docker load` antes de subir (a
+  # receita e o porquê estão no runbook 09, seção do `405 Client outdated`).
+  # A 0.7.2 de origem traz whatsmeow de junho/2026, que o WhatsApp deixou de
+  # atender — `docker pull` recria o incidente que derrubou os três produtos.
+  # Nunca `latest`: numa atualização do autor o comportamento muda sem ninguém
+  # pedir. Ligado a 127.0.0.1:8080 só para a ativação de licença por túnel SSH;
+  # o tráfego real entra pela rede do compose (cloudflared → evolution-go:8080)
+  # e pelo webhook de saída.
   evolution-go:
-    image: evoapicloud/evolution-go:0.7.2
+    image: evolution-go:0.7.2-whatsmeow-nov
     restart: always
     depends_on:
       evolution-go-db-init:

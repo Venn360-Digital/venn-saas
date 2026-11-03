@@ -1049,3 +1049,84 @@ Regra: apagar do GitHub **não desfaz** a exposição passada — todo segredo q
 - **Odontobox**: nível de repo `CLOUDFLARE_API_TOKEN` (o inválido do 401) + `CLOUDFLARE_ACCOUNT_ID` + `NEON_API_KEY`; envs `Preview`/`Production` com `DATABASE_URL_DIRECT` (resíduo da era Vercel — apagar e rotacionar a senha dessa role no Neon). Dono: André.
 - Tokens Cloudflare do GH — dos 3 apps (o inválido da Odontobox incluído) **e dos sites** `janainaleiteadv` (em uso pelo `deploy.yml` até o corte) e `visuallawdigital` (órfão desde 25/10, sem workflow que o use): revogar na CF e apagar do GitHub; criar o token de emergência novo (gerenciador de senhas) e o `CLOUDFLARE_PREVIEW_GC_TOKEN` (escopo: previews).
 - `NEON_API_KEY` (Odontobox): fica até o job `banco` morrer (§7.3); rotacionar ao removê-lo.
+
+---
+
+## MEDIDO: como o build de preview realmente dispara (03/11/2026)
+
+Esta seção foi reescrita duas vezes porque as duas primeiras versões afirmavam
+causas que a medição seguinte desmentiu. O que está aqui agora é só o que foi
+lido pela API.
+
+### O que dispara um build de preview
+
+**Um push no ramo.** Medido no #130: o build nasceu com
+`build_trigger_source: push_event` e o hash do commit que eu havia empurrado,
+**enquanto a base da PR ainda era `main`**. Então o preview **não** depende da
+base da PR.
+
+Também disparam: reabrir a PR. **Não** dispara: trocar a base de uma PR já
+aberta (`gh pr edit --base`) — não houve push, não há evento.
+
+Não existe reexecução pela API: `POST …/builds/builds/{uuid}/retry` e `/rerun`
+respondem **405**. Para refazer, empurre no ramo ou reabra a PR.
+
+### O check demora a aparecer, e ausência não é recusa
+
+Cronologia real de um preview no #130:
+
+| Momento | Evento |
+|---|---|
+| 15:41:40Z | PR aberta |
+| 15:48:04Z | build criado (`created_on`) |
+| 15:57:15Z | build começa a inicializar (`initializing_on`) |
+| 16:02:16Z | build encerrado |
+
+**Nove minutos entre criar e começar a inicializar.** Um `gh pr checks` logo
+depois de abrir a PR não mostra o check — e isso significa "ainda não reportou",
+não "não vai rodar". Foi exatamente esse engano que produziu as duas versões
+erradas desta seção.
+
+### `terminated` sem `running_on` é problema da Cloudflare, não seu
+
+Três previews (odontobox, stagent e conecta) criados às 15:48Z acabaram iguais:
+
+```
+Initializing build environment...
+Initializing build environment...
+Build failed to initialize and was timed out
+```
+
+`build_outcome: terminated` com **`running_on: null`** — nunca rodaram. O check
+no GitHub aparece como **FAILURE** e não diz nada sobre o código. A tentativa
+seguinte do odontobox, já fora daquela janela, passou.
+
+Como separar isso de uma falha real, em dois passos:
+
+1. `GET /accounts/{id}/builds/builds/{uuid}` — `running_on: null` é ambiente que
+   nunca subiu. Falha de código **sempre** tem `running_on`.
+2. `GET …/builds/workers/{tag}/builds` — lista os builds de **ramo** (previews
+   não aparecem aí). Se `staging`/`main` estão `success`, o Worker está são e o
+   problema é do caminho de preview.
+
+No 03/11 os builds de ramo dos quatro Workers estavam `success` até 11:34Z, e
+só os previews daquela janela falharam.
+
+### O que `previews_enabled` quer dizer, e o que não quer
+
+Lido pela API: **desligado** nos três Workers de produção (`odontobox`,
+`stagent`, `conecta`), **ligado** nos três `-stg`. Isso veio do #126, que moveu
+o preview para o Worker de homolog — conserto certo, porque preview pertence ao
+contêiner cuja configuração o comando de preview realmente constrói.
+
+O que isso **não** significa: não significa que PR contra `main` fique sem
+build. O preview roda no Worker `-stg` e é disparado pelo push, qualquer que
+seja a base. O #124 tinha `Workers Builds: odontobox` porque na época o preview
+morava no Worker de produção; depois do #126 o mesmo papel passou ao `-stg`.
+
+### O risco que continua de pé
+
+`cf deploy` publica o código **antes** de atualizar os gatilhos e **não
+reverte**. Um merge cujo build falha deixa produção com código novo e gatilhos
+pela metade. O preview reduz isso — ele constrói o mesmo alvo antes do merge —
+mas não elimina: o build de produção só acontece no merge.

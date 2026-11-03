@@ -114,7 +114,7 @@
         }
       },
       "evolution": {
-        "image": "evoapicloud/evolution-go:0.7.2",
+        "image": "evolution-go:0.7.2-whatsmeow-nov",
         "container": "odontobox-evolution-evolution-go-1",
         "composeProject": "odontobox-evolution",
         "directory": "/opt/evolution/compose.yaml",
@@ -245,7 +245,7 @@
         "_nota": "Fork de produção em 2026-10-21 (LSN 0/1BD2EE8), quando produção estava praticamente vazia: hoje tem 1 usuário, 1 workspace, nenhum paciente e nenhuma conversa — conferido em 03/11. Sem `platform_credentials` e sem `agent_integrations`, portanto nada cifrado com a chave de produção: `TOKEN_ENCRYPTION_KEY` de homolog é um valor PRÓPRIO, gerado em 03/11, e não a chave de produção. A sentinela `app_identity` já diz `odontobox/stg`. 5 migrações atrás do repo em 03/11; o portão as aplica no primeiro build."
       },
       "evolution": {
-        "image": "evoapicloud/evolution-go:0.7.2",
+        "image": "evolution-go:0.7.2-whatsmeow-nov",
         "container": "odontobox-evolution-evolution-go-1",
         "composeProject": "odontobox-evolution",
         "directory": "/opt/evolution/compose.yaml",
