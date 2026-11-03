@@ -1081,23 +1081,44 @@ de atualizar os gatilhos e **não reverte**. Um merge que falha no build deixa
 produção com código novo e gatilhos pela metade — e sem build pré-merge não há
 sinal nenhum antes de o merge acontecer.
 
-### NÃO use fechar/reabrir para refazer o build
+### Como (não) refazer um build de preview
 
 O build de preview é disparado pelo **evento do PR**. Trocar a base de um PR já
 aberto (`gh pr edit --base`) **não** refaz o evento: não houve push, então não
-há build.
-
-Reabrir **dispara** o gatilho — mas fechar dispara antes o workflow *Apagar o
-preview do PR*, e a corrida entre os dois mata o build novo: ele fica
-`build_outcome: terminated` com `running_on: null` (nunca rodou), e o check vai
-a **FAILURE por motivo nenhum do código**. Medido no #130.
+há build. Reabrir o PR **dispara** o gatilho, e um push também.
 
 Não há endpoint de reexecução: `POST …/builds/builds/{uuid}/retry` e `/rerun`
-respondem **405**. A única forma de refazer um build de preview é **um push no
-ramo**.
+respondem **405**. Para refazer, ou se reabre o PR, ou se empurra no ramo.
 
-Receita, então: **abra o PR já com a base certa.** Se a base estiver errada,
-troque a base **e empurre um commit** — não feche e reabra.
+Receita: **abra o PR já com a base certa.** Se a base estiver errada, troque a
+base **e empurre um commit**.
+
+### `terminated` sem `running_on` é problema da Cloudflare, não seu
+
+No #130, dois builds de preview seguidos (um da reabertura, um do push, 20 min
+de intervalo) acabaram iguais:
+
+```
+Initializing build environment...
+Initializing build environment...
+Build failed to initialize and was timed out
+```
+
+`build_outcome: terminated` com **`running_on: null`** — nunca rodaram. O check
+no GitHub aparece como **FAILURE**, e isso não diz nada sobre o código: o build
+não chegou a compilar uma linha.
+
+Como separar isso de uma falha real, em dois passos:
+
+1. `GET /accounts/{id}/builds/builds/{uuid}` — se `running_on` é `null`, o
+   ambiente nunca subiu. Falha de código **sempre** tem `running_on`.
+2. `GET …/builds/workers/{tag}/builds` — lista os builds de **ramo** (não lista
+   preview). Se os de `staging`/`main` estão `success`, o problema é específico
+   do caminho de preview, não da configuração do Worker.
+
+No dia 03/11 os builds de ramo dos quatro Workers estavam `success` até 11:34Z,
+e só os previews das 16:0xZ e 16:2xZ falharam na inicialização — o que aponta
+para o lado da Cloudflare, não para o repositório.
 
 ### Decisão pendente
 
