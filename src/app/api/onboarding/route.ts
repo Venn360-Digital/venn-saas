@@ -5,9 +5,127 @@ import { usuarioDaSessao } from '@/lib/auth/sessao'
 import prisma from '@/lib/prisma'
 import { DEFAULT_MODEL } from '@/lib/llm/models'
 import { errorMessage } from '@/lib/prisma-errors'
-import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
+import { AGENT_WIDGET_DEFAULTS, DEFAULT_PIPELINE_STAGES } from '@/lib/palette'
+import { DEFAULT_AGENT_PREFERENCES } from '@/types/agent-preferences'
+import { DEFAULT_AUTOMATIONS } from '@/lib/automations'
+import { ESTRATEGIA_INICIAL, MOTIVOS_PADRAO } from '@/lib/onboarding/padroes'
+import type { Prisma } from '#prisma'
 import { sendEmail } from '@/lib/email/send'
 import { TEMPLATES } from '@/lib/email/templates'
+
+/**
+ * O primeiro agente da clínica, com as preferências **gravadas**.
+ *
+ * Gravar `preferences` é o ponto: a coluna nula resolve para
+ * `UNCONFIGURED_AGENT_PREFERENCES`, que é tudo desligado — sem "digitando…",
+ * sem emoji, sem recorte de assunto, sem limite de interação. É o fallback certo
+ * para agente que já estava atendendo antes de o interruptor existir, e o
+ * fallback errado para um agente que nasce agora. `POST /api/agents` já grava o
+ * conjunto; só este caminho não gravava, então o primeiro agente de toda conta
+ * nascia mudo nas quatro opções.
+ *
+ * `description` saiu. Era `'Meu primeiro agente'`, escrito pelo sistema num
+ * campo que a clínica lê como se fosse dela — o Andre pediu para remover.
+ */
+function dadosDoPrimeiroAgente(workspaceId: string, nome: string) {
+    return {
+        workspaceId,
+        name: nome,
+        llmProvider: 'openai',
+        llmModel: DEFAULT_MODEL,
+        systemPrompt: 'Você é um assistente útil e amigável.',
+        temperature: 0.7,
+        primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
+        language: 'pt-BR',
+        isActive: true,
+        preferences: { ...DEFAULT_AGENT_PREFERENCES } as Prisma.InputJsonValue,
+    }
+}
+
+/**
+ * O que a unidade recebe pronta, para não abrir vazia.
+ *
+ * Funil sem etapa, fechamento sem motivo e distribuição desligada eram três
+ * telas que nasciam em branco e exigiam da clínica uma decisão que ela ainda não
+ * tem como tomar — no primeiro dia ela não sabe nem o que é uma etapa de funil.
+ * Lista ditada pelo Andre em 2026-11-04; os valores moram em
+ * `lib/onboarding/padroes.ts`.
+ *
+ * **Idempotente por consulta, não por constraint.** Nada aqui tem índice único
+ * que impeça a segunda execução, e esta rota é chamada duas vezes no fluxo
+ * normal (o pareamento do passo 3 e o aceite do passo 5). Semear sem conferir
+ * daria quatro etapas repetidas e onze motivos à clínica que pareou o WhatsApp.
+ */
+async function aplicarPadroesDaUnidade(
+    tx: Prisma.TransactionClient,
+    workspaceId: string
+): Promise<void> {
+    const [temEtapa, temMotivo] = await Promise.all([
+        tx.pipelineStage.findFirst({ where: { workspaceId }, select: { id: true } }),
+        tx.dealOutcomeReason.findFirst({ where: { workspaceId }, select: { id: true } }),
+    ])
+
+    if (!temEtapa) {
+        await tx.pipelineStage.createMany({
+            data: DEFAULT_PIPELINE_STAGES.map((etapa) => ({ ...etapa, workspaceId })),
+        })
+    }
+
+    if (!temMotivo) {
+        await tx.dealOutcomeReason.createMany({
+            data: (['won', 'lost'] as const).flatMap((kind) =>
+                MOTIVOS_PADRAO[kind].map((name, i) => ({ workspaceId, kind, name, order: i }))
+            ),
+        })
+    }
+
+    /**
+     * A política de distribuição, gravada e não herdada do default.
+     *
+     * `DEFAULT_AUTOMATIONS.distribuicao` é `nenhuma` de propósito — é o que
+     * precisa valer para conta que já existe e nunca escolheu. Para a conta que
+     * nasce agora, o Andre escolheu rodízio, e escolha tem de ficha escrita: se
+     * ficasse implícita no default, mudar o default mudaria a conta antiga
+     * junto.
+     */
+    await tx.workspace.update({
+        where: { id: workspaceId },
+        data: {
+            automations: {
+                ...DEFAULT_AUTOMATIONS,
+                distribuicao: {
+                    ...DEFAULT_AUTOMATIONS.distribuicao,
+                    estrategia: ESTRATEGIA_INICIAL,
+                },
+            } as Prisma.InputJsonValue,
+        },
+    })
+}
+
+/**
+ * Um endereço livre, a partir do que a tela derivou do nome.
+ *
+ * O passo 1 deixou de ter campo de slug — ele é o nome sem espaço nem símbolo, e
+ * não é editável. O preço disso é que duas clínicas de mesmo nome chegam aqui
+ * com o mesmo endereço, e a coluna é `@unique`: sem isto, a segunda recebia um
+ * erro de banco no fim do cadastro, sem campo nenhum para corrigir.
+ *
+ * O sufixo é numérico e começa em 2 — `clinicasorriso`, `clinicasorriso2` —, que
+ * é a convenção que todo mundo reconhece. O teto de tentativas existe para a
+ * função não poder girar para sempre; chegar nele é inverossímil e, se
+ * acontecer, o erro de unicidade volta a ser o que aparece.
+ */
+async function slugLivre(tx: Prisma.TransactionClient, desejado: string): Promise<string> {
+    for (let i = 1; i <= 50; i++) {
+        const tentativa = i === 1 ? desejado : `${desejado}${i + 1}`
+        const ocupado = await tx.workspace.findUnique({
+            where: { slug: tentativa },
+            select: { id: true },
+        })
+        if (!ocupado) return tentativa
+    }
+    return desejado
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -25,7 +143,7 @@ export async function POST(request: NextRequest) {
         console.log('[ONBOARDING] User:', user.id, user.email)
 
         const body = await request.json()
-        const { workspaceName, workspaceSlug, plan, agentName, acceptedTermsVersion } = body
+        const { workspaceName, workspaceSlug, plan, agentName, agentId: agentIdDoPasso3, acceptedTermsVersion } = body
 
         console.log('[ONBOARDING] Data:', { workspaceName, workspaceSlug, plan, agentName })
 
@@ -134,22 +252,47 @@ export async function POST(request: NextRequest) {
                  */
                 const podeCriarAgente = ['OWNER', 'ADMIN'].includes(existingWorkspaceUser.role)
 
-                if (!agentId && podeCriarAgente && agentName && agentName.trim()) {
+                const nomeEscolhido = typeof agentName === 'string' ? agentName.trim() : ''
+
+                if (!agentId && podeCriarAgente && nomeEscolhido) {
                     const agent = await tx.agent.create({
-                        data: {
-                            workspaceId,
-                            name: agentName.trim(),
-                            description: 'Meu primeiro agente',
-                            llmProvider: 'openai',
-                            llmModel: DEFAULT_MODEL,
-                            systemPrompt: 'Você é um assistente útil e amigável.',
-                            temperature: 0.7,
-                            primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
-                            language: 'pt-BR',
-                            isActive: true,
-                        },
+                        data: dadosDoPrimeiroAgente(workspaceId, nomeEscolhido),
                     })
                     agentId = agent.id
+                } else if (agentId && podeCriarAgente && nomeEscolhido) {
+                    /**
+                     * O nome digitado no passo 4 chegando ao agente que o passo
+                     * 3 criou.
+                     *
+                     * O defeito: parear o WhatsApp no passo 3 exige um agente, e
+                     * ele nasce ali com o nome de reserva `'Atendimento'` —
+                     * porque o passo 4, onde se escolhe o nome, ainda não
+                     * aconteceu. Quando a chamada do aceite voltava, este ramo
+                     * encontrava um agente já existente e **devolvia sem olhar o
+                     * nome**: a clínica digitava "Ana" e terminava o cadastro
+                     * com um agente chamado "Atendimento".
+                     *
+                     * Renomeia só o agente que **esta tela** criou
+                     * (`agentIdDoPasso3`, devolvido pela primeira chamada), e não
+                     * "o primeiro agente do workspace": na clínica que já tem
+                     * agente configurado, isto seria renomear o dela.
+                     */
+                    const alvo =
+                        typeof agentIdDoPasso3 === 'string' && agentIdDoPasso3 === agentId
+                            ? agentId
+                            : null
+
+                    if (alvo) {
+                        await tx.agent.update({
+                            where: { id: alvo },
+                            data: { name: nomeEscolhido },
+                        })
+                    }
+                }
+
+                // O aceite é o que fecha o cadastro; os padrões entram com ele.
+                if (acceptedTermsVersion) {
+                    await aplicarPadroesDaUnidade(tx, workspaceId)
                 }
 
                 return { alreadyExists: true, workspaceId, agentId }
@@ -160,7 +303,9 @@ export async function POST(request: NextRequest) {
             const workspace = await tx.workspace.create({
                 data: {
                     name: workspaceName,
-                    slug: workspaceSlug,
+                    // Derivado do nome e não editável desde o passo 1, então duas
+                    // clínicas homônimas chegam aqui com o mesmo endereço.
+                    slug: await slugLivre(tx, String(workspaceSlug)),
                     /**
                      * A conta nasce junto, com quem está cadastrando como
                      * MASTER: é ela que assina, e no Multiclínica é ela que
@@ -185,6 +330,22 @@ export async function POST(request: NextRequest) {
                     workspaceId: workspace.id,
                     userId: user.id,
                     role: 'OWNER',
+                    /**
+                     * O dono transfere e recebe conversa, declarado aqui.
+                     *
+                     * As duas colunas têm default pensado para **quem já
+                     * existe**: `canTransfer` nasce `false`, e a migração que
+                     * criou `recebeConversas` desligou OWNER e ADMIN — padrão
+                     * certo para a clínica com equipe, em que o dono não atende.
+                     *
+                     * Para a conta que acaba de nascer o certo é o oposto, e é o
+                     * que o Andre pediu: no primeiro dia o dono É o atendimento,
+                     * e sem `recebeConversas` ele não entra no rodízio — a
+                     * distribuição ligada logo acima não teria ninguém elegível
+                     * e **toda** conversa ficaria sem responsável.
+                     */
+                    canTransfer: true,
+                    recebeConversas: true,
                 }
             })
             console.log('[ONBOARDING] Workspace user created')
@@ -262,22 +423,14 @@ export async function POST(request: NextRequest) {
             if (agentName && agentName.trim()) {
                 console.log('[ONBOARDING] Creating agent...')
                 const agent = await tx.agent.create({
-                    data: {
-                        workspaceId: workspace.id,
-                        name: agentName.trim(),
-                        description: 'Meu primeiro agente',
-                        llmProvider: 'openai',
-                        llmModel: DEFAULT_MODEL,
-                        systemPrompt: 'Você é um assistente útil e amigável.',
-                        temperature: 0.7,
-                        primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
-                        language: 'pt-BR',
-                        isActive: true,
-                    }
+                    data: dadosDoPrimeiroAgente(workspace.id, agentName.trim()),
                 })
                 agentId = agent.id
                 console.log('[ONBOARDING] Agent created')
             }
+
+            // 8. As etapas do funil, os motivos de fechamento e o rodízio.
+            await aplicarPadroesDaUnidade(tx, workspace.id)
 
             return {
                 alreadyExists: false,

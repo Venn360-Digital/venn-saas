@@ -116,9 +116,19 @@ export type AgentPreferences = z.infer<typeof agentPreferencesSchema>
  * entregaria à equipe boa parte das conversas que estavam indo bem — o agente
  * viraria triador.
  *
- * Vinte fica a **2,2x** da média: pega o que de fato travou e deixa o resto
- * trabalhar. E o custo continua dentro do alvo mesmo no absurdo de *toda*
- * conversa ir até o limite — 5,4% a 7,5% da mensalidade nos três planos.
+ * Vinte ficava a **2,2x** da média: pegava o que de fato travou e deixava o
+ * resto trabalhar, com custo de 5,4% a 7,5% da mensalidade no absurdo de *toda*
+ * conversa ir até o limite.
+ *
+ * **Hoje são 50, por decisão do Andre.** Ele pediu explicitamente este valor
+ * para a conta que acaba de nascer, e o número vale para todo agente novo em
+ * vez de só para o primeiro — dois limites diferentes para a mesma tela seriam
+ * lidos como defeito na primeira vez que ele criasse o segundo agente. O que
+ * isto custa, para ficar escrito e não ser redescoberto: a 50 respostas por
+ * atendimento o pior caso sai dos ~7% e vai para a casa dos 40% da mensalidade
+ * em custo de IA, contra os 10% que são o alvo do §12 do PRODUCT.md. Não é
+ * gasto garantido — é o teto do pior caso, e conversa que chega a 50 respostas
+ * do robô é rara —, mas é o teto que a válvula passa a permitir.
  */
 export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     showTypingIndicator: true,
@@ -127,7 +137,7 @@ export const DEFAULT_AGENT_PREFERENCES: AgentPreferences = {
     useEmojis: true,
     /** Clínica responde de clínica: fora disso, recusa educadamente. */
     restrictTopics: true,
-    interactionLimit: 20,
+    interactionLimit: 50,
     /** Trinta dias de silêncio e o atendimento se encerra sozinho. */
     autoCloseDays: 30,
 }

@@ -5,6 +5,7 @@ import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 import { findModel } from '@/lib/llm/models'
 import { agentPreferencesPatchSchema } from '@/types/agent-preferences'
+import { enderecoDoAvatar } from '@/lib/agents/avatar'
 
 /**
  * O modelo precisa existir no catálogo de preços.
@@ -102,7 +103,9 @@ export async function GET(
             return new NextResponse('Forbidden', { status: 403 })
         }
 
-        return NextResponse.json(agent)
+        // Mesma razão da listagem: a coluna guarda referência, o cliente precisa
+        // de endereço.
+        return NextResponse.json({ ...agent, avatar: await enderecoDoAvatar(agent) })
     } catch (error) {
         console.error('[AGENT_GET]', error)
         return new NextResponse('Internal Error', { status: 500 })

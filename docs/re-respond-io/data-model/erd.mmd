@@ -1,0 +1,36 @@
+%% ERD do respond.io (recon API/SDK [doc SRC-028]). Conceitos sem entidade de API
+%% pública (Broadcast, Workflow, Snippet, AI Agent) modelados pelo clone a partir do produto.
+erDiagram
+    SPACE ||--o{ SPACE_USER : "tem"
+    SPACE ||--o{ SPACE_CHANNEL : "tem"
+    SPACE ||--o{ SPACE_TAG : "define"
+    SPACE ||--o{ CUSTOM_FIELD : "define"
+    SPACE ||--o{ CLOSING_NOTE : "define"
+    SPACE ||--o{ TEAM : "tem"
+    SPACE ||--o{ LIFECYCLE_STAGE : "define"
+
+    TEAM ||--o{ SPACE_USER : "agrupa"
+    SPACE_USER }o--|| USER_ROLE : "papel"
+
+    CONTACT ||--o{ CONVERSATION : "tem"
+    CONTACT ||--o{ MESSAGE : "troca"
+    CONTACT ||--o{ COMMENT : "recebe_nota_interna"
+    CONTACT }o--o{ SPACE_TAG : "marcado_por"
+    CONTACT }o--o{ SPACE_CHANNEL : "alcancavel_por (ContactChannel)"
+    CONTACT }o--|| SPACE_USER : "assignee"
+    CONTACT }o--|| LIFECYCLE_STAGE : "estagio_atual"
+    CONTACT ||--o{ CUSTOM_FIELD_VALUE : "valores"
+    CUSTOM_FIELD ||--o{ CUSTOM_FIELD_VALUE : "tipa"
+
+    CONVERSATION }o--|| SPACE_USER : "assignee"
+    CONVERSATION }o--o| CLOSING_NOTE : "fechada_com"
+
+    SPACE_CHANNEL ||--o{ MESSAGE : "transporta"
+    SPACE_CHANNEL ||--o{ WHATSAPP_TEMPLATE : "possui (so WhatsApp)"
+    MESSAGE }o--o| WHATSAPP_TEMPLATE : "pode_usar"
+
+    BROADCAST ||--o{ MESSAGE : "origina (sender.source=broadcast)"
+    WORKFLOW ||--o{ MESSAGE : "origina (sender.source=workflow)"
+    AI_AGENT ||--o{ MESSAGE : "origina (sender.source=ai_agent)"
+    AI_AGENT ||--o{ KNOWLEDGE_SOURCE : "usa"
+    SNIPPET }o--o{ MESSAGE : "preenche (canned)"

@@ -18,6 +18,17 @@ export interface Brand {
     tagline: string
     /** Operadora/holding, para o rodapé "uma solução X". */
     vendor: string
+    /**
+     * O host de produção, sem protocolo — `odontobox.venn360.com`.
+     *
+     * Existe porque a sugestão de URL do workspace, no passo 1 do cadastro, era
+     * derivada de `NEXT_PUBLIC_APP_URL`: em produção a variável não está
+     * gravada no Worker e a tela caía num `app.odontobox360.com.br` escrito à
+     * mão, domínio que nunca existiu; num preview ela mostraria o host do
+     * preview. O endereço do workspace é um fato da marca, não do ambiente onde
+     * a tela está rodando — então vem daqui, que é o único lugar da identidade.
+     */
+    appHost: string
     colors: {
         navy: string
         teal: string
@@ -41,6 +52,7 @@ export const BRAND: Brand = {
     name: 'OdontoBox360',
     tagline: 'Atendimento, agenda e CRM para clínicas odontológicas',
     vendor: 'Venn360',
+    appHost: 'odontobox.venn360.com',
     colors: {
         navy: '#0b1f3b',
         teal: '#06b6d4',
