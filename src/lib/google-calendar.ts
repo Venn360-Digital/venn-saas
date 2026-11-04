@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { resolveGoogleOAuthClient, type GoogleCalendarCredentials } from '@/lib/google-oauth-client'
+import { FUSO_DO_NEGOCIO } from '@/lib/fuso'
 
 
 /**
@@ -124,7 +125,22 @@ function buildCalendarEvent(activity: SyncableActivity) {
         'Criado no OdontoBox360',
     ].filter(Boolean).join('\n')
 
-    const timeZone = 'America/Sao_Paulo'
+    /**
+     * O fuso vem da constante do sistema, não de um literal próprio.
+     *
+     * Este arquivo tinha a **segunda cópia** de `America/Sao_Paulo`, ao lado de
+     * `FUSO_DO_NEGOCIO` em `lib/fuso.ts`. O evento que vai para a agenda do
+     * cliente é um dos piores lugares para uma cópia divergir: o horário
+     * aparece errado no Google **dele**, não aqui, e nenhuma tela nossa mostra
+     * o problema.
+     *
+     * **O que isto NÃO resolve, e é bom estar escrito**: `FUSO_DO_NEGOCIO` é
+     * constante de instalação — fuso por conta ainda não existe. Para uma
+     * empresa que opera fora do Brasil, um compromisso das 9h é escrito na
+     * agenda dela como 9h de São Paulo. Limitação conhecida, não descuido;
+     * consertá-la é dar fuso à conta, com migração.
+     */
+    const timeZone = FUSO_DO_NEGOCIO
 
     if (activity.dueDate && activity.startTime) {
         const dateStr = new Date(activity.dueDate).toISOString().split('T')[0]
