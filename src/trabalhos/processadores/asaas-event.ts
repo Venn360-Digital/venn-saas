@@ -1,6 +1,7 @@
 
 import prisma from '@/lib/prisma'
 import { asaas } from '@/lib/asaas/client'
+import { deOutroApp } from '@/lib/asaas/referencia'
 import { adicionaisVivos } from '@/lib/account'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
 import {
@@ -216,6 +217,22 @@ export async function espelharCobranca(
      */
     const contaPorDocumento =
         !conta && p.customer ? await ligarPeloDocumento(p.customer) : null
+
+    /**
+     * Evento de outro produto sai **sem retentar**.
+     *
+     * O ramo de baixo relança quando a cobrança é recente, apostando numa
+     * corrida com o `CHECKOUT_PAID`. Para um evento que nunca foi nosso essa
+     * aposta não tem como ganhar: são oito retentativas por cobrança, a cada
+     * cobrança do outro produto, enchendo a fila de falhas com o que não é
+     * falha — e enterrando a falha de verdade quando ela aparecer.
+     */
+    if (contaPorDocumento === 'de-outro-app') {
+        log.info(
+            `${event} do cliente ${p.customer} é de outro produto na mesma conta Asaas; ignorado`
+        )
+        return
+    }
 
     const contaResolvida = conta ?? contaPorDocumento
 
@@ -464,11 +481,31 @@ async function guardarCartao(
  * repetido entre contas) e nenhuma delas se resolve sobrescrevendo em
  * silêncio. Fica o aviso no log.
  */
-async function ligarPeloDocumento(customerId: string): Promise<{ id: string } | null> {
+async function ligarPeloDocumento(
+    customerId: string
+): Promise<{ id: string } | 'de-outro-app' | null> {
     let documento: string | null = null
 
     try {
-        const cliente = await asaas<{ cpfCnpj?: string }>(`/customers/${customerId}`)
+        const cliente = await asaas<{ cpfCnpj?: string; externalReference?: string | null }>(
+            `/customers/${customerId}`
+        )
+
+        /**
+         * Cliente marcado por outro produto encerra a busca aqui.
+         *
+         * A varredura abaixo é por CPF/CNPJ, e documento é a mesma coisa nos
+         * bancos de todos os produtos que compartilham esta conta Asaas. Sem
+         * esta linha, um pagamento do outro sistema encontraria a conta
+         * homônima daqui e aplicaria plano em cima dela. O caso concreto é a
+         * conta de teste da própria Venn360, que existe em todos com o mesmo
+         * CNPJ.
+         *
+         * Devolve um valor próprio, e não `null`, porque quem chama precisa
+         * distinguir "não achei ainda" (retenta) de "não é nosso" (ignora).
+         */
+        if (deOutroApp(cliente.externalReference)) return 'de-outro-app'
+
         documento = cliente.cpfCnpj ?? null
     } catch (erro) {
         log.warn(`não consegui ler o cliente ${customerId} no Asaas: ${String(erro)}`)

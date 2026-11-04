@@ -41,6 +41,22 @@ export interface EstadoDoWebhook {
     webhooks: WebhookDoAsaas[]
 }
 
+/**
+ * O caminho público que o Asaas tem de chamar **neste** app.
+ *
+ * `WEBHOOK_BASE_URL` e não a URL pública do app pela mesma razão que o WhatsApp
+ * usa: a base certa para quem nos chama de fora pode não ser a mesma que o
+ * navegador usa. Sem nenhuma das duas, devolve vazio e a conferência de
+ * pertencimento é pulada — ela não pode ser o que derruba a tela.
+ */
+function nossoCaminho(): string {
+    const base = (process.env.WEBHOOK_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '').replace(
+        /\/+$/,
+        ''
+    )
+    return base ? `${base}/api/webhooks/asaas` : ''
+}
+
 export async function estadoDoWebhook(): Promise<EstadoDoWebhook> {
     const lista = await asaas<{ data?: WebhookDoAsaas[] }>('/webhooks?limit=20')
     const webhooks = lista.data ?? []
@@ -51,7 +67,36 @@ export async function estadoDoWebhook(): Promise<EstadoDoWebhook> {
         problemas.push('Nenhum webhook registrado: nada do Asaas chega até aqui.')
     }
 
-    for (const w of webhooks) {
+    /**
+     * **A lista é da conta Asaas, não deste app** — e isso era um falso verde.
+     *
+     * Uma conta Asaas pode servir mais de um produto da Venn360. `GET
+     * /webhooks` devolve os webhooks da **conta**, então o webhook saudável de
+     * outro produto bastava para esta tela dizer "fila saudável" enquanto a URL
+     * deste app não estava registrada em lugar nenhum. O veredito era sobre o
+     * vizinho.
+     *
+     * Então a conferência passou a ser de pertencimento: entre os registrados,
+     * algum é o **nosso** caminho? A comparação é pelo caminho público completo,
+     * que é único por produto (`<produto>.venn360.com/api/webhooks/asaas`).
+     *
+     * E os problemas abaixo passam a ser reportados **apenas dos nossos**: fila
+     * interrompida do outro produto é problema real, mas não é deste painel, e
+     * mostrá-lo aqui mandaria alguém procurar no lugar errado.
+     */
+    const caminho = nossoCaminho()
+    const nossos = caminho
+        ? webhooks.filter((w) => (w.url ?? '').replace(/\/+$/, '') === caminho)
+        : webhooks
+
+    if (caminho && webhooks.length > 0 && nossos.length === 0) {
+        problemas.push(
+            `Nenhum webhook aponta para ${caminho}. Há ${webhooks.length} registrado(s) nesta ` +
+                'conta do Asaas, mas nenhum é deste sistema — os eventos não chegam aqui.'
+        )
+    }
+
+    for (const w of nossos) {
         const nome = w.name || w.url || w.id
 
         if (w.interrupted) {

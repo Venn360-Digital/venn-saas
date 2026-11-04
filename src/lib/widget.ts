@@ -29,15 +29,24 @@ export async function widgetIntegration(key: string): Promise<WidgetIntegration 
 /**
  * O widget roda no site da clínica, que é outro domínio.
  *
- * `*` porque a clínica escolhe onde cola o código e não temos como saber: a
- * origem não é o que protege nada aqui. O que protege é que a chave pública só
- * abre conversa, e a do visitante só lê a dele.
+ * `*` enquanto a clínica **não** declara domínio nenhum: ela escolhe onde cola
+ * o código e não temos como saber. Nesse estado a origem não protege nada — o
+ * que protege é a chave pública só abrir conversa e a do visitante só ler a
+ * dela.
+ *
+ * **Declarando a lista, a origem passa a ser devolvida nominalmente.** Não é
+ * cosmético: `*` e credencial não convivem, e devolver o host exato é o que
+ * permite ao navegador recusar a página não autorizada antes mesmo de a
+ * resposta ser lida — segunda tranca, além da que a rota aplica no servidor.
+ * `Vary: Origin` porque a resposta passa a depender do cabeçalho, e sem ele
+ * qualquer cache intermediário serviria a resposta de um site para outro.
  */
-export function widgetCors(): Record<string, string> {
+export function widgetCors(origem?: string | null): Record<string, string> {
     return {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': origem || '*',
         'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
+        Vary: 'Origin',
         'Cache-Control': 'no-store',
     }
 }

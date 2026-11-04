@@ -1,4 +1,6 @@
 import { AppSidebar } from '@/components/layout/AppSidebar'
+import { FaixaDeAvaliacao } from '@/components/layout/FaixaDeAvaliacao'
+import { avaliacaoDaSessao } from '@/lib/avaliacao'
 import { marcaDaSessao } from '@/lib/session-brand'
 import { DocumentTitle } from '@/components/layout/DocumentTitle'
 import { Topbar } from '@/components/layout/Topbar'
@@ -67,7 +69,18 @@ export default async function DashboardLayout({
      * requisição em vez de servidas como casca estática. São duas consultas que
      * o cliente já fazia de qualquer forma, agora sem a ida e volta extra.
      */
-    const marca = await marcaDaSessao()
+    /**
+     * As duas leituras da requisição, em paralelo.
+     *
+     * `avaliacaoDaSessao` entrou com a faixa de avaliação (proposta A). Ela
+     * mora aqui e não dentro da faixa porque o layout é quem pode resolvê-la
+     * **antes** do primeiro paint: uma faixa de 40px que aparece depois de uma
+     * resposta de API empurra a página inteira para baixo a cada navegação.
+     *
+     * `Promise.all` e não duas esperas: as duas são independentes e as duas
+     * estão no caminho de toda tela do painel.
+     */
+    const [marca, avaliacao] = await Promise.all([marcaDaSessao(), avaliacaoDaSessao()])
 
     return (
         // `fixed inset-0`, não só `h-svh`: preso ao viewport, o shell não
@@ -91,6 +104,9 @@ export default async function DashboardLayout({
                 ele, a barra pinta por cima do raio do `inset`. */}
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
                 <Topbar marca={marca} />
+                {/* Abaixo da barra e **fora** da região que rola: a faixa fica
+                    à vista enquanto a lista desce. */}
+                <FaixaDeAvaliacao avaliacao={avaliacao} />
                 <div
                     id="conteudo"
                     tabIndex={-1}

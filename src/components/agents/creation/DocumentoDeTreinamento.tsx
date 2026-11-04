@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { AlertTriangle, Check, Download, FileUp, ListPlus, Wand2 } from 'lucide-react'
+import { AlertTriangle, Check, Download, FileUp, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,6 @@ import {
 } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
 import { textoParaAcervo } from '@/lib/treinamento/indexar'
-import { gerarRascunho, type CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 
 /**
@@ -70,7 +69,6 @@ interface Props {
      * produção antes de alguém conferir, e o que está aqui é o que o agente vai
      * dizer ao paciente.
      */
-    camposAntigos?: CamposAntigos
 }
 
 export function DocumentoDeTreinamento({
@@ -81,10 +79,27 @@ export function DocumentoDeTreinamento({
     trechos,
     desatualizado = false,
     somenteLeitura = false,
-    camposAntigos,
 }: Props) {
     const entrada = useRef<HTMLInputElement>(null)
-    const rascunho = camposAntigos ? gerarRascunho(doc.slug, camposAntigos) : null
+    /**
+     * **"Gerar cadastro" saiu**, por decisão do Andre em 2026-11-04.
+     *
+     * O botão montava um rascunho do documento a partir dos campos antigos do
+     * agente — nome da empresa, setor, endereço, descrição, atribuições. Fazia
+     * sentido na transição para o método por .MD, quando havia agente com
+     * aquele cadastro preenchido e redigitá-lo em Markdown seria jogar fora
+     * trabalho feito. Essa transição acabou.
+     *
+     * Hoje a conta nova chega com os campos vazios, e aí o botão devolvia a
+     * casca do documento: títulos e nenhuma informação — exatamente o que
+     * "Inserir modelo" faz, com um nome que promete mais. Dois botões para o
+     * mesmo efeito, e o de nome maior entregando menos.
+     *
+     * Saiu com o encanamento: `lib/treinamento/gerar.ts`, a prop
+     * `camposAntigos` que atravessava três componentes e a seção do
+     * `test:treinamento` que o exercitava. Código morto que ainda tem teste
+     * verde é pior que código morto — ele parece vivo.
+     */
 
     const usado = valor.length
     const excedeu = usado > doc.teto
@@ -223,25 +238,6 @@ export function DocumentoDeTreinamento({
                             <ListPlus className="size-4" aria-hidden="true" />
                             Inserir modelo
                         </Button>
-                        {rascunho ? (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-8"
-                                onClick={() => onChange(rascunho)}
-                                // Mesmo cuidado do modelo: não apaga texto escrito.
-                                disabled={temConteudo}
-                                title={
-                                    temConteudo
-                                        ? 'O rascunho só entra no campo vazio, para não apagar o que você escreveu'
-                                        : 'Monta um rascunho a partir do que já está no cadastro do agente'
-                                }
-                            >
-                                <Wand2 className="size-4" aria-hidden="true" />
-                                Gerar do cadastro
-                            </Button>
-                        ) : null}
                         <Button
                             type="button"
                             variant="outline"

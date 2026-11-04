@@ -32,7 +32,11 @@ function AvatarImage({
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
-      className={cn("aspect-square size-full", className)}
+      // `object-cover` e não só `aspect-square`: a caixa é quadrada, a foto
+      // quase nunca é, e sem isto o navegador ESTICA a imagem para preencher —
+      // rosto achatado no pé da sidebar, que é onde o Andre viu. Recortar pelo
+      // centro é o que todo avatar faz; o shadcn não traz por omissão.
+      className={cn("aspect-square size-full object-cover object-center", className)}
       {...props}
     />
   )

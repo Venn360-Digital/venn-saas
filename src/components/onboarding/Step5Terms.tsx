@@ -1,55 +1,59 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TERMS, TERMS_VERSION } from '@/lib/terms'
 
-interface Step5TermsProps {
-    onFinish: () => void
-    onBack: () => void
-    loading?: boolean
-}
-
 /**
- * The agreement, before the workspace exists rather than buried in a footer
- * afterwards. The accept box stays disabled until the text has been scrolled to
- * the end: an acceptance nobody could have read is not worth recording.
+ * O acordo, antes de o workspace existir.
+ *
+ * A caixa de aceite segue travada até o texto ter sido rolado até o fim: um
+ * aceite que ninguém teve como ler não vale ser registrado.
+ *
+ * **É o termo da conta, e é aceito uma vez.** Quem o dono cadastra depois em
+ * Gerenciamento → Usuários não passa por aqui — não passa pelo cadastro
+ * inteiro —, porque o que se assina aqui é o contrato da clínica, não um
+ * consentimento de cada pessoa. O portão que fazia o convidado cair no cadastro
+ * estava em `GET /api/auth/check-workspace`, que procurava aceite **do usuário**
+ * em vez de aceite **da conta**.
+ *
+ * A altura do texto acompanha a faixa que rola, em vez de ser fixa em 22rem:
+ * com um bloco fixo mais o cartão de aceite mais o botão, o passo era mais alto
+ * que a tela e o botão de aceitar só existia para quem rolasse até ele.
  */
-export function Step5Terms({ onFinish, onBack, loading = false }: Step5TermsProps) {
-    const [accepted, setAccepted] = useState(false)
-    const [reachedEnd, setReachedEnd] = useState(false)
+export function Step5Terms({
+    aceito,
+    onAceitoChange,
+}: {
+    aceito: boolean
+    onAceitoChange: (aceito: boolean) => void
+}) {
+    const [chegouAoFim, setChegouAoFim] = useState(false)
 
-    function handleScroll(e: React.UIEvent<HTMLDivElement>) {
+    function aoRolar(e: React.UIEvent<HTMLDivElement>) {
         const el = e.currentTarget
-        if (el.scrollHeight - el.scrollTop - el.clientHeight < 32) setReachedEnd(true)
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 32) setChegouAoFim(true)
     }
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h2 className="text-h2">Termos do acordo</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Leia antes de começar. Versão {TERMS_VERSION}.
-                </p>
-            </div>
+        <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Versão {TERMS_VERSION}.</p>
 
             <ScrollArea
-                className="h-[22rem] rounded-lg border border-border bg-card"
-                onScrollCapture={handleScroll}
+                className="h-[clamp(14rem,calc(100svh-23rem),30rem)] rounded-lg border border-border bg-card"
+                onScrollCapture={aoRolar}
             >
-                <div className="space-y-5 p-5">
+                <div className="space-y-4 p-4">
                     {TERMS.map((section) => (
                         <section key={section.title}>
-                            <h3 className="text-h4">{section.title}</h3>
+                            <h2 className="text-sm font-semibold">{section.title}</h2>
                             {section.body.map((paragraph) => (
                                 <p
                                     key={paragraph}
-                                    className="mt-2 text-sm leading-relaxed text-muted-foreground"
+                                    className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground"
                                 >
                                     {paragraph}
                                 </p>
@@ -59,36 +63,23 @@ export function Step5Terms({ onFinish, onBack, loading = false }: Step5TermsProp
                 </div>
             </ScrollArea>
 
-            <div className="flex items-start gap-3 rounded-lg border border-border p-4">
+            <div className="flex items-start gap-3 rounded-lg border border-border p-3">
                 <Checkbox
                     id="accept-terms"
-                    checked={accepted}
-                    onCheckedChange={(v) => setAccepted(v === true)}
-                    disabled={!reachedEnd}
+                    checked={aceito}
+                    onCheckedChange={(v) => onAceitoChange(v === true)}
+                    disabled={!chegouAoFim}
                     className="mt-0.5"
                 />
-                <Label
-                    htmlFor="accept-terms"
-                    className="text-sm leading-relaxed font-normal"
-                >
-                    Li e aceito os termos acima, incluindo o período de avaliação de 7 dias e
-                    as regras de créditos e de retenção de dados.
-                    {!reachedEnd ? (
-                        <span className="mt-1 block text-xs text-muted-foreground">
+                <Label htmlFor="accept-terms" className="text-[13px] font-normal leading-relaxed">
+                    Li e aceito os termos acima, incluindo o período de avaliação de 7 dias e as
+                    regras de créditos e de retenção de dados.
+                    {!chegouAoFim ? (
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
                             Role o texto até o fim para habilitar.
                         </span>
                     ) : null}
                 </Label>
-            </div>
-
-            <div className="flex justify-between gap-3">
-                <Button type="button" variant="outline" onClick={onBack} disabled={loading}>
-                    Voltar
-                </Button>
-                <Button type="button" onClick={onFinish} disabled={!accepted || loading}>
-                    {loading ? <Loader2 className="animate-spin" /> : null}
-                    Aceitar e começar
-                </Button>
             </div>
         </div>
     )

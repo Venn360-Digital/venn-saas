@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { assinaturaDaUnidade } from '@/lib/account'
+import { enderecoDoAvatar } from '@/lib/agents/avatar'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 import { findModel } from '@/lib/llm/models'
@@ -124,7 +125,18 @@ export async function GET(request: NextRequest) {
             },
         })
 
-        return NextResponse.json(agents)
+        /**
+         * O endereço da imagem é cunhado aqui, na saída.
+         *
+         * A coluna guarda `ref:publico:<chave>` (ver `POST
+         * /api/agents/[id]/avatar`). Sem esta linha a lista mostraria a
+         * referência crua como `src` e toda foto de agente apareceria quebrada.
+         */
+        const comFoto = await Promise.all(
+            agents.map(async (a) => ({ ...a, avatar: await enderecoDoAvatar(a) }))
+        )
+
+        return NextResponse.json(comFoto)
     } catch (error) {
         console.error('[AGENTS_GET]', error)
         return new NextResponse('Internal Error', { status: 500 })

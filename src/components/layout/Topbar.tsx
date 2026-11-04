@@ -102,6 +102,9 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
     const [notifications, setNotifications] = useState<AppNotification[]>([])
     const [unread, setUnread] = useState(0)
     const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+    const [sinoAberto, setSinoAberto] = useState(false)
+    /** Os avisos que estavam por ler quando o sino abriu — seguem realçados. */
+    const [recemLidos, setRecemLidos] = useState<Set<string>>(new Set())
     const router = useRouter()
 
 
@@ -125,14 +128,47 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
         } catch { /* a campainha segue com o que tem */ }
     }, [])
 
-    const markAllRead = async () => {
+    /**
+     * Abrir o sino **é** ler os avisos.
+     *
+     * Não havia como marcar como lido. Existia um "Marcar como lidos" ao lado
+     * do título, mas ele só era desenhado quando a lista de avisos já tinha
+     * item **e** havia não lido — no caso comum, de sino sem aviso guardado, a
+     * seção inteira não era renderizada e não havia botão nenhum. O resultado
+     * era um contador vermelho que nunca zerava.
+     *
+     * A escolha é a do Andre: clicar no sino dá por lido. É o que o Gmail e o
+     * Slack fazem com a bandeja — abrir é ler —, e dispensa um segundo gesto
+     * para apagar um aviso que a pessoa acabou de ver.
+     *
+     * O que isso **não** pode fazer é a lista pular na mão de quem abriu. Por
+     * isso o realce de "não lido" não sai junto: os ids que estavam por ler no
+     * momento da abertura ficam guardados em `recemLidos` e seguem destacados
+     * até o sino fechar. O contador zera na hora; o destaque é o que diz quais
+     * eram novos.
+     */
+    const marcarTudoLido = useCallback(async () => {
         setUnread(0)
-        setNotifications((prev) => prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })))
+        setNotifications((prev) =>
+            prev.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() }))
+        )
         await fetch('/api/notifications', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({}),
         }).catch(() => { })
+    }, [])
+
+    const aoAbrirOSino = (aberto: boolean) => {
+        setSinoAberto(aberto)
+        if (!aberto) {
+            setRecemLidos(new Set())
+            return
+        }
+        const porLer = notifications.filter((n) => !n.readAt).map((n) => n.id)
+        if (porLer.length === 0 && unread === 0) return
+        setRecemLidos(new Set(porLer))
+        void marcarTudoLido()
     }
 
     const loadReminders = useCallback(async () => {
@@ -239,7 +275,7 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                 </Button>
 
                 {/* Notifications Bell */}
-                <Popover>
+                <Popover open={sinoAberto} onOpenChange={aoAbrirOSino}>
                     <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
                             <Bell className="h-5 w-5" />
@@ -255,16 +291,13 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                             lembrete ainda vai acontecer. */}
                         {notifications.length > 0 && (
                             <div className="border-b border-border">
+                                {/* Sem "Marcar como lidos": abrir já marcou. Um
+                                    botão que não muda nada é pior que nenhum. */}
                                 <div className="flex items-center justify-between px-4 py-2.5">
                                     <h3 className="text-sm font-semibold">Avisos</h3>
-                                    {unread > 0 && (
-                                        <button
-                                            onClick={() => void markAllRead()}
-                                            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-                                        >
-                                            Marcar como lidos
-                                        </button>
-                                    )}
+                                    <span className="text-[11px] text-muted-foreground">
+                                        Marcados como lidos ao abrir
+                                    </span>
                                 </div>
                                 <div className="max-h-56 overflow-y-auto">
                                     {notifications.map((n) => (
@@ -273,10 +306,10 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
                                             href={n.link ?? '/dashboard'}
                                             className={cn(
                                                 'flex items-start gap-3 border-b border-border px-4 py-2.5 transition-colors last:border-0 hover:bg-accent/30',
-                                                !n.readAt && 'bg-primary-subtle/40'
+                                                (!n.readAt || recemLidos.has(n.id)) && 'bg-primary-subtle/40'
                                             )}
                                         >
-                                            <div className={cn('mt-0.5 rounded-md bg-accent p-1.5', !n.readAt && 'text-primary-subtle-foreground')}>
+                                            <div className={cn('mt-0.5 rounded-md bg-accent p-1.5', (!n.readAt || recemLidos.has(n.id)) && 'text-primary-subtle-foreground')}>
                                                 <Bell className="h-3.5 w-3.5" />
                                             </div>
                                             <div className="min-w-0 flex-1">

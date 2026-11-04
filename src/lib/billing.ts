@@ -64,6 +64,20 @@ export interface BillingState {
     planName: string | null
     /** True when the workspace may not send messages or create records. */
     readOnly: boolean
+    /**
+     * **Por que** está em somente leitura — nulo quando não está.
+     *
+     * As duas causas terminam no mesmo lugar (a conta lê, não escreve, e o
+     * agente não responde) mas não se chamam a mesma coisa para quem olha:
+     * `trial` é a avaliação que venceu sem assinatura, `corte` é a assinatura
+     * que foi cancelada ou cuja carência de atraso terminou. Chamar as duas de
+     * "avaliação encerrada" diria a um cliente que já pagou que o teste dele
+     * acabou.
+     *
+     * Derivado aqui porque é aqui que `status` e `readOnlySince` estão na mão —
+     * quem consome não precisa de uma segunda consulta para saber.
+     */
+    readOnlyMotivo: 'trial' | 'corte' | null
     trialEndsAt: Date | null
     /** Whole days and leftover minutes until the trial closes. Null outside it. */
     remaining: { days: number; minutes: number; totalMinutes: number } | null
@@ -122,6 +136,7 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
             planId: null,
             planName: null,
             readOnly: true,
+            readOnlyMotivo: null,
             trialEndsAt: null,
             remaining: null,
             credits: {
@@ -182,6 +197,10 @@ export async function getBillingState(workspaceId: string): Promise<BillingState
         planId: subscription.plan,
         planName: null,
         readOnly: phase === 'readonly',
+        // `trialLapsed` primeiro: uma conta que nunca assinou e cujo trial
+        // venceu pode ter `readOnlySince` gravado pelo mesmo cron, e aí as duas
+        // condições valem — o que ela viveu foi o fim da avaliação.
+        readOnlyMotivo: phase !== 'readonly' ? null : trialLapsed ? 'trial' : 'corte',
         trialEndsAt,
         remaining,
         credits: {

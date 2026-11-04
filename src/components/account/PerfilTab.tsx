@@ -244,13 +244,13 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                             />
                         </FormField>
 
+                        {/* Sem "Alterar" ao lado: o botão não tinha `onClick`
+                            — prometia uma tela que não existe. Trocar o e-mail
+                            é trocar o login, e isso passa por confirmar o
+                            endereço novo; enquanto o fluxo não existir, o campo
+                            só informa. */}
                         <FormField label="E-mail da conta" htmlFor="account-email" hint="É o seu login.">
-                            <div className="flex gap-2">
-                                <Input id="account-email" value={profile?.email || ''} disabled className="flex-1" />
-                                <Button type="button" variant="outline" className="shrink-0">
-                                    Alterar
-                                </Button>
-                            </div>
+                            <Input id="account-email" value={profile?.email || ''} disabled />
                         </FormField>
                     </div>
                 </SettingsBand>
