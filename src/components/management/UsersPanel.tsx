@@ -16,6 +16,7 @@ import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { UserPanel } from '@/components/users/UserPanel'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE, DISPONIBILIDADE } from '@/components/shared/StatusBadge'
 import { UserFormModal } from '@/components/users/UserFormModal'
+import { usePermissions } from '@/hooks/usePermissions'
 
 interface WorkspaceUser {
     id: string
@@ -78,6 +79,16 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
     const [editingUser, setEditingUser] = useState<WorkspaceUser | null>(null)
     const [deleting, setDeleting] = useState<WorkspaceUser | null>(null)
     const [selectedIds, setSelectedIds] = useState<string[]>([])
+    /**
+     * Ver a equipe é de supervisão; mexer nela é de gestão.
+     *
+     * O GESTOR chega até aqui — a guia existe para ele — e não convida, não
+     * edita e não exclui ninguém. Sem este recorte a tela lhe oferecia três
+     * ações que a API responde com 403, que é a pior forma de dizer não.
+     * O portão de verdade está em `POST`/`PATCH`/`DELETE /api/users`; isto é
+     * o que faz a tela contar a mesma história.
+     */
+    const { canManage } = usePermissions()
     const [bulkDeleting, setBulkDeleting] = useState(false)
     /** A rota devolve a equipe inteira; a paginação é daqui. */
     const [page, setPage] = useState(1)
@@ -259,7 +270,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                         ) : null}
                         <DataTable
                             frame
-                            selectable
+                            selectable={canManage}
                             selected={selectedIds}
                             onSelectedChange={setSelectedIds}
                             bulkActions={(ids) => (
@@ -270,7 +281,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                             getRowId={(u) => u.id}
                             loading={loading}
                             onRowClick={(u) => setOpenId(u.id)}
-                            rowActions={(u) => (
+                            rowActions={canManage ? (u) => (
                                 <RowActions label={`Ações de ${u.name}`}>
                                     <RowActionItem icon={Pencil} onClick={() => setOpenId(u.id)}>
                                         Abrir ficha
@@ -293,7 +304,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                                         Excluir
                                     </RowActionItem>
                                 </RowActions>
-                            )}
+                            ) : undefined}
                             empty={
                                 <EmptyState
                                     variant="inline"
@@ -327,7 +338,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                             key={openItem.id}
                             item={openItem}
                             departments={departments}
-                            canEdit
+                            canEdit={canManage}
                             onClose={() => setOpenId(null)}
                             {...panelNeighbours(openId, rowIds, setOpenId)}
                             onChanged={() => void fetchUsers()}

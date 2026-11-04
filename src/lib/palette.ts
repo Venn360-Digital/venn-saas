@@ -70,6 +70,21 @@ export const DEFAULT_PIPELINE_STAGES = [
     { name: 'Retrabalho', color: BRAND_HEX.amber, order: 4 },
 ] as const
 
+/**
+ * A tinta que vai **por cima** da cor escolhida para o widget.
+ *
+ * O widget deixou de ter cor fixa: a clínica escolhe, e um amarelo ou um
+ * verde-água deixam o branco ilegível. `widget.js` decide entre as duas pela
+ * luminância relativa do WCAG, e a tela de configuração repete a mesma conta
+ * para a prévia não mentir. Os dois valores moram aqui porque é daqui que sai
+ * todo hex literal do produto — e porque "escolha sua cor" sem isto seria
+ * "escolha sua cor, e torça".
+ */
+export const TINTA_DO_WIDGET = {
+    sobreClaro: BRAND_HEX.navy,
+    sobreEscuro: '#ffffff',
+} as const
+
 /** Defaults for the agent's web chat widget, which the clinic can restyle. */
 export const AGENT_WIDGET_DEFAULTS = {
     primaryColor: BRAND_HEX.teal,

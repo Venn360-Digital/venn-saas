@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { CLASSES, enderecoPara, gravar } from '@/lib/storage'
+import { CLASSES, gravar } from '@/lib/storage'
+import { comoReferencia } from '@/lib/midia'
+import { enderecoDoAvatar } from '@/lib/agents/avatar'
 import { MANAGER_ROLES, assertAgentAccess, getWorkspaceMember } from '@/lib/auth/workspace'
 
 /**
@@ -109,17 +111,37 @@ export async function POST(
             return NextResponse.json({ error: 'Falha no upload da imagem' }, { status: 500 })
         }
 
-        // Gravar na mesma chave mantém a mesma URL, então sem isto o navegador
-        // seguiria mostrando a imagem anterior em cache depois da troca.
-        const url = `${await enderecoPara(ref)}?v=${Date.now()}`
-
+        /**
+         * A coluna guarda **referência**, nunca endereço — e isto era um defeito
+         * com sintoma exato.
+         *
+         * O que ficava gravado aqui era o retorno de `enderecoPara`. Sem
+         * `PUBLIC_STORAGE_BASE_URL` configurado, `enderecoPara` **degrada para
+         * URL assinada**, de validade máxima de 600 s. Então a imagem aparecia
+         * ao salvar — a assinatura tinha acabado de nascer — e dez minutos
+         * depois a mesma linha apontava para um 403: "a imagem fica quebrada na
+         * tela de agentes e no perfil", que é o que o Andre viu.
+         *
+         * `lib/storage/tipos.ts` já avisava, nominalmente, que esta rota fazia
+         * isso errado; `lib/midia.ts` já tinha a convenção pronta
+         * (`ref:<classe>:<chave>`) e o conserto é passar a usá-la. O endereço
+         * passa a ser cunhado na saída, a cada leitura — nasce válido e nunca
+         * existe em repouso.
+         *
+         * Nada de `?v=`: a chave é fixa por agente, e era o parâmetro que furava
+         * o cache do navegador depois de sobrescrever. Com endereço cunhado na
+         * leitura, cada resposta já traz uma assinatura nova — ou, com domínio
+         * público configurado, uma URL que o `updatedAt` do objeto invalida.
+         */
         const agent = await prisma.agent.update({
             where: { id: agentId },
-            data: { avatar: url },
-            select: { id: true, avatar: true },
+            data: { avatar: comoReferencia(ref) },
+            select: { id: true, workspaceId: true, avatar: true },
         })
 
-        return NextResponse.json(agent)
+        // O cliente usa esta resposta como `src` do preview, então aqui vai o
+        // endereço utilizável — não a referência que ficou no banco.
+        return NextResponse.json({ id: agent.id, avatar: await enderecoDoAvatar(agent) })
     } catch (error) {
         console.error('[AGENT_AVATAR_POST]', error)
         return NextResponse.json({ error: 'Erro interno' }, { status: 500 })

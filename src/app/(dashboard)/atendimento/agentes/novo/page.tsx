@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { getSession } from '@/lib/auth/cliente'
-import { AgentFrame } from '@/components/agents/creation/AgentFrame'
+import { AgentFrame, type SecaoId } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
 import { EsqueletoDoFormulario } from '@/components/agents/creation/EsqueletoDoFormulario'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
@@ -245,23 +245,6 @@ function NovoAgenteContent() {
         }
     }
 
-    /**
-     * Os campos antigos, para o rascunho da transição.
-     *
-     * Montado da tela e não do banco: é o que a pessoa está vendo, inclusive o
-     * que ela acabou de digitar e ainda não salvou.
-     */
-    const camposAntigos = {
-        agentName: perfil.name,
-        companyName: trabalho.companyName,
-        companySector: trabalho.companySector,
-        companyAddress: trabalho.companyAddress,
-        companyDescription: trabalho.companyDescription,
-        jobDescription: trabalho.jobDescription,
-        agentFunction: perfil.agentFunction,
-        voiceTone: perfil.voiceTone,
-        systemPrompt: instrucoes.systemPrompt,
-    }
 
     const renderTab = () => {
         switch (currentTab) {
@@ -278,7 +261,6 @@ function NovoAgenteContent() {
                             indexadoEm: documentos['instrucoes-centrais']?.indexedAt ?? null,
                             trechos: documentos['instrucoes-centrais']?.indexedChunks ?? null,
                         }}
-                        camposAntigos={camposAntigos}
                         onCentraisChange={(content) => {
                             marcarSujo(true)
                             setDocumentos((atual) => ({
@@ -348,7 +330,6 @@ function NovoAgenteContent() {
                         doc={doc}
                         valor={gravado?.content ?? ''}
                         somenteLeitura={!canManage}
-                        camposAntigos={camposAntigos}
                         indexadoEm={gravado?.indexedAt ?? null}
                         trechos={gravado?.indexedChunks ?? null}
                         desatualizado={gravado?.desatualizado ?? false}
@@ -366,13 +347,46 @@ function NovoAgenteContent() {
     }
 
 
+    /**
+     * Esta página serve **quatro** seções da barra, não uma.
+     *
+     * Ensaio, Lacunas e Voz subiram para a barra em 2026-11-04 e continuam
+     * morando aqui, no mesmo `?tab=`: são o mesmo formulário carregado, com o
+     * mesmo agente em mão, e separá-las em rotas próprias faria cada uma
+     * recarregar o agente inteiro para mostrar um painel. Quem a barra marca
+     * como aberta sai da guia, então.
+     */
+    const secaoDaGuia: SecaoId =
+        currentTab === 'ensaio' || currentTab === 'lacunas' || currentTab === 'voz'
+            ? currentTab
+            : 'personalidade'
+
+    /**
+     * Ensaio e Lacunas não gravam nada.
+     *
+     * Ensaio é um console de teste e Lacunas é uma bandeja de leitura; o Salvar
+     * ali gravaria o agente inteiro sem que nada na tela tivesse mudado — botão
+     * que faz algo diferente do que a tela sugere. Voz mantém o Salvar: é
+     * configuração do agente como as guias de Treinamento, e é a mesma gravação.
+     */
+    const guiaGrava = secaoDaGuia === 'personalidade' || secaoDaGuia === 'voz'
+
+    const dicaDoRodape =
+        secaoDaGuia === 'ensaio'
+            ? 'A conversa de ensaio não é gravada nem cobra crédito do agente no ar.'
+            : secaoDaGuia === 'lacunas'
+              ? 'O que o agente não soube responder. Responder aqui vira documento de treinamento.'
+              : secaoDaGuia === 'voz'
+                ? 'Grava o agente com a configuração de fala.'
+                : 'Grava o agente com o que está nas guias de Treinamento.'
+
     return (
         <AgentFrame
-            secao="personalidade"
-            dica="Grava o agente com o que está nas guias de Treinamento."
+            secao={secaoDaGuia}
+            dica={dicaDoRodape}
             /* Sem Salvar para quem não administra: a API recusa, e um botão
                que só sabe recusar é pior que a sua ausência. */
-            acoes={canManage ? (
+            acoes={canManage && guiaGrava ? (
                 <div className="flex items-center gap-2">
                     {/**
                      * **Publicar é outro botão, e tem de ser.**

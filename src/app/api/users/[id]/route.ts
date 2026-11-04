@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
+import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
@@ -33,6 +33,18 @@ export async function GET(
 
         if (!currentWorkspaceUser) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
+        }
+
+        /**
+         * A ficha de um colega é do mesmo recorte da lista.
+         *
+         * Esta rota não tinha portão de papel nenhum: qualquer membro da
+         * unidade lia telefone, e-mail e papel de qualquer outro pelo id. Com
+         * a guia Usuários sumindo para o ATENDENTE, deixar a rota aberta faria
+         * da guia sumida só um enfeite.
+         */
+        if (!canSeeEveryone(currentWorkspaceUser.role)) {
+            return NextResponse.json({ error: 'Permissão negada' }, { status: 403 })
         }
 
         const workspaceUser = await prisma.workspaceUser.findFirst({

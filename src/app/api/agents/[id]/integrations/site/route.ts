@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { manageAgent } from '@/lib/auth/agent'
 import { novaChave } from '@/lib/widget'
+import {
+    WIDGET_PADRAO,
+    lerConfiguracaoDoWidget,
+    comoJsonDoWidget,
+    sanearConfiguracaoDoWidget,
+    type ConfiguracaoDoWidget,
+} from '@/lib/widget-config'
+import type { Prisma } from '#prisma'
 
 /**
  * O canal do site: liga, desliga, e devolve o código para colar.
@@ -23,12 +31,19 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         where: { agentId, channel: CHANNEL },
     })
 
-    if (!integracao?.publicKey) return NextResponse.json({ connected: false })
+    if (!integracao?.publicKey) {
+        // Sem canal ligado a tela ainda desenha o formulário de aparência, com
+        // os padrões — assim a clínica configura antes de ligar, e o widget
+        // nasce com a cara dela em vez de nascer genérico e ser ajustado
+        // depois, com o script já colado no site.
+        return NextResponse.json({ connected: false, config: WIDGET_PADRAO })
+    }
 
     return NextResponse.json({
         connected: integracao.status === 'connected',
         publicKey: integracao.publicKey,
         snippet: snippetFor(integracao.publicKey),
+        config: lerConfiguracaoDoWidget(integracao.config),
     })
 }
 
@@ -74,6 +89,81 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         connected: true,
         publicKey: integracao.publicKey,
         snippet: snippetFor(integracao.publicKey as string),
+        config: lerConfiguracaoDoWidget(integracao.config),
+    })
+}
+
+/**
+ * A aparência e as regras do widget.
+ *
+ * ## Por que grava em `config` e não em colunas
+ *
+ * `AgentIntegration.config` é `Json?` e já existe. Oito colunas novas para
+ * guardar o que nunca entra num filtro — ninguém vai perguntar "quais widgets
+ * são bolha" — seriam uma migração cara por nada, e migração é justamente o que
+ * a produção dos clones ainda não sabe rodar.
+ *
+ * ## O merge é por chave, e tem de ser
+ *
+ * A mesma coluna guarda o que os **outros** canais escrevem (`qrCode`,
+ * `sessionId`, `accessToken`). Gravar o objeto saneado por cima apagaria tudo
+ * isso. O que entra é o espalhamento do que já estava mais as chaves do widget.
+ *
+ * ## Configurar é de gestão
+ *
+ * `manageAgent` já é o portão das outras rotas do agente, e a lista de domínios
+ * é controle de acesso: quem pode mudá-la pode abrir o widget da clínica para
+ * qualquer site.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id: agentId } = await params
+    const auth = await manageAgent(agentId)
+    if (!auth.ok) return auth.response
+
+    const corpo = await request.json().catch(() => null)
+    if (!corpo) return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
+
+    const config: ConfiguracaoDoWidget = sanearConfiguracaoDoWidget(corpo)
+
+    const integracao = await prisma.agentIntegration.findFirst({
+        where: { agentId, channel: CHANNEL },
+        select: { id: true, config: true, publicKey: true, status: true },
+    })
+
+    /**
+     * Configurar antes de ligar cria a linha **desligada**.
+     *
+     * A clínica abre a guia, escolhe cor e nome, e só depois aperta o
+     * interruptor — nessa ordem o widget nasce pronto. Sem isto a configuração
+     * se perderia, e a ordem natural da tela puniria quem a seguisse.
+     */
+    if (!integracao) {
+        await prisma.agentIntegration.create({
+            data: {
+                agentId,
+                channel: CHANNEL,
+                status: 'disconnected',
+                config: comoJsonDoWidget(config) as Prisma.InputJsonValue,
+            },
+        })
+        return NextResponse.json({ connected: false, config })
+    }
+
+    const anterior =
+        integracao.config && typeof integracao.config === 'object' && !Array.isArray(integracao.config)
+            ? (integracao.config as Record<string, unknown>)
+            : {}
+
+    await prisma.agentIntegration.update({
+        where: { id: integracao.id },
+        data: { config: { ...anterior, ...comoJsonDoWidget(config) } as Prisma.InputJsonValue },
+    })
+
+    return NextResponse.json({
+        connected: integracao.status === 'connected',
+        publicKey: integracao.publicKey,
+        snippet: integracao.publicKey ? snippetFor(integracao.publicKey) : undefined,
+        config,
     })
 }
 

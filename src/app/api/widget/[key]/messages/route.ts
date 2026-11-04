@@ -11,6 +11,7 @@ import {
     widgetIntegration,
 } from '@/lib/widget'
 import { isHumanHandled } from '@/trabalhos/servicos/conversation'
+import { lerConfiguracaoDoWidget, origemPermitida } from '@/lib/widget-config'
 
 /**
  * A conversa do visitante do site.
@@ -24,15 +25,45 @@ import { isHumanHandled } from '@/trabalhos/servicos/conversation'
  * não dar acesso a nada além de começar a falar.
  */
 
-export async function OPTIONS() {
-    return new NextResponse(null, { status: 204, headers: widgetCors() })
+export async function OPTIONS(request: NextRequest) {
+    return new NextResponse(null, { status: 204, headers: widgetCors(request.headers.get('origin')) })
+}
+
+/**
+ * A segunda tranca do domínio autorizado.
+ *
+ * A primeira está em `GET /api/widget/[key]`, que recusa a configuração e
+ * portanto impede a bolha de se desenhar. Esta existe porque aquela é a tranca
+ * do **navegador**: quem copiou o script e quer gastar o crédito de IA da
+ * clínica não precisa de navegador nenhum — manda `POST` direto. Sem ela, a
+ * lista de domínios seria decoração de interface.
+ */
+async function origemRecusada(
+    request: NextRequest,
+    config: ReturnType<typeof lerConfiguracaoDoWidget>,
+    key: string
+): Promise<NextResponse | null> {
+    const origem = request.headers.get('origin')
+    if (origemPermitida(origem, config.dominios)) return null
+
+    console.warn(`[WIDGET] origem recusada no envio — widget=${key} origem=${origem}`)
+    return NextResponse.json(
+        { error: 'Este widget não está autorizado neste domínio.' },
+        { status: 403, headers: { 'Cache-Control': 'no-store', Vary: 'Origin' } }
+    )
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ key: string }> }) {
     const { key } = await params
-    const cors = widgetCors()
     const integracao = await widgetIntegration(key)
-    if (!integracao) return NextResponse.json({ error: 'Widget não encontrado' }, { status: 404, headers: cors })
+    if (!integracao) {
+        return NextResponse.json({ error: 'Widget não encontrado' }, { status: 404, headers: widgetCors() })
+    }
+
+    const config = lerConfiguracaoDoWidget(integracao.config)
+    const recusa = await origemRecusada(request, config, key)
+    if (recusa) return recusa
+    const cors = widgetCors(config.dominios.length > 0 ? request.headers.get('origin') : null)
 
     const visitante = new URL(request.url).searchParams.get('visitor') ?? ''
     if (!visitante) return NextResponse.json({ messages: [] }, { headers: cors })
@@ -73,19 +104,60 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     )
 }
 
+/**
+ * O que o formulário de captura mandou, limpo.
+ *
+ * Três campos e nenhum deles é obrigatório aqui: o que é obrigatório para
+ * **abrir a conversa** é decidido no navegador, por `captura.obrigatorio`, e
+ * repetir essa regra no servidor travaria a conversa de quem está falando num
+ * widget configurado antes de a regra existir. O que o servidor garante é o
+ * formato: telefone só dígitos, e-mail com cara de e-mail, nome com teto.
+ *
+ * **Não inventa nada.** Campo que não veio ou não passa vira `undefined`, e
+ * `undefined` no Prisma é "não mexa nesta coluna" — é assim que o lead do
+ * segundo formulário não apaga o telefone que o primeiro gravou.
+ */
+function lerLead(bruto: unknown): { name?: string; phone?: string; email?: string } {
+    if (!bruto || typeof bruto !== 'object') return {}
+    const raw = bruto as Record<string, unknown>
+
+    const texto = (v: unknown, teto: number) =>
+        typeof v === 'string' && v.trim() ? v.trim().slice(0, teto) : undefined
+
+    const digitos = typeof raw.whatsapp === 'string' ? raw.whatsapp.replace(/\D/g, '') : ''
+    const email = texto(raw.email, 120)
+
+    return {
+        name: texto(raw.nome, 80),
+        // Dez a quinze dígitos cobre fixo com DDD, celular com DDD e número com
+        // código de país. Fora disso é digitação, não telefone.
+        phone: digitos.length >= 10 && digitos.length <= 15 ? digitos : undefined,
+        email: email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : undefined,
+    }
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ key: string }> }) {
     const { key } = await params
-    const cors = widgetCors()
     const integracao = await widgetIntegration(key)
-    if (!integracao) return NextResponse.json({ error: 'Widget não encontrado' }, { status: 404, headers: cors })
+    if (!integracao) {
+        return NextResponse.json({ error: 'Widget não encontrado' }, { status: 404, headers: widgetCors() })
+    }
+
+    const config = lerConfiguracaoDoWidget(integracao.config)
+    const recusa = await origemRecusada(request, config, key)
+    if (recusa) return recusa
+    const cors = widgetCors(config.dominios.length > 0 ? request.headers.get('origin') : null)
 
     const body = (await request.json().catch(() => ({}))) as {
         visitor?: string
         content?: string
         name?: string
+        lead?: { nome?: string; whatsapp?: string; email?: string }
     }
     const texto = typeof body.content === 'string' ? body.content.trim().slice(0, 2000) : ''
     if (!texto) return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400, headers: cors })
+
+    const lead = lerLead(body.lead)
 
     const { agent } = integracao
     const workspaceId = agent.workspaceId
@@ -104,8 +176,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let conversa = await prisma.conversation.findFirst({
         where: { workspaceId, visitorKey: visitante, channel: 'web' },
-        select: { id: true, assignedTo: true, handoffAt: true },
+        select: { id: true, assignedTo: true, handoffAt: true, contactId: true },
     })
+
+    /**
+     * O lead que chega numa conversa que já existe **completa**, não substitui.
+     *
+     * Acontece quando a clínica liga a captura com o visitante já falando, e
+     * quando o formulário é opcional e a pessoa o preenche depois. Gravar por
+     * cima trocaria um telefone que a equipe conferiu por um que o visitante
+     * digitou errado na segunda tentativa; `??` em cima do valor gravado deixa
+     * o preenchido ganhar do vazio e só do vazio.
+     *
+     * Só toca o que veio e o que está nulo, então duas mensagens seguidas com o
+     * mesmo formulário fazem uma escrita, não duas.
+     */
+    if (conversa && (lead.name || lead.phone || lead.email)) {
+        const atual = await prisma.contact.findUnique({
+            where: { id: conversa.contactId },
+            select: { name: true, phone: true, email: true },
+        })
+        const faltando = {
+            ...(lead.name && !atual?.name ? { name: lead.name } : {}),
+            ...(lead.phone && !atual?.phone ? { phone: lead.phone } : {}),
+            ...(lead.email && !atual?.email ? { email: lead.email } : {}),
+        }
+        if (Object.keys(faltando).length > 0) {
+            await prisma.contact.update({ where: { id: conversa.contactId }, data: faltando })
+        }
+    }
 
     /**
      * **Abrir conversa nova é o ato caro, e era ilimitado.**
@@ -164,7 +263,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const contato = await prisma.contact.create({
             data: {
                 workspaceId,
-                name: body.name?.trim().slice(0, 80) || null,
+                // O nome do formulário de captura tem precedência sobre o
+                // `name` solto, que é o caminho antigo do script.
+                name: lead.name ?? body.name?.trim().slice(0, 80) ?? null,
+                phone: lead.phone ?? null,
+                email: lead.email ?? null,
                 // O visitante escreveu primeiro — é isso que `inbound` diz. De
                 // onde ele veio, o navegador não conta: quem sabe é a linha,
                 // quando a clínica disse a ela qual anúncio aponta para o site.
@@ -181,7 +284,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 visitorKey: visitante,
                 status: 'active',
             },
-            select: { id: true, assignedTo: true, handoffAt: true },
+            select: { id: true, assignedTo: true, handoffAt: true, contactId: true },
         })
     }
 

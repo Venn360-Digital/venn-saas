@@ -279,8 +279,15 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
      *
      * Logradouro, bairro, cidade e UF digitados à mão em formulário de cobrança
      * erram — e endereço errado em cobrança de cartão é recusa de transação,
-     * não defeito cosmético. Só preenche o que está **vazio**: quem já corrigiu
-     * um logradouro não o perde ao conferir o CEP.
+     * não defeito cosmético.
+     *
+     * **Sobrescreve.** Antes preenchia só o que estava vazio, para não apagar
+     * uma correção feita à mão — e o efeito prático era o oposto do esperado:
+     * numa conta que já tem endereço gravado, digitar um CEP novo não mudava
+     * nada na tela. De quem olha, isso é "a busca de CEP não funciona", que foi
+     * o que o Andre relatou. Trocar o CEP é declarar que o endereço é outro; os
+     * quatro campos que o CEP determina seguem o CEP. Número e complemento
+     * ficam, porque o CEP não os conhece.
      *
      * Falha do ViaCEP não trava nada: a pessoa digita à mão e contrata igual.
      */
@@ -292,10 +299,10 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             if (!achado) return
             setFormConta((p) => ({
                 ...p,
-                address: p.address || achado.address,
-                province: p.province || achado.province,
-                city: p.city || achado.city,
-                state: p.state || achado.state,
+                address: achado.address || p.address,
+                province: achado.province || p.province,
+                city: achado.city || p.city,
+                state: achado.state || p.state,
             }))
         } finally {
             setBuscandoCep(false)
@@ -546,7 +553,10 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                             label="CEP"
                             htmlFor="conta-cep"
                             className="sm:col-span-2"
-                            hint={buscandoCep ? 'Buscando…' : 'Preenche o resto sozinho.'}
+                            // "Preenche o resto sozinho" saiu a pedido dele: a
+                            // dica descrevia o comportamento em vez de ajudar a
+                            // preencher o campo, e sobrava na linha.
+                            hint={buscandoCep ? 'Buscando…' : undefined}
                         >
                             <MaskedInput
                                 id="conta-cep"

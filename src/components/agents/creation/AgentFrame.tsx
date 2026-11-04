@@ -15,7 +15,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import { cn } from '@/lib/utils'
 
 /**
- * A moldura das quatro seções do agente, na Tela 03.
+ * A moldura das sete seções do agente, na Tela 03.
  *
  * Substitui o `AgentCreationLayout`, que era anterior ao padrão: abria uma calha
  * de 256px **dentro** da tela — uma segunda navegação empilhada à do sistema,
@@ -25,9 +25,9 @@ import { cn } from '@/lib/utils'
  *
  * A geometria é a da Conta, no desenho que ele aprovou em 2026-10-15 (opção B):
  * linha 1 de 50px com o nome do agente e o **interruptor colado nele** — ativo é
- * propriedade do agente, não comando da tela; linha 2 de 46px com as **quatro
- * seções** como guias sublinhadas; e, dentro do corpo, um **índice preso** à
- * esquerda com os assuntos da seção aberta.
+ * propriedade do agente, não comando da tela; linha 2 de 46px com as **seções**
+ * como guias sublinhadas; e, dentro do corpo, um **índice preso** à esquerda
+ * com os assuntos da seção aberta — quando ela tem mais de um.
  *
  * Os dois níveis antes dividiam o cabeçalho: seções em pílula na linha do nome,
  * assuntos em guia sublinhada na linha 2 — dois desenhos sem parentesco visível,
@@ -39,7 +39,14 @@ import { cn } from '@/lib/utils'
  * rolasse até o fim.
  */
 
-export type SecaoId = 'personalidade' | 'comandos' | 'integracoes' | 'gerenciamento'
+export type SecaoId =
+    | 'personalidade'
+    | 'ensaio'
+    | 'lacunas'
+    | 'voz'
+    | 'comandos'
+    | 'integracoes'
+    | 'gerenciamento'
 
 interface Secao {
     id: SecaoId
@@ -89,23 +96,28 @@ const GUIAS_DE_TREINAMENTO: FrameTab[] = [
         icon: ICONE_DO_DOCUMENTO[doc.slug] ?? FileText,
     })),
     { id: 'cerebro', label: 'Cérebro', icon: Database },
-    /**
-     * O ensaio entra **antes de Voz**, não depois.
-     *
-     * "Item Voz continua sendo o último" é instrução do André, e ela não abre
-     * exceção para ferramenta. Se o lugar natural de um console de teste for o
-     * fim de tudo, é uma linha para mover — mas não por minha conta.
-     */
-    { id: 'ensaio', label: 'Ensaio', icon: FlaskConical },
-    /**
-     * Lacunas entra junto do Ensaio, pelo mesmo critério: é ferramenta de quem
-     * treina, não documento de treinamento. E **antes de Voz**, porque "Voz
-     * continua sendo o último" é instrução do André e não abre exceção.
-     */
-    { id: 'lacunas', label: 'Lacunas', icon: Inbox },
-    { id: 'voz', label: 'Voz', icon: Mic },
 ]
 
+/**
+ * Ensaio, Lacunas e Voz **subiram** para a barra de seções.
+ *
+ * Decisão do Andre em 2026-11-04, e a ordem é a dele: Treinamento, Ensaio,
+ * Lacunas, Voz, Parametrização, Integrações, Gerenciamento.
+ *
+ * O que isso corrige, além de ser o que ele pediu: as três eram guias de
+ * Treinamento e **nenhuma delas é um documento de treinamento**. Ensaio é um
+ * console de teste, Lacunas é uma bandeja do que o agente não soube responder,
+ * e Voz é a configuração da fala. Ficavam no índice ao lado de Empresa,
+ * Serviços e FAQ — nove itens numa calha onde seis são o assunto e três são
+ * ferramenta. Separadas, o índice de Treinamento volta a ser só o catálogo de
+ * documentos, e as três ganham a barra, onde o olho já procura por "onde eu
+ * faço outra coisa".
+ *
+ * As três continuam na **mesma rota** (`/novo`), com o mesmo `?tab=`: é a mesma
+ * página, que já tinha um `case` para cada uma. O que mudou foi quem as
+ * anuncia. Os links já guardados continuam valendo — `?tab=voz` abre Voz, agora
+ * com a seção Voz marcada em vez de Treinamento.
+ */
 export const SECOES: Secao[] = [
     {
         // O id e a rota continuam "personalidade": é o que está nos links já
@@ -116,6 +128,31 @@ export const SECOES: Secao[] = [
         icon: UserRound,
         rota: '/atendimento/agentes/novo',
         tabs: GUIAS_DE_TREINAMENTO,
+    },
+    /**
+     * As três de seção única. Sem índice à esquerda — uma calha de 208px para
+     * repetir o nome que a barra acabou de dizer é largura gasta sem informar.
+     */
+    {
+        id: 'ensaio',
+        label: 'Ensaio',
+        icon: FlaskConical,
+        rota: '/atendimento/agentes/novo',
+        tabs: [{ id: 'ensaio', label: 'Ensaio', icon: FlaskConical }],
+    },
+    {
+        id: 'lacunas',
+        label: 'Lacunas',
+        icon: Inbox,
+        rota: '/atendimento/agentes/novo',
+        tabs: [{ id: 'lacunas', label: 'Lacunas', icon: Inbox }],
+    },
+    {
+        id: 'voz',
+        label: 'Voz',
+        icon: Mic,
+        rota: '/atendimento/agentes/novo',
+        tabs: [{ id: 'voz', label: 'Voz', icon: Mic }],
     },
     {
         id: 'comandos',
@@ -295,7 +332,7 @@ export function AgentFrame({
      * Trocar de assunto é trocar de guia da mesma página: não pergunta nada,
      * porque o que foi digitado continua em pé.
      */
-    const indice = (
+    const indice = atual.tabs.length < 2 ? null : (
         <nav
             aria-label={`Assuntos de ${atual.label}`}
             /* `overscroll-contain`: com cinco assuntos o índice não tem o que rolar, e
