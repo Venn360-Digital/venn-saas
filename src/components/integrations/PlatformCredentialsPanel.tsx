@@ -122,10 +122,26 @@ export function PlatformCredentialsPanel() {
                                     ? /* Com segredo duplo não há id para mostrar
                                          — a chave é segredo. O que vale dizer é
                                          o ambiente, porque cobrar de verdade num
-                                         teste é o erro caro desta tela. */
+                                         teste é o erro caro desta tela.
+
+                                         **Três estados, não dois.** O ternário
+                                         anterior era binário: tudo que não fosse
+                                         `producao` virava "Chave de sandbox —
+                                         nada é cobrado". O valor que cai no
+                                         `else` com mais frequência não é a chave
+                                         de sandbox: é a chave ERRADA, que não
+                                         começa com `$aact_` e por isso não serve
+                                         para ambiente nenhum. A tela dizia uma
+                                         frase tranquilizadora sobre uma
+                                         integração morta — aconteceu em
+                                         2026-11-04, com o Wallet ID gravado no
+                                         lugar da chave de API, e foi esta linha
+                                         que escondeu. */
                                       row.ambiente === 'producao'
                                         ? 'Chave de PRODUÇÃO — cobra de verdade.'
-                                        : 'Chave de sandbox — nada é cobrado.'
+                                        : row.ambiente === 'sandbox'
+                                          ? 'Chave de sandbox — nada é cobrado.'
+                                          : 'O valor gravado não é uma chave do Asaas: ela começa com $aact_prod_ (produção) ou $aact_hmlg_ (sandbox). Enquanto for outro valor, nenhuma cobrança funciona.'
                                     : row.help}
                             </p>
                         </div>

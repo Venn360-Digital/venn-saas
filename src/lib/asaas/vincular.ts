@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { deOutroApp, marcarReferencia } from '@/lib/asaas/referencia'
 import { adicionaisCobraveis } from '@/lib/account'
 import { asaas } from '@/lib/asaas/client'
 import { isPlanId, planNameFor } from '@/lib/plan-limits'
@@ -33,6 +34,8 @@ import { mensalidade } from '@/lib/billing/troca-de-plano'
 interface ClienteDoAsaas {
     id: string
     cpfCnpj?: string
+    /** A marca de qual produto criou este cliente. Ver `lib/asaas/referencia.ts`. */
+    externalReference?: string | null
 }
 
 interface AssinaturaDoAsaas {
@@ -108,10 +111,57 @@ export async function vincularContaAoAsaas(opcoes: {
         .filter((s) => !s.status || s.status === 'ACTIVE')
         .sort((a, b) => (b.dateCreated ?? '').localeCompare(a.dateCreated ?? ''))[0]
 
+    /**
+     * O cliente achado pertence a **este** produto?
+     *
+     * A busca acima é por documento, na conta Asaas inteira — e a mesma conta
+     * serve mais de um produto. Adotar um cliente do outro produto não para
+     * aqui: as assinaturas dele são lidas logo abaixo, a data de vencimento é
+     * reescrita por `PUT`, e na ativação seguinte a "anterior" leva `DELETE`.
+     * Seria cancelar assinatura paga do outro sistema.
+     *
+     * O caso que torna isto concreto não é um cliente: é a **conta de teste da
+     * Venn360**, que existe em todos os produtos com o mesmo CNPJ e é a
+     * primeira a exercitar a cobrança.
+     *
+     * Cliente sem marca é tratado como nosso — é o estado de tudo que foi
+     * criado antes desta trava, e só há cobrança anterior a ela em um produto.
+     */
+    if (deOutroApp(cliente.externalReference)) {
+        console.error(
+            `[ASAAS_VINCULAR] o cliente ${cliente.id} com o documento da conta ${accountId} ` +
+                'pertence a outro produto na mesma conta Asaas. Nada foi vinculado — ' +
+                'cadastre o pagador com um cliente próprio deste produto.'
+        )
+        return { customerId: null, subscriptionId: null }
+    }
+
     await prisma.account.update({
         where: { id: accountId },
         data: { asaasCustomerId: cliente.id },
     })
+
+    /**
+     * E deixa a marca, para a próxima vez não depender de sorte.
+     *
+     * O cliente é criado pelo checkout **deles**, a partir do que o pagador
+     * digita, e `customerData` não aceita campo nosso — então a marca só pode
+     * ser posta depois, aqui, que é o ponto em que sabemos de quem ele é.
+     *
+     * Falhar não desfaz nada: a conta já está vinculada e o plano já vale. O
+     * que se perde é a trava na próxima vez, e isso é aviso, não erro.
+     */
+    try {
+        await asaas(`/customers/${cliente.id}`, {
+            method: 'POST',
+            body: JSON.stringify({ externalReference: marcarReferencia(accountId) }),
+        })
+    } catch (erro) {
+        console.warn(
+            `[ASAAS_VINCULAR] não consegui marcar o cliente ${cliente.id} como deste produto: ` +
+                String(erro)
+        )
+    }
 
     if (ativa) {
         /**
