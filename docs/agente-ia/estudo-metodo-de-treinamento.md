@@ -859,17 +859,16 @@ respeitar:
   é o mutex do agente, com mais de vinte leitores; renomear é risco sem
   ganho.
 - **Novo** `Conversation.ownerId` (+ `ownerAssignedAt`, `ownerSource`:
-  `manual | rodizio | balanceado | aleatorio | regra | recepcao`) é o
-  **responsável**: quem responde por esta conversa quando um humano for
-  preciso, quem a vê na própria fila, quem é avisado. **Não silencia o
-  agente.**
+  `manual | rodizio | balanceado | regra | recepcao`) é o **responsável**:
+  quem responde por esta conversa quando um humano for preciso, quem a vê na
+  própria fila, quem é avisado. **Não silencia o agente.**
 
 Regras de convivência (as que resolvem os fatos acima):
 
 | Situação | O que acontece |
 |---|---|
 | Conversa nasce (ou reabre sem dono) | a política escolhe `ownerId`; o agente segue atendendo normalmente; a conversa continua em "Em espera" (= com o bot), agora com responsável visível |
-| **Handoff** (limite de interações, `passar_para_equipe`, regra sem destino, 2ª lacuna, sem crédito) | `assignedTo = ownerId` quando houver dono → a conversa cai nas "Ativas" do dono e ele recebe notificação. Sem dono, fica como hoje (sem responsável, em espera). **Isto fecha o buraco do handoff que não atribui ninguém** |
+| **Handoff** (limite de interações, `passar_para_equipe`, regra sem destino, 2ª lacuna, sem crédito) | `assignedTo = ownerId` **se o dono estiver disponível**. Se não estiver — ou não houver dono —, vai para a **fila geral**, visível a todos. Ver 11.3, "a reavaliação no handoff" |
 | Paciente volta a escrever depois de finalizada | `assignedTo` zera (o bot retoma), **`ownerId` permanece** — o dono é da relação com o paciente, não do turno |
 | Alguém que não é o dono quer assumir | permitido, mas passa a exigir a mesma permissão de transferir (`canTransfer`); o dono assume livremente; "assumir" passa a recusar se já há outro humano atendendo |
 | Enviar **nota interna** | não atribui mais ninguém (só mensagem ao paciente atribui) |
@@ -885,75 +884,220 @@ reserva onde não houver dono).
 
 ### 11.3 A política — o que o cliente escolhe
 
-Mora em `Workspace.automations` (JSON com defaults centralizados, lido e
-gravado pela rota de automações; Tela 03 → guia **Automações**), com o turno
-por pessoa na guia **Usuários**, onde já se editam papel, permissão de
-transferir e departamentos.
+Revisto em **03/11/2026**, depois de dois casos que a primeira versão não
+resolvia e de olhar como o respond.io faz.
+
+#### O que mudou, e por quê
+
+A primeira versão tinha **turno por pessoa** (dias, hora de início e fim, fuso)
+e **três estratégias**, incluindo aleatória. Três coisas caíram:
+
+- **A aleatória saiu.** É dominada pelo rodízio: mesma média, variância pior.
+  Com azar, uma pessoa recebe quatro seguidos e a equipe conclui que o sistema
+  está quebrado. Opção a mais é decisão que o cliente tem de tomar sem ter como
+  saber a resposta.
+- **O turno por pessoa saiu**, e no lugar entrou **status de três estados**
+  (disponível, ocupado, ausente). Cadastrar dias e horas por pessoa é trabalho
+  de implantação que ninguém mantém; status é um clique.
+- **"Por usuário logado" continua fora**, pelo motivo de sempre: sessão de 7
+  dias não diz quem está na mesa. Mas ver 11.3.4: inatividade **na aplicação**
+  é outro sinal, e esse serve.
+
+#### Os dois casos que forçaram a revisão
+
+| | o que acontece com "distribuir só para quem está disponível" |
+|---|---|
+| **Empresa que atende 8h–18h** | à noite estão todos ausentes. Com o filtro ligado, o lead da madrugada fica **sem dono** — e de manhã ninguém tem carteira |
+| **Empresa com turnos** | com o filtro desligado, o lead das 2h cai para quem trabalha de manhã e **nunca vai olhar** |
+
+São formatos de empresa diferentes, e por isso **não existe uma regra que sirva
+às duas**. A saída é um interruptor, e é assim que o respond.io faz: lá
+"Rodada Robin" e "Robin redondo + **Apenas Online**" são templates separados —
+online é **modificador da estratégia**, não estratégia.
+
+#### A política
+
+```
+Regra        o lead ganha dono na chegada
+Quem         membros com a marca "recebe conversas"
+             (padrão: GESTOR e ATENDENTE ligados; OWNER e ADMIN desligados)
+Estratégia   Rodízio | Balanceado
+Condição     [ ] distribuir só para quem está disponível    (desligado por padrão)
+Sempre       no handoff, dono indisponível → fila geral
+```
+
+**A marca "recebe conversas" é por pessoa, e o papel só define o padrão.** A
+regra "só ATENDENTE" quebra a clínica de uma pessoa só — plano Digital, o dono
+é o atendente —, em que ninguém seria elegível e **toda** conversa ficaria sem
+dono.
+
+**As duas estratégias, e a diferença que importa.** Rodízio é igual em
+*quantidade ao longo do tempo*: cada um recebe na sua vez (`max(ownerAssignedAt)`
+mais antigo; quem nunca recebeu vem primeiro). Balanceado é igual em *carga
+agora*: menos conversas abertas como dono, desempate por rodízio. Divergem
+quando as conversas duram diferente — se os três leads da Ana fecharam e os
+três do Bruno seguem abertos, o rodízio olha de quem é a vez e o balanceado dá
+para a Ana. Rodízio é o padrão porque é o que se explica numa frase: *foi sua
+vez*.
+
+#### 11.3.1 O interruptor, caso a caso
+
+- **Desligado** (padrão, empresa sem turno): distribui sempre, inclusive de
+  madrugada. Quem chega às 8h já tem carteira. O status existe, mas é
+  informativo para a equipe.
+- **Ligado** (empresa com turnos): só quem está disponível recebe. Ninguém
+  acorda com lead da madrugada.
+
+**Com o interruptor ligado e ninguém disponível**, a conversa fica **sem dono
+na fila geral** e é distribuída quando alguém ficar disponível — uma de cada
+vez, conforme cada pessoa entra, para o primeiro a chegar não levar a
+madrugada inteira.
+
+Registre-se que **a documentação do respond.io não cobre esse caso**: ela
+descreve as estratégias e o filtro de online, e silencia sobre ninguém online.
+A decisão acima é nossa, sem referência.
+
+#### 11.3.2 A reavaliação no handoff
+
+**Vale sempre, com o interruptor ligado ou desligado**, e é a parte que mais
+importa.
+
+O dono serve a duas coisas: a carteira ("minhas conversas") e saber quem entra
+quando a IA não dá conta. A primeira tolera erro; a segunda não.
+
+Se o handoff acontece e o dono não está disponível — foi embora, está em
+reunião, é de outro turno —, a entrega **não fica parada com ele**: vai para a
+fila geral, visível a todos.
+
+O caso que isso evita: paciente com dor às 19h, dono designado às 14h já em
+casa. Sem esta regra, a entrega aguarda alguém que não volta hoje.
+
+#### 11.3.3 Os quatro estados, no modelo do Teams
+
+Revisto em **03/11** depois de o André apontar que a primeira versão não
+fazia o que o Teams faz. Ela tinha três estados e uma queda **invisível**.
+
+| cor | estado | como se chega | recebe? |
+|---|---|---|---|
+| 🟢 verde | Disponível | login, escolha, ou voltar a mexer | **sim** |
+| 🔴 vermelho | Ocupado | **só manual** — a escada nunca produz | não |
+| 🟡 amarelo | Ausente | escolha, ou **1h** parado | não |
+| ⚫ cinza | Desconectado | **8h** parado, ou logout | não |
+
+As cores são as do Teams, e a primeira versão as tinha trocado: ela pintava
+"Ocupado" de amarelo, então a escada automática produziria "Ocupado" para quem
+foi embora — dizendo à equipe que a pessoa está presente e ocupada.
+
+**Login devolve ao verde.** O logout grava `desconectado`, e o primeiro pedido
+autenticado depois o desfaz. Sem cirurgia no Better Auth, e vale também para
+quem a escada levou a cinza: voltou, está de volta.
+
+#### 11.3.4 A escada, e por que ela é derivada
+
+Status manual só funciona se as pessoas lembrarem. Às 18h todo mundo vai embora
+**verde**, e aí a distribuição da madrugada vai para quem não está.
+
+A escada resolve, e é **derivada de `ultimaAtividadeEm`**, não gravada por um
+job: mesmo resultado, sem cron, sem escrita periódica, sem um estado a mais para
+divergir — e, por ser conta pura, provável sem banco.
+
+Não confundir com presença por sessão, descartada em 11.1: sessão dura 7 dias e
+não diz quem está na mesa. Isto é ação real na aplicação, tocada num lugar só
+(`getWorkspaceMember`) e com folga de 5 minutos, porque num Worker cada escrita
+é conexão segurada no Neon.
+
+**Duas regras que a escada precisa respeitar:**
+
+1. **A escolha manual é pegajosa.** A escada só mexe em quem está verde. Sem
+   isso, quem se marca "ocupado" para uma reunião e abre o sistema para conferir
+   um horário voltaria a verde no clique — e receberia lead no meio da reunião.
+2. **O estado derivado tem de ser visível.** Foi o defeito da primeira versão: o
+   badge dizia "Disponível" e o sistema já não entregava nada, sem ninguém ter
+   como descobrir. Agora a bolinha fica sobre o avatar, sempre à vista, e tanto
+   `/api/auth/me` quanto a listagem de usuários devolvem o estado **já com a
+   escada aplicada** — a mesma conta nos dois lados.
+
+**O primeiro degrau é configurável (1h por padrão); o segundo é fixo em 8h.**
+Oito horas não é ajuste de operação, é "não voltou hoje" — expor o número daria
+ao cliente mais uma decisão que ele não tem como tomar bem.
+
+**Consequência prática, registrada de propósito:** com o interruptor de turnos
+ligado, uma hora sem tocar no sistema para de receber lead. Numa clínica isso
+acontece — a atendente passa uma hora no balcão com paciente sem abrir o
+computador. É o comportamento certo (ela está ocupada mesmo, e lead que cai para
+quem não vai olhar é pior que lead na fila geral), mas é efeito que a clínica
+precisa saber antes e não depois.
+
+
+#### 11.3.5 Onde a política mora
+
+Em `Workspace.automations` (JSON com defaults centralizados, Tela 03 → guia
+**Automações**); a marca "recebe conversas" e o status por membro na guia
+**Usuários**.
 
 ```
 distribuicao:
-  estrategia: nenhuma | rodizio | balanceado | aleatoria        (padrão: nenhuma)
-  quem: departamento-da-linha                                   (linha sem departamento → todos os elegíveis)
-  papeis: [ATENDENTE, GESTOR]                                   (OWNER/ADMIN entram só se marcarem "recebo conversas")
-  foraDoTurno: sem-dono | plantao                               (plantao → plantaoUserId)
-  fuso: America/Sao_Paulo                                       (fuso da clínica; Multiclínica pode ter um por unidade)
+  estrategia: nenhuma | rodizio | balanceado     (padrão: nenhuma)
+  soDisponiveis: false                            (o interruptor)
+  quem: departamento-da-linha                     (linha sem departamento → todos os elegíveis)
+  minutosParaAusente: 30                          (queda automática)
 
 por membro (Usuários):
-  disponivel: true | false                                      (interruptor manual "Disponível para receber conversas")
-  recebeDistribuicao: true | false
-  turno: { dias: [1..5], inicio: "08:00", fim: "18:00", fuso?: ... }   (vazio = sempre)
+  recebeConversas: true | false    (padrão pelo papel)
+  status: disponivel | ocupado | ausente
 ```
 
-As três estratégias são **funções puras sobre a lista de elegíveis**, sem
-estado nem cursor (robustas a concorrência e a mudança de equipe):
+**Elegível** = membro ativo do workspace, com `recebeConversas`, do
+departamento da linha (ou qualquer um, se a linha não tem departamento) — e,
+**se o interruptor estiver ligado**, com status `disponivel`.
 
-| Estratégia | Escolhe | Quando usar |
-|---|---|---|
-| **Rodízio** (padrão) | quem recebeu conversa **há mais tempo** (`max(ownerAssignedAt)` mais antigo; quem nunca recebeu vem primeiro) | distribuição justa em volume; é o "round robin" sem ponteiro |
-| **Balanceado** | quem tem **menos conversas abertas como dono** (`status = active`), desempate por rodízio | qualidade: evita sobrecarregar quem está com muitas |
-| **Aleatória** | sorteio uniforme entre elegíveis | é o que o cliente pediu como "fila aleatória / randômica"; **dominada pelo rodízio** (mesma média, pior variância) — fica disponível, não é padrão |
+#### 11.3.6 Duas decisões que ficam registradas
 
-**Elegível** = membro ativo do workspace, com papel aceito, `disponivel`,
-`recebeDistribuicao`, **dentro do turno** (no fuso dele ou da clínica) e
-membro do departamento da linha (ou qualquer um, se a linha não tem
-departamento). Sem elegível → `foraDoTurno`: deixa sem dono (o bot atende; a
-próxima mensagem dentro do turno distribui) ou entrega ao plantão.
+**Desatribuir ao fechar a conversa: não.** O respond.io tem isso como template
+("Atividade: Desatribuir Após fechar a conversa"). As duas posições se
+defendem: desatribuir mantém a carteira limpa; manter dá continuidade ("já
+falei com você"). Para clínica fica **manter** — o paciente que volta em três
+meses fala com quem já o conhece.
 
-"Por fuso horário" vira **turno por pessoa no fuso certo**, que é o que a
-frase significa na prática: a clínica de Manaus marca 08–18 no fuso dela, e a
-de São Paulo no dela; a mesma função decide.
+**Configuração, não construtor de fluxo.** O respond.io faz tudo isso por
+*Workflows*, um canvas visual com ~37 templates. É outra filosofia de produto.
+Para quem não quer montar fluxo nenhum, isto é **ajuste numa guia**: quatro
+campos, não um canvas.
 
-**Presença**: não há sistema de presença e inferir por sessão de login é
-errado (sessão de 7 dias não diz quem está na mesa). O interruptor manual
-"Disponível" + turno resolve o caso real (férias, folga, almoço). Presença
-automática é fase posterior, se for pedida.
 
 ### 11.4 Onde roda e o que muda no código
 
 - **No evento, não em cron**: na criação/reabertura da conversa no inbound
   (`resolveConversation`) e no intake da recepção. Uma consulta de elegíveis
-  (com `ultimaAtribuicao` e `abertas`) + a função pura `escolherDono(elegiveis,
-  politica, agora)` + um `update`. Concorrência entre duas conversas no mesmo
-  milissegundo pode repetir a pessoa no rodízio — aceitável, e o balanceado
-  se corrige sozinho.
+  (com `ultimaAtribuicao` e `abertas`) + a função pura `escolherDono` + um
+  `update`. Concorrência entre duas conversas no mesmo milissegundo pode
+  repetir a pessoa no rodízio — aceitável, e o balanceado se corrige sozinho.
+- **A fila sem dono é varrida quando alguém fica disponível.** Com o
+  interruptor ligado, é esse o momento em que a madrugada ganha dono: ao mudar
+  o status para `disponivel`, as conversas sem dono daquelas filas são
+  distribuídas **uma a uma**, não em lote.
 - **Migração aditiva, uma só**: `conversations.ownerId` (FK `SetNull`),
-  `ownerAssignedAt`, `ownerSource`, índice; `workspace_users.turno Json?`,
-  `disponivel`, `recebeDistribuicao`. A política fica no JSON de automações
-  (sem migração).
-- **Leitores a ajustar**: as três guias e os contadores da caixa; escopo
-  "meus pacientes"; painel e gráficos; a rota de mensagens (nota interna não
+  `ownerAssignedAt`, `ownerSource`, índice; `workspace_users.recebeConversas`,
+  `status`, `statusEm`. A política fica no JSON de automações (sem migração).
+- **Leitores a ajustar**: as três guias e os contadores da caixa; escopo "meus
+  pacientes"; painel e gráficos; a rota de mensagens (nota interna não
   atribui); `assign`/`transfer` (regras de 11.2); `notify_human`
-  (`resolveAssignee` passa a preferir o dono); os pontos de handoff
-  (`assignedTo = ownerId`).
-- **Prova em Node**: `scripts/test-distribuicao.ts` — rodízio escolhe quem
-  está há mais tempo sem receber; balanceado escolhe quem tem menos abertas;
-  turno respeita dia, hora e fuso; linha sem departamento abre para todos;
-  sem elegível devolve `null` ou o plantão; dono persiste na reabertura;
-  handoff com dono preenche `assignedTo`.
+  (`resolverResponsavel` passa a preferir o dono); os pontos de handoff
+  (`assignedTo = ownerId` **se disponível**, senão fila geral).
+- **Prova em Node**: `scripts/test-distribuicao.ts` — rodízio escolhe quem está
+  há mais tempo sem receber; balanceado escolhe quem tem menos abertas; a marca
+  `recebeConversas` filtra; com o interruptor ligado, só `disponivel` entra;
+  com ele desligado, status é ignorado; linha sem departamento abre para todos;
+  sem elegível devolve `null`; dono persiste na reabertura; e a reavaliação do
+  handoff devolve fila geral quando o dono não está disponível.
 - **Esforço**: M–G (migração, função pura, gancho no inbound e no intake,
   caixa de entrada, duas guias da Tela 03). Entra como **passo 3b** da
   sequência da §6, junto de `passar_para_equipe`, porque os dois escrevem no
   mesmo lugar e o handoff com destino é o que dá sentido ao dono.
+- **Vale igual nos três apps** (decisão do André em 03/11/2026): o desenho não
+  tem nada de odontológico, e a divergência entre produtos aqui seria dívida
+  sem motivo.
+
 
 ### 11.5 O método ajuda nesta demanda?
 

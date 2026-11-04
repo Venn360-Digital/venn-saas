@@ -75,6 +75,18 @@ export interface WorkspaceMember {
      */
     departmentIds: string[]
     canTransfer: boolean
+    /**
+     * `disponivel | ocupado | ausente`. Só a própria pessoa muda o seu.
+     *
+     * Lido em dois lugares com perguntas diferentes: a **distribuição** só olha
+     * quando `soDisponiveis` está ligado na política; a **entrega no handoff**
+     * olha sempre. Ver §11.3 do estudo.
+     */
+    status: string
+    /** Entra na distribuição de conversas. Marca por pessoa, não pelo papel. */
+    recebeConversas: boolean
+    /** Última ação no sistema. É daqui que sai a queda automática para ausente. */
+    ultimaAtividadeEm: Date | null
 }
 
 /** Why authorisation failed, so the caller can pick the right status code. */
@@ -106,6 +118,12 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
         workspaceId: true,
         role: true,
         canTransfer: true,
+        // Disponibilidade e se entra na distribuição. Saem daqui porque toda
+        // rota autenticada já faz esta consulta — pedi-los de novo noutro lugar
+        // seria uma segunda ida ao banco pelo que já está na mão.
+        status: true,
+        recebeConversas: true,
+        ultimaAtividadeEm: true,
         departments: { select: { departmentId: true } },
     } as const
 
@@ -154,6 +172,62 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
         return { ok: false, status: 404, error: 'Workspace não encontrado' }
     }
 
+    /**
+     * O toque de atividade — o único lugar da aplicação que o faz.
+     *
+     * Toda rota e toda página passam por esta função, então aqui é onde
+     * "esta pessoa está usando o sistema" é um fato, e não uma inferência. É
+     * o sinal que sustenta a queda automática para ausente: sem ele, quem sai
+     * às 18h esquecendo o status continuaria recebendo conversa de madrugada.
+     *
+     * **Com folga, e esta é a parte que importa.** Escrever a cada requisição
+     * poria um UPDATE no caminho mais quente do produto, e num Worker cada
+     * escrita é conexão segurada no Neon (ver a memória sobre o cliente por
+     * requisição). Só reescreve quando o valor já está velho — uma escrita a
+     * cada poucos minutos por pessoa, não por clique.
+     *
+     * Sem `await` de propósito: a resposta não espera por isto, e perder um
+     * toque não tem consequência — o próximo pedido refaz. Por isso também não
+     * tem `catch` que faça algo: falhar aqui não pode derrubar autenticação.
+     */
+    const FOLGA_MS = 5 * 60_000
+    const agora = Date.now()
+
+    /**
+     * **Voltar ao sistema devolve ao verde — e só a quem estava desconectado.**
+     *
+     * É assim que "logar já vem disponível" acontece sem cirurgia no Better
+     * Auth: o logout grava `desconectado`, e o primeiro pedido autenticado
+     * depois encontra esse estado e o desfaz. Vale também para quem a escada
+     * levou a cinza por 8 horas parado — voltou, está de volta.
+     *
+     * **Não toca em quem escolheu `ocupado` ou `ausente`**, e é justamente aqui
+     * que a escolha manual se prova pegajosa: sem esta condição, quem se marca
+     * ocupado para uma reunião voltaria a verde ao abrir o sistema para
+     * conferir um horário — e receberia lead no meio da reunião.
+     */
+    const voltou = membership.status === 'desconectado'
+
+    if (
+        voltou ||
+        (membership.status === 'disponivel' &&
+            (!membership.ultimaAtividadeEm || agora - membership.ultimaAtividadeEm.getTime() > FOLGA_MS))
+    ) {
+        void prisma.workspaceUser
+            .update({
+                where: { id: membership.id },
+                data: {
+                    ultimaAtividadeEm: new Date(agora),
+                    ...(voltou ? { status: 'disponivel', statusEm: new Date(agora) } : {}),
+                },
+            })
+            .catch(() => { /* o próximo pedido tenta de novo */ })
+    }
+
+    // A leitura desta requisição já reflete a volta: esperar o próximo pedido
+    // mostraria "desconectado" na tela de quem acabou de entrar.
+    const statusAgora = voltou ? 'disponivel' : membership.status
+
     return {
         ok: true,
         member: {
@@ -163,6 +237,10 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             role: membership.role as WorkspaceRole,
             departmentIds: membership.departments.map((d) => d.departmentId),
             canTransfer: membership.canTransfer,
+            /** `disponivel | ocupado | ausente`. Ver §11.3.3 do estudo. */
+            status: statusAgora,
+            recebeConversas: membership.recebeConversas,
+            ultimaAtividadeEm: membership.ultimaAtividadeEm,
         },
     }
 }

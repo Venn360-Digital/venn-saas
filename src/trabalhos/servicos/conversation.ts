@@ -1,5 +1,6 @@
 import type { Contact, Conversation } from '#prisma'
 import prisma from '@/lib/prisma'
+import { darDono } from '@/lib/conversas/dono'
 import { phoneVariants } from '@/lib/whatsapp/types'
 import { withLock } from '@/trabalhos/trava'
 import { createLogger } from '@/trabalhos/registro'
@@ -345,7 +346,7 @@ async function resolveConversation(
         return reopened
     }
 
-    return prisma.conversation.create({
+    const criada = await prisma.conversation.create({
         data: {
             workspaceId,
             agentId,
@@ -355,6 +356,31 @@ async function resolveConversation(
             status: 'active',
         },
     })
+
+    /**
+     * A conversa nova ganha **dono** — quem responde por ela, não quem a assumiu.
+     *
+     * Não mexe em `assignedTo`: aquele é o mutex do agente, e gravá-lo aqui
+     * calaria o bot no ato de distribuir, que é o oposto do pedido. O agente
+     * segue atendendo, e a conversa continua em "Em espera" — agora com
+     * responsável visível.
+     *
+     * Depois do `create` e não dentro dele porque a escolha precisa de duas
+     * agregações; prendê-las na mesma escrita atrasaria a entrada da mensagem
+     * por uma melhoria. `darDono` nunca lança e é idempotente — se a conta não
+     * configurou distribuição, devolve null e nada muda.
+     *
+     * **Reabrir não redistribui**, de propósito: o `ownerId` sobrevive porque o
+     * dono é da relação com o paciente, não do turno. Quem já falou com ele
+     * continua respondendo por ele. Ver §11.2 do estudo.
+     */
+    await darDono({
+        workspaceId,
+        conversationId: criada.id,
+        integrationId,
+    })
+
+    return criada
 }
 
 export interface InboundContext {

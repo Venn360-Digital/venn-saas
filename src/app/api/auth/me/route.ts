@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import prisma from '@/lib/prisma'
+import { readAutomations } from '@/lib/automations'
+import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 
 export async function GET() {
     try {
@@ -25,11 +27,19 @@ export async function GET() {
         // A unidade escolhida, e os dados dela em seguida: quem decide qual
         // é mora em `getWorkspaceMember`, e esta rota só precisa do nome.
         const membro = await currentMembership()
-        const workspace = membro
+        /**
+         * `automations` vem junto porque o primeiro degrau da escada é
+         * configurável: sem ele, a bolinha usaria o padrão e mentiria para a
+         * conta que escolheu outro tempo. Uma consulta só.
+         */
+        const workspaceCru = membro
             ? await prisma.workspace.findUnique({
                 where: { id: membro.workspaceId },
-                select: { id: true, name: true, slug: true },
+                select: { id: true, name: true, slug: true, automations: true },
             })
+            : null
+        const workspace = workspaceCru
+            ? { id: workspaceCru.id, name: workspaceCru.name, slug: workspaceCru.slug }
             : null
 
         return NextResponse.json({
@@ -42,6 +52,23 @@ export async function GET() {
             },
             workspace: workspace || null,
             role: membro?.role || null,
+            /**
+             * O estado **já com a escada aplicada**, e não o que está gravado.
+             *
+             * É isto que impede a bolinha de mentir: quem está marcado como
+             * disponível mas parado há duas horas aparece amarelo, que é o que
+             * o sistema de fato usa. Mandar o valor cru repetiria o defeito da
+             * primeira versão — tela dizendo uma coisa, distribuição fazendo
+             * outra.
+             */
+            disponibilidade: membro
+                ? estadoVisivel(
+                      membro.status as StatusDoMembro,
+                      membro.ultimaAtividadeEm,
+                      readAutomations(workspaceCru?.automations).minutosParaAusente
+                  )
+                : null,
+            recebeConversas: membro?.recebeConversas ?? false,
         })
     } catch (error) {
         console.error('[ME] Error:', error)

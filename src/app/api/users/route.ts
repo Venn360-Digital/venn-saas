@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
+import { readAutomations } from '@/lib/automations'
+import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 import { auth } from '@/lib/auth/better-auth'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { sendEmail } from '@/lib/email/send'
@@ -27,6 +29,12 @@ const createUserSchema = z.object({
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']),
     canTransfer: z.boolean().default(false),
     isActive: z.boolean().default(true),
+    /**
+     * Entra na distribuição de conversas. Sem valor, o padrão vem do papel:
+     * GESTOR e ATENDENTE recebem, OWNER e ADMIN não. É a mesma regra que a
+     * migração aplicou a quem já existia.
+     */
+    recebeConversas: z.boolean().optional(),
 })
 
 // GET - List users
@@ -119,6 +127,14 @@ export async function GET(request: NextRequest) {
 
         console.log('[USERS_GET] Found', users.length, 'users')
 
+        // O primeiro degrau da escada é configurável, então a derivação precisa
+        // dele. Uma consulta a mais na listagem, que não é caminho quente.
+        const ws = await prisma.workspace.findUnique({
+            where: { id: workspaceUser.workspaceId },
+            select: { automations: true },
+        })
+        const { minutosParaAusente } = readAutomations(ws?.automations)
+
         return NextResponse.json({
             data: users.map((wu) => ({
                 id: wu.id,
@@ -132,6 +148,15 @@ export async function GET(request: NextRequest) {
                 departments: wu.departments.map((d) => d.department),
                 canTransfer: wu.canTransfer,
                 isActive: wu.isActive,
+                recebeConversas: wu.recebeConversas,
+                // Derivado, não cru: o gestor olhando a tabela precisa ver o
+                // mesmo que a distribuição usa. Mandar o gravado mostraria
+                // "Disponível" para quem a escada já pôs em amarelo.
+                disponibilidade: estadoVisivel(
+                    wu.status as StatusDoMembro,
+                    wu.ultimaAtividadeEm,
+                    minutosParaAusente
+                ),
                 isFirstAdmin: wu.id === foundingMember?.id, // First member is protected
                 createdAt: wu.createdAt,
             })),
@@ -256,6 +281,8 @@ export async function POST(request: NextRequest) {
                 role: validatedData.role,
                 canTransfer: validatedData.canTransfer,
                 isActive: validatedData.isActive,
+                recebeConversas:
+                    validatedData.recebeConversas ?? validatedData.role !== 'ADMIN',
                 // Do mesmo workspace: os ids vêm do corpo da requisição, e sem
                 // o filtro a pessoa poderia ser posta no departamento de outra
                 // clínica — e passaria a ver a fila dela.

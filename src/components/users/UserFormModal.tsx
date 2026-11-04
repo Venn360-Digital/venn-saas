@@ -33,6 +33,7 @@ interface WorkspaceUser {
     role: string
     departments: { id: string; name: string }[]
     canTransfer: boolean
+    recebeConversas: boolean
     isActive: boolean
     isFirstAdmin?: boolean
 }
@@ -61,6 +62,9 @@ const EMPTY_FORM = {
     departmentIds: [] as string[],
     role: 'GESTOR' as Role,
     canTransfer: false,
+    // O padrão real vem do papel, e é decidido quando a função muda (ver o
+    // efeito logo abaixo). Aqui é só o valor inicial do formulário vazio.
+    recebeConversas: true,
     isActive: true,
 }
 
@@ -106,6 +110,7 @@ export function UserFormModal({
                       ? 'ATENDENTE'
                       : 'GESTOR') as Role,
                 canTransfer: user.canTransfer,
+                recebeConversas: user.recebeConversas ?? true,
                 isActive: user.isActive,
             })
         } else {
@@ -135,6 +140,7 @@ export function UserFormModal({
                 departmentIds: formData.departmentIds,
                 role: formData.role,
                 canTransfer: formData.canTransfer,
+                recebeConversas: formData.recebeConversas,
                 isActive: formData.isActive,
             }
 
@@ -338,6 +344,25 @@ export function UserFormModal({
                         <p className="text-xs text-muted-foreground">Permite passar um atendimento para outra pessoa.</p>
                     </div>
                     <Switch id="user-transfer" checked={formData.canTransfer} onCheckedChange={(v) => setFormData({ ...formData, canTransfer: v })} />
+                </div>
+
+                {/* A marca é por pessoa, e o papel só sugere o padrão. A regra
+                    "só atendente recebe" quebraria a clínica de uma pessoa só,
+                    em que o dono atende: ninguém seria elegível e toda conversa
+                    ficaria sem responsável. */}
+                <div className="flex items-start justify-between gap-4 border-t border-border pt-3">
+                    <div className="min-w-0">
+                        <Label htmlFor="user-recebe">Recebe conversas</Label>
+                        <p className="text-xs text-muted-foreground">
+                            Entra na distribuição automática e pode ficar responsável por uma
+                            conversa. Quem só acompanha deixa desligado.
+                        </p>
+                    </div>
+                    <Switch
+                        id="user-recebe"
+                        checked={formData.recebeConversas}
+                        onCheckedChange={(v) => setFormData({ ...formData, recebeConversas: v })}
+                    />
                 </div>
 
                 <div className="flex items-start justify-between gap-4 border-t border-border pt-3">

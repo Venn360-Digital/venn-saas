@@ -83,6 +83,9 @@ eq('03h00 UTC já é dia 14', isoDay(new Date('2026-10-14T03:00:00Z')), '2026-10
 console.log('\n— quem vê o quê')
 const member = (role: WorkspaceRole, departmentIds: string[] = []) => ({
     membershipId: 'm', userId: 'eu', workspaceId: 'w', role, departmentIds, canTransfer: false,
+    // Nenhuma das duas participa do recorte que este script prova; existem
+    // porque o tipo é o mesmo do runtime, e é bom que seja.
+    status: 'ausente', recebeConversas: false, ultimaAtividadeEm: null,
 })
 for (const role of ['OWNER', 'ADMIN', 'GESTOR'] as WorkspaceRole[]) {
     eq(`${role} pode escolher`, canSeeEveryone(role), true)
