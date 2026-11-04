@@ -60,7 +60,7 @@ export async function elegiveisDaLinha(
             recebeConversas: true,
             ...(departmentId ? { departments: { some: { departmentId } } } : {}),
         },
-        select: { userId: true, status: true },
+        select: { userId: true, status: true, ultimaAtividadeEm: true },
     })
     if (membros.length === 0) return []
 
@@ -92,6 +92,7 @@ export async function elegiveisDaLinha(
         status: m.status as StatusDoMembro,
         ultimaAtribuicao: porUltima.get(m.userId) ?? null,
         abertas: porAbertas.get(m.userId) ?? 0,
+        ultimaAtividadeEm: m.ultimaAtividadeEm,
     }))
 }
 
@@ -101,7 +102,8 @@ async function politicaDo(workspaceId: string) {
         where: { id: workspaceId },
         select: { automations: true },
     })
-    return readAutomations(w?.automations).distribuicao
+    const a = readAutomations(w?.automations)
+    return { ...a.distribuicao, minutosParaAusente: a.minutosParaAusente }
 }
 
 /**
@@ -126,7 +128,7 @@ export async function darDono(entrada: {
         if (politica.estrategia === 'nenhuma') return null
 
         const elegiveis = await elegiveisDaLinha(entrada.workspaceId, entrada.integrationId)
-        const escolhido = escolherDono(elegiveis, politica)
+        const escolhido = escolherDono(elegiveis, politica, politica.minutosParaAusente)
         if (!escolhido) return null
 
         const r = await prisma.conversation.updateMany({
@@ -164,16 +166,80 @@ export async function donoDisponivel(
 ): Promise<string | null> {
     if (!ownerId) return null
 
-    const m = await prisma.workspaceUser.findFirst({
-        where: { workspaceId, userId: ownerId, isActive: true },
-        select: { userId: true, status: true },
-    })
+    const [m, politica] = await Promise.all([
+        prisma.workspaceUser.findFirst({
+            where: { workspaceId, userId: ownerId, isActive: true },
+            select: { userId: true, status: true, ultimaAtividadeEm: true },
+        }),
+        politicaDo(workspaceId),
+    ])
     if (!m) return null
 
-    return destinoDaEntrega({
-        userId: m.userId,
-        status: m.status as StatusDoMembro,
-        ultimaAtribuicao: null,
-        abertas: 0,
-    })
+    return destinoDaEntrega(
+        {
+            userId: m.userId,
+            status: m.status as StatusDoMembro,
+            ultimaAtribuicao: null,
+            abertas: 0,
+            ultimaAtividadeEm: m.ultimaAtividadeEm,
+        },
+        politica.minutosParaAusente
+    )
+}
+
+/**
+ * Quando alguém fica disponível, a fila sem dono encontra responsável.
+ *
+ * **Este é o momento em que a madrugada vira carteira.** Com o interruptor
+ * ligado e ninguém disponível, as conversas da noite nascem órfãs; sem esta
+ * varredura ficariam assim até a mensagem seguinte do paciente — que pode não
+ * vir. Quem abre o sistema às 8h encontra o que fazer, que era o pedido.
+ *
+ * **Uma de cada vez, com teto.** Distribuir o lote inteiro faria a primeira
+ * pessoa a chegar levar a noite toda, e a segunda chegar meia hora depois para
+ * uma fila vazia. Com o teto, o resto espera mais gente ficar disponível — ou a
+ * própria pessoa esvaziar o que pegou e voltar a puxar.
+ *
+ * Reusa `escolherDono` a cada volta em vez de atribuir tudo a quem acabou de
+ * chegar: se outra pessoa ficar disponível no meio, ela entra no rodízio.
+ *
+ * Nunca lança: é chamada sem `await` de uma rota que já respondeu.
+ */
+export async function varrerFilaSemDono(workspaceId: string, gatilho: string): Promise<number> {
+    /**
+     * O teto não é configurável de propósito. É proteção contra o caso
+     * patológico (uma noite de 40 conversas), não um ajuste de operação — e
+     * cada número que o cliente pode mexer é um número que ele precisa
+     * entender.
+     */
+    const TETO = 5
+
+    try {
+        const politica = await politicaDo(workspaceId)
+        if (politica.estrategia === 'nenhuma') return 0
+
+        const semDono = await prisma.conversation.findMany({
+            where: { workspaceId, ownerId: null, status: 'active' },
+            select: { id: true, integrationId: true },
+            orderBy: { createdAt: 'asc' },
+            take: TETO,
+        })
+        if (semDono.length === 0) return 0
+
+        let deu = 0
+        for (const c of semDono) {
+            const quem = await darDono({
+                workspaceId,
+                conversationId: c.id,
+                integrationId: c.integrationId,
+            })
+            if (quem) deu++
+        }
+
+        if (deu > 0) log.info(`${deu} conversa(s) sem dono distribuída(s) após ${gatilho} ficar disponível`)
+        return deu
+    } catch (erro) {
+        log.warn(`varredura da fila falhou em ${workspaceId}: ${String(erro)}`)
+        return 0
+    }
 }

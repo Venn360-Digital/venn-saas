@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ChevronsUpDown, Hospital, LogOut, Plug, User, Users } from 'lucide-react'
+import { Check, ChevronsUpDown, Circle, Hospital, LogOut, Plug, User, Users } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -27,7 +27,25 @@ import { esquecerUnidades } from '@/hooks/useUnidades'
 interface Me {
     user: { id: string; email: string; name: string; avatar: string | null; initials: string }
     workspace: { id: string; name: string; slug: string } | null
+    /** `disponivel | ocupado | ausente`. Nulo quando não há participação. */
+    disponibilidade?: string | null
+    /** Sem isto o seletor não aparece: quem não recebe não tem o que marcar. */
+    recebeConversas?: boolean
 }
+
+/**
+ * Os três estados, na ordem em que se usa: chego, saio para algo, vou embora.
+ *
+ * **Verde recebe; amarelo e cinza não** — e os dois últimos são iguais para a
+ * distribuição. A diferença existe para a equipe saber se vale chamar no
+ * particular, e a dica de cada item diz isso, porque quem lê "ocupado" supõe
+ * que recebe *menos* quando recebe *nada*.
+ */
+const ESTADOS = [
+    { id: 'disponivel', rotulo: 'Disponível', cor: 'text-success', dica: 'Recebe conversas novas' },
+    { id: 'ocupado', rotulo: 'Ocupado', cor: 'text-warning', dica: 'Está aqui, mas não recebe' },
+    { id: 'ausente', rotulo: 'Ausente', cor: 'text-muted-foreground', dica: 'Não recebe' },
+] as const
 
 /**
  * Who you are, at the foot of the sidebar.
@@ -45,6 +63,23 @@ export function NavUser() {
     const { isMobile } = useSidebar()
     const [me, setMe] = useState<Me | null>(null)
     const [loading, setLoading] = useState(true)
+    /**
+     * O status mora em estado local para a marca mudar no clique.
+     *
+     * Esperar a resposta da rota para pintar o visto deixaria o menu parecendo
+     * travado — e o efeito real é só quem recebe a próxima conversa, não algo
+     * que o usuário precise ver confirmado antes de seguir.
+     */
+    const [disponibilidade, setDisponibilidade] = useState<string | null>(null)
+
+    const mudarStatus = async (status: string) => {
+        setDisponibilidade(status)
+        await fetch('/api/me/disponibilidade', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        }).catch(() => { /* o próximo carregamento corrige */ })
+    }
 
     useEffect(() => {
         let cancelled = false
@@ -52,7 +87,10 @@ export function NavUser() {
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
                 if (cancelled) return
-                if (data) setMe(data)
+                if (data) {
+                    setMe(data)
+                    setDisponibilidade(data.disponibilidade ?? null)
+                }
                 setLoading(false)
             })
             .catch(() => {
@@ -155,6 +193,34 @@ export function NavUser() {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
+
+                        {/* ─── Disponibilidade ──────────────────────────────
+                            No topo porque é o item que se usa várias vezes ao
+                            dia — os destinos abaixo se visitam uma vez por mês.
+
+                            Só aparece para quem entra na distribuição: marcar
+                            "disponível" sem receber conversa não quer dizer
+                            nada, e um controle que não faz efeito ensina a
+                            ignorar os outros. ─────────────────────────────── */}
+                        {me?.recebeConversas ? (
+                            <>
+                                <DropdownMenuGroup>
+                                    {ESTADOS.map((e) => (
+                                        <DropdownMenuItem
+                                            key={e.id}
+                                            onSelect={() => void mudarStatus(e.id)}
+                                        >
+                                            <Circle className={`size-2.5 fill-current ${e.cor}`} />
+                                            <span className="flex-1">{e.rotulo}</span>
+                                            <span className="text-xs text-muted-foreground">{e.dica}</span>
+                                            {disponibilidade === e.id ? <Check className="size-4" /> : null}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuGroup>
+                                <DropdownMenuSeparator />
+                            </>
+                        ) : null}
+
                         <DropdownMenuGroup>
                             {/* A ordem é a da própria tela de Conta: quem é
                                 você, quem é a equipe, qual é a clínica, o que

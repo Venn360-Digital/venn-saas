@@ -27,6 +27,12 @@ const createUserSchema = z.object({
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']),
     canTransfer: z.boolean().default(false),
     isActive: z.boolean().default(true),
+    /**
+     * Entra na distribuição de conversas. Sem valor, o padrão vem do papel:
+     * GESTOR e ATENDENTE recebem, OWNER e ADMIN não. É a mesma regra que a
+     * migração aplicou a quem já existia.
+     */
+    recebeConversas: z.boolean().optional(),
 })
 
 // GET - List users
@@ -132,6 +138,8 @@ export async function GET(request: NextRequest) {
                 departments: wu.departments.map((d) => d.department),
                 canTransfer: wu.canTransfer,
                 isActive: wu.isActive,
+                recebeConversas: wu.recebeConversas,
+                disponibilidade: wu.status,
                 isFirstAdmin: wu.id === foundingMember?.id, // First member is protected
                 createdAt: wu.createdAt,
             })),
@@ -256,6 +264,8 @@ export async function POST(request: NextRequest) {
                 role: validatedData.role,
                 canTransfer: validatedData.canTransfer,
                 isActive: validatedData.isActive,
+                recebeConversas:
+                    validatedData.recebeConversas ?? validatedData.role !== 'ADMIN',
                 // Do mesmo workspace: os ids vêm do corpo da requisição, e sem
                 // o filtro a pessoa poderia ser posta no departamento de outra
                 // clínica — e passaria a ver a fila dela.

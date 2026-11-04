@@ -21,6 +21,7 @@ import {
     POLITICA_PADRAO,
     destinoDaEntrega,
     escolherDono,
+    estaDisponivel,
     podeReceber,
     type MembroElegivel,
     type PoliticaDeDistribuicao,
@@ -234,6 +235,92 @@ conferir(
         destinoDaEntrega(membro({ userId: 'ana', status: 'ausente' })),
     ],
     ['ana', null]
+)
+
+console.log('\nA queda automática — quem foi embora verde')
+
+/**
+ * O problema que isto resolve: status manual só funciona se as pessoas
+ * lembrarem. Às 18h todo mundo vai embora marcado como disponível, e a
+ * distribuição da madrugada cairia em quem não está — exatamente o que o
+ * interruptor existe para evitar.
+ *
+ * A saída é **derivar** a disponibilidade da atividade, e não gravar o flip por
+ * um job: mesmo resultado, sem cron, sem escrita, sem estado a mais para
+ * divergir — e, por ser conta pura, provável aqui.
+ */
+const AGORA = em('2026-11-04T02:00:00Z')
+
+conferir(
+    'marcado disponível mas sem agir há 3 horas: não está disponível',
+    estaDisponivel(
+        membro({ userId: 'ana', ultimaAtividadeEm: em('2026-11-03T23:00:00Z') }),
+        30,
+        AGORA
+    ),
+    false
+)
+conferir(
+    'marcado disponível e agiu há 5 minutos: está',
+    estaDisponivel(
+        membro({ userId: 'ana', ultimaAtividadeEm: em('2026-11-04T01:55:00Z') }),
+        30,
+        AGORA
+    ),
+    true
+)
+
+/**
+ * "Status antigo" não é sinal de ausência — quem trabalha há duas horas tem o
+ * status antigo e está presente. O que diz presença é atividade, e é por isso
+ * que a conta olha `ultimaAtividadeEm` e não `statusEm`.
+ */
+conferir(
+    'quem trabalha há horas sem parar continua disponível',
+    estaDisponivel(
+        membro({ userId: 'ana', ultimaAtividadeEm: em('2026-11-04T01:59:00Z') }),
+        30,
+        AGORA
+    ),
+    true
+)
+
+conferir(
+    'nunca agiu não está disponível, mesmo marcado como tal',
+    estaDisponivel(membro({ userId: 'novato', ultimaAtividadeEm: null }), 30, AGORA),
+    false
+)
+conferir(
+    'com a queda desligada (0), vale só o que foi marcado',
+    [
+        estaDisponivel(membro({ userId: 'ana', ultimaAtividadeEm: null }), 0, AGORA),
+        estaDisponivel(membro({ userId: 'b', status: 'ausente', ultimaAtividadeEm: null }), 0, AGORA),
+    ],
+    [true, false]
+)
+
+conferir(
+    'na distribuição: quem foi embora verde não recebe a conversa da madrugada',
+    escolherDono(
+        [
+            membro({ userId: 'saiu', ultimaAtividadeEm: em('2026-11-03T18:00:00Z') }),
+            membro({ userId: 'plantao', ultimaAtividadeEm: em('2026-11-04T01:58:00Z') }),
+        ],
+        SO_DISPONIVEIS,
+        30,
+        AGORA
+    ),
+    'plantao'
+)
+
+conferir(
+    'e na entrega: dono que sumiu há 3 horas manda para a fila geral',
+    destinoDaEntrega(
+        membro({ userId: 'ana', ultimaAtividadeEm: em('2026-11-03T23:00:00Z') }),
+        30,
+        AGORA
+    ),
+    null
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

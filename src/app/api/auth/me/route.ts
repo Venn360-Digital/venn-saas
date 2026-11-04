@@ -42,6 +42,13 @@ export async function GET() {
             },
             workspace: workspace || null,
             role: membro?.role || null,
+            /**
+             * O próprio status, para o menu desenhar sem uma segunda chamada.
+             * `recebeConversas` desligado some com o seletor: quem não entra na
+             * distribuição não tem o que marcar.
+             */
+            disponibilidade: membro?.status ?? null,
+            recebeConversas: membro?.recebeConversas ?? false,
         })
     } catch (error) {
         console.error('[ME] Error:', error)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Sparkles, Sun } from 'lucide-react'
+import { Loader2, Shuffle, Sparkles, Sun, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Label } from '@/components/ui/label'
@@ -74,6 +74,107 @@ export function AutomacoesTab() {
                 </p>
             }
         >
+            {/* ─── Distribuição ────────────────────────────────────────
+                Vem antes das rotinas porque muda **quem trabalha**, e não o
+                que o sistema faz sozinho. É o ajuste que a clínica mexe na
+                primeira semana. ──────────────────────────────────────────── */}
+            <SettingsBand
+                title="Distribuição de conversas"
+                description="Quem fica responsável por cada conversa nova. O agente continua atendendo — isto define quem responde por ela quando uma pessoa precisar entrar."
+            >
+                <div className="divide-y divide-border rounded-lg border border-border">
+                    <div className="flex items-start gap-3 p-4">
+                        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
+                            <Shuffle className="size-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <Label htmlFor="estrategia" className="text-sm font-semibold">
+                                Como distribuir
+                            </Label>
+                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                {config.distribuicao.estrategia === 'rodizio'
+                                    ? 'Cada conversa vai para quem recebeu há mais tempo. É igual em quantidade: foi sua vez.'
+                                    : config.distribuicao.estrategia === 'balanceado'
+                                      ? 'Cada conversa vai para quem tem menos conversas abertas. É igual em carga, não em quantidade.'
+                                      : 'Ninguém fica responsável automaticamente. As conversas ficam na fila geral, como hoje.'}
+                            </p>
+                        </div>
+                        <Select
+                            value={config.distribuicao.estrategia}
+                            onValueChange={(v) =>
+                                void save({
+                                    distribuicao: {
+                                        ...config.distribuicao,
+                                        estrategia: v as Automations['distribuicao']['estrategia'],
+                                    },
+                                })
+                            }
+                        >
+                            <SelectTrigger size="sm" className="w-[150px]" id="estrategia">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="nenhuma">Não distribuir</SelectItem>
+                                <SelectItem value="rodizio">Rodízio</SelectItem>
+                                <SelectItem value="balanceado">Balanceado</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Desabilitado em vez de escondido quando não há
+                        distribuição: esconder faz a pessoa concluir que a
+                        opção não existe, e procurar por ela em outro lugar. */}
+                    <Line
+                        icon={UserCheck}
+                        title="Distribuir só para quem está disponível"
+                        hint={
+                            config.distribuicao.estrategia === 'nenhuma'
+                                ? 'Escolha uma forma de distribuir para usar esta opção.'
+                                : 'Ligue se a empresa tem turnos: só quem está marcado como disponível recebe. Desligado, a conversa que chega de madrugada ganha responsável assim mesmo, e quem começa o expediente já tem o que fazer.'
+                        }
+                        checked={config.distribuicao.soDisponiveis}
+                        disabled={config.distribuicao.estrategia === 'nenhuma'}
+                        onChange={(v) =>
+                            void save({ distribuicao: { ...config.distribuicao, soDisponiveis: v } })
+                        }
+                    />
+
+                    {/* Vale mesmo sem distribuição: o status também decide para
+                        quem vai a entrega quando o agente passa o atendimento. */}
+                    <div className="flex items-start gap-3 p-4">
+                        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
+                            <Sun className="size-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                            <Label htmlFor="ausente" className="text-sm font-semibold">
+                                Marcar como ausente sozinho
+                            </Label>
+                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                Depois deste tempo sem usar o sistema, a pessoa volta para ausente.
+                                Sem isto, quem vai embora esquecendo o status continua recebendo
+                                conversa de madrugada.
+                            </p>
+                        </div>
+                        <Select
+                            value={String(config.minutosParaAusente)}
+                            onValueChange={(v) => void save({ minutosParaAusente: Number(v) })}
+                        >
+                            <SelectTrigger size="sm" className="w-[120px]" id="ausente">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="0">Nunca</SelectItem>
+                                {[15, 30, 60, 120].map((m) => (
+                                    <SelectItem key={m} value={String(m)} className="num">
+                                        {m} minutos
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            </SettingsBand>
+
             <SettingsBand
                 title="Rotinas automáticas"
                 description="O que o sistema faz sozinho todo dia. Grava ao mudar — não há botão Salvar."
@@ -125,6 +226,7 @@ function Line({
     checked,
     onChange,
     extra,
+    disabled,
 }: {
     icon: typeof Sun
     title: string
@@ -132,10 +234,11 @@ function Line({
     checked: boolean
     onChange: (checked: boolean) => void
     extra?: React.ReactNode
+    disabled?: boolean
 }) {
     const id = `automation-${title.toLowerCase().replace(/\s+/g, '-')}`
     return (
-        <div className="flex items-start gap-3 p-4">
+        <div className={`flex items-start gap-3 p-4${disabled ? ' opacity-60' : ''}`}>
             <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
                 <Icon className="size-4" />
             </span>
@@ -144,7 +247,7 @@ function Line({
                 <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
             </div>
             {extra}
-            <Switch id={id} checked={checked} onCheckedChange={onChange} />
+            <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
         </div>
     )
 }

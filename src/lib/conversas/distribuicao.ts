@@ -32,6 +32,11 @@ export interface MembroElegivel {
     ultimaAtribuicao: Date | null
     /** Conversas abertas em que é dona. Só o balanceado lê. */
     abertas: number
+    /**
+     * Última ação na aplicação. **Nulo é "nunca agiu"**, e nunca agiu não está
+     * disponível — é o estado de quem foi cadastrado e ainda não entrou.
+     */
+    ultimaAtividadeEm?: Date | null
 }
 
 export interface PoliticaDeDistribuicao {
@@ -58,9 +63,37 @@ export const POLITICA_PADRAO: PoliticaDeDistribuicao = {
     soDisponiveis: false,
 }
 
+/**
+ * Está mesmo disponível? **O status sozinho não basta.**
+ *
+ * Quem sai às 18h esquecendo de mudar continua marcado como disponível, e a
+ * distribuição da madrugada cairia em quem não está — exatamente o que o
+ * interruptor existe para evitar. Por isso a disponibilidade é a conjunção de
+ * duas coisas: o que a pessoa marcou **e** ter agido no sistema há pouco.
+ *
+ * **Derivado, não gravado.** Um job que virasse o status de madrugada daria o
+ * mesmo resultado e custaria um cron, uma escrita e um estado a mais para
+ * divergir. Aqui a conta é feita na hora, com a data na mão, e por isso é
+ * testável sem banco.
+ *
+ * `minutos = 0` desliga a queda: a conta que prefere confiar no que foi marcado
+ * à mão pode, e aí só o status vale.
+ */
+export function estaDisponivel(m: MembroElegivel, minutosParaAusente: number, agora: Date): boolean {
+    if (m.status !== 'disponivel') return false
+    if (minutosParaAusente <= 0) return true
+    if (!m.ultimaAtividadeEm) return false
+    return agora.getTime() - m.ultimaAtividadeEm.getTime() <= minutosParaAusente * 60_000
+}
+
 /** `disponivel` recebe; `ocupado` e `ausente` não. Os dois últimos são iguais aqui. */
-export function podeReceber(m: MembroElegivel, politica: PoliticaDeDistribuicao): boolean {
-    return politica.soDisponiveis ? m.status === 'disponivel' : true
+export function podeReceber(
+    m: MembroElegivel,
+    politica: PoliticaDeDistribuicao,
+    minutosParaAusente = 0,
+    agora: Date = new Date()
+): boolean {
+    return politica.soDisponiveis ? estaDisponivel(m, minutosParaAusente, agora) : true
 }
 
 /**
@@ -94,11 +127,13 @@ function porRodizio(a: MembroElegivel, b: MembroElegivel): number {
  */
 export function escolherDono(
     elegiveis: readonly MembroElegivel[],
-    politica: PoliticaDeDistribuicao
+    politica: PoliticaDeDistribuicao,
+    minutosParaAusente = 0,
+    agora: Date = new Date()
 ): string | null {
     if (politica.estrategia === 'nenhuma') return null
 
-    const candidatos = elegiveis.filter((m) => podeReceber(m, politica))
+    const candidatos = elegiveis.filter((m) => podeReceber(m, politica, minutosParaAusente, agora))
     if (candidatos.length === 0) return null
 
     if (politica.estrategia === 'balanceado') {
@@ -135,7 +170,11 @@ export function escolherDono(
  * está ligado. O interruptor decide quem *recebe carteira*; isto decide quem
  * *atende agora*, e são perguntas diferentes.
  */
-export function destinoDaEntrega(dono: MembroElegivel | null): string | null {
+export function destinoDaEntrega(
+    dono: MembroElegivel | null,
+    minutosParaAusente = 0,
+    agora: Date = new Date()
+): string | null {
     if (!dono) return null
-    return dono.status === 'disponivel' ? dono.userId : null
+    return estaDisponivel(dono, minutosParaAusente, agora) ? dono.userId : null
 }

@@ -537,10 +537,24 @@ model WorkspaceUser {
   /// quem chega de manhã já ter carteira.
   status String @default("ausente")
 
-  /// Quando o status mudou. Serve à queda automática para `ausente` por
-  /// inatividade — sem isso, todo mundo vai embora às 18h marcado como
-  /// disponível e a madrugada distribui para quem não está.
+  /// Quando o status mudou. Serve ao histórico e à tela, não à queda
+  /// automática — para isso, ver `ultimaAtividadeEm`.
   statusEm DateTime @default(now())
+
+  /// Última ação desta pessoa na aplicação.
+  ///
+  /// **A queda para ausente é derivada daqui, não escrita.** "Status antigo"
+  /// não serve como sinal: quem trabalha há duas horas tem o status antigo e
+  /// está presente. O que diz presença é atividade.
+  ///
+  /// Derivar em vez de gravar o flip evita um job de fundo e deixa a regra
+  /// **pura** — `estaDisponivel` decide com a data na mão, e o teste prova sem
+  /// banco. O único custo é tocar esta coluna nas rotas, e com folga: só é
+  /// reescrita quando já está velha (ver `getWorkspaceMember`).
+  ///
+  /// Não confundir com presença por sessão, descartada no desenho: sessão dura
+  /// 7 dias e não diz quem está na mesa. Isto é ação real no sistema.
+  ultimaAtividadeEm DateTime?
   permissions Json? // Granular permissions
   createdAt   DateTime @default(now())
 

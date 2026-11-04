@@ -37,4 +37,10 @@ ALTER TABLE "workspace_users" ADD COLUMN "recebeConversas" BOOLEAN NOT NULL DEFA
 ALTER TABLE "workspace_users" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'ausente';
 ALTER TABLE "workspace_users" ADD COLUMN "statusEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+-- A queda para ausente é DERIVADA daqui, não gravada por job: "status antigo"
+-- não serve como sinal, porque quem trabalha há duas horas tem o status antigo
+-- e está presente. Nula = nunca agiu desde a migração, e quem nunca agiu não
+-- está disponível.
+ALTER TABLE "workspace_users" ADD COLUMN "ultimaAtividadeEm" TIMESTAMP(3);
+
 UPDATE "workspace_users" SET "recebeConversas" = false WHERE "role" IN ('OWNER', 'ADMIN');
