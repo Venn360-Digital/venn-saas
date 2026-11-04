@@ -13,6 +13,7 @@ import { ContaClinicaTab } from '@/components/account/ContaClinicaTab'
 import { PlanoTab } from '@/components/account/PlanoTab'
 import { UsersPanel, type UsersPanelHandle } from '@/components/management/UsersPanel'
 import { IntegrationsPanel } from '@/components/management/IntegrationsPanel'
+import { usePermissions } from '@/hooks/usePermissions'
 
 /**
  * Conta — a Tela 03: uma tela, várias guias.
@@ -67,11 +68,28 @@ function ContaContent() {
      */
     const APELIDOS: Record<string, string> = { unidades: 'empresa' }
     const pedida = requested ? (APELIDOS[requested] ?? requested) : null
-    const activeTab = pedida && TABS.some((t) => t.id === pedida) ? pedida : 'perfil'
+    const guias = TABS.filter((t) => t.id !== 'usuarios' || podeVerUsuarios)
+    // Um `?tab=usuarios` guardado por quem não pode ver cai no Perfil, como
+    // qualquer outro valor fora da lista branca.
+    const activeTab = pedida && guias.some((t) => t.id === pedida) ? pedida : 'perfil'
     const setActiveTab = (next: string) =>
         router.replace(`${pathname}?tab=${next}`, { scroll: false })
 
     const users = useRef<UsersPanelHandle>(null)
+
+    /**
+     * A guia Usuários é de supervisão; convidar é de gestão.
+     *
+     * Recorte definido pelo Andre: OWNER e ADMIN veem e convidam, o GESTOR vê e
+     * **não** convida, e o ATENDENTE não vê a guia. Enquanto o papel não chegou
+     * (`loading`), a guia fica fora — mostrar e tirar depois é pior que mostrar
+     * um instante mais tarde, e é como a sidebar já se comporta.
+     *
+     * Isto é apresentação. Quem recusa de verdade são `GET /api/users` e
+     * `GET /api/users/[id]` (supervisão) e o `POST` (gestão).
+     */
+    const { canManage, canSeeEveryone, loading: papelCarregando } = usePermissions()
+    const podeVerUsuarios = canSeeEveryone && !papelCarregando
 
     /**
      * A linha 1 leva só a ação **da tela** — criar —, como o "Novo" das telas
@@ -80,7 +98,7 @@ function ContaContent() {
      * guias ele vale para uma guia só. Quem grava sozinho (Automações) ou age
      * dentro dos cartões (Integrações, Plano) não põe nada aqui.
      */
-    const primary = activeTab === 'usuarios' ? (
+    const primary = activeTab === 'usuarios' && canManage ? (
         <Button size="sm" className="h-8 gap-1.5" onClick={() => users.current?.openNew()}>
             <Plus className="size-3.5" /> Novo usuário
         </Button>
@@ -89,7 +107,7 @@ function ContaContent() {
     return (
         <TabsFrame
             title="Conta"
-            tabs={TABS}
+            tabs={guias}
             active={activeTab}
             onChange={setActiveTab}
             primary={primary}
@@ -104,7 +122,7 @@ function ContaContent() {
                 responsável por três requisições que ninguém pediu. */}
             {activeTab === 'perfil' ? <PerfilTab formId="perfil-form" /> : null}
             {activeTab === 'empresa' ? <ContaClinicaTab formId="empresa-form" /> : null}
-            {activeTab === 'usuarios' ? <UsersPanel ref={users} /> : null}
+            {activeTab === 'usuarios' && podeVerUsuarios ? <UsersPanel ref={users} /> : null}
             {activeTab === 'agenda' ? <AgendaClinicaTab /> : null}
             {activeTab === 'integracoes' ? <IntegrationsPanel /> : null}
             {activeTab === 'automacoes' ? <AutomacoesTab /> : null}

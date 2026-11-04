@@ -11,12 +11,15 @@ import { Slider } from '@/components/ui/slider'
 import { OPENAI_MODELS } from '@/lib/llm/models'
 import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
 import { acharDocumento } from '@/lib/treinamento/documentos'
+import { GRUPOS_DE_FUSOS, rotuloDoFuso } from '@/lib/fusos'
 import type { CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
+    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
@@ -34,14 +37,6 @@ const AGENT_FUNCTIONS: { value: AgentFunction; label: string }[] = [
 function isAgentFunction(value: string): value is AgentFunction {
     return AGENT_FUNCTIONS.some((option) => option.value === value)
 }
-
-/** Os fusos do Brasil, que é onde o produto atende. */
-const FUSOS = [
-    { value: 'America/Sao_Paulo', label: 'Brasília (GMT−3)' },
-    { value: 'America/Manaus', label: 'Manaus (GMT−4)' },
-    { value: 'America/Rio_Branco', label: 'Rio Branco (GMT−5)' },
-    { value: 'America/Noronha', label: 'Fernando de Noronha (GMT−2)' },
-]
 
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024
@@ -88,6 +83,40 @@ function descreveTemperatura(valor: number): string {
     if (valor <= 0.9) return 'Equilíbrio entre naturalidade e consistência.'
     if (valor <= 1.2) return 'Respostas mais variadas. Cuidado: mais chance de inventar o que não sabe.'
     return 'Muito imprevisível. Não recomendado para atendimento.'
+}
+
+/**
+ * Um grupo de campos com um nome e um fio em cima.
+ *
+ * A guia tinha oito blocos soltos com `space-y`, cada um com o próprio rótulo e
+ * a própria legenda, em larguras diferentes: a foto ao lado do nome, a mensagem
+ * inicial inteira, um editor de documento, dois seletores em grade de três e
+ * mais dois numa grade de duas. Lido de cima a baixo não havia agrupamento
+ * nenhum — era a bagunça que o Andre apontou. Três grupos nomeados resolvem sem
+ * esconder nada: quem é, como pensa, o que fala.
+ */
+function Grupo({
+    titulo,
+    descricao,
+    children,
+}: {
+    titulo: string
+    descricao?: string
+    children: React.ReactNode
+}) {
+    return (
+        <section className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+            <div className="mb-3">
+                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {titulo}
+                </h2>
+                {descricao ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground/80">{descricao}</p>
+                ) : null}
+            </div>
+            {children}
+        </section>
+    )
 }
 
 export function PerfilTab({
@@ -143,38 +172,19 @@ export function PerfilTab({
     }
 
     return (
-        <div className="space-y-6">
-            <div>
-                <p className="text-[12.5px] text-muted-foreground">
-                    O estilo personalizado será aplicado ao compartilhar seu Agente IA
-                </p>
-            </div>
-
-            <div className="space-y-4">
-                {/* Imagem do agente */}
-                {/* A identidade do agente numa linha: a foto à esquerda, o
-                    nome e a função à direita. Empilhados, os três comiam meia
-                    tela antes do primeiro campo de texto. */}
-                <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-                    <div className="space-y-3">
-                        <div>
-                            <Label>Imagem do Agente</Label>
-                            <p className="text-xs text-muted-foreground">
-                                Aparece na lista de agentes e nas conversas, para quem atende.
-                                Nos canais conectados o paciente continua vendo a foto da conta
-                                de WhatsApp, Instagram ou Facebook da clínica — essa imagem não
-                                substitui a do canal.
-                            </p>
-                        </div>
-
-                        {/* `flex-wrap` e `shrink-0`: na coluna de 300px os dois
-                            botões não cabem ao lado da foto, e sem isso quem
-                            cedia era a foto — ela ficava com largura zero e o
-                            agente parecia não ter imagem. */}
+        <div className="space-y-5">
+            <Grupo titulo="Identidade" descricao="Quem é este agente para a sua equipe.">
+                <div className="grid items-start gap-4 lg:grid-cols-[232px_minmax(0,1fr)]">
+                    {/* `flex-wrap` e `shrink-0`: na coluna estreita os dois
+                        botões não cabem ao lado da foto, e sem isso quem cedia
+                        era a foto — ela ficava com largura zero e o agente
+                        parecia não ter imagem. */}
+                    <div className="space-y-2">
+                        <Label>Imagem do agente</Label>
                         <div className="flex flex-wrap items-center gap-3">
                             <div
                                 className={cn(
-                                    'flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
+                                    'flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed',
                                     preview ? 'border-transparent' : 'border-muted-foreground/25'
                                 )}
                             >
@@ -188,16 +198,16 @@ export function PerfilTab({
                                         className="h-full w-full object-cover"
                                     />
                                 ) : (
-                                    <span className="text-3xl text-muted-foreground">
+                                    <span className="text-2xl text-muted-foreground">
                                         {data.name?.trim()?.[0]?.toUpperCase() ?? 'A'}
                                     </span>
                                 )}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
                                 <Button variant="outline" size="sm" className="h-8" onClick={() => fileInputRef.current?.click()}>
-                                    <Upload className="mr-2 h-4 w-4" />
-                                    {preview ? 'Alterar imagem' : 'Enviar imagem'}
+                                    <Upload className="mr-1.5 size-3.5" />
+                                    {preview ? 'Alterar' : 'Enviar'}
                                 </Button>
 
                                 {preview && (
@@ -207,7 +217,7 @@ export function PerfilTab({
                                         className="h-8"
                                         onClick={() => onChange({ avatarFile: null, avatar: '' })}
                                     >
-                                        <X className="mr-2 h-4 w-4" />
+                                        <X className="mr-1.5 size-3.5" />
                                         Remover
                                     </Button>
                                 )}
@@ -222,29 +232,29 @@ export function PerfilTab({
                             />
                         </div>
 
+                        {/* O parágrafo que explicava que esta foto não substitui
+                            a do canal saiu a pedido do Andre: eram quatro linhas
+                            de ressalva num campo de upload, e o fato continua
+                            escrito onde ele é verificável — no cabeçalho de
+                            `api/agents/[id]/avatar`. */}
                         <p className="text-xs text-muted-foreground">
-                            PNG, JPG ou WEBP, até 2 MB. A imagem é enviada quando você salva o Agente.
+                            PNG, JPG ou WEBP, até 2 MB. Enviada ao salvar.
                         </p>
                     </div>
 
-                    <div className="space-y-4">
-                        {/* Nome do agente */}
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <Label htmlFor="name">Nome do agente</Label>
                             <Input
                                 id="name"
-                                placeholder="Ex: Ferroaco"
+                                placeholder="Ex: Ana"
                                 value={data.name}
                                 onChange={(e) => onChange({ name: e.target.value })}
                             />
                         </div>
 
-                        {/* Função do agente */}
                         <div className="space-y-2">
-                            <Label htmlFor="agentFunction">Função do agente</Label>
-                            <p className="text-xs text-muted-foreground">
-                                Defina a principal função deste agente
-                            </p>
+                            <Label htmlFor="agentFunction">Função</Label>
                             <Select
                                 value={data.agentFunction}
                                 onValueChange={(value) => {
@@ -263,116 +273,63 @@ export function PerfilTab({
                                 </SelectContent>
                             </Select>
                         </div>
-                
+
+                        <div className="space-y-2">
+                            <Label htmlFor="language">Idioma</Label>
+                            <Select
+                                value={data.language}
+                                onValueChange={(value) => onChange({ language: value })}
+                            >
+                                <SelectTrigger id="language">
+                                    <SelectValue placeholder="Português (Brasil)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                                    <SelectItem value="en-US">Inglês (EUA)</SelectItem>
+                                    <SelectItem value="es-ES">Espanhol</SelectItem>
+                                    <SelectItem value="fr-FR">Francês</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* O fuso com que o agente responde "amanhã às 9h". Os
+                            rótulos trazem o deslocamento de HOJE, calculado por
+                            `Intl` — escrito à mão, metade da lista estaria
+                            errada metade do ano por causa do horário de verão. */}
+                        <div className="space-y-2">
+                            <Label htmlFor="timezone">Fuso horário</Label>
+                            <Select
+                                value={data.timezone ?? 'America/Sao_Paulo'}
+                                onValueChange={(timezone) => onChange({ timezone })}
+                            >
+                                <SelectTrigger id="timezone">
+                                    <SelectValue placeholder="Brasília, São Paulo" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-72">
+                                    {GRUPOS_DE_FUSOS.map((grupo) => (
+                                        <SelectGroup key={grupo.titulo}>
+                                            <SelectLabel>{grupo.titulo}</SelectLabel>
+                                            {grupo.fusos.map((f) => (
+                                                <SelectItem key={f.value} value={f.value}>
+                                                    {rotuloDoFuso(f)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </div>
+            </Grupo>
 
-                {/* Mensagem Inicial */}
-                <div className="space-y-2">
-                    <Label htmlFor="initialMessage">Mensagem Inicial</Label>
-                    <p className="text-xs text-muted-foreground">
-                        Será a mensagem inicial do seu Agente com os usuários
-                    </p>
-                    <Textarea
-                        id="initialMessage"
-                        placeholder="Digite a mensagem inicial..."
-                        value={data.initialMessage || ''}
-                        onChange={(e) => onChange({ initialMessage: e.target.value })}
-                        className="min-h-[100px] resize-none"
-                        maxLength={maxChars}
-                    />
-                    <p className="text-xs text-right text-muted-foreground">
-                        {charCount} de {maxChars} caracteres
-                    </p>
-                </div>
-
-                {/*
-                  * Instruções centrais: o documento de identidade do agente.
-                  *
-                  * Mora no Perfil e não em guia própria porque é isto que o
-                  * Perfil é — quem o agente é. Ele SUBSTITUI a instrução livre
-                  * da antiga aba Instruções: emitir as duas daria ao modelo duas
-                  * declarações de identidade que podem divergir.
-                  */}
-                <div className="space-y-2">
-                    <Label htmlFor={`treinamento-${DOC_CENTRAIS.slug}`}>
-                        {DOC_CENTRAIS.titulo}
-                    </Label>
-                    <DocumentoDeTreinamento
-                        doc={DOC_CENTRAIS}
-                        valor={centrais.valor}
-                        onChange={onCentraisChange}
-                        indexadoEm={centrais.indexadoEm}
-                        trechos={centrais.trechos}
-                        somenteLeitura={somenteLeitura}
-                        camposAntigos={camposAntigos}
-                    />
-                </div>
-
-                {/*
-                  * O "Tom de voz" saiu daqui.
-                  *
-                  * Eram DOIS controles sobre a MESMA coluna `voiceTone` — este e
-                  * o da aba Voz —, e quem salvasse por último ganhava, sem a
-                  * tela dizer nada. O tom do texto agora é escrito em Instruções
-                  * centrais, junto da identidade, que é onde ele pertence; o da
-                  * aba Voz segue sendo a entonação da fala.
-                  */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-2">
-                        <Label htmlFor="language">Idioma</Label>
-                        <p className="text-xs text-muted-foreground">
-                            Em que língua o Agente responde
-                        </p>
-                        <Select
-                            value={data.language}
-                            onValueChange={(value) => onChange({ language: value })}
-                        >
-                            <SelectTrigger id="language">
-                                <SelectValue placeholder="Português (Brasil)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
-                                <SelectItem value="en-US">Inglês (EUA)</SelectItem>
-                                <SelectItem value="es-ES">Espanhol</SelectItem>
-                                <SelectItem value="fr-FR">Francês</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="timezone">Fuso horário</Label>
-                        <p className="text-xs text-muted-foreground">
-                            O Agente usa para saber que horas são agora
-                        </p>
-                        <Select
-                            value={data.timezone ?? 'America/Sao_Paulo'}
-                            onValueChange={(timezone) => onChange({ timezone })}
-                        >
-                            <SelectTrigger id="timezone">
-                                <SelectValue placeholder="Brasília (GMT−3)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {FUSOS.map((f) => (
-                                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                {/* Qual modelo responde e quanta liberdade ele tem: os dois
-                    ajustes são do mesmo assunto e cabem na mesma linha. Vinham
-                    da aba Instruções, que deixou de existir. */}
+            <Grupo
+                titulo="Como ele pensa"
+                descricao="Qual modelo responde e quanta liberdade ele tem."
+            >
                 <div className="grid items-start gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <Label htmlFor="llmModel">Modelo</Label>
-                        <p className="text-xs text-muted-foreground">
-                            O mais capaz entende melhor pedido confuso e mensagem desencontrada; o
-                            mais barato dá conta da pergunta de rotina. Em resposta curta os dois
-                            consomem 1 crédito — a economia aparece em conversa longa e em base de
-                            conhecimento grande.
-                        </p>
                         <Select
                             value={instrucoes.llmModel}
                             onValueChange={(llmModel) => onInstrucoesChange({ llmModel })}
@@ -388,18 +345,17 @@ export function PerfilTab({
                                 ))}
                             </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                            O mais capaz entende melhor pedido confuso e mensagem desencontrada; o
+                            mais barato dá conta da pergunta de rotina. Em resposta curta os dois
+                            consomem 1 crédito — a economia aparece em conversa longa e em base de
+                            conhecimento grande.
+                        </p>
                     </div>
 
-                    <div className="space-y-3 rounded-lg border bg-card p-4">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <Label className="text-base font-medium">
-                                    Criatividade das respostas
-                                </Label>
-                                <p className="text-[12.5px] text-muted-foreground">
-                                    Quanto o Agente pode variar a forma de responder
-                                </p>
-                            </div>
+                    <div className="space-y-2">
+                        <div className="flex items-baseline justify-between gap-4">
+                            <Label>Criatividade das respostas</Label>
                             <span className="num shrink-0 text-sm font-medium">
                                 {(instrucoes.temperature ?? 0.7).toFixed(1)}
                             </span>
@@ -420,7 +376,59 @@ export function PerfilTab({
                         </p>
                     </div>
                 </div>
-            </div>
+            </Grupo>
+
+            <Grupo
+                titulo="O que ele fala"
+                descricao="A primeira mensagem, e as instruções que valem para todas as outras."
+            >
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="initialMessage">Mensagem inicial</Label>
+                        <Textarea
+                            id="initialMessage"
+                            placeholder="Digite a mensagem inicial..."
+                            value={data.initialMessage || ''}
+                            onChange={(e) => onChange({ initialMessage: e.target.value })}
+                            className="min-h-[72px] resize-none"
+                            maxLength={maxChars}
+                        />
+                        <p className="num text-right text-xs text-muted-foreground">
+                            {charCount} de {maxChars} caracteres
+                        </p>
+                    </div>
+
+                    {/*
+                      * Instruções centrais **por último**, a pedido do Andre.
+                      *
+                      * E a ordem tem razão além do pedido: é o único campo da
+                      * guia que é um documento, com editor próprio, botão de
+                      * rascunho e selo de indexação. No meio da tela ele partia
+                      * a leitura em duas — acima e abaixo de um bloco alto —, e
+                      * os dois seletores que vinham depois pareciam pertencer a
+                      * ele. No fim, a guia lê de cima a baixo como uma lista de
+                      * campos que termina num texto longo.
+                      *
+                      * Ele SUBSTITUI a instrução livre da antiga aba Instruções:
+                      * emitir as duas daria ao modelo duas declarações de
+                      * identidade que podem divergir.
+                      */}
+                    <div className="space-y-2">
+                        <Label htmlFor={`treinamento-${DOC_CENTRAIS.slug}`}>
+                            {DOC_CENTRAIS.titulo}
+                        </Label>
+                        <DocumentoDeTreinamento
+                            doc={DOC_CENTRAIS}
+                            valor={centrais.valor}
+                            onChange={onCentraisChange}
+                            indexadoEm={centrais.indexadoEm}
+                            trechos={centrais.trechos}
+                            somenteLeitura={somenteLeitura}
+                            camposAntigos={camposAntigos}
+                        />
+                    </div>
+                </div>
+            </Grupo>
         </div>
     )
 }

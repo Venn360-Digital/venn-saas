@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
+import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { readAutomations } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
@@ -53,8 +53,21 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
         }
 
-        // Only ADMIN can list users
-        if (!['OWNER', 'ADMIN'].includes(workspaceUser.role)) {
+        /**
+         * Ver a equipe é de **supervisão**; cadastrar é de gestão.
+         *
+         * Eram a mesma coisa — `['OWNER','ADMIN']` nos dois —, e isso deixava o
+         * GESTOR sem a lista. O recorte que o Andre definiu separa os dois atos:
+         * o GESTOR acompanha quem está disponível, de que departamento é cada
+         * um e quem está atendendo o quê, e **não** convida ninguém. O
+         * ATENDENTE não entra: a guia some da Conta para ele, e isto é o portão
+         * que faz a guia sumida não ser só enfeite.
+         *
+         * `canSeeEveryone` e não uma lista literal: é o mesmo conjunto que
+         * decide o seletor "Responsável" nas outras telas, e ele já existe
+         * nomeado pelo que decide.
+         */
+        if (!canSeeEveryone(workspaceUser.role)) {
             return NextResponse.json({ error: 'Permissão negada' }, { status: 403 })
         }
 

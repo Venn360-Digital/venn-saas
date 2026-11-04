@@ -1,15 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, FileText, Globe, Video, HelpCircle, Upload, X } from 'lucide-react'
+import { ChevronDown, FileText, Globe, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-import { CerebroData, KnowledgeFile, KnowledgeWebsite, KnowledgeFAQ } from '@/types/agent-creation'
+import { CerebroData, KnowledgeFile, KnowledgeWebsite } from '@/types/agent-creation'
 
 interface CerebroTabProps {
     data: CerebroData
@@ -100,7 +98,6 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
     const [isUploading, setIsUploading] = useState(false)
     const [websiteUrl, setWebsiteUrl] = useState('')
     const [isReadingSite, setIsReadingSite] = useState(false)
-    const [newFaq, setNewFaq] = useState({ question: '', answer: '' })
     const [removing, setRemoving] = useState<string | null>(null)
 
     /**
@@ -161,64 +158,110 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
      * quantos caracteres entraram antes de gravar, e um site que não dá texto
      * (carrossel de imagens, conteúdo por script) diz isso na hora.
      */
+    /**
+     * Vários endereços de uma vez, separados por ponto e vírgula.
+     *
+     * Pedido do Andre para o cadastro em massa: implantar uma clínica é colar a
+     * lista de páginas que ela já tem — serviços, preços, convênios, sobre —, e
+     * uma por vez são quatro idas ao campo com uma espera de leitura em cada.
+     *
+     * O separador é `;` e não vírgula porque **URL tem vírgula**: um link de
+     * mapa ou de busca a carrega no meio, e partir por vírgula quebraria o
+     * endereço ao meio sem a pessoa entender por quê.
+     *
+     * As páginas são lidas **em sequência, não em paralelo**. A rota de leitura
+     * busca a página inteira e a converte em texto; cinco buscas simultâneas
+     * partindo do mesmo Worker é o tipo de rajada que o site de destino lê como
+     * ataque, e algumas hospedagens respondem com bloqueio. Em sequência é mais
+     * lento e é o certo.
+     *
+     * O resultado é contado por lote: a mensagem diz quantas entraram, e cada
+     * falha é dita com o endereço dela — num lote de cinco, "não foi possível
+     * ler a página" sem dizer qual não serve para nada.
+     */
     const handleAddWebsite = async () => {
-        const url = websiteUrl.trim()
-        if (!url || isReadingSite) return
+        if (isReadingSite) return
 
-        const withProtocol = /^https?:\/\//i.test(url) ? url : `https://${url}`
+        const enderecos = websiteUrl
+            .split(';')
+            .map((u) => u.trim())
+            .filter(Boolean)
+            .map((u) => (/^https?:\/\//i.test(u) ? u : `https://${u}`))
 
-        if (data.websites.some((site) => site.url === withProtocol)) {
-            toast.error('Esse endereço já está na lista.')
-            return
-        }
+        if (enderecos.length === 0) return
+
+        // Repetido dentro do próprio lote conta como repetido.
+        const vistos = new Set(data.websites.map((site) => site.url))
+        const novos: KnowledgeWebsite[] = []
+        const falhas: string[] = []
+        let repetidos = 0
 
         setIsReadingSite(true)
         try {
-            const res = await fetch('/api/agents/knowledge/fetch-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: withProtocol }),
-            })
-            const payload = await res.json().catch(() => null)
+            for (const endereco of enderecos) {
+                if (vistos.has(endereco)) {
+                    repetidos++
+                    continue
+                }
+                vistos.add(endereco)
 
-            if (!res.ok) {
-                toast.error(payload?.error ?? 'Não foi possível ler a página.')
-                return
+                try {
+                    const res = await fetch('/api/agents/knowledge/fetch-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: endereco }),
+                    })
+                    const payload = await res.json().catch(() => null)
+
+                    if (!res.ok) {
+                        falhas.push(payload?.error ? `${endereco}: ${payload.error}` : endereco)
+                        continue
+                    }
+
+                    novos.push({
+                        id: `${Date.now()}-${endereco}`,
+                        url: payload.url,
+                        title: payload.title,
+                        addedAt: new Date(),
+                        content: payload.content,
+                        chars: payload.chars,
+                        truncated: payload.truncated,
+                    })
+                } catch {
+                    falhas.push(endereco)
+                }
             }
 
-            const newWebsite: KnowledgeWebsite = {
-                id: `${Date.now()}-${withProtocol}`,
-                url: payload.url,
-                title: payload.title,
-                addedAt: new Date(),
-                content: payload.content,
-                chars: payload.chars,
-                truncated: payload.truncated,
+            if (novos.length > 0) {
+                onChange({ websites: [...data.websites, ...novos] })
+                const caracteres = novos.reduce((soma, w) => soma + (w.chars ?? 0), 0)
+                toast.success(
+                    novos.length === 1
+                        ? `Lemos ${caracteres.toLocaleString('pt-BR')} caracteres da página`
+                        : `${novos.length} páginas lidas — ${caracteres.toLocaleString('pt-BR')} caracteres`
+                )
+                if (novos.some((w) => w.truncated)) {
+                    toast.warning('Alguma página era muito longa — indexamos o começo dela.')
+                }
             }
 
-            onChange({ websites: [...data.websites, newWebsite] })
-            setWebsiteUrl('')
-
-            if (payload.truncated) {
-                toast.warning('Página muito longa — indexamos o começo dela.')
-            } else {
-                toast.success(`Lemos ${payload.chars.toLocaleString('pt-BR')} caracteres da página`)
+            if (repetidos > 0) {
+                toast.error(
+                    repetidos === 1
+                        ? 'Um endereço já estava na lista.'
+                        : `${repetidos} endereços já estavam na lista.`
+                )
             }
-        } catch {
-            toast.error('Não foi possível ler a página.')
+
+            for (const falha of falhas) toast.error(`Não foi possível ler ${falha}`)
+
+            // O campo só esvazia se **tudo** entrou: com falha, o que a pessoa
+            // colou continua lá para ela corrigir o endereço errado em vez de
+            // redigitar a lista.
+            if (falhas.length === 0) setWebsiteUrl('')
         } finally {
             setIsReadingSite(false)
         }
-    }
-
-    const handleAddFaq = () => {
-        if (!newFaq.question || !newFaq.answer) return
-        const faq: KnowledgeFAQ = {
-            id: Date.now().toString(),
-            ...newFaq,
-        }
-        onChange({ faqs: [...data.faqs, faq] })
-        setNewFaq({ question: '', answer: '' })
     }
 
     /**
@@ -351,7 +394,7 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
                         <div className="space-y-2">
                             <div className="flex gap-2">
                                 <Input
-                                    placeholder="https://exemplo.com"
+                                    placeholder="https://exemplo.com; https://exemplo.com/precos"
                                     value={websiteUrl}
                                     onChange={(e) => setWebsiteUrl(e.target.value)}
                                     onKeyDown={(e) => {
@@ -367,8 +410,10 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Lemos o texto da página informada — uma página por vez, sem
-                                percorrer o site inteiro. Para vários endereços, adicione um a um.
+                                Lemos o texto de cada página informada, sem percorrer o site
+                                inteiro. Para várias de uma vez, separe por{' '}
+                                <strong className="font-semibold text-foreground">;</strong> — é
+                                ponto e vírgula porque endereço costuma ter vírgula no meio.
                             </p>
                         </div>
                         ) : null}
@@ -408,128 +453,26 @@ export function CerebroTab({ data, onChange, agentId, canManage = true }: Cerebr
                 </ExpandableSection>
 
                 {/*
-                  * YouTube: a seção diz o que é, em vez de aceitar e esquecer.
+                  * **Youtube e Perguntas & Respostas saíram**, a pedido do
+                  * Andre (2026-11-04).
                   *
-                  * Antes, acrescentar um vídeo guardava a URL numa linha sem
-                  * conteúdo e sem vetor — o vídeo aparecia na lista e o agente
-                  * nunca soube nada dele. Transcrever vídeo exige buscar a
-                  * legenda do YouTube, que não tem rota pública estável, ou
-                  * baixar o áudio e transcrever; é trabalho próprio, não um
-                  * campo de texto. Até lá, o campo não finge.
+                  * Youtube nunca funcionou: acrescentar um vídeo guardava a URL
+                  * numa linha sem conteúdo e sem vetor, e a seção já estava
+                  * reduzida a um aviso de "ainda não disponível". Uma seção que
+                  * só sabe dizer que não faz nada ocupa espaço e levanta a
+                  * pergunta toda vez que alguém abre o Cérebro.
                   *
-                  * Um vídeo já cadastrado por uma versão anterior continua
-                  * listado, com o aviso, para a clínica poder removê-lo.
+                  * Perguntas & Respostas virou redundante: o catálogo de
+                  * treinamento tem o documento FAQ, que é o mesmo conteúdo com
+                  * rascunho, versão e indexação — duas portas para a mesma
+                  * coisa, e só uma delas publica.
+                  *
+                  * **Nada foi apagado do banco.** `data.videos` e `data.faqs`
+                  * continuam no tipo e no que já está indexado; o que saiu foi
+                  * a porta de entrada. Remover os trechos é migração própria, e
+                  * apagar conhecimento de clínica em nome de limpar uma tela
+                  * seria a troca errada.
                   */}
-                <ExpandableSection
-                    title="Youtube"
-                    description="Em breve: transcrição de vídeos para o cérebro"
-                    icon={<Video className="h-5 w-5" />}
-                >
-                    <div className="space-y-4">
-                        <div className="rounded-md border border-dashed p-4">
-                            <p className="text-sm font-medium">Ainda não disponível</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                A transcrição de vídeos do YouTube está em desenvolvimento.
-                                Enquanto isso, o jeito de ensinar esse conteúdo ao Agente é
-                                colar os pontos principais numa pergunta e resposta, ou
-                                enviar um arquivo com o texto.
-                            </p>
-                        </div>
-
-                        {data.videos.length > 0 && (
-                            <div className="space-y-2">
-                                <p className="text-xs text-muted-foreground">
-                                    Vídeos cadastrados antes desta mudança. Eles não são
-                                    consultados pelo Agente.
-                                </p>
-                                {data.videos.map((video) => (
-                                    <div
-                                        key={video.id}
-                                        className="flex items-center justify-between rounded-md border p-3"
-                                    >
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            <Video className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                            <span className="truncate text-sm">{video.url}</span>
-                                        </div>
-                                        {canManage ? (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                disabled={removing === video.id}
-                                                onClick={() => void handleRemoveItem('videos', video.id)}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        ) : null}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </ExpandableSection>
-
-                {/* Perguntas & Respostas */}
-                <ExpandableSection
-                    title="Perguntas & Respostas"
-                    description="Determine perguntas e respostas padronizadas"
-                    icon={<HelpCircle className="h-5 w-5" />}
-                >
-                    <div className="space-y-4">
-                        {canManage ? (
-                        <div className="space-y-3">
-                            <div>
-                                <Label htmlFor="question">Pergunta</Label>
-                                <Input
-                                    id="question"
-                                    placeholder="Digite a pergunta..."
-                                    value={newFaq.question}
-                                    onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor="answer">Resposta</Label>
-                                <Textarea
-                                    id="answer"
-                                    placeholder="Digite a resposta..."
-                                    value={newFaq.answer}
-                                    onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })}
-                                    className="min-h-[80px]"
-                                />
-                            </div>
-                            <Button onClick={handleAddFaq} className="w-full">
-                                Adicionar FAQ
-                            </Button>
-                        </div>
-                        ) : null}
-
-                        {data.faqs.length > 0 && (
-                            <div className="space-y-2">
-                                {data.faqs.map((faq) => (
-                                    <div key={faq.id} className="rounded-md border p-3">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <p className="font-medium text-sm">{faq.question}</p>
-                                                <p className="text-[12.5px] text-muted-foreground">
-                                                    {faq.answer}
-                                                </p>
-                                            </div>
-                                            {canManage ? (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    disabled={removing === faq.id}
-                                                    onClick={() => void handleRemoveItem('faqs', faq.id)}
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </ExpandableSection>
             </div>
         </div>
     )

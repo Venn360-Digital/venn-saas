@@ -84,7 +84,44 @@ export function DocumentoDeTreinamento({
     camposAntigos,
 }: Props) {
     const entrada = useRef<HTMLInputElement>(null)
-    const rascunho = camposAntigos ? gerarRascunho(doc.slug, camposAntigos) : null
+    /**
+     * "Gerar cadastro" só aparece quando há cadastro de onde gerar.
+     *
+     * O botão monta um rascunho a partir dos **campos antigos** do agente —
+     * nome da empresa, setor, endereço, descrição, atribuições, tom, instrução
+     * livre. Eles existem nos agentes anteriores ao método por .MD, e para
+     * esses o botão vale muito: evita redigitar em Markdown o que já estava
+     * escrito.
+     *
+     * Numa conta nova esses campos estão **todos vazios**, e `gerarRascunho`
+     * devolve a casca do documento com os títulos e nenhuma informação — que é
+     * exatamente o que "Inserir modelo" faz, de forma mais honesta. Dois botões
+     * com o mesmo efeito, um deles chamado "gerar", é a observação do Andre em
+     * 2026-11-04: nesse caso o Inserir modelo toma o lugar.
+     *
+     * Então o recorte não é remover o botão — é **condicioná-lo ao que ele
+     * promete**. Com cadastro antigo preenchido ele continua ali; sem nada de
+     * onde gerar, ele some.
+     *
+     * A conferência olha só os cinco campos que **ninguém preenche sozinho**:
+     * empresa, setor, endereço, descrição e atribuições. `systemPrompt` e
+     * `voiceTone` ficam de fora de propósito — todo agente nasce com um texto
+     * padrão nos dois, então eles diriam "tem cadastro" para a conta que acabou
+     * de ser criada, que é justamente o caso que o recorte existe para pegar.
+     */
+    const temCadastroAntigo = Boolean(
+        camposAntigos &&
+            [
+                camposAntigos.companyName,
+                camposAntigos.companySector,
+                camposAntigos.companyAddress,
+                camposAntigos.companyDescription,
+                camposAntigos.jobDescription,
+            ].some((v) => typeof v === 'string' && v.trim().length > 0)
+    )
+
+    const rascunho =
+        camposAntigos && temCadastroAntigo ? gerarRascunho(doc.slug, camposAntigos) : null
 
     const usado = valor.length
     const excedeu = usado > doc.teto
