@@ -59,6 +59,20 @@ function ContaContent() {
      */
     const requested = searchParams.get('tab')
     /**
+     * A guia Usuários é de supervisão; convidar é de gestão.
+     *
+     * Recorte definido pelo Andre: OWNER e ADMIN veem e convidam, o GESTOR vê e
+     * **não** convida, e o ATENDENTE não vê a guia. Enquanto o papel não chegou
+     * (`loading`), a guia fica fora — mostrar e tirar depois é pior que mostrar
+     * um instante mais tarde, e é como a sidebar já se comporta.
+     *
+     * Isto é apresentação. Quem recusa de verdade são `GET /api/users` e
+     * `GET /api/users/[id]` (supervisão) e o `POST` (gestão).
+     */
+    const { canManage, canSeeEveryone, loading: papelCarregando } = usePermissions()
+    const podeVerUsuarios = canSeeEveryone && !papelCarregando
+
+    /**
      * Os apelidos de guias que deixaram de existir.
      *
      * "unidades" foi guia por meio dia, e os links dela — o botão da guia Plano,
@@ -76,20 +90,6 @@ function ContaContent() {
         router.replace(`${pathname}?tab=${next}`, { scroll: false })
 
     const users = useRef<UsersPanelHandle>(null)
-
-    /**
-     * A guia Usuários é de supervisão; convidar é de gestão.
-     *
-     * Recorte definido pelo Andre: OWNER e ADMIN veem e convidam, o GESTOR vê e
-     * **não** convida, e o ATENDENTE não vê a guia. Enquanto o papel não chegou
-     * (`loading`), a guia fica fora — mostrar e tirar depois é pior que mostrar
-     * um instante mais tarde, e é como a sidebar já se comporta.
-     *
-     * Isto é apresentação. Quem recusa de verdade são `GET /api/users` e
-     * `GET /api/users/[id]` (supervisão) e o `POST` (gestão).
-     */
-    const { canManage, canSeeEveryone, loading: papelCarregando } = usePermissions()
-    const podeVerUsuarios = canSeeEveryone && !papelCarregando
 
     /**
      * A linha 1 leva só a ação **da tela** — criar —, como o "Novo" das telas
