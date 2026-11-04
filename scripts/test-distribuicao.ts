@@ -1,0 +1,240 @@
+/**
+ * Quem recebe a próxima conversa, e para onde vai a entrega.
+ *
+ *   npm run test:distribuicao
+ *
+ * Dois casos de empresa forçaram o desenho, e os dois estão aqui porque nenhuma
+ * regra única serve aos dois:
+ *
+ *   - **empresa que atende 8h–18h**: à noite estão todos ausentes. O lead da
+ *     madrugada precisa ganhar dono assim mesmo, para quem chega às 8h ter
+ *     carteira;
+ *   - **empresa com turnos**: o lead das 2h não pode cair em quem trabalha de
+ *     manhã e nunca vai olhar.
+ *
+ * O que separa os dois é `soDisponiveis`, e é por isso que ele existe.
+ *
+ * E há uma terceira coisa, que vale nos dois: no **handoff**, o status é lido
+ * sempre. Carteira tolera dono ausente; entrega urgente não.
+ */
+import {
+    POLITICA_PADRAO,
+    destinoDaEntrega,
+    escolherDono,
+    podeReceber,
+    type MembroElegivel,
+    type PoliticaDeDistribuicao,
+} from '@/lib/conversas/distribuicao'
+
+let passou = 0
+let falhou = 0
+
+function conferir(nome: string, real: unknown, esperado: unknown) {
+    const a = JSON.stringify(real)
+    const b = JSON.stringify(esperado)
+    if (a === b) {
+        passou++
+        console.log(`  ok  ${nome}`)
+    } else {
+        falhou++
+        console.log(`  XX  ${nome}\n        esperado: ${b}\n        veio:     ${a}`)
+    }
+}
+
+/** Um membro, com o mínimo para a conta. */
+function membro(p: Partial<MembroElegivel> & { userId: string }): MembroElegivel {
+    return { status: 'disponivel', ultimaAtribuicao: null, abertas: 0, ...p }
+}
+
+const em = (iso: string) => new Date(iso)
+
+const RODIZIO: PoliticaDeDistribuicao = { estrategia: 'rodizio', soDisponiveis: false }
+const BALANCEADO: PoliticaDeDistribuicao = { estrategia: 'balanceado', soDisponiveis: false }
+const SO_DISPONIVEIS: PoliticaDeDistribuicao = { estrategia: 'rodizio', soDisponiveis: true }
+
+console.log('\nO padrão não distribui — conta nova não ganha comportamento novo sozinha')
+
+conferir('a política padrão é "nenhuma"', POLITICA_PADRAO.estrategia, 'nenhuma')
+conferir('e o interruptor nasce desligado', POLITICA_PADRAO.soDisponiveis, false)
+conferir(
+    'com "nenhuma", ninguém é escolhido mesmo havendo gente',
+    escolherDono([membro({ userId: 'ana' })], POLITICA_PADRAO),
+    null
+)
+
+console.log('\nRodízio — quem recebeu há mais tempo')
+
+conferir(
+    'entre três, ganha a atribuição mais antiga',
+    escolherDono(
+        [
+            membro({ userId: 'ana', ultimaAtribuicao: em('2026-11-03T10:00:00Z') }),
+            membro({ userId: 'bruno', ultimaAtribuicao: em('2026-11-03T08:00:00Z') }),
+            membro({ userId: 'carla', ultimaAtribuicao: em('2026-11-03T09:00:00Z') }),
+        ],
+        RODIZIO
+    ),
+    'bruno'
+)
+
+/**
+ * Quem nunca recebeu vem antes de todo mundo. Sem isto, quem entra na equipe
+ * hoje só receberia depois de os outros darem uma volta inteira.
+ */
+conferir(
+    'quem nunca recebeu passa à frente de quem recebeu ontem',
+    escolherDono(
+        [
+            membro({ userId: 'ana', ultimaAtribuicao: em('2026-11-02T08:00:00Z') }),
+            membro({ userId: 'novato', ultimaAtribuicao: null }),
+        ],
+        RODIZIO
+    ),
+    'novato'
+)
+
+/**
+ * Determinismo: dois que nunca receberam têm de dar sempre a mesma resposta,
+ * ou o teste não prova nada e a distribuição vira sorteio sem querer.
+ */
+conferir(
+    'empate é resolvido pelo userId, e não pela ordem da lista',
+    [
+        escolherDono([membro({ userId: 'bruno' }), membro({ userId: 'ana' })], RODIZIO),
+        escolherDono([membro({ userId: 'ana' }), membro({ userId: 'bruno' })], RODIZIO),
+    ],
+    ['ana', 'ana']
+)
+
+console.log('\nBalanceado — menos conversas abertas')
+
+conferir(
+    'ganha quem tem menos abertas, mesmo tendo recebido agora há pouco',
+    escolherDono(
+        [
+            membro({ userId: 'ana', abertas: 1, ultimaAtribuicao: em('2026-11-03T11:00:00Z') }),
+            membro({ userId: 'bruno', abertas: 7, ultimaAtribuicao: em('2026-11-01T08:00:00Z') }),
+        ],
+        BALANCEADO
+    ),
+    'ana'
+)
+
+/**
+ * Equipe parada, todo mundo com zero aberta: sem desempate por rodízio, o
+ * "balanceado" entregaria tudo ao primeiro da lista até ele passar à frente.
+ */
+conferir(
+    'carga igual cai no rodízio, e não no primeiro da lista',
+    escolherDono(
+        [
+            membro({ userId: 'ana', abertas: 0, ultimaAtribuicao: em('2026-11-03T10:00:00Z') }),
+            membro({ userId: 'bruno', abertas: 0, ultimaAtribuicao: em('2026-11-03T07:00:00Z') }),
+        ],
+        BALANCEADO
+    ),
+    'bruno'
+)
+
+console.log('\nO interruptor — os dois formatos de empresa')
+
+const noturno = [
+    membro({ userId: 'ana', status: 'ausente', ultimaAtribuicao: em('2026-11-03T17:00:00Z') }),
+    membro({ userId: 'bruno', status: 'ausente', ultimaAtribuicao: em('2026-11-03T16:00:00Z') }),
+]
+
+conferir(
+    'empresa 8h-18h: às 2h da manhã o lead ganha dono assim mesmo',
+    escolherDono(noturno, RODIZIO),
+    'bruno'
+)
+conferir(
+    'empresa com turnos: às 2h da manhã ninguém recebe',
+    escolherDono(noturno, SO_DISPONIVEIS),
+    null
+)
+
+conferir(
+    'com o interruptor ligado, o ausente é pulado e o disponível recebe',
+    escolherDono(
+        [
+            membro({ userId: 'ana', status: 'ausente', ultimaAtribuicao: em('2026-11-01T08:00:00Z') }),
+            membro({ userId: 'bruno', status: 'disponivel', ultimaAtribuicao: em('2026-11-03T08:00:00Z') }),
+        ],
+        SO_DISPONIVEIS
+    ),
+    'bruno'
+)
+
+/**
+ * Ocupado e ausente são **iguais** para a distribuição. A diferença é para a
+ * equipe saber se vale chamar no particular — e a tela precisa dizer isso,
+ * senão alguém supõe que amarelo recebe menos, e recebe nada.
+ */
+conferir(
+    'ocupado não recebe, igual ao ausente',
+    [
+        podeReceber(membro({ userId: 'x', status: 'ocupado' }), SO_DISPONIVEIS),
+        podeReceber(membro({ userId: 'x', status: 'ausente' }), SO_DISPONIVEIS),
+        podeReceber(membro({ userId: 'x', status: 'disponivel' }), SO_DISPONIVEIS),
+    ],
+    [false, false, true]
+)
+conferir(
+    'e com o interruptor desligado o status é ignorado — os três recebem',
+    [
+        podeReceber(membro({ userId: 'x', status: 'ocupado' }), RODIZIO),
+        podeReceber(membro({ userId: 'x', status: 'ausente' }), RODIZIO),
+        podeReceber(membro({ userId: 'x', status: 'disponivel' }), RODIZIO),
+    ],
+    [true, true, true]
+)
+
+console.log('\nSem ninguém — e por que null não é erro')
+
+conferir('lista vazia devolve null', escolherDono([], RODIZIO), null)
+conferir(
+    'equipe toda ausente com o interruptor ligado devolve null',
+    escolherDono([membro({ userId: 'ana', status: 'ausente' })], SO_DISPONIVEIS),
+    null
+)
+
+console.log('\nA entrega no handoff — o status vale SEMPRE aqui')
+
+/**
+ * O caso concreto: paciente com dor às 19h, dono designado às 14h já em casa.
+ * A entrega não pode ficar parada com ele.
+ */
+conferir(
+    'dono ausente não recebe a entrega — vai para a fila geral',
+    destinoDaEntrega(membro({ userId: 'ana', status: 'ausente' })),
+    null
+)
+conferir(
+    'dono ocupado também não',
+    destinoDaEntrega(membro({ userId: 'ana', status: 'ocupado' })),
+    null
+)
+conferir(
+    'dono disponível recebe',
+    destinoDaEntrega(membro({ userId: 'ana', status: 'disponivel' })),
+    'ana'
+)
+conferir('sem dono, fila geral', destinoDaEntrega(null), null)
+
+/**
+ * A assimetria que o desenho quis: a **carteira** de uma empresa sem turno
+ * ignora o status, mas a **entrega** dela não. São perguntas diferentes — quem
+ * responde por isto, e quem atende agora.
+ */
+conferir(
+    'empresa sem turno: distribui para o ausente, mas não entrega a ele',
+    [
+        escolherDono([membro({ userId: 'ana', status: 'ausente' })], RODIZIO),
+        destinoDaEntrega(membro({ userId: 'ana', status: 'ausente' })),
+    ],
+    ['ana', null]
+)
+
+console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
+process.exit(falhou > 0 ? 1 : 0)

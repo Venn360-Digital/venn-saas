@@ -78,6 +78,8 @@ model User {
   activities  Activity[]
   deals       Deal[]
   specialists Specialist[]
+  /// As conversas por que esta pessoa responde. Ver `Conversation.ownerId`.
+  conversasQueResponde Conversation[] @relation("ConversasQueResponde")
 
   /// Sessões e credenciais do Better Auth.
   ///
@@ -508,6 +510,37 @@ model WorkspaceUser {
   role        String // OWNER, ADMIN, GESTOR, ATENDENTE
   canTransfer Boolean  @default(false)
   isActive    Boolean  @default(true)
+
+  /// Esta pessoa entra na distribuição de conversas?
+  ///
+  /// **É marca por pessoa, e o papel só define o padrão** (GESTOR e ATENDENTE
+  /// ligados; OWNER e ADMIN desligados). A regra "só ATENDENTE recebe" quebraria
+  /// a clínica de uma pessoa só, em que o dono é o atendente: ninguém seria
+  /// elegível e **toda** conversa ficaria sem responsável.
+  ///
+  /// O default `true` vale para quem já existe — a migração desliga OWNER e
+  /// ADMIN em seguida, que é o padrão certo para eles.
+  recebeConversas Boolean @default(true)
+
+  /// `disponivel | ocupado | ausente`.
+  ///
+  /// **Ocupado e ausente são idênticos para a distribuição** — nenhum dos dois
+  /// recebe. A diferença é para a equipe saber se vale chamar no particular, e a
+  /// tela precisa dizer isso: quem lê "ocupado" supõe que recebe *menos*, e
+  /// recebe *nada*.
+  ///
+  /// Mora aqui e não em `User` porque na Multiclínica a mesma pessoa pode estar
+  /// disponível numa unidade e não na outra.
+  ///
+  /// Só é **lido** quando `distribuicao.soDisponiveis` está ligado na política
+  /// do workspace: empresa sem turno distribui de madrugada de propósito, para
+  /// quem chega de manhã já ter carteira.
+  status String @default("ausente")
+
+  /// Quando o status mudou. Serve à queda automática para `ausente` por
+  /// inatividade — sem isso, todo mundo vai embora às 18h marcado como
+  /// disponível e a madrugada distribui para quem não está.
+  statusEm DateTime @default(now())
   permissions Json? // Granular permissions
   createdAt   DateTime @default(now())
 
@@ -1274,6 +1307,34 @@ model Conversation {
   status     String  @default("active") // "active", "closed", "snoozed"
   assignedTo String? // User ID
 
+  /// Quem **responde por** esta conversa. Não é quem está atendendo agora.
+  ///
+  /// `assignedTo` significa "um humano assumiu" e é o **mutex do agente**:
+  /// quatro portões independentes leem `Boolean(assignedTo)` para calar o bot.
+  /// Logo, distribuir responsável por ele **silenciaria o agente no ato de
+  /// distribuir** — o oposto do pedido. Por isso o responsável nasce em coluna
+  /// própria, que não é lida por portão nenhum.
+  ///
+  /// O dono é da **relação com o paciente**, não do turno: quando o paciente
+  /// volta a escrever depois de finalizada, `assignedTo` zera (o bot retoma) e
+  /// `ownerId` permanece — quem já falou com ele continua respondendo por ele.
+  ///
+  /// Ver §11 de `docs/agente-ia/estudo-metodo-de-treinamento.md`.
+  ownerId String?
+
+  /// Quando o dono atual recebeu esta conversa. **É o relógio do rodízio.**
+  ///
+  /// A estratégia escolhe quem recebeu há mais tempo — `max(ownerAssignedAt)`
+  /// mais antigo entre os elegíveis, e quem nunca recebeu vem primeiro. É round
+  /// robin **sem ponteiro**: não há cursor para corromper, e entra ou sai gente
+  /// da equipe sem a fila ficar enviesada.
+  ownerAssignedAt DateTime?
+
+  /// Como este dono foi escolhido: `manual | rodizio | balanceado | regra |
+  /// recepcao`. Serve ao suporte, que precisa responder "por que caiu para
+  /// mim?" sem ler código.
+  ownerSource String?
+
   /// Quando esta conversa foi entregue a gente, e por quê.
   ///
   /// **`assignedTo` responde a outra pergunta.** Ele significa "um humano está
@@ -1325,6 +1386,14 @@ model Conversation {
   contact       Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   agent         Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
   integration   AgentIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  /// `SetNull` e não `Cascade`: quem sai da equipe não leva as conversas junto.
+  /// A conversa fica sem dono e é redistribuída na mensagem seguinte.
+  ///
+  /// `assignedTo` é string solta por herança, e fica como está — tem mais de
+  /// vinte leitores e mudar isso é risco sem ganho. O dono nasce com a FK
+  /// porque é coluna nova: custa zero agora e evita o fantasma depois.
+  owner         User?             @relation("ConversasQueResponde", fields: [ownerId], references: [id], onDelete: SetNull)
   messages      Message[]
   knowledgeGaps KnowledgeGap[]
   tags          ConversationTag[]
@@ -1338,6 +1407,10 @@ model Conversation {
   /// atendente, que mostram só o que é dele, e o recorte de Pacientes, que
   /// pergunta "tem conversa atribuída a mim?" em toda listagem.
   @@index([assignedTo])
+  /// O índice do dono serve a duas leituras quentes: "minhas conversas" na
+  /// caixa de entrada e a conta de abertas por pessoa, que é o desempate do
+  /// balanceado.
+  @@index([ownerId])
   @@map("conversations")
 }
 

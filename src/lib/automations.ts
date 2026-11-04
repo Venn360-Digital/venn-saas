@@ -1,4 +1,9 @@
 import type { Prisma } from '#prisma'
+import {
+    POLITICA_PADRAO,
+    type EstrategiaDeDistribuicao,
+    type PoliticaDeDistribuicao,
+} from '@/lib/conversas/distribuicao'
 
 /**
  * O que a clínica deixou ligado.
@@ -15,6 +20,24 @@ export interface Automations {
     briefing: boolean
     briefingHour: number
     /** O boletim também no WhatsApp do responsável. */
+
+    /**
+     * Quem recebe a próxima conversa. Ver §11 do estudo e
+     * `lib/conversas/distribuicao.ts`, que é quem decide.
+     *
+     * Mora aqui e não em coluna porque é ajuste, não dado: a conta muda de
+     * estratégia numa tarde e não se quer uma migração por isso.
+     */
+    distribuicao: PoliticaDeDistribuicao
+
+    /**
+     * Minutos sem ação na aplicação até o status cair para `ausente`.
+     *
+     * Sem isto, todo mundo vai embora às 18h marcado como disponível e a
+     * distribuição da madrugada cai em quem não está — exatamente o que o
+     * interruptor existe para evitar. Zero desliga a queda.
+     */
+    minutosParaAusente: number
 }
 
 export const DEFAULT_AUTOMATIONS: Automations = {
@@ -23,6 +46,11 @@ export const DEFAULT_AUTOMATIONS: Automations = {
     followUpTasks: true,
     briefing: true,
     briefingHour: 8,
+    // Nasce desligada: conta existente não ganha comportamento novo sozinha, e
+    // distribuir sem ninguém ter marcado quem recebe seria pior que não
+    // distribuir.
+    distribuicao: POLITICA_PADRAO,
+    minutosParaAusente: 30,
 }
 
 export function readAutomations(value: Prisma.JsonValue | null | undefined): Automations {
@@ -31,9 +59,27 @@ export function readAutomations(value: Prisma.JsonValue | null | undefined): Aut
     const raw = value as Record<string, unknown>
     const hour = Number(raw.briefingHour)
 
+    /**
+     * A política vem de JSON, então **tudo** é desconhecido até ser conferido.
+     * Estratégia inválida vira `nenhuma` em vez de lançar: configuração
+     * estragada não pode derrubar o atendimento, só deixar de distribuir.
+     */
+    const dist = (raw.distribuicao ?? {}) as Record<string, unknown>
+    const estrategias: EstrategiaDeDistribuicao[] = ['nenhuma', 'rodizio', 'balanceado']
+    const minutos = Number(raw.minutosParaAusente)
+
     return {
         followUpTasks: typeof raw.followUpTasks === 'boolean' ? raw.followUpTasks : DEFAULT_AUTOMATIONS.followUpTasks,
         briefing: typeof raw.briefing === 'boolean' ? raw.briefing : DEFAULT_AUTOMATIONS.briefing,
         briefingHour: Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : DEFAULT_AUTOMATIONS.briefingHour,
+        distribuicao: {
+            estrategia: estrategias.includes(dist.estrategia as EstrategiaDeDistribuicao)
+                ? (dist.estrategia as EstrategiaDeDistribuicao)
+                : POLITICA_PADRAO.estrategia,
+            soDisponiveis:
+                typeof dist.soDisponiveis === 'boolean' ? dist.soDisponiveis : POLITICA_PADRAO.soDisponiveis,
+        },
+        minutosParaAusente:
+            Number.isInteger(minutos) && minutos >= 0 ? minutos : DEFAULT_AUTOMATIONS.minutosParaAusente,
     }
 }
