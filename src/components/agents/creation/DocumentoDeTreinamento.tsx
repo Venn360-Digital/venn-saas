@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { AlertTriangle, Check, Download, FileUp, ListPlus, Wand2 } from 'lucide-react'
+import { AlertTriangle, Check, Download, FileUp, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,6 @@ import {
 } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
 import { textoParaAcervo } from '@/lib/treinamento/indexar'
-import { gerarRascunho, type CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 
 /**
@@ -70,7 +69,6 @@ interface Props {
      * produção antes de alguém conferir, e o que está aqui é o que o agente vai
      * dizer ao paciente.
      */
-    camposAntigos?: CamposAntigos
 }
 
 export function DocumentoDeTreinamento({
@@ -81,47 +79,27 @@ export function DocumentoDeTreinamento({
     trechos,
     desatualizado = false,
     somenteLeitura = false,
-    camposAntigos,
 }: Props) {
     const entrada = useRef<HTMLInputElement>(null)
     /**
-     * "Gerar cadastro" só aparece quando há cadastro de onde gerar.
+     * **"Gerar cadastro" saiu**, por decisão do Andre em 2026-11-04.
      *
-     * O botão monta um rascunho a partir dos **campos antigos** do agente —
-     * nome da empresa, setor, endereço, descrição, atribuições, tom, instrução
-     * livre. Eles existem nos agentes anteriores ao método por .MD, e para
-     * esses o botão vale muito: evita redigitar em Markdown o que já estava
-     * escrito.
+     * O botão montava um rascunho do documento a partir dos campos antigos do
+     * agente — nome da empresa, setor, endereço, descrição, atribuições. Fazia
+     * sentido na transição para o método por .MD, quando havia agente com
+     * aquele cadastro preenchido e redigitá-lo em Markdown seria jogar fora
+     * trabalho feito. Essa transição acabou.
      *
-     * Numa conta nova esses campos estão **todos vazios**, e `gerarRascunho`
-     * devolve a casca do documento com os títulos e nenhuma informação — que é
-     * exatamente o que "Inserir modelo" faz, de forma mais honesta. Dois botões
-     * com o mesmo efeito, um deles chamado "gerar", é a observação do Andre em
-     * 2026-11-04: nesse caso o Inserir modelo toma o lugar.
+     * Hoje a conta nova chega com os campos vazios, e aí o botão devolvia a
+     * casca do documento: títulos e nenhuma informação — exatamente o que
+     * "Inserir modelo" faz, com um nome que promete mais. Dois botões para o
+     * mesmo efeito, e o de nome maior entregando menos.
      *
-     * Então o recorte não é remover o botão — é **condicioná-lo ao que ele
-     * promete**. Com cadastro antigo preenchido ele continua ali; sem nada de
-     * onde gerar, ele some.
-     *
-     * A conferência olha só os cinco campos que **ninguém preenche sozinho**:
-     * empresa, setor, endereço, descrição e atribuições. `systemPrompt` e
-     * `voiceTone` ficam de fora de propósito — todo agente nasce com um texto
-     * padrão nos dois, então eles diriam "tem cadastro" para a conta que acabou
-     * de ser criada, que é justamente o caso que o recorte existe para pegar.
+     * Saiu com o encanamento: `lib/treinamento/gerar.ts`, a prop
+     * `camposAntigos` que atravessava três componentes e a seção do
+     * `test:treinamento` que o exercitava. Código morto que ainda tem teste
+     * verde é pior que código morto — ele parece vivo.
      */
-    const temCadastroAntigo = Boolean(
-        camposAntigos &&
-            [
-                camposAntigos.companyName,
-                camposAntigos.companySector,
-                camposAntigos.companyAddress,
-                camposAntigos.companyDescription,
-                camposAntigos.jobDescription,
-            ].some((v) => typeof v === 'string' && v.trim().length > 0)
-    )
-
-    const rascunho =
-        camposAntigos && temCadastroAntigo ? gerarRascunho(doc.slug, camposAntigos) : null
 
     const usado = valor.length
     const excedeu = usado > doc.teto
@@ -260,25 +238,6 @@ export function DocumentoDeTreinamento({
                             <ListPlus className="size-4" aria-hidden="true" />
                             Inserir modelo
                         </Button>
-                        {rascunho ? (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-8"
-                                onClick={() => onChange(rascunho)}
-                                // Mesmo cuidado do modelo: não apaga texto escrito.
-                                disabled={temConteudo}
-                                title={
-                                    temConteudo
-                                        ? 'O rascunho só entra no campo vazio, para não apagar o que você escreveu'
-                                        : 'Monta um rascunho a partir do que já está no cadastro do agente'
-                                }
-                            >
-                                <Wand2 className="size-4" aria-hidden="true" />
-                                Gerar do cadastro
-                            </Button>
-                        ) : null}
                         <Button
                             type="button"
                             variant="outline"

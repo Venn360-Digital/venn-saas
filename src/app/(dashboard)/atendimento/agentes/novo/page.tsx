@@ -245,23 +245,6 @@ function NovoAgenteContent() {
         }
     }
 
-    /**
-     * Os campos antigos, para o rascunho da transição.
-     *
-     * Montado da tela e não do banco: é o que a pessoa está vendo, inclusive o
-     * que ela acabou de digitar e ainda não salvou.
-     */
-    const camposAntigos = {
-        agentName: perfil.name,
-        companyName: trabalho.companyName,
-        companySector: trabalho.companySector,
-        companyAddress: trabalho.companyAddress,
-        companyDescription: trabalho.companyDescription,
-        jobDescription: trabalho.jobDescription,
-        agentFunction: perfil.agentFunction,
-        voiceTone: perfil.voiceTone,
-        systemPrompt: instrucoes.systemPrompt,
-    }
 
     const renderTab = () => {
         switch (currentTab) {
@@ -278,7 +261,6 @@ function NovoAgenteContent() {
                             indexadoEm: documentos['instrucoes-centrais']?.indexedAt ?? null,
                             trechos: documentos['instrucoes-centrais']?.indexedChunks ?? null,
                         }}
-                        camposAntigos={camposAntigos}
                         onCentraisChange={(content) => {
                             marcarSujo(true)
                             setDocumentos((atual) => ({
@@ -348,7 +330,6 @@ function NovoAgenteContent() {
                         doc={doc}
                         valor={gravado?.content ?? ''}
                         somenteLeitura={!canManage}
-                        camposAntigos={camposAntigos}
                         indexadoEm={gravado?.indexedAt ?? null}
                         trechos={gravado?.indexedChunks ?? null}
                         desatualizado={gravado?.desatualizado ?? false}

@@ -12,7 +12,6 @@ import { OPENAI_MODELS } from '@/lib/llm/models'
 import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
 import { acharDocumento } from '@/lib/treinamento/documentos'
 import { GRUPOS_DE_FUSOS, rotuloDoFuso } from '@/lib/fusos'
-import type { CamposAntigos } from '@/lib/treinamento/gerar'
 import { cn } from '@/lib/utils'
 import {
     Select,
@@ -56,8 +55,6 @@ interface PerfilTabProps {
     /** O documento `instrucoes-centrais`: mora aqui, não em guia própria. */
     centrais: { valor: string; indexadoEm: string | null; trechos: number | null }
     onCentraisChange: (valor: string) => void
-    /** Os campos antigos, para o botão de rascunho das Instruções centrais. */
-    camposAntigos?: CamposAntigos
     /**
      * O `fieldset` de `CamposSomenteLeitura` cobre controles de formulário, e o
      * Slider do Radix é um `span[role=slider]` — escapa. Esta prop é para ele e
@@ -126,7 +123,6 @@ export function PerfilTab({
     onInstrucoesChange,
     centrais,
     onCentraisChange,
-    camposAntigos,
     somenteLeitura = false,
 }: PerfilTabProps) {
     const charCount = data.initialMessage?.length || 0
@@ -424,7 +420,6 @@ export function PerfilTab({
                             indexadoEm={centrais.indexadoEm}
                             trechos={centrais.trechos}
                             somenteLeitura={somenteLeitura}
-                            camposAntigos={camposAntigos}
                         />
                     </div>
                 </div>

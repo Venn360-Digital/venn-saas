@@ -333,29 +333,16 @@ function PlanSummary() {
                 ) : null}
             </p>
 
-            {/* The countdown is in days and minutes, in São Paulo time — computed
-                on the server, because the browser's clock is not the one the
-                deadline is set by. */}
-            {state.phase === 'trial' && state.remaining ? (
-                <p className="text-xs text-sidebar-foreground/70">
-                    Avaliação:{' '}
-                    <span className="num text-sidebar-foreground">
-                        {state.remaining.days}d {Math.floor(state.remaining.minutes / 60)}h{' '}
-                        {state.remaining.minutes % 60}min
-                    </span>
-                </p>
-            ) : null}
+            {/* **O prazo saiu daqui**, com a faixa de avaliação.
+                A contagem regressiva e o aviso de "avaliação encerrada" viviam
+                neste rodapé; desde 2026-11-04 eles são a faixa de 40px presa
+                abaixo da barra superior (proposta A), que está em toda tela e
+                não depende de a calha estar aberta. Dizer a mesma coisa nos
+                dois lugares gasta duas linhas do rodapé para repetir o que já
+                está no alto da tela.
 
-            {state.phase === 'readonly' ? (
-                <Link
-                    href="/gerenciamento/conta?tab=plano"
-                    className="flex items-center gap-1.5 text-xs font-bold text-destructive-subtle-foreground hover:underline"
-                >
-                    <TriangleAlert className="size-3.5 shrink-0" />
-                    Avaliação encerrada — assine para voltar a atender
-                </Link>
-            ) : null}
-
+                O que fica é a divisão limpa: a faixa é o **prazo**, este
+                rodapé é o **plano e o crédito**. */}
             <Progress value={percent} className="h-1.5" />
 
             {/* Exhausted credits are the one thing in this footer that has to
