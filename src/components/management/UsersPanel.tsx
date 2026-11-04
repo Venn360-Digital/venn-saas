@@ -14,7 +14,7 @@ import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { UserPanel } from '@/components/users/UserPanel'
-import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
+import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE, DISPONIBILIDADE } from '@/components/shared/StatusBadge'
 import { UserFormModal } from '@/components/users/UserFormModal'
 
 interface WorkspaceUser {
@@ -28,6 +28,10 @@ interface WorkspaceUser {
     role: string
     departments: { id: string; name: string }[]
     canTransfer: boolean
+    /** Entra na distribuição de conversas. */
+    recebeConversas: boolean
+    /** `disponivel | ocupado | ausente`. Quem muda é a própria pessoa. */
+    disponibilidade: string
     isActive: boolean
     isFirstAdmin: boolean
     createdAt: string
@@ -197,6 +201,26 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
             sortable: true,
             sortValue: (u) => u.role,
             cell: (u) => <StatusBadge value={u.role} map={WORKSPACE_ROLE} />,
+        },
+        {
+            /**
+             * "Disponibilidade" e não "Status": a coluna ao lado já se chama
+             * Status e quer dizer outra coisa — se a pessoa tem acesso. Dois
+             * "status" na mesma tabela seriam duas perguntas com o mesmo nome.
+             *
+             * Quem não recebe conversas aparece como traço, e não como
+             * "Ausente": ausente é estado de quem participa da distribuição e
+             * está fora agora; quem nunca participa não tem disponibilidade.
+             */
+            id: 'disponibilidade',
+            header: 'Disponibilidade',
+            sortable: true,
+            sortValue: (u) => (u.recebeConversas ? u.disponibilidade : ''),
+            hideBelow: 'md',
+            cell: (u) =>
+                u.recebeConversas
+                    ? <StatusBadge value={u.disponibilidade} map={DISPONIBILIDADE} />
+                    : <span className="text-muted-foreground" title="Não entra na distribuição de conversas">—</span>,
         },
         {
             id: 'status',

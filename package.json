@@ -63,6 +63,7 @@
     "test:prompt": "tsx scripts/test-prompt.ts",
     "test:fusao": "tsx scripts/test-fusao.ts",
     "test:escalada": "tsx scripts/test-escalada.ts",
+        "test:distribuicao": "tsx scripts/test-distribuicao.ts",
     "test:juiz": "tsx scripts/test-juiz.ts",
     "test:versao": "tsx scripts/test-versao.ts",
     "test:agrupar": "tsx scripts/test-agrupar.ts",

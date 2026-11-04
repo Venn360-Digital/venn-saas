@@ -72,6 +72,25 @@ export const WORKSPACE_ROLE: Record<string, ToneEntry> = {
     ATENDENTE: { label: 'Atendente', tone: 'neutral' },
 }
 
+/**
+ * Disponibilidade de quem atende — **não confundir com `ACTIVE_STATE`**, que é
+ * se a pessoa tem acesso ao sistema.
+ *
+ * Verde recebe conversa; amarelo e cinza **não**, e são iguais para a
+ * distribuição. A diferença entre os dois é para a equipe saber se vale chamar
+ * no particular — por isso o rótulo é explícito, para ninguém supor que
+ * "ocupado" recebe *menos* quando recebe *nada*.
+ */
+export const DISPONIBILIDADE: Record<string, ToneEntry> = {
+    disponivel: { label: 'Disponível', tone: 'success' },
+    // Vermelho porque é a cor que todo mundo já associa a "não me interrompa".
+    // Neste produto vermelho costuma ser erro, e isso incomoda — mas inventar
+    // outra cor para "ocupado" seria pior: ninguém a reconheceria.
+    ocupado: { label: 'Ocupado', tone: 'destructive' },
+    ausente: { label: 'Ausente', tone: 'warning' },
+    desconectado: { label: 'Desconectado', tone: 'neutral' },
+}
+
 export const ACTIVE_STATE: Record<string, ToneEntry> = {
     true: { label: 'Ativo', tone: 'success' },
     false: { label: 'Inativo', tone: 'neutral' },

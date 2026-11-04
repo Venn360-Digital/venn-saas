@@ -12,6 +12,7 @@ const updateUserSchema = z.object({
     departmentIds: z.array(z.string()).optional(),
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']).optional(),
     canTransfer: z.boolean().optional(),
+    recebeConversas: z.boolean().optional(),
     isActive: z.boolean().optional(),
 })
 
@@ -71,6 +72,8 @@ export async function GET(
             role: workspaceUser.role,
             departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
+            recebeConversas: workspaceUser.recebeConversas,
+            disponibilidade: workspaceUser.status,
             isActive: workspaceUser.isActive,
             createdAt: workspaceUser.createdAt,
         })
@@ -181,6 +184,12 @@ export async function PATCH(
                 role: validatedData.role,
                 canTransfer: validatedData.canTransfer,
                 isActive: validatedData.isActive,
+                // Ausente no corpo, fica como está — mesma regra dos
+                // departamentos logo abaixo: um PATCH que só muda o telefone
+                // não pode tirar alguém da distribuição.
+                ...(validatedData.recebeConversas !== undefined
+                    ? { recebeConversas: validatedData.recebeConversas }
+                    : {}),
                 // A lista vem inteira ou não vem: `deleteMany` + `create` é o
                 // que faz tirar alguém de um departamento funcionar. Ausente no
                 // corpo, os departamentos ficam como estão — um PATCH que só
@@ -230,6 +239,8 @@ export async function PATCH(
             role: workspaceUser.role,
             departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
+            recebeConversas: workspaceUser.recebeConversas,
+            disponibilidade: workspaceUser.status,
             isActive: workspaceUser.isActive,
             isFirstAdmin: isFoundingMember,
         })

@@ -25,6 +25,9 @@ export async function GET() {
     })
 }
 
+/** As estratégias que a rota aceita. Fora disto, mantém a que estava. */
+const ESTRATEGIAS = ['nenhuma', 'rodizio', 'balanceado']
+
 export async function PATCH(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -52,11 +55,30 @@ export async function PATCH(request: NextRequest) {
             Number.isInteger(body.briefingHour) && body.briefingHour >= 0 && body.briefingHour <= 23
                 ? body.briefingHour
                 : current.briefingHour,
+        /**
+         * A distribuição mescla **por chave**, não em bloco: a tela de
+         * Automações manda só a estratégia, e a guia de Usuários não encosta
+         * nela. Substituir o objeto inteiro faria mexer na estratégia apagar o
+         * interruptor sem ninguém pedir.
+         */
+        distribuicao: {
+            estrategia: ESTRATEGIAS.includes(body?.distribuicao?.estrategia)
+                ? body.distribuicao.estrategia
+                : current.distribuicao.estrategia,
+            soDisponiveis:
+                typeof body?.distribuicao?.soDisponiveis === 'boolean'
+                    ? body.distribuicao.soDisponiveis
+                    : current.distribuicao.soDisponiveis,
+        },
+        minutosParaAusente:
+            Number.isInteger(body.minutosParaAusente) && body.minutosParaAusente >= 0
+                ? body.minutosParaAusente
+                : current.minutosParaAusente,
     }
 
     await prisma.workspace.update({
         where: { id: auth.member.workspaceId },
-        data: { automations: { ...DEFAULT_AUTOMATIONS, ...next } },
+        data: { automations: { ...DEFAULT_AUTOMATIONS, ...next } as object },
     })
 
     return NextResponse.json(next)
