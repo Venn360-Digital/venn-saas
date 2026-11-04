@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
     BadgeCheck,
+    ChevronRight,
     Facebook,
     Globe,
     Loader2,
@@ -13,6 +14,8 @@ import {
     Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { WidgetDoSite } from '@/components/agents/creation/WidgetDoSite'
+import { WIDGET_PADRAO, type ConfiguracaoDoWidget } from '@/lib/widget-config'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -301,7 +304,13 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
     const [aDesconectar, setADesconectar] = useState<Line | null>(null)
 
     /** O canal do site: chave pública e o trecho que a clínica cola. */
-    const [site, setSite] = useState<{ connected: boolean; snippet?: string } | null>(null)
+    const [site, setSite] = useState<{
+        connected: boolean
+        snippet?: string
+        config?: ConfiguracaoDoWidget
+    } | null>(null)
+    /** A seção de aparência fica fechada: só quem vai mexer nela a abre. */
+    const [configurandoSite, setConfigurandoSite] = useState(false)
     const [ligandoSite, setLigandoSite] = useState(false)
     const [copiado, setCopiado] = useState(false)
 
@@ -957,6 +966,43 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
                                 </Button>
                             </div>
                         ) : null}
+
+                        {/*
+                          * Aparência, domínios e captura.
+                          *
+                          * Fechado por omissão, e **sem depender de o canal
+                          * estar ligado**: a ordem natural é escolher a cara e
+                          * depois ligar, e quem seguisse essa ordem não teria
+                          * onde configurar. O PATCH cria a linha desligada.
+                          */}
+                        <div className="mt-2">
+                            <button
+                                type="button"
+                                onClick={() => setConfigurandoSite((a) => !a)}
+                                aria-expanded={configurandoSite}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                                <ChevronRight
+                                    className={cn(
+                                        'size-3.5 transition-transform',
+                                        configurandoSite && 'rotate-90'
+                                    )}
+                                    aria-hidden="true"
+                                />
+                                Aparência, domínios autorizados e captura de contato
+                            </button>
+
+                            {configurandoSite ? (
+                                <WidgetDoSite
+                                    agentId={agentId as string}
+                                    canManage={canManage}
+                                    inicial={site?.config ?? WIDGET_PADRAO}
+                                    onSalvo={(config) =>
+                                        setSite((atual) => (atual ? { ...atual, config } : atual))
+                                    }
+                                />
+                            ) : null}
+                        </div>
                     </div>
 
                     {/* O WHATSAPP OFICIAL, PELA META */}
