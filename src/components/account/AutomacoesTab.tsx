@@ -150,9 +150,9 @@ export function AutomacoesTab() {
                                 Marcar como ausente sozinho
                             </Label>
                             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                                Depois deste tempo sem usar o sistema, a pessoa volta para ausente.
-                                Sem isto, quem vai embora esquecendo o status continua recebendo
-                                conversa de madrugada.
+                                Depois deste tempo sem usar o sistema, quem está disponível fica
+                                amarelo — e depois de 8 horas, cinza. Volta a verde sozinho ao
+                                mexer. Quem se marcou como ocupado ou ausente fica como se pôs.
                             </p>
                         </div>
                         <Select
@@ -164,9 +164,9 @@ export function AutomacoesTab() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="0">Nunca</SelectItem>
-                                {[15, 30, 60, 120].map((m) => (
+                                {[15, 30, 60, 120, 240].map((m) => (
                                     <SelectItem key={m} value={String(m)} className="num">
-                                        {m} minutos
+                                        {m < 60 ? `${m} minutos` : m === 60 ? '1 hora' : `${m / 60} horas`}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

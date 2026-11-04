@@ -83,8 +83,12 @@ export const WORKSPACE_ROLE: Record<string, ToneEntry> = {
  */
 export const DISPONIBILIDADE: Record<string, ToneEntry> = {
     disponivel: { label: 'Disponível', tone: 'success' },
-    ocupado: { label: 'Ocupado', tone: 'warning' },
-    ausente: { label: 'Ausente', tone: 'neutral' },
+    // Vermelho porque é a cor que todo mundo já associa a "não me interrompa".
+    // Neste produto vermelho costuma ser erro, e isso incomoda — mas inventar
+    // outra cor para "ocupado" seria pior: ninguém a reconheceria.
+    ocupado: { label: 'Ocupado', tone: 'destructive' },
+    ausente: { label: 'Ausente', tone: 'warning' },
+    desconectado: { label: 'Desconectado', tone: 'neutral' },
 }
 
 export const ACTIVE_STATE: Record<string, ToneEntry> = {

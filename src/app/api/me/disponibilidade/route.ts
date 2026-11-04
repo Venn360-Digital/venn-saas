@@ -17,7 +17,11 @@ import { varrerFilaSemDono } from '@/lib/conversas/dono'
  */
 
 const corpo = z.object({
-    status: z.enum(['disponivel', 'ocupado', 'ausente']),
+    /**
+     * `desconectado` é aceito porque o logout o grava — mas não aparece no
+     * menu: ninguém escolhe ficar invisível, isso é consequência de sair.
+     */
+    status: z.enum(['disponivel', 'ocupado', 'ausente', 'desconectado']),
 })
 
 export async function PATCH(request: NextRequest) {

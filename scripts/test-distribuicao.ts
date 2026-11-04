@@ -21,7 +21,9 @@ import {
     POLITICA_PADRAO,
     destinoDaEntrega,
     escolherDono,
+    MINUTOS_PARA_DESCONECTADO,
     estaDisponivel,
+    estadoVisivel,
     podeReceber,
     type MembroElegivel,
     type PoliticaDeDistribuicao,
@@ -235,6 +237,77 @@ conferir(
         destinoDaEntrega(membro({ userId: 'ana', status: 'ausente' })),
     ],
     ['ana', null]
+)
+
+console.log('\nA escada do Teams — 1h amarelo, 8h cinza')
+
+const AGORA_ESCADA = em('2026-11-04T18:00:00Z')
+const parado = (horas: number) => new Date(AGORA_ESCADA.getTime() - horas * 3_600_000)
+const UMA_HORA = 60
+
+conferir(
+    'verde mexendo agora continua verde',
+    estadoVisivel('disponivel', parado(0.1), UMA_HORA, AGORA_ESCADA),
+    'disponivel'
+)
+conferir(
+    'verde parado 2 horas vira ausente (amarelo)',
+    estadoVisivel('disponivel', parado(2), UMA_HORA, AGORA_ESCADA),
+    'ausente'
+)
+conferir(
+    'verde parado 9 horas vira desconectado (cinza)',
+    estadoVisivel('disponivel', parado(9), UMA_HORA, AGORA_ESCADA),
+    'desconectado'
+)
+conferir('a segunda régua é fixa em 8 horas', MINUTOS_PARA_DESCONECTADO, 480)
+
+/**
+ * **A escolha manual é pegajosa, e esta é a armadilha que o desenho evita.**
+ *
+ * Se qualquer atividade devolvesse ao verde, quem se marca "ocupado" para uma
+ * reunião e abre o sistema para conferir um horário voltaria a verde no clique
+ * — e receberia lead no meio da reunião. A escada só mexe em quem está verde.
+ */
+conferir(
+    'ocupado continua ocupado mesmo mexendo no sistema agora',
+    estadoVisivel('ocupado', parado(0), UMA_HORA, AGORA_ESCADA),
+    'ocupado'
+)
+conferir(
+    'ausente escolhido à mão não vira desconectado pela escada',
+    estadoVisivel('ausente', parado(9), UMA_HORA, AGORA_ESCADA),
+    'ausente'
+)
+
+/**
+ * A escada nunca produz `ocupado`: vermelho é escolha, e dizer "ocupado" de
+ * quem foi embora informaria à equipe que a pessoa está presente.
+ */
+conferir(
+    'a escada nunca produz ocupado',
+    [0.1, 2, 9, 20].map((h) => estadoVisivel('disponivel', parado(h), UMA_HORA, AGORA_ESCADA)),
+    ['disponivel', 'ausente', 'desconectado', 'desconectado']
+)
+
+conferir(
+    'verde que nunca agiu é desconectado, não disponível',
+    estadoVisivel('disponivel', null, UMA_HORA, AGORA_ESCADA),
+    'desconectado'
+)
+conferir(
+    'com a escada desligada (0), verde é verde para sempre',
+    estadoVisivel('disponivel', parado(20), 0, AGORA_ESCADA),
+    'disponivel'
+)
+
+/** Só verde recebe — e `desconectado` entra na conta como os outros dois. */
+conferir(
+    'só o verde recebe, nos quatro estados',
+    (['disponivel', 'ocupado', 'ausente', 'desconectado'] as const).map((e) =>
+        podeReceber(membro({ userId: 'x', status: e, ultimaAtividadeEm: parado(0) }), SO_DISPONIVEIS, UMA_HORA, AGORA_ESCADA)
+    ),
+    [true, false, false, false]
 )
 
 console.log('\nA queda automática — quem foi embora verde')

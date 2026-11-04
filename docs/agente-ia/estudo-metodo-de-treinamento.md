@@ -972,37 +972,62 @@ fila geral, visível a todos.
 O caso que isso evita: paciente com dor às 19h, dono designado às 14h já em
 casa. Sem esta regra, a entrega aguarda alguém que não volta hoje.
 
-#### 11.3.3 Os três estados
+#### 11.3.3 Os quatro estados, no modelo do Teams
 
-| estado | recebe? | o que significa |
-|---|---|---|
-| **Disponível** (verde) | sim | está atendendo |
-| **Ocupado** (amarelo) | não | está aqui, mas em reunião, almoço, atendimento presencial |
-| **Ausente** (cinza) | não | não está |
+Revisto em **03/11** depois de o André apontar que a primeira versão não
+fazia o que o Teams faz. Ela tinha três estados e uma queda **invisível**.
 
-**Ocupado e ausente são idênticos para a distribuição.** A diferença é para a
-equipe saber se vale chamar no particular, e a tela tem de dizer isso — senão
-alguém supõe que amarelo recebe *menos*, e recebe *nada*.
+| cor | estado | como se chega | recebe? |
+|---|---|---|---|
+| 🟢 verde | Disponível | login, escolha, ou voltar a mexer | **sim** |
+| 🔴 vermelho | Ocupado | **só manual** — a escada nunca produz | não |
+| 🟡 amarelo | Ausente | escolha, ou **1h** parado | não |
+| ⚫ cinza | Desconectado | **8h** parado, ou logout | não |
 
-Considerou-se fazer o amarelo receber com prioridade menor (só quando todos
-estão amarelos ou cinzas). Descartado: difícil de explicar e de prever.
+As cores são as do Teams, e a primeira versão as tinha trocado: ela pintava
+"Ocupado" de amarelo, então a escada automática produziria "Ocupado" para quem
+foi embora — dizendo à equipe que a pessoa está presente e ocupada.
 
-**O status mora em `workspace_users`, não em `users`.** Na Multiclínica a mesma
-pessoa pode estar disponível numa unidade e não na outra.
+**Login devolve ao verde.** O logout grava `desconectado`, e o primeiro pedido
+autenticado depois o desfaz. Sem cirurgia no Better Auth, e vale também para
+quem a escada levou a cinza: voltou, está de volta.
 
-#### 11.3.4 A queda automática para ausente
+#### 11.3.4 A escada, e por que ela é derivada
 
-Status manual só funciona se as pessoas lembrarem. Às 18h todo mundo vai
-embora **verde**, e aí a distribuição da madrugada vai para quem não está —
-exatamente o que o interruptor existe para evitar.
+Status manual só funciona se as pessoas lembrarem. Às 18h todo mundo vai embora
+**verde**, e aí a distribuição da madrugada vai para quem não está.
 
-A correção, sem turno cadastrado: **cair para ausente por inatividade** — N
-minutos sem ação na aplicação, e no logout.
+A escada resolve, e é **derivada de `ultimaAtividadeEm`**, não gravada por um
+job: mesmo resultado, sem cron, sem escrita periódica, sem um estado a mais para
+divergir — e, por ser conta pura, provável sem banco.
 
-Não confundir com "presença por sessão", descartada em 11.1: aquilo é a sessão
-do login, que dura 7 dias e não diz nada. Isto é **atividade real na
-aplicação**, o mesmo sinal que Slack e Teams usam. Custa uma coluna e um toque
-leve nas rotas autenticadas.
+Não confundir com presença por sessão, descartada em 11.1: sessão dura 7 dias e
+não diz quem está na mesa. Isto é ação real na aplicação, tocada num lugar só
+(`getWorkspaceMember`) e com folga de 5 minutos, porque num Worker cada escrita
+é conexão segurada no Neon.
+
+**Duas regras que a escada precisa respeitar:**
+
+1. **A escolha manual é pegajosa.** A escada só mexe em quem está verde. Sem
+   isso, quem se marca "ocupado" para uma reunião e abre o sistema para conferir
+   um horário voltaria a verde no clique — e receberia lead no meio da reunião.
+2. **O estado derivado tem de ser visível.** Foi o defeito da primeira versão: o
+   badge dizia "Disponível" e o sistema já não entregava nada, sem ninguém ter
+   como descobrir. Agora a bolinha fica sobre o avatar, sempre à vista, e tanto
+   `/api/auth/me` quanto a listagem de usuários devolvem o estado **já com a
+   escada aplicada** — a mesma conta nos dois lados.
+
+**O primeiro degrau é configurável (1h por padrão); o segundo é fixo em 8h.**
+Oito horas não é ajuste de operação, é "não voltou hoje" — expor o número daria
+ao cliente mais uma decisão que ele não tem como tomar bem.
+
+**Consequência prática, registrada de propósito:** com o interruptor de turnos
+ligado, uma hora sem tocar no sistema para de receber lead. Numa clínica isso
+acontece — a atendente passa uma hora no balcão com paciente sem abrir o
+computador. É o comportamento certo (ela está ocupada mesmo, e lead que cai para
+quem não vai olhar é pior que lead na fila geral), mas é efeito que a clínica
+precisa saber antes e não depois.
+
 
 #### 11.3.5 Onde a política mora
 

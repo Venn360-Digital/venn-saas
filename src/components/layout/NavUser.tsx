@@ -15,6 +15,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DISPONIBILIDADE } from '@/components/shared/StatusBadge'
 import {
     SidebarMenu,
     SidebarMenuButton,
@@ -27,7 +28,7 @@ import { esquecerUnidades } from '@/hooks/useUnidades'
 interface Me {
     user: { id: string; email: string; name: string; avatar: string | null; initials: string }
     workspace: { id: string; name: string; slug: string } | null
-    /** `disponivel | ocupado | ausente`. Nulo quando não há participação. */
+    /** O estado **já com a escada aplicada** — o mesmo que o sistema usa. */
     disponibilidade?: string | null
     /** Sem isto o seletor não aparece: quem não recebe não tem o que marcar. */
     recebeConversas?: boolean
@@ -41,11 +42,50 @@ interface Me {
  * particular, e a dica de cada item diz isso, porque quem lê "ocupado" supõe
  * que recebe *menos* quando recebe *nada*.
  */
+/**
+ * O que a bolinha mostra. **A mesma conta do servidor**, para a tela e o
+ * sistema nunca divergirem — foi esse descompasso o defeito da primeira versão.
+ *
+ * O limite vem do servidor junto com o status; sem ele, a bolinha mentiria para
+ * a conta que configurou outro tempo.
+ */
 const ESTADOS = [
     { id: 'disponivel', rotulo: 'Disponível', cor: 'text-success', dica: 'Recebe conversas novas' },
-    { id: 'ocupado', rotulo: 'Ocupado', cor: 'text-warning', dica: 'Está aqui, mas não recebe' },
-    { id: 'ausente', rotulo: 'Ausente', cor: 'text-muted-foreground', dica: 'Não recebe' },
+    { id: 'ocupado', rotulo: 'Ocupado', cor: 'text-destructive', dica: 'Está aqui, mas não recebe' },
+    { id: 'ausente', rotulo: 'Ausente', cor: 'text-warning', dica: 'Não recebe' },
 ] as const
+
+/** Inclui o cinza, que ninguém escolhe — ele vem da escada ou do logout. */
+const COR_DO_ESTADO: Record<string, string> = {
+    disponivel: 'text-success',
+    ocupado: 'text-destructive',
+    ausente: 'text-warning',
+    desconectado: 'text-muted-foreground',
+}
+
+/**
+ * A bolinha sobre o avatar, sempre à vista.
+ *
+ * **É o que faz a escada ser honesta.** Derivar o estado e não mostrá-lo foi o
+ * defeito da primeira versão: o badge dizia "Disponível" e o sistema já não
+ * entregava nada, e ninguém tinha como descobrir. Com a bolinha, quem ficou
+ * amarelo por uma hora parado vê, e um clique devolve ao verde.
+ *
+ * `ring` da cor do fundo e não borda: a bolinha encosta no avatar, e sem o anel
+ * ela some sobre uma foto escura.
+ */
+function Bolinha({ estado }: { estado: string }) {
+    const info = DISPONIBILIDADE[estado]
+    return (
+        <span
+            aria-label={info?.label ?? estado}
+            title={info?.label ?? estado}
+            className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full ring-2 ring-sidebar ${COR_DO_ESTADO[estado] ?? 'text-muted-foreground'}`}
+        >
+            <Circle className="size-full fill-current stroke-0" />
+        </span>
+    )
+}
 
 /**
  * Who you are, at the foot of the sidebar.
@@ -124,6 +164,21 @@ export function NavUser() {
          */
         await fetch('/api/workspace/switch', { method: 'DELETE' }).catch(() => {})
 
+        /**
+         * Sair apaga a bolinha verde. Antes do `signOut` pelo mesmo motivo da
+         * linha acima: depois dele o pedido chega sem sessão e toma 401,
+         * deixando a pessoa verde no painel de quem ficou.
+         *
+         * É isto que faz "logar já vem disponível" funcionar: quem está
+         * `desconectado` volta ao verde no primeiro pedido autenticado (ver
+         * `getWorkspaceMember`).
+         */
+        await fetch('/api/me/disponibilidade', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'desconectado' }),
+        }).catch(() => {})
+
         await encerrarSessao()
 
         esquecerUnidades()
@@ -155,12 +210,20 @@ export function NavUser() {
                             size="lg"
                             className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                         >
+                            {/* `relative` para a bolinha se pendurar no canto.
+                                Ela fica no gatilho E no cabeçalho do menu: no
+                                gatilho é onde se vê sem clicar, que era o
+                                pedido; no cabeçalho é onde se confere depois de
+                                mudar. */}
+                            <span className="relative shrink-0">
                             <Avatar className="size-8 rounded-lg">
                                 <AvatarImage src={me?.user.avatar ?? ''} alt={me?.user.name ?? ''} />
                                 <AvatarFallback className="rounded-lg bg-primary-subtle text-primary-subtle-foreground">
                                     {me?.user.initials || 'U'}
                                 </AvatarFallback>
                             </Avatar>
+                            {me?.recebeConversas && disponibilidade ? <Bolinha estado={disponibilidade} /> : null}
+                            </span>
                             <div className="grid flex-1 text-left text-sm leading-tight">
                                 <span className="truncate font-medium">{me?.user.name || 'Usuário'}</span>
                                 <span className="truncate text-xs text-sidebar-foreground/70">

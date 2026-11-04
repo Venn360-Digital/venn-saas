@@ -192,14 +192,41 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
      */
     const FOLGA_MS = 5 * 60_000
     const agora = Date.now()
+
+    /**
+     * **Voltar ao sistema devolve ao verde — e só a quem estava desconectado.**
+     *
+     * É assim que "logar já vem disponível" acontece sem cirurgia no Better
+     * Auth: o logout grava `desconectado`, e o primeiro pedido autenticado
+     * depois encontra esse estado e o desfaz. Vale também para quem a escada
+     * levou a cinza por 8 horas parado — voltou, está de volta.
+     *
+     * **Não toca em quem escolheu `ocupado` ou `ausente`**, e é justamente aqui
+     * que a escolha manual se prova pegajosa: sem esta condição, quem se marca
+     * ocupado para uma reunião voltaria a verde ao abrir o sistema para
+     * conferir um horário — e receberia lead no meio da reunião.
+     */
+    const voltou = membership.status === 'desconectado'
+
     if (
-        membership.status === 'disponivel' &&
-        (!membership.ultimaAtividadeEm || agora - membership.ultimaAtividadeEm.getTime() > FOLGA_MS)
+        voltou ||
+        (membership.status === 'disponivel' &&
+            (!membership.ultimaAtividadeEm || agora - membership.ultimaAtividadeEm.getTime() > FOLGA_MS))
     ) {
         void prisma.workspaceUser
-            .update({ where: { id: membership.id }, data: { ultimaAtividadeEm: new Date(agora) } })
+            .update({
+                where: { id: membership.id },
+                data: {
+                    ultimaAtividadeEm: new Date(agora),
+                    ...(voltou ? { status: 'disponivel', statusEm: new Date(agora) } : {}),
+                },
+            })
             .catch(() => { /* o próximo pedido tenta de novo */ })
     }
+
+    // A leitura desta requisição já reflete a volta: esperar o próximo pedido
+    // mostraria "desconectado" na tela de quem acabou de entrar.
+    const statusAgora = voltou ? 'disponivel' : membership.status
 
     return {
         ok: true,
@@ -211,7 +238,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             departmentIds: membership.departments.map((d) => d.departmentId),
             canTransfer: membership.canTransfer,
             /** `disponivel | ocupado | ausente`. Ver §11.3.3 do estudo. */
-            status: membership.status,
+            status: statusAgora,
             recebeConversas: membership.recebeConversas,
             ultimaAtividadeEm: membership.ultimaAtividadeEm,
         },

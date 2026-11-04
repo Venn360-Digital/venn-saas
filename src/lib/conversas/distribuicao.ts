@@ -15,8 +15,22 @@
  * Ver §11 de `docs/agente-ia/estudo-metodo-de-treinamento.md`.
  */
 
-/** Os três estados. Só `disponivel` recebe — e só quando a política manda olhar. */
-export type StatusDoMembro = 'disponivel' | 'ocupado' | 'ausente'
+/**
+ * Os quatro estados, no modelo do Teams. Só `disponivel` recebe conversa.
+ *
+ * | cor | estado | como se chega |
+ * |---|---|---|
+ * | verde | `disponivel` | login, escolha, ou voltar a mexer |
+ * | vermelho | `ocupado` | **só manual** — a escada nunca produz |
+ * | amarelo | `ausente` | escolha, ou 1h parado |
+ * | cinza | `desconectado` | 8h parado, ou logout |
+ *
+ * A coluna guarda o que a pessoa **escolheu**; o que a tela mostra e o que o
+ * sistema usa saem de `estadoVisivel`, que aplica a escada. São a mesma conta
+ * nos dois lados de propósito: tela dizendo uma coisa e sistema fazendo outra
+ * foi o defeito da primeira versão.
+ */
+export type StatusDoMembro = 'disponivel' | 'ocupado' | 'ausente' | 'desconectado'
 
 /** `nenhuma` desliga a distribuição: a conversa nasce sem dono, como antes. */
 export type EstrategiaDeDistribuicao = 'nenhuma' | 'rodizio' | 'balanceado'
@@ -64,6 +78,49 @@ export const POLITICA_PADRAO: PoliticaDeDistribuicao = {
 }
 
 /**
+ * Depois de quanto tempo parado o verde vira cinza.
+ *
+ * **Fixo, ao contrário do primeiro degrau.** Oito horas não é ajuste de
+ * operação: é "não voltou hoje". Expor o número daria ao cliente mais uma
+ * decisão que ele não tem como tomar bem, e o primeiro degrau — o que importa
+ * — já é configurável.
+ */
+export const MINUTOS_PARA_DESCONECTADO = 8 * 60
+
+/**
+ * O que a tela mostra e o que o sistema usa. **A mesma conta nos dois.**
+ *
+ * A escada só mexe em quem está **verde**: escolha manual é pegajosa. Sem isso,
+ * quem se marca "ocupado" para uma reunião e abre o sistema para conferir um
+ * horário voltaria a verde no clique — e receberia lead no meio da reunião.
+ *
+ * Quem escolheu ocupado ou ausente fica onde se pôs, até mudar ou até o próximo
+ * login, que devolve ao verde. É o que evita alguém ficar preso em vermelho.
+ *
+ * Derivado e não gravado, como no Teams: nenhum cron vira status de madrugada, e
+ * a conta é pura — provável sem banco. O que a primeira versão errou não foi
+ * derivar; foi derivar **escondido**, com o badge dizendo "Disponível" enquanto
+ * o sistema já não entregava nada.
+ */
+export function estadoVisivel(
+    status: StatusDoMembro,
+    ultimaAtividadeEm: Date | null | undefined,
+    minutosParaAusente: number,
+    agora: Date = new Date()
+): StatusDoMembro {
+    if (status !== 'disponivel') return status
+    if (minutosParaAusente <= 0) return 'disponivel'
+
+    // Verde sem atividade nenhuma é quem foi cadastrado e nunca entrou.
+    if (!ultimaAtividadeEm) return 'desconectado'
+
+    const paradoMin = (agora.getTime() - ultimaAtividadeEm.getTime()) / 60_000
+    if (paradoMin > MINUTOS_PARA_DESCONECTADO) return 'desconectado'
+    if (paradoMin > minutosParaAusente) return 'ausente'
+    return 'disponivel'
+}
+
+/**
  * Está mesmo disponível? **O status sozinho não basta.**
  *
  * Quem sai às 18h esquecendo de mudar continua marcado como disponível, e a
@@ -80,10 +137,7 @@ export const POLITICA_PADRAO: PoliticaDeDistribuicao = {
  * à mão pode, e aí só o status vale.
  */
 export function estaDisponivel(m: MembroElegivel, minutosParaAusente: number, agora: Date): boolean {
-    if (m.status !== 'disponivel') return false
-    if (minutosParaAusente <= 0) return true
-    if (!m.ultimaAtividadeEm) return false
-    return agora.getTime() - m.ultimaAtividadeEm.getTime() <= minutosParaAusente * 60_000
+    return estadoVisivel(m.status, m.ultimaAtividadeEm, minutosParaAusente, agora) === 'disponivel'
 }
 
 /** `disponivel` recebe; `ocupado` e `ausente` não. Os dois últimos são iguais aqui. */

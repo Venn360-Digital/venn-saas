@@ -31,11 +31,16 @@ export interface Automations {
     distribuicao: PoliticaDeDistribuicao
 
     /**
-     * Minutos sem ação na aplicação até o status cair para `ausente`.
+     * O **primeiro degrau** da escada: minutos sem ação até o verde virar
+     * amarelo. O segundo é fixo em 8 horas (ver `MINUTOS_PARA_DESCONECTADO`).
      *
      * Sem isto, todo mundo vai embora às 18h marcado como disponível e a
      * distribuição da madrugada cai em quem não está — exatamente o que o
-     * interruptor existe para evitar. Zero desliga a queda.
+     * interruptor existe para evitar. Zero desliga a escada.
+     *
+     * Uma hora por padrão: numa clínica a atendente passa esse tempo no balcão
+     * sem abrir o computador, e aí ela está ocupada de verdade — lead que cai
+     * para quem não vai olhar é pior que lead na fila geral.
      */
     minutosParaAusente: number
 }
@@ -50,7 +55,7 @@ export const DEFAULT_AUTOMATIONS: Automations = {
     // distribuir sem ninguém ter marcado quem recebe seria pior que não
     // distribuir.
     distribuicao: POLITICA_PADRAO,
-    minutosParaAusente: 30,
+    minutosParaAusente: 60,
 }
 
 export function readAutomations(value: Prisma.JsonValue | null | undefined): Automations {
