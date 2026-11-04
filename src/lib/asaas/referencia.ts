@@ -26,8 +26,8 @@ import { APP } from '@/config/app.config'
  * ## Como funciona
  *
  * O que criamos no Asaas leva `externalReference` prefixado com o `APP_SLUG`
- * (`odontobox:cus_123`). Quem lê sabe distinguir três casos, e só o primeiro
- * autoriza ação.
+ * (por exemplo `<slug>:cus_123`). Quem lê sabe distinguir três casos, e só
+ * o primeiro autoriza ação.
  *
  * ## Por que a forma, e não a lista de apps
  *
@@ -42,7 +42,7 @@ import { APP } from '@/config/app.config'
 /** O slug deste app. Vazio fora do Worker (dev), onde não há outro app. */
 const SLUG = APP.slug
 
-/** `odontobox:cus_123` — e `cus_123` cru quando não há slug (dev). */
+/** `<slug>:cus_123` — e `cus_123` cru quando não há slug (dev). */
 export function marcarReferencia(id: string): string {
     return SLUG ? `${SLUG}:${id}` : id
 }
