@@ -248,7 +248,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                             — prometia uma tela que não existe. Trocar o e-mail
                             é trocar o login, e isso passa por confirmar o
                             endereço novo; enquanto o fluxo não existir, o campo
-                            só informa. Já removido no Stagent; alinhado aqui. */}
+                            só informa. */}
                         <FormField label="E-mail da conta" htmlFor="account-email" hint="É o seu login.">
                             <Input id="account-email" value={profile?.email || ''} disabled />
                         </FormField>
