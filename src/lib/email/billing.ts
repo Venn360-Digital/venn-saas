@@ -35,7 +35,10 @@ export type BillingEmailKind =
     /** Bem-vindo ao novo workspace. */
     | 'welcome'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://odontobox.venn360.com'
+// O host vem da MARCA, não escrito à mão: um literal aqui é o host de um
+// produto dentro do código de outro, e a auditoria de isolamento recusa —
+// com razão, porque o clone herdaria o endereço errado em silêncio.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND.appHost}`
 const PLANS_URL = `${APP_URL}/gerenciamento/conta?tab=plano`
 
 function formatDate(date: Date | null | undefined): string {

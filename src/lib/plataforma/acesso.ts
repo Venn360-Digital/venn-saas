@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 
 import prisma from '@/lib/prisma'
 import { getPlatformAdmin } from '@/lib/platform-credentials'
+import { WORKSPACE_COOKIE } from '@/lib/auth/workspace'
 
 /**
  * Entrar na conta de um cliente — e o que impede isso de ser uma porta dos
@@ -18,7 +19,7 @@ import { getPlatformAdmin } from '@/lib/platform-credentials'
  *
  * ## O cookie não decide nada
  *
- * `odontobox.assumir` guarda o id da unidade alvo, e **não é autorização**: a
+ * O cookie guarda o id da unidade alvo, e **não é autorização**: a
  * cada requisição, `getWorkspaceMember` só o honra depois de `getPlatformAdmin()`
  * confirmar que quem está logado é OWNER do workspace de plataforma. Forjar o
  * cookie num navegador qualquer não abre nada — é a mesma regra do cookie de
@@ -47,7 +48,15 @@ import { getPlatformAdmin } from '@/lib/platform-credentials'
  * dia seguinte. Renovar é um clique.
  */
 
-export const COOKIE_ASSUMIR = 'odontobox.assumir'
+/**
+ * O nome do cookie, derivado do que já existe.
+ *
+ * `WORKSPACE_COOKIE` é `<app>.workspace` e é definido por produto, então
+ * trocar o sufixo dá `<app>.assumir` sem escrever o nome do app aqui — que
+ * é o que a auditoria de isolamento recusa, e com razão: um literal faria o
+ * clone herdar o nome do vizinho em silêncio.
+ */
+export const COOKIE_ASSUMIR = `${WORKSPACE_COOKIE.replace(/\.workspace$/, '')}.assumir`
 
 /** Uma hora. O cookie expira sozinho, e a leitura confere de novo. */
 export const DURACAO_MS = 60 * 60_000
