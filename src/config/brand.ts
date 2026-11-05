@@ -49,10 +49,9 @@ export interface Brand {
     /**
      * Como o produto chama a organização do cliente.
      *
-     * Decisão dele em 2026-11-05, ao aprovar os e-mails: OdontoBox fala
-     * "clínica", Conecta fala "empresa", Stagent fala "agência". É a palavra
-     * que aparece em frase corrida — "os dados desta clínica", "o responsável
-     * pela agência" — e trocá-la não pode ser caçar string pelo código.
+     * Decisão dele em 2026-11-05, ao aprovar os e-mails: cada produto fala a
+     * palavra do seu nicho. É a palavra que aparece em frase corrida — "os
+     * dados desta clínica" — e trocá-la não pode ser caçar string pelo código.
      *
      * Mora na marca e não num arquivo de tradução porque é identidade, não
      * idioma: o app inteiro é pt-BR, e o que muda entre os três é o nicho.

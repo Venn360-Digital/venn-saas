@@ -11,10 +11,9 @@ import { getPlatformAdmin } from '@/lib/platform-credentials'
  * workspace, porque uma segunda lista de privilegiados é uma segunda coisa para
  * manter em dia, e ela sai de sincronia.
  *
- * **É por app.** O banco é por produto, então o console do OdontoBox vê as
- * clínicas do OdontoBox; o do Stagent, as agências dele. Não há visão
- * consolidada aqui, e não deve haver: ela exigiria um quarto sistema com acesso
- * de leitura aos três bancos.
+ * **É por app.** O banco é por produto, então este console vê as contas deste
+ * produto e de nenhum outro. Não há visão consolidada aqui, e não deve haver:
+ * ela exigiria um sistema à parte com acesso de leitura a todos os bancos.
  */
 export async function GET() {
     const admin = await getPlatformAdmin()

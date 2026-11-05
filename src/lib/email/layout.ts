@@ -36,8 +36,8 @@ import { BRAND } from '@/config/brand'
  *
  * ## A palavra que muda entre os três apps
  *
- * `BRAND.vocabulario` — clínica no OdontoBox, empresa no Conecta, agência no
- * Stagent. A casca nunca escreve "clínica" literal.
+ * `BRAND.vocabulario` carrega a palavra do nicho de cada produto. A casca nunca
+ * escreve a palavra literal.
  */
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND.appHost}`

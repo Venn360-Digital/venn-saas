@@ -16,9 +16,8 @@ import { cn } from '@/lib/utils'
  * O console da Venn360: as contas deste app, e o que dá para fazer com elas.
  *
  * Desenho aprovado em 2026-11-05. **É por app** — o banco é por produto, então
- * aqui estão as clínicas do OdontoBox; o console do Stagent mostra as agências
- * dele. Visão consolidada exigiria um quarto sistema lendo os três bancos, e
- * não é o que ele pediu.
+ * cada produto tem o seu console, com as contas dele. Visão consolidada
+ * exigiria um quarto sistema lendo os bancos de todos, e não é o que ele pediu.
  *
  * A tela só existe para quem é OWNER do workspace marcado `isPlatform`: o item
  * do menu some para todos os outros, e a rota responde 403 — esconder o menu
