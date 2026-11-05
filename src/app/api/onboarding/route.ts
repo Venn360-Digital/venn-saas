@@ -8,7 +8,11 @@ import { errorMessage } from '@/lib/prisma-errors'
 import { AGENT_WIDGET_DEFAULTS, DEFAULT_PIPELINE_STAGES } from '@/lib/palette'
 import { DEFAULT_AGENT_PREFERENCES } from '@/types/agent-preferences'
 import { DEFAULT_AUTOMATIONS } from '@/lib/automations'
-import { ESTRATEGIA_INICIAL, MOTIVOS_PADRAO } from '@/lib/onboarding/padroes'
+import { ESTRATEGIA_INICIAL, FUSO_INICIAL, MOTIVOS_PADRAO } from '@/lib/onboarding/padroes'
+import {
+    comFusoNasConfiguracoes,
+    temFusoNasConfiguracoes,
+} from '@/lib/fuso-da-unidade'
 import type { Prisma } from '#prisma'
 import { sendEmail } from '@/lib/email/send'
 import { TEMPLATES } from '@/lib/email/templates'
@@ -37,6 +41,20 @@ function dadosDoPrimeiroAgente(workspaceId: string, nome: string) {
         temperature: 0.7,
         primaryColor: AGENT_WIDGET_DEFAULTS.primaryColor,
         language: 'pt-BR',
+        /**
+         * O relógio com que o agente **conversa**, igual ao da unidade.
+         *
+         * São dois campos separados de propósito — ver o cabeçalho de
+         * `lib/fuso-da-unidade.ts` —, e o que o Andre pediu é que o agente novo
+         * nasça seguindo a unidade, seguindo editável depois.
+         *
+         * Vem da mesma constante da unidade em vez de ser lido do workspace
+         * porque o agente é criado **antes** de `aplicarPadroesDaUnidade`
+         * gravar o fuso, nos dois caminhos desta rota: ler aqui pegaria a
+         * coluna ainda em branco, e os dois passariam a depender da ordem das
+         * linhas.
+         */
+        timezone: FUSO_INICIAL,
         isActive: true,
         preferences: { ...DEFAULT_AGENT_PREFERENCES } as Prisma.InputJsonValue,
     }
@@ -48,6 +66,8 @@ function dadosDoPrimeiroAgente(workspaceId: string, nome: string) {
  * Funil sem etapa, fechamento sem motivo e distribuição desligada eram três
  * telas que nasciam em branco e exigiam da clínica uma decisão que ela ainda não
  * tem como tomar — no primeiro dia ela não sabe nem o que é uma etapa de funil.
+ * O fuso entrou na lista pelo motivo oposto: ele não nascia em branco na tela,
+ * nascia em branco na **coluna**, com o produto inteiro lendo o fallback.
  * Lista ditada pelo Andre em 2026-11-04; os valores moram em
  * `lib/onboarding/padroes.ts`.
  *
@@ -60,9 +80,10 @@ async function aplicarPadroesDaUnidade(
     tx: Prisma.TransactionClient,
     workspaceId: string
 ): Promise<void> {
-    const [temEtapa, temMotivo] = await Promise.all([
+    const [temEtapa, temMotivo, unidade] = await Promise.all([
         tx.pipelineStage.findFirst({ where: { workspaceId }, select: { id: true } }),
         tx.dealOutcomeReason.findFirst({ where: { workspaceId }, select: { id: true } }),
+        tx.workspace.findUnique({ where: { id: workspaceId }, select: { settings: true } }),
     ])
 
     if (!temEtapa) {
@@ -88,9 +109,24 @@ async function aplicarPadroesDaUnidade(
      * ficasse implícita no default, mudar o default mudaria a conta antiga
      * junto.
      */
+    /**
+     * O fuso da unidade, declarado no nascimento.
+     *
+     * `undefined` é como o Prisma diz "não encoste nesta coluna", e é o que a
+     * unidade que já escolheu um fuso recebe: esta função roda duas vezes no
+     * fluxo normal, e na segunda não pode desfazer escolha de ninguém.
+     */
+    const fusoInicial = temFusoNasConfiguracoes(unidade?.settings)
+        ? undefined
+        : (comFusoNasConfiguracoes(
+              unidade?.settings,
+              FUSO_INICIAL
+          ) as Prisma.InputJsonValue)
+
     await tx.workspace.update({
         where: { id: workspaceId },
         data: {
+            settings: fusoInicial,
             automations: {
                 ...DEFAULT_AUTOMATIONS,
                 distribuicao: {

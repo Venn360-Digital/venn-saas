@@ -6,6 +6,7 @@ import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { assinaturaDaUnidade } from '@/lib/account'
 import { enderecoDoAvatar } from '@/lib/agents/avatar'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 import { findModel } from '@/lib/llm/models'
@@ -53,7 +54,12 @@ const createAgentSchema = z.object({
     primaryColor: z.string().optional(),
     voiceTone: z.string().optional(),
     language: z.string().default('pt-BR'),
-    timezone: z.string().default('America/Sao_Paulo'),
+    /**
+     * Sem default aqui de propósito: o padrão do fuso é o **da unidade**, e o
+     * zod roda antes de a rota saber de que unidade se trata. Resolvido na
+     * criação, abaixo.
+     */
+    timezone: z.string().optional(),
 
     // VOZ
     voiceEnabled: z.boolean().default(false),
@@ -272,6 +278,18 @@ export async function POST(request: NextRequest) {
             data: {
                 ...scalars,
                 workspaceId,
+                /**
+                 * O agente novo nasce no relógio da unidade, não num literal.
+                 *
+                 * Pedido do Andre em 2026-11-04. O campo **continua por
+                 * agente** e editável em Treinamento → Perfil: é o relógio com
+                 * que o agente conversa, e uma unidade pode ter agentes
+                 * atendendo públicos em fusos diferentes (ver o cabeçalho de
+                 * `lib/fuso-da-unidade.ts`). O que muda é só o ponto de
+                 * partida, que antes era São Paulo mesmo para a unidade que
+                 * declarou outro fuso.
+                 */
+                timezone: scalars.timezone ?? (await fusoDaUnidade(workspaceId)),
                 preferences: {
                     ...DEFAULT_AGENT_PREFERENCES,
                     ...preferences,
