@@ -42,6 +42,15 @@ export function GatilhoDaEquipe() {
     const [pessoas, setPessoas] = useState<Pessoa[]>([])
     const [online, setOnline] = useState(0)
     const [naoLidos, setNaoLidos] = useState<Recado[]>([])
+    /**
+     * Quantos não lidos existem — **a conta do servidor**, não o tamanho da
+     * lista acima.
+     *
+     * A rota devolve os últimos 50 recados mais a contagem real. Com mais de
+     * 50 não lidos o crachá diria 50, e o número que importa é justamente o
+     * que passou disso.
+     */
+    const [quantosNaoLidos, setQuantos] = useState(0)
     const [versaoDosRecados, setVersao] = useState(0)
 
     /** O painel aberto, visto de dentro do ouvinte do tempo real. */
@@ -67,8 +76,9 @@ export function GatilhoDaEquipe() {
         try {
             const res = await fetch('/api/equipe/recados')
             if (!res.ok) return
-            const dados = (await res.json()) as { recados: Recado[] }
+            const dados = (await res.json()) as { recados: Recado[]; naoLidos: number }
             setNaoLidos((dados.recados ?? []).filter((r) => !r.lido && !r.meu))
+            setQuantos(dados.naoLidos ?? 0)
         } catch {
             /* idem */
         }
@@ -91,16 +101,32 @@ export function GatilhoDaEquipe() {
      * conteúdo, que é a regra do canal inteiro. Então recarregamos a caixa e
      * levantamos o toast a partir do que a rota autenticada devolveu.
      */
+    /**
+     * Sem equipe, sem conexão.
+     *
+     * O gatilho não aparece na clínica de uma pessoa só — não há a quem mandar
+     * recado —, e abrir um WebSocket para a sala por aba, em toda tela, para
+     * nunca receber nada seria pagar conexão por enfeite que não existe. A
+     * lista chega antes, pelo efeito acima.
+     */
+    const temEquipe = pessoas.length > 1
+
     useEffect(() => {
+        if (!temEquipe) return
+
         const conexao = conectarTempoReal({
             evento(tipo) {
                 if (tipo !== 'recado') return
                 void (async () => {
                     const res = await fetch('/api/equipe/recados')
                     if (!res.ok) return
-                    const dados = (await res.json()) as { recados: Recado[] }
+                    const dados = (await res.json()) as {
+                        recados: Recado[]
+                        naoLidos: number
+                    }
                     const pendentes = (dados.recados ?? []).filter((r) => !r.lido && !r.meu)
                     setNaoLidos(pendentes)
+                    setQuantos(dados.naoLidos ?? pendentes.length)
                     setVersao((v) => v + 1)
 
                     const ultimo = pendentes.at(-1)
@@ -126,7 +152,7 @@ export function GatilhoDaEquipe() {
         })
 
         return () => conexao.fechar()
-    }, [carregarNaoLidos, carregarPessoas])
+    }, [temEquipe, carregarNaoLidos, carregarPessoas])
 
     const naoLidosPorPessoa = useMemo(() => {
         const conta: Record<string, number> = {}
@@ -135,7 +161,11 @@ export function GatilhoDaEquipe() {
     }, [naoLidos])
 
     const aoLerDe = useCallback((userId: string) => {
-        setNaoLidos((atuais) => atuais.filter((r) => r.deUserId !== userId))
+        setNaoLidos((atuais) => {
+            const sobram = atuais.filter((r) => r.deUserId !== userId)
+            setQuantos((q) => Math.max(0, q - (atuais.length - sobram.length)))
+            return sobram
+        })
     }, [])
 
     const visiveis = useMemo(() => pessoas.filter((p) => !p.souEu).slice(0, 3), [pessoas])
@@ -150,7 +180,7 @@ export function GatilhoDaEquipe() {
             <button
                 type="button"
                 onClick={() => setAberto((a) => !a)}
-                aria-label={`Equipe — ${online} online${naoLidos.length ? `, ${naoLidos.length} recado(s) não lido(s)` : ''}`}
+                aria-label={`Equipe — ${online} online${quantosNaoLidos ? `, ${quantosNaoLidos} recado(s) não lido(s)` : ''}`}
                 className={cn(
                     'relative flex items-center gap-2 rounded-full border py-1 pl-1 pr-2.5 transition-colors',
                     aberto
@@ -181,12 +211,12 @@ export function GatilhoDaEquipe() {
                     {online} online
                 </span>
 
-                {naoLidos.length > 0 ? (
+                {quantosNaoLidos > 0 ? (
                     <span
                         aria-hidden="true"
                         className="num absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground"
                     >
-                        {naoLidos.length}
+                        {quantosNaoLidos > 99 ? '99+' : quantosNaoLidos}
                     </span>
                 ) : null}
             </button>

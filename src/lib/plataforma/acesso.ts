@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 import prisma from '@/lib/prisma'
 import { getPlatformAdmin } from '@/lib/platform-credentials'
-import { WORKSPACE_COOKIE } from '@/lib/auth/workspace'
+import { COOKIE_ASSUMIR } from '@/lib/auth/cookies'
 
 /**
  * Entrar na conta de um cliente — e o que impede isso de ser uma porta dos
@@ -49,14 +49,14 @@ import { WORKSPACE_COOKIE } from '@/lib/auth/workspace'
  */
 
 /**
- * O nome do cookie, derivado do que já existe.
+ * O nome do cookie vem de `auth/cookies.ts`, que não importa nada.
  *
- * `WORKSPACE_COOKIE` é `<app>.workspace` e é definido por produto, então
- * trocar o sufixo dá `<app>.assumir` sem escrever o nome do app aqui — que
- * é o que a auditoria de isolamento recusa, e com razão: um literal faria o
- * clone herdar o nome do vizinho em silêncio.
+ * Ele era derivado de `WORKSPACE_COOKIE` importado de `auth/workspace.ts` — e
+ * esse arquivo importa **este**, para chamar `contaAssumida()`. O ciclo fez o
+ * `const` cair em TDZ no primeiro import em tempo de execução, com o `tsc`
+ * verde. Reexportado aqui porque o resto do módulo o usa.
  */
-export const COOKIE_ASSUMIR = `${WORKSPACE_COOKIE.replace(/\.workspace$/, '')}.assumir`
+export { COOKIE_ASSUMIR }
 
 /** Uma hora. O cookie expira sozinho, e a leitura confere de novo. */
 export const DURACAO_MS = 60 * 60_000

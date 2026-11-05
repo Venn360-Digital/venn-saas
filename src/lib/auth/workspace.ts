@@ -6,15 +6,14 @@ import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { contaAssumida } from '@/lib/plataforma/acesso'
 
 /**
- * O cookie que guarda qual unidade a pessoa está olhando.
+ * O nome do cookie mora em `auth/cookies.ts`, um módulo folha.
  *
- * Só o Multiclínica tem mais de uma, então para quase todo mundo ele nunca é
- * escrito e nada muda. Quem escreve é a troca de workspace; quem lê é
- * `getWorkspaceMember()`, e **só depois de conferir que a unidade é mesmo
- * dela** — cookie é campo de texto como qualquer outro, e aceitar o que ele diz
- * seria entregar a clínica do vizinho a quem souber editá-lo.
+ * Reexportado aqui porque meia dúzia de arquivos já o importam deste caminho, e
+ * porque é daqui que ele é **lido**. A mudança de casa foi por ciclo de import:
+ * `plataforma/acesso.ts` precisa do nome, e este arquivo importa `acesso.ts`.
  */
-export const WORKSPACE_COOKIE = 'odontobox.workspace'
+export { WORKSPACE_COOKIE } from './cookies'
+import { WORKSPACE_COOKIE } from './cookies'
 
 /**
  * Workspace authorisation for API routes.
