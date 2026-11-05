@@ -107,7 +107,7 @@ import {
 } from '@/components/shared/DealJourney'
 import { format, isToday, isYesterday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { conectarTempoReal } from '@/lib/realtime/cliente'
+import { assinarTempoReal } from '@/lib/realtime/assinatura'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 
@@ -983,7 +983,13 @@ export default function ConversasPage() {
             }
         }
 
-        const conexao = conectarTempoReal({
+        /**
+         * Assinatura, não conexão: o cabeçalho desta mesma aba já assina o
+         * tempo real pelo `GatilhoDaEquipe`, e os dois dividem um socket. Ver
+         * `lib/realtime/assinatura.ts` — inclusive por que sair desta tela não
+         * fecha a conexão na hora.
+         */
+        const cancelar = assinarTempoReal({
             evento(tipo, payload) {
                 if (tipo === 'conversa.alterada') {
                     fetchConversations()
@@ -1069,7 +1075,7 @@ export default function ConversasPage() {
         pollRef.current = setInterval(fetchConversations, 15000)
 
         return () => {
-            conexao.fechar()
+            cancelar()
             if (pollRef.current) clearInterval(pollRef.current)
         }
     }, [fetchConversations])
