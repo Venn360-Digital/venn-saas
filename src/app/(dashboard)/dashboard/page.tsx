@@ -7,6 +7,7 @@ import {
     resolveOwnerScope,
 } from '@/lib/auth/workspace'
 import { resolvePeriodParams } from '@/lib/period'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { OperacaoCard } from '@/components/dashboard/OperacaoCard'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
@@ -37,7 +38,14 @@ export default async function DashboardPage({
     const params = await searchParams
     // Esta tela nasce em "Este mês": é o recorte da pergunta que o dono faz
     // olhando o painel ("como estamos este mês?"), não os últimos 30 dias.
-    const range = resolvePeriodParams(params, 'month')
+    // O mês é o da unidade: em Sydney "este mês" já virou quando aqui ainda é
+    // dia 31. O mesmo fuso que `getDashboardSummary` usa por dentro.
+    const range = resolvePeriodParams(
+        params,
+        'month',
+        Date.now(),
+        await fusoDaUnidade(auth.member.workspaceId)
+    )
     const owner = resolveOwnerScope(auth.member, params.userId)
     const canChoose = canSeeEveryone(auth.member.role)
     const view = params.view === 'grafico' ? 'grafico' : 'dados'

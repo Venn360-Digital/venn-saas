@@ -112,3 +112,15 @@ export function rotuloDoFuso(fuso: Fuso, agora: Date = new Date()): string {
     const off = deslocamentoDe(fuso.value, agora)
     return off ? `${fuso.cidade} (${off})` : fuso.cidade
 }
+
+/**
+ * O rótulo a partir do valor **gravado**, que é o que o banco devolve.
+ *
+ * `rotuloDoFuso` pede o objeto da lista; quem leu uma coluna tem só a string.
+ * Valor fora da lista volta como está — a tela mostra `Pacific/Chatham` em vez
+ * de ficar em branco, e fica evidente o que arrumar.
+ */
+export function rotuloDoValor(value: string, agora: Date = new Date()): string {
+    const achado = FUSOS.find((f) => f.value === value)
+    return achado ? rotuloDoFuso(achado, agora) : value
+}

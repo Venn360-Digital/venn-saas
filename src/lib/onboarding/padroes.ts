@@ -71,3 +71,19 @@ export const MOTIVOS_PADRAO = {
  * estratégia.
  */
 export const ESTRATEGIA_INICIAL = 'rodizio' as const
+
+/**
+ * O fuso com que toda conta nasce: São Paulo.
+ *
+ * Pedido do Andre em 2026-11-04, para os três apps — inclusive o que vende fora
+ * do Brasil. O cadastro não pergunta o fuso, e perguntar seria um campo a mais
+ * num passo que acabou de perder o de endereço; quem opera em outro fuso troca
+ * em Conta → Conta da Clínica, e é uma vez na vida da conta.
+ *
+ * **Gravado, não herdado** — mesmo motivo de `ESTRATEGIA_INICIAL`.
+ * `FUSO_DO_NEGOCIO` é o fallback de quem nunca escolheu, e são coisas
+ * diferentes: se o cadastro deixasse a coluna em branco, trocar o fallback
+ * amanhã trocaria o relógio de todas as contas antigas de uma vez. Aqui a
+ * escolha fica escrita na conta, com o valor que valia no dia em que ela nasceu.
+ */
+export const FUSO_INICIAL = 'America/Sao_Paulo' as const

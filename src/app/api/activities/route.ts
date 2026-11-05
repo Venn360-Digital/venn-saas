@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
 import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 const activitySchema = z.object({
     title: z.string().min(1),
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
         const now = new Date()
         // `dueDate` é data sem hora, gravada em meia-noite UTC; o DIA, porém,
         // é o da clínica — ver `inicioDoDiaUtc`.
-        const todayStart = inicioDoDiaUtc(diaNoFuso(now))
+        const todayStart = inicioDoDiaUtc(diaNoFuso(now, await fusoDaUnidade(workspaceId)))
 
         if (status === 'overdue') {
             // Atrasada é anterior a hoje por definição; cruzar isso com um

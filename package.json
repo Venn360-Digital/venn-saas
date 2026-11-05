@@ -21,6 +21,7 @@
     "test:availability": "tsx scripts/test-availability.ts",
     "check:widget": "node scripts/check-widget.mjs",
     "test:widget-config": "tsx scripts/test-widget-config.ts",
+    "test:fuso-unidade": "tsx --conditions=react-server scripts/test-fuso-unidade.ts",
     "lint:workspace": "node scripts/lint-workspace.mjs",
     "lint:fuso": "node scripts/lint-fuso.mjs",
     "check:cofre": "tsx --conditions=react-server scripts/check-cofre.ts",

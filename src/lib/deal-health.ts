@@ -1,4 +1,4 @@
-import { diaDeDataSemHora, diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
+import { FUSO_DO_NEGOCIO, diaDeDataSemHora, diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
 
 export interface DealLike {
     createdAt: string
@@ -52,8 +52,12 @@ export interface NextStep {
  * Três respostas possíveis, e nenhuma delas silenciosa: a atividade marcada,
  * a atividade que já venceu, ou a ausência de qualquer uma — que é o caso mais
  * importante, porque significa que ninguém vai voltar a este paciente.
+ *
+ * `fuso` é o da unidade, e decide onde fica a fronteira entre "Hoje" e "Amanhã".
+ * A tela o recebe de `useUnidades` — que já o traz com o primeiro paint. O
+ * padrão existe para quem chama sem ele não mudar de comportamento.
  */
-export function nextStep(deal: DealLike, now: number): NextStep {
+export function nextStep(deal: DealLike, now: number, fuso: string = FUSO_DO_NEGOCIO): NextStep {
     const activity = deal.activities?.[0]
     if (!activity) return { label: 'Sem próxima atividade', overdue: false, missing: true }
 
@@ -77,7 +81,7 @@ export function nextStep(deal: DealLike, now: number): NextStep {
     // Quantos dias faltam, no calendário da clínica. `setHours(0,0,0,0)` dava a
     // meia-noite do fuso do processo: no Worker (UTC) isso errava o dia por um
     // entre 21h e meia-noite, e "Hoje" virava "Amanhã" na tela.
-    const today = inicioDoDiaUtc(diaNoFuso(new Date(now)))
+    const today = inicioDoDiaUtc(diaNoFuso(new Date(now), fuso))
     const dueDay = inicioDoDiaUtc(diaDeDataSemHora(due))
     const diff = Math.round((dueDay.getTime() - today.getTime()) / 86_400_000)
 

@@ -9,11 +9,23 @@
  * aparecia como **atrasada**, porque às 22:17 de Brasília o servidor já achava
  * que era o dia seguinte.
  *
- * **Por que o fuso do negócio e não o de quem olha.** A clínica é brasileira e
- * opera num dia só. Deixar o navegador decidir faria o filtro "Hoje" significar
- * coisas diferentes no cliente e no servidor — e é o servidor que consulta o
- * banco. Fixar o fuso aqui faz os dois concordarem, que é a condição para o
- * recorte da tela bater com o número que volta.
+ * **Por que o fuso do NEGÓCIO e não o de quem olha.** A unidade opera num dia
+ * só. Deixar o navegador decidir faria o filtro "Hoje" significar coisas
+ * diferentes no cliente e no servidor — e é o servidor que consulta o banco.
+ * Um fuso por unidade faz os dois concordarem, que é a condição para o recorte
+ * da tela bater com o número que volta.
+ *
+ * Isso continua valendo com fuso por unidade, e é a razão de **não** haver fuso
+ * por pessoa aqui: duas pessoas da mesma unidade têm de concordar sobre que dia
+ * é hoje, senão o mesmo compromisso cai em dias diferentes no relatório de cada
+ * uma. Decisão do Andre em 2026-11-04.
+ *
+ * **O fuso agora é argumento, não constante.** Toda função que depende dele
+ * aceita um, e cai em `FUSO_DO_NEGOCIO` quando omitido — foi assim que os 45
+ * pontos de chamada existentes atravessaram esta mudança sem serem tocados.
+ * `FUSO_DO_NEGOCIO` deixou de ser "o fuso do sistema" e passou a ser **o padrão
+ * de quem não escolheu**: a unidade que nunca abriu a tela de Conta da Empresa
+ * se comporta exatamente como antes.
  *
  * **Por que `Intl` e não `-3` na mão.** O Brasil não tem horário de verão desde
  * 2019, então hoje o deslocamento é constante — mas ele já mudou antes e pode
@@ -32,21 +44,42 @@ interface Partes {
     segundo: number
 }
 
-const FORMATO = new Intl.DateTimeFormat('en-US', {
-    timeZone: FUSO_DO_NEGOCIO,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-})
+/**
+ * Um formatador por fuso, em cache.
+ *
+ * Era um `Intl.DateTimeFormat` só, preso a `FUSO_DO_NEGOCIO` no nível do
+ * módulo — e era ele, sozinho, que tornava o fuso uma constante de instalação.
+ * Trocá-lo por uma fábrica é o que permite a unidade ter fuso próprio sem
+ * reescrever as dez funções que o usam.
+ *
+ * O cache não é otimização prematura: construir um `DateTimeFormat` é caro o
+ * bastante para aparecer num laço de cron que percorre todas as unidades, e o
+ * número de fusos distintos numa instalação é pequeno e estável.
+ */
+const FORMATOS = new Map<string, Intl.DateTimeFormat>()
+
+function formatoDe(fuso: string): Intl.DateTimeFormat {
+    let f = FORMATOS.get(fuso)
+    if (!f) {
+        f = new Intl.DateTimeFormat('en-US', {
+            timeZone: fuso,
+            hour12: false,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        })
+        FORMATOS.set(fuso, f)
+    }
+    return f
+}
 
 /** As partes do calendário brasileiro para um instante. */
-export function partesNoFuso(instante: Date): Partes {
+export function partesNoFuso(instante: Date, fuso: string = FUSO_DO_NEGOCIO): Partes {
     const p: Record<string, string> = {}
-    for (const parte of FORMATO.formatToParts(instante)) p[parte.type] = parte.value
+    for (const parte of formatoDe(fuso).formatToParts(instante)) p[parte.type] = parte.value
 
     return {
         ano: Number(p.year),
@@ -60,8 +93,8 @@ export function partesNoFuso(instante: Date): Partes {
 }
 
 /** `yyyy-MM-dd` no fuso do negócio. `toISOString()` empurraria o dia. */
-export function diaNoFuso(instante: Date = new Date()): string {
-    const { ano, mes, dia } = partesNoFuso(instante)
+export function diaNoFuso(instante: Date = new Date(), fuso: string = FUSO_DO_NEGOCIO): string {
+    const { ano, mes, dia } = partesNoFuso(instante, fuso)
     return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
 }
 
@@ -69,8 +102,8 @@ export function diaNoFuso(instante: Date = new Date()): string {
  * Quanto o fuso do negócio está à frente do UTC naquele instante, em ms.
  * Negativo no Brasil (−3 h hoje).
  */
-function deslocamentoMs(instante: Date): number {
-    const { ano, mes, dia, hora, minuto, segundo } = partesNoFuso(instante)
+function deslocamentoMs(instante: Date, fuso: string): number {
+    const { ano, mes, dia, hora, minuto, segundo } = partesNoFuso(instante, fuso)
     const comoSeFosseUtc = Date.UTC(ano, mes - 1, dia, hora, minuto, segundo)
     // O instante tem milissegundos que as partes não carregam; descontá-los
     // mantém a conta exata em vez de arredondada para o segundo.
@@ -89,22 +122,26 @@ function deslocamentoMs(instante: Date): number {
  * recalcula já perto do alvo. É o que cobre a virada de horário de verão, em que
  * o deslocamento do dia não é o do palpite.
  */
-export function instanteNoFuso(diaIso: string, horaMinuto = '00:00'): Date {
+export function instanteNoFuso(
+    diaIso: string,
+    horaMinuto = '00:00',
+    fuso: string = FUSO_DO_NEGOCIO
+): Date {
     const [ano, mes, dia] = diaIso.split('-').map(Number)
     const [hora = 0, minuto = 0] = horaMinuto.split(':').map(Number)
     const alvoComoUtc = Date.UTC(ano, mes - 1, dia, hora, minuto)
 
     let instante = new Date(alvoComoUtc)
     for (let passada = 0; passada < 2; passada++) {
-        instante = new Date(alvoComoUtc - deslocamentoMs(instante))
+        instante = new Date(alvoComoUtc - deslocamentoMs(instante, fuso))
     }
 
     return instante
 }
 
 /** O instante UTC da meia-noite daquele dia **no fuso do negócio**. */
-export function inicioDoDia(diaIso: string): Date {
-    return instanteNoFuso(diaIso, '00:00')
+export function inicioDoDia(diaIso: string, fuso: string = FUSO_DO_NEGOCIO): Date {
+    return instanteNoFuso(diaIso, '00:00', fuso)
 }
 
 /**
@@ -113,29 +150,29 @@ export function inicioDoDia(diaIso: string): Date {
  * Substitui `data.setHours(0, 0, 0, 0)`, que no Worker recua para a meia-noite
  * UTC — ou seja, para as 21h do dia anterior em Brasília.
  */
-export function inicioDoDiaDe(instante: Date = new Date()): Date {
-    return inicioDoDia(diaNoFuso(instante))
+export function inicioDoDiaDe(instante: Date = new Date(), fuso: string = FUSO_DO_NEGOCIO): Date {
+    return inicioDoDia(diaNoFuso(instante, fuso), fuso)
 }
 
 /** A hora (0–23) no fuso do negócio. Substitui `getHours()`. */
-export function horaNoFuso(instante: Date = new Date()): number {
-    return partesNoFuso(instante).hora
+export function horaNoFuso(instante: Date = new Date(), fuso: string = FUSO_DO_NEGOCIO): number {
+    return partesNoFuso(instante, fuso).hora
 }
 
 /** O ano no fuso do negócio. Substitui `getFullYear()`. */
-export function anoNoFuso(instante: Date = new Date()): number {
-    return partesNoFuso(instante).ano
+export function anoNoFuso(instante: Date = new Date(), fuso: string = FUSO_DO_NEGOCIO): number {
+    return partesNoFuso(instante, fuso).ano
 }
 
 /** `HH:mm` no fuso do negócio — a hora de parede que a clínica combinou. */
-export function horaMinutoNoFuso(instante: Date): string {
-    const { hora, minuto } = partesNoFuso(instante)
+export function horaMinutoNoFuso(instante: Date, fuso: string = FUSO_DO_NEGOCIO): string {
+    const { hora, minuto } = partesNoFuso(instante, fuso)
     return `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`
 }
 
 /** O dia da semana (0 = domingo) no fuso do negócio. Substitui `getDay()`. */
-export function diaDaSemanaNoFuso(instante: Date = new Date()): number {
-    return diaDaSemana(diaNoFuso(instante))
+export function diaDaSemanaNoFuso(instante: Date = new Date(), fuso: string = FUSO_DO_NEGOCIO): number {
+    return diaDaSemana(diaNoFuso(instante, fuso))
 }
 
 /**
@@ -168,8 +205,8 @@ export function inicioDoDiaUtc(diaIso: string): Date {
 }
 
 /** O instante UTC do fim daquele dia — a meia-noite do dia seguinte. */
-export function fimDoDia(diaIso: string): Date {
-    return inicioDoDia(somarDias(diaIso, 1))
+export function fimDoDia(diaIso: string, fuso: string = FUSO_DO_NEGOCIO): Date {
+    return inicioDoDia(somarDias(diaIso, 1), fuso)
 }
 
 /**

@@ -83,6 +83,7 @@ import { ViewSeg } from '@/components/shared/ViewSeg'
 import { Pagination } from '@/components/shared/Pagination'
 import { DEAL_LANES, isDealLane, type DealLane } from '@/lib/deal-lanes'
 import { useNow } from '@/hooks/useNow'
+import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { PERIOD_PRESETS, matchPreset } from '@/lib/period'
 import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
@@ -290,8 +291,10 @@ function DealCard({
     // O relógio vem do store: lê-lo no render seria impuro, e de graça o número
     // se atualiza sozinho num quadro que fica aberto das 8 às 19.
     const now = useNow()
+    // "Hoje" e "Amanhã" no relógio da clínica, não no de quem olha.
+    const fuso = useFusoDaUnidade()
     const age = ageTone(daysInStage(deal, now))
-    const step = nextStep(deal, now)
+    const step = nextStep(deal, now, fuso)
 
     return (
         <div
@@ -563,6 +566,7 @@ export default function NegociosPage() {
     const [selectedDealId, setSelectedDealId] = useState<string | null>(null)
     // O mesmo relógio dos cartões, para as colunas de próximo passo e idade.
     const now = useNow()
+    const fuso = useFusoDaUnidade()
     /** A faixa de prioridades escolhida, ou nenhuma. */
     const [lane, setLane] = useState<DealLane | null>(null)
     const [laneCounts, setLaneCounts] = useState<Record<DealLane, number> | null>(null)
@@ -631,7 +635,7 @@ export default function NegociosPage() {
         dateTo,
     ].filter(Boolean).length
 
-    const periodPreset = dateFrom || dateTo ? (nowMs ? matchPreset(dateFrom, dateTo, nowMs) : null) : null
+    const periodPreset = dateFrom || dateTo ? (nowMs ? matchPreset(dateFrom, dateTo, nowMs, fuso) : null) : null
     const periodLabel = dateFrom || dateTo
         ? (PERIOD_PRESETS.find(p => p.id === periodPreset)?.label ?? `${dateFrom ? shortDate(dateFrom) : '…'} – ${dateTo ? shortDate(dateTo) : '…'}`)
         : null
@@ -1183,7 +1187,7 @@ export default function NegociosPage() {
             sortValue: deal => deal.activities?.[0]?.dueDate ?? '9999-12-31',
             hideBelow: 'md',
             cell: deal => {
-                const step = nextStep(deal, now)
+                const step = nextStep(deal, now, fuso)
                 return (
                     <span className={cn(
                         'inline-flex items-center gap-1.5 text-xs font-medium',

@@ -1,4 +1,4 @@
-import { diaDaSemana, diaNoFuso, limitesDoMes, somarDias } from '@/lib/fuso'
+import { FUSO_DO_NEGOCIO, diaDaSemana, diaNoFuso, limitesDoMes, somarDias } from '@/lib/fuso'
 
 /**
  * O período do produto — os atalhos e a matemática das datas.
@@ -32,17 +32,22 @@ export interface PeriodRange {
 }
 
 /**
- * `yyyy-MM-dd` no **fuso do negócio** — não no de quem olha, e não em UTC.
+ * `yyyy-MM-dd` no **fuso da unidade** — não no de quem olha, e não em UTC.
  *
  * Era `date.getDate()` & cia., que lê o fuso do processo. Funcionava na VPS
  * (`TZ=America/Sao_Paulo`) e passou a dar UTC no Worker, que ignora `TZ`: às
  * 22h de Brasília o servidor já resolvia "hoje" como o dia seguinte, e o filtro
  * da tela deixava de bater com o número que voltava do banco.
  *
- * Fixar o fuso da clínica faz cliente e servidor concordarem — ver `lib/fuso.ts`.
+ * O fuso tem de ser **o mesmo nas duas pontas**, e é por isso que ele entra
+ * como argumento em vez de cada lado descobrir o seu: o cliente pega de
+ * `useFusoDaUnidade`, o servidor de `fusoDaUnidade`, e os dois leem a mesma
+ * coluna. Dois fusos diferentes aqui reproduzem exatamente o defeito que este
+ * módulo existe para fechar — a tela filtrando um dia e o banco respondendo
+ * outro.
  */
-export function isoDay(date: Date): string {
-    return diaNoFuso(date)
+export function isoDay(date: Date, fuso: string = FUSO_DO_NEGOCIO): string {
+    return diaNoFuso(date, fuso)
 }
 
 /**
@@ -52,10 +57,14 @@ export function isoDay(date: Date): string {
  * desenha `Dom Seg Ter…` e duas convenções na mesma tela seriam pior que a
  * escolha.
  */
-export function periodRange(id: PeriodPresetId, nowMs: number): PeriodRange {
-    // Tudo em cima do dia de calendário brasileiro, nunca de um instante com
+export function periodRange(
+    id: PeriodPresetId,
+    nowMs: number,
+    fuso: string = FUSO_DO_NEGOCIO
+): PeriodRange {
+    // Tudo em cima do dia de calendário da unidade, nunca de um instante com
     // fuso implícito — ver `isoDay`.
-    const hoje = diaNoFuso(new Date(nowMs))
+    const hoje = diaNoFuso(new Date(nowMs), fuso)
 
     switch (id) {
         case 'today':
@@ -79,11 +88,12 @@ export function periodRange(id: PeriodPresetId, nowMs: number): PeriodRange {
 export function matchPreset(
     from: string,
     to: string,
-    nowMs: number
+    nowMs: number,
+    fuso: string = FUSO_DO_NEGOCIO
 ): PeriodPresetId | null {
     if (!from || !to || !nowMs) return null
     for (const preset of PERIOD_PRESETS) {
-        const range = periodRange(preset.id, nowMs)
+        const range = periodRange(preset.id, nowMs, fuso)
         if (range.from === from && range.to === to) return preset.id
     }
     return null
@@ -102,12 +112,13 @@ export function resolvePeriodParams(
     /** O agora é lido aqui, e não no componente: a regra `react-hooks/purity`
         proíbe `Date.now()` durante o render — com razão no cliente, e sem jeito
         de distinguir um componente de servidor. */
-    nowMs: number = Date.now()
+    nowMs: number = Date.now(),
+    fuso: string = FUSO_DO_NEGOCIO
 ): PeriodRange & { preset: PeriodPresetId | null } {
     if (params.period === 'all') return { from: '', to: '', preset: null }
     if (params.from || params.to) {
         const range = { from: params.from ?? '', to: params.to ?? '' }
-        return { ...range, preset: matchPreset(range.from, range.to, nowMs) }
+        return { ...range, preset: matchPreset(range.from, range.to, nowMs, fuso) }
     }
-    return { ...periodRange(fallback, nowMs), preset: fallback }
+    return { ...periodRange(fallback, nowMs, fuso), preset: fallback }
 }

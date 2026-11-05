@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import { periodWhere } from '@/lib/deal-filters'
 import { currentMembership, dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
 
@@ -113,7 +114,11 @@ export async function GET(request: NextRequest) {
         // A mesma faixa de prioridades do quadro, para que trocar de visão não
         // troque o conjunto de negócios.
         const lane = searchParams.get('lane')
-        if (isDealLane(lane)) todas.push(laneWhere(lane))
+        if (isDealLane(lane)) {
+            todas.push(
+                laneWhere(lane, new Date(), await fusoDaUnidade(workspaceUser.workspaceId))
+            )
+        }
 
         if (search) {
             where.OR = [

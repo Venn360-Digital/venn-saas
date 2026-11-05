@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 
 /**
  * A marca da sessão: em que clínica se está, de qual conta, e a logo da conta.
@@ -29,6 +30,17 @@ export interface MarcaDaSessao {
     conta: string
     /** As unidades de que esta pessoa participa, da mais antiga à nova. */
     unidades: { id: string; name: string }[]
+    /**
+     * O fuso da unidade aberta — o relógio em que a tela conta os dias.
+     *
+     * Viaja aqui, e não numa busca própria, porque é a resposta que **toda**
+     * página do dashboard já carrega: o `settings` já vem na consulta abaixo, e
+     * "Hoje"/"Amanhã" precisam do fuso no primeiro paint, no cliente, sem outra
+     * ida ao servidor. De carona também ganha a invalidação que já existe —
+     * gravar o fuso na guia Conta da Clínica dispara `workspace:updated`, e os
+     * rótulos trocam sem recarregar.
+     */
+    fuso: string
 }
 
 /**
@@ -59,6 +71,7 @@ async function lerMarca(): Promise<MarcaDaSessao | null> {
             select: {
                 id: true,
                 name: true,
+                settings: true,
                 account: { select: { name: true, logo: true } },
             },
         }),
@@ -90,5 +103,6 @@ async function lerMarca(): Promise<MarcaDaSessao | null> {
         logo: workspace.account.logo,
         conta: workspace.account.name,
         unidades: participacoes.map((p) => p.workspace),
+        fuso: lerFusoDasConfiguracoes(workspace.settings),
     }
 }

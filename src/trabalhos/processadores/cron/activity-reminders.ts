@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma'
 import { transmitir } from '@/trabalhos/tempo-real'
 import { createLogger } from '@/trabalhos/registro'
 import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
+import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 
 const log = createLogger('CRON:REMINDERS')
 
@@ -32,6 +33,10 @@ export async function runActivityReminders(): Promise<void> {
         include: {
             contact: { select: { id: true, name: true } },
             deal: { select: { id: true, title: true } },
+            // O fuso da clínica dona da atividade: é ele que diz que instante é
+            // "9h" na linha abaixo. Vem junto para não haver uma consulta por
+            // lembrete.
+            workspace: { select: { settings: true } },
         },
         orderBy: { dueDate: 'asc' },
     })
@@ -41,11 +46,13 @@ export async function runActivityReminders(): Promise<void> {
 
         // dueDate carries the day and startTime the clock, so they have to be
         // recombined to decide whether the reminder window has opened.
-        // A hora combinada é de parede, da clínica: `setHours` a marcava em
-        // UTC no Worker, e o lembrete saía três horas adiantado.
+        // A hora combinada é de parede, **da clínica dona da atividade**:
+        // `setHours` a marcava em UTC no Worker, e o lembrete saía três horas
+        // adiantado; depois passou a sair certo só para quem opera em Brasília.
         const dueAt = instanteNoFuso(
             diaDeDataSemHora(new Date(activity.dueDate)),
-            activity.startTime || '09:00'
+            activity.startTime || '09:00',
+            lerFusoDasConfiguracoes(activity.workspace.settings)
         )
 
         const fireAt = new Date(dueAt.getTime() - activity.reminderMinutes * 60_000)

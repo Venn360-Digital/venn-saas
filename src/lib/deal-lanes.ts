@@ -1,5 +1,5 @@
 import type { Prisma } from '#prisma'
-import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
+import { FUSO_DO_NEGOCIO, diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 
 /**
  * As três perguntas que a clínica faz todo dia ao funil.
@@ -25,11 +25,23 @@ export function isDealLane(value: string | null | undefined): value is DealLane 
 /** Dias sem mudar de fase para um negócio contar como parado. */
 const STALE_DAYS = 7
 
-export function laneWhere(lane: DealLane, now: Date = new Date()): Prisma.DealWhereInput {
+/**
+ * `fuso` só muda a faixa `due_soon` — as outras duas contam em dias corridos.
+ *
+ * "Hoje e amanhã" é a única das três que depende de onde a clínica está: em
+ * Sydney o dia virou nove horas antes, e sem isto a lista de consultas de hoje
+ * mostraria as de ontem até as 11h da manhã local. O padrão mantém o
+ * comportamento de quem chama sem passar nada.
+ */
+export function laneWhere(
+    lane: DealLane,
+    now: Date = new Date(),
+    fuso: string = FUSO_DO_NEGOCIO
+): Prisma.DealWhereInput {
     if (lane === 'due_soon') {
         // `dueDate` é data sem hora: a fronteira é meia-noite UTC, mas o dia
         // é o da clínica — ver `inicioDoDiaUtc`.
-        const hoje = diaNoFuso(now)
+        const hoje = diaNoFuso(now, fuso)
         const start = inicioDoDiaUtc(hoje)
         const end = inicioDoDiaUtc(somarDias(hoje, 2))
         return { activities: { some: { completedAt: null, dueDate: { gte: start, lt: end } } } }

@@ -9,6 +9,7 @@ import { createLogger } from '@/trabalhos/registro'
 import { enfileirar } from '@/trabalhos/filas'
 import { isHumanHandled } from '@/trabalhos/servicos/conversation'
 import { diaDaSemanaNoFuso, horaNoFuso } from '@/lib/fuso'
+import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 
 const log = createLogger('CRON:AUTOSEND')
 
@@ -40,15 +41,6 @@ const OPT_OUT = /^\s*(parar|pare|sair|descadastrar|nao quero|não quero|stop)\b/
  */
 export async function runAutoFollowUp(): Promise<void> {
     const now = new Date()
-    // Horário comercial é o da clínica: no Worker `getHours()` daria UTC, e a
-    // janela 9–18 viraria 6–15 em Brasília — com sábado à noite virando domingo.
-    const hour = horaNoFuso(now)
-    const weekday = diaDaSemanaNoFuso(now)
-
-    // Portão 5, aplicado antes de tudo: fora do horário não há o que fazer.
-    if (hour < BUSINESS_START || hour >= BUSINESS_END || weekday === 0 || weekday === 6) {
-        return
-    }
 
     const stages = await prisma.pipelineStage.findMany({
         where: { autoSend: { in: ['draft', 'send'] }, followUpDays: { not: null } },
@@ -58,7 +50,7 @@ export async function runAutoFollowUp(): Promise<void> {
             workspaceId: true,
             followUpDays: true,
             autoSend: true,
-            workspace: { select: { automations: true } },
+            workspace: { select: { automations: true, settings: true } },
         },
     })
 
@@ -69,6 +61,26 @@ export async function runAutoFollowUp(): Promise<void> {
         const days = stage.followUpDays ?? 0
         if (days <= 0) continue
         if (!readAutomations(stage.workspace.automations).followUpTasks) continue
+
+        /**
+         * Portão 5: é hora de falar — no relógio **da clínica**.
+         *
+         * Era uma saída antecipada antes do laço, com a hora no fuso do
+         * sistema. Com fuso por unidade isso virou o pior dos dois mundos: a
+         * clínica de Sydney ficava muda o dia inteiro dela e acordava às 22h
+         * locais, que é quando são 9h em Brasília. O portão desceu para
+         * dentro do laço porque a resposta passou a ser uma por clínica.
+         *
+         * O custo é a consulta de fases deixar de ser evitada nas horas em que
+         * ninguém trabalha: uma consulta por hora, contra um cron que não
+         * serve para metade do mundo.
+         */
+        const fuso = lerFusoDasConfiguracoes(stage.workspace.settings)
+        const hour = horaNoFuso(now, fuso)
+        const weekday = diaDaSemanaNoFuso(now, fuso)
+        if (hour < BUSINESS_START || hour >= BUSINESS_END || weekday === 0 || weekday === 6) {
+            continue
+        }
 
         const channel = await connectedWhatsApp(stage.workspaceId)
         if (!channel) {

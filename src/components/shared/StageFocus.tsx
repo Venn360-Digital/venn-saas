@@ -9,6 +9,7 @@ import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
 import { ageTone, daysInStage, nextStep, type DealLike } from '@/lib/deal-health'
 import { formatPhone } from '@/lib/phone'
 import { useNow } from '@/hooks/useNow'
+import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { cn } from '@/lib/utils'
 
 export type FocusOrder = 'age' | 'value' | 'recent'
@@ -64,6 +65,9 @@ export function StageFocus({
     className?: string
 }) {
     const now = useNow()
+    // Desce por prop junto com o relógio, pelo mesmo motivo: um cartão não
+    // precisa de assinatura própria para saber em que fuso a clínica conta.
+    const fuso = useFusoDaUnidade()
 
     const sorted = [...deals].sort((a, b) => {
         if (order === 'value') return (b.value ?? 0) - (a.value ?? 0)
@@ -112,6 +116,7 @@ export function StageFocus({
                             key={deal.id}
                             deal={deal}
                             now={now}
+                            fuso={fuso}
                             selected={selectedId === deal.id}
                             onSelect={onSelect}
                             whatsapp={whatsapp}
@@ -126,12 +131,15 @@ export function StageFocus({
 function FocusRow({
     deal,
     now,
+    fuso,
     selected,
     onSelect,
     whatsapp,
 }: {
     deal: FocusDeal
     now: number
+    /** O fuso da unidade — onde fica a fronteira entre "Hoje" e "Amanhã". */
+    fuso: string
     selected: boolean
     onSelect: (dealId: string) => void
     whatsapp: {
@@ -149,7 +157,7 @@ function FocusRow({
 
     const days = daysInStage(deal, now)
     const age = ageTone(days)
-    const step = nextStep(deal, now)
+    const step = nextStep(deal, now, fuso)
 
     return (
         <div

@@ -29,6 +29,7 @@ import { ActivityPanel } from '@/components/activities/ActivityPanel'
 import { MASKS, dateFromMask, maskDigitsFromIso } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
 import { PERIOD_PRESETS, isoDay, matchPreset, periodRange, type PeriodPresetId, type PeriodRange } from '@/lib/period'
+import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { usePermissions } from '@/hooks/usePermissions'
 import { JanelasDialog } from '@/components/specialists/JanelasDialog'
 
@@ -136,6 +137,16 @@ export default function AgendaPage() {
     const [deletingActivity, setDeletingActivity] = useState<Activity | null>(null)
     const [activities, setActivities] = useState<Activity[]>([])
     const [loading, setLoading] = useState(true)
+    /**
+     * O calendário da unidade, não o de quem olha.
+     *
+     * A Agenda é a tela em que isto mais aparece: o dia que ela marca como
+     * "hoje", a semana que ela abre e as chaves `yyyy-MM-dd` das células saem
+     * todas daqui. Vem de `useUnidades`, que já trouxe o valor com o primeiro
+     * paint — e o servidor responde com o mesmo fuso, que é a condição para o
+     * filtro da tela e a consulta do banco falarem do mesmo dia.
+     */
+    const fuso = useFusoDaUnidade()
     const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'kanban'>('list')
     const [typeFilter, setTypeFilter] = useState('all')
     const [statusFilter, setStatusFilter] = useState('all')
@@ -152,7 +163,7 @@ export default function AgendaPage() {
     const [range, setRange] = useState<PeriodRange | null>(null)
     /** Qual atalho o recorte é, enquanto o relógio do `PeriodPicker` não entra. */
     const [presetHint, setPresetHint] = useState<PeriodPresetId | null>('week')
-    useEffect(() => { setRange(periodRange('week', Date.now())) }, [])
+    useEffect(() => { setRange(periodRange('week', Date.now(), fuso)) }, [fuso])
 
     // Calendar navigation
     const [calMonth, setCalMonth] = useState(new Date().getMonth())
@@ -289,8 +300,8 @@ export default function AgendaPage() {
                 const startDow = firstDay.getDay()
                 const calStart = new Date(calYear, calMonth, 1 - startDow)
                 const calEnd = new Date(calYear, calMonth + 1, 7)
-                params.set('from', isoDay(calStart))
-                params.set('to', isoDay(calEnd))
+                params.set('from', isoDay(calStart, fuso))
+                params.set('to', isoDay(calEnd, fuso))
             } else {
                 if (range?.from) params.set('from', range.from)
                 if (range?.to) params.set('to', range.to)
@@ -495,7 +506,7 @@ export default function AgendaPage() {
     usePanelKeys(openId, visibleIds, setOpenId)
     const openItem = openId ? activities.find(a => a.id === openId) ?? null : null
 
-    const preset = range ? (nowMs ? matchPreset(range.from, range.to, nowMs) : presetHint) : presetHint
+    const preset = range ? (nowMs ? matchPreset(range.from, range.to, nowMs, fuso) : presetHint) : presetHint
     const periodLabel = preset
         ? PERIOD_PRESETS.find(p => p.id === preset)?.label ?? null
         : range && (range.from || range.to)
@@ -504,7 +515,7 @@ export default function AgendaPage() {
     const hasFilters = typeFilter !== 'all' || statusFilter !== 'all' || Boolean(ownerFilter) || preset !== 'week'
     const clearFilters = () => {
         setTypeFilter('all'); setStatusFilter('all'); setOwnerFilter('')
-        setRange(periodRange('week', Date.now())); setPresetHint('week'); setPage(1)
+        setRange(periodRange('week', Date.now(), fuso)); setPresetHint('week'); setPage(1)
     }
 
     const openPanel = (id: string) => { setOpenId(id); if (viewMode !== 'list') setViewMode(viewMode) }
@@ -567,7 +578,7 @@ export default function AgendaPage() {
             width: '11rem',
             cell: (a) => {
                 const overdue = isOverdue(a)
-                const todayIso = nowMs ? isoDay(new Date(nowMs)) : ''
+                const todayIso = nowMs ? isoDay(new Date(nowMs), fuso) : ''
                 const isToday = a.dueDate?.slice(0, 10) === todayIso && !a.completedAt
                 return (
                     <span className={cn('num', overdue && 'font-semibold text-destructive-subtle-foreground', isToday && 'font-semibold text-primary-subtle-foreground')}>
@@ -615,7 +626,7 @@ export default function AgendaPage() {
                         {/* Hoje e Atrasadas são absolutos; Concluídas e Total seguem o
                             período — e por isso somam entre si. */}
                         <StatPill value={stats.today} label="hoje" title="Pendentes para hoje" pressed={statusFilter === 'pending' && preset === 'today'}
-                            onClick={() => { setRange(periodRange('today', Date.now())); setPresetHint('today'); setStatusFilter('pending'); setViewMode('list') }} />
+                            onClick={() => { setRange(periodRange('today', Date.now(), fuso)); setPresetHint('today'); setStatusFilter('pending'); setViewMode('list') }} />
                         <StatPill value={stats.overdue} label="atrasadas" tone="danger" title="Vencidas, agora" pressed={statusFilter === 'overdue'}
                             onClick={() => { setStatusFilter('overdue'); setViewMode('list') }} />
                         <StatPill value={stats.completed} label="concluídas" tone="ok" title="Concluídas das que vencem no período" pressed={statusFilter === 'done'}
@@ -845,7 +856,7 @@ export default function AgendaPage() {
                             </div>
                             <div className="grid grid-cols-7">
                                 {calendarDays.map((cell, idx) => {
-                                    const dateKey = isoDay(cell.date)
+                                    const dateKey = isoDay(cell.date, fuso)
                                     const dayActivities = activitiesByDate[dateKey] || []
                                     const isToday = isSameDay(cell.date, today)
                                     const MAX_VISIBLE = 3
