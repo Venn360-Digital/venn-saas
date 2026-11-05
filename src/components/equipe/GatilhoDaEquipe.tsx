@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { conectarTempoReal } from '@/lib/realtime/cliente'
@@ -51,6 +52,16 @@ export function GatilhoDaEquipe() {
      * que passou disso.
      */
     const [quantosNaoLidos, setQuantos] = useState(0)
+    /**
+     * Já sei quem é a equipe?
+     *
+     * Enquanto não sei, o gatilho não desenha — senão ele pisca "0 online" com
+     * a pilha vazia antes da primeira resposta, que é a sombra que o DESIGN.md
+     * proíbe. Não é o mesmo que "a equipe está vazia": são dois estados, e
+     * tratá-los como um era o que escondia o gatilho para sempre quando a
+     * consulta falhava.
+     */
+    const [carregado, setCarregado] = useState(false)
     const [versaoDosRecados, setVersao] = useState(0)
 
     /** O painel aberto, visto de dentro do ouvinte do tempo real. */
@@ -66,6 +77,7 @@ export function GatilhoDaEquipe() {
             const dados = await res.json()
             setPessoas(dados.pessoas ?? [])
             setOnline(dados.online ?? 0)
+            setCarregado(true)
         } catch {
             // Silencioso: o cabeçalho não é lugar de erro de rede. Sem a lista,
             // o gatilho simplesmente não aparece.
@@ -169,18 +181,38 @@ export function GatilhoDaEquipe() {
     }, [])
 
     const visiveis = useMemo(() => pessoas.filter((p) => !p.souEu).slice(0, 3), [pessoas])
-    const total = pessoas.length
+    const sozinho = visiveis.length === 0
 
-    // Clínica de uma pessoa só: não há a quem mandar recado, e um gatilho que
-    // abre uma lista vazia é pior que nenhum gatilho.
-    if (total <= 1) return null
+    /**
+     * **O gatilho não some quando a equipe é de um.**
+     *
+     * Ele sumia (`if (total <= 1) return null`), e a decisão estava errada por
+     * uma razão que apareceu no primeiro uso: o Andre entrou numa conta de uma
+     * pessoa só, não achou o painel, e concluiu que a função não tinha subido.
+     * O argumento de antes — "um gatilho que abre uma lista vazia é pior que
+     * nenhum" — ignorava que o painel **já tem** o que dizer nesse caso
+     * ("Você é a única pessoa desta unidade. Convide a equipe em Gerenciamento
+     * → Conta → Usuários"), e esconder o gatilho tornava esse texto
+     * inalcançável: estado vazio escrito e morto.
+     *
+     * Então: some só enquanto a lista não chegou — para não piscar —, e depois
+     * aparece sempre. Com equipe, mostra as caras e a conta; sem equipe, diz
+     * "Equipe" e abre o convite. O WebSocket continua não sendo aberto quando
+     * não há ninguém para mandar recado: economizar conexão é uma coisa,
+     * esconder a função é outra.
+     */
+    if (!carregado) return null
 
     return (
         <>
             <button
                 type="button"
                 onClick={() => setAberto((a) => !a)}
-                aria-label={`Equipe — ${online} online${quantosNaoLidos ? `, ${quantosNaoLidos} recado(s) não lido(s)` : ''}`}
+                aria-label={
+                    sozinho
+                        ? 'Equipe — você é a única pessoa desta unidade'
+                        : `Equipe — ${online} online${quantosNaoLidos ? `, ${quantosNaoLidos} recado(s) não lido(s)` : ''}`
+                }
                 className={cn(
                     'relative flex items-center gap-2 rounded-full border py-1 pl-1 pr-2.5 transition-colors',
                     aberto
@@ -188,6 +220,12 @@ export function GatilhoDaEquipe() {
                         : 'border-border bg-card hover:bg-accent'
                 )}
             >
+                {sozinho ? (
+                    <span className="flex size-6 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        <Users className="size-3.5" aria-hidden="true" />
+                    </span>
+                ) : null}
+
                 <span className="flex">
                     {visiveis.map((p, i) => (
                         <span
@@ -207,8 +245,13 @@ export function GatilhoDaEquipe() {
                     ))}
                 </span>
 
-                <span className="num text-xs font-semibold text-primary-subtle-foreground">
-                    {online} online
+                <span
+                    className={cn(
+                        'text-xs font-semibold text-primary-subtle-foreground',
+                        sozinho ? '' : 'num'
+                    )}
+                >
+                    {sozinho ? 'Equipe' : `${online} online`}
                 </span>
 
                 {quantosNaoLidos > 0 ? (
