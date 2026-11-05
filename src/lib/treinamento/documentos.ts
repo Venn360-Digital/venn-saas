@@ -107,8 +107,23 @@ export const SECAO_EXEMPLOS = 'Exemplos de resposta'
 export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
     {
         slug: 'instrucoes-centrais',
-        titulo: 'Instruções centrais',
-        item: 'Perfil',
+        /**
+         * O nome que a conta lê. **O slug não muda** — é por ele que o
+         * conteúdo e o acervo estão gravados.
+         */
+        titulo: 'Instruções gerais',
+        /**
+         * Guia própria, abaixo de Perfil, por decisão do Andre em 2026-11-05.
+         *
+         * Morava dentro do Perfil (`item: 'Perfil'`), e era o único campo da
+         * guia que é um documento: editor próprio, botão de modelo, selo de
+         * indexação e teto de caracteres, no meio de seis campos de cadastro.
+         * O Perfil ficou com quem o agente é para a equipe; o comportamento
+         * dele passou a ter lugar próprio, ao lado dos outros sete documentos.
+         *
+         * 17 caracteres, dentro de `LIMITE_DO_ROTULO`.
+         */
+        item: 'Instruções gerais',
         modo: 'prompt',
         teto: 10_000,
         precedencia: 2,
@@ -125,7 +140,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
     },
     {
         slug: 'empresa',
-        titulo: 'Detalhamento da empresa',
+        titulo: 'Informações sobre a empresa',
         item: 'Empresa',
         modo: 'prompt',
         teto: 10_000,
@@ -147,7 +162,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
     },
     {
         slug: 'servicos',
-        titulo: 'Serviços prestados',
+        titulo: 'Serviços e Produtos',
         item: 'Serviços',
         modo: 'rag',
         teto: 50_000,
@@ -159,7 +174,7 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
     },
     {
         slug: 'processo-comercial',
-        titulo: 'Processo comercial e políticas',
+        titulo: 'Processo e regras do comercial',
         item: 'Processo comercial',
         modo: 'prompt',
         teto: 10_000,

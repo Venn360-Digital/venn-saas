@@ -10,9 +10,8 @@ import type { NextConfig } from "next";
  *
  * ## Cada diretiva saiu de uma medição, não de uma lista de boas práticas
  *
- * - **`script-src`**: nenhum script externo em `src/` — a varredura por
- *   `fetch('https://…')` no cliente devolveu vazio, e não há `<script src>` de
- *   terceiro. O `'unsafe-inline'` é pelo bootstrap do App Router, e é a
+ * - **`script-src`**: nenhum script externo em `src/` — não há `<script src>`
+ *   de terceiro. O `'unsafe-inline'` é pelo bootstrap do App Router, e é a
  *   fraqueza conhecida deste conjunto: ver a nota no fim.
  * - **`style-src`**: `'unsafe-inline'` pelo Tailwind com valor arbitrário e
  *   pelos atributos `style` do Radix.
@@ -27,6 +26,17 @@ import type { NextConfig } from "next";
  *   aqui também.
  * - **`connect-src 'self'`** cobre a API e o WebSocket: `lib/realtime/cliente.ts`
  *   monta a URL com `location.host`, então o tempo real é mesma origem.
+ *
+ *   A varredura que fundamentou isto dizia que não havia `fetch('https://…')`
+ *   no cliente, e **ela errou**: `lib/cep.ts` chamava `viacep.com.br` do
+ *   navegador. A diretiva bloqueou a chamada, a falha do módulo é silenciosa
+ *   por desenho, e a busca de endereço por CEP ficou morta até 2026-11-05 sem
+ *   erro em tela nem em log. A lição não é alargar a lista: é que
+ *   `connect-src 'self'` **exige** que consulta a terceiro saia do servidor.
+ *   Hoje ela sai — `app/api/cep/[cep]` repassa, e o cliente fala com a própria
+ *   origem. Toda integração nova de navegador segue por esse caminho; se
+ *   alguém precisar acrescentar um domínio aqui, a pergunta anterior é por que
+ *   o Worker não pode fazer a chamada.
  * - **`frame-ancestors 'none'`** é seguro porque o widget **não usa iframe** —
  *   ele injeta Shadow DOM na página da clínica (`app/widget.js/route.ts`).
  *   Enquadrar a aplicação nunca foi um caso de uso.

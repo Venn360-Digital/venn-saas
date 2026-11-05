@@ -10,6 +10,7 @@ import { TEMPLATES } from '@/lib/email/templates'
 import { z } from 'zod'
 import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
+import { BRAND } from '@/config/brand'
 
 // Schema for creating a new user
 const createUserSchema = z.object({
@@ -331,10 +332,26 @@ export async function POST(request: NextRequest) {
 
         // Enviar e-mail de convite em background
         const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/login`
+        /**
+         * O nome da unidade, para o corpo do convite.
+         *
+         * Consulta própria e não `include` na criação: o convite é o único
+         * lugar que precisa disto, e carregar a unidade em toda criação de
+         * usuário seria pagar por ele sempre.
+         */
+        const unidadeDoConvite = await prisma.workspace.findUnique({
+            where: { id: workspaceUser.workspaceId },
+            select: { name: true },
+        })
+        const nomeDaConta = unidadeDoConvite?.name
+
         sendEmail({
             to: workspaceUser.user.email,
-            subject: 'Você foi convidado para o OdontoBox360',
-            html: TEMPLATES.inviteMember(inviteUrl),
+            subject: `Você foi convidado para o ${BRAND.name}`,
+            // O nome da conta no corpo: "a Clínica Sorriso convidou você" diz
+            // mais que "você foi convidado", e é o que a pessoa precisa para
+            // reconhecer o convite como legítimo.
+            html: TEMPLATES.inviteMember(inviteUrl, nomeDaConta),
         }).catch(err => console.error('[USERS_POST] Failed to send invite email:', err))
 
         return NextResponse.json({

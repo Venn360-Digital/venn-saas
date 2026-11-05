@@ -46,6 +46,36 @@ export interface Brand {
     favicon: string
     og: string
     emailFooter: string
+    /**
+     * Como o produto chama a organização do cliente.
+     *
+     * Decisão dele em 2026-11-05, ao aprovar os e-mails: cada produto fala a
+     * palavra do seu nicho. É a palavra que aparece em frase corrida — "os
+     * dados desta clínica" — e trocá-la não pode ser caçar string pelo código.
+     *
+     * Mora na marca e não num arquivo de tradução porque é identidade, não
+     * idioma: o app inteiro é pt-BR, e o que muda entre os três é o nicho.
+     */
+    vocabulario: {
+        /** Minúscula, para o meio da frase. */
+        organizacao: string
+        /** Maiúscula, para início de frase e rótulo. */
+        Organizacao: string
+        /** Plural, para a tagline e o rodapé. */
+        organizacoes: string
+        /**
+         * Quem a organização atende: paciente na odontologia, cliente nos
+         * outros dois.
+         *
+         * **Eixo diferente do de cima.** `organizacao` é quem assina;
+         * `pessoa` é quem é atendido. O produto inteiro ainda escreve
+         * "paciente" literal em dezenas de telas — o que este campo faz é
+         * impedir que o texto NOVO nasça com a palavra presa, para o próximo
+         * ajuste replicar nos três sem reescrever.
+         */
+        pessoa: string
+        pessoas: string
+    }
 }
 
 export const BRAND: Brand = {
@@ -72,4 +102,11 @@ export const BRAND: Brand = {
     favicon: '/favicon.ico',
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'OdontoBox360 · atendimento, agenda e CRM para clínicas odontológicas',
+    vocabulario: {
+        organizacao: 'clínica',
+        Organizacao: 'Clínica',
+        organizacoes: 'clínicas',
+        pessoa: 'paciente',
+        pessoas: 'pacientes',
+    },
 }

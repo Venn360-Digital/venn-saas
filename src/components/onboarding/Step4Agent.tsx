@@ -19,7 +19,7 @@ export function Step4Agent({
     onNomeChange: (nome: string) => void
 }) {
     return (
-        <div className="space-y-2">
+        <div className="mx-auto w-full max-w-md space-y-2">
             <Label htmlFor="agent-name">Nome do agente</Label>
             <Input
                 id="agent-name"

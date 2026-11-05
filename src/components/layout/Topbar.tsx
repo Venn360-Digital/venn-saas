@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { GatilhoDaEquipe } from '@/components/equipe/GatilhoDaEquipe'
 import { UnitSwitcher } from '@/components/layout/UnitSwitcher'
 import type { UnidadeAberta } from '@/hooks/useUnidades'
 import { useSoundEnabled } from '@/hooks/useSoundEnabled'
@@ -392,9 +393,17 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
 
                 <span aria-hidden="true" className="mx-2 h-5 w-px bg-border sm:mx-3" />
 
-                {/* Tema: três botões, afastados do sino. Fica no cabeçalho
-                    porque é visível em todo estado do shell, inclusive no
-                    rail recolhido, onde no pé da sidebar ele desaparecia. */}
+                {/* A equipe: quem está na clínica e os recados. Entre o sino e o
+                    tema de propósito — o sino é do paciente, isto é da equipe, e
+                    os dois são "o que chegou para mim". O componente some
+                    sozinho na clínica de uma pessoa só. */}
+                <GatilhoDaEquipe />
+
+                <span aria-hidden="true" className="mx-2 h-5 w-px bg-border sm:mx-3" />
+
+                {/* Tema: um botão que desdobra. Fica no cabeçalho porque é
+                    visível em todo estado do shell, inclusive no rail recolhido,
+                    onde no pé da sidebar ele desaparecia. */}
                 <ThemeToggle />
             </div>
         </header>

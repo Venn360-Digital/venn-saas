@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
-import { EsqueletoDoFormulario } from '@/components/agents/creation/EsqueletoDoFormulario'
+import { EsperaDoFormulario } from '@/components/agents/creation/EsperaDoFormulario'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
@@ -96,7 +96,7 @@ function IntegracoesContent() {
                 ) : null
             }
         >
-            {loading ? <EsqueletoDoFormulario /> : (
+            {loading ? <EsperaDoFormulario /> : (
                 <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
             )}
         </AgentFrame>

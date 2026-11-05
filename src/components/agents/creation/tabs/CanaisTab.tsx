@@ -908,7 +908,10 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
             */}
             <SettingsCard
                 title="Outros canais"
-                description="O número oficial da Meta ocupa vaga do plano como qualquer outro; site e Instagram não ocupam — o que eles consomem é crédito de IA, por mensagem."
+                /* A legenda sobre vaga de plano e crédito por mensagem saiu a
+                   pedido do Andre em 2026-11-05: era regra comercial no
+                   cabeçalho de um cartão de ligar e desligar canal, e o lugar
+                   dela é a tela de Assinatura. */
                 contentClassName="p-0 pt-2"
             >
                 <div className="flex flex-col divide-y divide-border">

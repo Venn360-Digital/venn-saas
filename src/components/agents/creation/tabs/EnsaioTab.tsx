@@ -450,7 +450,13 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
                             void enviar()
                         }
                     }}
-                    placeholder="Quanto custa um clareamento?"
+                    /* Pergunta de endereço, e não de preço, a pedido do Andre
+                       em 2026-11-05. Serve melhor como primeiro teste: a
+                       resposta sai de Informações sobre a empresa, que é
+                       documento de prompt e vale em qualquer conta — preço
+                       depende de Serviços estar preenchido, e num agente novo
+                       o ensaio começaria por um "não sei informar". */
+                    placeholder="Qual é o endereço de vocês?"
                     rows={3}
                     disabled={enviando}
                     className="resize-y"

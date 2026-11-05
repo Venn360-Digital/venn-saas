@@ -1,7 +1,13 @@
 /**
- * Busca de endereço por CEP, pelo ViaCEP.
+ * Busca de endereço por CEP, pela nossa própria rota.
  *
- * Serviço público dos Correios espelhado pelo ViaCEP, sem chave e sem cadastro.
+ * **Mesma origem, e não `viacep.com.br` direto** — foi aqui que a busca
+ * quebrava. A CSP da resposta declara `connect-src 'self'` mais o R2
+ * (`next.config.ts`), então o navegador recusava a chamada ao terceiro antes de
+ * ela sair: `catch`, `null`, e nenhum sinal na tela. Quem consulta o ViaCEP
+ * agora é o Worker, em `app/api/cep/[cep]`, onde CSP não se aplica e a resposta
+ * ainda ganha cache.
+ *
  * Vale a dependência porque o que ela evita é digitação: logradouro, bairro,
  * cidade e UF digitados à mão em formulário de cobrança erram — e endereço
  * errado em cobrança de cartão é recusa de transação, não erro cosmético.
@@ -29,30 +35,10 @@ export async function buscarCep(cep: string): Promise<EnderecoDoCep | null> {
     if (limpo.length !== 8) return null
 
     try {
-        const res = await fetch(`https://viacep.com.br/ws/${limpo}/json/`, {
-            // Sem cookies nem credenciais para um terceiro.
-            credentials: 'omit',
-        })
+        const res = await fetch(`/api/cep/${limpo}`)
         if (!res.ok) return null
-
-        const dados = (await res.json()) as {
-            erro?: boolean | string
-            logradouro?: string
-            bairro?: string
-            localidade?: string
-            uf?: string
-        }
-
-        // CEP inexistente devolve 200 com `{ "erro": true }` — e já apareceu
-        // como a string "true" também, então a conferência aceita as duas.
-        if (dados.erro) return null
-
-        return {
-            address: dados.logradouro ?? '',
-            province: dados.bairro ?? '',
-            city: dados.localidade ?? '',
-            state: dados.uf ?? '',
-        }
+        // A rota responde `null` quando o CEP não existe ou o ViaCEP falhou.
+        return (await res.json()) as EnderecoDoCep | null
     } catch {
         return null
     }

@@ -10,6 +10,13 @@ import { getSession } from '@/lib/auth/cliente'
 import { TERMS_VERSION } from '@/lib/terms'
 import { WhatsAppQRModal } from '@/components/agents/creation/WhatsAppQRModal'
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell'
+import {
+    IlustracaoAgente,
+    IlustracaoPlano,
+    IlustracaoTermos,
+    IlustracaoWhatsApp,
+    IlustracaoWorkspace,
+} from '@/components/onboarding/Ilustracoes'
 import { Step1Workspace, slugDoNome } from '@/components/onboarding/Step1Workspace'
 import { Step2Plan } from '@/components/onboarding/Step2Plan'
 import { Step3WhatsApp } from '@/components/onboarding/Step3WhatsApp'
@@ -38,6 +45,13 @@ export default function OnboardingPage() {
     const router = useRouter()
 
     const [passo, setPasso] = useState(1)
+    /**
+     * Para que lado o conteúdo entra na próxima troca.
+     *
+     * Mora aqui porque só esta página sabe se o clique foi Continuar ou Voltar —
+     * a moldura recebe o número do passo e não teria como saber de onde ele veio.
+     */
+    const [direcao, setDirecao] = useState<1 | -1>(1)
     const [carregando, setCarregando] = useState(true)
     const [enviando, setEnviando] = useState(false)
 
@@ -184,14 +198,28 @@ export default function OnboardingPage() {
     }
 
     const voltar = (
-        <Button type="button" variant="outline" onClick={() => setPasso((p) => Math.max(1, p - 1))}>
+        <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+                setDirecao(-1)
+                setPasso((p) => Math.max(1, p - 1))
+            }}
+        >
             <ArrowLeft className="mr-1.5 size-4" />
             Voltar
         </Button>
     )
 
     const seguir = (rotulo = 'Continuar', travado = false) => (
-        <Button type="button" onClick={() => setPasso((p) => Math.min(TOTAL, p + 1))} disabled={travado}>
+        <Button
+            type="button"
+            onClick={() => {
+                setDirecao(1)
+                setPasso((p) => Math.min(TOTAL, p + 1))
+            }}
+            disabled={travado}
+        >
             {rotulo}
             <ArrowRight className="ml-1.5 size-4" />
         </Button>
@@ -209,7 +237,8 @@ export default function OnboardingPage() {
                 passo={1}
                 total={TOTAL}
                 titulo="Workspace"
-                descricao="O nome da sua empresa, como ela aparece no sistema."
+                ilustracao={<IlustracaoWorkspace />}
+                direcao={direcao}
                 dica={slug ? undefined : 'Informe o nome para continuar.'}
                 acoes={seguir('Continuar', !slug)}
             >
@@ -219,9 +248,10 @@ export default function OnboardingPage() {
             <OnboardingShell
                 passo={2}
                 total={TOTAL}
-                titulo="Escolha seu plano"
-                descricao="Dá para trocar depois, a qualquer momento."
-                largura="larga"
+                titulo="Plano"
+                ilustracao={<IlustracaoPlano />}
+                direcao={direcao}
+                dica="Nenhuma cobrança agora. O cartão só é pedido no fim da avaliação."
                 acoes={
                     <>
                         {voltar}
@@ -236,8 +266,8 @@ export default function OnboardingPage() {
                 passo={3}
                 total={TOTAL}
                 titulo="WhatsApp"
-                descricao="Conecte o número por onde a sua clínica atende."
-                largura="media"
+                ilustracao={<IlustracaoWhatsApp />}
+                direcao={direcao}
                 dica={
                     whatsAppConectado
                         ? undefined
@@ -268,7 +298,9 @@ export default function OnboardingPage() {
                 passo={4}
                 total={TOTAL}
                 titulo="Agente"
-                descricao="O seu primeiro agente de IA, que atende por você."
+                ilustracao={<IlustracaoAgente />}
+                direcao={direcao}
+                dica="Opcional — dá para criar outros agentes depois, no painel."
                 acoes={
                     <>
                         {voltar}
@@ -283,8 +315,12 @@ export default function OnboardingPage() {
                 passo={5}
                 total={TOTAL}
                 titulo="Termos do acordo"
-                descricao="Aceito uma vez, pela conta. Quem você cadastrar depois não passa por aqui."
-                largura="media"
+                ilustracao={<IlustracaoTermos />}
+                direcao={direcao}
+                /* Sem trilho, por decisão dele: a fase 5 ocupa mais tela, e
+                   300px de ilustração tirados de um contrato que se lê seria
+                   gastar largura com decoração. */
+                semTrilho
                 dica={aceito ? undefined : 'Leia o texto até o fim e marque o aceite.'}
                 acoes={
                     <>

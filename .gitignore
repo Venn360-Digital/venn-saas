@@ -105,3 +105,4 @@ src/generated/
 # EXCLUSIVO INTERNO, NÃO DISPONIBILIZAR". Um `git add -A` já tentou levá-los uma
 # vez; apagar do índice depois não tira do histórico.
 /public/treinamento/
+.canvas/
