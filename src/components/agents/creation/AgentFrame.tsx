@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Building2, Code2, Database, Eye, FileText, FlaskConical, GitBranch, History, Inbox, MessagesSquare, Mic, Package, Plug, Route, Settings2, ShieldCheck, SlidersHorizontal, TrendingUp, UserRound, Webhook, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { Building2, Code2, Database, Eye, FileText, FlaskConical, GitBranch, History, Inbox, MessagesSquare, Mic, Package, Plug, Route, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, TrendingUp, UserRound, Webhook, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Switch } from '@/components/ui/switch'
@@ -68,7 +68,7 @@ interface Secao {
  * aparece feio antes de aparecer errado.
  */
 const ICONE_DO_DOCUMENTO: Record<string, LucideIcon> = {
-    'instrucoes-centrais': UserRound,
+    'instrucoes-centrais': ScrollText,
     empresa: Building2,
     servicos: Package,
     'processo-comercial': Route,
@@ -80,9 +80,12 @@ const ICONE_DO_DOCUMENTO: Record<string, LucideIcon> = {
 /**
  * As guias de Treinamento, derivadas do catálogo.
  *
- * `Instruções centrais` não ganha guia própria: ela mora no **Perfil**, junto da
- * identidade do agente — é o que o catálogo declara em `item`. As outras seis
- * viram uma guia cada, na ordem do catálogo.
+ * **Uma guia por documento, e o Perfil na frente.** `Instruções gerais` morava
+ * dentro do Perfil e saiu de lá em 2026-11-05, por decisão do Andre: era o
+ * único campo da guia que é um documento, com editor, modelo e selo de
+ * indexação, no meio de seis campos de cadastro. Quem decide onde cada
+ * documento mora continua sendo o catálogo, em `item` — aqui não há lista de
+ * guias escrita à mão.
  *
  * `Cérebro` e `Voz` ficam onde estavam, e `Voz` segue a última por decisão do
  * André. `Instruções` saiu: a instrução livre dela foi substituída por

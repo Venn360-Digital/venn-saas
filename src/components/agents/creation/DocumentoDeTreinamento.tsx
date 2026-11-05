@@ -22,18 +22,27 @@ import { cn } from '@/lib/utils'
  * (`src/lib/treinamento/documentos.ts`): o que muda entre eles é dado, não
  * código. Acrescentar o oitavo documento é acrescentar uma entrada no catálogo.
  *
- * **Sem título dentro do conteúdo**, por decisão do DESIGN.md (Tela 03): a linha
- * das seções já diz onde se está e o índice já diz o assunto; um título aqui
- * seria a mesma palavra uma terceira vez. Fica a frase que explica o que ali se
- * faz.
+ * **O cartão abre com o título do documento, e só com ele** — decisão do Andre
+ * em 2026-11-05, e é uma reversão consciente da regra da Tela 03, que proibia
+ * título dentro do conteúdo.
  *
- * Quatro coisas que a tela precisa dizer, e que o método não funciona sem:
+ * O que estava ali antes eram dois parágrafos: a `explicacao` do catálogo e uma
+ * frase sobre onde o documento age ("Vai em toda mensagem. Escreva a regra, não
+ * o manual."). Lidos de guia em guia, oito vezes, viravam preâmbulo — a pessoa
+ * aprende a saltar o bloco cinza e a explicação deixa de ser lida justamente
+ * onde ela importaria. O título diz o assunto numa linha, e o índice à esquerda
+ * dá o contexto.
  *
- *   - **Onde o documento age.** "Vai em toda mensagem" e "é consultado quando a
- *     conversa pede" levam a escrever coisas diferentes. Sem isso dito no campo,
- *     a pessoa descobre pelo resultado.
+ * **O que explicava não foi apagado, mudou de lugar.** `explicacao` e `modo`
+ * continuam no catálogo, e continuam servindo ao roteiro de preenchimento em
+ * `/suporte`, que é texto longo lido uma vez — não legenda relida oito. O
+ * título não repete o rótulo do índice: lá é "Empresa", aqui é "Informações
+ * sobre a empresa".
+ *
+ * Três coisas a tela continua dizendo, e o método não funciona sem elas:
+ *
  *   - **Quanto cabe.** O teto dos documentos de prompt é o que protege a conta
- *     inteira: um manual de cinquenta páginas em Instruções centrais degrada
+ *     inteira: um manual de cinquenta páginas em Instruções gerais degrada
  *     todas as respostas. O contador mostra o consumo antes de salvar.
  *   - **O que falta.** O corte do acervo é por cabeçalho, então seção sem
  *     conteúdo é seção que não existe para o agente. A conferência roda contra o
@@ -164,46 +173,14 @@ export function DocumentoDeTreinamento({
         <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 {/*
-                  * `min-w-[260px]` e não `min-w-0`: com quatro botões — quando
-                  * "Gerar do cadastro" aparece — eles tomam ~560px, e sem piso
-                  * quem cede é a explicação, que colapsa para ~90px e quebra em
-                  * duas palavras por linha. Com piso, o `flex-wrap` faz o grupo
-                  * de botões descer, que é o certo. É a armadilha que o
-                  * DESIGN.md registra na Tela 03.
+                  * `min-w-[260px]` e não `min-w-0`: os três botões tomam ~420px,
+                  * e sem piso quem cede é o título, que colapsa e quebra em duas
+                  * palavras por linha. Com piso, o `flex-wrap` faz o grupo de
+                  * botões descer, que é o certo. É a armadilha que o DESIGN.md
+                  * registra na Tela 03.
                   */}
-                <div className="min-w-[260px] flex-1 space-y-1">
-                    <p className="text-[12.5px] text-muted-foreground">{doc.explicacao}</p>
-                    <p className="text-xs text-muted-foreground">
-                        {doc.modo === 'prompt' ? (
-                            <>
-                                <strong className="font-semibold text-foreground">
-                                    Vai em toda mensagem.
-                                </strong>{' '}
-                                Escreva a regra, não o manual.
-                            </>
-                        ) : doc.modo === 'procedimento' ? (
-                            /* O terceiro modo precisa da própria frase: dizer só
-                               "consultado quando a conversa pede" esconderia que
-                               o título e o gatilho vão em TODA mensagem — e é
-                               isso que faz quem escreve caprichar no "Quando:",
-                               que é a única parte que o agente sempre vê. */
-                            <>
-                                <strong className="font-semibold text-foreground">
-                                    O título e o &quot;Quando:&quot; vão em toda mensagem; os passos chegam
-                                    quando a conversa entra na situação.
-                                </strong>{' '}
-                                Um subtítulo por situação, com uma linha &quot;Quando:&quot; e uma lista
-                                &quot;Passos:&quot;.
-                            </>
-                        ) : (
-                            <>
-                                <strong className="font-semibold text-foreground">
-                                    Consultado quando a conversa pede.
-                                </strong>{' '}
-                                Um subtítulo por assunto — é o subtítulo que vira um trecho.
-                            </>
-                        )}
-                    </p>
+                <div className="min-w-[260px] flex-1">
+                    <h2 className="text-sm font-semibold text-foreground">{doc.titulo}</h2>
                 </div>
 
                 {!somenteLeitura ? (

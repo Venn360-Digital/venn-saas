@@ -72,7 +72,7 @@ const AVISO = `<!--
  * `npm run test:treinamento` reprova a divergência.
  */
 export const MODELOS: Readonly<Record<string, string>> = {
-    'instrucoes-centrais': `# Instruções centrais
+    'instrucoes-centrais': `# Instruções gerais
 
 ${AVISO}
 
@@ -146,7 +146,7 @@ ${AVISO}
 -->
 `,
 
-    empresa: `# Detalhamento da empresa
+    empresa: `# Informações sobre a empresa
 
 ${AVISO}
 
@@ -232,7 +232,7 @@ ${AVISO}
 -->
 `,
 
-    servicos: `# Serviços prestados
+    servicos: `# Serviços e Produtos
 
 ${AVISO}
 
@@ -305,7 +305,7 @@ ${AVISO}
 -->
 `,
 
-    'processo-comercial': `# Processo comercial e políticas
+    'processo-comercial': `# Processo e regras do comercial
 
 ${AVISO}
 

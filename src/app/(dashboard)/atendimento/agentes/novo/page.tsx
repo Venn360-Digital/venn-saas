@@ -6,7 +6,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { getSession } from '@/lib/auth/cliente'
 import { AgentFrame, type SecaoId } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
-import { EsqueletoDoFormulario } from '@/components/agents/creation/EsqueletoDoFormulario'
+import { EsperaDoFormulario } from '@/components/agents/creation/EsperaDoFormulario'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
 import { Button } from '@/components/ui/button'
@@ -256,18 +256,6 @@ function NovoAgenteContent() {
                         somenteLeitura={!canManage}
                         instrucoes={instrucoes}
                         onInstrucoesChange={(data) => { marcarSujo(true); setInstrucoes({ ...instrucoes, ...data }) }}
-                        centrais={{
-                            valor: documentos['instrucoes-centrais']?.content ?? '',
-                            indexadoEm: documentos['instrucoes-centrais']?.indexedAt ?? null,
-                            trechos: documentos['instrucoes-centrais']?.indexedChunks ?? null,
-                        }}
-                        onCentraisChange={(content) => {
-                            marcarSujo(true)
-                            setDocumentos((atual) => ({
-                                ...atual,
-                                'instrucoes-centrais': { ...atual['instrucoes-centrais'], content },
-                            }))
-                        }}
                     />
                 )
             case 'trabalho':
@@ -447,7 +435,7 @@ function NovoAgenteContent() {
                 </div>
             ) : null}
         >
-            {loading ? <EsqueletoDoFormulario /> : (
+            {loading ? <EsperaDoFormulario /> : (
                 <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
             )}
 

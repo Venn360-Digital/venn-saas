@@ -3,12 +3,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Camera, Save, User } from 'lucide-react'
+import { Camera, Save, ShieldCheck, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { FormField } from '@/components/shared/FormField'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { formatPhone, phoneIssue } from '@/lib/phone'
+import { usePermissions } from '@/hooks/usePermissions'
+import { ALCANCE_DO_PAPEL, ROTULO_DO_PAPEL } from '@/lib/papeis'
+import { Badge } from '@/components/ui/badge'
 
 interface UserProfile {
     id: string
@@ -26,6 +29,20 @@ interface PerfilTabProps {
 }
 
 export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
+    /**
+     * O papel de quem está logado, mostrado ao lado da foto.
+     *
+     * Vem de `/api/me` pelo mesmo caminho que todo o resto do produto usa para
+     * decidir o que exibir — não de um campo do perfil. O papel é da **relação**
+     * entre a pessoa e a unidade, não da pessoa: a mesma conta pode ser
+     * Administrador numa clínica e Atendente em outra, e é o papel na unidade
+     * aberta que explica o que a tela deixa fazer.
+     *
+     * Enquanto `loading`, nada é dito. Chutar um papel aqui seria anunciar uma
+     * permissão errada por meio segundo — e esta é uma tela onde a pessoa vem
+     * justamente conferir o que ela é.
+     */
+    const permissoes = usePermissions()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -204,6 +221,32 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                             </Button>
                             <p className="mt-1.5 text-xs text-muted-foreground">PNG ou JPG, até 2 MB.</p>
                         </div>
+
+                        {/*
+                          * A permissão, na linha da foto e à direita — pedido do
+                          * Andre em 2026-11-05.
+                          *
+                          * `ml-auto` em vez de uma terceira coluna: o papel é a
+                          * informação mais estável da tela (ninguém troca o
+                          * próprio papel aqui, nem deve poder) e empurrá-lo para
+                          * a borda o separa dos controles que a pessoa veio
+                          * mexer. É leitura, não campo — por isso crachá e não
+                          * `Input` desabilitado, que prometeria edição.
+                          */}
+                        {permissoes.role ? (
+                            <div className="ml-auto min-w-0 text-right">
+                                <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Sua permissão
+                                </p>
+                                <Badge variant="info" className="mt-1">
+                                    <ShieldCheck className="size-3.5" aria-hidden="true" />
+                                    {ROTULO_DO_PAPEL[permissoes.role]}
+                                </Badge>
+                                <p className="mt-1.5 max-w-[22rem] text-xs text-muted-foreground">
+                                    {ALCANCE_DO_PAPEL[permissoes.role]}
+                                </p>
+                            </div>
+                        ) : null}
                     </div>
                     <input
                         ref={fileInputRef}

@@ -486,7 +486,12 @@ export async function POST(request: NextRequest) {
         // Enviar e-mail de bem-vindo em background
         if (!result.alreadyExists && user.email) {
             const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`
-            const docsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/docs`
+            /**
+             * `/suporte`, e não `/docs`: a rota `/docs` **nunca existiu**, então
+             * o rodapé do e-mail de boas-vindas mandava todo cliente novo para
+             * um 404. A central de ajuda mora em `/suporte` desde 2026-10-18.
+             */
+            const docsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/suporte`
             sendEmail({
                 to: user.email,
                 subject: TEMPLATES.welcome(dashboardUrl, docsUrl).includes('Bem-vindo') ? 'Bem-vindo ao OdontoBox360' : 'Bem-vindo',

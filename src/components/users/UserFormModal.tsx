@@ -22,6 +22,7 @@ import { StatusBadge, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
 import { cn } from '@/lib/utils'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { phoneIssue } from '@/lib/phone'
+import { ROTULO_DO_PAPEL } from '@/lib/papeis'
 
 interface WorkspaceUser {
     id: string
@@ -74,10 +75,11 @@ function initials(name: string, lastName: string) {
     return (first + last).toUpperCase() || 'U'
 }
 
+/** Os papéis atribuíveis. O nome vem de `lib/papeis.ts`, que é a fonte única. */
 const ROLES: { value: Role; label: string; description: string }[] = [
-    { value: 'ADMIN', label: 'Administrador', description: 'Acesso total, incluindo conta e usuários.' },
-    { value: 'GESTOR', label: 'Gestor', description: 'Atendimento e vendas, sem gerenciamento.' },
-    { value: 'ATENDENTE', label: 'Atendente', description: 'Apenas as próprias conversas.' },
+    { value: 'ADMIN', label: ROTULO_DO_PAPEL.ADMIN, description: 'Acesso total, incluindo conta e usuários.' },
+    { value: 'GESTOR', label: ROTULO_DO_PAPEL.GESTOR, description: 'Atendimento e vendas, sem gerenciamento.' },
+    { value: 'ATENDENTE', label: ROTULO_DO_PAPEL.ATENDENTE, description: 'Apenas as próprias conversas.' },
 ]
 
 export function UserFormModal({

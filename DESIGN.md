@@ -866,8 +866,24 @@ de propósito.
   no canto, pareceria comando da tela.
 - **A guia não repete o próprio nome.** A linha 2 já diz a seção e o índice já
   diz o assunto; um título dentro do conteúdo é a mesma palavra uma terceira
-  vez — em Webhooks eram três iguais. Fica só a frase que explica o que ali se
-  faz. Custava 54px de altura por guia, em doze guias.
+  vez — em Webhooks eram três iguais. Custava 54px de altura por guia, em doze
+  guias.
+- **Mas título que diz mais que o rótulo pode entrar — e aí a legenda sai.**
+  Emenda de 2026-11-05, nas oito guias de documento do Treinamento. A regra
+  acima proibia o título e mandava ficar "a frase que explica o que ali se
+  faz"; na prática eram **dois** parágrafos cinzas por guia, repetidos oito
+  vezes, e o Andre pediu o contrário: um título no cartão e nenhuma explicação.
+  Ele tem razão pelo que a repetição faz — legenda que reaparece igual em todas
+  as guias de uma seção deixa de ser lida, e aí não explica nada e ainda empurra
+  o campo para baixo. O título entra porque **não é o rótulo do índice**: lá é
+  "Empresa", aqui é "Informações sobre a empresa". Repetir a palavra continua
+  proibido; nomear o assunto com mais precisão que o índice cabe, numa linha, em
+  `text-sm font-semibold`.
+- **Explicação longa mora na base de conhecimento, não na legenda.** O que saiu
+  das guias de documento não foi apagado: `explicacao` e `modo` seguem no
+  catálogo e seguem alimentando o roteiro de preenchimento em `/suporte` (Tela
+  05) — texto lido uma vez, com atenção, em vez de legenda relida oito vezes
+  sem nenhuma.
 - **Rótulo do índice é curto, o conteúdo é que se explica.** "Condições da
   conversa" pedia 143px num índice de 137 e saía cortado; virou "Regras de
   ação", com o resto dito na frase de apoio. Meça o rótulo antes de escolhê-lo.
@@ -881,9 +897,18 @@ de propósito.
   zero e some.
 - **Carregar não apaga a tela.** O retorno antecipado que troca tudo por um
   disco girando leva junto o cabeçalho, o índice e o rodapé, e quem olha jura
-  que a tela se apagou. A moldura fica de pé e só o miolo espera, num esqueleto
-  com a forma do que vem depois; o gravar fica travado enquanto não se sabe o
-  que gravar.
+  que a tela se apagou. A moldura fica de pé e só o miolo espera; o gravar fica
+  travado enquanto não se sabe o que gravar.
+- **E o miolo que espera não desenha campo falso.** Era "um esqueleto com a
+  forma do que vem depois", e nas quatro telas do agente isso virou a *sombra de
+  campos* que o Andre relatou em 2026-11-05 — a mesma queixa de 2026-10-26, que
+  §5 já resolvera nos índices e que não havia chegado aqui. Numa tela de guias o
+  esqueleto é impossível de acertar: a forma do miolo muda por guia — campos no
+  Perfil, cartões de canal em Integrações, regras em Parametrização —, então
+  qualquer esqueleto está errado em três das quatro, e a tela salta quando o
+  conteúdo chega. Fica vazio até **200 ms** (`useEsperaLonga`, em
+  `hooks/useEsperaLonga.ts`), e passado o limiar sai um disco girando centrado:
+  aviso honesto de espera longa, não promessa de uma forma.
 - **A marca da clínica manda na sidebar**: com logo gravada **na conta**, ela
   substitui o símbolo e o nome do produto (78px de altura, largura da calha
   como teto); recolhida, volta o símbolo. Gravar na guia Conta da Clínica
