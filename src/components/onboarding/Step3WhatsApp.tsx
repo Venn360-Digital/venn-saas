@@ -2,6 +2,8 @@
 
 import { CheckCircle2, MessageCircle } from 'lucide-react'
 
+import { BRAND } from '@/config/brand'
+
 /**
  * Parear o WhatsApp aqui, no meio do cadastro.
  *
@@ -41,7 +43,9 @@ export function Step3WhatsApp({ connected }: { connected: boolean }) {
             </div>
 
             <h2 className="mt-5 text-h4">
-                {connected ? 'WhatsApp conectado' : 'Conecte o número da clínica'}
+                {connected
+                    ? 'WhatsApp conectado'
+                    : `Conecte o número da ${BRAND.vocabulario.organizacao}`}
             </h2>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
                 {connected

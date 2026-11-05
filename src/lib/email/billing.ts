@@ -5,6 +5,9 @@ import { CAMINHOS, renderEmail, type PassoDoEmail } from '@/lib/email/layout'
 
 /** clínica · empresa · agência. A casca nunca escreve a palavra literal. */
 const ORG = BRAND.vocabulario.organizacao
+/** paciente · cliente. O outro eixo do vocabulário — quem é atendido. */
+const PESSOAS = BRAND.vocabulario.pessoas
+const PESSOA = BRAND.vocabulario.pessoa
 
 /**
  * The billing notices: trial running out, trial over, credits nearly spent.
@@ -161,7 +164,7 @@ function copyFor(
                     'A cobrança em aberto passou do prazo e o envio de mensagens foi pausado. O agente parou de responder, e os números de WhatsApp continuam conectados.',
                     /* O que **não** se perde é a parte que acalma, e é
                        verdade: o corte não apaga nada nem desconecta linha. */
-                    'Nada foi apagado: conversas, pacientes, agenda e histórico continuam inteiros e exportáveis.',
+                    `Nada foi apagado: conversas, ${PESSOAS}, agenda e histórico continuam inteiros e exportáveis.`,
                     'Pagar restaura tudo na hora, sem reconectar nada.',
                 ],
                 cta: 'Pagar agora',
@@ -200,7 +203,7 @@ function copyFor(
                 body: [
                     `Como a assinatura não foi contratada, os dados desta ${ORG} serão removidos em ${formatDate(context.deleteAt as Date)}.`,
                     'Até lá nada muda: tudo continua acessível para consulta e exportação, e contratar um plano a qualquer momento restabelece o atendimento sem perda nenhuma.',
-                    'Se preferir levar seus dados, a exportação está disponível nas telas de pacientes e negócios.',
+                    `Se preferir levar seus dados, a exportação está disponível nas telas de ${PESSOAS} e negócios.`,
                 ],
                 cta: 'Manter minha conta ativa',
                 tone: 'neutral',
@@ -211,7 +214,7 @@ function copyFor(
                 headline: 'Seus dados serão removidos em 7 dias',
                 body: [
                     `A remoção está marcada para ${formatDate(context.deleteAt as Date)} e é definitiva.`,
-                    'Se quiser manter o histórico, contrate um plano antes dessa data — ou exporte seus pacientes e negócios enquanto o acesso continua aberto.',
+                    `Se quiser manter o histórico, contrate um plano antes dessa data — ou exporte seus ${PESSOAS} e negócios enquanto o acesso continua aberto.`,
                 ],
                 cta: 'Contratar um plano',
                 tone: 'urgent',
@@ -224,7 +227,7 @@ function copyFor(
                 headline: '80% dos créditos utilizados',
                 body: [
                     `Você usou ${used.toLocaleString('pt-BR')} dos ${total.toLocaleString('pt-BR')} créditos do período.`,
-                    'Quando acabarem, o agente para de responder automaticamente e avisa o paciente de que o atendimento continua em instantes. Sua equipe segue respondendo normalmente.',
+                    `Quando acabarem, o agente para de responder automaticamente e avisa o ${PESSOA} de que o atendimento continua em instantes. Sua equipe segue respondendo normalmente.`,
                 ],
                 cta: 'Ver os créditos',
                 sobOBotao: 'Dá para comprar um pacote avulso sem trocar de plano.',

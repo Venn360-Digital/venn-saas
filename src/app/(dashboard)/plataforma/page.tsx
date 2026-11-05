@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { BRAND } from '@/config/brand'
 import { cn } from '@/lib/utils'
 
 /**
@@ -166,7 +167,7 @@ export default function PlataformaPage() {
                     <Input
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
-                        placeholder="Buscar por clínica ou e-mail"
+                        placeholder={`Buscar por ${BRAND.vocabulario.organizacao} ou e-mail`}
                         className="w-64"
                     />
                 }
@@ -183,7 +184,7 @@ export default function PlataformaPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-border bg-background">
-                                <Th>Clínica</Th>
+                                <Th>{BRAND.vocabulario.Organizacao}</Th>
                                 <Th>Plano</Th>
                                 <Th>Situação</Th>
                                 <Th className="text-right">Créditos</Th>

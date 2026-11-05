@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { OPENAI_MODELS } from '@/lib/llm/models'
 import { GRUPOS_DE_FUSOS, rotuloDoFuso } from '@/lib/fusos'
+import { BRAND } from '@/config/brand'
 import { cn } from '@/lib/utils'
 import {
     Select,
@@ -384,7 +385,7 @@ export function PerfilTab({
               * Instruções gerais, e a frase passaria a prometer um campo que
               * não está mais aqui.
               */}
-            <Grupo titulo="O que ele fala" descricao="A primeira mensagem que o paciente recebe.">
+            <Grupo titulo="O que ele fala" descricao={`A primeira mensagem que o ${BRAND.vocabulario.pessoa} recebe.`}>
                 <div className="space-y-2">
                     <Label htmlFor="initialMessage">Mensagem inicial</Label>
                     <Textarea

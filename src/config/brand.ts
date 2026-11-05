@@ -64,6 +64,18 @@ export interface Brand {
         Organizacao: string
         /** Plural, para a tagline e o rodapé. */
         organizacoes: string
+        /**
+         * Quem a organização atende: paciente na odontologia, cliente nos
+         * outros dois.
+         *
+         * **Eixo diferente do de cima.** `organizacao` é quem assina;
+         * `pessoa` é quem é atendido. O produto inteiro ainda escreve
+         * "paciente" literal em dezenas de telas — o que este campo faz é
+         * impedir que o texto NOVO nasça com a palavra presa, para o próximo
+         * ajuste replicar nos três sem reescrever.
+         */
+        pessoa: string
+        pessoas: string
     }
 }
 
@@ -95,5 +107,7 @@ export const BRAND: Brand = {
         organizacao: 'clínica',
         Organizacao: 'Clínica',
         organizacoes: 'clínicas',
+        pessoa: 'paciente',
+        pessoas: 'pacientes',
     },
 }
