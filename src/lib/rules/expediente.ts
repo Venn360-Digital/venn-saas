@@ -18,7 +18,7 @@
  *
  * O Worker roda em UTC — `TZ` é ignorado (ver `lib/fuso.ts`). Então a condição
  * não compara horas de `Date`: compara `HH:MM` já convertido para o fuso da
- * unidade, que ela escolhe em Conta → Conta da empresa. "08:00" é oito da manhã
+ * unidade, que ela escolhe em Conta → Conta da Clínica. "08:00" é oito da manhã
  * no relógio da clínica, que é o que ela combinou com o paciente, e não oito em
  * Londres nem oito em Brasília para quem não está lá.
  *

@@ -78,7 +78,7 @@ export const ESTRATEGIA_INICIAL = 'rodizio' as const
  * Pedido do Andre em 2026-11-04, para os três apps — inclusive o que vende fora
  * do Brasil. O cadastro não pergunta o fuso, e perguntar seria um campo a mais
  * num passo que acabou de perder o de endereço; quem opera em outro fuso troca
- * em Conta → Conta da empresa, e é uma vez na vida da conta.
+ * em Conta → Conta da Clínica, e é uma vez na vida da conta.
  *
  * **Gravado, não herdado** — mesmo motivo de `ESTRATEGIA_INICIAL`.
  * `FUSO_DO_NEGOCIO` é o fallback de quem nunca escolheu, e são coisas
