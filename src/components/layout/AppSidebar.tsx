@@ -7,8 +7,7 @@ import {
     ChevronRight,
     CreditCard,
     LifeBuoy,
-    TriangleAlert,
-} from 'lucide-react'
+    TriangleAlert, Building2 } from 'lucide-react'
 
 import { ClinicBrand } from '@/components/layout/ClinicBrand'
 import type { UnidadeAberta } from '@/hooks/useUnidades'
@@ -34,7 +33,7 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
-import { navSections } from '@/lib/nav'
+import { navSections, type NavSection } from '@/lib/nav'
 import { usePermissions } from '@/hooks/usePermissions'
 import { NavSecondary } from './NavSecondary'
 import { NavUser } from './NavUser'
@@ -45,7 +44,7 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
     const pathname = usePathname()
     // Starts null and loading, so role-gated sections never flash for an
     // ATENDENTE before the answer arrives.
-    const { role, loading } = usePermissions()
+    const { role, loading, daPlataforma } = usePermissions()
 
     /**
      * O menu, recortado pelo perfil — por seção e por item.
@@ -55,6 +54,19 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
      * Conversas. Uma seção que perde todos os itens desaparece, para não sobrar
      * cabeçalho que abre no vazio.
      */
+    /**
+     * "Plataforma" é da Venn360, e entra à parte.
+     *
+     * Não cabe em `navSections` porque o recorte dele não é por papel — é por
+     * ser OWNER do workspace marcado `isPlatform`, que é outra pergunta. E
+     * esconder o item **não** é o portão: cada rota de `/api/plataforma`
+     * confere por conta própria. Mesma decisão de "Agentes de IA fora do menu
+     * do atendente": o menu sumido soma ao portão, não o substitui.
+     */
+    const secaoDaPlataforma: NavSection | null = daPlataforma
+        ? { label: 'Plataforma', icon: Building2, href: '/plataforma' }
+        : null
+
     const sections = useMemo(
         () =>
             navSections
@@ -123,7 +135,7 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
             <SidebarContent>
                 <SidebarGroup>
                     <SidebarMenu>
-                        {sections.map((section) => {
+                        {[...sections, ...(secaoDaPlataforma ? [secaoDaPlataforma] : [])].map((section) => {
                             const Icon = section.icon
 
                             if (section.href && !section.items) {

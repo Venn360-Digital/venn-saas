@@ -33,6 +33,23 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'status inválido' }, { status: 400 })
     }
 
+    /**
+     * Dentro da conta de um cliente, não.
+     *
+     * A participação é sintética enquanto o operador da plataforma está lá —
+     * não existe `WorkspaceUser` para ele naquela unidade, e `membershipId` vem
+     * como `assumida`. Gravar por esse id não acharia linha; e, mesmo que
+     * achasse, mudar a própria disponibilidade **dentro da clínica de outro**
+     * não quer dizer nada: ele não entra na distribuição de lá.
+     */
+    if (auth.member.membershipId === 'assumida') {
+        return NextResponse.json(
+            { error: 'Não dá para mudar a sua disponibilidade dentro da conta de um cliente' },
+            { status: 409 }
+        )
+    }
+
+
     await prisma.workspaceUser.update({
         where: { id: auth.member.membershipId },
         data: { status: parsed.data.status, statusEm: new Date() },

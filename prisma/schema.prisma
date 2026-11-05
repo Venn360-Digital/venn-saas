@@ -2701,3 +2701,42 @@ model TeamMessage {
   @@index([workspaceId, toUserId, fromUserId, createdAt])
   @@map("team_messages")
 }
+
+/// Quem da Venn360 entrou na conta de qual cliente, e quando saiu.
+///
+/// **É o que torna a entrada defensável.** Assumir a conta de um cliente é um
+/// poder real: o operador passa a ver conversa de paciente e a poder gravar em
+/// nome da clínica. Um poder desses sem registro é indistinguível de invasão —
+/// inclusive para nós, no dia em que alguém perguntar.
+///
+/// A tarja na tela promete isto ao operador, e a mesma promessa é feita ao
+/// cliente: o registro é dele também.
+///
+/// Não registra cada gravação, e é decisão: o que ele escreve já fica atribuído
+/// ao **userId dele**, porque a sessão continua sendo a dele — não há troca de
+/// identidade, só de unidade. O que faltava era o recorte de tempo: de quando a
+/// que horas ele esteve lá dentro.
+model PlatformAccessLog {
+  id String @id @default(cuid())
+
+  /// Quem entrou. Sempre um OWNER do workspace de plataforma.
+  userId String
+
+  /// Em que conta entrou — e em que unidade dela.
+  accountId   String
+  workspaceId String
+
+  /// `leitura` (espiar) ou `total` (entrar). Dois atos diferentes.
+  modo String
+
+  /// Por que entrou, quando o operador escreve. Opcional de propósito: exigir
+  /// justificativa em campo livre produz "suporte" em 100% das linhas.
+  motivo String?
+
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  @@index([accountId, startedAt])
+  @@index([userId, startedAt])
+  @@map("platform_access_log")
+}

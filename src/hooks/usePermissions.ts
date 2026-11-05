@@ -35,6 +35,13 @@ export interface Permissions {
      * novo (`resolveOwnerScope`): isto aqui é conforto, não autorização.
      */
     canSeeEveryone: boolean
+    /**
+     * É OWNER do workspace da Venn360 — quem opera o produto, não quem o usa.
+     *
+     * Só decide o que aparece no menu; o portão de verdade está em cada rota
+     * de `/api/plataforma`, com `getPlatformAdmin()`.
+     */
+    daPlataforma: boolean
 }
 
 export function usePermissions(): Permissions {
@@ -42,7 +49,8 @@ export function usePermissions(): Permissions {
         loading: boolean
         role: WorkspaceRole | null
         canTransfer: boolean
-    }>({ loading: true, role: null, canTransfer: false })
+        daPlataforma: boolean
+    }>({ loading: true, role: null, canTransfer: false, daPlataforma: false })
 
     useEffect(() => {
         let cancelled = false
@@ -55,10 +63,12 @@ export function usePermissions(): Permissions {
                     loading: false,
                     role: (data?.role as WorkspaceRole) ?? null,
                     canTransfer: Boolean(data?.canTransfer),
+                    daPlataforma: Boolean(data?.plataforma),
                 })
             })
             .catch(() => {
-                if (!cancelled) setState({ loading: false, role: null, canTransfer: false })
+                if (!cancelled)
+                    setState({ loading: false, role: null, canTransfer: false, daPlataforma: false })
             })
 
         return () => {
@@ -66,7 +76,7 @@ export function usePermissions(): Permissions {
         }
     }, [])
 
-    const { loading, role, canTransfer } = state
+    const { loading, role, canTransfer, daPlataforma } = state
 
     return {
         loading,
@@ -75,5 +85,6 @@ export function usePermissions(): Permissions {
         canManage: role !== null && MANAGER_ROLES.includes(role),
         canTransfer,
         canSeeEveryone: role !== null && OVERSIGHT_ROLES.includes(role),
+        daPlataforma,
     }
 }

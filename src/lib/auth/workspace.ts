@@ -3,6 +3,7 @@ import type { Prisma } from '#prisma'
 import { cookies } from 'next/headers'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { contaAssumida } from '@/lib/plataforma/acesso'
 
 /**
  * O cookie que guarda qual unidade a pessoa está olhando.
@@ -110,6 +111,53 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
 
     if (!user) {
         return { ok: false, status: 401, error: 'Não autenticado' }
+    }
+
+    /**
+     * A conta de cliente assumida pelo operador da Venn360.
+     *
+     * **Antes de tudo**, e é o lugar certo: toda rota e toda página passam por
+     * aqui, então a entrada é um ponto só — e um ponto só é o que se consegue
+     * auditar. Espalhar a decisão por rota seria garantir que a terceira
+     * esquecesse.
+     *
+     * `contaAssumida()` devolve `null` para quem não é administrador de
+     * plataforma, **mesmo com o cookie posto**: o cookie escolhe a unidade, a
+     * sessão autoriza. Forjá-lo num navegador qualquer não abre nada.
+     *
+     * A participação é sintética — não existe linha de `WorkspaceUser` para o
+     * operador na conta do cliente, e isso é de propósito: criar uma o faria
+     * aparecer na lista de Usuários e no painel de Equipe **da clínica**, como
+     * se fosse da equipe dela. O `userId` continua sendo o dele, então tudo o
+     * que ele gravar fica atribuído ao seu nome — que é o que a tarja promete.
+     *
+     * `membershipId` vai como `assumida`: não há linha a que corresponder. A
+     * única rota que o usa para gravar (`/api/me/disponibilidade`) recusa
+     * enquanto há conta assumida — mudar a própria disponibilidade dentro da
+     * conta de um cliente não quer dizer nada.
+     */
+    const assumida = await contaAssumida()
+    if (assumida) {
+        return {
+            ok: true,
+            member: {
+                membershipId: 'assumida',
+                userId: user.id,
+                workspaceId: assumida.workspaceId,
+                /**
+                 * `leitura` entra como ATENDENTE porque é o papel que o produto
+                 * inteiro já sabe barrar — todo portão escrito até hoje o
+                 * recusa para gravação de configuração. Um quinto papel só para
+                 * isto obrigaria a revisitar cada um deles.
+                 */
+                role: assumida.modo === 'total' ? 'OWNER' : 'ATENDENTE',
+                departmentIds: [],
+                canTransfer: assumida.modo === 'total',
+                status: 'ocupado',
+                recebeConversas: false,
+                ultimaAtividadeEm: new Date(),
+            },
+        }
     }
 
     const SELECT = {

@@ -5,6 +5,7 @@ import { marcaDaSessao } from '@/lib/session-brand'
 import { DocumentTitle } from '@/components/layout/DocumentTitle'
 import { Topbar } from '@/components/layout/Topbar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { TarjaDeAcesso } from '@/components/plataforma/TarjaDeAcesso'
 
 /**
  * The shell owns navigation and nothing else.
@@ -103,6 +104,12 @@ export default async function DashboardLayout({
             {/* `overflow-hidden` recorta o Topbar nos cantos do cartão — sem
                 ele, a barra pinta por cima do raio do `inset`. */}
             <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+                {/* ACIMA do Topbar, e fora da região que rola: quando o
+                    operador da Venn360 está dentro da conta de um cliente,
+                    isso é a primeira coisa da tela. O risco desta
+                    funcionalidade não é técnico, é esquecer que se está lá
+                    dentro — e uma pista discreta não serviria. */}
+                <TarjaDeAcesso />
                 <Topbar marca={marca} />
                 {/* Abaixo da barra e **fora** da região que rola: a faixa fica
                     à vista enquanto a lista desce. */}
