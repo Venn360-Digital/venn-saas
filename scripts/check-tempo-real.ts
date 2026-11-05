@@ -271,6 +271,7 @@ async function main() {
      * direções.
      */
     const fs = await import('node:fs')
+    const { execSync } = await import('node:child_process')
     const tela = fs.readFileSync('src/app/(dashboard)/atendimento/conversas/page.tsx', 'utf8')
     // De `chaves`, não de `avisar`: aquele importa o Prisma por `./index`, que
     // lança na carga sem DATABASE_URL — e este teste roda sem banco.
@@ -321,6 +322,27 @@ async function main() {
         ok(`contrato: a tela não usa "${uso}"`, !tela.includes(uso))
     }
 
+    /**
+     * E ninguém, além do multiplexador, chama `conectarTempoReal`.
+     *
+     * É a guarda que mantém a conta de uma conexão por aba. Foram duas durante
+     * um tempo porque o cabeçalho e a tela de Conversas abriam cada um a sua, e
+     * nada apontava para isso: as duas funcionavam. A próxima tela que precisar
+     * de tempo real vai copiar a que existe — então o que tem de falhar é a
+     * cópia da chamada direta, não a fatura do mês seguinte.
+     */
+    const chamamDireto = execSync(
+        "grep -rl 'conectarTempoReal' src --include=*.ts --include=*.tsx | grep -v 'lib/realtime/cliente.ts' | grep -v 'lib/realtime/assinatura.ts' || true",
+        { encoding: 'utf8' }
+    )
+        .split('\n')
+        .filter(Boolean)
+    ok(
+        'contrato: só o multiplexador abre conexão',
+        chamamDireto.length === 0,
+        chamamDireto.length ? chamamDireto.join(', ') : 'assinatura.ts'
+    )
+
 
     // ========================================== emissão + publicação imediata
 
@@ -334,7 +356,6 @@ async function main() {
      * O tempo real continuaria "funcionando", só devagar o bastante para não
      * servir, e ninguém veria erro.
      */
-    const { execSync } = await import('node:child_process')
     const emissores = execSync(
         "grep -rl 'avisarMensagemNova\\|avisarStatusDaMensagem\\|avisarConversaAlterada' src --include=*.ts --include=*.tsx | grep -v 'outbox/avisar.ts' || true",
         { encoding: 'utf8' }
@@ -351,6 +372,127 @@ async function main() {
             conteudo.includes('publicarAgora()')
         )
     }
+
+    // ====================================== multiplexador de assinatura
+
+    /**
+     * Uma conexão por aba, não uma por tela.
+     *
+     * `assinatura.ts` é a única parte do tempo real do navegador cujo erro é
+     * **silencioso nos dois sentidos**: contar referência a menos fecha o socket
+     * com tela assinando — e a tela fica muda, exatamente o defeito que o
+     * `cliente.ts` existe para não ter; contar a mais nunca fecha, e aí a aba
+     * segura conexão para sempre. Nenhum dos dois aparece na tela de quem
+     * testa à mão em uma máquina.
+     *
+     * Não é função pura — ele fala com `WebSocket`, `fetch` e `location` —,
+     * então aqui os três são dublês. O `import` é dinâmico de propósito: o
+     * módulo guarda a conexão em estado de módulo, e precisa ser carregado
+     * **depois** dos globais existirem.
+     */
+    let socketsAbertos = 0
+    let socketsFechados = 0
+    /** Os sockets que o dublê criou, em ordem. O último é o que está em uso. */
+    const criados: SocketDuble[] = []
+
+    class SocketDuble {
+        static readonly OPEN = 1
+        readyState = 1
+        onopen: (() => void) | null = null
+        onmessage: ((ev: { data: string }) => void) | null = null
+        onclose: (() => void) | null = null
+        onerror: (() => void) | null = null
+        constructor() {
+            socketsAbertos++
+            // `push`, e não `const eu = this`: a regra `no-this-alias`
+            // reprova o apelido, e aqui não é disso que se precisa.
+            criados.push(this)
+            // `onopen` é atribuído logo depois do construtor; o salto de fila
+            // dá tempo a isso, como o navegador dá.
+            setTimeout(() => this.onopen?.(), 0)
+        }
+        send() {}
+        close() {
+            socketsFechados++
+            this.readyState = 3
+        }
+    }
+
+    const g = globalThis as unknown as Record<string, unknown>
+    g.WebSocket = SocketDuble
+    g.location = { protocol: 'https:', host: 'exemplo.test' }
+    g.fetch = async () =>
+        ({ ok: true, status: 200, json: async () => ({ bilhete: 'b' }) }) as unknown as Response
+
+    const { assinarTempoReal, estadoDoTempoReal } = await import('@/lib/realtime/assinatura')
+
+    const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+    const recebidosA: string[] = []
+    const recebidosB: string[] = []
+
+    const cancelarA = assinarTempoReal({
+        evento: (tipo) => recebidosA.push(tipo),
+        sincronizar: () => recebidosA.push('sync'),
+    })
+    await espera(10)
+    ok('multiplexador: o primeiro assinante abre a conexão', socketsAbertos === 1, `${socketsAbertos}`)
+    ok('multiplexador: e ela se anuncia ligada', estadoDoTempoReal() === 'ligado', estadoDoTempoReal())
+
+    // O assinante que **explode** vem antes do B de propósito: se o laço de
+    // distribuição abortasse na exceção, o B nunca receberia nada — e a
+    // conexão seguiria viva, que é o que torna esse defeito difícil de achar. O
+    // rastro de "assinante com defeito" impresso mais abaixo é parte da prova,
+    // não falha: é o guarda registrando o que engoliu.
+    const cancelarExplosivo = assinarTempoReal({
+        evento: () => {
+            throw new Error('assinante com defeito')
+        },
+        sincronizar: () => {},
+    })
+    const cancelarB = assinarTempoReal({
+        evento: (tipo) => recebidosB.push(tipo),
+        sincronizar: () => recebidosB.push('sync'),
+    })
+    await espera(10)
+    ok('multiplexador: assinante novo não abre uma segunda', socketsAbertos === 1, `${socketsAbertos}`)
+
+    // O socket que o módulo está usando é o último que o dublê criou.
+    const entregar = (tipo: string, id: string) => {
+        const alvo = criados.at(-1)!
+        alvo.onmessage?.({ data: JSON.stringify({ t: 'evt', id, tipo, payload: {} }) })
+    }
+    entregar('mensagem.nova', 'e1')
+    ok('multiplexador: o evento chega ao primeiro', recebidosA.at(-1) === 'mensagem.nova', recebidosA.join(','))
+    ok('multiplexador: e também ao último, apesar da exceção no meio',
+       recebidosB.at(-1) === 'mensagem.nova', recebidosB.join(','))
+
+    // Deduplicação do cliente continua valendo com vários assinantes: o mesmo
+    // id reentregue na reconexão não pode tocar o aviso duas vezes em ninguém.
+    entregar('mensagem.nova', 'e1')
+    ok('multiplexador: id repetido não é reentregue',
+       recebidosA.filter((t) => t === 'mensagem.nova').length === 1,
+       recebidosA.join(','))
+
+    cancelarExplosivo()
+    cancelarB()
+    ok('multiplexador: sair não fecha com outro assinando', socketsFechados === 0, `${socketsFechados}`)
+
+    cancelarA()
+    ok('multiplexador: o último a sair não fecha na hora', socketsFechados === 0, `${socketsFechados}`)
+
+    // Remonte dentro da espera — o caso do StrictMode e o de voltar para
+    // Conversas. A conexão tem de ser a mesma.
+    const cancelarC = assinarTempoReal({ evento: () => {}, sincronizar: () => {} })
+    await espera(2_200)
+    ok('multiplexador: assinar dentro da espera cancela o fechamento',
+       socketsFechados === 0 && socketsAbertos === 1,
+       `abertos ${socketsAbertos}, fechados ${socketsFechados}`)
+
+    cancelarC()
+    await espera(2_200)
+    ok('multiplexador: sem ninguém, fecha depois da espera', socketsFechados === 1, `${socketsFechados}`)
+    ok('multiplexador: e não deixa conexão para trás', estadoDoTempoReal() === 'caido', estadoDoTempoReal())
 
     console.log(falhas === 0 ? '\nTODOS OS TESTES PASSARAM' : `\n${falhas} FALHA(S)`)
     process.exit(falhas === 0 ? 0 : 1)

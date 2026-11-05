@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { conectarTempoReal } from '@/lib/realtime/cliente'
+import { assinarTempoReal } from '@/lib/realtime/assinatura'
 import { cn } from '@/lib/utils'
 import { PainelDaEquipe, type Pessoa, type Recado } from './PainelDaEquipe'
 
@@ -28,14 +28,13 @@ import { PainelDaEquipe, type Pessoa, type Recado } from './PainelDaEquipe'
  * paciente — lembrete de atividade, conversa esperando — e o recado é da
  * equipe. Misturar os dois faria o atendente aprender a ignorar os dois.
  *
- * ## Uma segunda conexão, e por que ela é aceitável por ora
+ * ## Uma conexão só, compartilhada
  *
- * `conectarTempoReal` abre um WebSocket próprio, e a tela de Conversas abre o
- * dela. Numa aba aberta em Conversas são duas conexões para a mesma sala. O
- * Durable Object hiberna conexão ociosa, então o custo é de conexão aberta e
- * não de tempo de objeto; unificar as duas num multiplexador é o conserto
- * certo, e ele mexe no tempo real do chat — que é a parte do produto que não
- * pode piscar. Fica para quando der para exercitar o chat logado.
+ * Este componente e a tela de Conversas assinam o **mesmo** socket, por
+ * `assinarTempoReal` — antes cada um abria o seu, e numa aba em Conversas eram
+ * duas conexões para a mesma sala. Quem conta os assinantes e decide abrir e
+ * fechar é `lib/realtime/assinatura.ts`; daqui o contrato não mudou, só o nome
+ * da função e o que o retorno faz.
  */
 export function GatilhoDaEquipe() {
     const [aberto, setAberto] = useState(false)
@@ -114,7 +113,7 @@ export function GatilhoDaEquipe() {
     useEffect(() => {
         if (!temEquipe) return
 
-        const conexao = conectarTempoReal({
+        const cancelar = assinarTempoReal({
             evento(tipo) {
                 if (tipo !== 'recado') return
                 void (async () => {
@@ -151,7 +150,7 @@ export function GatilhoDaEquipe() {
             },
         })
 
-        return () => conexao.fechar()
+        return cancelar
     }, [temEquipe, carregarNaoLidos, carregarPessoas])
 
     const naoLidosPorPessoa = useMemo(() => {
