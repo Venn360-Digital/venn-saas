@@ -48,6 +48,8 @@ interface Conta {
     creditosUsados: number
     avaliacaoAte: string | null
     somenteLeituraDesde: string | null
+    /** Já cortada agora — derivada no servidor, pela regra do `lib/billing.ts`. */
+    cortada: boolean
     carenciaAte: string | null
     ultimaAtividadeEm: string | null
     daPlataforma: boolean
@@ -65,10 +67,37 @@ function quando(iso: string | null): string {
     return d === 1 ? 'ontem' : `há ${d} dias`
 }
 
-/** A situação em uma palavra e uma cor — a tinta, nunca o preenchimento. */
+/** Dia e mês, para "corta em 13/11". */
+function diaCurto(iso: string): string {
+    return new Date(iso).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+    })
+}
+
+/**
+ * A situação em uma palavra e uma cor — a tinta, nunca o preenchimento.
+ *
+ * **Cortada é `cortada`, não "tem `readOnlySince`".** O servidor compara a data
+ * com agora, pela mesma regra do `lib/billing.ts`; aqui só se desenha o que ele
+ * concluiu. A tela antes acendia "Somente leitura" por existir a coluna, e
+ * dizia isso de uma conta que o produto tratava como ativa — o corte estava
+ * marcado para onze dias depois.
+ *
+ * Corte agendado tem crachá próprio: quem opera precisa ver a data **antes**
+ * dela chegar, que é quando ainda dá para fazer alguma coisa a respeito.
+ */
 function Situacao({ conta }: { conta: Conta }) {
-    if (conta.somenteLeituraDesde) {
+    if (conta.cortada) {
         return <Badge variant="warning">Somente leitura</Badge>
+    }
+    if (conta.somenteLeituraDesde) {
+        return (
+            <Badge variant="outline">
+                Corta em {diaCurto(conta.somenteLeituraDesde)}
+            </Badge>
+        )
     }
     if (conta.situacao === 'trialing' || (conta.avaliacaoAte && !conta.situacao)) {
         const dias = conta.avaliacaoAte
@@ -154,7 +183,7 @@ export default function PlataformaPage() {
 
     const pagando = contas.filter((c) => c.situacao === 'active').length
     const avaliando = contas.filter((c) => c.situacao === 'trialing').length
-    const travadas = contas.filter((c) => c.somenteLeituraDesde).length
+    const travadas = contas.filter((c) => c.cortada).length
 
     return (
         <>
@@ -198,7 +227,7 @@ export default function PlataformaPage() {
                                         key={unidade.id}
                                         className={cn(
                                             'border-t border-border',
-                                            conta.somenteLeituraDesde && 'bg-warning-subtle/40'
+                                            conta.cortada && 'bg-warning-subtle/40'
                                         )}
                                     >
                                         <td className="px-4 py-2.5">
@@ -475,7 +504,7 @@ function Ajustes({
                         </Button>
                     </div>
 
-                    {conta.somenteLeituraDesde ? (
+                    {conta.cortada || conta.somenteLeituraDesde ? (
                         <Button
                             variant="outline"
                             disabled={enviando}
