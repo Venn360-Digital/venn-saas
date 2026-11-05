@@ -89,6 +89,9 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
+import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
+import { EtapaChip } from '@/components/shared/EtapaChip'
+import { semMarcacao } from '@/lib/texto-whatsapp'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
 import { AiSummaryPanel } from '@/components/shared/AiSummaryPanel'
@@ -215,6 +218,11 @@ interface ConversationListItem {
     tags: TagItem[]
     lastMessageAt: string | null
     createdAt: string
+    /**
+     * Onde a pessoa está no funil — nulo quando não há negócio aberto.
+     * O predicado é de `lib/conversas/etapa-do-funil`, o mesmo do filtro.
+     */
+    funnelStage: { dealId: string; stageId: string | null; stageName: string | null; stageColor: string | null } | null
 }
 
 interface ReplyToMessage {
@@ -405,7 +413,7 @@ function MediaContent({ msg }: { msg: Message }) {
                     onClick={() => window.open(msg.mediaUrl!, '_blank')}
                 />
                 {msg.content && msg.content !== '📷 Imagem' && (
-                    <p className="whitespace-pre-wrap break-words mt-1">{msg.content}</p>
+                    <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
                 )}
             </div>
         )
@@ -429,7 +437,7 @@ function MediaContent({ msg }: { msg: Message }) {
                     <source src={msg.mediaUrl} />
                 </video>
                 {msg.content && msg.content !== '🎬 Vídeo' && (
-                    <p className="whitespace-pre-wrap break-words mt-1">{msg.content}</p>
+                    <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
                 )}
             </div>
         )
@@ -452,7 +460,7 @@ function MediaContent({ msg }: { msg: Message }) {
     }
 
     // Default text
-    return <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+    return <TextoDeWhatsApp texto={msg.content} />
 }
 
 function mediaIcon(contentType: string) {
@@ -2157,7 +2165,7 @@ export default function ConversasPage() {
                                                 {/* 2. O que foi dito por último. */}
                                                 <div className="mt-0.5 flex items-center justify-between gap-2">
                                                     <p className="truncate text-xs text-muted-foreground">
-                                                        {conv.lastMessage?.content}
+                                                        {conv.lastMessage ? semMarcacao(conv.lastMessage.content) : null}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
                                                         <span className="num flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -2213,9 +2221,21 @@ export default function ConversasPage() {
                                                 {/* 4. As etiquetas, sozinhas. Dividindo a faixa com
                                                     o texto acima, elas empurravam o agente para
                                                     fora e quebravam no meio. */}
-                                                {conv.tags && conv.tags.length > 0 ? (
+                                                {/* A etapa do funil abre a faixa, antes das
+                                                    etiquetas: ela é uma só e muda sozinha, então
+                                                    tem lugar fixo — se entrasse no meio das
+                                                    etiquetas, mudaria de posição a cada etiqueta
+                                                    posta ou tirada. Forma diferente da etiqueta de
+                                                    propósito (ver `EtapaChip`). */}
+                                                {conv.funnelStage?.stageName || (conv.tags && conv.tags.length > 0) ? (
                                                     <div className="mt-1 flex flex-wrap items-center gap-1">
-                                                        {conv.tags.map(tag => (
+                                                        {conv.funnelStage?.stageName ? (
+                                                            <EtapaChip
+                                                                name={conv.funnelStage.stageName}
+                                                                color={conv.funnelStage.stageColor}
+                                                            />
+                                                        ) : null}
+                                                        {conv.tags?.map(tag => (
                                                             <TagChip key={tag.id} name={tag.name} color={tag.color} size="sm" />
                                                         ))}
                                                     </div>
@@ -2735,7 +2755,7 @@ export default function ConversasPage() {
                                                                 <StickyNote className="h-3 w-3" />
                                                                 Nota interna · {msg.senderName || 'Atendente'}
                                                             </div>
-                                                            <p className="text-foreground/80 whitespace-pre-wrap">{msg.content}</p>
+                                                            <TextoDeWhatsApp texto={msg.content} className="text-foreground/80 whitespace-pre-wrap" />
                                                             <div className="text-[10px] opacity-60 mt-1 text-right">
                                                                 {format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR })}
                                                             </div>
@@ -2807,7 +2827,7 @@ export default function ConversasPage() {
                                                                 )}>
                                                                     {msg.replyTo.direction === 'inbound' ? '👤 Paciente' : '🤖 Agente'}
                                                                 </span>
-                                                                <p className="truncate opacity-80">{msg.replyTo.content}</p>
+                                                                <p className="truncate opacity-80">{semMarcacao(msg.replyTo.content)}</p>
                                                             </div>
                                                         )}
 

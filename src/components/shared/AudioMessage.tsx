@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
 
 /**
  * A voice note, with its transcription treated as content.
@@ -119,7 +120,10 @@ export function AudioMessage({
             {transcript ? (
                 <div className={cn('mt-2 pt-2', src && 'border-t border-current/15')}>
                     <p className="text-[10px] font-semibold uppercase tracking-wide opacity-55">Transcrição</p>
-                    <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-snug">{transcript}</p>
+                    <TextoDeWhatsApp
+                        texto={transcript}
+                        className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-snug"
+                    />
                 </div>
             ) : null}
         </div>

@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
+import { SELECT_ETAPA, etapaPorContato, negocioNoFunil } from '@/lib/conversas/etapa-do-funil'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { inicioDoDiaDe } from '@/lib/fuso'
@@ -190,6 +191,28 @@ export async function GET(request: NextRequest) {
             orderBy: { lastMessageAt: 'desc' },
         })
 
+        /**
+         * A etapa do funil de cada pessoa, em lote.
+         *
+         * Uma consulta para a página inteira, e não uma por conversa: o
+         * vínculo é `Deal → Contact ← Conversation`, então dá para pedir os
+         * negócios de todos os contatos de uma vez. `createdAt: 'desc'` é o
+         * que faz `etapaPorContato` ficar com o mais recente quando a pessoa
+         * tem dois negócios abertos.
+         */
+        const etapas = conversations.length
+            ? etapaPorContato(
+                  await prisma.deal.findMany({
+                      where: {
+                          ...negocioNoFunil(workspaceUser.workspaceId),
+                          contactId: { in: [...new Set(conversations.map((c) => c.contact.id))] },
+                      },
+                      orderBy: { createdAt: 'desc' },
+                      select: SELECT_ETAPA,
+                  })
+              )
+            : new Map()
+
         // The queue, measured — the three slices the inbox shows above the list.
         // Counted over the whole workspace on purpose: the tab you are looking
         // at must not change how many people are waiting elsewhere.
@@ -271,6 +294,8 @@ export async function GET(request: NextRequest) {
                 lastMessage: conv.messages[0] || null,
                 unreadCount: unreadCounts[idx],
                 tags: Array.from(tagMap.values()),
+                /** Onde esta pessoa está no funil, ou `null` se não há negócio aberto. */
+                funnelStage: etapas.get(conv.contact.id) ?? null,
                 lastMessageAt: conv.lastMessageAt,
                 createdAt: conv.createdAt,
             }

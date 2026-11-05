@@ -2,12 +2,14 @@ import 'server-only'
 import { NextResponse } from 'next/server'
 import {
     MANAGER_ROLES,
+    PERMISSION_DENIED,
     assertAgentAccess,
     getWorkspaceMember,
     requireRole,
     type WorkspaceMember,
     type WorkspaceRole,
 } from './workspace'
+import prisma from '@/lib/prisma'
 
 /**
  * Autorização das rotas do agente, num lugar só.
@@ -54,4 +56,65 @@ export function readAgent(agentId: string): Promise<AgentAuth> {
 /** Mexer no agente ou em qualquer coisa dele: gestão. */
 export function manageAgent(agentId: string): Promise<AgentAuth> {
     return check(agentId, MANAGER_ROLES)
+}
+
+export type WorkspaceAlvo =
+    | { ok: true; workspaceId: string; member: WorkspaceMember }
+    | { ok: false; response: NextResponse }
+
+/**
+ * Em qual unidade esta rota de agente age, quando a unidade vem na URL.
+ *
+ * `/api/agents` aceita `?workspaceId=`, e as três rotas que o faziam
+ * conferiam o acesso perguntando à tabela se existe `WorkspaceUser` do
+ * usuário naquela unidade. A pergunta é a errada por duas razões.
+ *
+ * A primeira é o operador da Venn360: a participação dele numa conta de
+ * cliente é **sintética** — não há linha de `WorkspaceUser`, de propósito
+ * (ver `getWorkspaceMember`). A consulta crua volta vazia, e a tela de
+ * Agentes dentro da conta do cliente respondia 403 **depois** de o mesmo
+ * arquivo já ter resolvido a unidade certa pelo helper, duas linhas acima.
+ * Era o único assunto do produto que o console não abria.
+ *
+ * A segunda é que a conta assumida deixava de ser respeitada: a unidade vinha
+ * do helper e a autorização vinha da tabela, então os dois podiam discordar —
+ * e quando discordam, quem manda tem de ser **um** deles.
+ *
+ * A unidade resolvida pelo helper é a autoridade. Um `workspaceId` diferente
+ * na URL só passa quando o usuário tem participação ativa de verdade nele —
+ * é o caso da clínica com várias unidades, e continua funcionando. Para o
+ * operador nunca passa: o cookie escolhe uma unidade, e é nela que ele está.
+ */
+export async function workspaceDoPedido(
+    pedido: string | null,
+    roles: WorkspaceRole[] | null = null,
+): Promise<WorkspaceAlvo> {
+    const auth = roles ? await requireRole(roles) : await getWorkspaceMember()
+    if (!auth.ok) {
+        return {
+            ok: false,
+            response: NextResponse.json({ error: auth.error }, { status: auth.status }),
+        }
+    }
+
+    const member = auth.member
+    const explicito = pedido && pedido !== 'current' && pedido !== 'undefined' ? pedido : null
+
+    if (!explicito || explicito === member.workspaceId) {
+        return { ok: true, workspaceId: member.workspaceId, member }
+    }
+
+    const irma = await prisma.workspaceUser.findFirst({
+        where: { workspaceId: explicito, userId: member.userId, isActive: true },
+        select: { id: true },
+    })
+
+    if (!irma) {
+        return {
+            ok: false,
+            response: NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 }),
+        }
+    }
+
+    return { ok: true, workspaceId: explicito, member }
 }

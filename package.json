@@ -59,6 +59,7 @@
     "db:migrate:unsafe": "prisma migrate deploy",
     "medir:recuperacao": "tsx scripts/medir-recuperacao.ts",
     "test:audio": "tsx scripts/test-audio.ts",
+    "test:marcacao": "tsx scripts/test-marcacao.ts",
     "test:chunker": "tsx scripts/test-chunker.ts",
     "test:consulta": "tsx scripts/test-consulta.ts",
     "test:treinamento": "tsx scripts/test-treinamento.ts",
