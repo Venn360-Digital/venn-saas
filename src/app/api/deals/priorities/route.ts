@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { DEAL_LANES, laneWhere } from '@/lib/deal-lanes'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 /**
  * Os três números da faixa de prioridades.
@@ -20,10 +21,12 @@ export async function GET() {
 
     const base = { workspaceId: auth.member.workspaceId, status: 'open' }
     const now = new Date()
+    // "Hoje e amanhã" é no calendário da clínica — ver `laneWhere`.
+    const fuso = await fusoDaUnidade(auth.member.workspaceId)
 
     const counts = await Promise.all(
         DEAL_LANES.map((lane) =>
-            prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now) } })
+            prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } })
         )
     )
 

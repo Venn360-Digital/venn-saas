@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { adicionaisCobraveis, adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@/lib/account'
 import { tetoDeUnidades } from '@/lib/plan-limits'
+import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 import { planFor } from '@/lib/plans'
 
 /**
@@ -96,6 +97,9 @@ export async function GET() {
                 phone: true,
                 createdAt: true,
                 suspendedAt: true,
+                // O fuso mora dentro de `settings`; a coluna inteira não sai
+                // daqui — a tela recebe só o fuso, já resolvido.
+                settings: true,
                 _count: {
                     select: {
                         users: true,
@@ -167,6 +171,7 @@ export async function GET() {
             conversas: u._count.conversations,
             canais: canaisPorUnidade.get(u.id) ?? 0,
             participo: participo.has(u.id),
+            fusoHorario: lerFusoDasConfiguracoes(u.settings),
         })),
     })
 }

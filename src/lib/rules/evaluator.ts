@@ -36,7 +36,12 @@ export class RuleEvaluator {
                 return this.matchFirstMessage(context.isFirstMessage, condition.value)
 
             case 'business_hours':
-                return this.matchBusinessHours(context.agora, condition.value, condition.operator)
+                return this.matchBusinessHours(
+                    context.agora,
+                    condition.value,
+                    condition.operator,
+                    context.fuso
+                )
 
             case 'custom':
                 // No extension point wired yet; never auto-fire.
@@ -101,20 +106,26 @@ export class RuleEvaluator {
      * responde "estamos fechados" vinte e quatro horas por dia. Ver
      * `normalizarJanela`.
      *
-     * A hora de parede sai de `lib/fuso`, no fuso do negócio: o Worker roda em
-     * UTC, então comparar `Date` cru erraria em três horas.
+     * A hora de parede sai de `lib/fuso`, no fuso **da unidade**: o Worker roda
+     * em UTC, então comparar `Date` cru erraria em três horas — e usar o fuso do
+     * sistema erraria o expediente inteiro de quem não opera no Brasil.
      */
     private matchBusinessHours(
         agora: Date | undefined,
         value: unknown,
-        operator: Operator
+        operator: Operator,
+        fuso?: string
     ): boolean {
         if (!agora) return false
 
         const janela = normalizarJanela(value)
         if (!janela) return false
 
-        const dentro = dentroDaJanela(horaMinutoNoFuso(agora), diaDaSemanaNoFuso(agora), janela)
+        const dentro = dentroDaJanela(
+            horaMinutoNoFuso(agora, fuso),
+            diaDaSemanaNoFuso(agora, fuso),
+            janela
+        )
 
         switch (operator) {
             case 'inside':

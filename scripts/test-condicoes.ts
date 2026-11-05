@@ -149,6 +149,50 @@ conferir(
     avaliador.evaluate(so({ type: 'business_hours', operator: 'outside', value: JAN }), ctx()),
     false
 )
+/**
+ * O MESMO instante, julgado por duas unidades em fusos diferentes.
+ *
+ * Este é o par que prova que o expediente deixou de ser o de Brasília. As
+ * 23:30Z de quarta são 20:30 em São Paulo — fora da janela 08–18 — e 10:30 da
+ * manhã de **quinta** em Sydney, dentro dela. Antes do fuso por unidade os dois
+ * respondiam igual, porque o fuso era constante.
+ */
+conferir(
+    'fora do expediente: 23:30Z é noite em São Paulo, logo dispara',
+    avaliador.evaluate(
+        so({ type: 'business_hours', operator: 'outside', value: JAN }),
+        ctx({ agora: QUARTA_2030, fuso: 'America/Sao_Paulo' })
+    ),
+    true
+)
+conferir(
+    'o mesmo instante é manhã de quinta em Sydney, logo NÃO dispara',
+    avaliador.evaluate(
+        so({ type: 'business_hours', operator: 'outside', value: JAN }),
+        ctx({ agora: QUARTA_2030, fuso: 'Australia/Sydney' })
+    ),
+    false
+)
+conferir(
+    'e o "dentro de" é o espelho, no fuso de lá',
+    avaliador.evaluate(
+        so({ type: 'business_hours', operator: 'inside', value: JAN }),
+        ctx({ agora: QUARTA_2030, fuso: 'Australia/Sydney' })
+    ),
+    true
+)
+conferir(
+    'contexto sem fuso cai no padrão do sistema, como antes',
+    avaliador.evaluate(
+        so({ type: 'business_hours', operator: 'outside', value: JAN }),
+        ctx({ agora: QUARTA_2030 })
+    ),
+    avaliador.evaluate(
+        so({ type: 'business_hours', operator: 'outside', value: JAN }),
+        ctx({ agora: QUARTA_2030, fuso: 'America/Sao_Paulo' })
+    )
+)
+
 conferir(
     'janela malformada não dispara no "fora de" — é a regra mais perigosa de todas',
     avaliador.evaluate(

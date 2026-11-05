@@ -1,7 +1,8 @@
 import type { Prisma } from '#prisma'
 
 import prisma from '@/lib/prisma'
-import { diaNoFuso, fimDoDia, inicioDoDia, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
+import { FUSO_DO_NEGOCIO, diaNoFuso, fimDoDia, inicioDoDia, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 /**
  * Everything the dashboard shows, in one round trip.
@@ -36,13 +37,13 @@ export interface DashboardScope {
  * fronteira do dia — medido em 2026-10-22, atividade que vencia às 10h de
  * Brasília do próprio dia contava como **atrasada**. Ver `lib/fuso.ts`.
  */
-function startOfDay(iso: string): Date {
-    return inicioDoDia(iso)
+function startOfDay(iso: string, fuso: string = FUSO_DO_NEGOCIO): Date {
+    return inicioDoDia(iso, fuso)
 }
 
 /** Meia-noite do dia seguinte — o fim exclusivo de um intervalo inclusivo. */
-function endOfDay(iso: string): Date {
-    return fimDoDia(iso)
+function endOfDay(iso: string, fuso: string = FUSO_DO_NEGOCIO): Date {
+    return fimDoDia(iso, fuso)
 }
 
 interface Window {
@@ -53,10 +54,10 @@ interface Window {
     previousTo: Date
 }
 
-function resolveWindow(scope: DashboardScope): Window | null {
+function resolveWindow(scope: DashboardScope, fuso: string): Window | null {
     if (!scope.from || !scope.to) return null
-    const from = startOfDay(scope.from)
-    const to = endOfDay(scope.to)
+    const from = startOfDay(scope.from, fuso)
+    const to = endOfDay(scope.to, fuso)
     const span = to.getTime() - from.getTime()
     return {
         from,
@@ -70,7 +71,9 @@ export async function getDashboardSummary(
     workspaceId: string,
     scope: DashboardScope = {}
 ) {
-    const window = resolveWindow(scope)
+    // O relógio da unidade: o que é "hoje" e onde começa o período escolhido.
+    const fuso = await fusoDaUnidade(workspaceId)
+    const window = resolveWindow(scope, fuso)
     const owner = scope.userId ?? null
 
     /**
@@ -81,7 +84,7 @@ export async function getDashboardSummary(
      * gravada em meia-noite UTC. Usar 03:00Z aqui deixaria de fora os
      * compromissos do próprio dia. Ver `inicioDoDiaUtc`.
      */
-    const hoje = diaNoFuso(new Date())
+    const hoje = diaNoFuso(new Date(), fuso)
     const startOfToday = inicioDoDiaUtc(hoje)
     const endOfToday = inicioDoDiaUtc(somarDias(hoje, 1))
 

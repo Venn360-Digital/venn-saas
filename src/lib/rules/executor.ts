@@ -310,8 +310,9 @@ export class RuleExecutor {
         // dueDate is a date and startTime a "HH:mm" string, so the clock part of
         // the target instant has to be split out to survive a round trip.
         // A hora que vai para `startTime` é de parede, da clínica: no Worker
-        // `getHours()` gravaria a hora UTC — 14h viraria "17:00" no banco.
-        const [hours, minutes] = horaMinutoNoFuso(dueAt).split(':')
+        // `getHours()` gravaria a hora UTC — 14h viraria "17:00" no banco. O
+        // fuso é o da unidade, que veio no contexto.
+        const [hours, minutes] = horaMinutoNoFuso(dueAt, context.fuso).split(':')
 
         const owner = await resolverResponsavel({
             workspaceId: context.workspaceId,

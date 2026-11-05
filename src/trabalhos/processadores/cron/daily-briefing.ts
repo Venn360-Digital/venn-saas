@@ -3,6 +3,7 @@ import { DEAL_LANES, laneWhere } from '@/lib/deal-lanes'
 import { readAutomations } from '@/lib/automations'
 import { createLogger } from '@/trabalhos/registro'
 import { horaNoFuso, inicioDoDiaDe } from '@/lib/fuso'
+import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 
 const log = createLogger('CRON:BRIEFING')
 
@@ -21,22 +22,34 @@ const TOP = 5
  * paciente chegar.
  */
 export async function runDailyBriefing(): Promise<void> {
-    // A hora do briefing é a da clínica; `getHours()` daria UTC no Worker.
-    const hour = horaNoFuso()
-
     const workspaces = await prisma.workspace.findMany({
-        select: { id: true, automations: true },
+        select: { id: true, automations: true, settings: true },
     })
 
     let sent = 0
 
     for (const workspace of workspaces) {
         const config = readAutomations(workspace.automations)
-        if (!config.briefing || config.briefingHour !== hour) continue
+
+        /**
+         * A hora é a **da clínica**, conferida dentro do laço.
+         *
+         * O cabeçalho acima sempre prometeu "um único cron atende fusos
+         * diferentes", e era o que faltava para ser verdade: a hora era
+         * calculada uma vez, fora do laço, no fuso do sistema. A clínica de
+         * Sydney que escolheu 7h recebia o boletim às 7h de Brasília — 21h
+         * lá, com o dia já encerrado.
+         *
+         * `lerFusoDasConfiguracoes` e não `fusoDaUnidade` porque isto é laço
+         * sobre todas as unidades: o `settings` já veio na consulta de cima, e
+         * chamar a versão que consulta o banco daria uma ida por clínica.
+         */
+        const fuso = lerFusoDasConfiguracoes(workspace.settings)
+        if (!config.briefing || config.briefingHour !== horaNoFuso(new Date(), fuso)) continue
 
         // Uma vez por dia, mesmo que o cron repita ou o worker reinicie.
-        // `createdAt` é instante: o dia começa à meia-noite de Brasília.
-        const since = inicioDoDiaDe()
+        // `createdAt` é instante: o dia começa à meia-noite da clínica.
+        const since = inicioDoDiaDe(new Date(), fuso)
         const already = await prisma.notification.findFirst({
             where: { workspaceId: workspace.id, kind: 'briefing', createdAt: { gte: since } },
             select: { id: true },
@@ -47,7 +60,7 @@ export async function runDailyBriefing(): Promise<void> {
         const base = { workspaceId: workspace.id, status: 'open' }
 
         const counts = await Promise.all(
-            DEAL_LANES.map((lane) => prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now) } }))
+            DEAL_LANES.map((lane) => prisma.deal.count({ where: { ...base, ...laneWhere(lane.id, now, fuso) } }))
         )
         const total = counts.reduce((sum, n) => sum + n, 0)
         if (total === 0) continue
@@ -55,7 +68,7 @@ export async function runDailyBriefing(): Promise<void> {
         // Os mais urgentes primeiro: sem atividade marcada e parados há mais
         // tempo. A ordem é por entrada de fase mais antiga.
         const urgent = await prisma.deal.findMany({
-            where: { ...base, ...laneWhere('no_activity', now) },
+            where: { ...base, ...laneWhere('no_activity', now, fuso) },
             orderBy: { updatedAt: 'asc' },
             take: TOP,
             select: {
@@ -88,5 +101,5 @@ export async function runDailyBriefing(): Promise<void> {
         sent += 1
     }
 
-    log.info(`briefing sent to ${sent} workspace(s) at ${hour}h`)
+    log.info(`briefing sent to ${sent} workspace(s)`)
 }

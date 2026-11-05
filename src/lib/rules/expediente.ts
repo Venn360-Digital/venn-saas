@@ -14,12 +14,17 @@
  * sábado escreve a janela dela. O preço é que duas regras podem declarar janelas
  * diferentes; é um preço honesto, porque cada regra é um caso.
  *
- * ## A hora é a de parede, no fuso do negócio
+ * ## A hora é a de parede, no fuso da unidade
  *
  * O Worker roda em UTC — `TZ` é ignorado (ver `lib/fuso.ts`). Então a condição
- * não compara horas de `Date`: compara `HH:MM` já convertido para o fuso do
- * negócio. "08:00" é oito da manhã em Brasília, que é o que a clínica combinou
- * com o paciente, e não oito em Londres.
+ * não compara horas de `Date`: compara `HH:MM` já convertido para o fuso da
+ * unidade, que ela escolhe em Conta → Conta da empresa. "08:00" é oito da manhã
+ * no relógio da clínica, que é o que ela combinou com o paciente, e não oito em
+ * Londres nem oito em Brasília para quem não está lá.
+ *
+ * A conversão não acontece aqui: este módulo recebe `HH:MM` e o dia da semana
+ * já resolvidos, e é por isso que ele continua puro e testável sem banco. Quem
+ * resolve é `RuleEvaluator.matchBusinessHours`, com o fuso que veio no contexto.
  */
 
 /** Os dias, para a tela e para a leitura de quem mexe nisto. 0 é domingo. */

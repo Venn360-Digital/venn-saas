@@ -3,6 +3,7 @@ import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 // GET - Fetch pending reminders for the current user
 // Returns activities that have a reminder set and are due within the reminder window
@@ -21,6 +22,8 @@ export async function GET() {
         }
 
         const now = new Date()
+        // O lembrete marcado para "9h" é 9h no relógio da clínica.
+        const fuso = await fusoDaUnidade(workspaceUser.workspaceId)
 
         // Find activities that:
         // 1. Have a reminder set (reminderMinutes != null)
@@ -53,7 +56,8 @@ export async function GET() {
             // Hora de parede da clínica — ver `instanteNoFuso`.
             const dueDateTime = instanteNoFuso(
                 diaDeDataSemHora(new Date(a.dueDate)),
-                a.startTime || '09:00'
+                a.startTime || '09:00',
+                fuso
             )
             const reminderTime = new Date(dueDateTime.getTime() - a.reminderMinutes * 60 * 1000)
             return reminderTime <= now && dueDateTime > now

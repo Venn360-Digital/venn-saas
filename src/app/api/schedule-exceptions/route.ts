@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { feriadosNacionais } from '@/lib/holidays'
 import { anoNoFuso } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 /**
  * O calendário da clínica: feriados e fechamentos.
@@ -36,7 +37,11 @@ export async function GET(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const ano = Number(new URL(request.url).searchParams.get('year')) || anoNoFuso()
+    // Que ano é "este ano" para a clínica: na virada, quem opera no outro lado
+    // do mundo já está no ano seguinte quando aqui ainda é 31 de dezembro.
+    const ano =
+        Number(new URL(request.url).searchParams.get('year')) ||
+        anoNoFuso(new Date(), await fusoDaUnidade(auth.member.workspaceId))
 
     const linhas = await prisma.scheduleException.findMany({
         where: { workspaceId: auth.member.workspaceId },
@@ -130,7 +135,9 @@ export async function PUT(request: NextRequest) {
     const chave = typeof body.holidayKey === 'string' ? body.holidayKey : ''
     if (!chave) return NextResponse.json({ error: 'Feriado não informado' }, { status: 400 })
 
-    const conhecido = feriadosNacionais(anoNoFuso()).find((f) => f.key === chave)
+    const conhecido = feriadosNacionais(
+        anoNoFuso(new Date(), await fusoDaUnidade(auth.member.workspaceId))
+    ).find((f) => f.key === chave)
     if (!conhecido) return NextResponse.json({ error: 'Feriado desconhecido' }, { status: 404 })
 
     const blocks = body.blocks !== false

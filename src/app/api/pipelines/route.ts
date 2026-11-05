@@ -5,6 +5,7 @@ import { Prisma } from '#prisma'
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import { periodWhere } from '@/lib/deal-filters'
 
 // GET - List pipeline stages with deals
@@ -47,7 +48,12 @@ export async function GET(request: NextRequest) {
         // A faixa de prioridades filtra o quadro pelo mesmo predicado que a
         // contou — ver `lib/deal-lanes`.
         const lane = searchParams.get('lane')
-        if (isDealLane(lane)) Object.assign(dealWhere, laneWhere(lane))
+        if (isDealLane(lane)) {
+            Object.assign(
+                dealWhere,
+                laneWhere(lane, new Date(), await fusoDaUnidade(workspaceUser.workspaceId))
+            )
+        }
 
         // O período valia só para o resumo: a tela mostrava três números de um
         // recorte e um quadro de outro.

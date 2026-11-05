@@ -5,6 +5,7 @@ import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import { diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import {
     JANELA_DO_RESUMO,
     MODELO_DO_RESUMO,
@@ -165,7 +166,7 @@ async function countSince(conversationId: string, untilId: string | null): Promi
  */
 async function upcomingFor(workspaceId: string, contactId: string) {
     // `dueDate` é data sem hora: fronteira em meia-noite UTC do dia da clínica.
-    const today = inicioDoDiaUtc(diaNoFuso())
+    const today = inicioDoDiaUtc(diaNoFuso(new Date(), await fusoDaUnidade(workspaceId)))
 
     const activities = await prisma.activity.findMany({
         where: {

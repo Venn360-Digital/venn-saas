@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import { FUSO_DO_NEGOCIO } from '@/lib/fuso'
+
 /** Avisa quem desenha a marca e o seletor que a conta ou a unidade mudou. */
 export const WORKSPACE_UPDATED = 'workspace:updated'
 
@@ -19,9 +21,25 @@ export interface UnidadeAberta {
     conta: string | null
     /** Todas as unidades de que esta pessoa participa, da mais antiga à nova. */
     unidades: Unidade[]
+    /**
+     * O fuso da unidade aberta — para a tela dizer "Hoje" no dia certo.
+     *
+     * Vem de carona nesta resposta de propósito: ela já é buscada uma vez por
+     * página e já se refaz no `workspace:updated`, então trocar o fuso em Conta
+     * da Clínica troca os rótulos sem recarregar. Ver `lib/session-brand.ts`.
+     */
+    fuso: string
 }
 
-const VAZIO: UnidadeAberta = { id: null, name: null, logo: null, conta: null, unidades: [] }
+// Sem resposta, o fuso é o padrão do sistema — o mesmo que o servidor usaria.
+const VAZIO: UnidadeAberta = {
+    id: null,
+    name: null,
+    logo: null,
+    conta: null,
+    unidades: [],
+    fuso: FUSO_DO_NEGOCIO,
+}
 
 /**
  * Quem sou e onde estou, buscado **uma vez** por carregamento de página.
@@ -64,6 +82,7 @@ async function buscar(): Promise<UnidadeAberta> {
             logo: data.logo ?? null,
             conta: data.conta ?? null,
             unidades: Array.isArray(data.unidades) ? data.unidades : [],
+            fuso: typeof data.fuso === 'string' && data.fuso ? data.fuso : FUSO_DO_NEGOCIO,
         }
     } catch {
         // Sem resposta, fica a marca do produto e nenhum seletor. É melhor que
@@ -189,4 +208,15 @@ export async function trocarDeUnidade(workspaceId: string): Promise<string | nul
     } catch {
         return 'Não foi possível trocar de unidade'
     }
+}
+
+/**
+ * Só o fuso da unidade aberta.
+ *
+ * Atalho para o caso mais comum no cliente — rotular datas —, para que quem só
+ * quer o relógio não precise desestruturar a marca inteira. Mesma resposta,
+ * mesmo cache: não há busca a mais por chamar isto.
+ */
+export function useFusoDaUnidade(inicial?: UnidadeAberta | null): string {
+    return useUnidades(inicial).dados.fuso
 }

@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { resolveGoogleOAuthClient, type GoogleCalendarCredentials } from '@/lib/google-oauth-client'
-import { FUSO_DO_NEGOCIO } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 
 /**
@@ -115,8 +115,22 @@ async function getValidAccessToken(
     }
 }
 
-// Build Google Calendar event from activity data
-function buildCalendarEvent(activity: SyncableActivity) {
+/**
+ * O evento como o Google o espera, no fuso **da unidade**.
+ *
+ * Este arquivo tinha a segunda cópia de `America/Sao_Paulo`, e o evento que vai
+ * para a agenda do cliente é um dos piores lugares para uma cópia divergir: o
+ * horário aparece errado no Google **dele**, não aqui, e nenhuma tela nossa
+ * mostra o problema. A cópia saiu primeiro; agora o valor vem de quem sabe de
+ * que unidade se trata.
+ *
+ * `timeZone` interpreta a **hora de parede** que mandamos: `09:00` com
+ * `Australia/Sydney` é um instante diferente de `09:00` com
+ * `America/Sao_Paulo`. Então o fuso certo aqui não é o de quem olha a agenda —
+ * é o da clínica que marcou, porque foi ela que disse "nove da manhã". Mostrar
+ * a cada pessoa no relógio dela é trabalho do próprio Google.
+ */
+function buildCalendarEvent(activity: SyncableActivity, timeZone: string) {
     const description = [
         activity.description || '',
         activity.contact?.name ? `Paciente: ${activity.contact.name} ${activity.contact.phone || ''}` : '',
@@ -124,23 +138,6 @@ function buildCalendarEvent(activity: SyncableActivity) {
         `Tipo: ${activity.type}`,
         'Criado no OdontoBox360',
     ].filter(Boolean).join('\n')
-
-    /**
-     * O fuso vem da constante do sistema, não de um literal próprio.
-     *
-     * Este arquivo tinha a **segunda cópia** de `America/Sao_Paulo`, ao lado de
-     * `FUSO_DO_NEGOCIO` em `lib/fuso.ts`. O evento que vai para a agenda do
-     * cliente é um dos piores lugares para uma cópia divergir: o horário
-     * aparece errado no Google **dele**, não aqui, e nenhuma tela nossa mostra
-     * o problema.
-     *
-     * **O que isto NÃO resolve, e é bom estar escrito**: `FUSO_DO_NEGOCIO` é
-     * constante de instalação — fuso por conta ainda não existe. Para uma
-     * empresa que opera fora do Brasil, um compromisso das 9h é escrito na
-     * agenda dela como 9h de São Paulo. Limitação conhecida, não descuido;
-     * consertá-la é dar fuso à conta, com migração.
-     */
-    const timeZone = FUSO_DO_NEGOCIO
 
     if (activity.dueDate && activity.startTime) {
         const dateStr = new Date(activity.dueDate).toISOString().split('T')[0]
@@ -212,7 +209,7 @@ export async function syncActivityToGoogleCalendar(
             return { success: false, error: 'token_expired' }
         }
 
-        const event = buildCalendarEvent(activity)
+        const event = buildCalendarEvent(activity, await fusoDaUnidade(workspaceId))
 
         // Check if this activity was already synced (has a Google event ID)
         const existingEventId = activity.googleCalendarEventId

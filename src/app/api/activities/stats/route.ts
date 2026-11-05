@@ -4,6 +4,7 @@ import type { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
 import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 /**
  * Os quatro números do topo da Agenda.
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 
         const now = new Date()
         // `dueDate` é data sem hora; o dia é o da clínica.
-        const hoje = diaNoFuso(now)
+        const hoje = diaNoFuso(now, await fusoDaUnidade(auth.member.workspaceId))
         const todayStart = inicioDoDiaUtc(hoje)
         const todayEnd = inicioDoDiaUtc(somarDias(hoje, 1))
 

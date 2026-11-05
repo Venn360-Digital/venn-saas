@@ -4,9 +4,12 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember, MANAGER_ROLES } from '@/lib/auth/workspace'
 import { accountIdOf } from '@/lib/account'
+import type { Prisma } from '#prisma'
+import { comFusoNasConfiguracoes, lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
+import { FUSOS } from '@/lib/fusos'
 
 /**
- * Os dados de **uma** unidade: nome, endereço, telefone.
+ * Os dados de **uma** unidade: nome, endereço, telefone, fuso horário.
  *
  * Por id, e não "a unidade aberta", porque o cartão de unidades edita qualquer
  * clínica da conta — foi a decisão do Andre sobre o acordeão: clicar na segunda
@@ -29,6 +32,18 @@ const schema = z.object({
         .regex(/^(\d{10,11})?$/, 'O telefone precisa ter DDD e 8 ou 9 dígitos.')
         .nullable()
         .optional(),
+    /**
+     * O relógio em que a unidade opera — o que é "hoje" para ela.
+     *
+     * Recusado aqui quando não é um dos fusos da lista, em vez de deixar
+     * `comFusoNasConfiguracoes` descartar calado: descarte silencioso numa
+     * gravação que a pessoa acabou de pedir aparece como "a tela não salva o
+     * fuso", e o motivo fica a dois módulos de distância de quem procura.
+     */
+    fusoHorario: z
+        .string()
+        .refine((v) => FUSOS.some((f) => f.value === v), 'Fuso horário não reconhecido.')
+        .optional(),
 })
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,7 +64,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         accountIdOf(auth.member.workspaceId),
         prisma.workspace.findUnique({
             where: { id },
-            select: { accountId: true, account: { select: { ownerUserId: true } } },
+            select: {
+                accountId: true,
+                account: { select: { ownerUserId: true } },
+                // O fuso é uma chave dentro de `settings`: gravar sem ler
+                // apagaria o resto do JSON (tema, idioma).
+                settings: true,
+            },
         }),
     ])
 
@@ -94,9 +115,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             name: parsed.data.name,
             address: parsed.data.address === undefined ? undefined : parsed.data.address || null,
             phone: parsed.data.phone === undefined ? undefined : parsed.data.phone || null,
+            settings:
+                parsed.data.fusoHorario === undefined
+                    ? undefined
+                    : (comFusoNasConfiguracoes(
+                          alvo.settings,
+                          parsed.data.fusoHorario
+                      ) as Prisma.InputJsonValue),
         },
-        select: { id: true, name: true, address: true, phone: true },
+        select: { id: true, name: true, address: true, phone: true, settings: true },
     })
 
-    return NextResponse.json(unidade)
+    // `settings` não volta cru: a tela quer o fuso, e o resto do JSON é assunto
+    // de outras telas.
+    return NextResponse.json({
+        id: unidade.id,
+        name: unidade.name,
+        address: unidade.address,
+        phone: unidade.phone,
+        fusoHorario: lerFusoDasConfiguracoes(unidade.settings),
+    })
 }

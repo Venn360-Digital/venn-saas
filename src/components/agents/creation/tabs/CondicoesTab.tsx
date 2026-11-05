@@ -87,7 +87,7 @@ const CONDICOES: Record<CondicaoSuportada, DefinicaoCondicao> = {
         ],
         tipo: 'expediente',
         placeholder: '',
-        ajuda: 'A hora é a de Brasília. O fim é exclusivo: às 18:00 em ponto já está fora de uma janela que fecha às 18:00.',
+        ajuda: 'A hora é a do fuso da unidade, definido em Conta → Conta da empresa. O fim é exclusivo: às 18:00 em ponto já está fora de uma janela que fecha às 18:00.',
     },
 }
 

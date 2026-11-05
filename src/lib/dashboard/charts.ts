@@ -1,5 +1,6 @@
 import { Prisma } from '#prisma'
 import { FUSO_DO_NEGOCIO, partesNoFuso } from '@/lib/fuso'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
 import prisma from '@/lib/prisma'
 import { fimDoDia, inicioDoDia } from '@/lib/fuso'
@@ -32,12 +33,12 @@ export interface ChartScope {
 }
 
 /** Fronteiras do dia **da clínica** — estes limites filtram instantes. */
-function startOfDay(iso: string): Date {
-    return inicioDoDia(iso)
+function startOfDay(iso: string, fuso: string = FUSO_DO_NEGOCIO): Date {
+    return inicioDoDia(iso, fuso)
 }
 
-function endOfDay(iso: string): Date {
-    return fimDoDia(iso)
+function endOfDay(iso: string, fuso: string = FUSO_DO_NEGOCIO): Date {
+    return fimDoDia(iso, fuso)
 }
 
 export interface ChartWindow {
@@ -67,24 +68,27 @@ export interface ChartWindow {
  * em UTC e **dia 23 em Brasília**. O eixo do gráfico errava o dia na virada, e
  * errava em silêncio: o número existe, parece certo, e só não é o dia certo.
  *
- * `partesNoFuso` resolve pelo `Intl` no `FUSO_DO_NEGOCIO`, que é a única fonte
- * de verdade de calendário deste projeto. O ramo mensal já usava `timeZone`
- * explícito e por isso já estava correto — ficou aqui para os três ramos
- * viverem no mesmo lugar.
+ * `partesNoFuso` resolve pelo `Intl`, e o fuso é o da unidade — o mesmo com que
+ * a janela do gráfico foi recortada. O ramo mensal já usava `timeZone`
+ * explícito e por isso já estava correto; ficou aqui para os três ramos viverem
+ * no mesmo lugar e no mesmo fuso.
  */
-function rotuloDoDia(dia: Date, bucketDays: number): string {
-    if (bucketDays === 1) return String(partesNoFuso(dia).dia)
+function rotuloDoDia(dia: Date, bucketDays: number, fuso: string): string {
+    if (bucketDays === 1) return String(partesNoFuso(dia, fuso).dia)
     if (bucketDays === 7) {
-        const { dia: d, mes } = partesNoFuso(dia)
+        const { dia: d, mes } = partesNoFuso(dia, fuso)
         return `${d}/${mes}`
     }
-    return dia.toLocaleDateString('pt-BR', { timeZone: FUSO_DO_NEGOCIO, month: 'short' })
+    return dia.toLocaleDateString('pt-BR', { timeZone: fuso, month: 'short' })
 }
 
-export function resolveChartWindow(scope: ChartScope): ChartWindow | null {
+export function resolveChartWindow(
+    scope: ChartScope,
+    fuso: string = FUSO_DO_NEGOCIO
+): ChartWindow | null {
     if (!scope.from || !scope.to) return null
-    const from = startOfDay(scope.from)
-    const to = endOfDay(scope.to)
+    const from = startOfDay(scope.from, fuso)
+    const to = endOfDay(scope.to, fuso)
     const span = to.getTime() - from.getTime()
     const days = Math.round(span / 86_400_000)
     const bucketDays = days <= 31 ? 1 : days <= 120 ? 7 : 30
@@ -113,7 +117,9 @@ export interface SeriesPoint {
 }
 
 export async function getDashboardCharts(workspaceId: string, scope: ChartScope = {}) {
-    const window = resolveChartWindow(scope)
+    // O calendário em que o eixo do gráfico é lido é o da unidade.
+    const fuso = await fusoDaUnidade(workspaceId)
+    const window = resolveChartWindow(scope, fuso)
     const owner = scope.userId ?? null
 
     const dealOwner = owner ? { userId: owner } : {}
@@ -340,7 +346,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
             const day = new Date(window.from)
             day.setDate(day.getDate() + i * window.bucketDays)
             revenueSeries.push({
-                label: rotuloDoDia(day, window.bucketDays),
+                label: rotuloDoDia(day, window.bucketDays, fuso),
                 current: runCurrent,
                 previous: runPrevious,
             })
@@ -450,7 +456,7 @@ export async function getDashboardCharts(workspaceId: string, scope: ChartScope 
             const day = new Date(window.from)
             day.setDate(day.getDate() + i * window.bucketDays)
             activitySeries.push({
-                label: rotuloDoDia(day, window.bucketDays),
+                label: rotuloDoDia(day, window.bucketDays, fuso),
                 // `current` é o concluído (preenchido) e `previous` o criado
                 // (contorno) — a mesma gramática do gráfico 1: cheio é o que
                 // aconteceu, contorno é a referência.

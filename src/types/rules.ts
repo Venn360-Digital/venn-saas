@@ -142,6 +142,18 @@ export interface RuleContext {
     agora?: Date
 
     /**
+     * O fuso da unidade — o relógio em que `agora` vira hora de parede.
+     *
+     * Vem de quem monta o contexto, que já sabe de que unidade se trata, e não
+     * é descoberto dentro do avaliador: o avaliador é função pura e testável
+     * por desenho, e consultar o banco lá dentro tiraria isso dele.
+     *
+     * Ausente cai no padrão do sistema, que é o comportamento de antes desta
+     * coluna existir — e é o que acontece no teste, que fixa o instante.
+     */
+    fuso?: string
+
+    /**
      * Channel coordinates, needed by `send_message`. Addresses the integration
      * rather than a provider instance, so a rule's reply resolves the provider the
      * same way the agent's own replies do.

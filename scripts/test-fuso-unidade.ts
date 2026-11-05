@@ -22,6 +22,8 @@ import {
     temFusoNasConfiguracoes,
 } from '../src/lib/fuso-da-unidade'
 import { FUSO_INICIAL } from '../src/lib/onboarding/padroes'
+import { isoDay, periodRange } from '../src/lib/period'
+import { laneWhere } from '../src/lib/deal-lanes'
 
 let passou = 0
 let falhou = 0
@@ -128,6 +130,42 @@ conferir(
     comFusoNasConfiguracoes({ tema: 'escuro' }, FUSO_INICIAL),
     { tema: 'escuro', fusoHorario: SP }
 )
+
+console.log('\nO recorte de período segue o fuso — a tela e o banco têm de concordar')
+// 2026-11-04T23:30Z: dia 4 em São Paulo, dia 5 em Sydney. "Hoje" é outro dia
+// para cada uma, e é por isso que o fuso viaja como argumento em vez de cada
+// lado descobrir o seu.
+const instante = noite.getTime()
+conferir('isoDay em São Paulo', isoDay(noite, SP), '2026-11-04')
+conferir('isoDay em Sydney', isoDay(noite, SYD), '2026-11-05')
+conferir('"hoje" em São Paulo', periodRange('today', instante, SP), {
+    from: '2026-11-04',
+    to: '2026-11-04',
+})
+conferir('"hoje" em Sydney é o dia seguinte', periodRange('today', instante, SYD), {
+    from: '2026-11-05',
+    to: '2026-11-05',
+})
+conferir('sem fuso, o recorte é o de antes', periodRange('today', instante), periodRange('today', instante, SP))
+
+console.log('\n"Consultas de hoje e amanhã" também')
+// `laneWhere('due_soon')` compara `dueDate`, que é data sem hora gravada em
+// meia-noite UTC: a fronteira é UTC, mas QUAL dia depende do fuso.
+function janelaDe(fuso: string) {
+    const w = laneWhere('due_soon', noite, fuso) as {
+        activities: { some: { dueDate: { gte: Date; lt: Date } } }
+    }
+    const { gte, lt } = w.activities.some.dueDate
+    return [gte.toISOString(), lt.toISOString()]
+}
+conferir('em São Paulo: dias 4 e 5', janelaDe(SP), [
+    '2026-11-04T00:00:00.000Z',
+    '2026-11-06T00:00:00.000Z',
+])
+conferir('em Sydney: dias 5 e 6', janelaDe(SYD), [
+    '2026-11-05T00:00:00.000Z',
+    '2026-11-07T00:00:00.000Z',
+])
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)

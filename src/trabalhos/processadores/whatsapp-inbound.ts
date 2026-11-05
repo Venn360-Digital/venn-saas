@@ -2,6 +2,7 @@ import { getBillingState } from '@/lib/billing'
 import { claimAutoNotice } from '@/lib/auto-notice'
 import { enqueueOutboundText } from '@/trabalhos/servicos/outbound'
 import prisma from '@/lib/prisma'
+import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import { decodeMessage, toMsisdn } from '@/lib/whatsapp'
 import type { RuleContext } from '@/types/rules'
 import { env } from '@/trabalhos/ambiente'
@@ -344,6 +345,14 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
         isFirstMessage: !previous,
         /** A condição de expediente converte isto para hora de parede do negócio. */
         agora: new Date(),
+        /**
+         * O relógio da unidade, para `business_hours` e para a hora da tarefa
+         * que a regra agenda.
+         *
+         * Resolvido aqui porque o avaliador é puro de propósito: este é o único
+         * lugar do caminho que já sabe qual unidade é e pode ir ao banco.
+         */
+        fuso: await fusoDaUnidade(workspace.id),
         channel: { integrationId: integration.id, to: senderId },
     }
 

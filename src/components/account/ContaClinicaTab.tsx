@@ -18,6 +18,16 @@ import { MASKS, onlyDigits } from '@/lib/masks'
 import { buscarCep } from '@/lib/cep'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 import { UNIDADE_ADICIONAL, formatPrice } from '@/lib/plans'
+import { GRUPOS_DE_FUSOS, rotuloDoFuso, rotuloDoValor } from '@/lib/fusos'
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 /**
@@ -61,6 +71,7 @@ interface Unidade {
     pacientes: number
     agentes: number
     participo: boolean
+    fusoHorario: string
 }
 
 interface Conta {
@@ -99,6 +110,7 @@ interface FormUnidade {
     name: string
     address: string
     phone: string
+    fusoHorario: string
 }
 
 export function ContaClinicaTab({ formId }: { formId: string }) {
@@ -124,7 +136,12 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
     const [buscandoCep, setBuscandoCep] = useState(false)
     /** Qual clínica está aberta no acordeão, e o que há nos campos dela. */
     const [abertaNoAcordeao, setAbertaNoAcordeao] = useState<string | null>(null)
-    const [formUnidade, setFormUnidade] = useState<FormUnidade>({ name: '', address: '', phone: '' })
+    const [formUnidade, setFormUnidade] = useState<FormUnidade>({
+        name: '',
+        address: '',
+        phone: '',
+        fusoHorario: 'America/Sao_Paulo',
+    })
 
     const [criando, setCriando] = useState(false)
     const [nomeNova, setNomeNova] = useState('')
@@ -173,6 +190,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                     name: alvo.name,
                     address: alvo.address ?? '',
                     phone: formatPhone(alvo.phone),
+                    fusoHorario: alvo.fusoHorario,
                 })
             }
         } finally {
@@ -195,7 +213,12 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
     function abrirNoAcordeao(u: Unidade) {
         if (abertaNoAcordeao === u.id) return
         setAbertaNoAcordeao(u.id)
-        setFormUnidade({ name: u.name, address: u.address ?? '', phone: formatPhone(u.phone) })
+        setFormUnidade({
+            name: u.name,
+            address: u.address ?? '',
+            phone: formatPhone(u.phone),
+            fusoHorario: u.fusoHorario,
+        })
     }
 
     async function salvar() {
@@ -255,6 +278,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         name: formUnidade.name,
                         address: formUnidade.address,
                         phone: onlyDigits(formUnidade.phone),
+                        fusoHorario: formUnidade.fusoHorario,
                     }),
                 })
                 if (!ru.ok) {
@@ -738,7 +762,20 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                                     uma por uma. */}
                                                 {!aberta ? (
                                                     <span className="block truncate text-xs text-muted-foreground">
-                                                        {[unidade.address, formatPhone(unidade.phone)]
+                                                        {/* O fuso só aparece quando é outro: na
+                                                            conta toda em Brasília — a grande
+                                                            maioria — repetir "(GMT−3)" em cada
+                                                            linha seria ruído. Na que tem uma
+                                                            clínica fora, é a informação que
+                                                            explica por que os números dela não
+                                                            batem com os das outras. */}
+                                                        {[
+                                                            unidade.address,
+                                                            formatPhone(unidade.phone),
+                                                            unidade.fusoHorario !== 'America/Sao_Paulo'
+                                                                ? rotuloDoValor(unidade.fusoHorario)
+                                                                : null,
+                                                        ]
                                                             .filter(Boolean)
                                                             .join(' · ') || 'Sem endereço e telefone'}
                                                     </span>
@@ -748,7 +785,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
 
                                         {aberta ? (
                                             <div className="border-t border-border/60 px-3.5 py-3">
-                                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.1fr_1.6fr_.9fr]">
+                                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.5fr_.85fr_1.15fr]">
                                                     <FormField
                                                         label="Nome da clínica"
                                                         htmlFor={`nome-${unidade.id}`}
@@ -798,6 +835,57 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                                                 }))
                                                             }
                                                         />
+                                                    </FormField>
+
+                                                    {/* O relógio da clínica, não o de quem está
+                                                        olhando: é o que decide que dia é "hoje"
+                                                        no painel, a que hora sai o resumo e em
+                                                        que horário o compromisso entra na agenda
+                                                        do Google. Por unidade porque a conta
+                                                        pode ter clínicas em fusos diferentes, e
+                                                        cada uma tem a sua agenda.
+
+                                                        O deslocamento no rótulo é de hoje,
+                                                        calculado por `Intl` — escrito à mão,
+                                                        metade da lista mentiria metade do ano. */}
+                                                    <FormField
+                                                        label="Fuso horário"
+                                                        htmlFor={`fuso-${unidade.id}`}
+                                                        hint="O que é “hoje” para esta clínica."
+                                                    >
+                                                        <Select
+                                                            value={formUnidade.fusoHorario}
+                                                            onValueChange={(fusoHorario) =>
+                                                                setFormUnidade((p) => ({
+                                                                    ...p,
+                                                                    fusoHorario,
+                                                                }))
+                                                            }
+                                                        >
+                                                            <SelectTrigger
+                                                                id={`fuso-${unidade.id}`}
+                                                                className="w-full"
+                                                            >
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="max-h-72">
+                                                                {GRUPOS_DE_FUSOS.map((grupo) => (
+                                                                    <SelectGroup key={grupo.titulo}>
+                                                                        <SelectLabel>
+                                                                            {grupo.titulo}
+                                                                        </SelectLabel>
+                                                                        {grupo.fusos.map((f) => (
+                                                                            <SelectItem
+                                                                                key={f.value}
+                                                                                value={f.value}
+                                                                            >
+                                                                                {rotuloDoFuso(f)}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectGroup>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </FormField>
                                                 </div>
 

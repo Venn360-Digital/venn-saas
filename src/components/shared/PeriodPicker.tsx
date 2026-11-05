@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useNow } from '@/hooks/useNow'
+import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { PERIOD_PRESETS, matchPreset, periodRange, type PeriodPresetId } from '@/lib/period'
 import { cn } from '@/lib/utils'
 
@@ -51,8 +52,11 @@ export function PeriodPicker({
     className?: string
 }) {
     const now = useNow()
+    // "Hoje", "esta semana" e "este mês" no calendário da unidade — o mesmo que
+    // o servidor usa para responder. Ver `lib/period.ts`.
+    const fuso = useFusoDaUnidade()
     const active = Boolean(from || to)
-    const preset = now ? matchPreset(from, to, now) : (presetHint ?? null)
+    const preset = now ? matchPreset(from, to, now, fuso) : (presetHint ?? null)
 
     const label = !active
         ? 'Todo o período'
@@ -102,12 +106,13 @@ export function PeriodFields({
     className?: string
 }) {
     const now = useNow()
+    const fuso = useFusoDaUnidade()
     const active = Boolean(from || to)
-    const preset = matchPreset(from, to, now)
+    const preset = matchPreset(from, to, now, fuso)
 
     const applyPreset = (id: PeriodPresetId) => {
         if (!now) return
-        const range = periodRange(id, now)
+        const range = periodRange(id, now, fuso)
         onChange(range.from, range.to)
     }
 
