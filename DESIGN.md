@@ -986,6 +986,78 @@ vierem outras (novidades da versão, treinamento), nascem aqui.
   regra real do produto — texto genérico de ajuda não responde nada e ninguém
   volta uma segunda vez.
 
+### Tela 06 — o cadastro
+
+**Fechada em 2026-11-05**, no híbrido que ele escolheu entre as três opções
+apresentadas: o cartão com trilho da B e o bloco de números da A/C.
+
+Vale para a sequência de passos em que **não há para onde navegar** — o
+cadastro hoje, e o que vier com a mesma forma. É o oposto da Tela 03: lá as
+guias convidam a pular; aqui o caminho é um só e a tela existe para não deixar
+ninguém se perder nele.
+
+- **Um cartão de tamanho fixo, centrado nos dois eixos**, igual em todos os
+  passos menos o último. O tamanho é o do **passo mais pesado** — mede-se o
+  conteúdo dele no navegador e nivela-se por ali (hoje 1152×580, medido). É
+  isso que faz a moldura não se mexer entre os passos, e é o que torna a
+  transição possível.
+- **O número do passo é maior do que parece preciso.** 40px com o nome embaixo,
+  centrado no eixo da **tela** (`absolute left-1/2`) e não no espaço que a
+  marca deixou. Com o nome na bolinha, o "Passo 1 de 5" escrito ao lado some:
+  dizia em texto o que a posição já diz.
+- **O trilho orienta sem explicar.** Uma faixa fixa dentro do cartão com o
+  número, o nome do passo e uma ilustração desenhada. **Sem parágrafo de
+  apoio** — lido cinco vezes seguidas, um texto que muda de assunto mas não de
+  lugar vira preâmbulo que ninguém lê. Abaixo de `lg` o trilho sai.
+- **O passo que ocupa mais tela dispensa o trilho.** 300px tirados de um
+  contrato que se lê é largura gasta com decoração.
+- **A legenda mora fora do cartão**, numa linha sob ele, e ocupa o lugar mesmo
+  vazia — senão o cartão sobe 1rem nos passos sem legenda, e a moldura que não
+  devia se mexer mexe.
+- **A transição é de 180 ms**, e o que cruza é o conteúdo: opacidade mais 12px
+  de deslize na direção do movimento. A moldura fica parada. `prefers-reduced-motion`
+  já está coberto pelo bloco global de `globals.css`.
+- Conteúdo que cabe fica **centrado na vertical**; o que não cabe rola. O
+  arranjo é `min-h-full` + `justify-center` dentro do que rola — `justify-center`
+  sozinho corta o topo do conteúdo alto.
+
+### O painel lateral
+
+**Aberto em 2026-11-05**, com o painel de equipe e recados.
+
+Não é tela: é uma faixa de 364px que entra pela direita **por cima** do
+trabalho, com o conteúdo que acompanha o trabalho sem substituí-lo.
+
+- **O véu não escurece.** Painel não é diálogo: o que está atrás continua
+  legível e continua sendo o assunto. Escurecer diria "pare tudo".
+- **Duas vistas, não duas rotas.** Lista e detalhe trocam dentro do painel, com
+  uma seta para voltar. Mandar alguém para outro endereço é perder o lugar onde
+  ela estava.
+- **Troca de vista remonta o que tem rascunho** (`key`): as duas vistas têm a
+  mesma forma, o React reusa a instância, e o texto escrito para uma pessoa
+  seguiria na caixa da outra.
+- **`ScrollArea` do Radix põe `display:table` no filho do viewport**, e tabela
+  mede pelo conteúdo: `truncate` não trunca e a linha sai cortada pela borda,
+  sem reticências. Quem usa o primitivo numa coluna estreita precisa de
+  `[&>[data-slot=scroll-area-viewport]>div]:!block`.
+- **O gatilho mora no Topbar e carrega o contador.** Ele tem de existir com o
+  painel fechado — é ele que faz a pessoa abrir —, então quem assina o tempo
+  real e conta o não lido é o gatilho, não o painel.
+- **Aviso de equipe não soma ao sino.** O sino é do paciente; o recado é da
+  equipe. Misturar os dois faz o atendente ignorar os dois.
+
+### A tarja de contexto perigoso
+
+Quando a sessão está **dentro da conta de outra pessoa**, a tela diz isso numa
+faixa inteira acima do Topbar, fora da região que rola, com o nome da conta, o
+que a sessão pode fazer, quanto tempo falta e a saída.
+
+O risco desse tipo de função não é técnico, é **esquecer**. Pista discreta não
+serve: a faixa ocupa altura, empurra o aplicativo para baixo e não se dispensa.
+É o mesmo raciocínio de "o que destrói mora em cartão próprio" — a diferença
+entre dois estados não pode depender de reparar numa cor.
+
+
 ## 6. O shell
 
 **A trilha mora no Topbar.** Uma tela diz onde está (trilha, `text-sm
