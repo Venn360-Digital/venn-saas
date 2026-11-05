@@ -13,42 +13,41 @@ import { CheckCircle2, MessageCircle } from 'lucide-react'
  * aceite registrado, a próxima visita volta para o onboarding em vez de entrar
  * no painel.
  *
- * O botão de ler o código mora no rodapé da moldura, com as outras ações. Este
- * passo gastava 12rem de respiro vertical (`py-12`) e um disco de 96px para
- * dizer uma frase; o disco está em 56px e o respiro saiu.
+ * **Sem cartão próprio.** Ele tinha borda, fundo e respiro de 20px — e isso era
+ * certo quando o passo era um cartão solto numa página. Hoje o conteúdo já vive
+ * dentro do cartão da moldura, e um cartão dentro do cartão cobra duas molduras
+ * para dizer uma frase. O botão de ler o código mora no rodapé da moldura.
  */
 export function Step3WhatsApp({ connected }: { connected: boolean }) {
     const Icone = connected ? CheckCircle2 : MessageCircle
 
     return (
-        <div className="flex items-start gap-4 rounded-lg border border-border bg-card p-5">
+        <div className="flex h-full flex-col items-center justify-center text-center">
             <div
                 className={
                     connected
-                        ? 'flex size-14 shrink-0 items-center justify-center rounded-full bg-success'
-                        : 'flex size-14 shrink-0 items-center justify-center rounded-full bg-success-subtle'
+                        ? 'flex size-16 items-center justify-center rounded-full bg-success'
+                        : 'flex size-16 items-center justify-center rounded-full bg-success-subtle'
                 }
             >
                 <Icone
                     className={
                         connected
-                            ? 'size-7 text-success-foreground'
-                            : 'size-7 text-success-subtle-foreground'
+                            ? 'size-8 text-success-foreground'
+                            : 'size-8 text-success-subtle-foreground'
                     }
                     aria-hidden="true"
                 />
             </div>
 
-            <div className="min-w-0 space-y-1">
-                <h2 className="text-sm font-semibold">
-                    {connected ? 'WhatsApp conectado' : 'Conectar WhatsApp'}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                    {connected
-                        ? 'O aparelho está pareado. Dá para desconectar quando quiser, em Atendimento → Agentes.'
-                        : 'Abra o WhatsApp no celular, vá em Aparelhos conectados e leia o código que vai aparecer. Dá para conectar depois, em Atendimento → Agentes.'}
-                </p>
-            </div>
+            <h2 className="mt-5 text-h4">
+                {connected ? 'WhatsApp conectado' : 'Conecte o número da clínica'}
+            </h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+                {connected
+                    ? 'O aparelho está pareado. Dá para desconectar quando quiser, em Atendimento → Agentes.'
+                    : 'Abra o WhatsApp no celular, vá em Aparelhos conectados e leia o código que vai aparecer.'}
+            </p>
         </div>
     )
 }
