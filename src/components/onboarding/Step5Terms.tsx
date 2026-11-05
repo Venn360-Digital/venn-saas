@@ -40,10 +40,23 @@ export function Step5Terms({
 
     return (
         <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">Versão {TERMS_VERSION}.</p>
+            <div className="flex items-baseline justify-between gap-4">
+                <p className="text-sm text-muted-foreground">
+                    Aceito uma vez, pela conta. Quem você cadastrar depois não passa por aqui.
+                </p>
+                <p className="num shrink-0 rounded-full border border-border px-2.5 py-0.5 text-[11.5px] text-muted-foreground">
+                    Versão {TERMS_VERSION}
+                </p>
+            </div>
 
+
+            {/* A altura acompanha a faixa que rola. O cartão da moldura já tem
+                altura fixa, então o que esta conta precisa descontar é só o que
+                está DENTRO dele: a linha da versão, o cartão de aceite e os
+                respiros — ~12rem. Antes descontava 23rem, que era o shell
+                inteiro, e o texto ficava com metade da altura que tem. */}
             <ScrollArea
-                className="h-[clamp(14rem,calc(100svh-23rem),30rem)] rounded-lg border border-border bg-card"
+                className="h-[clamp(12rem,calc(100svh-25rem),34rem)] rounded-lg border border-border bg-card"
                 onScrollCapture={aoRolar}
             >
                 <div className="space-y-4 p-4">

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { AgentFrame } from '@/components/agents/creation/AgentFrame'
 import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomenteLeitura'
-import { EsqueletoDoFormulario } from '@/components/agents/creation/EsqueletoDoFormulario'
+import { EsperaDoFormulario } from '@/components/agents/creation/EsperaDoFormulario'
 import { HistoricoTab } from '@/components/agents/creation/tabs/HistoricoTab'
 import { AcoesTab } from '@/components/agents/creation/tabs/AcoesTab'
 import { useAgentManagement } from '@/hooks/useAgentManagement'
@@ -80,7 +80,7 @@ function GerenciamentoContent() {
                de seção, e a frase explica por que não há o que gravar. */
             dica="Histórico e ações são leitura: cada ação vale no clique."
         >
-            {loading ? <EsqueletoDoFormulario /> : (
+            {loading ? <EsperaDoFormulario /> : (
                 <CamposSomenteLeitura ativo={!canManage}>{renderTab()}</CamposSomenteLeitura>
             )}
         </AgentFrame>

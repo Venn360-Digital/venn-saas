@@ -606,6 +606,8 @@ async function reagirAoStatusDaCobranca(
         billingType: string | null
         dueDate: Date
         valueCents: number
+        /** A fatura no Asaas, para o botão do aviso ir onde o rótulo promete. */
+        invoiceUrl: string | null
     }
 ): Promise<void> {
     if (dados.kind !== 'subscription') return
@@ -653,6 +655,9 @@ async function reagirAoStatusDaCobranca(
             valor: formatarReais(dados.valueCents / 100),
             vencimento: dados.dueDate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
             ate: graceEndsAt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+            // O botão diz "Ver a fatura" e agora vai à fatura. Sem isto ele
+            // caía na guia de assinatura — ver `ctaUrlFor`.
+            invoiceUrl: dados.invoiceUrl,
         })
 
         return
@@ -685,6 +690,7 @@ async function reagirAoStatusDaCobranca(
             await avisarPorEmail(accountId, 'payment_confirmed', dados.dueDate.toISOString().slice(0, 10), {
                 valor: formatarReais(dados.valueCents / 100),
                 proximaCobranca: subscription.currentPeriodEnd.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+                invoiceUrl: dados.invoiceUrl,
             })
         }
     }

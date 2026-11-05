@@ -9,9 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { OPENAI_MODELS } from '@/lib/llm/models'
-import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
-import { acharDocumento } from '@/lib/treinamento/documentos'
 import { GRUPOS_DE_FUSOS, rotuloDoFuso } from '@/lib/fusos'
+import { BRAND } from '@/config/brand'
 import { cn } from '@/lib/utils'
 import {
     Select,
@@ -52,9 +51,6 @@ interface PerfilTabProps {
      */
     instrucoes: InstrucoesData
     onInstrucoesChange: (data: Partial<InstrucoesData>) => void
-    /** O documento `instrucoes-centrais`: mora aqui, não em guia própria. */
-    centrais: { valor: string; indexadoEm: string | null; trechos: number | null }
-    onCentraisChange: (valor: string) => void
     /**
      * O `fieldset` de `CamposSomenteLeitura` cobre controles de formulário, e o
      * Slider do Radix é um `span[role=slider]` — escapa. Esta prop é para ele e
@@ -65,14 +61,6 @@ interface PerfilTabProps {
 
 /** O teto do controle. O banco aceita até 2, que já não é conversa, é sorteio. */
 const TEMPERATURA_MAX = 1.5
-
-/**
- * O documento de Instruções centrais, do catálogo.
- *
- * `!` aqui é seguro e é conferido: `test:treinamento` confere a lista literal de
- * slugs, então este deixar de existir quebra o teste antes de quebrar a tela.
- */
-const DOC_CENTRAIS = acharDocumento('instrucoes-centrais')!
 
 function descreveTemperatura(valor: number): string {
     if (valor <= 0.2) return 'Quase sempre a mesma resposta para a mesma pergunta. Bom para preço e regra.'
@@ -97,20 +85,27 @@ function Grupo({
     descricao,
     children,
 }: {
-    titulo: string
+    /**
+     * Opcional desde 2026-11-05: o grupo do modelo e da criatividade perdeu o
+     * nome ("Como ele pensa") e a legenda a pedido do Andre. Sem título, o que
+     * separa o grupo do anterior é o fio de cima — que já era o papel dele.
+     */
+    titulo?: string
     descricao?: string
     children: React.ReactNode
 }) {
     return (
         <section className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-            <div className="mb-3">
-                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {titulo}
-                </h2>
-                {descricao ? (
-                    <p className="mt-0.5 text-xs text-muted-foreground/80">{descricao}</p>
-                ) : null}
-            </div>
+            {titulo ? (
+                <div className="mb-3">
+                    <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {titulo}
+                    </h2>
+                    {descricao ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground/80">{descricao}</p>
+                    ) : null}
+                </div>
+            ) : null}
             {children}
         </section>
     )
@@ -121,8 +116,6 @@ export function PerfilTab({
     onChange,
     instrucoes,
     onInstrucoesChange,
-    centrais,
-    onCentraisChange,
     somenteLeitura = false,
 }: PerfilTabProps) {
     const charCount = data.initialMessage?.length || 0
@@ -169,8 +162,103 @@ export function PerfilTab({
 
     return (
         <div className="space-y-5">
-            <Grupo titulo="Identidade" descricao="Quem é este agente para a sua equipe.">
-                <div className="grid items-start gap-4 lg:grid-cols-[232px_minmax(0,1fr)]">
+            {/*
+              * Três colunas, na ordem que o Andre pediu em 2026-11-05: nome e
+              * idioma, função e fuso, imagem.
+              *
+              * A imagem foi para a **última** coluna. Ela abria a guia, e abrir
+              * o cadastro de um agente por um disco pontilhado vazio dava ao
+              * enfeite a primeira posição de leitura — o nome, que é o campo
+              * que a pessoa veio preencher, ficava à direita de um upload.
+              *
+              * As duas primeiras colunas são pares de campos relacionados: nome
+              * e idioma são como ele se apresenta, função e fuso são como ele
+              * trabalha. Abaixo de `lg` as três empilham, e a imagem fica no fim
+              * — que é a ordem certa num celular também.
+              */}
+            <Grupo titulo="Identidade">
+                <div className="grid items-start gap-4 lg:grid-cols-3">
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="name">Nome do agente</Label>
+                            <Input
+                                id="name"
+                                placeholder="Ex: Ana"
+                                value={data.name}
+                                onChange={(e) => onChange({ name: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="language">Idioma</Label>
+                            <Select
+                                value={data.language}
+                                onValueChange={(value) => onChange({ language: value })}
+                            >
+                                <SelectTrigger id="language">
+                                    <SelectValue placeholder="Português (Brasil)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                                    <SelectItem value="en-US">Inglês (EUA)</SelectItem>
+                                    <SelectItem value="es-ES">Espanhol</SelectItem>
+                                    <SelectItem value="fr-FR">Francês</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="agentFunction">Função</Label>
+                            <Select
+                                value={data.agentFunction}
+                                onValueChange={(value) => {
+                                    if (isAgentFunction(value)) onChange({ agentFunction: value })
+                                }}
+                            >
+                                <SelectTrigger id="agentFunction">
+                                    <SelectValue placeholder="SDR Atendimento" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {AGENT_FUNCTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* O fuso com que o agente responde "amanhã às 9h". Os
+                            rótulos trazem o deslocamento de HOJE, calculado por
+                            `Intl` — escrito à mão, metade da lista estaria
+                            errada metade do ano por causa do horário de verão. */}
+                        <div className="space-y-2">
+                            <Label htmlFor="timezone">Fuso horário</Label>
+                            <Select
+                                value={data.timezone ?? 'America/Sao_Paulo'}
+                                onValueChange={(timezone) => onChange({ timezone })}
+                            >
+                                <SelectTrigger id="timezone">
+                                    <SelectValue placeholder="Brasília, São Paulo" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-72">
+                                    {GRUPOS_DE_FUSOS.map((grupo) => (
+                                        <SelectGroup key={grupo.titulo}>
+                                            <SelectLabel>{grupo.titulo}</SelectLabel>
+                                            {grupo.fusos.map((f) => (
+                                                <SelectItem key={f.value} value={f.value}>
+                                                    {rotuloDoFuso(f)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
                     {/* `flex-wrap` e `shrink-0`: na coluna estreita os dois
                         botões não cabem ao lado da foto, e sem isso quem cedia
                         era a foto — ela ficava com largura zero e o agente
@@ -237,92 +325,12 @@ export function PerfilTab({
                             PNG, JPG ou WEBP, até 2 MB. Enviada ao salvar.
                         </p>
                     </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Nome do agente</Label>
-                            <Input
-                                id="name"
-                                placeholder="Ex: Ana"
-                                value={data.name}
-                                onChange={(e) => onChange({ name: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="agentFunction">Função</Label>
-                            <Select
-                                value={data.agentFunction}
-                                onValueChange={(value) => {
-                                    if (isAgentFunction(value)) onChange({ agentFunction: value })
-                                }}
-                            >
-                                <SelectTrigger id="agentFunction">
-                                    <SelectValue placeholder="SDR Atendimento" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {AGENT_FUNCTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="language">Idioma</Label>
-                            <Select
-                                value={data.language}
-                                onValueChange={(value) => onChange({ language: value })}
-                            >
-                                <SelectTrigger id="language">
-                                    <SelectValue placeholder="Português (Brasil)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
-                                    <SelectItem value="en-US">Inglês (EUA)</SelectItem>
-                                    <SelectItem value="es-ES">Espanhol</SelectItem>
-                                    <SelectItem value="fr-FR">Francês</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* O fuso com que o agente responde "amanhã às 9h". Os
-                            rótulos trazem o deslocamento de HOJE, calculado por
-                            `Intl` — escrito à mão, metade da lista estaria
-                            errada metade do ano por causa do horário de verão. */}
-                        <div className="space-y-2">
-                            <Label htmlFor="timezone">Fuso horário</Label>
-                            <Select
-                                value={data.timezone ?? 'America/Sao_Paulo'}
-                                onValueChange={(timezone) => onChange({ timezone })}
-                            >
-                                <SelectTrigger id="timezone">
-                                    <SelectValue placeholder="Brasília, São Paulo" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-72">
-                                    {GRUPOS_DE_FUSOS.map((grupo) => (
-                                        <SelectGroup key={grupo.titulo}>
-                                            <SelectLabel>{grupo.titulo}</SelectLabel>
-                                            {grupo.fusos.map((f) => (
-                                                <SelectItem key={f.value} value={f.value}>
-                                                    {rotuloDoFuso(f)}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectGroup>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
                 </div>
             </Grupo>
 
-            <Grupo
-                titulo="Como ele pensa"
-                descricao="Qual modelo responde e quanta liberdade ele tem."
-            >
+            {/* Sem título: "Como ele pensa" e a legenda saíram a pedido dele. O
+                fio de cima separa o grupo, que é o que o nome fazia. */}
+            <Grupo>
                 <div className="grid items-start gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <Label htmlFor="llmModel">Modelo</Label>
@@ -341,12 +349,9 @@ export function PerfilTab({
                                 ))}
                             </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">
-                            O mais capaz entende melhor pedido confuso e mensagem desencontrada; o
-                            mais barato dá conta da pergunta de rotina. Em resposta curta os dois
-                            consomem 1 crédito — a economia aparece em conversa longa e em base de
-                            conhecimento grande.
-                        </p>
+                        {/* O parágrafo que comparava o modelo capaz com o barato
+                            saiu a pedido dele: quatro linhas de economia de
+                            crédito debaixo de um seletor de duas opções. */}
                     </div>
 
                     <div className="space-y-2">
@@ -374,54 +379,26 @@ export function PerfilTab({
                 </div>
             </Grupo>
 
-            <Grupo
-                titulo="O que ele fala"
-                descricao="A primeira mensagem, e as instruções que valem para todas as outras."
-            >
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="initialMessage">Mensagem inicial</Label>
-                        <Textarea
-                            id="initialMessage"
-                            placeholder="Digite a mensagem inicial..."
-                            value={data.initialMessage || ''}
-                            onChange={(e) => onChange({ initialMessage: e.target.value })}
-                            className="min-h-[72px] resize-none"
-                            maxLength={maxChars}
-                        />
-                        <p className="num text-right text-xs text-muted-foreground">
-                            {charCount} de {maxChars} caracteres
-                        </p>
-                    </div>
-
-                    {/*
-                      * Instruções centrais **por último**, a pedido do Andre.
-                      *
-                      * E a ordem tem razão além do pedido: é o único campo da
-                      * guia que é um documento, com editor próprio, botão de
-                      * rascunho e selo de indexação. No meio da tela ele partia
-                      * a leitura em duas — acima e abaixo de um bloco alto —, e
-                      * os dois seletores que vinham depois pareciam pertencer a
-                      * ele. No fim, a guia lê de cima a baixo como uma lista de
-                      * campos que termina num texto longo.
-                      *
-                      * Ele SUBSTITUI a instrução livre da antiga aba Instruções:
-                      * emitir as duas daria ao modelo duas declarações de
-                      * identidade que podem divergir.
-                      */}
-                    <div className="space-y-2">
-                        <Label htmlFor={`treinamento-${DOC_CENTRAIS.slug}`}>
-                            {DOC_CENTRAIS.titulo}
-                        </Label>
-                        <DocumentoDeTreinamento
-                            doc={DOC_CENTRAIS}
-                            valor={centrais.valor}
-                            onChange={onCentraisChange}
-                            indexadoEm={centrais.indexadoEm}
-                            trechos={centrais.trechos}
-                            somenteLeitura={somenteLeitura}
-                        />
-                    </div>
+            {/*
+              * Sobrou a mensagem inicial. A legenda dizia "e as instruções que
+              * valem para todas as outras" — as instruções saíram para a guia
+              * Instruções gerais, e a frase passaria a prometer um campo que
+              * não está mais aqui.
+              */}
+            <Grupo titulo="O que ele fala" descricao={`A primeira mensagem que o ${BRAND.vocabulario.pessoa} recebe.`}>
+                <div className="space-y-2">
+                    <Label htmlFor="initialMessage">Mensagem inicial</Label>
+                    <Textarea
+                        id="initialMessage"
+                        placeholder="Digite a mensagem inicial..."
+                        value={data.initialMessage || ''}
+                        onChange={(e) => onChange({ initialMessage: e.target.value })}
+                        className="min-h-[72px] resize-none"
+                        maxLength={maxChars}
+                    />
+                    <p className="num text-right text-xs text-muted-foreground">
+                        {charCount} de {maxChars} caracteres
+                    </p>
                 </div>
             </Grupo>
         </div>

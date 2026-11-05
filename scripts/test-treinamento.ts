@@ -265,9 +265,13 @@ conferir(
 
 console.log('\nO modelo que o botão escreve')
 
-const modelo = modeloDoDocumento(acharDocumento('servicos')!)
+const docDoModelo = acharDocumento('servicos')!
+const modelo = modeloDoDocumento(docDoModelo)
 
-conferir('começa pelo título do documento', modelo.startsWith('# Serviços prestados\n'), true)
+// Derivado do catálogo, e não escrito à mão: o título na tela muda (este já
+// mudou de "Serviços prestados" para "Serviços e Produtos" em 2026-11-05), e o
+// que o teste tem a dizer é que o modelo abre pelo título — não qual ele é.
+conferir('começa pelo título do documento', modelo.startsWith(`# ${docDoModelo.titulo}\n`), true)
 conferir(
     'uma seção de 2º nível por item previsto',
     (modelo.match(/^## /gm) ?? []).length,

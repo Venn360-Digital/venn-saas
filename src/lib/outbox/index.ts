@@ -60,6 +60,18 @@ export type TipoDeEvento =
      * mandá-la para a sala inteira mostraria a agenda de um para todos.
      */
     | 'lembrete'
+    /**
+     * Recado novo da equipe, endereçado a **uma** pessoa.
+     *
+     * Efêmero e sempre com `paraUsuario`. Carrega só o id do recado e o de quem
+     * mandou — o texto vem pela rota autenticada, como tudo o mais: um recado
+     * pode dizer "a paciente Maria remarcou", e isso não transita por fila.
+     *
+     * Perdê-lo não perde o recado: ele está gravado em `team_messages`, e a
+     * próxima carga do painel o mostra. O tempo real aqui é o que faz o aviso
+     * aparecer na hora em vez de na próxima navegação.
+     */
+    | 'recado'
 
 export interface EventoParaPublicar {
     workspaceId: string

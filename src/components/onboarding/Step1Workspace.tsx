@@ -51,7 +51,7 @@ export function Step1Workspace({
     const slug = slugDoNome(nome)
 
     return (
-        <div className="space-y-4">
+        <div className="mx-auto w-full max-w-md space-y-4">
             <div className="space-y-2">
                 <Label htmlFor="workspace-name">Nome do workspace</Label>
                 <Input

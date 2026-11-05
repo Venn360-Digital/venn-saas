@@ -8,6 +8,7 @@ import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 import { StatusBadge, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
 import { formatPhone } from '@/lib/phone'
+import { ROTULO_DO_PAPEL } from '@/lib/papeis'
 
 export interface UserPanelItem {
     id: string
@@ -24,10 +25,11 @@ export interface UserPanelItem {
     isFirstAdmin: boolean
 }
 
+/** Os papéis atribuíveis. O nome vem de `lib/papeis.ts`, que é a fonte única. */
 const ROLES = [
-    { value: 'ADMIN', label: 'Administrador' },
-    { value: 'GESTOR', label: 'Gestor' },
-    { value: 'ATENDENTE', label: 'Atendente' },
+    { value: 'ADMIN', label: ROTULO_DO_PAPEL.ADMIN },
+    { value: 'GESTOR', label: ROTULO_DO_PAPEL.GESTOR },
+    { value: 'ATENDENTE', label: ROTULO_DO_PAPEL.ATENDENTE },
 ]
 
 function initials(name: string, lastName: string | null) {

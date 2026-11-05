@@ -251,8 +251,14 @@ const comPrecedencia = buildSystemPrompt(
     [],
     undefined,
     [
-        { slug: 'privacidade', content: '# Informações e privacidade\n\n## Limites clínicos\nNão diagnostique.' },
-        { slug: 'processo-comercial', content: '# Processo comercial e políticas\n\n## Etapas do atendimento\nConduza.' },
+        {
+            slug: 'privacidade',
+            content: `# ${acharDocumento('privacidade')!.titulo}\n\n## Limites clínicos\nNão diagnostique.`,
+        },
+        {
+            slug: 'processo-comercial',
+            content: `# ${acharDocumento('processo-comercial')!.titulo}\n\n## Etapas do atendimento\nConduza.`,
+        },
     ],
     COM_COMENTARIO,
     null
@@ -268,9 +274,12 @@ conferir(
     'Cenários é nomeado na hierarquia, e fica entre os limites e o acervo',
     listaDePrecedencia,
     [
-        'Informações e privacidade',
-        'Processo comercial e políticas',
-        'Cenários de atendimento',
+        // Derivados do catálogo: o título na tela muda — o de
+        // `processo-comercial` mudou em 2026-11-05 —, e o que este caso tem a
+        // dizer é a ORDEM, não qual é o nome de cada um.
+        acharDocumento('privacidade')!.titulo,
+        acharDocumento('processo-comercial')!.titulo,
+        acharDocumento('cenarios')!.titulo,
         'A base de conhecimento consultada durante a conversa',
     ]
 )
