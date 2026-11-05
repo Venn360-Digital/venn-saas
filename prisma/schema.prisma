@@ -72,22 +72,25 @@ model User {
   updatedAt        DateTime          @updatedAt
 
   // Multi-workspace support
-  workspaces  WorkspaceUser[]
+  workspaces           WorkspaceUser[]
   /// As contas das quais esta pessoa é o MASTER.
-  accounts    Account[]
-  activities  Activity[]
-  deals       Deal[]
-  specialists Specialist[]
+  accounts             Account[]
+  activities           Activity[]
+  deals                Deal[]
+  specialists          Specialist[]
   /// As conversas por que esta pessoa responde. Ver `Conversation.ownerId`.
-  conversasQueResponde Conversation[] @relation("ConversasQueResponde")
+  conversasQueResponde Conversation[]  @relation("ConversasQueResponde")
 
   /// Sessões e credenciais do Better Auth.
   ///
   /// `authAccounts` e não `accounts` porque `accounts` já é das contas de
   /// cobrança — a colisão é o motivo de os modelos da biblioteca levarem
   /// prefixo. Ver `src/lib/auth/better-auth.ts`.
-  authSessions AuthSession[]
-  authAccounts AuthAccount[]
+  authSessions     AuthSession[]
+  authAccounts     AuthAccount[]
+  /// Os recados que esta pessoa mandou e recebeu — ver `TeamMessage`.
+  recadosEnviados  TeamMessage[] @relation("RecadosEnviados")
+  recadosRecebidos TeamMessage[] @relation("RecadosRecebidos")
 
   @@map("users")
 }
@@ -498,18 +501,19 @@ model Workspace {
   contactLists       ContactList[]
   whatsappTemplates  WhatsAppTemplate[]
   broadcasts         Broadcast[]
+  recados            TeamMessage[]
 
   @@index([accountId])
   @@map("workspaces")
 }
 
 model WorkspaceUser {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   userId      String
   role        String // OWNER, ADMIN, GESTOR, ATENDENTE
-  canTransfer Boolean  @default(false)
-  isActive    Boolean  @default(true)
+  canTransfer Boolean @default(false)
+  isActive    Boolean @default(true)
 
   /// Esta pessoa entra na distribuição de conversas?
   ///
@@ -555,8 +559,8 @@ model WorkspaceUser {
   /// Não confundir com presença por sessão, descartada no desenho: sessão dura
   /// 7 dias e não diz quem está na mesa. Isto é ação real no sistema.
   ultimaAtividadeEm DateTime?
-  permissions Json? // Granular permissions
-  createdAt   DateTime @default(now())
+  permissions       Json? // Granular permissions
+  createdAt         DateTime  @default(now())
 
   workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1396,10 +1400,10 @@ model Conversation {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact       Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  agent         Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  integration   AgentIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent       Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  integration AgentIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
 
   /// `SetNull` e não `Cascade`: quem sai da equipe não leva as conversas junto.
   /// A conversa fica sem dono e é redistribuída na mensagem seguinte.
@@ -2647,4 +2651,53 @@ model Evaluation {
 
   @@index([agentId, createdAt])
   @@map("evaluations")
+}
+
+/// Um recado entre duas pessoas da mesma unidade.
+///
+/// **É comunicação de equipe, não atendimento.** Não tem `Conversation`, não
+/// tem contato e não entra no histórico do paciente — o que passa por aqui é o
+/// "o paciente do 14h remarcou" que hoje acontece no WhatsApp pessoal de cada
+/// um, fora do sistema e fora de qualquer registro.
+///
+/// ## Por que uma tabela, e não só o tempo real
+///
+/// O caminho de entrega é efêmero (`transmitir`, direto para o Durable Object),
+/// porque recado que chega um minuto depois não serve. Mas quem está offline
+/// precisa achar o recado ao voltar, e quem recebeu precisa de um contador que
+/// não dependa de a aba ter estado aberta na hora. Tempo real entrega; a tabela
+/// lembra.
+///
+/// ## O escopo é a unidade, e isso é a fronteira
+///
+/// `workspaceId` em toda consulta, como todo o resto do produto. Numa conta
+/// Multiclínica, quem está na Unidade Centro não manda recado para a Unidade
+/// Sul: são equipes diferentes, com agenda diferente, e o recado é sobre o
+/// trabalho de hoje naquele lugar.
+model TeamMessage {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  fromUserId String
+  toUserId   String
+
+  /// O texto, como foi escrito — com as menções em `@nome`.
+  ///
+  /// Teto de 2.000 no corpo da rota. Recado é recado: o que não cabe aqui é
+  /// assunto de conversa, e o produto já tem onde ter conversa.
+  body String
+
+  /// Quando o destinatário abriu. Nulo é "não lido", e é o que o contador conta.
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  from      User      @relation("RecadosEnviados", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to        User      @relation("RecadosRecebidos", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  /// A caixa de entrada: "os meus não lidos", e "a minha conversa com fulano".
+  @@index([workspaceId, toUserId, readAt])
+  @@index([workspaceId, toUserId, fromUserId, createdAt])
+  @@map("team_messages")
 }
