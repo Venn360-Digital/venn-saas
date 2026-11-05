@@ -46,6 +46,25 @@ export interface Brand {
     favicon: string
     og: string
     emailFooter: string
+    /**
+     * Como o produto chama a organização do cliente.
+     *
+     * Decisão dele em 2026-11-05, ao aprovar os e-mails: OdontoBox fala
+     * "clínica", Conecta fala "empresa", Stagent fala "agência". É a palavra
+     * que aparece em frase corrida — "os dados desta clínica", "o responsável
+     * pela agência" — e trocá-la não pode ser caçar string pelo código.
+     *
+     * Mora na marca e não num arquivo de tradução porque é identidade, não
+     * idioma: o app inteiro é pt-BR, e o que muda entre os três é o nicho.
+     */
+    vocabulario: {
+        /** Minúscula, para o meio da frase. */
+        organizacao: string
+        /** Maiúscula, para início de frase e rótulo. */
+        Organizacao: string
+        /** Plural, para a tagline e o rodapé. */
+        organizacoes: string
+    }
 }
 
 export const BRAND: Brand = {
@@ -72,4 +91,9 @@ export const BRAND: Brand = {
     favicon: '/favicon.ico',
     og: '/logos/logo-wordmark-light.png',
     emailFooter: 'OdontoBox360 · atendimento, agenda e CRM para clínicas odontológicas',
+    vocabulario: {
+        organizacao: 'clínica',
+        Organizacao: 'Clínica',
+        organizacoes: 'clínicas',
+    },
 }

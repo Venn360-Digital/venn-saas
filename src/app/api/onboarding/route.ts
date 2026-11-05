@@ -16,6 +16,7 @@ import {
 import type { Prisma } from '#prisma'
 import { sendEmail } from '@/lib/email/send'
 import { TEMPLATES } from '@/lib/email/templates'
+import { sendBillingEmail } from '@/lib/email/billing'
 
 /**
  * O primeiro agente da clínica, com as preferências **gravadas**.
@@ -483,20 +484,26 @@ export async function POST(request: NextRequest) {
 
         console.log('[ONBOARDING] Transaction completed:', result)
 
-        // Enviar e-mail de bem-vindo em background
-        if (!result.alreadyExists && user.email) {
-            const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`
-            /**
-             * `/suporte`, e não `/docs`: a rota `/docs` **nunca existiu**, então
-             * o rodapé do e-mail de boas-vindas mandava todo cliente novo para
-             * um 404. A central de ajuda mora em `/suporte` desde 2026-10-18.
-             */
-            const docsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/suporte`
-            sendEmail({
-                to: user.email,
-                subject: TEMPLATES.welcome(dashboardUrl, docsUrl).includes('Bem-vindo') ? 'Bem-vindo ao OdontoBox360' : 'Bem-vindo',
-                html: TEMPLATES.welcome(dashboardUrl, docsUrl),
-            }).catch(err => console.error('[ONBOARDING] Failed to send welcome email:', err))
+        /**
+         * As boas-vindas, pelo MESMO caminho dos outros avisos.
+         *
+         * Era `TEMPLATES.welcome`, de `lib/email/templates.ts` — uma segunda
+         * cópia do texto que `billing.ts` também tinha, e as duas divergiam a
+         * cada ajuste. O assunto, então, era calculado renderizando o e-mail
+         * inteiro só para procurar a palavra "Bem-vindo" dentro do HTML.
+         *
+         * `sendBillingEmail` ainda traz o que faltava: a trava de duplicata em
+         * `notification_logs`, que impede dois e-mails de boas-vindas quando o
+         * cadastro é retomado.
+         */
+        if (!result.alreadyExists && result.workspace && user.email) {
+            const criado = result.workspace
+            void sendBillingEmail({
+                workspaceId: criado.id,
+                kind: 'welcome',
+                scope: criado.id,
+                context: { workspaceName: criado.name },
+            }).catch((err) => console.error('[ONBOARDING] welcome:', err))
         }
 
         if (result.alreadyExists) {
