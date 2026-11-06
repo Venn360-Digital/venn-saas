@@ -1,0 +1,48 @@
+EV-010 — Workflows: galeria de templates
+Rota: /space/:id/workflows (estado vazio) · /workflows/templates
+Sessão: s01 · 2026-10-25 · Captura: get_page_text. Sem PII.
+
+ESTADO VAZIO: "Ainda não tem um workflow — Utilizar fluxos de trabalho para automatizar processos para marketing, vendas, suporte, notificações e muito mais." CTAs: "Começar do Scratch" e "Iniciar com um modelo".
+
+GALERIA (/workflows/templates): "Navegar por Modelos de Workflow — Selecione um modelo para começar".
+Categorias (tabs): Todos Os Modelos · **Auto-Resposta** · **Roteamento E Atribuição** · **Processos De Negócio** · **Supervisão E Relatórios** · **Anúncios Click-To-Chat Da Meta** · **TikTok Messaging Ads**.
+
+~37 templates (nome — descrição curta):
+AUTO-RESPOSTA / MENUS:
+- Mensagem de boas-vindas — envia ao iniciar conversa.
+- Mensagem de ausência — envia sempre que um contato inicia; liga/desliga por toggle.
+- Mensagem Ausente com Horário de Negócios — mensagem fora do horário útil.
+- Mensagem de Boas-Vindas: Canal Específico — boas-vindas diferente por canal.
+- Mensagem de Boas-Vindas e E-mail de Pedido / e número de pedido por telefone — pede email/telefone se não tiver.
+- Menu de chat simples — menu de autoatendimento no 1º contato + opção falar com agente.
+- Menu de chat multinível: Menu principal / Submenu — menu com submenus e retorno ao principal.
+
+ROTEAMENTO E ATRIBUIÇÃO:
+- Atribuição: Rodada Robin (round robin) / Robin redondo + Apenas Online (online round robin).
+- Atividade: Contatos menos abertos — atribui ao membro com menos contatos.
+- Atividade: Desatribuir Após fechar a conversa.
+- Atribuição: Dar seguimento à chamada perdida.
+- Roteamento: Contatos novos e recorrentes.
+- Roteamento de contato: por idioma / perguntar preferência de idioma (atualiza campo idioma).
+- Roteamento de várias equipes: Múltipla escolha por contato / turnos (shift) / Transferência de turno.
+
+PROCESSOS DE NEGÓCIO:
+- Solicitar consentimento: Privacidade (consent antes de continuar) — relevante LGPD.
+- Intensificação de Problema (escalation para 2º nível).
+- Registrar resumo da chamada (comentário interno pós-chamada) [New].
+- Relatório de chamada de vendas.
+- Cancelar inscrição de broadcasts (unsubscribe + marcar não inscrito).
+- Resposta de broadcast: Atribuir ao Agente.
+
+SUPERVISÃO E RELATÓRIOS:
+- CSAT para Google Sheets [Upgrade] / CSAT a data warehouse [Upgrade] — CSAT pós-fechamento + export.
+- Roteamento: Contatos VIP (data warehouse) [Upgrade].
+
+META CLICK-TO-CHAT ADS:
+- Anúncios CTC: agendamento de compromissos / Atribuição / compartilhar produto + encaminhar para vendas.
+- Enviar CAPI para leads convertidos (Conversions API à Meta quando lifecycle vira pagamento).
+
+TIKTOK ADS:
+- TikTok Messaging Ads: Rastreador de conversões / Qualificação e rastreamento / Desqualificação e acompanhamento / Reportar novos leads.
+
+Marcadores: "New", "Upgrade" (gated a plano superior). Rodapé: "Sentindo falta de algum modelo? ... solicite aqui".

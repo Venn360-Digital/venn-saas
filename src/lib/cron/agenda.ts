@@ -26,10 +26,13 @@ export interface Rotina {
 }
 
 /**
- * As rotinas. Catorze entradas para treze tarefas — a verificação de integração
- * aparece duas vezes, com um intervalo de dia e outro de noite — que o
- * `cronsParaWrangler()` reduz a **doze** gatilhos, porque duas pares caem no
- * mesmo padrão e um gatilho repetido seria invocação dobrada.
+ * As rotinas. **Dezessete** entradas para dezesseis tarefas — a verificação de
+ * integração aparece duas vezes, com um intervalo de dia e outro de noite —
+ * que o `cronsParaWrangler()` reduz a **catorze** gatilhos, porque padrões
+ * repetidos caem no mesmo e um gatilho duplicado seria invocação dobrada.
+ *
+ * (Os números são medidos, não contados à mão: `check:filas` afirma a
+ * contagem, e foi ele que acusou quando esta frase ficou velha.)
  *
  * O escalonamento é de propósito e foi preservado item por item: rodar tudo em
  * `:00` concentrava o banco no mesmo instante. Os motivos de cada horário estão
