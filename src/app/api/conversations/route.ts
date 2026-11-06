@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
@@ -190,6 +191,15 @@ export async function GET(request: NextRequest) {
                     select: {
                         id: true,
                         name: true,
+                        /**
+                         * `avatar` e `updatedAt` entram para o cartão poder
+                         * mostrar a **foto** do agente em vez do nome, quando há
+                         * foto (pedido do Andre). Só a decisão sai daqui; o que
+                         * vai na resposta é o endereço de `/api/retratos`, e por
+                         * isso o `avatar` cru é descartado logo abaixo.
+                         */
+                        avatar: true,
+                        updatedAt: true,
                     }
                 },
                 integration: {
@@ -266,15 +276,29 @@ export async function GET(request: NextRequest) {
             }),
         ])
 
-        // Resolve assignee names
+        /**
+         * Nome e **endereço** do retrato do responsável — nunca os bytes dele.
+         *
+         * `avatar` continua no `select` porque é dele que sai a decisão "tem
+         * foto ou não", mas o que vai na resposta é o endereço de
+         * `/api/retratos`. A versão anterior devolvia o valor da coluna, e em
+         * produção o retrato do Andre tem 277 KB de base64 ali: numa página de
+         * conversas dele a resposta repetia os 277 KB por cartão. Ver
+         * `lib/retratos.ts`.
+         */
         const assigneeIds = [...new Set(conversations.map(c => c.assignedTo).filter(Boolean))] as string[]
         const assignees = assigneeIds.length > 0
             ? await prisma.user.findMany({
                 where: { id: { in: assigneeIds } },
-                select: { id: true, name: true, avatar: true }
+                select: { id: true, name: true, avatar: true, updatedAt: true }
             })
             : []
-        const assigneeMap = new Map(assignees.map(a => [a.id, { name: a.name, avatar: a.avatar }]))
+        const assigneeMap = new Map(
+            assignees.map(a => [
+                a.id,
+                { name: a.name, retrato: enderecoDoRetrato('usuario', a.id, a.avatar, a.updatedAt) },
+            ])
+        )
 
         // Calculate unread counts based on lastReadAt
         const unreadCounts = await Promise.all(
@@ -305,9 +329,24 @@ export async function GET(request: NextRequest) {
                 status: conv.status,
                 assignedTo: conv.assignedTo,
                 assignedToName: conv.assignedTo ? assigneeMap.get(conv.assignedTo)?.name || null : null,
-                assignedToAvatar: conv.assignedTo ? assigneeMap.get(conv.assignedTo)?.avatar || null : null,
+                /** Endereço, não bytes. `null` = o cartão escreve o nome. */
+                assignedToRetrato: conv.assignedTo
+                    ? assigneeMap.get(conv.assignedTo)?.retrato || null
+                    : null,
                 contact: contactData,
-                agent: conv.agent,
+                agent: conv.agent
+                    ? {
+                          id: conv.agent.id,
+                          name: conv.agent.name,
+                          /** Endereço, não bytes. `null` = o cartão escreve o nome. */
+                          retrato: enderecoDoRetrato(
+                              'agente',
+                              conv.agent.id,
+                              conv.agent.avatar,
+                              conv.agent.updatedAt
+                          ),
+                      }
+                    : null,
                 /** Por onde entrou — o que a lista mostra ao lado do agente. */
                 line: conv.integration
                     ? {

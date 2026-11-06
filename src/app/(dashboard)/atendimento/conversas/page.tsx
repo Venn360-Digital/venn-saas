@@ -91,6 +91,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { AudioMessage } from '@/components/shared/AudioMessage'
 import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
 import { EtapaChip } from '@/components/shared/EtapaChip'
+import { Retrato } from '@/components/shared/Retrato'
 import { semMarcacao } from '@/lib/texto-whatsapp'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
@@ -189,7 +190,8 @@ interface ConversationListItem {
     status: string
     assignedTo: string | null
     assignedToName: string | null
-    assignedToAvatar: string | null
+    /** Endereço de `/api/retratos`, nunca os bytes. `null` = mostrar o nome. */
+    assignedToRetrato: string | null
     contact: {
         id: string
         name: string | null
@@ -199,6 +201,8 @@ interface ConversationListItem {
     agent: {
         id: string
         name: string
+        /** Endereço de `/api/retratos`, nunca os bytes. `null` = mostrar o nome. */
+        retrato: string | null
     } | null
     /** Por qual número da clínica esta conversa entrou. */
     line: {
@@ -2400,7 +2404,11 @@ export default function ConversasPage() {
                                                     <div className="mt-1 flex items-center justify-between gap-2 whitespace-nowrap text-[10px] text-muted-foreground">
                                                         <span className="flex min-w-0 items-center gap-1.5">
                                                             {conv.agent ? (
-                                                                <span className="truncate">{conv.agent.name}</span>
+                                                                <Retrato
+                                                                    endereco={conv.agent.retrato}
+                                                                    nome={conv.agent.name}
+                                                                    className="size-3.5"
+                                                                />
                                                             ) : null}
                                                             {conv.agent && origemDaConversa(conv) ? (
                                                                 <span aria-hidden="true" className="text-muted-foreground/40">|</span>
@@ -2421,9 +2429,12 @@ export default function ConversasPage() {
                                                             `--primary` puro não teria contraste
                                                             sobre o cartão branco. */}
                                                         {conv.assignedToName ? (
-                                                            <span className="shrink-0 font-semibold text-primary-subtle-foreground">
-                                                                {primeiroNome(conv.assignedToName, null)}
-                                                            </span>
+                                                            <Retrato
+                                                                endereco={conv.assignedToRetrato}
+                                                                nome={primeiroNome(conv.assignedToName, null)}
+                                                                className="size-4"
+                                                                classNameTexto="shrink-0 font-semibold text-primary-subtle-foreground"
+                                                            />
                                                         ) : null}
                                                     </div>
                                                 )}
