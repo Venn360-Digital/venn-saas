@@ -60,6 +60,8 @@
     "medir:recuperacao": "tsx scripts/medir-recuperacao.ts",
     "test:audio": "tsx scripts/test-audio.ts",
     "test:marcacao": "tsx scripts/test-marcacao.ts",
+    "test:sonda": "tsx scripts/test-sonda.ts",
+    "test:cofre-conta": "tsx --conditions=react-server scripts/test-cofre-conta.ts",
     "test:chunker": "tsx scripts/test-chunker.ts",
     "test:consulta": "tsx scripts/test-consulta.ts",
     "test:treinamento": "tsx scripts/test-treinamento.ts",

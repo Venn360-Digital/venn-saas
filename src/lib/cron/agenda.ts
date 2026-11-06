@@ -177,6 +177,20 @@ export const ROTINAS: Rotina[] = [
     { task: 'billing-reconcile', brt: '47 5 * * *' },
 
     /**
+     * A sonda de credencial de IA. Uma vez por dia, 06h09 BRT.
+     *
+     * Não encosta no Postgres — só chama a OpenAI e, no pior caso, manda um
+     * e-mail —, então não gasta CU-hora do Neon nem precisa caber numa das
+     * janelas acima. O horário é só para não colidir com as outras.
+     *
+     * Uma vez por dia e não de hora em hora: credencial quebrada não se cura
+     * sozinha, então a segunda medição do dia não acrescenta informação — e
+     * um e-mail por hora sobre o mesmo defeito é como se ensina alguém a
+     * criar filtro para o remetente.
+     */
+    { task: 'ia-credencial', brt: '9 6 * * *' },
+
+    /**
      * Dispara as campanhas agendadas cuja hora chegou (ver
      * `broadcast-dispatch.ts`). De dez em dez minutos, na janela da clínica:
      *

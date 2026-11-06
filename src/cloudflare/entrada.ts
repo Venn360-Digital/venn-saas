@@ -108,7 +108,7 @@ export default {
         // Também no `fetch`: as rotas da aplicação enfileiram trabalho (webhook
         // que chega, mensagem que o atendente envia), e sem as costuras
         // registradas `enfileirar()` lançaria na primeira delas.
-        registrarCosturas(env)
+        await registrarCosturas(env)
 
         /**
          * O WebSocket do tempo real é atendido **antes** do vinext.
@@ -138,7 +138,7 @@ export default {
 
     async queue(lote: MessageBatch<unknown>, env: EnvDasCosturas, ctx: ExecutionContext): Promise<void> {
         void ctx
-        registrarCosturas(env)
+        await registrarCosturas(env)
 
         const fila = POR_NOME_NA_CLOUDFLARE.get(lote.queue)
 
@@ -204,7 +204,7 @@ export default {
         env: Parameters<typeof aoSerAgendado>[1] & EnvDasCosturas,
         ctx: ExecutionContext
     ): Promise<void> {
-        registrarCosturas(env)
+        await registrarCosturas(env)
         // Um cliente de banco por disparo — mesma razão do `fetch`, fechado
         // no `finally` pela mesma razão do `queue`.
         const escopo: EscopoDoPrisma = {}
