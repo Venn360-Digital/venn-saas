@@ -11,12 +11,14 @@ import 'server-only'
  * e ao Google —, então o mesmo valor estava **triplicado**, e manter três
  * cópias iguais é manter três chances de elas divergirem.
  *
- * Divergiram. Em 03/11/2026 a cópia da Odontobox ficou inválida enquanto a do
- * Stagent seguia boa: a transcrição de voz morreu em um produto e ninguém
- * soube por três dias, porque "a chave está certa" era verdade em dois dos
- * três lugares. O Secrets Store da Cloudflare é um cofre de **conta**: o valor
- * mora uma vez e os Workers o recebem por binding. Rotacionar passa a ser um
- * ato, não três.
+ * Divergiram. Em 03/11/2026 a cópia de **um** dos produtos ficou inválida
+ * enquanto as outras duas seguiam boas: a transcrição de voz morreu só ali, e
+ * ninguém soube por três dias — porque "a chave está certa" era verdade em dois
+ * dos três lugares. (Citar qual produto aqui é o que a auditoria de isolamento
+ * recusa, e ela está certa: o arquivo é o mesmo nos três.)
+ *
+ * O Secrets Store da Cloudflare é um cofre de **conta**: o valor mora uma vez e
+ * os Workers o recebem por binding. Rotacionar passa a ser um ato, não três.
  *
  * ## Por que semear `process.env` em vez de ler o binding em cada ponto
  *
