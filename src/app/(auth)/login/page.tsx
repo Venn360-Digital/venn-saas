@@ -14,7 +14,15 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 
 function LoginForm() {
-    const [email, setEmail] = useState('')
+    /**
+     * `?email=` pré-preenche — quem vem do aceite do convite acabou de digitar
+     * este endereço, e pedir de novo na tela seguinte é atrito sem razão.
+     *
+     * Vem do `useSearchParams` e não de `localStorage`: é dado de um fluxo, não
+     * preferência. E não há risco de vazar conta alheia — o valor já está na
+     * barra de endereço de quem o pôs lá.
+     */
+    const [email, setEmail] = useState(() => '')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [resetting, setResetting] = useState(false)
@@ -24,6 +32,11 @@ function LoginForm() {
     const searchParams = useSearchParams()
 
     const isSignUp = mode === 'signup'
+
+    const emailDaUrl = searchParams.get('email')
+    useEffect(() => {
+        if (emailDaUrl) setEmail(emailDaUrl)
+    }, [emailDaUrl])
 
     /**
      * Where to land after signing in. The middleware puts the blocked path in

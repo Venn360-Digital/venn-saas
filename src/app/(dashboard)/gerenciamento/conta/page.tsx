@@ -100,7 +100,10 @@ function ContaContent() {
      */
     const primary = activeTab === 'usuarios' && canManage ? (
         <Button size="sm" className="h-8 gap-1.5" onClick={() => users.current?.openNew()}>
-            <Plus className="size-3.5" /> Novo usuário
+            {/* "Convidar" e não "Novo usuário": o gesto deixou de criar gente e
+                passou a mandar um link. O rótulo tem de dizer o que acontece —
+                quem clica esperando um formulário com senha não o encontra. */}
+            <Plus className="size-3.5" /> Convidar
         </Button>
     ) : undefined
 

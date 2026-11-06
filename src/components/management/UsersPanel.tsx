@@ -16,6 +16,7 @@ import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { UserPanel } from '@/components/users/UserPanel'
 import { StatusBadge, ACTIVE_STATE, WORKSPACE_ROLE, DISPONIBILIDADE } from '@/components/shared/StatusBadge'
 import { UserFormModal } from '@/components/users/UserFormModal'
+import { ConvitesPendentes } from '@/components/management/ConvitesPendentes'
 import { usePermissions } from '@/hooks/usePermissions'
 
 interface WorkspaceUser {
@@ -101,6 +102,16 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
     const totalPages = Math.max(1, Math.ceil(users.length / pageSize))
     const currentPage = Math.min(page, totalPages)
     const pageRows = users.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+    /**
+     * Sobe quando um convite é enviado — a faixa relê a partir dele.
+     *
+     * `key` em vez de uma função de recarga passada para baixo: a faixa busca
+     * os próprios dados, e expor um `recarregar()` só para este caso daria à
+     * ela uma interface imperativa que nada mais usa. Trocar a `key` remonta,
+     * que é o mesmo efeito com menos acoplamento.
+     */
+    const [conviteToken, setConviteToken] = useState(0)
 
     const fetchUsers = useCallback(async () => {
         setLoading(true)
@@ -260,6 +271,12 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                           * reclamando — quem vê de mais é que não reclamava.
                           * Só faz sentido quando a clínica usa departamentos.
                           */}
+                        {/* Os convites pendentes, antes da equipe: quem abre
+                            esta tela depois de convidar alguém quer saber se a
+                            pessoa entrou, e a faixa responde isso sem ser
+                            procurada. Some sozinha quando não há nenhum. */}
+                        <ConvitesPendentes key={conviteToken} podeGerenciar={canManage} />
+
                         {departments.length > 0 && semDepartamento > 0 ? (
                             <p className="border-b bg-warning-subtle px-3 py-2 text-xs text-warning-subtle-foreground">
                                 {semDepartamento === 1
@@ -310,11 +327,11 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                                     variant="inline"
                                     icon={Users}
                                     title="Nenhum usuário ainda"
-                                    description="Convide a equipe para dar acesso ao atendimento."
+                                    description="Convide a equipe: cada pessoa recebe um link e escolhe a própria senha."
                                     action={
                                         <Button onClick={() => { setEditingUser(null); setIsModalOpen(true) }}>
                                             <Plus />
-                                            Novo usuário
+                                            Convidar
                                         </Button>
                                     }
                                 />
@@ -360,6 +377,9 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                     setIsModalOpen(false)
                     setEditingUser(null)
                     fetchUsers()
+                    // Convidar não cria usuário, então `fetchUsers` sozinho não
+                    // mostraria nada de novo — o que mudou foi a faixa de cima.
+                    setConviteToken((n) => n + 1)
                 }}
             />
 
