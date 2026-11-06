@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { InlineField } from '@/components/shared/InlineField'
+import { Input } from '@/components/ui/input'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 import { StatusBadge, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
 import { formatPhone } from '@/lib/phone'
@@ -23,6 +24,10 @@ export interface UserPanelItem {
     canTransfer: boolean
     /** Entra na distribuição automática e pode ficar responsável. */
     recebeConversas: boolean
+    /** Minutos até cair para ausente; nulo usa o padrão da conta. */
+    minutosParaAusente: number | null
+    /** O padrão da conta, só para o `placeholder` dizer qual é. */
+    minutosParaAusenteDaConta?: number | null
     isActive: boolean
     isFirstAdmin: boolean
 }
@@ -195,6 +200,45 @@ export function UserPanel({
                     <div className="flex items-center gap-2">
                         <Switch id="user-panel-recebe" checked={u.recebeConversas} disabled={!canEdit} onCheckedChange={(recebeConversas) => void save('recebeConversas', { recebeConversas })} />
                         <span className="text-xs text-muted-foreground">entra na distribuição automática</span>
+                    </div>
+                </PanelField>
+                {/* Logo depois de "Recebe conversas", porque as duas decidem a
+                    mesma coisa: quem a distribuição alcança. A primeira diz
+                    *se*; esta diz *por quanto tempo sem mexer no sistema*.
+
+                    É atributo da pessoa — a recepcionista que atende balcão
+                    fica minutos fora da tela sem estar ausente — mas **editado
+                    pela gestão**: entra em `estaDisponivel`, e se cada um
+                    escolhesse o seu, quem pusesse 5 minutos receberia menos
+                    trabalho. Vazio devolve ao padrão da conta, e é por isso que
+                    o campo aceita ser esvaziado. */}
+                <PanelField label="Paciência" htmlFor="user-panel-ausente" saved={saved === 'minutosParaAusente'}>
+                    <div className="flex items-center gap-2">
+                        <Input
+                            id="user-panel-ausente"
+                            type="number"
+                            min={0}
+                            max={1440}
+                            inputMode="numeric"
+                            placeholder={u.minutosParaAusenteDaConta != null ? String(u.minutosParaAusenteDaConta) : 'padrão'}
+                            defaultValue={u.minutosParaAusente ?? ''}
+                            disabled={!canEdit}
+                            className="h-8 w-20 text-sm"
+                            onBlur={(e) => {
+                                const cru = e.target.value.trim()
+                                // Vazio é `null` — o pedido de voltar ao padrão
+                                // da conta —, e não 0, que significa desligar a
+                                // queda. São coisas diferentes e a rota as
+                                // distingue.
+                                const valor = cru === '' ? null : Number(cru)
+                                if (valor !== null && (!Number.isInteger(valor) || valor < 0 || valor > 1440)) return
+                                if (valor === (u.minutosParaAusente ?? null)) return
+                                void save('minutosParaAusente', { minutosParaAusente: valor })
+                            }}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                            min parado antes de sair da fila
+                        </span>
                     </div>
                 </PanelField>
                 <PanelField label="Ativo" htmlFor="user-panel-active" saved={saved === 'isActive'}>

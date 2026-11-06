@@ -60,7 +60,7 @@ export async function elegiveisDaLinha(
             recebeConversas: true,
             ...(departmentId ? { departments: { some: { departmentId } } } : {}),
         },
-        select: { userId: true, status: true, ultimaAtividadeEm: true },
+        select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
     })
     if (membros.length === 0) return []
 
@@ -193,7 +193,7 @@ export async function donoDisponivel(
     const [m, politica] = await Promise.all([
         prisma.workspaceUser.findFirst({
             where: { workspaceId, userId: ownerId, isActive: true },
-            select: { userId: true, status: true, ultimaAtividadeEm: true },
+            select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
         }),
         politicaDo(workspaceId),
     ])

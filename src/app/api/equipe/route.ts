@@ -53,6 +53,9 @@ export async function GET() {
                 role: true,
                 status: true,
                 ultimaAtividadeEm: true,
+                // A paciência da pessoa: o painel tem de pintar a bolinha com a
+                // mesma conta que a distribuição faz. Ver `estaDisponivel`.
+                minutosParaAusente: true,
                 user: { select: { name: true, lastName: true, avatar: true, updatedAt: true } },
                 departments: { select: { department: { select: { name: true } } } },
             },
@@ -106,7 +109,7 @@ export async function GET() {
         estado: estadoVisivel(
             m.status as StatusDoMembro,
             m.ultimaAtividadeEm,
-            minutosParaAusente,
+            m.minutosParaAusente ?? minutosParaAusente,
             agora
         ),
         /** Desde quando parado — a tela escreve "ausente há 14 min". */

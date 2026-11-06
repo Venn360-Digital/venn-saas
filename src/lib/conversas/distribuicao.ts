@@ -51,6 +51,14 @@ export interface MembroElegivel {
      * disponível — é o estado de quem foi cadastrado e ainda não entrou.
      */
     ultimaAtividadeEm?: Date | null
+    /**
+     * A paciência desta pessoa, em minutos. **Nulo = o padrão da conta.**
+     *
+     * Opcional no tipo porque a maioria dos chamadores não tem motivo para
+     * trazê-la — e quem não a trouxer continua caindo no padrão, que é o
+     * comportamento de antes. Ver `WorkspaceUser.minutosParaAusente`.
+     */
+    minutosParaAusente?: number | null
 }
 
 export interface PoliticaDeDistribuicao {
@@ -137,7 +145,17 @@ export function estadoVisivel(
  * à mão pode, e aí só o status vale.
  */
 export function estaDisponivel(m: MembroElegivel, minutosParaAusente: number, agora: Date): boolean {
-    return estadoVisivel(m.status, m.ultimaAtividadeEm, minutosParaAusente, agora) === 'disponivel'
+    /**
+     * O da pessoa ganha do da conta, e o `??` é o que faz isso.
+     *
+     * `minutosParaAusente` do argumento é o padrão da conta; o do membro é a
+     * exceção. Com `??` e não `||`, **zero continua valendo** — e zero tem
+     * significado: desliga a queda automática para aquela pessoa, que é o caso
+     * de quem trabalha fora da tela e não pode ser tirado da fila por isso.
+     * Com `||`, zero cairia no padrão e a exceção seria impossível de expressar.
+     */
+    const minutos = m.minutosParaAusente ?? minutosParaAusente
+    return estadoVisivel(m.status, m.ultimaAtividadeEm, minutos, agora) === 'disponivel'
 }
 
 /** `disponivel` recebe; `ocupado` e `ausente` não. Os dois últimos são iguais aqui. */
