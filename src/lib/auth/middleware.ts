@@ -79,6 +79,17 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
         pathname.startsWith('/login') ||
         pathname.startsWith('/register') ||
         pathname.startsWith('/nova-senha') ||
+        /**
+         * O convite, público pelos dois lados.
+         *
+         * A tela e a rota de aceite existem **para quem ainda não tem login** —
+         * o token de 256 bits é a autenticação, e exigir sessão aqui tornaria o
+         * convite impossível de aceitar. Note que `/api/convites` (plural, a
+         * administração) fica **fora** desta lista: ela é de gestão e exige
+         * sessão como qualquer outra.
+         */
+        pathname.startsWith('/convite/') ||
+        pathname.startsWith('/api/convite/') ||
         pathname.startsWith('/auth') ||
         // Providers post here with their own API key; they carry no session.
         pathname.startsWith('/api/webhooks/') ||

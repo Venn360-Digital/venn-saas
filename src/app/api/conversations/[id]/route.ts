@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { comEnderecoDeMidia } from '@/lib/midia'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { phoneFromConfig } from '@/lib/conversation-line'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
@@ -39,6 +40,7 @@ export async function GET(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
             include: {
@@ -76,6 +78,21 @@ export async function GET(
                         status: true,
                         channel: true,
                     },
+                },
+                /**
+                 * Quem colabora — só na conversa aberta, nunca na lista.
+                 *
+                 * Decisão do Andre: o cartão **não** mostra colaboradores,
+                 * porque naquela faixa de 10px já convivem o agente, a linha e
+                 * o responsável. Aqui há espaço, e é aqui que a pergunta é
+                 * feita: "quem mais está vendo isto?".
+                 */
+                collaborators: {
+                    select: {
+                        userId: true,
+                        user: { select: { name: true, lastName: true, avatar: true, updatedAt: true } },
+                    },
+                    orderBy: { createdAt: 'asc' },
                 },
                 tags: {
                     include: {
@@ -207,6 +224,15 @@ export async function GET(
                 status: conversation.status,
                 assignedTo: conversation.assignedTo,
                 assignedToName,
+                /** O portão: a IA ou a equipe. Decide a aba e o botão de devolver. */
+                atendidaPor: conversation.atendidaPor,
+                colaboradores: conversation.collaborators.map((c) => ({
+                    userId: c.userId,
+                    nome: [c.user.name, c.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
+                    retrato: enderecoDoRetrato('usuario', c.userId, c.user.avatar, c.user.updatedAt),
+                })),
+                /** Se **eu** colaboro — é o que faz o botão de sair existir. */
+                euColaboro: conversation.collaborators.some((c) => c.userId === user.id),
                 contact: contactData,
                 agent: conversation.agent,
                 /**
@@ -307,6 +333,7 @@ export async function PATCH(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
         })
@@ -315,11 +342,57 @@ export async function PATCH(
             return NextResponse.json({ error: 'Conversa não encontrada' }, { status: 404 })
         }
 
+        /**
+         * Deixar de colaborar — **antes** do `switch`, porque não é um `update`.
+         *
+         * Apaga uma linha de `conversation_collaborators`, não um campo de
+         * `conversations`, então não cabe no `updateData` que todas as outras
+         * ações montam. Forçá-lo lá dentro exigiria que a transação de baixo
+         * soubesse de duas tabelas para servir um caso só.
+         *
+         * **Só a própria colaboração.** Tirar outra pessoa seria outro ato, mais
+         * pesado: ela foi chamada por uma colega, e removê-la em silêncio faria
+         * a conversa sair da lista dela sem explicação — justamente o que a nota
+         * da menção existe para dar. Quem quer isso tem o caminho de escrever
+         * outra nota.
+         *
+         * Note que depois disto a conversa pode **sumir** para quem saiu: se a
+         * colaboração era o único motivo de ele vê-la (ver `conversationScope`),
+         * a lista deixa de trazê-la. É o efeito pedido, não um defeito.
+         */
+        if (action === 'descolaborar') {
+            const apagadas = await prisma.conversationCollaborator.deleteMany({
+                where: { conversationId: id, userId: user.id },
+            })
+            if (!apagadas.count) {
+                return NextResponse.json(
+                    { error: 'Você não está colaborando nesta conversa' },
+                    { status: 409 }
+                )
+            }
+            await prisma.$transaction((tx) =>
+                avisarConversaAlterada(tx, {
+                    workspaceId: workspaceUser.workspaceId,
+                    conversationId: id,
+                })
+            )
+            publicarAgora()
+            return NextResponse.json({ ok: true, colaborando: false })
+        }
+
         let updateData: Prisma.ConversationUncheckedUpdateInput = {}
 
         switch (action) {
             case 'assign':
-                updateData = { assignedTo: user.id }
+                /**
+                 * Assumir: a pessoa **e** o portão, na mesma escrita.
+                 *
+                 * `atendidaPor` é o que a coluna agrupa, e `assignedTo` é quem
+                 * aparece no cartão. Escrever um sem o outro deixa a conversa
+                 * com nome de responsável na aba da IA — o estado que o portão
+                 * existe para não poder existir.
+                 */
+                updateData = { assignedTo: user.id, atendidaPor: 'humano' }
                 break
             case 'unassign':
                 /**
@@ -329,7 +402,12 @@ export async function PATCH(
                  * limpar só o responsável devolveria a conversa para uma fila em
                  * que ninguém responde — nem pessoa, nem agente.
                  */
-                updateData = { assignedTo: null, handoffAt: null, handoffReason: null }
+                updateData = {
+                    assignedTo: null,
+                    atendidaPor: 'bot',
+                    handoffAt: null,
+                    handoffReason: null,
+                }
                 break
             case 'close':
                 // `closedAt` marca o fim do atendimento, e é o que faz o
@@ -342,6 +420,9 @@ export async function PATCH(
                 updateData = {
                     status: 'active',
                     assignedTo: null,
+                    // O portão volta ao bot pela mesma razão que `handoffAt`
+                    // sai: é atendimento novo, e quem atende primeiro é o agente.
+                    atendidaPor: 'bot',
                     handoffAt: null,
                     handoffReason: null,
                 }
@@ -364,7 +445,10 @@ export async function PATCH(
                 if (!targetWU) {
                     return NextResponse.json({ error: 'Usuário destino não encontrado' }, { status: 404 })
                 }
-                updateData = { assignedTo: targetUserId }
+                // Transferir é trocar de pessoa dentro da equipe, então o
+                // portão fica (ou passa a ficar) em `humano`: a conversa não
+                // volta para a IA por ter trocado de mão.
+                updateData = { assignedTo: targetUserId, atendidaPor: 'humano' }
                 break
             default:
                 return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
@@ -436,6 +520,7 @@ export async function DELETE(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
             select: { id: true }

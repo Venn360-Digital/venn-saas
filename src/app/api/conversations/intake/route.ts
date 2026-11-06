@@ -166,8 +166,11 @@ export async function POST(request: NextRequest) {
             data: {
                 status: 'active',
                 // Atribuída a quem registrou: sem isso a conversa cairia na
-                // fila de espera, e ninguém está esperando resposta nela.
+                // fila de espera, e ninguém está esperando resposta nela. O
+                // portão vai junto pela mesma razão — a recepção já atendeu
+                // esta pessoa, no balcão ou no telefone, e a IA não tem vez.
                 assignedTo: userId,
+                atendidaPor: 'humano',
                 agentId: lineAgentId,
                 integrationId: line,
             },
@@ -182,6 +185,8 @@ export async function POST(request: NextRequest) {
                 channel: 'whatsapp',
                 status: 'active',
                 assignedTo: userId,
+                // Nasce com a equipe: foi a recepção que registrou.
+                atendidaPor: 'humano',
             },
             select: { id: true },
         })

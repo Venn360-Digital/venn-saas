@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { manageAgent } from '@/lib/auth/agent'
 import prisma from '@/lib/prisma'
 import { assinaturaDaUnidade } from '@/lib/account'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
@@ -18,14 +19,17 @@ export async function POST(
 
         const { id: agentId } = await Promise.resolve(params)
 
-        // Buscar agente original com todas as relações.
-        // isActive on the membership: a deactivated member must not be able to
-        // duplicate agents, same as they cannot create them.
-        const originalAgent = await prisma.agent.findFirst({
-            where: {
-                id: agentId,
-                workspace: { users: { some: { userId: user.id, isActive: true } } }
-            },
+        // Duplicar é criar, e criar é gestão. `manageAgent` confere as duas
+        // coisas de uma vez — o papel e o agente ser desta unidade — pela
+        // participação que o helper resolve. O `findFirst` por
+        // `workspace.users.some` que estava aqui respondia "agente não
+        // encontrado" ao operador da Venn360, cuja participação na conta do
+        // cliente não tem linha na tabela.
+        const podeMexer = await manageAgent(agentId)
+        if (!podeMexer.ok) return podeMexer.response
+
+        const originalAgent = await prisma.agent.findUnique({
+            where: { id: agentId },
             include: {
                 rules: true,
                 customFields: true,
@@ -34,24 +38,6 @@ export async function POST(
 
         if (!originalAgent) {
             return new NextResponse('Agent not found', { status: 404 })
-        }
-
-        // Only managers may create agents, and duplication is creation.
-        const canManage = await prisma.workspaceUser.findFirst({
-            where: {
-                workspaceId: originalAgent.workspaceId,
-                userId: user.id,
-                isActive: true,
-                role: { in: ['OWNER', 'ADMIN'] },
-            },
-            select: { id: true },
-        })
-
-        if (!canManage) {
-            return NextResponse.json(
-                { error: 'Apenas administradores podem duplicar agentes' },
-                { status: 403 }
-            )
         }
 
         // Duplication bypassed the plan limit that POST /api/agents enforces.

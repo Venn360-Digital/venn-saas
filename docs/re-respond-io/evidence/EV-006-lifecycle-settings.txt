@@ -1,0 +1,26 @@
+EV-006 — Settings > Ciclo de vida (Lifecycle)
+Rota: /space/:id/settings/lifecycle
+Sessão: s01 · 2026-10-25 · Captura: read_page + JS (valores dos inputs e innerText). Sem PII. Nada salvo (só leitura).
+
+Cabeçalho: "Ciclo de vida — Acompanhe e gerencie contatos em cada etapa do seu processo de vendas" + "Saiba mais" (https://rspd.link/PQXb).
+
+Toggle global: "Mostrar/ocultar etapas do ciclo de vida" — "Exibir etapas do ciclo de vida na caixa de entrada e nos módulos de contatos. Desativar isso apenas oculta as etapas. Seus dados de contato permanecem seguros e inalterados."
+
+Seção "Configurar etapas do ciclo de vida" (editor com Cancelar/Guardar):
+
+GRUPO 1 — "Etapas do ciclo de vida" (funil/ganho) 🏆
+  "Organize e acompanhe contatos através das etapas principais da jornada deles. **Uma caixa de entrada padrão será criada no módulo Caixa de entrada.**"
+  - 🆕 Etapa 1 — "New Lead" — **Etapa padrão** (default)
+  - 🔥 Etapa 2 — "Hot Lead"
+  - 💵 Etapa 3 — "Payment"
+  - 🤩 Etapa 4 — "Customer" — **Etapa de Venda Fechada** (closed-won 🏆)
+  - [Adicionar etapa]
+
+GRUPO 2 — "Etapas de perda" (lost) 😔
+  "Acompanhe por onde os contatos passam após sair do seu processo de vendas. **Nenhuma caixa de entrada padrão será criada** no módulo Caixa de entrada para as etapas de perda."
+  - 🧊 "Cold Lead"
+  - [Adicionar etapa]
+
+Cada etapa: input "Nome da etapa" + botão emoji + "Exibir descrição" (descrição opcional) + arrastar (reordenar) + excluir.
+Valores dos inputs lidos: ["New Lead","Hot Lead","Payment","Customer","Cold Lead"].
+Limite: até 20 estágios [doc SRC-016].

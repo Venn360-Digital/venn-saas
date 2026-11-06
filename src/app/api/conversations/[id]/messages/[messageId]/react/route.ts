@@ -32,6 +32,7 @@ export async function POST(
                     ...conversationScope({
                         role: workspaceUser.role as WorkspaceRole,
                         departmentIds: workspaceUser.departmentIds,
+                        userId: workspaceUser.userId,
                     }),
                 },
             },

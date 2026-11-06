@@ -33,7 +33,8 @@ import { cn } from '@/lib/utils'
 export interface Pessoa {
     userId: string
     nome: string
-    avatar: string | null
+    /** Endereço de `/api/retratos`, nunca os bytes. `null` = iniciais. */
+    retrato: string | null
     papel: string
     departamento: string | null
     estado: 'disponivel' | 'ocupado' | 'ausente' | 'desconectado'
@@ -404,12 +405,12 @@ function Avatar({ pessoa, tamanho }: { pessoa: Pessoa; tamanho: number }) {
             className="relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full bg-muted text-[11px] font-bold text-muted-foreground"
             style={{ width: tamanho, height: tamanho }}
         >
-            {pessoa.avatar ? (
+            {pessoa.retrato ? (
                 // Origem variável (Storage ou data URL), fora do alcance do
                 // next/image sem configurar remotePatterns.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                    src={pessoa.avatar}
+                    src={pessoa.retrato}
                     alt=""
                     className="size-full rounded-full object-cover"
                 />

@@ -8,12 +8,13 @@ import { prettyPhone } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
 import { usePermissions } from '@/hooks/usePermissions'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
     ArrowLeft,
     ArrowRightLeft,
+    AtSign,
     Bot,
     CalendarPlus,
     Check,
@@ -49,6 +50,7 @@ import {
     Tag,
     Trash2,
     Users,
+    UserMinus,
     UserX,
     X,
     XCircle,
@@ -89,6 +91,17 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
+import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
+import { EtapaChip } from '@/components/shared/EtapaChip'
+import { Retrato } from '@/components/shared/Retrato'
+import {
+    ROTULO_DA_ABA,
+    ROTULO_DO_VER,
+    opcoesDeVer,
+    type Aba,
+    type Ver,
+} from '@/lib/conversas/recortes'
+import { semMarcacao } from '@/lib/texto-whatsapp'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
 import { AiSummaryPanel } from '@/components/shared/AiSummaryPanel'
@@ -119,7 +132,15 @@ interface SendMessageBody {
     isInternal?: boolean
 }
 
-type Tab = 'waiting' | 'active' | 'closed'
+/**
+ * A aba e o `Ver` vêm do módulo de recortes, não daqui.
+ *
+ * Era `type Tab = 'waiting' | 'active' | 'closed'` escrito nesta página, com a
+ * rota tendo a sua própria cópia dos mesmos três literais. Duas cópias dos
+ * mesmos nomes divergem na primeira vez que um deles muda — e foi o que
+ * aconteceu: a tela escrevia "Em espera" para um recorte que significava "sem
+ * responsável".
+ */
 
 interface TagItem {
     id: string
@@ -186,7 +207,8 @@ interface ConversationListItem {
     status: string
     assignedTo: string | null
     assignedToName: string | null
-    assignedToAvatar: string | null
+    /** Endereço de `/api/retratos`, nunca os bytes. `null` = mostrar o nome. */
+    assignedToRetrato: string | null
     contact: {
         id: string
         name: string | null
@@ -196,6 +218,8 @@ interface ConversationListItem {
     agent: {
         id: string
         name: string
+        /** Endereço de `/api/retratos`, nunca os bytes. `null` = mostrar o nome. */
+        retrato: string | null
     } | null
     /** Por qual número da clínica esta conversa entrou. */
     line: {
@@ -215,6 +239,11 @@ interface ConversationListItem {
     tags: TagItem[]
     lastMessageAt: string | null
     createdAt: string
+    /**
+     * Onde a pessoa está no funil — nulo quando não há negócio aberto.
+     * O predicado é de `lib/conversas/etapa-do-funil`, o mesmo do filtro.
+     */
+    funnelStage: { dealId: string; stageId: string | null; stageName: string | null; stageColor: string | null } | null
 }
 
 interface ReplyToMessage {
@@ -276,6 +305,12 @@ interface ConversationDetail {
         status: string
         assignedTo: string | null
         assignedToName: string | null
+        /** O portão: `'bot'` ou `'humano'`. Decide a aba e o "Devolver à IA". */
+        atendidaPor: string
+        /** Quem foi chamado por menção. Só aqui — o cartão não os mostra. */
+        colaboradores: { userId: string; nome: string; retrato: string | null }[]
+        /** Se eu colaboro — é o que faz o botão de sair existir. */
+        euColaboro: boolean
         contact: {
             id: string
             name: string | null
@@ -405,7 +440,7 @@ function MediaContent({ msg }: { msg: Message }) {
                     onClick={() => window.open(msg.mediaUrl!, '_blank')}
                 />
                 {msg.content && msg.content !== '📷 Imagem' && (
-                    <p className="whitespace-pre-wrap break-words mt-1">{msg.content}</p>
+                    <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
                 )}
             </div>
         )
@@ -429,7 +464,7 @@ function MediaContent({ msg }: { msg: Message }) {
                     <source src={msg.mediaUrl} />
                 </video>
                 {msg.content && msg.content !== '🎬 Vídeo' && (
-                    <p className="whitespace-pre-wrap break-words mt-1">{msg.content}</p>
+                    <TextoDeWhatsApp texto={msg.content} className="whitespace-pre-wrap break-words mt-1" />
                 )}
             </div>
         )
@@ -452,7 +487,7 @@ function MediaContent({ msg }: { msg: Message }) {
     }
 
     // Default text
-    return <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+    return <TextoDeWhatsApp texto={msg.content} />
 }
 
 function mediaIcon(contentType: string) {
@@ -469,7 +504,7 @@ export default function ConversasPage() {
     // Só dono e administrador reconectam uma linha; o aviso de linha fora do ar
     // muda de destinatário por isso.
     const { canManage } = usePermissions()
-    const [activeTab, setActiveTab] = useState<Tab>('waiting')
+    const [activeTab, setActiveTab] = useState<Aba>('ia')
     const [searchQuery, setSearchQuery] = useState('')
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
     const [queue, setQueue] = useState<QueueCounts | null>(null)
@@ -506,7 +541,10 @@ export default function ConversasPage() {
     const [canTransfer, setCanTransfer] = useState(false)
     /** Quem sou eu: vira o dono do negócio aberto por aqui. */
     const [meuId, setMeuId] = useState('')
-    const [onlyMine, setOnlyMine] = useState(false)
+    /** O seletor `Ver`: a minha relação com a conversa. Era `onlyMine` booleano. */
+    const [ver, setVer] = useState<Ver>('todas')
+    /** O papel, que decide quais opções de `Ver` a tela oferece. */
+    const [meuPapel, setMeuPapel] = useState<string>('')
     /**
      * Qual linha a lista mostra — "all" para todas.
      *
@@ -516,8 +554,103 @@ export default function ConversasPage() {
      */
     const [lineFilter, setLineFilter] = useState('all')
     const [agentFilter, setAgentFilter] = useState('all')
+    /** Etiqueta e etapa do funil: os dois filtros novos do Vol. III. */
+    const [tagFilter, setTagFilter] = useState('all')
+    const [stageFilter, setStageFilter] = useState('all')
+    const [filterTags, setFilterTags] = useState<{ id: string; name: string; color: string }[]>([])
+    const [stages, setStages] = useState<{ id: string; name: string; color: string | null }[]>([])
     const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
     const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
+
+    /**
+     * Os filtros ligados, como pastilhas — a metade que faz a opção B ser a B.
+     *
+     * O popover **escolhe**; esta faixa **mostra**. A separação existe porque
+     * o cabeçalho desta coluna já foi de cinco faixas para três, e um filtro
+     * que cobrasse altura mesmo desligado desfaria aquele ganho: a lista
+     * `filtrosLigados` é vazia no caso comum, e aí a faixa não é renderizada e
+     * a coluna tem exatamente a altura de antes.
+     *
+     * Cada pastilha diz o **próprio valor** e sai com o ×, que é a regra do
+     * `FilterPill` em DESIGN.md §5. Sem isso, uma lista curta por causa de um
+     * filtro esquecido parece uma caixa vazia — o engano que a opção A deixava
+     * acontecer.
+     */
+    const filtrosLigados = useMemo(() => {
+        const postas: { chave: string; rotulo: string; valor: string; limpar: () => void }[] = []
+
+        if (lineFilter !== 'all') {
+            const linha = lines.find((l) => l.id === lineFilter)
+            postas.push({
+                chave: 'line',
+                rotulo: 'Linha',
+                valor: lineFilter === 'none' ? 'Sem linha' : linha?.label || linha?.phoneNumber || 'Linha',
+                limpar: () => {
+                    setLineFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (agentFilter !== 'all') {
+            postas.push({
+                chave: 'agent',
+                rotulo: 'Agente',
+                valor:
+                    agentFilter === 'none'
+                        ? 'Sem agente'
+                        : agents.find((a) => a.id === agentFilter)?.name || 'Agente',
+                limpar: () => {
+                    setAgentFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (tagFilter !== 'all') {
+            postas.push({
+                chave: 'tag',
+                rotulo: 'Etiqueta',
+                valor: filterTags.find((t) => t.id === tagFilter)?.name || 'Etiqueta',
+                limpar: () => {
+                    setTagFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (stageFilter !== 'all') {
+            postas.push({
+                chave: 'stage',
+                rotulo: 'Etapa',
+                valor:
+                    stageFilter === 'none'
+                        ? 'Sem negócio aberto'
+                        : stages.find((e) => e.id === stageFilter)?.name || 'Etapa',
+                limpar: () => {
+                    setStageFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+
+        return postas
+    }, [lineFilter, agentFilter, tagFilter, stageFilter, lines, agents, filterTags, stages])
+
+    /**
+     * O gatilho "Filtros" aparece quando há o que escolher.
+     *
+     * Linha e agente só contam a partir de dois — com um de cada, o seletor
+     * não decide nada. Etiqueta e etapa contam a partir de **um**: a clínica
+     * com uma etiqueta só ainda quer separar quem a tem de quem não a tem.
+     */
+    const temFiltro =
+        lines.length > 1 || agents.length > 1 || filterTags.length > 0 || stages.length > 0
+
+    const limparFiltros = () => {
+        setLineFilter('all')
+        setAgentFilter('all')
+        setTagFilter('all')
+        setStageFilter('all')
+        setLoading(true)
+    }
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     // Incrementa para derrubar e recriar o canal do Realtime depois de um erro.
@@ -657,11 +790,17 @@ export default function ConversasPage() {
 
     // Internal note mode
 
-    const tabs = [
-        { id: 'waiting' as Tab, label: 'Em espera' },
-        { id: 'active' as Tab, label: 'Ativas' },
-        { id: 'closed' as Tab, label: 'Finalizadas' },
-    ]
+    /**
+     * As três abas, pelo portão `atendidaPor`.
+     *
+     * Os rótulos vêm de `ROTULO_DA_ABA` para não haver uma segunda lista de
+     * nomes. "Com a IA" é verdade literal aqui: das 87 conversas da base de
+     * produção, 87 têm agente — nenhuma cairia nessa aba sem ter uma.
+     */
+    const tabs = (['ia', 'equipe', 'finalizadas'] as const).map((id) => ({
+        id,
+        label: ROTULO_DA_ABA[id],
+    }))
 
     // Load quick responses once
     useEffect(() => {
@@ -761,9 +900,11 @@ export default function ConversasPage() {
         try {
             const params = new URLSearchParams({ tab: activeTab })
             if (searchQuery) params.set('search', searchQuery)
-            if (onlyMine) params.set('onlyMine', 'true')
+            if (ver !== 'todas') params.set('ver', ver)
             if (lineFilter !== 'all') params.set('line', lineFilter)
             if (agentFilter !== 'all') params.set('agent', agentFilter)
+            if (tagFilter !== 'all') params.set('tag', tagFilter)
+            if (stageFilter !== 'all') params.set('stage', stageFilter)
             const res = await fetch(`/api/conversations?${params}`)
             const data = await res.json()
             if (data.conversations && Array.isArray(data.conversations)) {
@@ -777,10 +918,13 @@ export default function ConversasPage() {
                 setConversations(data.conversations)
                 if (Array.isArray(data.lines)) setLines(data.lines)
                 if (Array.isArray(data.agents)) setAgents(data.agents)
+                if (Array.isArray(data.tags)) setFilterTags(data.tags)
+                if (Array.isArray(data.stages)) setStages(data.stages)
                 if (data.counts) setQueue(data.counts)
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
                     setMeuId(String(data.currentUser.id ?? ''))
+                    setMeuPapel(String(data.currentUser.role ?? ''))
                 }
             } else if (Array.isArray(data)) {
                 setConversations(data)
@@ -790,7 +934,7 @@ export default function ConversasPage() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab, searchQuery, onlyMine, lineFilter, agentFilter, playNotificationSound])
+    }, [activeTab, searchQuery, ver, lineFilter, agentFilter, tagFilter, stageFilter, playNotificationSound])
 
     // Fetch conversation messages (initial load, limited to 30)
     const fetchMessages = useCallback(async (convId: string) => {
@@ -1751,18 +1895,40 @@ export default function ConversasPage() {
         return () => window.removeEventListener('keydown', handleEsc)
     }, [])
 
-    const handleAction = async (action: 'assign' | 'unassign' | 'close' | 'reopen') => {
+    const handleAction = async (
+        action: 'assign' | 'unassign' | 'close' | 'reopen' | 'descolaborar'
+    ) => {
         if (!selectedConversation) return
         try {
-            await fetch(`/api/conversations/${selectedConversation}`, {
+            const res = await fetch(`/api/conversations/${selectedConversation}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action }),
             })
+
+            /**
+             * A recusa passa a ser dita.
+             *
+             * Este `fetch` ignorava o status: uma ação negada — transferir sem
+             * permissão, ou deixar de colaborar numa conversa em que já não se
+             * colabora — recarregava a tela igual ao caso de sucesso, e nada
+             * mudava. Quem clicou concluía que o botão não funciona.
+             */
+            if (!res.ok) {
+                const dados = (await res.json().catch(() => null)) as { error?: string } | null
+                toast.error(dados?.error || 'Não foi possível concluir')
+                return
+            }
+
+            if (action === 'descolaborar') {
+                toast.success('Você saiu desta conversa.')
+            }
+
             fetchConversations()
             fetchMessages(selectedConversation)
         } catch (error) {
             console.error('Error:', error)
+            toast.error('Não foi possível concluir')
         }
     }
 
@@ -1868,13 +2034,27 @@ export default function ConversasPage() {
 
     /* Quem está com a conversa, em uma linha. Era metadado cinza de 11px ao
        lado do telefone; vira o rótulo do controle que muda esse mesmo estado. */
+    /**
+     * O chip de estado, pelo portão **e** pelo nome.
+     *
+     * Dizia "Com Rachel" sempre que havia `assignedToName`, o que incluía o
+     * lead recém-chegado que o rodízio atribuiu e que a IA está atendendo — o
+     * chip afirmava que a Rachel estava na conversa antes de ela abri-la.
+     *
+     * Agora as duas informações aparecem na ordem em que importam: quem está
+     * conduzindo, e, quando é a IA, de quem a conversa é.
+     */
     const conversationStateLabel = !conv
         ? ''
         : conv.status === 'closed'
           ? 'Finalizada'
-          : conv.assignedToName
-            ? `Com ${conv.assignedToName.split(' ')[0]}`
-            : 'No bot'
+          : conversationDetail?.conversation?.atendidaPor === 'humano'
+            ? conv.assignedToName
+              ? `Com ${conv.assignedToName.split(' ')[0]}`
+              : 'Com a equipe'
+            : conv.assignedToName
+              ? `Na IA · de ${conv.assignedToName.split(' ')[0]}`
+              : 'Na IA'
 
     return (
         <>
@@ -1936,9 +2116,9 @@ export default function ConversasPage() {
                     <div className="flex gap-1 border-b px-3 py-1.5">
                         {tabs.map((tab) => {
                             const contagem =
-                                tab.id === 'waiting'
+                                tab.id === 'ia'
                                     ? (queue?.waiting ?? 0)
-                                    : tab.id === 'active'
+                                    : tab.id === 'equipe'
                                       ? (queue?.active ?? 0)
                                       : null
 
@@ -1963,7 +2143,7 @@ export default function ConversasPage() {
                                                 'num rounded-full px-1.5 text-[10px] font-bold',
                                                 activeTab === tab.id
                                                     ? 'bg-primary-foreground/15'
-                                                    : tab.id === 'waiting'
+                                                    : tab.id === 'ia'
                                                       ? 'bg-warning-subtle text-warning-subtle-foreground'
                                                       : 'bg-muted text-muted-foreground'
                                             )}
@@ -1978,44 +2158,71 @@ export default function ConversasPage() {
 
                     {/* Uma faixa de filtro, não três. */}
                     <div className="flex items-center gap-2 border-b px-3 py-1.5">
-                        <div className="flex shrink-0 rounded-md bg-muted/60 p-0.5">
-                            {[
-                                { id: false, label: 'Todas' },
-                                { id: true, label: 'Minhas' },
-                            ].map((opcao) => (
+                        {/* O seletor `Ver` — a minha relação com a conversa.
+                            Era um segmento de dois estados (Todas | Minhas).
+                            Com quatro valores ele não caberia: a coluna tem
+                            320px e nesta faixa ainda estão Filtros e a linha
+                            de apoio da direita. O gatilho mostra o valor
+                            escolhido, que é o que o segmento dava de graça.
+
+                            Os outros dois valores NÃO podem ir para o popover
+                            de Filtros: Todas e Minhas em dois lugares é a
+                            divergência que já custou caro na tabela de preços
+                            dos modelos. Um controle, uma pergunta. */}
+                        <Popover>
+                            <PopoverTrigger asChild>
                                 <button
-                                    key={String(opcao.id)}
-                                    onClick={() => {
-                                        setOnlyMine(opcao.id)
-                                        setLoading(true)
-                                    }}
                                     className={cn(
-                                        'rounded px-2 py-0.5 text-[11px] font-medium transition-colors',
-                                        onlyMine === opcao.id
-                                            ? 'bg-card text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground'
+                                        'flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                                        ver === 'todas'
+                                            ? 'border-border text-foreground hover:bg-muted/50'
+                                            : 'border-primary-subtle-foreground/30 bg-primary-subtle text-primary-subtle-foreground'
                                     )}
+                                    aria-label="Escolher quais conversas ver"
                                 >
-                                    {opcao.label}
+                                    Ver: <span className="font-semibold">{ROTULO_DO_VER[ver]}</span>
+                                    <ChevronDown className="size-3" aria-hidden="true" />
                                 </button>
-                            ))}
-                        </div>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-52 p-1">
+                                {opcoesDeVer(meuPapel).map((opcao) => (
+                                    <button
+                                        key={opcao}
+                                        onClick={() => {
+                                            setVer(opcao)
+                                            setLoading(true)
+                                        }}
+                                        className={cn(
+                                            'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                                            ver === opcao
+                                                ? 'bg-muted font-semibold text-foreground'
+                                                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                        )}
+                                    >
+                                        {ROTULO_DO_VER[opcao]}
+                                        {ver === opcao ? (
+                                            <Check className="size-3.5" aria-hidden="true" />
+                                        ) : null}
+                                    </button>
+                                ))}
+                            </PopoverContent>
+                        </Popover>
 
                         {/* Linha e agente só existem quando há o que escolher —
                             com um de cada, o seletor não decide nada. O ponto
                             no gatilho diz que há filtro ligado sem precisar
                             abrir. */}
-                        {lines.length > 1 || agents.length > 1 ? (
+                        {temFiltro ? (
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <button
                                         className={cn(
                                             'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                                            lineFilter !== 'all' || agentFilter !== 'all'
+                                            filtrosLigados.length
                                                 ? 'bg-primary-subtle text-primary-subtle-foreground'
                                                 : 'text-muted-foreground hover:bg-muted/50'
                                         )}
-                                        aria-label="Filtrar por linha ou agente"
+                                        aria-label="Filtrar a lista de conversas"
                                     >
                                         <SlidersHorizontal className="size-3.5" />
                                         Filtros
@@ -2084,6 +2291,79 @@ export default function ConversasPage() {
                                             </Select>
                                         </div>
                                     ) : null}
+
+                                    {/* Etiqueta e etapa entram no popover que já
+                                        existe — opção B, aprovada em 05/11. O
+                                        popover escolhe; quem **mostra** o que
+                                        está ligado é a faixa de pastilhas
+                                        abaixo do cabeçalho. Separar as duas
+                                        coisas é o que mantém o cabeçalho com a
+                                        mesma altura de sempre quando não há
+                                        filtro nenhum. */}
+                                    {filterTags.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Etiqueta
+                                            </p>
+                                            <Select
+                                                value={tagFilter}
+                                                onValueChange={(v) => {
+                                                    setTagFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por etiqueta"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as etiquetas</SelectItem>
+                                                    {filterTags.map((t) => (
+                                                        <SelectItem key={t.id} value={t.id}>
+                                                            {t.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {stages.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Etapa do funil
+                                            </p>
+                                            <Select
+                                                value={stageFilter}
+                                                onValueChange={(v) => {
+                                                    setStageFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por etapa do funil"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as etapas</SelectItem>
+                                                    {stages.map((e) => (
+                                                        <SelectItem key={e.id} value={e.id}>
+                                                            {e.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                    {/* "Sem negócio" é filtro de
+                                                        verdade: é a fila de quem
+                                                        escreveu e ninguém abriu
+                                                        negócio ainda. */}
+                                                    <SelectItem value="none">Sem negócio aberto</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
                                 </PopoverContent>
                             </Popover>
                         ) : null}
@@ -2109,6 +2389,44 @@ export default function ConversasPage() {
                             </span>
                         ) : null}
                     </div>
+
+                    {/* A FAIXA DOS FILTROS LIGADOS — opção B.
+                        Só existe quando há filtro posto, e é isso que mantém o
+                        cabeçalho com a altura de sempre no caso comum. Cada
+                        pastilha diz o próprio valor e sai com o ×; "Limpar"
+                        aparece a partir do segundo, porque com um só ele
+                        duplicaria o × ao lado. */}
+                    {filtrosLigados.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-3 py-1.5">
+                            {filtrosLigados.map((f) => (
+                                <span
+                                    key={f.chave}
+                                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/35 bg-primary-subtle py-0.5 pl-2 pr-1 text-[10px] font-semibold text-primary-subtle-foreground"
+                                >
+                                    <span className="truncate">
+                                        {f.rotulo}: {f.valor}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={f.limpar}
+                                        aria-label={`Tirar o filtro de ${f.rotulo.toLowerCase()}`}
+                                        className="rounded-full p-0.5 hover:bg-primary/15"
+                                    >
+                                        <X className="size-2.5" />
+                                    </button>
+                                </span>
+                            ))}
+                            {filtrosLigados.length > 1 ? (
+                                <button
+                                    type="button"
+                                    onClick={limparFiltros}
+                                    className="px-1 text-[10px] text-muted-foreground underline decoration-border hover:text-foreground"
+                                >
+                                    Limpar
+                                </button>
+                            ) : null}
+                        </div>
+                    ) : null}
 
                     {/* Conversations List */}
                     <div className="flex-1 overflow-y-auto">
@@ -2157,7 +2475,7 @@ export default function ConversasPage() {
                                                 {/* 2. O que foi dito por último. */}
                                                 <div className="mt-0.5 flex items-center justify-between gap-2">
                                                     <p className="truncate text-xs text-muted-foreground">
-                                                        {conv.lastMessage?.content}
+                                                        {conv.lastMessage ? semMarcacao(conv.lastMessage.content) : null}
                                                     </p>
                                                     {conv.unreadCount > 0 && (
                                                         <span className="num flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -2182,7 +2500,11 @@ export default function ConversasPage() {
                                                     <div className="mt-1 flex items-center justify-between gap-2 whitespace-nowrap text-[10px] text-muted-foreground">
                                                         <span className="flex min-w-0 items-center gap-1.5">
                                                             {conv.agent ? (
-                                                                <span className="truncate">{conv.agent.name}</span>
+                                                                <Retrato
+                                                                    endereco={conv.agent.retrato}
+                                                                    nome={conv.agent.name}
+                                                                    className="size-3.5"
+                                                                />
                                                             ) : null}
                                                             {conv.agent && origemDaConversa(conv) ? (
                                                                 <span aria-hidden="true" className="text-muted-foreground/40">|</span>
@@ -2203,9 +2525,12 @@ export default function ConversasPage() {
                                                             `--primary` puro não teria contraste
                                                             sobre o cartão branco. */}
                                                         {conv.assignedToName ? (
-                                                            <span className="shrink-0 font-semibold text-primary-subtle-foreground">
-                                                                {primeiroNome(conv.assignedToName, null)}
-                                                            </span>
+                                                            <Retrato
+                                                                endereco={conv.assignedToRetrato}
+                                                                nome={primeiroNome(conv.assignedToName, null)}
+                                                                className="size-4"
+                                                                classNameTexto="shrink-0 font-semibold text-primary-subtle-foreground"
+                                                            />
                                                         ) : null}
                                                     </div>
                                                 )}
@@ -2213,9 +2538,21 @@ export default function ConversasPage() {
                                                 {/* 4. As etiquetas, sozinhas. Dividindo a faixa com
                                                     o texto acima, elas empurravam o agente para
                                                     fora e quebravam no meio. */}
-                                                {conv.tags && conv.tags.length > 0 ? (
+                                                {/* A etapa do funil abre a faixa, antes das
+                                                    etiquetas: ela é uma só e muda sozinha, então
+                                                    tem lugar fixo — se entrasse no meio das
+                                                    etiquetas, mudaria de posição a cada etiqueta
+                                                    posta ou tirada. Forma diferente da etiqueta de
+                                                    propósito (ver `EtapaChip`). */}
+                                                {conv.funnelStage?.stageName || (conv.tags && conv.tags.length > 0) ? (
                                                     <div className="mt-1 flex flex-wrap items-center gap-1">
-                                                        {conv.tags.map(tag => (
+                                                        {conv.funnelStage?.stageName ? (
+                                                            <EtapaChip
+                                                                name={conv.funnelStage.stageName}
+                                                                color={conv.funnelStage.stageColor}
+                                                            />
+                                                        ) : null}
+                                                        {conv.tags?.map(tag => (
                                                             <TagChip key={tag.id} name={tag.name} color={tag.color} size="sm" />
                                                         ))}
                                                     </div>
@@ -2355,6 +2692,50 @@ export default function ConversasPage() {
                                                 </TooltipContent>
                                             </Tooltip>
                                         ) : null}
+
+                                        {/* 4. Quem mais está vendo isto.
+                                            Pilha de retratos, não lista de
+                                            nomes: nesta faixa já estão o
+                                            responsável e o estado da linha, e
+                                            dois nomes a mais a quebrariam. O
+                                            nome vem no `title` de cada um.
+
+                                            Só aqui, nunca no cartão da lista —
+                                            decisão do Andre, e a razão é a
+                                            mesma: espaço. */}
+                                        {conversationDetail?.conversation?.colaboradores?.length ? (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                        <AtSign className="size-3 shrink-0" aria-hidden="true" />
+                                                        <span className="flex">
+                                                            {conversationDetail.conversation.colaboradores
+                                                                .slice(0, 4)
+                                                                .map((c) => (
+                                                                    <Retrato
+                                                                        key={c.userId}
+                                                                        endereco={c.retrato}
+                                                                        nome={c.nome}
+                                                                        className="-ml-1 size-4 border border-background first:ml-0"
+                                                                        classNameTexto="-ml-1 grid size-4 place-items-center rounded-full border border-background bg-muted text-[8px] font-bold first:ml-0"
+                                                                    />
+                                                                ))}
+                                                        </span>
+                                                        {conversationDetail.conversation.colaboradores.length > 4 ? (
+                                                            <span className="num">
+                                                                +{conversationDetail.conversation.colaboradores.length - 4}
+                                                            </span>
+                                                        ) : null}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    Colabora nesta conversa:{' '}
+                                                    {conversationDetail.conversation.colaboradores
+                                                        .map((c) => c.nome)
+                                                        .join(', ')}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        ) : null}
                                     </div>
                                 </div>
 
@@ -2396,7 +2777,16 @@ export default function ConversasPage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-52">
-                                            {conv.status === 'active' && !conv.assignedTo && (
+                                            {/* Assumir aparece enquanto a IA
+                                                atende — não só quando não há
+                                                responsável. É a correção do nó:
+                                                o lead que chega já ganha
+                                                responsável pelo rodízio, e com a
+                                                condição antiga o botão sumia
+                                                justamente na conversa que mais
+                                                precisa ser assumida. */}
+                                            {conv.status === 'active' &&
+                                                conversationDetail?.conversation?.atendidaPor === 'bot' && (
                                                 <RowActionItem
                                                     icon={Hand}
                                                     onClick={() => handleAction('assign')}
@@ -2404,12 +2794,19 @@ export default function ConversasPage() {
                                                     Assumir
                                                 </RowActionItem>
                                             )}
-                                            {conv.assignedTo && (
+                                            {/* Devolver é devolver o **portão**,
+                                                não só largar o responsável. A
+                                                condição é `atendidaPor`, e não
+                                                `assignedTo`: a entrega do agente
+                                                à equipe produz conversa com a
+                                                equipe e sem responsável, e ela
+                                                também precisa poder voltar. */}
+                                            {conversationDetail?.conversation?.atendidaPor === 'humano' && (
                                                 <RowActionItem
                                                     icon={UserX}
                                                     onClick={() => handleAction('unassign')}
                                                 >
-                                                    Devolver ao bot
+                                                    Devolver à IA
                                                 </RowActionItem>
                                             )}
                                             {conv.assignedTo && canTransfer && (
@@ -2418,6 +2815,20 @@ export default function ConversasPage() {
                                                     onClick={() => openTransferModal(conv.id)}
                                                 >
                                                     Transferir
+                                                </RowActionItem>
+                                            )}
+                                            {/* Só aparece para quem **está**
+                                                colaborando. Não é permissão: é
+                                                que para os outros o item não
+                                                significaria nada, e menu com
+                                                item inerte ensina a não ler o
+                                                menu. */}
+                                            {conversationDetail?.conversation?.euColaboro && (
+                                                <RowActionItem
+                                                    icon={UserMinus}
+                                                    onClick={() => handleAction('descolaborar')}
+                                                >
+                                                    Deixar de colaborar
                                                 </RowActionItem>
                                             )}
                                             {conv.status === 'active' && (
@@ -2453,7 +2864,13 @@ export default function ConversasPage() {
 
                                     {/* A única ação óbvia daquele estado, a um
                                         clique. Tudo o mais mora no chip. */}
-                                    {conv.status === 'active' && !conv.assignedTo && (
+                                    {/* A ação óbvia sai do portão, não de
+                                        `assignedTo`. Com a IA atendendo, o
+                                        óbvio é assumir — mesmo que o rodízio já
+                                        tenha posto um nome na conversa. Com a
+                                        equipe, é finalizar. */}
+                                    {conv.status === 'active' &&
+                                        conversationDetail?.conversation?.atendidaPor === 'bot' && (
                                         <Button
                                             size="sm"
                                             onClick={() => handleAction('assign')}
@@ -2463,7 +2880,8 @@ export default function ConversasPage() {
                                             Assumir
                                         </Button>
                                     )}
-                                    {conv.status === 'active' && conv.assignedTo && (
+                                    {conv.status === 'active' &&
+                                        conversationDetail?.conversation?.atendidaPor === 'humano' && (
                                         <Button
                                             size="sm"
                                             onClick={() => handleAction('close')}
@@ -2735,7 +3153,7 @@ export default function ConversasPage() {
                                                                 <StickyNote className="h-3 w-3" />
                                                                 Nota interna · {msg.senderName || 'Atendente'}
                                                             </div>
-                                                            <p className="text-foreground/80 whitespace-pre-wrap">{msg.content}</p>
+                                                            <TextoDeWhatsApp texto={msg.content} className="text-foreground/80 whitespace-pre-wrap" />
                                                             <div className="text-[10px] opacity-60 mt-1 text-right">
                                                                 {format(new Date(msg.createdAt), 'HH:mm', { locale: ptBR })}
                                                             </div>
@@ -2807,7 +3225,7 @@ export default function ConversasPage() {
                                                                 )}>
                                                                     {msg.replyTo.direction === 'inbound' ? '👤 Paciente' : '🤖 Agente'}
                                                                 </span>
-                                                                <p className="truncate opacity-80">{msg.replyTo.content}</p>
+                                                                <p className="truncate opacity-80">{semMarcacao(msg.replyTo.content)}</p>
                                                             </div>
                                                         )}
 

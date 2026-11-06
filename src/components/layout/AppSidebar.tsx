@@ -79,13 +79,27 @@ export function AppSidebar({ marca }: { marca?: UnidadeAberta | null }) {
                     if (!section.items) return section
                     const items = section.items.filter((item) => {
                         if (!item.allowedRoles?.length) return true
+                        /**
+                         * O operador da Venn360 não é recortado por papel.
+                         *
+                         * Dentro da conta de um cliente ele veste ATENDENTE no
+                         * modo "Espiar" — não porque seja atendente, mas porque
+                         * é o papel que todo portão de gravação já recusa (ver
+                         * `plataforma/acesso.ts`). O efeito colateral era o
+                         * recorte por item: "Agentes de IA" sai do menu do
+                         * atendente, e saía também do dele — justamente o
+                         * assunto que se vai diagnosticar numa conta de
+                         * cliente. O menu volta; quem continua decidindo o que
+                         * ele pode **mexer** é a rota.
+                         */
+                        if (daPlataforma) return true
                         if (loading || !role) return false
                         return item.allowedRoles.includes(role)
                     })
                     return items.length === section.items.length ? section : { ...section, items }
                 })
                 .filter((section) => !section.items || section.items.length > 0),
-        [role, loading]
+        [role, loading, daPlataforma]
     )
 
     /**

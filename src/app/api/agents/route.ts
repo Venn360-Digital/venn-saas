@@ -1,5 +1,6 @@
 import { canCreateAgent } from '@/lib/limits'
-import { currentMembership } from '@/lib/auth/workspace'
+import { MANAGER_ROLES, currentMembership } from '@/lib/auth/workspace'
+import { workspaceDoPedido } from '@/lib/auth/agent'
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '#prisma'
@@ -88,39 +89,19 @@ export async function GET(request: NextRequest) {
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        // Get workspaceId from header or query param
-        const searchParams = request.nextUrl.searchParams
-        let workspaceId = searchParams.get('workspaceId')
-
-        // WORKAROUND: Handle 'current' or missing workspaceId by taking the first one found for the user
-        // This allows the app to work before the Workspace Selector UI is fully implemented
-        if (!workspaceId || workspaceId === 'current' || workspaceId === 'undefined') {
-            const firstWorkspace = await currentMembership()
-
-            if (!firstWorkspace) {
-                // If user has no workspace, we could create one or return empty
-                // For now, return empty list or error
-                return NextResponse.json([])
-            }
-            workspaceId = firstWorkspace.workspaceId
-        }
-
         /**
-         * O usuário é membro **ativo** deste workspace?
+         * Qual unidade, e se esta pessoa pode agir nela.
          *
-         * `findFirst` com `isActive` em vez de `findUnique` pela chave composta:
-         * sem o filtro, desativar alguém em Gerenciamento → Usuários não lhe
-         * tirava a lista de agentes da clínica — e o `?workspaceId=` da URL é um
-         * campo de texto como qualquer outro.
+         * As duas perguntas saem do mesmo lugar (`workspaceDoPedido`). Antes
+         * eram duas: a unidade vinha do helper de participação e a autorização
+         * vinha de um `findFirst` cru na tabela — e o operador da Venn360, cuja
+         * participação na conta do cliente é sintética, passava na primeira e
+         * era recusado na segunda. A lista de agentes era o único assunto que o
+         * console não abria.
          */
-        const hasAccess = await prisma.workspaceUser.findFirst({
-            where: { workspaceId, userId: user.id, isActive: true },
-            select: { id: true },
-        })
-
-        if (!hasAccess) {
-            return new NextResponse('Forbidden', { status: 403 })
-        }
+        const alvo = await workspaceDoPedido(request.nextUrl.searchParams.get('workspaceId'))
+        if (!alvo.ok) return alvo.response
+        const workspaceId = alvo.workspaceId
 
         const agents = await prisma.agent.findMany({
             where: {
@@ -214,19 +195,11 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Verify access
-        const isOwnerOrAdmin = await prisma.workspaceUser.findFirst({
-            where: {
-                workspaceId,
-                userId: user.id,
-                isActive: true,
-                role: { in: ['OWNER', 'ADMIN'] }
-            }
-        })
-
-        if (!isOwnerOrAdmin) {
-            return new NextResponse('Forbidden: Only Admins can create agents', { status: 403 })
-        }
+        // Criar agente é gestão, e a unidade é a que `workspaceDoPedido`
+        // autorizou — mesma razão do GET.
+        const alvoPost = await workspaceDoPedido(workspaceId, MANAGER_ROLES)
+        if (!alvoPost.ok) return alvoPost.response
+        workspaceId = alvoPost.workspaceId
 
         // Plan limit. `maxAgents` was stored on the subscription and shown on the
         // Plano tab, but nothing enforced it — every plan could create unlimited

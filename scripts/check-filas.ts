@@ -42,7 +42,7 @@ async function main() {
     // O número é fixo de propósito — é o que faz uma rotina acrescentada ou
     // removida aparecer aqui, e não em produção. Estava em 14 desde antes de
     // `broadcast-dispatch` entrar, e por isso esta prova vinha vermelha.
-    ok('as 16 entradas da agenda convertem sem erro', rotinasEmUTC().length === 16)
+    ok('as 17 entradas da agenda convertem sem erro', rotinasEmUTC().length === 17)
 
     /**
      * A primeira rotina **semanal** do sistema, e a primeira com restrição de

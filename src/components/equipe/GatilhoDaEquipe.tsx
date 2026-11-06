@@ -196,9 +196,9 @@ export function GatilhoDaEquipe() {
                                 i > 0 && '-ml-2'
                             )}
                         >
-                            {p.avatar ? (
+                            {p.retrato ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={p.avatar} alt="" className="size-full rounded-full object-cover" />
+                                <img src={p.retrato} alt="" className="size-full rounded-full object-cover" />
                             ) : (
                                 p.nome.trim()[0]?.toUpperCase()
                             )}

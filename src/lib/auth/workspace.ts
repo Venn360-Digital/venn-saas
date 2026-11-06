@@ -352,7 +352,7 @@ export async function requireRole(roles: WorkspaceRole[]): Promise<AuthResult> {
  * autorização: o id dela na URL abre a conversa inteira.
  */
 export function conversationScope(
-    member: Pick<WorkspaceMember, 'role' | 'departmentIds'>
+    member: Pick<WorkspaceMember, 'role' | 'departmentIds' | 'userId'>
 ): Prisma.ConversationWhereInput {
     if (canSeeEveryone(member.role)) return {}
     return {
@@ -365,6 +365,24 @@ export function conversationScope(
                     { integration: { departmentId: { in: member.departmentIds } } },
                     { integration: { departmentId: null } },
                     { integrationId: null },
+                    /**
+                     * **A conversa em que eu colaboro, mesmo fora da minha fila.**
+                     *
+                     * É o único lugar em que este recorte *abre* em vez de
+                     * fechar, e é deliberado — toda a regra do §11 é que o
+                     * recorte fecha. O que justifica a exceção é que o buraco
+                     * não é genérico: é de **uma** conversa, aberto por alguém
+                     * que já a via, com quem o abriu gravado em
+                     * `ConversationCollaborator.addedByUserId`.
+                     *
+                     * Sem esta cláusula a feature inteira não existe: a colega
+                     * marcada receberia o recado com o link e a conversa não
+                     * apareceria para ela.
+                     *
+                     * Note que isto dá **leitura**. Responder exige assumir, e
+                     * assumir é outro gesto, com outro portão.
+                     */
+                    { collaborators: { some: { userId: member.userId } } },
                 ],
             },
         ],

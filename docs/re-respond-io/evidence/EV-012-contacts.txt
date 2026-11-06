@@ -1,0 +1,12 @@
+EV-012 — Contacts
+Rota: /space/:id/contact?segment=all
+Sessão: s02 · 2026-10-25 · Captura: read_page (barra lateral; sem PII de linhas).
+
+Barra lateral (views):
+- Todos
+- Ciclo de vida → Etapas do ciclo de vida: New Lead, Hot Lead, Payment, Customer; Etapas de perda: Cold Lead (filtra contatos por estágio)
+- Segmentos (filtros salvos; exemplos default): "Contacts created <7 days ago", "Contacts inactive >30 days", "Contacts with tags", "Country known", "Language known"
+- Contatos bloqueados
+
+Controles: "Pesquisar Contacts", "Adicionar contacto", "Adicionar segmento", colunas/filtros/import-export (botões sem rótulo). URL usa ?segment=<id>.
+Confirma F-082: Contacts com segmentação, filtro por lifecycle, blocked, import.

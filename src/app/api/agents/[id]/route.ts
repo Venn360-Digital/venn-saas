@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { manageAgent, readAgent } from '@/lib/auth/agent'
 import { z } from 'zod'
 import { findModel } from '@/lib/llm/models'
 import { agentPreferencesPatchSchema } from '@/types/agent-preferences'
@@ -92,16 +93,12 @@ export async function GET(
             return new NextResponse('Agent not found', { status: 404 })
         }
 
-        // Membro **ativo**: sem `isActive`, desativar alguém não lhe tirava o
-        // acesso de leitura ao agente.
-        const hasAccess = await prisma.workspaceUser.findFirst({
-            where: { workspaceId: agent.workspaceId, userId: user.id, isActive: true },
-            select: { id: true },
-        })
-
-        if (!hasAccess) {
-            return new NextResponse('Forbidden', { status: 403 })
-        }
+        // Quem pode ler este agente. `readAgent` resolve a participação pelo
+        // helper, e é por isso que o operador da Venn360 dentro da conta do
+        // cliente passa: a participação dele é sintética, e um `findFirst` na
+        // tabela — que era o que estava aqui — nunca a encontra.
+        const podeLer = await readAgent(id)
+        if (!podeLer.ok) return podeLer.response
 
         // Mesma razão da listagem: a coluna guarda referência, o cliente precisa
         // de endereço.
@@ -136,18 +133,10 @@ export async function PATCH(
         }
 
         // 2. Verify admin permissions
-        const isOwnerOrAdmin = await prisma.workspaceUser.findFirst({
-            where: {
-                workspaceId: existingAgent.workspaceId,
-                userId: user.id,
-                isActive: true,
-                role: { in: ['OWNER', 'ADMIN'] }
-            }
-        })
-
-        if (!isOwnerOrAdmin) {
-            return new NextResponse('Forbidden', { status: 403 })
-        }
+        // Mexer no agente é gestão — e pela mesma razão do GET a pergunta é
+        // ao helper, não à tabela.
+        const podeMexer = await manageAgent(id)
+        if (!podeMexer.ok) return podeMexer.response
 
         const validatedData = updateAgentSchema.parse(body)
 
@@ -219,18 +208,10 @@ export async function DELETE(
         }
 
         // Verify admin permissions
-        const isOwnerOrAdmin = await prisma.workspaceUser.findFirst({
-            where: {
-                workspaceId: existingAgent.workspaceId,
-                userId: user.id,
-                isActive: true,
-                role: { in: ['OWNER', 'ADMIN'] }
-            }
-        })
-
-        if (!isOwnerOrAdmin) {
-            return new NextResponse('Forbidden', { status: 403 })
-        }
+        // Mexer no agente é gestão — e pela mesma razão do GET a pergunta é
+        // ao helper, não à tabela.
+        const podeMexer = await manageAgent(id)
+        if (!podeMexer.ok) return podeMexer.response
 
         await prisma.agent.delete({
             where: { id },

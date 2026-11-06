@@ -58,7 +58,6 @@ const EMPTY_FORM = {
     name: '',
     lastName: '',
     email: '',
-    password: '',
     phone: '',
     departmentIds: [] as string[],
     role: 'GESTOR' as Role,
@@ -91,7 +90,7 @@ export function UserFormModal({
 }: UserFormModalProps) {
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState(EMPTY_FORM)
-    const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; phone?: string }>({})
+    const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string }>({})
 
     const isEditing = !!user
     // The founding member cannot be demoted or deactivated, here or in the API.
@@ -103,7 +102,6 @@ export function UserFormModal({
                 name: user.name || '',
                 lastName: user.lastName || '',
                 email: user.email || '',
-                password: '',
                 phone: user.phone ?? '',
                 departmentIds: user.departments.map((d) => d.id),
                 role: (user.role === 'ADMIN' || user.role === 'OWNER'
@@ -126,8 +124,7 @@ export function UserFormModal({
         const next: typeof errors = {}
         if (!formData.name.trim()) next.name = 'Informe o nome.'
         if (!isEditing) {
-            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email.trim())) next.email = 'Informe um e-mail válido: é o login da pessoa.'
-            if (formData.password.length < 8) next.password = 'A senha precisa de pelo menos 8 caracteres.'
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(formData.email.trim())) next.email = 'Informe um e-mail válido: é para lá que o convite vai.'
         }
         const phoneProblem = formData.phone ? phoneIssue(formData.phone) : null
         if (phoneProblem) next.phone = phoneProblem
@@ -146,15 +143,26 @@ export function UserFormModal({
                 isActive: formData.isActive,
             }
 
-            // Credentials are only set at creation; changing them later goes
-            // through the account screen.
+            if (!isEditing) payload.email = formData.email
+
+            /**
+             * Criar manda **convite**, não cria usuário.
+             *
+             * `POST /api/users` responde 410 desde o convite LGPD: senha é dado
+             * de autenticação do titular, e quem a escolhe tem de ser ele. O
+             * convite grava o que a pessoa **vai ser** e o `User` nasce no
+             * aceite, com a senha que ela escolheu.
+             *
+             * `isActive` não vai no convite: convite pendente não é acesso
+             * desativado, é acesso que ainda não existe. Editar continua em
+             * `/api/users/[id]`, que mexe em quem já aceitou.
+             */
             if (!isEditing) {
-                payload.email = formData.email
-                payload.password = formData.password
+                delete payload.isActive
             }
 
             const response = await fetch(
-                isEditing ? `/api/users/${user.id}` : '/api/users',
+                isEditing ? `/api/users/${user.id}` : '/api/convites',
                 {
                     method: isEditing ? 'PATCH' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -165,7 +173,9 @@ export function UserFormModal({
             const data = await response.json()
 
             if (response.ok) {
-                toast.success(isEditing ? 'Usuário atualizado' : 'Usuário criado')
+                toast.success(
+                    isEditing ? 'Usuário atualizado' : `Convite enviado para ${formData.email}`
+                )
                 setErrors({})
                 if (again && !isEditing) setFormData(EMPTY_FORM)
                 else onSuccess()
@@ -190,9 +200,13 @@ export function UserFormModal({
         <RecordDialog
             open={isOpen}
             onOpenChange={(open) => !open && onClose()}
-            title={isEditing ? 'Editar usuário' : 'Novo usuário'}
-            description={isEditing ? 'Atualize os dados e as permissões desta pessoa.' : 'A pessoa recebe acesso assim que você criar.'}
-            submitLabel={isEditing ? 'Salvar usuário' : 'Criar usuário'}
+            title={isEditing ? 'Editar usuário' : 'Convidar para a equipe'}
+            description={
+                isEditing
+                    ? 'Atualize os dados e as permissões desta pessoa.'
+                    : 'A pessoa recebe um link por e-mail e escolhe a própria senha.'
+            }
+            submitLabel={isEditing ? 'Salvar usuário' : 'Enviar convite'}
             hideAgain={isEditing}
             onSubmit={handleSubmit}
             submitting={loading}
@@ -238,7 +252,18 @@ export function UserFormModal({
 
             {!isEditing ? (
                 <>
-                    <FormField label="E-mail" htmlFor="user-email" required error={errors.email}>
+                    {/* O campo Senha **saiu desta tela**, e não foi para outra.
+                        Senha é dado de autenticação do titular: quem a escolhe
+                        é ele, na tela do convite. O que sobra aqui é o endereço
+                        para onde o link vai — e por isso a dica diz isso, em
+                        vez de deixar a pessoa procurar o campo que faltou. */}
+                    <FormField
+                        label="E-mail"
+                        htmlFor="user-email"
+                        required
+                        error={errors.email}
+                        hint="O convite vai para este endereço, e vale 7 dias"
+                    >
                         <Input
                             id="user-email"
                             type="email"
@@ -247,17 +272,6 @@ export function UserFormModal({
                             placeholder="nome@clinica.com.br"
                             aria-invalid={errors.email ? true : undefined}
                             autoComplete="email"
-                        />
-                    </FormField>
-
-                    <FormField label="Senha" htmlFor="user-password" required error={errors.password} hint="Mínimo de 8 caracteres">
-                        <Input
-                            id="user-password"
-                            type="password"
-                            value={formData.password}
-                            onChange={(e) => { setFormData({ ...formData, password: e.target.value }); if (errors.password) setErrors((p) => ({ ...p, password: undefined })) }}
-                            aria-invalid={errors.password ? true : undefined}
-                            autoComplete="new-password"
                         />
                     </FormField>
                 </>

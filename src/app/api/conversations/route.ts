@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
+import {
+    lerAba,
+    lerVer,
+    limiteDoAtendente,
+    recorteDaAba,
+    recorteDoVer,
+} from '@/lib/conversas/recortes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
+import {
+    SELECT_ETAPA,
+    etapaPorContato,
+    negocioNoFunil,
+    recorteDeEtapa,
+    recorteDeEtiqueta,
+} from '@/lib/conversas/etapa-do-funil'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { inicioDoDiaDe } from '@/lib/fuso'
@@ -24,13 +39,25 @@ export async function GET(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url)
-        const tab = searchParams.get('tab') || 'waiting' // waiting | active | closed
+        /**
+         * A aba e o `Ver` — duas perguntas, dois parâmetros.
+         *
+         * `lerAba`/`lerVer` aceitam os nomes antigos (`waiting`/`active`/`closed`
+         * e `onlyMine=true`) porque eles estão em aba aberta e em link colado no
+         * grupo da equipe: recusá-los mandaria essa gente para uma lista vazia
+         * sem dizer por quê. Ver `lib/conversas/recortes.ts`.
+         */
+        const aba = lerAba(searchParams.get('tab'))
+        const ver = lerVer(searchParams.get('ver'), searchParams.get('onlyMine') === 'true')
         const search = searchParams.get('search') || ''
-        const onlyMine = searchParams.get('onlyMine') === 'true'
         /** Por qual linha de WhatsApp — vazio ou "all" para todas. */
         const line = searchParams.get('line') || ''
         /** Por qual agente — vazio ou "all" para todos. */
         const agent = searchParams.get('agent') || ''
+        /** Por qual etiqueta — vazio ou "all" para todas. */
+        const etiqueta = searchParams.get('tag') || ''
+        /** Por qual etapa do funil — "all", "none", ou o id da etapa. */
+        const etapa = searchParams.get('stage') || ''
 
         const isAtendente = workspaceUser.role === 'ATENDENTE'
 
@@ -59,36 +86,36 @@ export async function GET(request: NextRequest) {
         const departmentScope = conversationScope({
             role: workspaceUser.role as WorkspaceRole,
             departmentIds,
+            userId: workspaceUser.userId,
         })
 
-        // Build filter based on tab
-        // Em espera: status=active AND assignedTo IS NULL
-        // Ativas: status=active AND assignedTo IS NOT NULL
-        // Finalizadas: status=closed
-        // "Só minhas" filter applies to Ativas and Finalizadas only
-        const where: Prisma.ConversationWhereInput = { workspaceId: workspaceUser.workspaceId }
-
-        switch (tab) {
-            case 'waiting':
-                where.status = 'active'
-                where.assignedTo = null
-                break
-            case 'active':
-                where.status = 'active'
-                where.assignedTo = { not: null }
-                // "Só minhas" or ATENDENTE: only their own
-                if (onlyMine || isAtendente) {
-                    where.assignedTo = user.id
-                }
-                break
-            case 'closed':
-                where.status = 'closed'
-                if (onlyMine || isAtendente) {
-                    where.assignedTo = user.id
-                }
-                break
-            default:
-                where.status = { not: 'closed' }
+        /**
+         * O `where`, em três camadas que não se misturam.
+         *
+         * 1. a **aba**, por `status` + `atendidaPor` — o estado da conversa;
+         * 2. o **`Ver`**, por `assignedTo` ou `collaborators` — a relação com
+         *    quem pergunta;
+         * 3. o **teto do atendente**, que o `Ver` não levanta.
+         *
+         * A versão anterior fazia as três coisas num `switch` só, e era por isso
+         * que "Em espera" era `assignedTo IS NULL`: a aba tinha de responder
+         * "qual estado" usando o campo de "quem é a pessoa". Medido em produção
+         * no dia da troca: 44 das 45 conversas abertas tinham `assignedTo`, e a
+         * aba "Em espera" mostrava 1 enquanto a IA atendia quase todas.
+         *
+         * O teto entra em `AND` e não no mesmo nível porque ele tem um `OR`
+         * dentro: posto no nível de cima, aquele `OR` se somaria ao `OR` do
+         * recorte de departamento em vez de restringir junto com ele — e aí o
+         * atendente veria a clínica inteira.
+         */
+        const recorteVer = recorteDoVer(ver, user.id)
+        const where: Prisma.ConversationWhereInput = {
+            workspaceId: workspaceUser.workspaceId,
+            ...recorteDaAba(aba),
+            ...(recorteVer ?? {}),
+            ...(isAtendente
+                ? { AND: [limiteDoAtendente(user.id)] }
+                : {}),
         }
 
         /**
@@ -117,6 +144,23 @@ export async function GET(request: NextRequest) {
          */
         if (agent && agent !== 'all') {
             where.agentId = agent === 'none' ? null : agent
+        }
+
+        /**
+         * Etiqueta e etapa, em `AND`.
+         *
+         * Nenhum dos dois pode ser campo direto no `where`: os dois trazem
+         * `OR` próprio (a etiqueta porque é a união dos dois vínculos, a
+         * etapa porque atravessa o contato), e `where.OR` já é da busca. Pôr
+         * qualquer um deles ali apagaria a busca — ou seria apagado por ela.
+         */
+        const recortes = [
+            recorteDeEtiqueta(etiqueta),
+            recorteDeEtapa(workspaceUser.workspaceId, etapa),
+        ].filter((r): r is NonNullable<typeof r> => r !== null)
+
+        if (recortes.length) {
+            where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), ...recortes]
         }
 
         // Espalhado e não atribuído: o recorte vem como `AND`, e a busca abaixo
@@ -161,6 +205,15 @@ export async function GET(request: NextRequest) {
                     select: {
                         id: true,
                         name: true,
+                        /**
+                         * `avatar` e `updatedAt` entram para o cartão poder
+                         * mostrar a **foto** do agente em vez do nome, quando há
+                         * foto (pedido do Andre). Só a decisão sai daqui; o que
+                         * vai na resposta é o endereço de `/api/retratos`, e por
+                         * isso o `avatar` cru é descartado logo abaixo.
+                         */
+                        avatar: true,
+                        updatedAt: true,
                     }
                 },
                 integration: {
@@ -190,6 +243,28 @@ export async function GET(request: NextRequest) {
             orderBy: { lastMessageAt: 'desc' },
         })
 
+        /**
+         * A etapa do funil de cada pessoa, em lote.
+         *
+         * Uma consulta para a página inteira, e não uma por conversa: o
+         * vínculo é `Deal → Contact ← Conversation`, então dá para pedir os
+         * negócios de todos os contatos de uma vez. `createdAt: 'desc'` é o
+         * que faz `etapaPorContato` ficar com o mais recente quando a pessoa
+         * tem dois negócios abertos.
+         */
+        const etapas = conversations.length
+            ? etapaPorContato(
+                  await prisma.deal.findMany({
+                      where: {
+                          ...negocioNoFunil(workspaceUser.workspaceId),
+                          contactId: { in: [...new Set(conversations.map((c) => c.contact.id))] },
+                      },
+                      orderBy: { createdAt: 'desc' },
+                      select: SELECT_ETAPA,
+                  })
+              )
+            : new Map()
+
         // The queue, measured — the three slices the inbox shows above the list.
         // Counted over the whole workspace on purpose: the tab you are looking
         // at must not change how many people are waiting elsewhere.
@@ -203,27 +278,82 @@ export async function GET(request: NextRequest) {
         // O medidor conta dentro do mesmo recorte da lista. Sem isto ele diria
         // "8 esperando" numa tela que mostra 3, e a diferença não teria
         // explicação em lugar nenhum.
-        const escopo = departmentScope
+        /**
+         * O medidor conta pelos **mesmos recortes** da lista.
+         *
+         * `recorteDaAba` e não `assignedTo` escrito à mão aqui: era assim que
+         * estava, e é a divergência que `lib/conversas/recortes.ts` existe para
+         * impedir. Contador dizendo 12 numa tela que mostra 9 é o tipo de
+         * defeito que ninguém reporta e que faz todo mundo deixar de confiar na
+         * tela.
+         *
+         * O teto do atendente entra no medidor também. Sem ele, o contador da
+         * aba "Com a equipe" somaria a carteira dos colegas — um número que o
+         * atendente vê e não consegue abrir.
+         */
+        const escopo: Prisma.ConversationWhereInput = {
+            ...departmentScope,
+            ...(isAtendente ? { AND: [limiteDoAtendente(user.id)] } : {}),
+        }
         const [waiting, active, closedToday, oldestWaiting] = await Promise.all([
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: null, ...escopo } }),
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: { not: null }, ...escopo } }),
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'closed', updatedAt: { gte: startOfToday }, ...escopo } }),
+            prisma.conversation.count({
+                where: { workspaceId: ws, ...recorteDaAba('ia'), ...escopo },
+            }),
+            prisma.conversation.count({
+                where: { workspaceId: ws, ...recorteDaAba('equipe'), ...escopo },
+            }),
+            prisma.conversation.count({
+                where: {
+                    workspaceId: ws,
+                    ...recorteDaAba('finalizadas'),
+                    updatedAt: { gte: startOfToday },
+                    ...escopo,
+                },
+            }),
+            /**
+             * "espera há 14m" passa a medir a espera **de verdade**.
+             *
+             * Era a mais antiga sem responsável, que com 44 de 45 conversas
+             * atribuídas quase nunca existia — a linha de apoio ficava mostrando
+             * "N resolvidas hoje" porque não achava ninguém esperando. Agora é a
+             * mais antiga que a equipe não assumiu, que é a pergunta que a
+             * recepção faz.
+             */
             prisma.conversation.findFirst({
-                where: { workspaceId: ws, status: 'active', assignedTo: null, lastMessageAt: { not: null }, ...escopo },
+                where: {
+                    workspaceId: ws,
+                    ...recorteDaAba('ia'),
+                    lastMessageAt: { not: null },
+                    ...escopo,
+                },
                 orderBy: { lastMessageAt: 'asc' },
                 select: { lastMessageAt: true },
             }),
         ])
 
-        // Resolve assignee names
+        /**
+         * Nome e **endereço** do retrato do responsável — nunca os bytes dele.
+         *
+         * `avatar` continua no `select` porque é dele que sai a decisão "tem
+         * foto ou não", mas o que vai na resposta é o endereço de
+         * `/api/retratos`. A versão anterior devolvia o valor da coluna, e em
+         * produção o retrato do Andre tem 277 KB de base64 ali: numa página de
+         * conversas dele a resposta repetia os 277 KB por cartão. Ver
+         * `lib/retratos.ts`.
+         */
         const assigneeIds = [...new Set(conversations.map(c => c.assignedTo).filter(Boolean))] as string[]
         const assignees = assigneeIds.length > 0
             ? await prisma.user.findMany({
                 where: { id: { in: assigneeIds } },
-                select: { id: true, name: true, avatar: true }
+                select: { id: true, name: true, avatar: true, updatedAt: true }
             })
             : []
-        const assigneeMap = new Map(assignees.map(a => [a.id, { name: a.name, avatar: a.avatar }]))
+        const assigneeMap = new Map(
+            assignees.map(a => [
+                a.id,
+                { name: a.name, retrato: enderecoDoRetrato('usuario', a.id, a.avatar, a.updatedAt) },
+            ])
+        )
 
         // Calculate unread counts based on lastReadAt
         const unreadCounts = await Promise.all(
@@ -254,9 +384,24 @@ export async function GET(request: NextRequest) {
                 status: conv.status,
                 assignedTo: conv.assignedTo,
                 assignedToName: conv.assignedTo ? assigneeMap.get(conv.assignedTo)?.name || null : null,
-                assignedToAvatar: conv.assignedTo ? assigneeMap.get(conv.assignedTo)?.avatar || null : null,
+                /** Endereço, não bytes. `null` = o cartão escreve o nome. */
+                assignedToRetrato: conv.assignedTo
+                    ? assigneeMap.get(conv.assignedTo)?.retrato || null
+                    : null,
                 contact: contactData,
-                agent: conv.agent,
+                agent: conv.agent
+                    ? {
+                          id: conv.agent.id,
+                          name: conv.agent.name,
+                          /** Endereço, não bytes. `null` = o cartão escreve o nome. */
+                          retrato: enderecoDoRetrato(
+                              'agente',
+                              conv.agent.id,
+                              conv.agent.avatar,
+                              conv.agent.updatedAt
+                          ),
+                      }
+                    : null,
                 /** Por onde entrou — o que a lista mostra ao lado do agente. */
                 line: conv.integration
                     ? {
@@ -271,6 +416,8 @@ export async function GET(request: NextRequest) {
                 lastMessage: conv.messages[0] || null,
                 unreadCount: unreadCounts[idx],
                 tags: Array.from(tagMap.values()),
+                /** Onde esta pessoa está no funil, ou `null` se não há negócio aberto. */
+                funnelStage: etapas.get(conv.contact.id) ?? null,
                 lastMessageAt: conv.lastMessageAt,
                 createdAt: conv.createdAt,
             }
@@ -319,8 +466,31 @@ export async function GET(request: NextRequest) {
         const agents = [...new Map(lines.map((l) => [l.agent.id, l.agent])).values()]
             .sort((a, b) => a.name.localeCompare(b.name))
 
+        /**
+         * As etiquetas e as etapas que o seletor pode oferecer.
+         *
+         * Pela mesma razão de `lines` e `agents`: vêm com a lista para que o
+         * filtro nunca ofereça uma etiqueta que acabou de ser apagada. Não são
+         * recortadas por departamento — etiqueta e etapa são da clínica
+         * inteira, e a parede continua sendo o departamento da linha.
+         */
+        const [etiquetas, etapasDoFunil] = await Promise.all([
+            prisma.tag.findMany({
+                where: { workspaceId: ws },
+                orderBy: { name: 'asc' },
+                select: { id: true, name: true, color: true },
+            }),
+            prisma.pipelineStage.findMany({
+                where: { workspaceId: ws },
+                orderBy: { order: 'asc' },
+                select: { id: true, name: true, color: true },
+            }),
+        ])
+
         return NextResponse.json({
             conversations: result,
+            tags: etiquetas,
+            stages: etapasDoFunil,
             lines: lines.map((l) => ({
                 id: l.id,
                 label: l.label,
