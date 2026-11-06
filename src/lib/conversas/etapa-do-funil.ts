@@ -77,3 +77,55 @@ export const SELECT_ETAPA = {
     stageId: true,
     stage: { select: { name: true, color: true } },
 } as const
+
+/**
+ * O recorte de conversa por etapa do funil.
+ *
+ * `all`/vazio não recorta; `none` é quem **não** tem negócio no funil; o resto
+ * é o id de uma etapa.
+ *
+ * ## Uma divergência deliberada com o cartão, e por que ela é a certa
+ *
+ * O cartão mostra a etapa do negócio aberto **mais recente** (é `Map`, primeiro
+ * vence). O filtro usa `some`: casa quem tem **algum** negócio aberto naquela
+ * etapa. Com dois negócios abertos na mesma pessoa — raro, e legítimo quando a
+ * clínica negocia dois tratamentos ao mesmo tempo — os dois discordam: o
+ * cartão escreve a etapa de um, e o filtro encontra a pessoa pelo outro.
+ *
+ * Escolhido assim porque a pergunta que a pessoa faz ao filtrar é "quem está em
+ * Proposta?", e quem tem uma proposta aberta está em Proposta mesmo que o
+ * cadastro mais novo dele seja outro. O contrário — "de quem o negócio mais
+ * recente está em Proposta" — esconderia da lista alguém que o funil de
+ * Negócios mostra na coluna Proposta, e aí as duas telas é que divergiriam.
+ */
+export function recorteDeEtapa(
+    workspaceId: string,
+    etapa: string
+): Prisma.ConversationWhereInput | null {
+    if (!etapa || etapa === 'all') return null
+
+    if (etapa === 'none') {
+        return { contact: { deals: { none: negocioNoFunil(workspaceId) } } }
+    }
+
+    return { contact: { deals: { some: { ...negocioNoFunil(workspaceId), stageId: etapa } } } }
+}
+
+/**
+ * O recorte de conversa por etiqueta.
+ *
+ * A **união** de `ConversationTag` e `ContactTag`, porque é a união que a tela
+ * mostra — o chip no cartão sai dos dois vínculos fundidos. Filtrar por um só
+ * lado faria a lista esconder conversa que exibe a etiqueta procurada, que é o
+ * pior resultado possível de um filtro. Mesma fórmula do filtro de Pacientes.
+ */
+export function recorteDeEtiqueta(etiqueta: string): Prisma.ConversationWhereInput | null {
+    if (!etiqueta || etiqueta === 'all') return null
+
+    return {
+        OR: [
+            { tags: { some: { tagId: etiqueta } } },
+            { contact: { tags: { some: { tagId: etiqueta } } } },
+        ],
+    }
+}

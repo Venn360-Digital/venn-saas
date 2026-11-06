@@ -3,7 +3,13 @@ import prisma from '@/lib/prisma'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
-import { SELECT_ETAPA, etapaPorContato, negocioNoFunil } from '@/lib/conversas/etapa-do-funil'
+import {
+    SELECT_ETAPA,
+    etapaPorContato,
+    negocioNoFunil,
+    recorteDeEtapa,
+    recorteDeEtiqueta,
+} from '@/lib/conversas/etapa-do-funil'
 import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { inicioDoDiaDe } from '@/lib/fuso'
@@ -32,6 +38,10 @@ export async function GET(request: NextRequest) {
         const line = searchParams.get('line') || ''
         /** Por qual agente — vazio ou "all" para todos. */
         const agent = searchParams.get('agent') || ''
+        /** Por qual etiqueta — vazio ou "all" para todas. */
+        const etiqueta = searchParams.get('tag') || ''
+        /** Por qual etapa do funil — "all", "none", ou o id da etapa. */
+        const etapa = searchParams.get('stage') || ''
 
         const isAtendente = workspaceUser.role === 'ATENDENTE'
 
@@ -118,6 +128,23 @@ export async function GET(request: NextRequest) {
          */
         if (agent && agent !== 'all') {
             where.agentId = agent === 'none' ? null : agent
+        }
+
+        /**
+         * Etiqueta e etapa, em `AND`.
+         *
+         * Nenhum dos dois pode ser campo direto no `where`: os dois trazem
+         * `OR` próprio (a etiqueta porque é a união dos dois vínculos, a
+         * etapa porque atravessa o contato), e `where.OR` já é da busca. Pôr
+         * qualquer um deles ali apagaria a busca — ou seria apagado por ela.
+         */
+        const recortes = [
+            recorteDeEtiqueta(etiqueta),
+            recorteDeEtapa(workspaceUser.workspaceId, etapa),
+        ].filter((r): r is NonNullable<typeof r> => r !== null)
+
+        if (recortes.length) {
+            where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), ...recortes]
         }
 
         // Espalhado e não atribuído: o recorte vem como `AND`, e a busca abaixo
@@ -344,8 +371,31 @@ export async function GET(request: NextRequest) {
         const agents = [...new Map(lines.map((l) => [l.agent.id, l.agent])).values()]
             .sort((a, b) => a.name.localeCompare(b.name))
 
+        /**
+         * As etiquetas e as etapas que o seletor pode oferecer.
+         *
+         * Pela mesma razão de `lines` e `agents`: vêm com a lista para que o
+         * filtro nunca ofereça uma etiqueta que acabou de ser apagada. Não são
+         * recortadas por departamento — etiqueta e etapa são da clínica
+         * inteira, e a parede continua sendo o departamento da linha.
+         */
+        const [etiquetas, etapasDoFunil] = await Promise.all([
+            prisma.tag.findMany({
+                where: { workspaceId: ws },
+                orderBy: { name: 'asc' },
+                select: { id: true, name: true, color: true },
+            }),
+            prisma.pipelineStage.findMany({
+                where: { workspaceId: ws },
+                orderBy: { order: 'asc' },
+                select: { id: true, name: true, color: true },
+            }),
+        ])
+
         return NextResponse.json({
             conversations: result,
+            tags: etiquetas,
+            stages: etapasDoFunil,
             lines: lines.map((l) => ({
                 id: l.id,
                 label: l.label,

@@ -8,7 +8,7 @@ import { prettyPhone } from '@/lib/masks'
 import { useNow } from '@/hooks/useNow'
 import { usePermissions } from '@/hooks/usePermissions'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -524,8 +524,103 @@ export default function ConversasPage() {
      */
     const [lineFilter, setLineFilter] = useState('all')
     const [agentFilter, setAgentFilter] = useState('all')
+    /** Etiqueta e etapa do funil: os dois filtros novos do Vol. III. */
+    const [tagFilter, setTagFilter] = useState('all')
+    const [stageFilter, setStageFilter] = useState('all')
+    const [filterTags, setFilterTags] = useState<{ id: string; name: string; color: string }[]>([])
+    const [stages, setStages] = useState<{ id: string; name: string; color: string | null }[]>([])
     const [agents, setAgents] = useState<{ id: string; name: string }[]>([])
     const [lines, setLines] = useState<{ id: string; label: string | null; phoneNumber: string | null; agentName: string }[]>([])
+
+    /**
+     * Os filtros ligados, como pastilhas — a metade que faz a opção B ser a B.
+     *
+     * O popover **escolhe**; esta faixa **mostra**. A separação existe porque
+     * o cabeçalho desta coluna já foi de cinco faixas para três, e um filtro
+     * que cobrasse altura mesmo desligado desfaria aquele ganho: a lista
+     * `filtrosLigados` é vazia no caso comum, e aí a faixa não é renderizada e
+     * a coluna tem exatamente a altura de antes.
+     *
+     * Cada pastilha diz o **próprio valor** e sai com o ×, que é a regra do
+     * `FilterPill` em DESIGN.md §5. Sem isso, uma lista curta por causa de um
+     * filtro esquecido parece uma caixa vazia — o engano que a opção A deixava
+     * acontecer.
+     */
+    const filtrosLigados = useMemo(() => {
+        const postas: { chave: string; rotulo: string; valor: string; limpar: () => void }[] = []
+
+        if (lineFilter !== 'all') {
+            const linha = lines.find((l) => l.id === lineFilter)
+            postas.push({
+                chave: 'line',
+                rotulo: 'Linha',
+                valor: lineFilter === 'none' ? 'Sem linha' : linha?.label || linha?.phoneNumber || 'Linha',
+                limpar: () => {
+                    setLineFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (agentFilter !== 'all') {
+            postas.push({
+                chave: 'agent',
+                rotulo: 'Agente',
+                valor:
+                    agentFilter === 'none'
+                        ? 'Sem agente'
+                        : agents.find((a) => a.id === agentFilter)?.name || 'Agente',
+                limpar: () => {
+                    setAgentFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (tagFilter !== 'all') {
+            postas.push({
+                chave: 'tag',
+                rotulo: 'Etiqueta',
+                valor: filterTags.find((t) => t.id === tagFilter)?.name || 'Etiqueta',
+                limpar: () => {
+                    setTagFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+        if (stageFilter !== 'all') {
+            postas.push({
+                chave: 'stage',
+                rotulo: 'Etapa',
+                valor:
+                    stageFilter === 'none'
+                        ? 'Sem negócio aberto'
+                        : stages.find((e) => e.id === stageFilter)?.name || 'Etapa',
+                limpar: () => {
+                    setStageFilter('all')
+                    setLoading(true)
+                },
+            })
+        }
+
+        return postas
+    }, [lineFilter, agentFilter, tagFilter, stageFilter, lines, agents, filterTags, stages])
+
+    /**
+     * O gatilho "Filtros" aparece quando há o que escolher.
+     *
+     * Linha e agente só contam a partir de dois — com um de cada, o seletor
+     * não decide nada. Etiqueta e etapa contam a partir de **um**: a clínica
+     * com uma etiqueta só ainda quer separar quem a tem de quem não a tem.
+     */
+    const temFiltro =
+        lines.length > 1 || agents.length > 1 || filterTags.length > 0 || stages.length > 0
+
+    const limparFiltros = () => {
+        setLineFilter('all')
+        setAgentFilter('all')
+        setTagFilter('all')
+        setStageFilter('all')
+        setLoading(true)
+    }
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     // Incrementa para derrubar e recriar o canal do Realtime depois de um erro.
@@ -772,6 +867,8 @@ export default function ConversasPage() {
             if (onlyMine) params.set('onlyMine', 'true')
             if (lineFilter !== 'all') params.set('line', lineFilter)
             if (agentFilter !== 'all') params.set('agent', agentFilter)
+            if (tagFilter !== 'all') params.set('tag', tagFilter)
+            if (stageFilter !== 'all') params.set('stage', stageFilter)
             const res = await fetch(`/api/conversations?${params}`)
             const data = await res.json()
             if (data.conversations && Array.isArray(data.conversations)) {
@@ -785,6 +882,8 @@ export default function ConversasPage() {
                 setConversations(data.conversations)
                 if (Array.isArray(data.lines)) setLines(data.lines)
                 if (Array.isArray(data.agents)) setAgents(data.agents)
+                if (Array.isArray(data.tags)) setFilterTags(data.tags)
+                if (Array.isArray(data.stages)) setStages(data.stages)
                 if (data.counts) setQueue(data.counts)
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
@@ -798,7 +897,7 @@ export default function ConversasPage() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab, searchQuery, onlyMine, lineFilter, agentFilter, playNotificationSound])
+    }, [activeTab, searchQuery, onlyMine, lineFilter, agentFilter, tagFilter, stageFilter, playNotificationSound])
 
     // Fetch conversation messages (initial load, limited to 30)
     const fetchMessages = useCallback(async (convId: string) => {
@@ -2013,17 +2112,17 @@ export default function ConversasPage() {
                             com um de cada, o seletor não decide nada. O ponto
                             no gatilho diz que há filtro ligado sem precisar
                             abrir. */}
-                        {lines.length > 1 || agents.length > 1 ? (
+                        {temFiltro ? (
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <button
                                         className={cn(
                                             'flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                                            lineFilter !== 'all' || agentFilter !== 'all'
+                                            filtrosLigados.length
                                                 ? 'bg-primary-subtle text-primary-subtle-foreground'
                                                 : 'text-muted-foreground hover:bg-muted/50'
                                         )}
-                                        aria-label="Filtrar por linha ou agente"
+                                        aria-label="Filtrar a lista de conversas"
                                     >
                                         <SlidersHorizontal className="size-3.5" />
                                         Filtros
@@ -2092,6 +2191,79 @@ export default function ConversasPage() {
                                             </Select>
                                         </div>
                                     ) : null}
+
+                                    {/* Etiqueta e etapa entram no popover que já
+                                        existe — opção B, aprovada em 05/11. O
+                                        popover escolhe; quem **mostra** o que
+                                        está ligado é a faixa de pastilhas
+                                        abaixo do cabeçalho. Separar as duas
+                                        coisas é o que mantém o cabeçalho com a
+                                        mesma altura de sempre quando não há
+                                        filtro nenhum. */}
+                                    {filterTags.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Etiqueta
+                                            </p>
+                                            <Select
+                                                value={tagFilter}
+                                                onValueChange={(v) => {
+                                                    setTagFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por etiqueta"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as etiquetas</SelectItem>
+                                                    {filterTags.map((t) => (
+                                                        <SelectItem key={t.id} value={t.id}>
+                                                            {t.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
+
+                                    {stages.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            <p className="text-[11px] font-medium text-muted-foreground">
+                                                Etapa do funil
+                                            </p>
+                                            <Select
+                                                value={stageFilter}
+                                                onValueChange={(v) => {
+                                                    setStageFilter(v)
+                                                    setLoading(true)
+                                                }}
+                                            >
+                                                <SelectTrigger
+                                                    aria-label="Filtrar por etapa do funil"
+                                                    className="h-8 w-full text-xs"
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas as etapas</SelectItem>
+                                                    {stages.map((e) => (
+                                                        <SelectItem key={e.id} value={e.id}>
+                                                            {e.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                    {/* "Sem negócio" é filtro de
+                                                        verdade: é a fila de quem
+                                                        escreveu e ninguém abriu
+                                                        negócio ainda. */}
+                                                    <SelectItem value="none">Sem negócio aberto</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    ) : null}
                                 </PopoverContent>
                             </Popover>
                         ) : null}
@@ -2117,6 +2289,44 @@ export default function ConversasPage() {
                             </span>
                         ) : null}
                     </div>
+
+                    {/* A FAIXA DOS FILTROS LIGADOS — opção B.
+                        Só existe quando há filtro posto, e é isso que mantém o
+                        cabeçalho com a altura de sempre no caso comum. Cada
+                        pastilha diz o próprio valor e sai com o ×; "Limpar"
+                        aparece a partir do segundo, porque com um só ele
+                        duplicaria o × ao lado. */}
+                    {filtrosLigados.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-1.5 border-b bg-muted/30 px-3 py-1.5">
+                            {filtrosLigados.map((f) => (
+                                <span
+                                    key={f.chave}
+                                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/35 bg-primary-subtle py-0.5 pl-2 pr-1 text-[10px] font-semibold text-primary-subtle-foreground"
+                                >
+                                    <span className="truncate">
+                                        {f.rotulo}: {f.valor}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={f.limpar}
+                                        aria-label={`Tirar o filtro de ${f.rotulo.toLowerCase()}`}
+                                        className="rounded-full p-0.5 hover:bg-primary/15"
+                                    >
+                                        <X className="size-2.5" />
+                                    </button>
+                                </span>
+                            ))}
+                            {filtrosLigados.length > 1 ? (
+                                <button
+                                    type="button"
+                                    onClick={limparFiltros}
+                                    className="px-1 text-[10px] text-muted-foreground underline decoration-border hover:text-foreground"
+                                >
+                                    Limpar
+                                </button>
+                            ) : null}
+                        </div>
+                    ) : null}
 
                     {/* Conversations List */}
                     <div className="flex-1 overflow-y-auto">
