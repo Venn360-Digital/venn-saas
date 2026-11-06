@@ -91,10 +91,10 @@ model User {
   /// Os recados que esta pessoa mandou e recebeu — ver `TeamMessage`.
   recadosEnviados  TeamMessage[] @relation("RecadosEnviados")
   recadosRecebidos TeamMessage[] @relation("RecadosRecebidos")
-  conversasQueSegue ConversationFollow[] @relation("ConversasQueSegue")
+  conversasQueColabora ConversationCollaborator[] @relation("ConversasQueColabora")
   convitesQueEnviou Invite[] @relation("ConvitesQueEnviou")
   conviteQueAceitou Invite[] @relation("ConviteQueAceitou")
-  seguidoresQuePos  ConversationFollow[] @relation("SeguidoresQuePos")
+  colaboradoresQueChamou ConversationCollaborator[] @relation("ColaboradoresQueChamou")
 
   @@map("users")
 }
@@ -1330,6 +1330,27 @@ model Conversation {
   status     String  @default("active") // "active", "closed", "snoozed"
   assignedTo String? // User ID
 
+  /// O portão: **a IA ou a equipe?** `"bot"` ou `"humano"`.
+  ///
+  /// Ideia do Andre, e é ela que desfaz o nó em que `assignedTo` respondia duas
+  /// perguntas de uma vez. Hoje a coluna "Em espera" é `assignedTo IS NULL`, o
+  /// que faz dela "sem responsável" com nome de "aguardando" — e as duas coisas
+  /// não são a mesma: a conversa pode ter responsável e ainda estar com a IA,
+  /// que é o caso normal de um lead que acabou de chegar.
+  ///
+  /// Com o portão explícito, `assignedTo` volta a responder **uma** pergunta
+  /// (quem é a pessoa) e esta responde a outra (quem está conduzindo). A lista
+  /// agrupa por aqui — "Com a IA" / "Com a equipe" — e o recorte de quem é a
+  /// pessoa vira o seletor `Ver`.
+  ///
+  /// **Muda só por gesto explícito**: assumir põe `"humano"`, devolver à IA põe
+  /// `"bot"`. Nunca por efeito colateral de mandar mensagem, que é justamente o
+  /// que `assignedTo` faz hoje e o que tornou a classificação implícita.
+  ///
+  /// Nasce `"bot"` porque é o estado de quem acabou de chegar, e porque assim o
+  /// código anterior à coluna continua correto sem ler nada disto.
+  atendidaPor String @default("bot")
+
   /// Quem **responde por** esta conversa. Não é quem está atendendo agora.
   ///
   /// `assignedTo` significa "um humano assumiu" e é o **mutex do agente**:
@@ -1420,7 +1441,7 @@ model Conversation {
   messages      Message[]
   knowledgeGaps KnowledgeGap[]
   tags          ConversationTag[]
-  follows       ConversationFollow[]
+  collaborators ConversationCollaborator[]
   recados       TeamMessage[]
 
   @@index([workspaceId])
@@ -1428,6 +1449,8 @@ model Conversation {
   @@index([integrationId])
   @@index([visitorKey])
   @@index([status])
+  /// O agrupamento da coluna: as três abas são `(status, atendidaPor)`.
+  @@index([workspaceId, status, atendidaPor])
   /// Filtrada em dois caminhos quentes: as guias Ativas e Finalizadas do
   /// atendente, que mostram só o que é dele, e o recorte de Pacientes, que
   /// pergunta "tem conversa atribuída a mim?" em toda listagem.
@@ -1578,28 +1601,31 @@ model Message {
   @@map("messages")
 }
 
-/// Quem **segue** uma conversa sem ser o dono dela.
+/// Quem **colabora** numa conversa sem ser o responsável por ela.
 ///
 /// É o item 6 do Vol. III, e a forma dele saiu de uma pergunta do Andre: o
 /// `transferir` que já existe não substitui isto, porque transferir **troca** o
-/// dono e seguir **soma** — ele pediu que a conversa aparecesse "para o dono e
-/// também para o seguidor".
+/// responsável e colaborar **soma** — ele pediu que a conversa aparecesse para
+/// o responsável e também para quem foi chamado.
+///
+/// O nome é dele, e bate com o vocabulário do respond.io: o filtro deles chama
+/// "Colaborações" (medido em `docs/re-respond-io/screens/S-003-inbox.md`). São
+/// N pessoas por conversa, não uma.
 ///
 /// ## Escrita pela menção, nunca por um botão de assinar
 ///
-/// Não há ação "seguir" na interface. A linha nasce quando alguém escreve uma
-/// nota interna marcando `@colega`, e é isso que o respond.io faz — medido em
-/// `docs/re-respond-io/`: o modelo deles não tem entidade de follow, tem
-/// comentário com menção e um filtro "Colaborações". A visibilidade é
-/// consequência de colaborar.
+/// Não há ação "colaborar" na interface. A linha nasce quando alguém escreve
+/// uma nota interna marcando `@colega`, e é isso que o respond.io faz: o modelo
+/// deles não tem entidade de follow, tem comentário com menção e o filtro
+/// acima. A visibilidade é consequência de colaborar.
 ///
 /// A alternativa — botão próprio **e** menção — daria dois caminhos para a
-/// mesma linha, e dois caminhos divergem: a lista mostraria alguém seguindo sem
-/// nota que explique por quê.
+/// mesma linha, e dois caminhos divergem: a lista mostraria alguém colaborando
+/// sem nota que explique por quê.
 ///
-/// ## O que seguir dá, e o que não dá
+/// ## O que colaborar dá, e o que não dá
 ///
-/// Dá **leitura**: a conversa entra na lista de quem segue mesmo fora do
+/// Dá **leitura**: a conversa entra na lista de quem colabora mesmo fora do
 /// departamento dele, e ele é avisado. Não dá resposta — para responder, assume,
 /// e assumir grava `assignedTo`, que é o gesto que já existe, que o produto
 /// registra e que cala o agente.
@@ -1607,26 +1633,26 @@ model Message {
 /// **É um buraco na parede do departamento, de propósito** — a regra geral é
 /// que o recorte fecha em vez de abrir (PRODUCT.md §11). O buraco é de *uma*
 /// conversa, nomeado, e com quem o abriu gravado em `addedByUserId`. A parede
-/// da **unidade** continua fechada: `quemPassaASeguir` recusa quem não é
+/// da **unidade** continua fechada: `quemPassaAColaborar` recusa quem não é
 /// membro, e é a diferença entre pedir ajuda a uma colega e expor a conversa de
 /// um paciente para outra clínica.
-model ConversationFollow {
+model ConversationCollaborator {
   conversationId String
   userId         String
-  /// Quem marcou. É o que torna o buraco auditável — e `SetNull` porque a
-  /// linha de quem segue não pode morrer quando quem o marcou sai da clínica.
+  /// Quem chamou. É o que torna o buraco auditável — e `SetNull` porque a linha
+  /// de quem colabora não pode morrer quando quem o chamou sai da clínica.
   addedByUserId  String?
   createdAt      DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User         @relation("ConversasQueSegue", fields: [userId], references: [id], onDelete: Cascade)
-  addedBy      User?        @relation("SeguidoresQuePos", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  user         User         @relation("ConversasQueColabora", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy      User?        @relation("ColaboradoresQueChamou", fields: [addedByUserId], references: [id], onDelete: SetNull)
 
-  /// Marcar a mesma pessoa duas vezes é ênfase, não dois seguidores.
+  /// Marcar a mesma pessoa duas vezes é ênfase, não dois colaboradores.
   @@id([conversationId, userId])
-  /// O caminho quente: "as conversas que eu sigo", que é o filtro da coluna.
+  /// O caminho quente: "as conversas em que eu colaboro", o filtro da coluna.
   @@index([userId])
-  @@map("conversation_follows")
+  @@map("conversation_collaborators")
 }
 
 /// O convite de usuário: o acesso nasce quando a pessoa aceita, não quando o

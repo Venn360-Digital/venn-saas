@@ -1,10 +1,10 @@
 import 'server-only'
 
 import type { Prisma } from '#prisma'
-import { idsMencionados, notaEmTextoSimples, quemPassaASeguir } from './mencoes'
+import { idsMencionados, notaEmTextoSimples, quemPassaAColaborar } from './mencoes'
 
 /**
- * O efeito da menção: quem passa a seguir, e o recado que avisa.
+ * O efeito da menção: quem passa a colaborar, e o recado que avisa.
  *
  * Um gesto — escrever a nota marcando `@colega` — e duas consequências. Elas
  * ficam juntas aqui, e não espalhadas na rota, porque **a segunda sem a
@@ -13,12 +13,12 @@ import { idsMencionados, notaEmTextoSimples, quemPassaASeguir } from './mencoes'
  * convite.
  */
 
-/** Dentro da transação da mensagem, para seguir e recado nascerem com ela. */
+/** Dentro da transação da mensagem, para a colaboração e o recado nascerem com ela. */
 type Tx = Prisma.TransactionClient
 
 export interface ResultadoDaMencao {
-    /** Quem passou a seguir agora (já exclui quem seguia). */
-    novosSeguidores: string[]
+    /** Quem passou a colaborar agora (já exclui quem colaborava). */
+    novosColaboradores: string[]
     /** Quantos recados foram criados. */
     recados: number
     /** Marcados que a regra recusou — para o log, nunca para a tela. */
@@ -29,8 +29,9 @@ export interface ResultadoDaMencao {
  * Aplica a menção de uma nota interna.
  *
  * Chamada **dentro** da transação que grava a nota. Se a transação voltar
- * atrás, ninguém segue e nenhum recado existe — e é o que se quer: seguidor
- * sem a nota que o explica é uma linha órfã que a tela não sabe justificar.
+ * atrás, ninguém colabora e nenhum recado existe — e é o que se quer:
+ * colaborador sem a nota que o explica é uma linha órfã que a tela não sabe
+ * justificar.
  *
  * Nunca lança por marcação inválida: um `@[x](id-que-não-existe)` colado à mão
  * entra em `recusados` e a nota é gravada igual. A nota é o registro; a menção
@@ -45,12 +46,12 @@ export async function aplicarMencao(
         /** O texto cru da nota, com a sintaxe `@[Nome](id)`. */
         texto: string
         autorId: string
-        /** O dono atual da conversa, se há. */
+        /** O responsável atual da conversa, se há. */
         donoId: string | null
     }
 ): Promise<ResultadoDaMencao> {
     const marcados = idsMencionados(entrada.texto)
-    if (!marcados.length) return { novosSeguidores: [], recados: 0, recusados: [] }
+    if (!marcados.length) return { novosColaboradores: [], recados: 0, recusados: [] }
 
     /**
      * Quem dos marcados é membro **ativo** desta unidade.
@@ -69,34 +70,34 @@ export async function aplicarMencao(
         select: { userId: true },
     })
 
-    const aSeguir = quemPassaASeguir({
+    const aChamar = quemPassaAColaborar({
         mencionados: marcados,
         autorId: entrada.autorId,
         donoId: entrada.donoId,
         idsDaUnidade: membros.map((m) => m.userId),
     })
 
-    const recusados = marcados.filter((id) => !aSeguir.includes(id))
-    if (!aSeguir.length) return { novosSeguidores: [], recados: 0, recusados }
+    const recusados = marcados.filter((id) => !aChamar.includes(id))
+    if (!aChamar.length) return { novosColaboradores: [], recados: 0, recusados }
 
     /**
-     * Quem já seguia não é novidade.
+     * Quem já colaborava não é novidade.
      *
      * Medido antes de gravar porque o retorno do `createMany` com
      * `skipDuplicates` diz **quantas**, não **quais** — e é "quais" que decide
-     * quem recebe recado. Marcar de novo quem já segue não deve render um
-     * segundo aviso: a pessoa já está acompanhando, e o aviso repetido é como
-     * se ensina alguém a ignorar aviso.
+     * quem recebe recado. Marcar de novo quem já colabora não deve render um
+     * segundo aviso: a pessoa já está na conversa, e o aviso repetido é como se
+     * ensina alguém a ignorar aviso.
      */
-    const jaSeguem = await tx.conversationFollow.findMany({
-        where: { conversationId: entrada.conversationId, userId: { in: aSeguir } },
+    const jaColaboram = await tx.conversationCollaborator.findMany({
+        where: { conversationId: entrada.conversationId, userId: { in: aChamar } },
         select: { userId: true },
     })
-    const jaSet = new Set(jaSeguem.map((f) => f.userId))
-    const novos = aSeguir.filter((id) => !jaSet.has(id))
+    const jaSet = new Set(jaColaboram.map((c) => c.userId))
+    const novos = aChamar.filter((id) => !jaSet.has(id))
 
     if (novos.length) {
-        await tx.conversationFollow.createMany({
+        await tx.conversationCollaborator.createMany({
             data: novos.map((userId) => ({
                 conversationId: entrada.conversationId,
                 userId,
@@ -111,14 +112,14 @@ export async function aplicarMencao(
     /**
      * O recado, para **todos** os que a regra aceitou — não só os novos.
      *
-     * É a diferença entre as duas listas, e ela é de propósito: seguir é
-     * estado (ou você segue, ou não), e recado é evento ("olha isso agora").
-     * Quem já segue e foi marcado de novo quer ser avisado desta nota; o que
-     * ele não precisa é de uma segunda linha na tabela de seguidores.
+     * É a diferença entre as duas listas, e ela é de propósito: colaborar é
+     * estado (ou você colabora, ou não), e recado é evento ("olha isso agora").
+     * Quem já colabora e foi marcado de novo quer ser avisado desta nota; o que
+     * ele não precisa é de uma segunda linha na tabela de colaboradores.
      */
     const corpo = notaEmTextoSimples(entrada.texto)
     await tx.teamMessage.createMany({
-        data: aSeguir.map((toUserId) => ({
+        data: aChamar.map((toUserId) => ({
             workspaceId: entrada.workspaceId,
             fromUserId: entrada.autorId,
             toUserId,
@@ -128,15 +129,15 @@ export async function aplicarMencao(
         })),
     })
 
-    return { novosSeguidores: novos, recados: aSeguir.length, recusados }
+    return { novosColaboradores: novos, recados: aChamar.length, recusados }
 }
 
 /**
- * As conversas que esta pessoa segue — o filtro "Que eu sigo".
+ * As conversas em que esta pessoa colabora — o filtro "Que eu colaboro".
  *
  * Devolve o recorte, não a lista: quem monta a consulta é a rota, que precisa
  * combinar isto com aba, busca, etiqueta e etapa.
  */
-export function recorteDoQueSigo(userId: string): Prisma.ConversationWhereInput {
-    return { follows: { some: { userId } } }
+export function recorteDoQueColaboro(userId: string): Prisma.ConversationWhereInput {
+    return { collaborators: { some: { userId } } }
 }

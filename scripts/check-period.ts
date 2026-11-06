@@ -115,21 +115,21 @@ const filaGeral = [
     { integrationId: null },
 ]
 /**
- * A conversa que eu **sigo** entra no recorte mesmo fora da minha fila.
+ * A conversa em que eu **colaboro** entra no recorte mesmo fora da minha fila.
  *
  * É a única cláusula deste recorte que *abre*, e por isso ela é afirmada aqui
  * em vez de ficar implícita: se um dia alguém a remover para "simplificar", a
  * colega marcada na nota deixa de ver a conversa e o item 6 morre em silêncio —
  * o recado continua chegando com o link, e o link não abre nada.
  */
-const queEuSigo = { follows: { some: { userId: 'eu' } } }
+const queEuColaboro = { collaborators: { some: { userId: 'eu' } } }
 const comFilas = (ids: string[]) => ({
     AND: [
         {
             OR: [
                 { integration: { departmentId: { in: ids } } },
                 ...filaGeral,
-                queEuSigo,
+                queEuColaboro,
             ],
         },
     ],
@@ -160,16 +160,16 @@ eq(
 )
 
 /**
- * O buraco do seguir é **por pessoa**, e isso é o que o torna defensável.
+ * O buraco do colaborar é **por pessoa**, e isso é o que o torna defensável.
  *
  * O recorte carrega o `userId` de quem está perguntando, então a cláusula casa
- * só as conversas que **aquela** pessoa segue. Se ela fosse escrita sem o
- * `userId` — `follows: { some: {} }` —, qualquer conversa com um seguidor
- * qualquer ficaria visível para o atendente inteiro, e o buraco deixaria de ser
- * de uma conversa para ser de todas as que alguém acompanha.
+ * só as conversas em que **aquela** pessoa colabora. Se ela fosse escrita sem
+ * o `userId` — `collaborators: { some: {} }` —, qualquer conversa com um
+ * colaborador qualquer ficaria visível para o atendente inteiro, e o buraco
+ * deixaria de ser de uma conversa para ser de todas as que alguém acompanha.
  */
 eq(
-    'o recorte do seguir é da pessoa que pergunta, não de qualquer seguidor',
+    'o recorte do colaborar é de quem pergunta, não de qualquer colaborador',
     conversationScope({ ...member('ATENDENTE', ['comercial']), userId: 'outra-pessoa' }),
     {
         AND: [
@@ -177,15 +177,15 @@ eq(
                 OR: [
                     { integration: { departmentId: { in: ['comercial'] } } },
                     ...filaGeral,
-                    { follows: { some: { userId: 'outra-pessoa' } } },
+                    { collaborators: { some: { userId: 'outra-pessoa' } } },
                 ],
             },
         ],
     }
 )
 
-/** Gestão segue sem recorte: ela já vê tudo, e seguir não acrescenta nada. */
-eq('GESTOR não ganha cláusula de seguir', conversationScope(member('GESTOR', ['comercial'])), {})
+/** Gestão segue sem recorte: ela já vê tudo, e colaborar não acrescenta nada. */
+eq('GESTOR não ganha cláusula de colaborar', conversationScope(member('GESTOR', ['comercial'])), {})
 
 console.log('\n— o teto de unidades da conta')
 

@@ -366,14 +366,14 @@ export function conversationScope(
                     { integration: { departmentId: null } },
                     { integrationId: null },
                     /**
-                     * **A conversa que eu sigo, mesmo fora da minha fila.**
+                     * **A conversa em que eu colaboro, mesmo fora da minha fila.**
                      *
                      * É o único lugar em que este recorte *abre* em vez de
                      * fechar, e é deliberado — toda a regra do §11 é que o
                      * recorte fecha. O que justifica a exceção é que o buraco
                      * não é genérico: é de **uma** conversa, aberto por alguém
                      * que já a via, com quem o abriu gravado em
-                     * `ConversationFollow.addedByUserId`.
+                     * `ConversationCollaborator.addedByUserId`.
                      *
                      * Sem esta cláusula a feature inteira não existe: a colega
                      * marcada receberia o recado com o link e a conversa não
@@ -382,7 +382,7 @@ export function conversationScope(
                      * Note que isto dá **leitura**. Responder exige assumir, e
                      * assumir é outro gesto, com outro portão.
                      */
-                    { follows: { some: { userId: member.userId } } },
+                    { collaborators: { some: { userId: member.userId } } },
                 ],
             },
         ],

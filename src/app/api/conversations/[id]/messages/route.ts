@@ -10,7 +10,7 @@ import { arquivar } from '@/trabalhos/servicos/arquivo'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
-import { aplicarMencao } from '@/lib/conversas/seguir'
+import { aplicarMencao } from '@/lib/conversas/colaborar'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(

@@ -1,5 +1,5 @@
 /**
- * A menção na nota interna — o gesto único do "seguir".
+ * A menção na nota interna — o gesto único do "colaborar".
  *
  *   npm run test:mencoes
  *
@@ -10,7 +10,7 @@
  *    Anas reprova aqui antes de reprovar na clínica.
  * 2. **prosa não vira menção.** Um e-mail, um parêntese, um colchete solto —
  *    nada disso pode marcar ninguém.
- * 3. **quem NÃO passa a seguir.** São três recusas, e a terceira (gente de
+ * 3. **quem NÃO passa a colaborar.** São três recusas, e a terceira (gente de
  *    outra unidade) é a que separa "pedir ajuda a uma colega" de "expor a
  *    conversa de um paciente para outra clínica".
  */
@@ -19,7 +19,7 @@ import {
     idsMencionados,
     notaEmTextoSimples,
     partirNota,
-    quemPassaASeguir,
+    quemPassaAColaborar,
     temMencao,
 } from '@/lib/conversas/mencoes'
 
@@ -98,34 +98,34 @@ conferir(
     '@Ana Paula consegue quinta?'
 )
 
-console.log('\n— quem PASSA a seguir, e quem não —\n')
+console.log('\n— quem PASSA a colaborar, e quem não —\n')
 
 const base = { autorId: 'rute', donoId: 'rute', idsDaUnidade: ['rute', 'ana', 'carlos'] }
 
-conferir('colega da unidade passa a seguir', quemPassaASeguir({ ...base, mencionados: ['ana'] }), [
+conferir('colega da unidade passa a colaborar', quemPassaAColaborar({ ...base, mencionados: ['ana'] }), [
     'ana',
 ])
 conferir(
-    'quem escreveu não segue a si mesmo',
-    quemPassaASeguir({ ...base, mencionados: ['rute', 'ana'] }),
+    'quem escreveu não se chama a si mesmo',
+    quemPassaAColaborar({ ...base, mencionados: ['rute', 'ana'] }),
     ['ana']
 )
 conferir(
-    'o dono não vira seguidor do que já é dele',
-    quemPassaASeguir({ ...base, autorId: 'ana', mencionados: ['rute'] }),
+    'o responsável não vira colaborador do que já é dele',
+    quemPassaAColaborar({ ...base, autorId: 'ana', mencionados: ['rute'] }),
     []
 )
 conferir(
     'gente de OUTRA unidade não entra',
-    quemPassaASeguir({ ...base, mencionados: ['ana', 'estranho'] }),
+    quemPassaAColaborar({ ...base, mencionados: ['ana', 'estranho'] }),
     ['ana']
 )
 conferir(
     'conversa sem dono: só as duas primeiras recusas valem',
-    quemPassaASeguir({ ...base, donoId: null, mencionados: ['ana', 'carlos'] }),
+    quemPassaAColaborar({ ...base, donoId: null, mencionados: ['ana', 'carlos'] }),
     ['ana', 'carlos']
 )
-conferir('ninguém marcado', quemPassaASeguir({ ...base, mencionados: [] }), [])
+conferir('ninguém marcado', quemPassaAColaborar({ ...base, mencionados: [] }), [])
 
 console.log(`\n${passou} ok, ${falhou} falhas\n`)
 if (falhou > 0) process.exit(1)

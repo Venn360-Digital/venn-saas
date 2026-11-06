@@ -2,10 +2,11 @@
  * A menção numa nota interna: quem foi marcado, e como o texto mostra isso.
  *
  * É o gesto único do item 6 — comentar e marcar `@alguém` é o que põe a pessoa
- * a **seguir** a conversa. Não existe botão de assinar: a visibilidade é
+ * a **colaborar** na conversa. Não existe botão de assinar: a visibilidade é
  * consequência de colaborar, nunca uma inscrição à parte. (Medido no
  * respond.io, em `docs/re-respond-io/`: o modelo deles não tem entidade de
- * follow; tem comentário com menção e um filtro "Colaborações".)
+ * follow; tem comentário com menção e o filtro "Colaborações" — de onde o nome
+ * veio.)
  *
  * ## O formato guarda o id, e não o nome
  *
@@ -59,7 +60,7 @@ function mencaoRegex(): RegExp {
  * As pessoas marcadas, sem repetição e na ordem em que aparecem.
  *
  * Sem repetição porque marcar alguém duas vezes na mesma nota é ênfase, não
- * dois seguidores — e a tabela tem chave única por (conversa, pessoa) de todo
+ * dois colaboradores — e a tabela tem chave única por (conversa, pessoa) de todo
  * jeito. Manter a ordem é o que faz o teste ler como o texto.
  */
 export function extrairMencoes(texto: string): Mencao[] {
@@ -78,7 +79,7 @@ export function extrairMencoes(texto: string): Mencao[] {
     return achadas
 }
 
-/** Só os ids, que é o que a gravação do seguidor precisa. */
+/** Só os ids, que é o que a gravação do colaborador precisa. */
 export function idsMencionados(texto: string): string[] {
     return extrairMencoes(texto).map((m) => m.userId)
 }
@@ -134,13 +135,14 @@ export function notaEmTextoSimples(texto: string): string {
 }
 
 /**
- * Quem a menção **de fato** põe a seguir.
+ * Quem a menção **de fato** põe a colaborar.
  *
  * Três recusas, e nenhuma é detalhe:
  *
- * 1. **quem escreveu** não se segue a si mesmo ao se marcar por engano;
- * 2. **o dono** já vê a conversa — virar seguidor dela não acrescenta nada, e
- *    deixaria o avatar de seguidor repetindo o nome que está do lado;
+ * 1. **quem escreveu** não se chama a si mesmo ao se marcar por engano;
+ * 2. **o responsável** já vê a conversa — virar colaborador dela não
+ *    acrescenta nada, e deixaria a lista de colaboradores repetindo o nome que
+ *    já está no cartão;
  * 3. **quem não é da unidade** não entra. A menção abre um buraco na parede do
  *    departamento de propósito, mas nunca na parede da **unidade** — essa
  *    continua fechada, e é a diferença entre pedir ajuda a uma colega e expor
@@ -149,7 +151,7 @@ export function notaEmTextoSimples(texto: string): string {
  * Pura: recebe a lista de quem é da unidade e decide. Quem vai ao banco é a
  * rota.
  */
-export function quemPassaASeguir(entrada: {
+export function quemPassaAColaborar(entrada: {
     mencionados: string[]
     autorId: string
     donoId: string | null
