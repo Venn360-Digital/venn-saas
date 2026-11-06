@@ -163,3 +163,75 @@ export function quemPassaAColaborar(entrada: {
         (id) => id !== entrada.autorId && id !== entrada.donoId && daUnidade.has(id)
     )
 }
+
+/**
+ * O gatilho do seletor: a pessoa está digitando `@algo` agora?
+ *
+ * Devolve o que foi digitado depois do `@` — `''` logo após o `@` — ou `null`
+ * quando não há gatilho. Puro, e por isso a tela não precisa de regex própria:
+ * o escritor e o leitor da menção ficam no mesmo arquivo, e é o que impede o
+ * seletor de propor um formato que o `extrairMencoes` não reconheça.
+ *
+ * ## As três recusas, e cada uma é um caso real de digitação
+ *
+ * 1. **`@` precedido de letra ou dígito não abre.** Senão todo e-mail digitado
+ *    numa nota — "manda pro joao@clinica.com" — abriria o seletor no meio da
+ *    palavra.
+ * 2. **espaço fecha.** O nome é escolhido da lista, não digitado inteiro; sem
+ *    isto, "@ pode ver isso?" manteria o seletor aberto pela frase toda.
+ * 3. **menção já fechada não reabre.** Depois de `@[Ana](u1)` o cursor está
+ *    depois de um `)`, e o texto antes dele contém `@` — sem a recusa, o
+ *    seletor abriria sozinho ao fim de cada menção inserida.
+ */
+export function gatilhoDeMencao(textoAteOCursor: string): string | null {
+    // O último `@` que importa é o mais recente; antes dele não há gatilho.
+    const corte = textoAteOCursor.lastIndexOf('@')
+    if (corte < 0) return null
+
+    // (1) não abre no meio de uma palavra.
+    const anterior = corte > 0 ? textoAteOCursor[corte - 1] : ''
+    if (anterior && /[\p{L}\p{N}._%+-]/u.test(anterior)) return null
+
+    const digitado = textoAteOCursor.slice(corte + 1)
+
+    // (2) espaço, quebra de linha ou tabulação fecham.
+    if (/[\s]/.test(digitado)) return null
+
+    // (3) uma menção fechada não reabre o seletor.
+    if (digitado.includes(')') || digitado.includes('[')) return null
+
+    // Nome de gente é curto; 40 caracteres sem achar ninguém é texto, não busca.
+    if (digitado.length > 40) return null
+
+    return digitado
+}
+
+/** Como a menção é escrita no texto. Um lugar só, lido pelo `mencaoRegex`. */
+export function escreverMencao(nome: string, userId: string): string {
+    // `]` no nome quebraria o formato; trocar por espaço é menos pior que
+    // recusar a pessoa por causa do nome que ela tem.
+    return `@[${nome.replace(/]/g, ' ').slice(0, 80)}](${userId})`
+}
+
+/**
+ * Troca o `@algo` sob o cursor pela menção escolhida.
+ *
+ * Devolve o texto novo **e onde o cursor deve ficar** — depois do espaço que
+ * segue a menção. Sem isso a tela teria de recalcular a posição, e errar nisso
+ * põe o cursor no meio de `@[Ana](cku…)`, onde a próxima tecla destrói a
+ * marcação sem que nada pareça errado na tela.
+ */
+export function inserirMencao(
+    texto: string,
+    cursor: number,
+    nome: string,
+    userId: string
+): { texto: string; cursor: number } {
+    const antes = texto.slice(0, cursor)
+    const corte = antes.lastIndexOf('@')
+    if (corte < 0) return { texto, cursor }
+
+    const marcacao = escreverMencao(nome, userId) + ' '
+    const novoTexto = texto.slice(0, corte) + marcacao + texto.slice(cursor)
+    return { texto: novoTexto, cursor: corte + marcacao.length }
+}

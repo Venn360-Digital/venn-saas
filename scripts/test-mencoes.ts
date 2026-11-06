@@ -20,6 +20,9 @@ import {
     notaEmTextoSimples,
     partirNota,
     quemPassaAColaborar,
+    escreverMencao,
+    gatilhoDeMencao,
+    inserirMencao,
     temMencao,
 } from '@/lib/conversas/mencoes'
 
@@ -126,6 +129,57 @@ conferir(
     ['ana', 'carlos']
 )
 conferir('ninguém marcado', quemPassaAColaborar({ ...base, mencionados: [] }), [])
+
+console.log('\n— o gatilho do seletor @ —\n')
+
+conferir('@ no começo abre vazio', gatilhoDeMencao('@'), '')
+conferir('@ depois de espaço abre', gatilhoDeMencao('olha isso @'), '')
+conferir('@ depois de quebra de linha abre', gatilhoDeMencao('linha\n@'), '')
+conferir('o que foi digitado volta', gatilhoDeMencao('@an'), 'an')
+conferir('sem @ não há gatilho', gatilhoDeMencao('olha isso'), null)
+
+// (1) e-mail digitado na nota não pode abrir o seletor.
+conferir('e-mail não abre', gatilhoDeMencao('manda pro joao@clinica.com'), null)
+conferir('@ colado em letra não abre', gatilhoDeMencao('ana@'), null)
+conferir('@ colado em dígito não abre', gatilhoDeMencao('sala2@'), null)
+
+// (2) o nome vem da lista; espaço encerra a busca.
+conferir('espaço fecha', gatilhoDeMencao('@ pode ver'), null)
+conferir('quebra de linha fecha', gatilhoDeMencao('@ana\nproximo'), null)
+
+// (3) uma menção já fechada não reabre o seletor sozinha.
+conferir('menção fechada não reabre', gatilhoDeMencao('@[Ana](u1)'), null)
+conferir('colchete aberto não é busca', gatilhoDeMencao('@[An'), null)
+
+conferir('texto longo não é busca de nome', gatilhoDeMencao('@' + 'a'.repeat(41)), null)
+conferir('40 caracteres ainda é busca', gatilhoDeMencao('@' + 'a'.repeat(40)), 'a'.repeat(40))
+
+console.log('\n— escrever e inserir —\n')
+
+conferir('o formato é o que o leitor reconhece', escreverMencao('Ana Paula', 'cku123'), '@[Ana Paula](cku123)')
+conferir(
+    'o que foi escrito volta na extração',
+    idsMencionados(escreverMencao('Ana Paula', 'cku123')),
+    ['cku123']
+)
+conferir(']' + ' no nome não quebra o formato', escreverMencao('Ana] Paula', 'u1'), '@[Ana  Paula](u1)')
+
+// A inserção troca o `@an` pelo nome inteiro e deixa o cursor depois do espaço.
+conferir(
+    'troca o que estava sendo digitado',
+    inserirMencao('olha isso @an', 13, 'Ana', 'u1'),
+    { texto: 'olha isso @[Ana](u1) ', cursor: 21 }
+)
+conferir(
+    'preserva o que vem depois do cursor',
+    inserirMencao('@an, pode ver?', 3, 'Ana', 'u1'),
+    { texto: '@[Ana](u1) , pode ver?', cursor: 11 }
+)
+conferir(
+    'sem @ antes do cursor não mexe no texto',
+    inserirMencao('sem marcação', 5, 'Ana', 'u1'),
+    { texto: 'sem marcação', cursor: 5 }
+)
 
 console.log(`\n${passou} ok, ${falhou} falhas\n`)
 if (falhou > 0) process.exit(1)

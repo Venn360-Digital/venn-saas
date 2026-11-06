@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getWorkspaceMember, canSeeEveryone } from '@/lib/auth/workspace'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { readAutomations } from '@/lib/automations'
 
 /**
@@ -52,7 +53,7 @@ export async function GET() {
                 role: true,
                 status: true,
                 ultimaAtividadeEm: true,
-                user: { select: { name: true, lastName: true, avatar: true } },
+                user: { select: { name: true, lastName: true, avatar: true, updatedAt: true } },
                 departments: { select: { department: { select: { name: true } } } },
             },
         }),
@@ -91,7 +92,15 @@ export async function GET() {
     const pessoas = membros.map((m) => ({
         userId: m.userId,
         nome: [m.user.name, m.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
-        avatar: m.user.avatar,
+        /**
+         * Endereço, nunca os bytes.
+         *
+         * Esta rota devolve a equipe inteira, e o retrato de usuário é um data
+         * URI na coluna — o do Andre tem 277 KB. Dez pessoas na clínica davam
+         * uma resposta de megabytes para desenhar dez bolinhas de 24px. `null`
+         * aqui significa "sem foto", e a tela mostra as iniciais.
+         */
+        retrato: enderecoDoRetrato('usuario', m.userId, m.user.avatar, m.user.updatedAt),
         papel: m.role,
         departamento: m.departments[0]?.department.name ?? null,
         estado: estadoVisivel(

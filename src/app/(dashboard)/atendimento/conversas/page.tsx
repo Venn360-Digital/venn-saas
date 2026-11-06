@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import {
     ArrowLeft,
     ArrowRightLeft,
+    AtSign,
     Bot,
     CalendarPlus,
     Check,
@@ -49,6 +50,7 @@ import {
     Tag,
     Trash2,
     Users,
+    UserMinus,
     UserX,
     X,
     XCircle,
@@ -303,6 +305,12 @@ interface ConversationDetail {
         status: string
         assignedTo: string | null
         assignedToName: string | null
+        /** O portão: `'bot'` ou `'humano'`. Decide a aba e o "Devolver à IA". */
+        atendidaPor: string
+        /** Quem foi chamado por menção. Só aqui — o cartão não os mostra. */
+        colaboradores: { userId: string; nome: string; retrato: string | null }[]
+        /** Se eu colaboro — é o que faz o botão de sair existir. */
+        euColaboro: boolean
         contact: {
             id: string
             name: string | null
@@ -1887,18 +1895,40 @@ export default function ConversasPage() {
         return () => window.removeEventListener('keydown', handleEsc)
     }, [])
 
-    const handleAction = async (action: 'assign' | 'unassign' | 'close' | 'reopen') => {
+    const handleAction = async (
+        action: 'assign' | 'unassign' | 'close' | 'reopen' | 'descolaborar'
+    ) => {
         if (!selectedConversation) return
         try {
-            await fetch(`/api/conversations/${selectedConversation}`, {
+            const res = await fetch(`/api/conversations/${selectedConversation}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action }),
             })
+
+            /**
+             * A recusa passa a ser dita.
+             *
+             * Este `fetch` ignorava o status: uma ação negada — transferir sem
+             * permissão, ou deixar de colaborar numa conversa em que já não se
+             * colabora — recarregava a tela igual ao caso de sucesso, e nada
+             * mudava. Quem clicou concluía que o botão não funciona.
+             */
+            if (!res.ok) {
+                const dados = (await res.json().catch(() => null)) as { error?: string } | null
+                toast.error(dados?.error || 'Não foi possível concluir')
+                return
+            }
+
+            if (action === 'descolaborar') {
+                toast.success('Você saiu desta conversa.')
+            }
+
             fetchConversations()
             fetchMessages(selectedConversation)
         } catch (error) {
             console.error('Error:', error)
+            toast.error('Não foi possível concluir')
         }
     }
 
@@ -2004,13 +2034,27 @@ export default function ConversasPage() {
 
     /* Quem está com a conversa, em uma linha. Era metadado cinza de 11px ao
        lado do telefone; vira o rótulo do controle que muda esse mesmo estado. */
+    /**
+     * O chip de estado, pelo portão **e** pelo nome.
+     *
+     * Dizia "Com Rachel" sempre que havia `assignedToName`, o que incluía o
+     * lead recém-chegado que o rodízio atribuiu e que a IA está atendendo — o
+     * chip afirmava que a Rachel estava na conversa antes de ela abri-la.
+     *
+     * Agora as duas informações aparecem na ordem em que importam: quem está
+     * conduzindo, e, quando é a IA, de quem a conversa é.
+     */
     const conversationStateLabel = !conv
         ? ''
         : conv.status === 'closed'
           ? 'Finalizada'
-          : conv.assignedToName
-            ? `Com ${conv.assignedToName.split(' ')[0]}`
-            : 'No bot'
+          : conversationDetail?.conversation?.atendidaPor === 'humano'
+            ? conv.assignedToName
+              ? `Com ${conv.assignedToName.split(' ')[0]}`
+              : 'Com a equipe'
+            : conv.assignedToName
+              ? `Na IA · de ${conv.assignedToName.split(' ')[0]}`
+              : 'Na IA'
 
     return (
         <>
@@ -2648,6 +2692,50 @@ export default function ConversasPage() {
                                                 </TooltipContent>
                                             </Tooltip>
                                         ) : null}
+
+                                        {/* 4. Quem mais está vendo isto.
+                                            Pilha de retratos, não lista de
+                                            nomes: nesta faixa já estão o
+                                            responsável e o estado da linha, e
+                                            dois nomes a mais a quebrariam. O
+                                            nome vem no `title` de cada um.
+
+                                            Só aqui, nunca no cartão da lista —
+                                            decisão do Andre, e a razão é a
+                                            mesma: espaço. */}
+                                        {conversationDetail?.conversation?.colaboradores?.length ? (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                        <AtSign className="size-3 shrink-0" aria-hidden="true" />
+                                                        <span className="flex">
+                                                            {conversationDetail.conversation.colaboradores
+                                                                .slice(0, 4)
+                                                                .map((c) => (
+                                                                    <Retrato
+                                                                        key={c.userId}
+                                                                        endereco={c.retrato}
+                                                                        nome={c.nome}
+                                                                        className="-ml-1 size-4 border border-background first:ml-0"
+                                                                        classNameTexto="-ml-1 grid size-4 place-items-center rounded-full border border-background bg-muted text-[8px] font-bold first:ml-0"
+                                                                    />
+                                                                ))}
+                                                        </span>
+                                                        {conversationDetail.conversation.colaboradores.length > 4 ? (
+                                                            <span className="num">
+                                                                +{conversationDetail.conversation.colaboradores.length - 4}
+                                                            </span>
+                                                        ) : null}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    Colabora nesta conversa:{' '}
+                                                    {conversationDetail.conversation.colaboradores
+                                                        .map((c) => c.nome)
+                                                        .join(', ')}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        ) : null}
                                     </div>
                                 </div>
 
@@ -2689,7 +2777,16 @@ export default function ConversasPage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-52">
-                                            {conv.status === 'active' && !conv.assignedTo && (
+                                            {/* Assumir aparece enquanto a IA
+                                                atende — não só quando não há
+                                                responsável. É a correção do nó:
+                                                o lead que chega já ganha
+                                                responsável pelo rodízio, e com a
+                                                condição antiga o botão sumia
+                                                justamente na conversa que mais
+                                                precisa ser assumida. */}
+                                            {conv.status === 'active' &&
+                                                conversationDetail?.conversation?.atendidaPor === 'bot' && (
                                                 <RowActionItem
                                                     icon={Hand}
                                                     onClick={() => handleAction('assign')}
@@ -2697,12 +2794,19 @@ export default function ConversasPage() {
                                                     Assumir
                                                 </RowActionItem>
                                             )}
-                                            {conv.assignedTo && (
+                                            {/* Devolver é devolver o **portão**,
+                                                não só largar o responsável. A
+                                                condição é `atendidaPor`, e não
+                                                `assignedTo`: a entrega do agente
+                                                à equipe produz conversa com a
+                                                equipe e sem responsável, e ela
+                                                também precisa poder voltar. */}
+                                            {conversationDetail?.conversation?.atendidaPor === 'humano' && (
                                                 <RowActionItem
                                                     icon={UserX}
                                                     onClick={() => handleAction('unassign')}
                                                 >
-                                                    Devolver ao bot
+                                                    Devolver à IA
                                                 </RowActionItem>
                                             )}
                                             {conv.assignedTo && canTransfer && (
@@ -2711,6 +2815,20 @@ export default function ConversasPage() {
                                                     onClick={() => openTransferModal(conv.id)}
                                                 >
                                                     Transferir
+                                                </RowActionItem>
+                                            )}
+                                            {/* Só aparece para quem **está**
+                                                colaborando. Não é permissão: é
+                                                que para os outros o item não
+                                                significaria nada, e menu com
+                                                item inerte ensina a não ler o
+                                                menu. */}
+                                            {conversationDetail?.conversation?.euColaboro && (
+                                                <RowActionItem
+                                                    icon={UserMinus}
+                                                    onClick={() => handleAction('descolaborar')}
+                                                >
+                                                    Deixar de colaborar
                                                 </RowActionItem>
                                             )}
                                             {conv.status === 'active' && (
@@ -2746,7 +2864,13 @@ export default function ConversasPage() {
 
                                     {/* A única ação óbvia daquele estado, a um
                                         clique. Tudo o mais mora no chip. */}
-                                    {conv.status === 'active' && !conv.assignedTo && (
+                                    {/* A ação óbvia sai do portão, não de
+                                        `assignedTo`. Com a IA atendendo, o
+                                        óbvio é assumir — mesmo que o rodízio já
+                                        tenha posto um nome na conversa. Com a
+                                        equipe, é finalizar. */}
+                                    {conv.status === 'active' &&
+                                        conversationDetail?.conversation?.atendidaPor === 'bot' && (
                                         <Button
                                             size="sm"
                                             onClick={() => handleAction('assign')}
@@ -2756,7 +2880,8 @@ export default function ConversasPage() {
                                             Assumir
                                         </Button>
                                     )}
-                                    {conv.status === 'active' && conv.assignedTo && (
+                                    {conv.status === 'active' &&
+                                        conversationDetail?.conversation?.atendidaPor === 'humano' && (
                                         <Button
                                             size="sm"
                                             onClick={() => handleAction('close')}
