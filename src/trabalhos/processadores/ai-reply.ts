@@ -107,7 +107,7 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
 
     const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        select: { id: true, status: true, assignedTo: true, handoffAt: true, closedAt: true },
+        select: { id: true, status: true, assignedTo: true, handoffAt: true, atendidaPor: true, closedAt: true },
     })
 
     if (!conversation) {
@@ -639,7 +639,7 @@ async function registrarLacuna(sinais: SinaisDaLacuna): Promise<void> {
 
         const conversa = await prisma.conversation.findUnique({
             where: { id: sinais.conversationId },
-            select: { assignedTo: true, handoffAt: true },
+            select: { assignedTo: true, handoffAt: true, atendidaPor: true },
         })
 
         if (!deveEscalar({ lacunasNoAtendimento: lacunas, jaEntregue: conversa ? isHumanHandled(conversa) : true })) {

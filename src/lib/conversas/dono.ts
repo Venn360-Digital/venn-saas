@@ -131,9 +131,33 @@ export async function darDono(entrada: {
         const escolhido = escolherDono(elegiveis, politica, politica.minutosParaAusente)
         if (!escolhido) return null
 
+        /**
+         * Grava `assignedTo` — onde a tela procura o responsável.
+         *
+         * **Era `ownerId`, e tinha de ser**, porque `assignedTo` era o mutex do
+         * agente: distribuir por ele calaria o bot no ato de distribuir. Com o
+         * mutex movido para `atendidaPor` (ver `isHumanHandled`), a razão caiu.
+         *
+         * O defeito que isto conserta foi medido no primeiro lead que chegou
+         * depois do deploy do portão: `ownerId` = Rachel, `assignedTo` nulo, e a
+         * conversa invisível nas "Minhas" dela. É o que o Andre relatou como
+         * "o lead entra, ganha um responsável e não aparece no filtro minhas".
+         *
+         * **`atendidaPor` não é tocado aqui, de propósito.** Distribuir diz de
+         * quem a conversa é; não diz que alguém já a está atendendo. O lead
+         * recém-chegado nasce `bot` e continua `bot` depois do rodízio — é
+         * exatamente a combinação "Com a IA + com responsável" que a coluna
+         * passou a saber mostrar.
+         *
+         * A guarda do `where` segue sendo `ownerId: null` enquanto a coluna
+         * existe: é ela que torna a distribuição idempotente, e trocá-la por
+         * `assignedTo: null` na mesma mudança faria duas coisas de uma vez. A
+         * troca vem na fase de contract, junto da queda da coluna.
+         */
         const r = await prisma.conversation.updateMany({
             where: { id: entrada.conversationId, workspaceId: entrada.workspaceId, ownerId: null },
             data: {
+                assignedTo: escolhido,
                 ownerId: escolhido,
                 ownerAssignedAt: new Date(),
                 ownerSource: entrada.origem ?? politica.estrategia,

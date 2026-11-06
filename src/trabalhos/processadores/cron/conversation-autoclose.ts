@@ -38,8 +38,17 @@ export async function runConversationAutoclose(): Promise<void> {
             where: {
                 agentId: agent.id,
                 status: { not: 'closed' },
-                // Nunca fecha o que uma pessoa está trabalhando.
-                assignedTo: null,
+                /**
+                 * Nunca fecha o que uma pessoa está trabalhando — e isso agora
+                 * é `atendidaPor`, não `assignedTo`.
+                 *
+                 * Era `assignedTo: null`, e virou errado no momento em que o
+                 * rodízio passou a escrever aquela coluna na chegada: lead
+                 * distribuído e abandonado ficaria aberto **para sempre**,
+                 * porque pareceria estar nas mãos de alguém. O que o cron
+                 * precisa saber é se a equipe assumiu, e é isso que o portão diz.
+                 */
+                atendidaPor: 'bot',
                 lastMessageAt: { lt: subDays(new Date(), dias) },
             },
             // `closedAt` junto: é o fim do atendimento, e o limite de respostas

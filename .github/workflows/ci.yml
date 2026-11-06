@@ -121,6 +121,7 @@ jobs:
           npm run test:mencoes
           npm run test:retratos
           npm run test:recortes
+          npm run test:portao
           npm run test:convite
           npm run test:sonda
 

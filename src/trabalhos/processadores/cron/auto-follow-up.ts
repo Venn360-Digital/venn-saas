@@ -123,7 +123,7 @@ export async function runAutoFollowUp(): Promise<void> {
             const conversation = await prisma.conversation.findFirst({
                 where: { workspaceId: stage.workspaceId, contactId: contact.id },
                 orderBy: [{ status: 'asc' }, { lastMessageAt: 'desc' }],
-                select: { id: true, assignedTo: true, handoffAt: true, agentId: true, integrationId: true },
+                select: { id: true, assignedTo: true, handoffAt: true, atendidaPor: true, agentId: true, integrationId: true },
             })
 
             // Entregue à equipe também não recebe follow-up do agente: a
@@ -195,7 +195,7 @@ export async function runAutoFollowUp(): Promise<void> {
                         channel: 'whatsapp',
                         status: 'active',
                     },
-                    select: { id: true, assignedTo: true, handoffAt: true, agentId: true, integrationId: true },
+                    select: { id: true, assignedTo: true, handoffAt: true, atendidaPor: true, agentId: true, integrationId: true },
                 }))
 
             /**
