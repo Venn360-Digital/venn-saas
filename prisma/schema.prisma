@@ -91,6 +91,8 @@ model User {
   /// Os recados que esta pessoa mandou e recebeu — ver `TeamMessage`.
   recadosEnviados  TeamMessage[] @relation("RecadosEnviados")
   recadosRecebidos TeamMessage[] @relation("RecadosRecebidos")
+  conversasQueSegue ConversationFollow[] @relation("ConversasQueSegue")
+  seguidoresQuePos  ConversationFollow[] @relation("SeguidoresQuePos")
 
   @@map("users")
 }
@@ -1415,6 +1417,8 @@ model Conversation {
   messages      Message[]
   knowledgeGaps KnowledgeGap[]
   tags          ConversationTag[]
+  follows       ConversationFollow[]
+  recados       TeamMessage[]
 
   @@index([workspaceId])
   @@index([contactId])
@@ -1564,10 +1568,62 @@ model Message {
   createdAt DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  recados      TeamMessage[]
 
   @@index([conversationId])
   @@index([createdAt])
   @@map("messages")
+}
+
+/// Quem **segue** uma conversa sem ser o dono dela.
+///
+/// É o item 6 do Vol. III, e a forma dele saiu de uma pergunta do Andre: o
+/// `transferir` que já existe não substitui isto, porque transferir **troca** o
+/// dono e seguir **soma** — ele pediu que a conversa aparecesse "para o dono e
+/// também para o seguidor".
+///
+/// ## Escrita pela menção, nunca por um botão de assinar
+///
+/// Não há ação "seguir" na interface. A linha nasce quando alguém escreve uma
+/// nota interna marcando `@colega`, e é isso que o respond.io faz — medido em
+/// `docs/re-respond-io/`: o modelo deles não tem entidade de follow, tem
+/// comentário com menção e um filtro "Colaborações". A visibilidade é
+/// consequência de colaborar.
+///
+/// A alternativa — botão próprio **e** menção — daria dois caminhos para a
+/// mesma linha, e dois caminhos divergem: a lista mostraria alguém seguindo sem
+/// nota que explique por quê.
+///
+/// ## O que seguir dá, e o que não dá
+///
+/// Dá **leitura**: a conversa entra na lista de quem segue mesmo fora do
+/// departamento dele, e ele é avisado. Não dá resposta — para responder, assume,
+/// e assumir grava `assignedTo`, que é o gesto que já existe, que o produto
+/// registra e que cala o agente.
+///
+/// **É um buraco na parede do departamento, de propósito** — a regra geral é
+/// que o recorte fecha em vez de abrir (PRODUCT.md §11). O buraco é de *uma*
+/// conversa, nomeado, e com quem o abriu gravado em `addedByUserId`. A parede
+/// da **unidade** continua fechada: `quemPassaASeguir` recusa quem não é
+/// membro, e é a diferença entre pedir ajuda a uma colega e expor a conversa de
+/// um paciente para outra clínica.
+model ConversationFollow {
+  conversationId String
+  userId         String
+  /// Quem marcou. É o que torna o buraco auditável — e `SetNull` porque a
+  /// linha de quem segue não pode morrer quando quem o marcou sai da clínica.
+  addedByUserId  String?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation("ConversasQueSegue", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy      User?        @relation("SeguidoresQuePos", fields: [addedByUserId], references: [id], onDelete: SetNull)
+
+  /// Marcar a mesma pessoa duas vezes é ênfase, não dois seguidores.
+  @@id([conversationId, userId])
+  /// O caminho quente: "as conversas que eu sigo", que é o filtro da coluna.
+  @@index([userId])
+  @@map("conversation_follows")
 }
 
 // ============================================
@@ -2687,6 +2743,23 @@ model TeamMessage {
   /// assunto de conversa, e o produto já tem onde ter conversa.
   body String
 
+  /// De qual conversa este recado veio, quando veio de uma.
+  ///
+  /// Nulo no recado comum, que é conversa entre duas pessoas da equipe e não
+  /// fala de paciente nenhum. Preenchido no **encaminhamento**: é o que faz o
+  /// recado carregar o atalho "Abrir a conversa de Marina".
+  ///
+  /// `SetNull` e não `Cascade`: apagar a conversa não pode apagar o recado. O
+  /// que a colega escreveu continua sendo parte da conversa *dela* — só o
+  /// atalho deixa de existir, e a tela já sabe renderizar recado sem link.
+  conversationId String?
+  /// Qual mensagem foi encaminhada, quando foi uma só.
+  ///
+  /// É o trecho citado no recado. Separado de `conversationId` porque dá para
+  /// encaminhar a conversa inteira sem apontar uma mensagem — e aí este fica
+  /// nulo e o recado mostra só o link.
+  messageId String?
+
   /// Quando o destinatário abriu. Nulo é "não lido", e é o que o contador conta.
   readAt DateTime?
 
@@ -2695,6 +2768,8 @@ model TeamMessage {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   from      User      @relation("RecadosEnviados", fields: [fromUserId], references: [id], onDelete: Cascade)
   to        User      @relation("RecadosRecebidos", fields: [toUserId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  message      Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   /// A caixa de entrada: "os meus não lidos", e "a minha conversa com fulano".
   @@index([workspaceId, toUserId, readAt])
