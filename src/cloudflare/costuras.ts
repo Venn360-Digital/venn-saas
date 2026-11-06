@@ -9,12 +9,6 @@ import { registrarAgenda } from '@/trabalhos/agenda'
 import { registrarTransmissor } from '@/trabalhos/tempo-real'
 import { registrarTravas } from '@/trabalhos/trava'
 import { registrarRemetenteDeEmail } from '@/lib/email/send'
-import {
-    resumirSemeadura,
-    semearCofreDaConta,
-    type BindingsDoCofre,
-} from '@/lib/secrets/cofre-da-conta'
-import { createLogger } from '@/trabalhos/registro'
 
 /**
  * Onde o código da aplicação encontra a plataforma.
@@ -29,9 +23,7 @@ import { createLogger } from '@/trabalhos/registro'
  * está: o mesmo `enfileirar()` funcionava sobre BullMQ e funciona sobre Queues,
  * e é por isso que os processadores atravessaram a migração sem reescrita.
  */
-const log = createLogger('COSTURAS')
-
-export interface EnvDasCosturas extends BindingsDeFila, BindingsDoCofre {
+export interface EnvDasCosturas extends BindingsDeFila {
     SALA_DO_WORKSPACE: DurableObjectNamespace
     AGENDA_DA_CONVERSA: DurableObjectNamespace
     TRAVA_DE_CONTATO: DurableObjectNamespace
@@ -58,28 +50,12 @@ export interface EnvDasCosturas extends BindingsDeFila, BindingsDoCofre {
  */
 let registrado = false
 
-export async function registrarCosturas(env: EnvDasCosturas): Promise<void> {
+export function registrarCosturas(env: EnvDasCosturas): void {
     if (registrado) return
 
     registrarDriver(criarDriverCloudflare(env))
 
     registrarRemetenteDeEmail(env.EMAIL, env.EMAIL_FROM)
-
-    /**
-     * O cofre da conta, antes de qualquer coisa que leia segredo.
-     *
-     * É a única costura **assíncrona**, porque o binding do Secrets Store só
-     * entrega o valor por `get()`. O `await` custa uma ida por isolate — a
-     * guarda `registrado` abaixo garante que a segunda requisição não paga
-     * nada — e o que ele compra é `process.env` já completo quando a primeira
-     * rota pedir a chave da OpenAI.
-     *
-     * Antes de `registrarAgenda` e das filas de propósito: um processador que
-     * subisse e pedisse a chave antes da semeadura veria ausência, e o aviso
-     * que ele emitiria seria falso.
-     */
-    const semeadura = await semearCofreDaConta(env)
-    log.info(`segredos de plataforma — ${resumirSemeadura(semeadura)}`)
 
     // O gateway do Evolution Go NÃO é mais registrado: o canal saiu para o VPS
     // (2026-10-23) e o provider fala HTTP por `EVOLUTION_GO_URL`. Sem registro,
