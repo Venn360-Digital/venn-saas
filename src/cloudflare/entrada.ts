@@ -98,10 +98,32 @@ const BACKOFF: Partial<Record<QueueName, (t: number) => number>> = {
     [QUEUE.AGENT_WEBHOOK]: exponencial(10, 300),
 }
 
-/** Do nome da fila na Cloudflare para o nome lógico. */
-const POR_NOME_NA_CLOUDFLARE = new Map<string, QueueName>(
-    ALL_QUEUES.map((q) => [`odontobox-${q}`, q])
-)
+/**
+ * Do nome da fila na Cloudflare para o nome lógico.
+ *
+ * O nome na Cloudflare é montado por `naConta` em `cloudflare.config.ts`. Aqui
+ * ele era remontado à mão, com o prefixo do app escrito literalmente — e o
+ * prefixo do app **não** é o prefixo do recurso: em staging a config resolve
+ * para `odontobox-stg-{fila}`, e o mapa só conhecia `odontobox-{fila}`. Efeito:
+ * em staging **todo** lote caía em "fila desconhecida" e era descartado em
+ * silêncio — WhatsApp não entrava, cron não rodava, e nada acusava erro.
+ * Produção escapou por acidente, porque lá o prefixo do recurso é o nome puro.
+ *
+ * Os clones bateram neste defeito primeiro e o consertaram pela raiz; esta é a
+ * mesma solução, trazida de volta. Em vez de repetir o prefixo num segundo
+ * lugar — a duplicação que **é** o defeito —, resolve-se pelo **sufixo
+ * lógico**, que é o que os dois lados têm em comum por construção. Vale para
+ * qualquer prefixo, inclusive o sem ambiente, então não sobra onde divergir.
+ *
+ * Desempate pelo mais longo: nenhum nome lógico é sufixo de outro hoje, e o
+ * desempate mantém isso verdadeiro se algum dia um for.
+ */
+function filaLogica(nomeNaCloudflare: string): QueueName | undefined {
+    const candidatas = ALL_QUEUES.filter(
+        (q) => nomeNaCloudflare === q || nomeNaCloudflare.endsWith(`-${q}`)
+    )
+    return candidatas.sort((a, b) => b.length - a.length)[0]
+}
 
 export default {
     async fetch(request: Request, env: EnvDasCosturas, ctx: ExecutionContext): Promise<Response> {
@@ -140,7 +162,7 @@ export default {
         void ctx
         await registrarCosturas(env)
 
-        const fila = POR_NOME_NA_CLOUDFLARE.get(lote.queue)
+        const fila = filaLogica(lote.queue)
 
         if (!fila) {
             /**
