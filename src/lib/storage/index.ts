@@ -179,9 +179,9 @@ export async function enderecoPara(
          *
          * `PUBLIC_STORAGE_BASE_URL` não é declarada em `cloudflare.config.ts`,
          * então `process.env` não a tem no Worker — nem poderia: medido em
-         * 2026-11-06, o bucket `odontobox-public` tem domínio gerenciado
-         * (`pub-7eabdf6e….r2.dev`) mas com `enabled: false`. Não há endereço
-         * público para apontar.
+         * 2026-11-06, o bucket do binding `PUBLICO` tem domínio gerenciado
+         * (um `pub-….r2.dev`) mas com `enabled: false`. Não há endereço público
+         * para apontar.
          *
          * O efeito é que **a classe pública também é assinada**, com a validade
          * máxima de 600 s. Para um `<img>` que o navegador busca na hora, dá
