@@ -61,6 +61,7 @@
     "test:audio": "tsx scripts/test-audio.ts",
     "test:marcacao": "tsx scripts/test-marcacao.ts",
     "test:mencoes": "tsx scripts/test-mencoes.ts",
+    "test:convite": "tsx --conditions=react-server scripts/test-convite.ts",
     "test:sonda": "tsx scripts/test-sonda.ts",
     "test:chunker": "tsx scripts/test-chunker.ts",
     "test:consulta": "tsx scripts/test-consulta.ts",

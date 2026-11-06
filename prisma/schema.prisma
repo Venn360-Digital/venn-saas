@@ -92,6 +92,8 @@ model User {
   recadosEnviados  TeamMessage[] @relation("RecadosEnviados")
   recadosRecebidos TeamMessage[] @relation("RecadosRecebidos")
   conversasQueSegue ConversationFollow[] @relation("ConversasQueSegue")
+  convitesQueEnviou Invite[] @relation("ConvitesQueEnviou")
+  conviteQueAceitou Invite[] @relation("ConviteQueAceitou")
   seguidoresQuePos  ConversationFollow[] @relation("SeguidoresQuePos")
 
   @@map("users")
@@ -473,6 +475,7 @@ model Workspace {
   // Relations
   account         Account                 @relation(fields: [accountId], references: [id], onDelete: Cascade)
   users           WorkspaceUser[]
+  invites         Invite[]
   agents          Agent[]
   outcomeReasons  DealOutcomeReason[]
   contacts        Contact[]
@@ -1625,6 +1628,85 @@ model ConversationFollow {
   @@index([userId])
   @@map("conversation_follows")
 }
+
+/// O convite de usuário: o acesso nasce quando a pessoa aceita, não quando o
+/// administrador clica.
+///
+/// ## Por que esta tabela existe
+///
+/// Até aqui "convidar" era o administrador **digitar a senha** de outra pessoa
+/// e avisá-la por e-mail — o próprio template pedia que ela ligasse perguntando
+/// qual era. Além de ruim, é incompatível com a LGPD: a senha é dado de
+/// autenticação do titular, e quem a escolhe tem de ser ele.
+///
+/// Então a ordem inverte. `User` e `AuthAccount` **não existem** enquanto o
+/// convite está pendente: o que existe é esta linha, guardando o que a pessoa
+/// vai ser (papel, departamentos) e nada do que ela é. No aceite, ela define a
+/// senha e as três linhas nascem juntas.
+///
+/// ## O token não está aqui
+///
+/// `tokenHash` é o SHA-256 dele. O token **é** a credencial — quem o tem define
+/// a senha de um usuário dentro da clínica —, então guardá-lo em claro faria de
+/// qualquer leitura do banco (um dump, um `SELECT` de suporte) uma entrega de
+/// acesso. Ver `lib/convite/token.ts`.
+///
+/// ## O estado é derivado, e por isso não é coluna
+///
+/// `pendente | aceito | revogado | expirado` sai de `acceptedAt`, `revokedAt` e
+/// `expiresAt` em `lib/convite/estado.ts`. Uma coluna `estado` viraria mentira
+/// sozinha: gravada como "pendente", ela fica expirada quando o relógio passa,
+/// e **nada escreve na linha nesse instante**.
+model Invite {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  /// Sempre minúsculo e sem espaço (`normalizarEmail`): o endereço é digitado
+  /// por duas pessoas diferentes — quem convida e quem aceita — e
+  /// "Ana@Clinica.com " não pode virar um segundo convite.
+  email String
+  role  String
+
+  /// O que a pessoa vai poder, guardado até o aceite.
+  canTransfer     Boolean @default(false)
+  recebeConversas Boolean @default(true)
+
+  /// Os departamentos, como lista de ids.
+  ///
+  /// Json e não tabela de junção porque o convite é efêmero e a lista só é
+  /// lida uma vez, no aceite. O preço é que um departamento apagado entre o
+  /// convite e o aceite deixa um id morto aqui — e o aceite **filtra pelos
+  /// departamentos que existem naquela unidade**, que é a mesma guarda
+  /// anti-cross-tenant que a criação direta já fazia.
+  departmentIds Json?
+
+  /// SHA-256 do token. Único porque é por ele que o aceite acha a linha.
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  invitedByUserId String?
+  /// Os três instantes de que o estado é derivado.
+  acceptedAt     DateTime?
+  acceptedUserId String?
+  revokedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// `SetNull`: o convite que alguém mandou não desaparece quando essa pessoa
+  /// sai da clínica — "quem convidou" é registro, e perdê-lo apagaria a
+  /// auditoria de como cada um entrou.
+  invitedBy User? @relation("ConvitesQueEnviou", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  accepted  User? @relation("ConviteQueAceitou", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+
+  /// A lista de convites da unidade, e a procura por e-mail antes de convidar
+  /// de novo.
+  @@index([workspaceId, email])
+  @@index([workspaceId, createdAt])
+  @@map("invites")
+}
+
 
 // ============================================
 // 5. INTEGRATIONS (WhatsApp, Instagram, etc)
