@@ -5,7 +5,7 @@ import { Loader2, Plus, StickyNote } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { CampoDeNota } from '@/components/conversas/CampoDeNota'
 
 interface InternalNote {
     id: string
@@ -98,21 +98,11 @@ export function InternalNotesPanel({
     return (
         <div className="space-y-3">
             <div className="space-y-1.5">
-                <Textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={3}
-                    placeholder="Nota visível só para a equipe…"
-                    aria-label="Nova nota interna"
-                    onKeyDown={(e) => {
-                        // Ctrl/Cmd+Enter salva: a nota é texto de várias linhas,
-                        // então Enter sozinho tem de continuar quebrando linha.
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                            e.preventDefault()
-                            void save()
-                        }
-                    }}
-                />
+                {/* `CampoDeNota` e não `Textarea`: marcar `@colega` aqui é o
+                    único gesto que põe alguém a colaborar na conversa — não há
+                    botão de assinar —, e sem o seletor a pessoa teria de
+                    digitar `@[Nome](cku123…)` com o id do colega. */}
+                <CampoDeNota value={draft} onChange={setDraft} onSubmit={() => void save()} />
                 <Button
                     size="sm"
                     onClick={() => void save()}

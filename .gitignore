@@ -106,3 +106,12 @@ src/generated/
 # vez; apagar do índice depois não tira do histórico.
 /public/treinamento/
 .canvas/
+
+# Varredura do Playwright e rascunhos soltos na raiz. Entraram no branch duas
+# vezes por `git add -A`, e as duas vezes derrubaram `audit:isolation`: os logs
+# citam o domínio de um app irmão, e a auditoria lê a árvore de trabalho, não
+# só o diff. Ignorar é o que impede a terceira vez.
+.playwright-mcp/
+/concepts_brief.md
+/mapeamento-dos-modelos.md
+/treino-*.png

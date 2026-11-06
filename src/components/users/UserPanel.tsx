@@ -21,6 +21,8 @@ export interface UserPanelItem {
     /** De quais departamentos ele é — as filas que ele pode ver. */
     departments: { id: string; name: string }[]
     canTransfer: boolean
+    /** Entra na distribuição automática e pode ficar responsável. */
+    recebeConversas: boolean
     isActive: boolean
     isFirstAdmin: boolean
 }
@@ -183,6 +185,16 @@ export function UserPanel({
                     <div className="flex items-center gap-2">
                         <Switch id="user-panel-transfer" checked={u.canTransfer} disabled={!canEdit} onCheckedChange={(canTransfer) => void save('canTransfer', { canTransfer })} />
                         <span className="text-xs text-muted-foreground">pode transferir conversas</span>
+                    </div>
+                </PanelField>
+                {/* Entre "Transfere" e "Ativo", que é a ordem do diálogo de
+                    edição. A ficha tinha oito campos e o diálogo dez, e este
+                    era um dos dois que faltavam: o `PATCH` já o aceitava, então
+                    a distribuição de conversas só se mexia abrindo o diálogo. */}
+                <PanelField label="Recebe conversas" htmlFor="user-panel-recebe" saved={saved === 'recebeConversas'}>
+                    <div className="flex items-center gap-2">
+                        <Switch id="user-panel-recebe" checked={u.recebeConversas} disabled={!canEdit} onCheckedChange={(recebeConversas) => void save('recebeConversas', { recebeConversas })} />
+                        <span className="text-xs text-muted-foreground">entra na distribuição automática</span>
                     </div>
                 </PanelField>
                 <PanelField label="Ativo" htmlFor="user-panel-active" saved={saved === 'isActive'}>

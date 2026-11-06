@@ -190,6 +190,7 @@ export type CronJobName =
     | 'billing-reconcile'
     | 'broadcast-dispatch'
     | 'minerar-lacunas'
+    | 'ia-credencial'
 
 export interface CronJob {
     task: CronJobName

@@ -3,40 +3,9 @@ import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { readAutomations } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
-import { auth } from '@/lib/auth/better-auth'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { sendEmail } from '@/lib/email/send'
-import { TEMPLATES } from '@/lib/email/templates'
-import { z } from 'zod'
 import { Prisma } from '#prisma'
 import { normalizeSearch } from '@/lib/search'
-import { BRAND } from '@/config/brand'
-
-// Schema for creating a new user
-const createUserSchema = z.object({
-    name: z.string().min(1, 'Nome é obrigatório'),
-    lastName: z.string().optional(),
-    email: z.string().email('E-mail inválido'),
-    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
-    phone: z.string().optional(),
-    /**
-     * De quais departamentos a pessoa é.
-     *
-     * Lista, não um: é o que permite a atendente da Recepção cobrir a fila do
-     * Comercial hoje sem ser mudada de departamento e ter de ser mudada de
-     * volta na segunda.
-     */
-    departmentIds: z.array(z.string()).optional().default([]),
-    role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']),
-    canTransfer: z.boolean().default(false),
-    isActive: z.boolean().default(true),
-    /**
-     * Entra na distribuição de conversas. Sem valor, o padrão vem do papel:
-     * GESTOR e ATENDENTE recebem, OWNER e ADMIN não. É a mesma regra que a
-     * migração aplicou a quem já existia.
-     */
-    recebeConversas: z.boolean().optional(),
-})
 
 // GET - List users
 export async function GET(request: NextRequest) {
@@ -189,188 +158,32 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Create new user
-export async function POST(request: NextRequest) {
-    try {
-        console.log('[USERS_POST] Starting...')
-        const user = await usuarioDaSessao()
-
-        if (!user) {
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-        }
-
-        const currentWorkspaceUser = await currentMembership()
-
-        if (!currentWorkspaceUser) {
-            return NextResponse.json({ error: 'Workspace não encontrado' }, { status: 404 })
-        }
-
-        if (!['OWNER', 'ADMIN'].includes(currentWorkspaceUser.role)) {
-            return NextResponse.json({ error: 'Permissão negada' }, { status: 403 })
-        }
-
-        const body = await request.json()
-        const validatedData = createUserSchema.parse(body)
-
-        // Check if email already exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email: validatedData.email }
-        })
-
-        if (existingUser) {
-            // Check if already in this workspace
-            const existingWorkspaceUser = await prisma.workspaceUser.findFirst({
-                where: {
-                    userId: existingUser.id,
-                    workspaceId: currentWorkspaceUser.workspaceId
-                }
-            })
-
-            if (existingWorkspaceUser) {
-                return NextResponse.json(
-                    { error: 'Este e-mail já está cadastrado neste workspace' },
-                    { status: 400 }
-                )
-            }
-        }
-
-        /**
-         * A credencial é criada à mão, e **não** por `signUpEmail`.
-         *
-         * `signUpEmail` emite sessão: ele faz login automático em quem acabou de
-         * se cadastrar. Aqui quem cadastra é o administrador, para outra pessoa —
-         * usar aquele caminho trocaria a sessão do administrador pela do usuário
-         * novo no meio do pedido. É um defeito que não daria erro: a tela
-         * continuaria funcionando, só pertencendo a outra conta.
-         *
-         * Então o hash sai de `ctx.password.hash`, que é a mesma função que o
-         * login usa para conferir, e as duas linhas nascem na mesma transação —
-         * usuário sem credencial é usuário que não entra, e credencial sem
-         * usuário é linha órfã que ainda autenticaria.
-         */
-        const ctx = await auth.$context
-        const hash = await ctx.password.hash(validatedData.password)
-
-        const newUser = await prisma.$transaction(async (tx) => {
-            const criado = await tx.user.create({
-                data: {
-                    email: validatedData.email,
-                    name: validatedData.name,
-                    lastName: validatedData.lastName,
-                    phone: validatedData.phone,
-                    /**
-                     * Criado por administrador conta como e-mail confirmado.
-                     *
-                     * Quem digitou o endereço foi alguém de dentro da clínica,
-                     * não um desconhecido — e exigir que a pessoa confirme um
-                     * e-mail que a chefia cadastrou só adiciona um passo que
-                     * ninguém entende.
-                     */
-                    emailVerified: true,
-                    // Sem cópia local da senha: a credencial é uma só, em
-                    // `auth_accounts`. Um segundo hash aqui só arrisca ser
-                    // tomado como o verdadeiro — foi o que já aconteceu nesta
-                    // base, ver `api/account/profile/password/route.ts`.
-                },
-            })
-
-            await tx.authAccount.create({
-                data: {
-                    userId: criado.id,
-                    // Para e-mail e senha, a biblioteca procura a credencial por
-                    // `providerId: 'credential'` e `accountId: <id do usuário>`.
-                    providerId: 'credential',
-                    accountId: criado.id,
-                    password: hash,
-                },
-            })
-
-            return criado
-        })
-
-        // Create workspace user relationship
-        const workspaceUser = await prisma.workspaceUser.create({
-            data: {
-                workspaceId: currentWorkspaceUser.workspaceId,
-                userId: newUser.id,
-                role: validatedData.role,
-                canTransfer: validatedData.canTransfer,
-                isActive: validatedData.isActive,
-                recebeConversas:
-                    validatedData.recebeConversas ?? validatedData.role !== 'ADMIN',
-                // Do mesmo workspace: os ids vêm do corpo da requisição, e sem
-                // o filtro a pessoa poderia ser posta no departamento de outra
-                // clínica — e passaria a ver a fila dela.
-                departments: {
-                    create: (
-                        await prisma.department.findMany({
-                            where: {
-                                id: { in: validatedData.departmentIds },
-                                workspaceId: currentWorkspaceUser.workspaceId,
-                            },
-                            select: { id: true },
-                        })
-                    ).map((d) => ({ departmentId: d.id })),
-                },
-            },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        lastName: true,
-                        email: true,
-                        phone: true,
-                    }
-                },
-                departments: {
-                    select: { department: { select: { id: true, name: true } } },
-                },
-            }
-        })
-
-        console.log('[USERS_POST] Created user:', workspaceUser.userId)
-
-        // Enviar e-mail de convite em background
-        const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/login`
-        /**
-         * O nome da unidade, para o corpo do convite.
-         *
-         * Consulta própria e não `include` na criação: o convite é o único
-         * lugar que precisa disto, e carregar a unidade em toda criação de
-         * usuário seria pagar por ele sempre.
-         */
-        const unidadeDoConvite = await prisma.workspace.findUnique({
-            where: { id: workspaceUser.workspaceId },
-            select: { name: true },
-        })
-        const nomeDaConta = unidadeDoConvite?.name
-
-        sendEmail({
-            to: workspaceUser.user.email,
-            subject: `Você foi convidado para o ${BRAND.name}`,
-            // O nome da conta no corpo: "a Clínica Sorriso convidou você" diz
-            // mais que "você foi convidado", e é o que a pessoa precisa para
-            // reconhecer o convite como legítimo.
-            html: TEMPLATES.inviteMember(inviteUrl, nomeDaConta),
-        }).catch(err => console.error('[USERS_POST] Failed to send invite email:', err))
-
-        return NextResponse.json({
-            id: workspaceUser.id,
-            userId: workspaceUser.userId,
-            name: workspaceUser.user.name,
-            lastName: workspaceUser.user.lastName,
-            email: workspaceUser.user.email,
-            phone: workspaceUser.user.phone,
-            role: workspaceUser.role,
-            departments: workspaceUser.departments.map((d) => d.department),
-            canTransfer: workspaceUser.canTransfer,
-            isActive: workspaceUser.isActive,
-        }, { status: 201 })
-    } catch (error) {
-        console.error('[USERS_POST] Error:', error)
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
-        }
-        return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
-    }
+/**
+ * Criar usuário com senha definida pelo administrador: **não existe mais.**
+ *
+ * Era este o caminho: o formulário levava um campo `password`, e a rota criava
+ * `users` + `auth_accounts` com o hash daquela senha. Saiu por exigência de
+ * LGPD — senha é dado de autenticação do titular, e quem a escolhe tem de ser
+ * ele, não quem o cadastra.
+ *
+ * O substituto é `POST /api/convites`: grava o que a pessoa **vai ser**, manda
+ * o link, e `User` + `AuthAccount` nascem no aceite, com a senha que ela
+ * escolheu.
+ *
+ * **A rota continua aqui, respondendo 410, em vez de desaparecer.** Um 404
+ * seria indistinguível de "errei a URL" para quem estiver depurando, e a
+ * mensagem é o que conta a história: cliente velho em cache, script de alguém,
+ * ou aba aberta desde antes do deploy recebem a razão em vez de um erro mudo.
+ * Quando não houver mais chamada nenhuma nos logs, o arquivo perde a função.
+ */
+export async function POST() {
+    return NextResponse.json(
+        {
+            error:
+                'Criar usuário com senha definida por outra pessoa não é mais possível. ' +
+                'Use Convidar: a pessoa recebe um link e escolhe a própria senha.',
+            substituto: 'POST /api/convites',
+        },
+        { status: 410 }
+    )
 }

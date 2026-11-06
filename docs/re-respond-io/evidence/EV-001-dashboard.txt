@@ -1,0 +1,32 @@
+EV-001 — Dashboard (Painel)
+Rota: /space/487766/dashboard
+Sessão: s01 · Data: 2026-10-25 · Captura: observação direta (app logado) + screenshot mascarado (mask.js: nome do contato e logos borrados). Blob de imagem não persistido pelo ambiente (app desktop + Claude in Chrome); registro textual redigido abaixo. PII redigida.
+
+[Banner topo]
+"O período de teste do seu plano Growth termina em 7 dias em nov 01, 2026. Atualize agora para evitar disrupção no serviço!"
+Botões: "Checklist de onboarding", "Atualize agora".
+
+[Cabeçalho]
+Título: "Painel". "Última atualização há 10 minutos" + botão "Atualizar".
+"Fuso Horário - America/Sao_Paulo (GMT-03:00)".
+
+[Seção: Ciclo de vida] (ícone de engrenagem p/ configurar)
+Cards de estágio (lifecycle), cada um com nome + nº de contatos + % + 3 contadores (conversas/tempo/contatos):
+- 🆕 New Lead — 2 · 100.00% · (1 / 0 / 2)
+- 🔥 Hot Lead — 0 · 0.00% · (0 / 0 / 0)
+- 💵 Payment — 0 · 0.00% · (0 / 0 / 0)
+- 🤩 Customer — 0 · 0.00% · (0 / 0 / 0)
+
+[Painel: Contatos]
+Abas: "Abertas" (1) · "Atribuído" (–) · "Não atribuidas" (1).
+1 linha de conversa: contato [REDIGIDO — negócio do próprio operador], canal Instagram, assunto "Teste", "35min", status "Desatribuído".
+
+[Painel: Membros da equipe]
+Filtro "Todos os Status".
+1 membro: operador "Andre Moreira" · "Desde 4:41 PM" · "Atribuído aos 0 contatos".
+(Workspace de 1 usuário — só o operador.)
+
+[Navegação lateral — ícones, top→bottom]
+docs/ajuda, onboarding, dashboard (ativo), inbox, contacts, ai-agents, broadcast, workflows, reports, settings(engrenagem), busca, ajuda, notificações, avatar do usuário, logo respond.io.
+
+Observado: workspace de 1 pessoa (só operador); lifecycle com 4 estágios ativos (New Lead→Hot Lead→Payment→Customer); 1 conversa Instagram pré-existente (teste do operador).

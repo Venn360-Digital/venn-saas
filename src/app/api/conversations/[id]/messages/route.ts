@@ -10,6 +10,7 @@ import { arquivar } from '@/trabalhos/servicos/arquivo'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
+import { aplicarMencao } from '@/lib/conversas/colaborar'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -151,6 +152,7 @@ export async function POST(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
             include: { contact: true },
@@ -190,9 +192,61 @@ export async function POST(
                 where: { id: conversationId },
                 data: {
                     lastMessageAt: new Date(),
-                    assignedTo: conversation.assignedTo || user.id,
+                    /**
+                     * Assumir é **responder**, nunca comentar.
+                     *
+                     * Este `update` não olhava `isInternal`: escrever uma nota
+                     * interna gravava `assignedTo` igual a mandar mensagem
+                     * para o paciente. Duas consequências, as duas ruins:
+                     * `assignedTo` é o mutex do agente, então **comentar calava
+                     * o bot**; e a conversa passava a constar como atendida por
+                     * quem só quis deixar um recado para a colega.
+                     *
+                     * O Andre apontou isto em palavras exatas — "a nota interna
+                     * que atribui a conversa: não pode alterar o `assignedTo`".
+                     *
+                     * Responder pela tela continua assumindo, e isso não é
+                     * efeito colateral: é o gesto, e o mais usado de todos —
+                     * foi assim que 44 das 45 conversas abertas em produção
+                     * ganharam responsável. Por isso os dois campos andam
+                     * juntos e os dois ficam atrás do mesmo `if`.
+                     */
+                    ...(isInternal
+                        ? {}
+                        : {
+                              assignedTo: conversation.assignedTo || user.id,
+                              atendidaPor: 'humano',
+                          }),
                 }
             })
+
+            /**
+             * A menção da nota interna, **dentro da mesma transação**.
+             *
+             * Só em nota interna: marcar `@colega` numa mensagem que vai para o
+             * paciente mandaria a sintaxe `@[Ana](cku…)` pelo WhatsApp. A nota
+             * é o único lugar onde a marcação faz sentido, e é onde o
+             * respond.io a põe também.
+             *
+             * Se isto falhar, a nota não existe — de propósito. Seguidor sem a
+             * nota que o explica é linha órfã; nota sem o seguidor é um pedido
+             * de ajuda que ninguém recebeu. As duas juntas ou nenhuma.
+             */
+            if (isInternal) {
+                const efeito = await aplicarMencao(tx, {
+                    workspaceId: workspaceUser.workspaceId,
+                    conversationId,
+                    messageId: criada.id,
+                    texto: textContent,
+                    autorId: user.id,
+                    donoId: conversation.assignedTo ?? null,
+                })
+                if (efeito.recusados.length) {
+                    console.warn(
+                        `[MENCAO] ${efeito.recusados.length} marcação(ões) recusada(s) na nota ${criada.id}`
+                    )
+                }
+            }
 
             await avisarMensagemNova(tx, {
                 workspaceId: workspaceUser.workspaceId,

@@ -1,0 +1,22 @@
+EV-014 — Workflow Builder (Construtor de workflows)
+Rotas: /workflows (lista) · /workflows/builder/:id (canvas)
+Sessão: s02 (aba em 1º plano) · 2026-10-25 · Captura: screenshots. Workflow de teste [RE] criado e EXCLUÍDO (ledger L-003).
+
+CRIAÇÃO: "Começar do Scratch" (ou Adicionar workflow) abre modal "Adicionar Fluxo de trabalho" → Nome (interno) + Descrição (opcional) → Criar. (O modal não aparece em read_page/get_page_text — só em screenshot; por isso parecia "não navegar".)
+
+CANVAS: grade pontilhada; controles zoom +/- e centralizar; undo/redo. Topo: nome editável, Guardar / Teste / Publicar, engrenagem (configurações). Contador "Etapas: 0 / 100" → **máx 100 steps por workflow**. Um workflow tem exatamente 1 nó Gatilho + steps encadeados; cada nó tem "+" para adicionar o próximo.
+
+NÓ GATILHO (painel direito): combobox "Selecione um gatilho". Opções (UI, confirma doc):
+- Conversa aberta, Conversa fechada, Campo de contato atualizado, Etiqueta de contato atualizada, Atalho, **Webhook de entrada (PRO = Advanced+)**, Anúncios Click-to-Chat, TikTok Messaging Ads, (Manual, Lifecycle Updated, Call Ended abaixo).
+- Seções: "Condições de gatilho" (filtros) e "Variáveis de gatilho". Avançado: "Acionar uma vez por contato".
+
+PALETA "Adicionar passos" (ao clicar "+"): busca + lista de steps observada:
+Enviar uma mensagem · Fazer uma pergunta · Atribuir Para (atribuir a usuário) · Ramo (Branch — ramificações por condição) · Atualizar campo de contato · Atualizar Tag de Contato · [Atualizar lifecycle] · Fechar Conversa ("Fecha a conversa com notas fechadas" = closing notes) · Adicionar comentário · Pular para outra etapa (Jump) · Data e Hora (Horário Comercial) · Esperar (Wait) · Enviar evento da API de Conversões (CAPI Meta). (HTTP Request / Google Sheets / TikTok / Trigger Another Workflow conforme doc/plano.)
+
+CONFIG DE STEP (ex. "Enviar Uma Mensagem #1"): Canal (combobox "Último canal interagido"); Conteúdo da Mensagem → Tipo de mensagem (combobox "Texto") + conteúdo + "Adicionar Resposta de Canal" (variante por canal); Configurações Avançadas: "Adicionar ramo de mensagem com falha". Se o último canal não existe ou a mensagem falha, o contato sai do fluxo.
+
+CONFIGURAÇÕES DO WORKFLOW (engrenagem): "Permitir que usuários interrompam este fluxo de trabalho para um contato" (no Inbox); "Definir condições de saída para interromper o fluxo".
+
+LISTA (/workflows): colunas Situação (Draft/Published) · Nome · Último publicado por · Última publicação · Criado Por · Data de Criação · Ações. Menu Ações: Publicar fluxo de trabalho · Editar Nome/Descrição · Abrir no Construtor · Clonar · Exportar workflow · Configurações de fluxo de trabalho · Apagar.
+
+Nota: ao sair do builder com alterações não salvas há diálogo in-app "Alterações Não Salvas" (Cancelar/Sair) além do beforeunload nativo.

@@ -1,0 +1,16 @@
+EV-005 — Tela de Onboarding
+Rota: /space/:id/onboarding
+Sessão: s01 · 2026-10-25 · Captura: get_page_text + read_page. Operador: "Andre".
+
+Cabeçalho: "👋 Olá, Andre! Vamos começar." · Progresso: "2 de 4".
+
+Passos (4), cada um com título + descrição; o passo atual tem CTA:
+1. "Conecte canais para unificar mensagens e chamadas" — "Converse e ligue para clientes de aplicativos como WhatsApp, Messenger e TikTok—conectados como canais em uma única caixa de entrada unificada." → [Conectar canal] (abre /settings/channels/connect em nova aba)
+2. "Saiba como o ciclo de vida ajuda a transformar potenciais compradores em clientes" (Lifecycle)
+3. "Crie Agentes de IA para aliviar a carga de trabalho da sua equipe" (AI Agents)
+4. "Convide colegas de equipe para colaborar em chats" (Invite teammates)
+
+Seção "Recursos": Assistir à introdução da caixa de entrada · Contatar suporte · Agendar uma demonstração · Central de ajuda · Vídeos explicativos.
+
+Topo (global): banner de trial Growth + "Checklist de onboarding" + "Atualize agora".
+Observação: "2 de 4" concluídos embora o passo 1 (conectar canal) ainda exiba CTA — há 1 canal Instagram pré-existente conectado; relação entre "concluído" e canal conectado a confirmar.

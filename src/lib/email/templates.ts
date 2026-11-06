@@ -18,25 +18,31 @@
 
 import { BRAND } from '@/config/brand'
 import { renderEmail } from './layout'
+import { VALIDADE_EM_DIAS } from '@/lib/convite/estado'
 
 export const TEMPLATES = {
     /**
      * O convite de quem foi cadastrado por um administrador.
      *
-     * ## O texto tem de descrever o fluxo que existe
+     * ## O texto tem de descrever o fluxo que existe, e agora existe
      *
-     * Este e-mail dizia "no primeiro acesso você escolhe a sua senha" e "o
-     * convite vale por 30 dias", e **as duas frases eram falsas**: quem cria o
-     * usuário digita a senha inicial no formulário (`api/users`), o link não
-     * leva token nenhum — vai para a tela de entrada — e não há nada que
-     * expire. Quem recebesse o convite de verdade clicaria, cairia no login
-     * sem senha para digitar, e ligaria para quem o cadastrou.
+     * Este e-mail já esteve errado nas duas direções, e o histórico vale para
+     * não repetir nenhuma delas.
      *
-     * Então o corpo passou a mandar pedir a senha a quem convidou, e a dizer
-     * onde trocá-la. É o oposto do reflexo de "melhorar o texto": a descrição
-     * desceu ao que o sistema faz, em vez de prometer o que seria mais bonito.
-     * Convite com token é outra feature — tabela de convites, validade e tela
-     * de definir senha —, e enquanto ela não existir o e-mail não a anuncia.
+     * **Primeiro ele prometeu o que não havia:** dizia "no primeiro acesso você
+     * escolhe a sua senha" e "vale por 30 dias", com um link sem token que ia
+     * para a tela de entrada. Quem recebesse clicaria, cairia no login sem
+     * senha para digitar, e ligaria para quem o cadastrou.
+     *
+     * **Então ele desceu ao que o sistema fazia:** passou a mandar pedir a
+     * senha a quem convidou. Feio, e verdadeiro — o oposto do reflexo de
+     * "melhorar o texto".
+     *
+     * **Agora a feature existe**, e o texto sobe de volta: tabela de convites,
+     * token de uso único em resumo, validade real e tela de definir senha. A
+     * frase sobre escolher a senha voltou porque virou verdade, não porque é
+     * mais bonita — e `VALIDADE_EM_DIAS` vem do módulo que a decide, para o
+     * e-mail não poder divergir dela.
      */
     inviteMember: (inviteUrl: string, unidade?: string) =>
         renderEmail({
@@ -45,12 +51,12 @@ export const TEMPLATES = {
                 unidade
                     ? `A ${BRAND.vocabulario.organizacao} <strong style="color:#0b1f3b;">${unidade}</strong> convidou você para atender pelo ${BRAND.name}.`
                     : `Você foi convidado para atender pelo ${BRAND.name}.`,
-                'Quem fez o convite definiu uma senha inicial para o seu acesso — peça essa senha a essa pessoa.',
-                'Depois de entrar, troque a senha no menu do seu nome, em <strong style="color:#0b1f3b;">Perfil</strong>.',
+                'Clique abaixo para <strong style="color:#0b1f3b;">escolher a sua senha</strong>. Ninguém define senha para você — nem quem te convidou.',
+                `O link vale por ${VALIDADE_EM_DIAS} dias e serve uma vez só. Depois de escolher a senha, você entra normalmente.`,
             ],
-            cta: { texto: `Entrar no ${BRAND.name}`, url: inviteUrl },
+            cta: { texto: 'Escolher minha senha', url: inviteUrl },
             ilustracao: 'conversa',
-            porque: `Você recebe este e-mail porque alguém da ${BRAND.vocabulario.organizacao} cadastrou o seu endereço no ${BRAND.name}.`,
+            porque: `Você recebe este e-mail porque alguém da ${BRAND.vocabulario.organizacao} convidou o seu endereço para o ${BRAND.name}. Se não era você, ignore — sem a senha, o convite não vira acesso.`,
             tone: 'neutral',
         }),
 }

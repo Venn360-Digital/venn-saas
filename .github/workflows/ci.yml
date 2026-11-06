@@ -116,6 +116,13 @@ jobs:
           npm run test:condicoes
           npm run test:widget-config
           npm run test:fuso-unidade
+          npm run test:distribuicao
+          npm run test:marcacao
+          npm run test:mencoes
+          npm run test:retratos
+          npm run test:recortes
+          npm run test:convite
+          npm run test:sonda
 
       # O mesmo conjunto, com o relógio do runner em UTC — que é como o Worker
       # roda. É o que impede a volta do defeito: na VPS o `TZ` era

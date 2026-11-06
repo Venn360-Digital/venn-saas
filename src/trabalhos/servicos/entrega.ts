@@ -93,6 +93,17 @@ export async function entregarAEquipe(pedido: PedidoDeEntrega): Promise<Resultad
             handoffAt: new Date(),
             handoffReason: pedido.motivo,
             status: 'active',
+            /**
+             * O portão vira `humano` **mesmo sem responsável**.
+             *
+             * É a vez da equipe: o agente desistiu. A conversa aparece em
+             * "Com a equipe" + "Sem responsável", que é a fila de onde se puxa
+             * trabalho — e é exatamente o caso que esta função já produzia de
+             * propósito (paciente com dor às 19h, dono designado às 14h já em
+             * casa). Deixá-la em "Com a IA" diria que o agente está cuidando
+             * de algo que ele acabou de entregar.
+             */
+            atendidaPor: 'humano',
             ...(responsavel ? { assignedTo: responsavel } : {}),
         },
     })
