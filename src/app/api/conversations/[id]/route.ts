@@ -39,6 +39,7 @@ export async function GET(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
             include: {
@@ -307,6 +308,7 @@ export async function PATCH(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
         })
@@ -436,6 +438,7 @@ export async function DELETE(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
             select: { id: true }

@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
         const departmentScope = conversationScope({
             role: workspaceUser.role as WorkspaceRole,
             departmentIds,
+            userId: workspaceUser.userId,
         })
 
         // Build filter based on tab

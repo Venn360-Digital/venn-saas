@@ -10,6 +10,7 @@ import { arquivar } from '@/trabalhos/servicos/arquivo'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { avisarMensagemNova , publicarAgora } from '@/lib/outbox/avisar'
+import { aplicarMencao } from '@/lib/conversas/seguir'
 
 // POST: Human sends a message (text or media) in a conversation
 export async function POST(
@@ -151,6 +152,7 @@ export async function POST(
                 ...conversationScope({
                     role: workspaceUser.role as WorkspaceRole,
                     departmentIds: workspaceUser.departmentIds,
+                    userId: workspaceUser.userId,
                 }),
             },
             include: { contact: true },
@@ -193,6 +195,34 @@ export async function POST(
                     assignedTo: conversation.assignedTo || user.id,
                 }
             })
+
+            /**
+             * A menção da nota interna, **dentro da mesma transação**.
+             *
+             * Só em nota interna: marcar `@colega` numa mensagem que vai para o
+             * paciente mandaria a sintaxe `@[Ana](cku…)` pelo WhatsApp. A nota
+             * é o único lugar onde a marcação faz sentido, e é onde o
+             * respond.io a põe também.
+             *
+             * Se isto falhar, a nota não existe — de propósito. Seguidor sem a
+             * nota que o explica é linha órfã; nota sem o seguidor é um pedido
+             * de ajuda que ninguém recebeu. As duas juntas ou nenhuma.
+             */
+            if (isInternal) {
+                const efeito = await aplicarMencao(tx, {
+                    workspaceId: workspaceUser.workspaceId,
+                    conversationId,
+                    messageId: criada.id,
+                    texto: textContent,
+                    autorId: user.id,
+                    donoId: conversation.assignedTo ?? null,
+                })
+                if (efeito.recusados.length) {
+                    console.warn(
+                        `[MENCAO] ${efeito.recusados.length} marcação(ões) recusada(s) na nota ${criada.id}`
+                    )
+                }
+            }
 
             await avisarMensagemNova(tx, {
                 workspaceId: workspaceUser.workspaceId,
