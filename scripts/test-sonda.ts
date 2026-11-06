@@ -59,22 +59,22 @@ console.log('\n— o assunto diz qual dos dois consertos é —\n')
 
 const assunto = (s: number, corpo: string) => {
     const v = julgar(s, corpo)
-    return mereceAviso(v) ? assuntoDoAviso(v, 'odontobox/production') : '(sem aviso)'
+    return mereceAviso(v) ? assuntoDoAviso(v, 'exemplo/production') : '(sem aviso)'
 }
 conferir(
     '401 fala de chave recusada',
     assunto(401, 'Incorrect API key'),
-    '[odontobox/production] A chave da OpenAI foi recusada (401)'
+    '[exemplo/production] A chave da OpenAI foi recusada (401)'
 )
 conferir(
     '404 fala de modelo não liberado',
     assunto(404, 'model_not_found'),
-    '[odontobox/production] O modelo da transcrição não está liberado (404)'
+    '[exemplo/production] O modelo da transcrição não está liberado (404)'
 )
 conferir(
     'sem chave tem assunto próprio',
-    assuntoDoAviso({ estado: 'sem-chave' }, 'stagent/production'),
-    '[stagent/production] A IA está sem chave configurada'
+    assuntoDoAviso({ estado: 'sem-chave' }, 'outro/production'),
+    '[outro/production] A IA está sem chave configurada'
 )
 
 console.log(`\n${passou} ok, ${falhou} falhas\n`)
