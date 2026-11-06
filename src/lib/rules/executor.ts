@@ -129,6 +129,9 @@ export class RuleExecutor {
                 status: 'active',
                 handoffAt: new Date(),
                 handoffReason: 'regra',
+                // Mesma razão de `servicos/entrega.ts`: entregar é passar a vez
+                // à equipe, com ou sem destino resolvido.
+                atendidaPor: 'humano',
                 // Só escreve quando resolveu alguém: sem destino, quem já atende
                 // continua atendendo.
                 ...(assignee ? { assignedTo: assignee } : {}),

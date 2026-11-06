@@ -92,6 +92,13 @@ import { AudioMessage } from '@/components/shared/AudioMessage'
 import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
 import { EtapaChip } from '@/components/shared/EtapaChip'
 import { Retrato } from '@/components/shared/Retrato'
+import {
+    ROTULO_DA_ABA,
+    ROTULO_DO_VER,
+    opcoesDeVer,
+    type Aba,
+    type Ver,
+} from '@/lib/conversas/recortes'
 import { semMarcacao } from '@/lib/texto-whatsapp'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
@@ -123,7 +130,15 @@ interface SendMessageBody {
     isInternal?: boolean
 }
 
-type Tab = 'waiting' | 'active' | 'closed'
+/**
+ * A aba e o `Ver` vêm do módulo de recortes, não daqui.
+ *
+ * Era `type Tab = 'waiting' | 'active' | 'closed'` escrito nesta página, com a
+ * rota tendo a sua própria cópia dos mesmos três literais. Duas cópias dos
+ * mesmos nomes divergem na primeira vez que um deles muda — e foi o que
+ * aconteceu: a tela escrevia "Em espera" para um recorte que significava "sem
+ * responsável".
+ */
 
 interface TagItem {
     id: string
@@ -481,7 +496,7 @@ export default function ConversasPage() {
     // Só dono e administrador reconectam uma linha; o aviso de linha fora do ar
     // muda de destinatário por isso.
     const { canManage } = usePermissions()
-    const [activeTab, setActiveTab] = useState<Tab>('waiting')
+    const [activeTab, setActiveTab] = useState<Aba>('ia')
     const [searchQuery, setSearchQuery] = useState('')
     const [conversations, setConversations] = useState<ConversationListItem[]>([])
     const [queue, setQueue] = useState<QueueCounts | null>(null)
@@ -518,7 +533,10 @@ export default function ConversasPage() {
     const [canTransfer, setCanTransfer] = useState(false)
     /** Quem sou eu: vira o dono do negócio aberto por aqui. */
     const [meuId, setMeuId] = useState('')
-    const [onlyMine, setOnlyMine] = useState(false)
+    /** O seletor `Ver`: a minha relação com a conversa. Era `onlyMine` booleano. */
+    const [ver, setVer] = useState<Ver>('todas')
+    /** O papel, que decide quais opções de `Ver` a tela oferece. */
+    const [meuPapel, setMeuPapel] = useState<string>('')
     /**
      * Qual linha a lista mostra — "all" para todas.
      *
@@ -764,11 +782,17 @@ export default function ConversasPage() {
 
     // Internal note mode
 
-    const tabs = [
-        { id: 'waiting' as Tab, label: 'Em espera' },
-        { id: 'active' as Tab, label: 'Ativas' },
-        { id: 'closed' as Tab, label: 'Finalizadas' },
-    ]
+    /**
+     * As três abas, pelo portão `atendidaPor`.
+     *
+     * Os rótulos vêm de `ROTULO_DA_ABA` para não haver uma segunda lista de
+     * nomes. "Com a IA" é verdade literal aqui: das 87 conversas da base de
+     * produção, 87 têm agente — nenhuma cairia nessa aba sem ter uma.
+     */
+    const tabs = (['ia', 'equipe', 'finalizadas'] as const).map((id) => ({
+        id,
+        label: ROTULO_DA_ABA[id],
+    }))
 
     // Load quick responses once
     useEffect(() => {
@@ -868,7 +892,7 @@ export default function ConversasPage() {
         try {
             const params = new URLSearchParams({ tab: activeTab })
             if (searchQuery) params.set('search', searchQuery)
-            if (onlyMine) params.set('onlyMine', 'true')
+            if (ver !== 'todas') params.set('ver', ver)
             if (lineFilter !== 'all') params.set('line', lineFilter)
             if (agentFilter !== 'all') params.set('agent', agentFilter)
             if (tagFilter !== 'all') params.set('tag', tagFilter)
@@ -892,6 +916,7 @@ export default function ConversasPage() {
                 if (data.currentUser) {
                     setCanTransfer(data.currentUser.canTransfer)
                     setMeuId(String(data.currentUser.id ?? ''))
+                    setMeuPapel(String(data.currentUser.role ?? ''))
                 }
             } else if (Array.isArray(data)) {
                 setConversations(data)
@@ -901,7 +926,7 @@ export default function ConversasPage() {
         } finally {
             setLoading(false)
         }
-    }, [activeTab, searchQuery, onlyMine, lineFilter, agentFilter, tagFilter, stageFilter, playNotificationSound])
+    }, [activeTab, searchQuery, ver, lineFilter, agentFilter, tagFilter, stageFilter, playNotificationSound])
 
     // Fetch conversation messages (initial load, limited to 30)
     const fetchMessages = useCallback(async (convId: string) => {
@@ -2047,9 +2072,9 @@ export default function ConversasPage() {
                     <div className="flex gap-1 border-b px-3 py-1.5">
                         {tabs.map((tab) => {
                             const contagem =
-                                tab.id === 'waiting'
+                                tab.id === 'ia'
                                     ? (queue?.waiting ?? 0)
-                                    : tab.id === 'active'
+                                    : tab.id === 'equipe'
                                       ? (queue?.active ?? 0)
                                       : null
 
@@ -2074,7 +2099,7 @@ export default function ConversasPage() {
                                                 'num rounded-full px-1.5 text-[10px] font-bold',
                                                 activeTab === tab.id
                                                     ? 'bg-primary-foreground/15'
-                                                    : tab.id === 'waiting'
+                                                    : tab.id === 'ia'
                                                       ? 'bg-warning-subtle text-warning-subtle-foreground'
                                                       : 'bg-muted text-muted-foreground'
                                             )}
@@ -2089,28 +2114,55 @@ export default function ConversasPage() {
 
                     {/* Uma faixa de filtro, não três. */}
                     <div className="flex items-center gap-2 border-b px-3 py-1.5">
-                        <div className="flex shrink-0 rounded-md bg-muted/60 p-0.5">
-                            {[
-                                { id: false, label: 'Todas' },
-                                { id: true, label: 'Minhas' },
-                            ].map((opcao) => (
+                        {/* O seletor `Ver` — a minha relação com a conversa.
+                            Era um segmento de dois estados (Todas | Minhas).
+                            Com quatro valores ele não caberia: a coluna tem
+                            320px e nesta faixa ainda estão Filtros e a linha
+                            de apoio da direita. O gatilho mostra o valor
+                            escolhido, que é o que o segmento dava de graça.
+
+                            Os outros dois valores NÃO podem ir para o popover
+                            de Filtros: Todas e Minhas em dois lugares é a
+                            divergência que já custou caro na tabela de preços
+                            dos modelos. Um controle, uma pergunta. */}
+                        <Popover>
+                            <PopoverTrigger asChild>
                                 <button
-                                    key={String(opcao.id)}
-                                    onClick={() => {
-                                        setOnlyMine(opcao.id)
-                                        setLoading(true)
-                                    }}
                                     className={cn(
-                                        'rounded px-2 py-0.5 text-[11px] font-medium transition-colors',
-                                        onlyMine === opcao.id
-                                            ? 'bg-card text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground'
+                                        'flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                                        ver === 'todas'
+                                            ? 'border-border text-foreground hover:bg-muted/50'
+                                            : 'border-primary-subtle-foreground/30 bg-primary-subtle text-primary-subtle-foreground'
                                     )}
+                                    aria-label="Escolher quais conversas ver"
                                 >
-                                    {opcao.label}
+                                    Ver: <span className="font-semibold">{ROTULO_DO_VER[ver]}</span>
+                                    <ChevronDown className="size-3" aria-hidden="true" />
                                 </button>
-                            ))}
-                        </div>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-52 p-1">
+                                {opcoesDeVer(meuPapel).map((opcao) => (
+                                    <button
+                                        key={opcao}
+                                        onClick={() => {
+                                            setVer(opcao)
+                                            setLoading(true)
+                                        }}
+                                        className={cn(
+                                            'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                                            ver === opcao
+                                                ? 'bg-muted font-semibold text-foreground'
+                                                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                        )}
+                                    >
+                                        {ROTULO_DO_VER[opcao]}
+                                        {ver === opcao ? (
+                                            <Check className="size-3.5" aria-hidden="true" />
+                                        ) : null}
+                                    </button>
+                                ))}
+                            </PopoverContent>
+                        </Popover>
 
                         {/* Linha e agente só existem quando há o que escolher —
                             com um de cada, o seletor não decide nada. O ponto

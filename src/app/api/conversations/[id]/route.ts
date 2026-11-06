@@ -321,7 +321,15 @@ export async function PATCH(
 
         switch (action) {
             case 'assign':
-                updateData = { assignedTo: user.id }
+                /**
+                 * Assumir: a pessoa **e** o portão, na mesma escrita.
+                 *
+                 * `atendidaPor` é o que a coluna agrupa, e `assignedTo` é quem
+                 * aparece no cartão. Escrever um sem o outro deixa a conversa
+                 * com nome de responsável na aba da IA — o estado que o portão
+                 * existe para não poder existir.
+                 */
+                updateData = { assignedTo: user.id, atendidaPor: 'humano' }
                 break
             case 'unassign':
                 /**
@@ -331,7 +339,12 @@ export async function PATCH(
                  * limpar só o responsável devolveria a conversa para uma fila em
                  * que ninguém responde — nem pessoa, nem agente.
                  */
-                updateData = { assignedTo: null, handoffAt: null, handoffReason: null }
+                updateData = {
+                    assignedTo: null,
+                    atendidaPor: 'bot',
+                    handoffAt: null,
+                    handoffReason: null,
+                }
                 break
             case 'close':
                 // `closedAt` marca o fim do atendimento, e é o que faz o
@@ -344,6 +357,9 @@ export async function PATCH(
                 updateData = {
                     status: 'active',
                     assignedTo: null,
+                    // O portão volta ao bot pela mesma razão que `handoffAt`
+                    // sai: é atendimento novo, e quem atende primeiro é o agente.
+                    atendidaPor: 'bot',
                     handoffAt: null,
                     handoffReason: null,
                 }
@@ -366,7 +382,10 @@ export async function PATCH(
                 if (!targetWU) {
                     return NextResponse.json({ error: 'Usuário destino não encontrado' }, { status: 404 })
                 }
-                updateData = { assignedTo: targetUserId }
+                // Transferir é trocar de pessoa dentro da equipe, então o
+                // portão fica (ou passa a ficar) em `humano`: a conversa não
+                // volta para a IA por ter trocado de mão.
+                updateData = { assignedTo: targetUserId, atendidaPor: 'humano' }
                 break
             default:
                 return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })

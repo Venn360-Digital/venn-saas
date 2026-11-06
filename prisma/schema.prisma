@@ -1343,9 +1343,16 @@ model Conversation {
   /// agrupa por aqui — "Com a IA" / "Com a equipe" — e o recorte de quem é a
   /// pessoa vira o seletor `Ver`.
   ///
-  /// **Muda só por gesto explícito**: assumir põe `"humano"`, devolver à IA põe
-  /// `"bot"`. Nunca por efeito colateral de mandar mensagem, que é justamente o
-  /// que `assignedTo` faz hoje e o que tornou a classificação implícita.
+  /// **Muda por gesto de gente, nunca por automação.** Põem `"humano"`: assumir,
+  /// transferir, responder pela tela, o registro da recepção e a entrega do
+  /// agente à equipe (`servicos/entrega.ts`) — nessa última a conversa fica
+  /// `humano` **sem responsável**, que é a fila de onde se puxa trabalho.
+  /// Voltam a `"bot"`: devolver à IA, reabrir, e o paciente voltar a escrever
+  /// depois de finalizada.
+  ///
+  /// Responder pela tela está nessa lista de propósito: é o gesto de assumir, e
+  /// o mais usado de todos. O que **não** mexe aqui é a nota interna — comentar
+  /// não assume, e antes assumia (ver `api/conversations/[id]/messages`).
   ///
   /// Nasce `"bot"` porque é o estado de quem acabou de chegar, e porque assim o
   /// código anterior à coluna continua correto sem ler nada disto.

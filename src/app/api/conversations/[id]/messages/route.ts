@@ -192,7 +192,31 @@ export async function POST(
                 where: { id: conversationId },
                 data: {
                     lastMessageAt: new Date(),
-                    assignedTo: conversation.assignedTo || user.id,
+                    /**
+                     * Assumir é **responder**, nunca comentar.
+                     *
+                     * Este `update` não olhava `isInternal`: escrever uma nota
+                     * interna gravava `assignedTo` igual a mandar mensagem
+                     * para o paciente. Duas consequências, as duas ruins:
+                     * `assignedTo` é o mutex do agente, então **comentar calava
+                     * o bot**; e a conversa passava a constar como atendida por
+                     * quem só quis deixar um recado para a colega.
+                     *
+                     * O Andre apontou isto em palavras exatas — "a nota interna
+                     * que atribui a conversa: não pode alterar o `assignedTo`".
+                     *
+                     * Responder pela tela continua assumindo, e isso não é
+                     * efeito colateral: é o gesto, e o mais usado de todos —
+                     * foi assim que 44 das 45 conversas abertas em produção
+                     * ganharam responsável. Por isso os dois campos andam
+                     * juntos e os dois ficam atrás do mesmo `if`.
+                     */
+                    ...(isInternal
+                        ? {}
+                        : {
+                              assignedTo: conversation.assignedTo || user.id,
+                              atendidaPor: 'humano',
+                          }),
                 }
             })
 

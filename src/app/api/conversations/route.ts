@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { enderecoDoRetrato } from '@/lib/retratos'
+import {
+    lerAba,
+    lerVer,
+    limiteDoAtendente,
+    recorteDaAba,
+    recorteDoVer,
+} from '@/lib/conversas/recortes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
 import { searchTerms } from '@/lib/search'
@@ -32,9 +39,17 @@ export async function GET(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url)
-        const tab = searchParams.get('tab') || 'waiting' // waiting | active | closed
+        /**
+         * A aba e o `Ver` — duas perguntas, dois parâmetros.
+         *
+         * `lerAba`/`lerVer` aceitam os nomes antigos (`waiting`/`active`/`closed`
+         * e `onlyMine=true`) porque eles estão em aba aberta e em link colado no
+         * grupo da equipe: recusá-los mandaria essa gente para uma lista vazia
+         * sem dizer por quê. Ver `lib/conversas/recortes.ts`.
+         */
+        const aba = lerAba(searchParams.get('tab'))
+        const ver = lerVer(searchParams.get('ver'), searchParams.get('onlyMine') === 'true')
         const search = searchParams.get('search') || ''
-        const onlyMine = searchParams.get('onlyMine') === 'true'
         /** Por qual linha de WhatsApp — vazio ou "all" para todas. */
         const line = searchParams.get('line') || ''
         /** Por qual agente — vazio ou "all" para todos. */
@@ -74,34 +89,33 @@ export async function GET(request: NextRequest) {
             userId: workspaceUser.userId,
         })
 
-        // Build filter based on tab
-        // Em espera: status=active AND assignedTo IS NULL
-        // Ativas: status=active AND assignedTo IS NOT NULL
-        // Finalizadas: status=closed
-        // "Só minhas" filter applies to Ativas and Finalizadas only
-        const where: Prisma.ConversationWhereInput = { workspaceId: workspaceUser.workspaceId }
-
-        switch (tab) {
-            case 'waiting':
-                where.status = 'active'
-                where.assignedTo = null
-                break
-            case 'active':
-                where.status = 'active'
-                where.assignedTo = { not: null }
-                // "Só minhas" or ATENDENTE: only their own
-                if (onlyMine || isAtendente) {
-                    where.assignedTo = user.id
-                }
-                break
-            case 'closed':
-                where.status = 'closed'
-                if (onlyMine || isAtendente) {
-                    where.assignedTo = user.id
-                }
-                break
-            default:
-                where.status = { not: 'closed' }
+        /**
+         * O `where`, em três camadas que não se misturam.
+         *
+         * 1. a **aba**, por `status` + `atendidaPor` — o estado da conversa;
+         * 2. o **`Ver`**, por `assignedTo` ou `collaborators` — a relação com
+         *    quem pergunta;
+         * 3. o **teto do atendente**, que o `Ver` não levanta.
+         *
+         * A versão anterior fazia as três coisas num `switch` só, e era por isso
+         * que "Em espera" era `assignedTo IS NULL`: a aba tinha de responder
+         * "qual estado" usando o campo de "quem é a pessoa". Medido em produção
+         * no dia da troca: 44 das 45 conversas abertas tinham `assignedTo`, e a
+         * aba "Em espera" mostrava 1 enquanto a IA atendia quase todas.
+         *
+         * O teto entra em `AND` e não no mesmo nível porque ele tem um `OR`
+         * dentro: posto no nível de cima, aquele `OR` se somaria ao `OR` do
+         * recorte de departamento em vez de restringir junto com ele — e aí o
+         * atendente veria a clínica inteira.
+         */
+        const recorteVer = recorteDoVer(ver, user.id)
+        const where: Prisma.ConversationWhereInput = {
+            workspaceId: workspaceUser.workspaceId,
+            ...recorteDaAba(aba),
+            ...(recorteVer ?? {}),
+            ...(isAtendente
+                ? { AND: [limiteDoAtendente(user.id)] }
+                : {}),
         }
 
         /**
@@ -264,13 +278,54 @@ export async function GET(request: NextRequest) {
         // O medidor conta dentro do mesmo recorte da lista. Sem isto ele diria
         // "8 esperando" numa tela que mostra 3, e a diferença não teria
         // explicação em lugar nenhum.
-        const escopo = departmentScope
+        /**
+         * O medidor conta pelos **mesmos recortes** da lista.
+         *
+         * `recorteDaAba` e não `assignedTo` escrito à mão aqui: era assim que
+         * estava, e é a divergência que `lib/conversas/recortes.ts` existe para
+         * impedir. Contador dizendo 12 numa tela que mostra 9 é o tipo de
+         * defeito que ninguém reporta e que faz todo mundo deixar de confiar na
+         * tela.
+         *
+         * O teto do atendente entra no medidor também. Sem ele, o contador da
+         * aba "Com a equipe" somaria a carteira dos colegas — um número que o
+         * atendente vê e não consegue abrir.
+         */
+        const escopo: Prisma.ConversationWhereInput = {
+            ...departmentScope,
+            ...(isAtendente ? { AND: [limiteDoAtendente(user.id)] } : {}),
+        }
         const [waiting, active, closedToday, oldestWaiting] = await Promise.all([
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: null, ...escopo } }),
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'active', assignedTo: { not: null }, ...escopo } }),
-            prisma.conversation.count({ where: { workspaceId: ws, status: 'closed', updatedAt: { gte: startOfToday }, ...escopo } }),
+            prisma.conversation.count({
+                where: { workspaceId: ws, ...recorteDaAba('ia'), ...escopo },
+            }),
+            prisma.conversation.count({
+                where: { workspaceId: ws, ...recorteDaAba('equipe'), ...escopo },
+            }),
+            prisma.conversation.count({
+                where: {
+                    workspaceId: ws,
+                    ...recorteDaAba('finalizadas'),
+                    updatedAt: { gte: startOfToday },
+                    ...escopo,
+                },
+            }),
+            /**
+             * "espera há 14m" passa a medir a espera **de verdade**.
+             *
+             * Era a mais antiga sem responsável, que com 44 de 45 conversas
+             * atribuídas quase nunca existia — a linha de apoio ficava mostrando
+             * "N resolvidas hoje" porque não achava ninguém esperando. Agora é a
+             * mais antiga que a equipe não assumiu, que é a pergunta que a
+             * recepção faz.
+             */
             prisma.conversation.findFirst({
-                where: { workspaceId: ws, status: 'active', assignedTo: null, lastMessageAt: { not: null }, ...escopo },
+                where: {
+                    workspaceId: ws,
+                    ...recorteDaAba('ia'),
+                    lastMessageAt: { not: null },
+                    ...escopo,
+                },
                 orderBy: { lastMessageAt: 'asc' },
                 select: { lastMessageAt: true },
             }),

@@ -318,6 +318,15 @@ async function resolveConversation(
                 integrationId,
                 assignedTo: null,
                 /**
+                 * E o portão volta ao bot.
+                 *
+                 * Pela mesma razão que `assignedTo` zera: é atendimento novo, e
+                 * quem fala primeiro é o agente. Sem isto, um paciente atendido
+                 * por gente uma vez voltaria meses depois direto para a aba da
+                 * equipe, sem ninguém avisado e sem o agente responder.
+                 */
+                atendidaPor: 'bot',
+                /**
                  * E a entrega anterior também sai.
                  *
                  * `handoffAt` cala o agente. Sem limpá-lo aqui, um paciente cujo

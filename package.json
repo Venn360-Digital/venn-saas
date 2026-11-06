@@ -62,6 +62,7 @@
     "test:marcacao": "tsx scripts/test-marcacao.ts",
     "test:mencoes": "tsx scripts/test-mencoes.ts",
     "test:retratos": "tsx --conditions=react-server scripts/test-retratos.ts",
+    "test:recortes": "tsx --conditions=react-server scripts/test-recortes.ts",
     "test:convite": "tsx --conditions=react-server scripts/test-convite.ts",
     "test:sonda": "tsx scripts/test-sonda.ts",
     "test:chunker": "tsx scripts/test-chunker.ts",
