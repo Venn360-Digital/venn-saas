@@ -10,6 +10,15 @@ import {
 } from '@/lib/conversas/recortes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
+
+/**
+ * Quantas conversas a lista devolve por chamada.
+ *
+ * Quarenta porque a coluna mostra ~12 cartões numa tela de 900px: dá para rolar
+ * algumas telas sem buscar de novo. Antes não havia teto nenhum — ver a nota no
+ * `take` do `findMany`.
+ */
+const TETO_DA_LISTA = 40
 import { searchTerms } from '@/lib/search'
 import {
     SELECT_ETAPA,
@@ -239,6 +248,26 @@ export async function GET(request: NextRequest) {
                 }
             },
             orderBy: { lastMessageAt: 'desc' },
+            /**
+             * **Teto na lista, e não havia nenhum.**
+             *
+             * O `findMany` trazia *todas* as conversas da unidade — 94 hoje, com
+             * contato, etiquetas, agente, linha e a última mensagem de cada —, e
+             * isso a cada chamada da lista. Numa clínica com mil conversas seria
+             * mil, e o custo cresceria para sempre sem nada avisando: a tela
+             * ficaria lenta e a conta do banco subiria junto, sem erro nenhum.
+             *
+             * 40 porque a coluna mostra ~12 cartões numa tela de 900px: é o
+             * suficiente para rolar algumas telas sem buscar de novo. A busca
+             * por texto continua indo ao banco inteiro — quem procura um nome
+             * não quer o recorte das 40 primeiras.
+             *
+             * Sem cursor **por ora**, de propósito: a coluna não tem rolagem
+             * infinita hoje, e entregar o parâmetro sem a tela que o usa seria
+             * código sem leitor. O que este teto evita é o crescimento
+             * ilimitado, que é o problema de verdade.
+             */
+            take: TETO_DA_LISTA,
         })
 
         /**
@@ -354,17 +383,41 @@ export async function GET(request: NextRequest) {
         )
 
         // Calculate unread counts based on lastReadAt
-        const unreadCounts = await Promise.all(
-            conversations.map(conv =>
-                prisma.message.count({
-                    where: {
-                        conversationId: conv.id,
-                        direction: 'inbound',
-                        ...(conv.lastReadAt ? { createdAt: { gt: conv.lastReadAt } } : {}),
-                    }
-                })
-            )
-        )
+        /**
+         * O não-lido de todas as conversas, **numa consulta**.
+         *
+         * Era `conversations.map(conv => prisma.message.count(...))` — uma
+         * consulta por conversa. Com 94 conversas e a lista sendo buscada a cada
+         * 15 s, davam 22.560 consultas por hora de cada aba aberta, 541 mil por
+         * dia. Era o que mantinha o Postgres sem um instante de ociosidade — e
+         * em 2026-11-07 a franquia do Neon estourou e a produção saiu do ar.
+         *
+         * **Por que SQL cru e não `groupBy`.** O corte é por conversa: cada uma
+         * tem o seu `lastReadAt`, e `groupBy` aplica um `where` só para todas.
+         * Contar tudo e filtrar em memória traria as mensagens inteiras. O
+         * `LEFT JOIN` com a condição no `ON` resolve as duas coisas de uma vez,
+         * e `LEFT` e não `INNER` porque conversa sem mensagem nova tem de voltar
+         * com zero, não desaparecer.
+         *
+         * `Prisma.join` e não interpolação: a lista de ids vem do banco, mas
+         * montar SQL com `${}` aqui ensinaria o padrão errado para o próximo.
+         */
+        const idsDaPagina = conversations.map((c) => c.id)
+        const naoLidos =
+            idsDaPagina.length === 0
+                ? []
+                : await prisma.$queryRaw<{ id: string; nao_lidas: bigint }[]>`
+                      SELECT c.id,
+                             count(m.id) AS nao_lidas
+                        FROM conversations c
+                        LEFT JOIN messages m
+                               ON m."conversationId" = c.id
+                              AND m.direction = 'inbound'
+                              AND (c."lastReadAt" IS NULL OR m."createdAt" > c."lastReadAt")
+                       WHERE c.id IN (${Prisma.join(idsDaPagina)})
+                       GROUP BY c.id
+                  `
+        const porConversa = new Map(naoLidos.map((l) => [l.id, Number(l.nao_lidas)]))
 
         const result = conversations.map((conv, idx) => {
             // Merge conversation tags + contact tags (deduplicated)
@@ -407,7 +460,7 @@ export async function GET(request: NextRequest) {
                       }
                     : null,
                 lastMessage: conv.messages[0] || null,
-                unreadCount: unreadCounts[idx],
+                unreadCount: porConversa.get(conv.id) ?? 0,
                 tags: Array.from(tagMap.values()),
                 /** Onde esta pessoa está no funil, ou `null` se não há negócio aberto. */
                 funnelStage: etapas.get(conv.contact.id) ?? null,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useIntervaloVisivel } from '@/hooks/useIntervaloVisivel'
 import { RetratoEmDisco } from '@/components/shared/Retrato'
 import { ArrowLeft, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -168,12 +169,17 @@ export function PainelDaEquipe({
         if (recados.length) fimDaLista.current?.scrollIntoView({ block: 'end' })
     }, [recados])
 
-    // Enquanto o painel está aberto, a presença vale minutos, não horas.
-    useEffect(() => {
-        if (!aberto) return
-        const t = setInterval(recarregarPessoas, 30_000)
-        return () => clearInterval(t)
-    }, [aberto, recarregarPessoas])
+    /**
+     * Enquanto o painel está aberto, a presença vale minutos, não horas — e
+     * **só enquanto a aba está à vista**.
+     *
+     * O `aberto` já limitava bastante (o painel é uma gaveta), mas aba em
+     * segundo plano com a gaveta aberta continuava consultando o banco a cada
+     * 30 s e impedindo o Neon de suspender. Ver `useIntervaloVisivel`.
+     */
+    useIntervaloVisivel(() => {
+        if (aberto) void recarregarPessoas()
+    }, 30_000)
 
     const outros = useMemo(() => pessoas.filter((p) => !p.souEu), [pessoas])
 

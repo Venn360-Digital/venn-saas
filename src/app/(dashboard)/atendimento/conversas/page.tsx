@@ -94,6 +94,7 @@ import { AudioMessage } from '@/components/shared/AudioMessage'
 import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
 import { EtapaChip } from '@/components/shared/EtapaChip'
 import { Retrato } from '@/components/shared/Retrato'
+import { useIntervaloVisivel } from '@/hooks/useIntervaloVisivel'
 import {
     ROTULO_DA_ABA,
     ROTULO_DO_VER,
@@ -1215,14 +1216,32 @@ export default function ConversasPage() {
             },
         })
 
-        // Rede continua caindo, e o aviso perdido não pode virar tela errada.
-        pollRef.current = setInterval(fetchConversations, 15000)
-
         return () => {
             cancelar()
-            if (pollRef.current) clearInterval(pollRef.current)
         }
     }, [fetchConversations])
+
+    /**
+     * A rede do tempo real: **60 s, e só com a aba à vista.**
+     *
+     * Era `setInterval(fetchConversations, 15000)` sem condição. Medido em
+     * 2026-11-07, foi o maior consumidor de banco do sistema: 240 consultas por
+     * hora de cada aba aberta, cada uma com ~100 idas e voltas ao Postgres, e o
+     * Neon suspende depois de 5 min de ociosidade — que nunca chegavam. 142,8 h
+     * de compute acordado em 7 dias, num sistema com um cliente, e a franquia
+     * estourada derrubou a produção.
+     *
+     * Duas mudanças, e cada uma tem razão própria:
+     *
+     * - **60 s em vez de 15 s.** O caminho do tempo real é o SSE, empurrado
+     *   pelo servidor; isto é a rede para quando a conexão cai. Quatro vezes
+     *   menos consulta, e o atraso máximo de 60 s só aparece se o SSE estiver
+     *   quebrado — caso em que a tela já está degradada de todo jeito.
+     * - **Só com a aba visível** (ver `useIntervaloVisivel`), com busca imediata
+     *   ao voltar. A aba esquecida aberta de noite deixa de manter o banco de
+     *   pé, e quem volta para a aba não vê lista velha.
+     */
+    useIntervaloVisivel(fetchConversations, 60_000)
 
     // Ref to track the current selected conversation for realtime callbacks
     const selectedConversationRef = useRef<string | null>(null)
