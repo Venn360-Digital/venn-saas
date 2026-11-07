@@ -1888,13 +1888,6 @@ export default function ConversasPage() {
     }
 
     // Close context menu on Escape
-    useEffect(() => {
-        const handleEsc = (e: KeyboardEvent) => {
-        }
-        window.addEventListener('keydown', handleEsc)
-        return () => window.removeEventListener('keydown', handleEsc)
-    }, [])
-
     const handleAction = async (
         action: 'assign' | 'unassign' | 'close' | 'reopen' | 'descolaborar'
     ) => {

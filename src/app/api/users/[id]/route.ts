@@ -13,6 +13,16 @@ const updateUserSchema = z.object({
     role: z.enum(['ADMIN', 'GESTOR', 'ATENDENTE']).optional(),
     canTransfer: z.boolean().optional(),
     recebeConversas: z.boolean().optional(),
+    /**
+     * Minutos até cair para ausente. `null` devolve a pessoa ao padrão da conta.
+     *
+     * `nullable` é obrigatório aqui: sem ele não haveria como **desfazer** a
+     * exceção, e o único caminho de volta ao padrão seria adivinhar o número
+     * da conta e digitá-lo — que deixaria de seguir a conta na próxima vez que
+     * ela mudasse. Teto de 1440 porque acima de um dia o conceito perde
+     * sentido; 0 é válido e desliga a queda.
+     */
+    minutosParaAusente: z.number().int().min(0).max(1440).nullable().optional(),
     isActive: z.boolean().optional(),
 })
 
@@ -85,6 +95,7 @@ export async function GET(
             departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
             recebeConversas: workspaceUser.recebeConversas,
+            minutosParaAusente: workspaceUser.minutosParaAusente,
             disponibilidade: workspaceUser.status,
             isActive: workspaceUser.isActive,
             createdAt: workspaceUser.createdAt,
@@ -202,6 +213,12 @@ export async function PATCH(
                 ...(validatedData.recebeConversas !== undefined
                     ? { recebeConversas: validatedData.recebeConversas }
                     : {}),
+                // Mesma regra: ausente no corpo fica como está. `null` no corpo
+                // é diferente de ausente — é o pedido explícito de voltar ao
+                // padrão da conta.
+                ...(validatedData.minutosParaAusente !== undefined
+                    ? { minutosParaAusente: validatedData.minutosParaAusente }
+                    : {}),
                 // A lista vem inteira ou não vem: `deleteMany` + `create` é o
                 // que faz tirar alguém de um departamento funcionar. Ausente no
                 // corpo, os departamentos ficam como estão — um PATCH que só
@@ -252,6 +269,7 @@ export async function PATCH(
             departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,
             recebeConversas: workspaceUser.recebeConversas,
+            minutosParaAusente: workspaceUser.minutosParaAusente,
             disponibilidade: workspaceUser.status,
             isActive: workspaceUser.isActive,
             isFirstAdmin: isFoundingMember,

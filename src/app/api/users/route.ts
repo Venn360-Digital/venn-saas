@@ -132,18 +132,31 @@ export async function GET(request: NextRequest) {
                 canTransfer: wu.canTransfer,
                 isActive: wu.isActive,
                 recebeConversas: wu.recebeConversas,
+                minutosParaAusente: wu.minutosParaAusente,
                 // Derivado, não cru: o gestor olhando a tabela precisa ver o
                 // mesmo que a distribuição usa. Mandar o gravado mostraria
                 // "Disponível" para quem a escada já pôs em amarelo.
+                //
+                // E o número é o **da pessoa**, com o da conta como queda —
+                // mesma conta de `estaDisponivel`. Usar só o da conta aqui
+                // faria a tabela pintar de amarelo quem a distribuição ainda
+                // considera disponível, que é a divergência que este
+                // comentário já existia para evitar.
                 disponibilidade: estadoVisivel(
                     wu.status as StatusDoMembro,
                     wu.ultimaAtividadeEm,
-                    minutosParaAusente
+                    wu.minutosParaAusente ?? minutosParaAusente
                 ),
                 isFirstAdmin: wu.id === foundingMember?.id, // First member is protected
                 createdAt: wu.createdAt,
             })),
             semDepartamento,
+            /**
+             * O padrão da conta, para a ficha dizer qual é no `placeholder` do
+             * campo Paciência. Sem isto a tela escreveria "padrão" sem contar
+             * qual, e quem fosse mudar não saberia de quanto estava partindo.
+             */
+            minutosParaAusenteDaConta: minutosParaAusente,
             pagination: {
                 page,
                 limit,

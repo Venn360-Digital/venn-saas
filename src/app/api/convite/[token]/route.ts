@@ -149,6 +149,42 @@ export async function POST(
         select: { id: true },
     })
 
+    /**
+     * Já é da equipe? Então o convite não tem o que fazer — e o erro tem de
+     * dizer **isso**.
+     *
+     * `POST /api/convites` recusa convidar quem já é membro, então este caso só
+     * nasce de uma corrida: convidar a Maria, a Maria entrar na equipe por
+     * outro caminho, e só então ela clicar no link. Raro, mas o que acontecia
+     * era pior que raro — o `workspaceUser.create` da transação abaixo batia na
+     * chave única, a transação voltava atrás, e o `catch` respondia "esse
+     * convite já foi usado". Mentira com aparência de explicação: ela não usou
+     * convite nenhum, e ficaria procurando o e-mail que já teria clicado.
+     *
+     * Medido em homologação, com um convite inserido à mão para um e-mail que
+     * já era membro: 409 com a frase errada.
+     *
+     * O 409 fica — é conflito de estado, e não erro de quem clicou —, e a
+     * resposta diz o que fazer: entrar.
+     */
+    if (existente) {
+        const jaMembro = await prisma.workspaceUser.findFirst({
+            where: { workspaceId: convite.workspaceId, userId: existente.id },
+            select: { isActive: true },
+        })
+        if (jaMembro) {
+            return NextResponse.json(
+                {
+                    error: jaMembro.isActive
+                        ? 'Você já faz parte dessa equipe. Entre com o seu e-mail e senha.'
+                        : 'Você já faz parte dessa equipe, mas o acesso está desativado. Peça a quem te convidou para reativar.',
+                    estado: 'jaMembro' as const,
+                },
+                { status: 409 }
+            )
+        }
+    }
+
     if (!existente && !lido.data.password) {
         return NextResponse.json(
             { error: 'Escolha uma senha para o seu acesso.', campo: 'password' },

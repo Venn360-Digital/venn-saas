@@ -1,0 +1,11 @@
+-- A queda para ausente passa a poder ser por pessoa.
+--
+-- Expand puro: coluna nova, opcional, sem default. Nulo significa "use o padrão
+-- da conta" (`Workspace.automations.minutosParaAusente`), que é o que todo
+-- mundo tem hoje — então a migração não muda o comportamento de ninguém.
+--
+-- Por que opcional e não um número copiado da conta: copiar congelaria o valor.
+-- Mexer na política da conta deixaria de valer para quem já existia, e a
+-- clínica descobriria isso pelo pior caminho — mudando o número e nada
+-- acontecendo.
+ALTER TABLE "workspace_users" ADD COLUMN "minutosParaAusente" INTEGER;

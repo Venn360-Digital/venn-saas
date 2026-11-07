@@ -174,8 +174,28 @@ export async function enderecoPara(
             const caminho = ref.chave.split('/').map(encodeURIComponent).join('/')
             return `${base.replace(/\/+$/, '')}/${caminho}`
         }
-        // Sem domínio público configurado, cai para assinada — degrada em vez de
-        // devolver uma URL que responde 403.
+        /**
+         * **Hoje este `if` nunca é verdadeiro, e isso tem dono.**
+         *
+         * `PUBLIC_STORAGE_BASE_URL` não é declarada em `cloudflare.config.ts`,
+         * então `process.env` não a tem no Worker — nem poderia: medido em
+         * 2026-11-06, o bucket do binding `PUBLICO` tem domínio gerenciado
+         * (um `pub-….r2.dev`) mas com `enabled: false`. Não há endereço público
+         * para apontar.
+         *
+         * O efeito é que **a classe pública também é assinada**, com a validade
+         * máxima de 600 s. Para um `<img>` que o navegador busca na hora, dá
+         * certo; para qualquer coisa que fique numa aba aberta mais de dez
+         * minutos, a imagem some. Foi por isso que `/api/retratos` passou a
+         * servir os bytes em vez de redirecionar (ver `lib/retratos.ts`).
+         *
+         * Para fechar: dar um domínio ao bucket — o r2.dev gerenciado resolve
+         * em um clique mas a Cloudflare limita a taxa dele e não recomenda em
+         * produção; um domínio próprio (`cdn-<app>.venn360.com`) é o certo — e
+         * então declarar a variável aqui com `bindings.text()`, que é público e
+         * não segredo. Enquanto não houver domínio, declarar a variável só
+         * trocaria uma degradação silenciosa por um 403.
+         */
     }
 
     const { cliente } = provedor(ref.provedor)

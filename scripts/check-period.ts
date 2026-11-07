@@ -86,6 +86,7 @@ const member = (role: WorkspaceRole, departmentIds: string[] = []) => ({
     // Nenhuma das duas participa do recorte que este script prova; existem
     // porque o tipo é o mesmo do runtime, e é bom que seja.
     status: 'ausente', recebeConversas: false, ultimaAtividadeEm: null,
+    minutosParaAusente: null,
 })
 for (const role of ['OWNER', 'ADMIN', 'GESTOR'] as WorkspaceRole[]) {
     eq(`${role} pode escolher`, canSeeEveryone(role), true)
