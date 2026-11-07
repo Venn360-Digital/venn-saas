@@ -135,13 +135,98 @@ export async function existe(ref: Referencia): Promise<boolean> {
 }
 
 /**
- * Validade máxima de uma URL assinada.
+ * Validade máxima de uma URL assinada de conteúdo que **identifica alguém**.
  *
  * Dez minutos: é tempo de um navegador carregar a imagem e não é tempo de a URL
  * circular por um grupo de WhatsApp. Conteúdo clínico não deve ter endereço
  * compartilhável, e URL assinada longa é exatamente isso.
  */
 export const VALIDADE_MAXIMA_SEGUNDOS = 600
+
+/**
+ * Validade máxima de um ativo **público de verdade** — avatar de agente,
+ * prévia de voz, ativo de marca.
+ *
+ * ## Por que os 600 s não servem aqui, e o defeito que isso causava
+ *
+ * O teto de dez minutos foi escrito para conteúdo clínico, e a frase que o
+ * justifica diz isso: "não é tempo de a URL circular por um grupo de WhatsApp".
+ * Esse raciocínio não se aplica ao retrato do agente, que é ativo de marca da
+ * unidade e **existe para ser servido sem autenticação**. A cautela foi
+ * emprestada de uma classe para outra, e cobrou o preço:
+ *
+ * `enderecoDoAvatar` cunha o endereço na leitura, então a imagem nasce válida.
+ * Dez minutos depois, numa aba que ninguém recarregou, ela vira 403 e
+ * desaparece — na lista de agentes e no Perfil. Foi relatado como "a imagem
+ * aparece ao salvar e some".
+ *
+ * Sete dias é o teto do presign do S3/R2; não há ganho em pedir menos para um
+ * arquivo que poderia estar atrás de um domínio público se o bucket tivesse um.
+ *
+ * ## O que explicitamente NÃO ganha isto
+ *
+ * Retrato de pessoa, que hoje mora **no mesmo bucket** por decisão da migração
+ * de 2026-11-07 — e que a definição de `CLASSES.PUBLICO` ("não identifica
+ * ninguém") não cobre. Ver `tetoDaAssinatura`.
+ */
+export const VALIDADE_MAXIMA_DO_PUBLICO = 7 * 24 * 60 * 60
+
+/**
+ * O trecho de chave que denuncia um retrato de pessoa dentro do bucket público.
+ *
+ * `chaveDoRetrato` produz `<unidade>/retratos/<sujeito>/<id>.<ext>`, e o único
+ * sujeito que é uma pessoa é `usuario` — `agente` é ativo de marca. O trecho
+ * leva as duas barras de propósito: `retratos/usuarios-arquivados/` não casa.
+ */
+export const TRECHO_DE_PESSOA = '/retratos/usuario/'
+
+/**
+ * Até quando a assinatura desta referência pode valer.
+ *
+ * Função pura, e o desvio é por **classe e chave**, não por chamador — mesma
+ * razão de `provedorDa`: rota nova que copie a linha da vizinha não consegue
+ * pedir uma semana para o rosto de uma pessoa atendida.
+ *
+ * O ramo da chave não é elegante e é honesto. A classe `PUBLICO` deveria
+ * bastar, mas desde a migração dos retratos ela guarda duas coisas diferentes:
+ * ativo de marca e rosto de gente. Enquanto isso durar, o prefixo é o que as
+ * separa. O conserto de verdade é o retrato sair desta classe — e aí este ramo
+ * morre junto com o `TRECHO_DE_PESSOA`.
+ *
+ * Note que o endereço assinado de um retrato **não vai ao navegador**:
+ * `/api/retratos` o usa para um `fetch` interno e devolve os bytes. Dez minutos
+ * são folga para uma requisição, e assim nunca passa a existir um endereço de
+ * uma semana para o rosto de alguém, nem usado nem guardado.
+ */
+export function tetoDaAssinatura(ref: Pick<Referencia, 'classe' | 'chave'>): number {
+    // Qualquer classe que não seja a pública — a de conteúdo sensível, ou a
+    // não-classificada, que nem deveria existir gravada — fica no teto curto.
+    // O lado seguro de "não sei o que isto é" nunca é uma semana.
+    if (ref.classe !== CLASSES.PUBLICO) return VALIDADE_MAXIMA_SEGUNDOS
+    if (ref.chave.includes(TRECHO_DE_PESSOA)) return VALIDADE_MAXIMA_SEGUNDOS
+    return VALIDADE_MAXIMA_DO_PUBLICO
+}
+
+/**
+ * A validade que a assinatura vai realmente levar.
+ *
+ * Existe separada de `enderecoPara` para ser **provável sem credencial**. A
+ * conta é um `Math.min` de três linhas, e é exatamente o tipo de conta que se
+ * inverte numa refatoração sem nada ficar vermelho: invertida, ela entrega o
+ * *pedido* do chamador em vez do teto, e aí `enderecoPara(retrato, 99999999)`
+ * assina uma semana para o rosto de alguém. O teste de rede pegaria — se
+ * rodasse, e ele é pulado aqui e no CI por falta de credencial de R2.
+ *
+ * Pedido ausente recebe o teto da classe. Pedido menor que o teto é respeitado:
+ * teto é teto, não piso.
+ */
+export function validadeEfetiva(
+    ref: Pick<Referencia, 'classe' | 'chave'>,
+    pedido?: number
+): number {
+    const teto = tetoDaAssinatura(ref)
+    return Math.min(pedido ?? teto, teto)
+}
 
 /**
  * O endereço para servir um objeto ao navegador.
@@ -164,9 +249,18 @@ export function referenciaDe(classe: Classe, chave: string, contentType = ''): R
     return { provedor: nome, bucket, chave, classe, contentType }
 }
 
+/**
+ * O endereço de uma referência.
+ *
+ * `validadeSegundos` é **pedido**, não ordem: o teto real sai de
+ * `tetoDaAssinatura`, e quem omite recebe o teto da própria classe. Antes o
+ * padrão era `VALIDADE_MAXIMA_SEGUNDOS` fixo, e por isso ativo de marca e
+ * conteúdo clínico viviam dez minutos cada — a confusão que esta mudança
+ * desfaz.
+ */
 export async function enderecoPara(
     ref: Referencia,
-    validadeSegundos = VALIDADE_MAXIMA_SEGUNDOS
+    validadeSegundos?: number
 ): Promise<string> {
     if (ref.classe === CLASSES.PUBLICO) {
         const base = process.env.PUBLIC_STORAGE_BASE_URL?.trim()
@@ -183,25 +277,32 @@ export async function enderecoPara(
          * (um `pub-….r2.dev`) mas com `enabled: false`. Não há endereço público
          * para apontar.
          *
-         * O efeito é que **a classe pública também é assinada**, com a validade
-         * máxima de 600 s. Para um `<img>` que o navegador busca na hora, dá
-         * certo; para qualquer coisa que fique numa aba aberta mais de dez
-         * minutos, a imagem some. Foi por isso que `/api/retratos` passou a
-         * servir os bytes em vez de redirecionar (ver `lib/retratos.ts`).
+         * O efeito é que **a classe pública também é assinada**. O que mudou em
+         * 2026-11-07 é o prazo: ativo de marca passou a valer sete dias
+         * (`VALIDADE_MAXIMA_DO_PUBLICO`), porque os 600 s eram cautela escrita
+         * para conteúdo clínico e faziam a foto do agente sumir em aba aberta.
+         * Retrato de pessoa continua em 600 s — ver `tetoDaAssinatura`.
          *
-         * Para fechar: dar um domínio ao bucket — o r2.dev gerenciado resolve
-         * em um clique mas a Cloudflare limita a taxa dele e não recomenda em
-         * produção; um domínio próprio (`cdn-<app>.venn360.com`) é o certo — e
-         * então declarar a variável aqui com `bindings.text()`, que é público e
-         * não segredo. Enquanto não houver domínio, declarar a variável só
-         * trocaria uma degradação silenciosa por um 403.
+         * `/api/retratos` continua **servindo os bytes** em vez de redirecionar,
+         * e por uma razão que o prazo não resolve: o endereço que o navegador
+         * guarda tem de ser estável e cacheável por um ano, e assinatura
+         * nenhuma é (ver `lib/retratos.ts`).
+         *
+         * ## Por que o domínio público não foi o caminho, medido em 2026-11-07
+         *
+         * O r2.dev gerenciado resolve em um clique, mas a Cloudflare limita a
+         * taxa dele e não o recomenda em produção. O domínio próprio
+         * (`cdn-<app>.venn360.com`) seria o certo — e **não cabe ainda**, por
+         * duas medições:
+         *
+         *   - não há volume: o bucket público tem **um** arquivo por app (o
+         *     avatar do agente), e os estáticos do Next vêm do binding `ASSETS`;
+         *   - desde a migração dos retratos o bucket guarda **rosto de pessoa**,
+         *     e domínio público abre o bucket inteiro. Separar o retrato desta
+         *     classe é pré-requisito do domínio, não detalhe posterior.
          */
     }
 
     const { cliente } = provedor(ref.provedor)
-    return cliente.urlAssinada(
-        ref.bucket,
-        ref.chave,
-        Math.min(validadeSegundos, VALIDADE_MAXIMA_SEGUNDOS)
-    )
+    return cliente.urlAssinada(ref.bucket, ref.chave, validadeEfetiva(ref, validadeSegundos))
 }
