@@ -1,0 +1,59 @@
+-- contract
+--
+-- `Conversation.ownerId` cai. Nada no código a lê desde o 3a.
+--
+-- ## Por que o marcador existe, e por que esta migração o merece
+--
+-- `lint:migracoes` exige `-- contract` em DDL destrutivo, e a exigência é uma
+-- afirmação do autor: "nenhum código publicado depende mais disto". Aqui ela é
+-- verificável, não uma promessa — o 3a (commit anterior a este, já em produção)
+-- tirou a coluna de `darDono`, de `donoDisponivel`, de `entrega.ts`, do reabrir
+-- em `servicos/conversation.ts` e do painel de equipe. O que sobrou em `src/`
+-- com esse nome é `openDeal.ownerId`, que é do **negócio** e outra tabela.
+--
+-- ## O que NÃO cai, e por quê
+--
+--   - `ownerAssignedAt` — é a única coluna que responde "quando esta pessoa
+--     recebeu a última conversa", e é dela que sai a ordem do rodízio. Sem ela
+--     a distribuição não sabe quem esperou mais.
+--   - `ownerSource`     — a procedência da atribuição (`rodizio` | `ia` |
+--     `assumiu`). É como se audita quem distribuiu.
+--   - `handoffAt`       — *quando* a entrega à equipe aconteceu. Nenhum portão
+--     a lê (o portão é `atendidaPor`), e é por isso que ela pode ficar: é
+--     registro, não decisão.
+--
+-- Os nomes das duas primeiras ficam históricos de propósito. Renomear coluna
+-- custa três deploys — adicionar, copiar, derrubar — porque a migração roda
+-- antes do publish, e o ganho seria estético.
+--
+-- ## O dado não se perde
+--
+-- `20261107060000_responsavel_do_acervo` já copiou `ownerId` para `assignedTo`
+-- em toda conversa aberta, e `darDono` escreve nos dois desde o deploy anterior
+-- a ele. Conferir antes de aplicar, e esperar ZERO:
+--
+--   SELECT count(*) FROM conversations
+--    WHERE "ownerId" IS NOT NULL AND "assignedTo" IS NULL AND status <> 'closed';
+--
+-- Conferido nos três bancos de produção antes de escrever este arquivo, e o
+-- resultado foi melhor que o previsto: **zero** em todas as contas — nenhuma
+-- conversa perderia responsável, nenhuma FINALIZADA divergia, e nenhuma tinha
+-- `ownerId` diferente de `assignedTo`. Eu esperava alguma divergência nas
+-- finalizadas, porque o backfill as deixou de fora de propósito; não havia.
+--
+-- `ownerSource` fica e continua dizendo que a atribuição veio do rodízio, então
+-- a procedência não se perde junto com a coluna.
+--
+-- ## A FK morre com a coluna
+--
+-- `ownerId` tem FK para `users` com `ON DELETE SET NULL` (a relação
+-- `ConversasQueResponde`) e um índice próprio. `DROP COLUMN` derruba os dois
+-- junto; não é preciso nomeá-los, e nomeá-los erraria se o nome divergir entre
+-- os apps.
+--
+-- O que se perde com a FK: quem sai da equipe deixava `ownerId` nulo por
+-- `SetNull`, e agora `assignedTo` fica apontando para um id que não existe
+-- mais. O efeito na tela é o mesmo — o `JOIN` com `users` não acha ninguém e a
+-- conversa aparece como sem responsável. Está registrado no schema, ao lado de
+-- `assignedTo`.
+ALTER TABLE "conversations" DROP COLUMN "ownerId";
