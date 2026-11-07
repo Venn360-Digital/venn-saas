@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { CACHE_DO_RETRATO, bytesDoEmbutido, formaDoRetrato } from '@/lib/retratos'
+import {
+    CACHE_DO_RETRATO,
+    CACHE_DO_SEM_RETRATO,
+    bytesDoEmbutido,
+    formaDoRetrato,
+} from '@/lib/retratos'
 import { enderecoDaMidia } from '@/lib/midia'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
@@ -22,10 +27,11 @@ import prisma from '@/lib/prisma'
  *
  * ## O 404 é um retrato ausente, não um erro
  *
- * Quem não tem foto devolve 404 com corpo vazio, e o `<img>` cai no `onError`
- * que escreve o nome. Mas a lista já manda `null` em vez de endereço nesse caso
- * (ver `enderecoDoRetrato`), então este 404 só acontece em corrida — a foto
- * apagada entre a montagem da lista e a busca da imagem.
+ * Quem não tem foto devolve 404 com corpo vazio **e cabeçalho de cache**. É o
+ * caso normal, não a corrida: a lista deixou de decidir isso (ver
+ * `enderecoDoRetrato`), porque decidir exigia trazer a foto inteira do banco
+ * para produzir um booleano. O componente `Retrato` desenha o nome primeiro e
+ * só revela a imagem quando ela carrega, então o 404 não aparece na tela.
  */
 
 export async function GET(
@@ -70,8 +76,26 @@ export async function GET(
         atualizadoEm = agente?.updatedAt ?? null
     }
 
+    /**
+     * Sem foto é 404 **com cabeçalho de cache** — e isso é o que permite às
+     * listas pararem de pedir a coluna ao banco.
+     *
+     * Enquanto a lista decidia "tem foto?" do lado dela, toda consulta tinha de
+     * trazer `avatar` — a foto inteira — para produzir um booleano. Agora quem
+     * decide é esta rota, que precisa dos bytes de todo jeito; e o cache de uma
+     * hora impede que a mudança troque 275 kB de banco por uma requisição por
+     * pessoa sem foto a cada carregamento.
+     *
+     * Uma hora, e não um ano como o do retrato que existe: quem põe foto hoje
+     * quer vê-la hoje.
+     */
     const forma = formaDoRetrato(avatar)
-    if (forma.tipo === 'nenhum') return new NextResponse(null, { status: 404 })
+    if (forma.tipo === 'nenhum') {
+        return new NextResponse(null, {
+            status: 404,
+            headers: { 'Cache-Control': CACHE_DO_SEM_RETRATO },
+        })
+    }
 
     /**
      * O `ETag` sai do `updatedAt`, o mesmo valor que vira `v` no endereço.

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AtSign } from 'lucide-react'
 
+import { RetratoEmDisco } from '@/components/shared/Retrato'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { gatilhoDeMencao, inserirMencao } from '@/lib/conversas/mencoes'
@@ -35,17 +36,10 @@ import { normalizeSearch } from '@/lib/search'
 interface Pessoa {
     userId: string
     nome: string
-    retrato: string | null
+    /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+    retrato: string
     papel: string
     souEu: boolean
-}
-
-/** Iniciais, para quem não tem foto. Duas no máximo — três já não se leem. */
-function iniciais(nome: string): string {
-    const partes = nome.trim().split(/\s+/).filter(Boolean)
-    if (!partes.length) return '?'
-    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
-    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
 }
 
 export function CampoDeNota({
@@ -200,18 +194,11 @@ export function CampoDeNota({
                                 i === indice ? 'bg-accent' : 'hover:bg-muted/50'
                             )}
                         >
-                            {p.retrato ? (
-                                // eslint-disable-next-line @next/next/no-img-element -- ver `Retrato`
-                                <img
-                                    src={p.retrato}
-                                    alt=""
-                                    className="size-6 shrink-0 rounded-full object-cover"
-                                />
-                            ) : (
-                                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground">
-                                    {iniciais(p.nome)}
-                                </span>
-                            )}
+                            <RetratoEmDisco
+                                endereco={p.retrato}
+                                nome={p.nome}
+                                className="size-6 text-[9px]"
+                            />
                             <span className="min-w-0 flex-1 truncate text-xs font-medium">
                                 {p.nome}
                             </span>

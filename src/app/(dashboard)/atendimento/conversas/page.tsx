@@ -207,8 +207,8 @@ interface ConversationListItem {
     status: string
     assignedTo: string | null
     assignedToName: string | null
-    /** Endereço de `/api/retratos`, nunca os bytes. `null` = mostrar o nome. */
-    assignedToRetrato: string | null
+    /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+    assignedToRetrato: string
     contact: {
         id: string
         name: string | null
@@ -218,8 +218,8 @@ interface ConversationListItem {
     agent: {
         id: string
         name: string
-        /** Endereço de `/api/retratos`, nunca os bytes. `null` = mostrar o nome. */
-        retrato: string | null
+        /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+        retrato: string
     } | null
     /** Por qual número da clínica esta conversa entrou. */
     line: {
@@ -308,7 +308,7 @@ interface ConversationDetail {
         /** O portão: `'bot'` ou `'humano'`. Decide a aba e o "Devolver à IA". */
         atendidaPor: string
         /** Quem foi chamado por menção. Só aqui — o cartão não os mostra. */
-        colaboradores: { userId: string; nome: string; retrato: string | null }[]
+        colaboradores: { userId: string; nome: string; retrato: string }[]
         /** Se eu colaboro — é o que faz o botão de sair existir. */
         euColaboro: boolean
         contact: {

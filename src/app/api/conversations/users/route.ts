@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 
 // GET: List workspace users for transfer modal
@@ -34,7 +35,7 @@ export async function GET() {
                         id: true,
                         name: true,
                         lastName: true,
-                        avatar: true,
+                        updatedAt: true,
                     }
                 }
             },
@@ -46,7 +47,7 @@ export async function GET() {
                 userId: wu.userId,
                 name: wu.user.name,
                 lastName: wu.user.lastName,
-                avatar: wu.user.avatar,
+                avatar: enderecoDoRetrato('usuario', wu.userId, wu.user.updatedAt),
                 role: wu.role,
             }))
         )

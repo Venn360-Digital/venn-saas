@@ -15,7 +15,9 @@
 
 import {
     CACHE_DO_RETRATO,
+    CACHE_DO_SEM_RETRATO,
     bytesDoEmbutido,
+    chaveDoRetrato,
     enderecoDoRetrato,
     formaDoRetrato,
 } from '../src/lib/retratos'
@@ -93,34 +95,48 @@ console.log('\n— o endereço —\n')
 const quando = new Date('2026-11-06T12:00:00.000Z')
 const v = quando.getTime().toString(36)
 
-conferir(
-    'usuário com data URI ganha endereço',
-    enderecoDoRetrato('usuario', 'u1', 'data:image/png;base64,AAAA', quando),
-    `/api/retratos/usuario/u1?v=${v}`
-)
-
-conferir(
-    'agente com referência ganha endereço',
-    enderecoDoRetrato('agente', 'a1', 'ref:publico:ws/agents/a1.png', quando),
-    `/api/retratos/agente/a1?v=${v}`
-)
-
-// Sem foto é `null`, e é o que manda o cartão escrever o nome.
-conferir('sem foto é null, não é endereço que daria 404', enderecoDoRetrato('usuario', 'u1', null, quando), null)
-conferir('SVG também devolve null', enderecoDoRetrato('usuario', 'u1', 'data:image/svg+xml;base64,AA', quando), null)
+/**
+ * O endereço **não depende mais do valor da coluna**, e é isso que estas provas
+ * travam. A versão anterior recebia `avatar` e devolvia `null` sem foto —
+ * economia aparente que obrigava toda lista a trazer a foto inteira do banco
+ * para decidir um booleano (275 kB em dois usuários, medido em produção).
+ */
+conferir('o endereço de um usuário', enderecoDoRetrato('usuario', 'u1', quando), `/api/retratos/usuario/u1?v=${v}`)
+conferir('o endereço de um agente', enderecoDoRetrato('agente', 'a1', quando), `/api/retratos/agente/a1?v=${v}`)
 
 conferir(
     'id com caractere especial é escapado',
-    enderecoDoRetrato('usuario', 'a/b?c', 'data:image/png;base64,AAAA', quando),
+    enderecoDoRetrato('usuario', 'a/b?c', quando),
     `/api/retratos/usuario/a%2Fb%3Fc?v=${v}`
 )
 
-const depois = new Date(quando.getTime() + 1000)
-const antes = enderecoDoRetrato('usuario', 'u1', 'data:image/png;base64,AAAA', quando)
-const agora = enderecoDoRetrato('usuario', 'u1', 'data:image/png;base64,BBBB', depois)
-conferir('trocar a foto muda o endereço — é o que fura o cache', antes !== agora, true)
+conferir('sem updatedAt o v é 0', enderecoDoRetrato('usuario', 'u1', null), '/api/retratos/usuario/u1?v=0')
 
-conferir('sem updatedAt o v é 0', enderecoDoRetrato('usuario', 'u1', 'data:image/png;base64,AAAA', null), '/api/retratos/usuario/u1?v=0')
+// Trocar a foto muda o `updatedAt`, logo muda o endereço — é o que fura o cache
+// de um ano sem precisar de hash nem de invalidação.
+const depois = new Date(quando.getTime() + 1000)
+conferir(
+    'updatedAt novo é endereço novo — é o que fura o cache',
+    enderecoDoRetrato('usuario', 'u1', quando) !== enderecoDoRetrato('usuario', 'u1', depois),
+    true
+)
+
+console.log('\n— a chave no acervo —\n')
+
+/**
+ * Determinística de propósito: trocar a foto sobrescreve a mesma chave. Chave
+ * aleatória por upload deixaria a foto antiga no bucket para sempre, sem
+ * ninguém apontando para ela.
+ */
+conferir('png', chaveDoRetrato('ws1', 'usuario', 'u1', 'image/png'), 'ws1/retratos/usuario/u1.png')
+conferir('jpeg vira jpg', chaveDoRetrato('ws1', 'usuario', 'u1', 'image/jpeg'), 'ws1/retratos/usuario/u1.jpg')
+conferir('webp', chaveDoRetrato('ws1', 'agente', 'a1', 'image/webp'), 'ws1/retratos/agente/a1.webp')
+conferir(
+    'a mesma pessoa dá a mesma chave, trocando a foto',
+    chaveDoRetrato('ws1', 'usuario', 'u1', 'image/png') ===
+        chaveDoRetrato('ws1', 'usuario', 'u1', 'image/png'),
+    true
+)
 
 console.log('\n— os bytes e o cache —\n')
 
@@ -134,6 +150,13 @@ conferir(
 )
 
 conferir('o cache é privado e imutável', CACHE_DO_RETRATO, 'private, max-age=31536000, immutable')
+
+/**
+ * O 404 também é cacheado, e **por uma hora e não por um ano**: quem acabou de
+ * subir uma foto quer vê-la hoje. Sem cabeçalho nenhum, cada carga de lista
+ * bateria na rota uma vez por pessoa sem foto.
+ */
+conferir('o 404 é cacheado por uma hora', CACHE_DO_SEM_RETRATO, 'private, max-age=3600')
 
 console.log(`\n${ok} ok, ${falhas} falhas\n`)
 if (falhas) process.exit(1)

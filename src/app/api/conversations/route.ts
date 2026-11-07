@@ -206,13 +206,11 @@ export async function GET(request: NextRequest) {
                         id: true,
                         name: true,
                         /**
-                         * `avatar` e `updatedAt` entram para o cartão poder
-                         * mostrar a **foto** do agente em vez do nome, quando há
-                         * foto (pedido do Andre). Só a decisão sai daqui; o que
-                         * vai na resposta é o endereço de `/api/retratos`, e por
-                         * isso o `avatar` cru é descartado logo abaixo.
+                         * `updatedAt` e **não** `avatar`: o endereço do retrato
+                         * sai de `id` + `updatedAt`, e trazer a coluna seria
+                         * arrastar a foto inteira do Neon até aqui para
+                         * decidir um booleano. Ver `lib/retratos.ts`.
                          */
-                        avatar: true,
                         updatedAt: true,
                     }
                 },
@@ -332,26 +330,26 @@ export async function GET(request: NextRequest) {
         ])
 
         /**
-         * Nome e **endereço** do retrato do responsável — nunca os bytes dele.
+         * Nome e **endereço** do retrato do responsável — e o `select` não traz
+         * mais a coluna da foto.
          *
-         * `avatar` continua no `select` porque é dele que sai a decisão "tem
-         * foto ou não", mas o que vai na resposta é o endereço de
-         * `/api/retratos`. A versão anterior devolvia o valor da coluna, e em
-         * produção o retrato do Andre tem 277 KB de base64 ali: numa página de
-         * conversas dele a resposta repetia os 277 KB por cartão. Ver
-         * `lib/retratos.ts`.
+         * Duas rodadas de conserto aqui. A primeira tirou os bytes da
+         * **resposta**, que repetia 277 KB por cartão. Esta tira os bytes da
+         * **consulta**: o endereço sai de `id` + `updatedAt`, e pedir `avatar`
+         * só para saber se existe foto arrastava a foto inteira do Neon até o
+         * Worker para produzir um booleano.
          */
         const assigneeIds = [...new Set(conversations.map(c => c.assignedTo).filter(Boolean))] as string[]
         const assignees = assigneeIds.length > 0
             ? await prisma.user.findMany({
                 where: { id: { in: assigneeIds } },
-                select: { id: true, name: true, avatar: true, updatedAt: true }
+                select: { id: true, name: true, updatedAt: true }
             })
             : []
         const assigneeMap = new Map(
             assignees.map(a => [
                 a.id,
-                { name: a.name, retrato: enderecoDoRetrato('usuario', a.id, a.avatar, a.updatedAt) },
+                { name: a.name, retrato: enderecoDoRetrato('usuario', a.id, a.updatedAt) },
             ])
         )
 
@@ -393,13 +391,8 @@ export async function GET(request: NextRequest) {
                     ? {
                           id: conv.agent.id,
                           name: conv.agent.name,
-                          /** Endereço, não bytes. `null` = o cartão escreve o nome. */
-                          retrato: enderecoDoRetrato(
-                              'agente',
-                              conv.agent.id,
-                              conv.agent.avatar,
-                              conv.agent.updatedAt
-                          ),
+                          /** Endereço. O cartão desenha o nome até a foto carregar. */
+                          retrato: enderecoDoRetrato('agente', conv.agent.id, conv.agent.updatedAt),
                       }
                     : null,
                 /** Por onde entrou — o que a lista mostra ao lado do agente. */

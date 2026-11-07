@@ -56,7 +56,7 @@ export async function GET() {
                 // A paciência da pessoa: o painel tem de pintar a bolinha com a
                 // mesma conta que a distribuição faz. Ver `estaDisponivel`.
                 minutosParaAusente: true,
-                user: { select: { name: true, lastName: true, avatar: true, updatedAt: true } },
+                user: { select: { name: true, lastName: true, updatedAt: true } },
                 departments: { select: { department: { select: { name: true } } } },
             },
         }),
@@ -113,14 +113,18 @@ export async function GET() {
         userId: m.userId,
         nome: [m.user.name, m.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
         /**
-         * Endereço, nunca os bytes.
+         * Endereço, e o `select` nem traz a coluna da foto.
          *
-         * Esta rota devolve a equipe inteira, e o retrato de usuário é um data
-         * URI na coluna — o do Andre tem 277 KB. Dez pessoas na clínica davam
-         * uma resposta de megabytes para desenhar dez bolinhas de 24px. `null`
-         * aqui significa "sem foto", e a tela mostra as iniciais.
+         * Esta rota devolve a equipe inteira. Antes ela mandava os bytes na
+         * resposta (o retrato de um usuário tem 277 KB), e depois passou a
+         * mandar só o endereço — mas ainda **pedia** a coluna ao banco, para
+         * decidir se havia foto. Dez pessoas na unidade eram megabytes
+         * atravessando o Neon para desenhar dez bolinhas de 24px.
+         *
+         * Agora o endereço sai de `id` + `updatedAt`, e quem decide se há foto
+         * é a rota do retrato, que precisa dos bytes de todo jeito.
          */
-        retrato: enderecoDoRetrato('usuario', m.userId, m.user.avatar, m.user.updatedAt),
+        retrato: enderecoDoRetrato('usuario', m.userId, m.user.updatedAt),
         papel: m.role,
         departamento: m.departments[0]?.department.name ?? null,
         estado: estadoVisivel(
