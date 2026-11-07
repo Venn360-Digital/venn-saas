@@ -1,5 +1,3 @@
-import { fileURLToPath } from "node:url";
-
 import { defineConfig } from "vite";
 import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
@@ -88,14 +86,6 @@ export default defineConfig({
    * É o mesmo padrão que `workers/tsup.config.ts` já usa para trocar
    * `server-only` por um shim.
    */
-  resolve: {
-    alias: {
-      "@prisma/adapter-pg": fileURLToPath(
-        new URL("./src/lib/shims/adapter-pg-vazio.ts", import.meta.url),
-      ),
-    },
-  },
-
   environments: {
     rsc: { resolve: RESOLVE_DO_WORKER },
     ssr: { resolve: RESOLVE_DO_WORKER },
