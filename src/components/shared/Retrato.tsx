@@ -99,10 +99,11 @@ export function iniciaisDo(nome: string): string {
  * com fundo e tamanho próprios, e é ele que o painel de equipe, a pilha do
  * cabeçalho e o seletor de menção desenham.
  *
- * Existe para esses três não repetirem a lógica do `onLoad`. Eles faziam
- * `retrato ? <img> : iniciais`, que era correto enquanto o servidor dizia se
- * havia foto; com o endereço sempre presente, aquele ternário mostraria imagem
- * quebrada para quem não tem foto. Ver `lib/retratos.ts`.
+ * Existe para esses três não repetirem a lógica do `onLoad`. Eles escolhiam
+ * entre imagem e iniciais com um ternário sobre o endereço, o que era correto
+ * enquanto o servidor dizia se havia foto; com o endereço sempre presente,
+ * aquele ternário mostraria imagem quebrada para quem não tem foto. Ver
+ * `lib/retratos.ts`.
  */
 export function RetratoEmDisco({
     endereco,
