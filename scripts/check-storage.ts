@@ -26,6 +26,10 @@ import {
     podeGravar,
     provedorDa,
     VALIDADE_MAXIMA_SEGUNDOS,
+    VALIDADE_MAXIMA_DO_PUBLICO,
+    TRECHO_DE_PESSOA,
+    tetoDaAssinatura,
+    validadeEfetiva,
 } from '@/lib/storage'
 import { deBase64 } from '@/trabalhos/servicos/arquivo'
 import { comoReferencia, enderecoDaMidia } from '@/lib/midia'
@@ -44,6 +48,100 @@ const skip = (nome: string, motivo: string) => {
 }
 
 async function main() {
+    // ============================ o teto da assinatura, por classe e por chave
+    /**
+     * `tetoDaAssinatura` é o desvio que separa **ativo de marca** de **conteúdo
+     * que identifica alguém**, e os dois erros possíveis são silenciosos e
+     * opostos — o motivo de estas provas existirem puras, fora do ciclo de rede:
+     *
+     *   - teto curto num ativo de marca: a foto do agente **desaparece** numa
+     *     aba aberta mais de dez minutos. Nada em log, só um 403 que ninguém vê.
+     *   - teto longo em conteúdo identificável: passa a existir um endereço de
+     *     uma semana, sem autenticação, para o rosto ou o documento de alguém.
+     *     Esse é o erro que não se desfaz depois.
+     *
+     * O desvio é por classe **e por chave** porque, desde a migração dos
+     * retratos de 2026-11-07, a classe `PUBLICO` guarda as duas coisas no mesmo
+     * bucket. Quando o retrato sair desta classe, o ramo da chave morre — e
+     * então a asserção "retrato de pessoa não ganha uma semana" é a que
+     * reprova, avisando que alguém o removeu cedo demais.
+     */
+    {
+        const teto = (classe: string, chave: string) =>
+            tetoDaAssinatura({ classe: classe as never, chave })
+
+        ok(
+            'clínico: dez minutos',
+            teto(CLASSES.CLINICO, 'ws1/conv1/foto.jpg') === VALIDADE_MAXIMA_SEGUNDOS
+        )
+        // Não-classificado nem pode ser gravado (`podeGravar` recusa), mas se
+        // uma referência dessas chegar aqui o teto tem de ser o curto: o lado
+        // seguro de "não sei o que isto é" nunca é uma semana.
+        ok(
+            'não-classificado: dez minutos',
+            teto(CLASSES.NAO_CLASSIFICADO, 'ws1/sei-la.bin') === VALIDADE_MAXIMA_SEGUNDOS
+        )
+        ok(
+            'avatar de agente: sete dias',
+            teto(CLASSES.PUBLICO, 'ws1/agents/ag1.png') === VALIDADE_MAXIMA_DO_PUBLICO
+        )
+        ok(
+            'retrato de agente é ativo de marca: sete dias',
+            teto(CLASSES.PUBLICO, 'ws1/retratos/agente/ag1.png') === VALIDADE_MAXIMA_DO_PUBLICO
+        )
+
+        // A asserção central, e a que precisa reprovar se alguém simplificar o
+        // desvio para "classe PUBLICO = sete dias".
+        ok(
+            'retrato de PESSOA não ganha uma semana',
+            teto(CLASSES.PUBLICO, 'ws1/retratos/usuario/u1.png') === VALIDADE_MAXIMA_SEGUNDOS
+        )
+
+        // O trecho leva as duas barras: nome que só começa igual não casa.
+        ok(
+            'prefixo parecido não vale como pessoa',
+            teto(CLASSES.PUBLICO, 'ws1/retratos/usuarios-arquivados/u1.png') ===
+                VALIDADE_MAXIMA_DO_PUBLICO
+        )
+
+        // E o acordo com quem cunha a chave: `chaveDoRetrato` monta
+        // `<unidade>/retratos/<sujeito>/<id>.<ext>`, então o sujeito `usuario`
+        // tem de cair dentro do trecho. Se a convenção da chave mudar lá sem
+        // mudar aqui, esta reprova.
+        ok(
+            'a convenção da chave de retrato casa com o trecho',
+            `/retratos/${'usuario'}/`.includes(TRECHO_DE_PESSOA)
+        )
+
+        ok('sete dias é o teto do presign', VALIDADE_MAXIMA_DO_PUBLICO === 7 * 24 * 60 * 60)
+
+        /**
+         * E a conta que a casca usa, provada sem credencial.
+         *
+         * `validadeEfetiva` é o `Math.min` que `enderecoPara` aplica. Invertido,
+         * ele devolveria o **pedido** do chamador em vez do teto — e a única
+         * prova que pegaria isso era a de rede, que é pulada aqui e no CI.
+         */
+        const pessoa = { classe: CLASSES.PUBLICO, chave: 'ws1/retratos/usuario/u1.png' }
+        const marca = { classe: CLASSES.PUBLICO, chave: 'ws1/agents/ag1.png' }
+        const clinico = { classe: CLASSES.CLINICO, chave: 'ws1/conv1/foto.jpg' }
+
+        ok('sem pedido, vale o teto da classe', validadeEfetiva(marca) === VALIDADE_MAXIMA_DO_PUBLICO)
+        ok('pedido menor é respeitado', validadeEfetiva(marca, 60) === 60)
+        ok(
+            'pedido maior é cortado no teto',
+            validadeEfetiva(marca, 99999999) === VALIDADE_MAXIMA_DO_PUBLICO
+        )
+        ok(
+            'retrato de pessoa: pedido de uma semana é cortado em dez minutos',
+            validadeEfetiva(pessoa, VALIDADE_MAXIMA_DO_PUBLICO) === VALIDADE_MAXIMA_SEGUNDOS
+        )
+        ok(
+            'clínico: pedido de uma semana é cortado em dez minutos',
+            validadeEfetiva(clinico, VALIDADE_MAXIMA_DO_PUBLICO) === VALIDADE_MAXIMA_SEGUNDOS
+        )
+    }
+
     // ============================ a referência gravada no lugar do endereço
     /**
      * `Message.mediaUrl` guardava a **URL assinada**, de 600 s de validade.
@@ -247,13 +345,46 @@ async function main() {
         const url = await enderecoPara(ref, 60)
         ok('endereço gerado', url.startsWith('http'), url.slice(0, 60) + '…')
 
-        const assinada = await enderecoPara({ ...ref, classe: CLASSES.CLINICO }, 99999)
-        const expira = new URL(assinada).searchParams.get('X-Amz-Expires')
+        /**
+         * O teto, agora conferido **na assinatura de verdade** e nos dois ramos.
+         *
+         * O pedido de 99999 s é deliberado: o chamador pede o que quiser, e é o
+         * `X-Amz-Expires` que a AWS recebe que prova quem manda. Sem isto, um
+         * `Math.min` invertido passaria pelas provas puras.
+         */
+        const expiraDe = async (r: Parameters<typeof enderecoPara>[0], pedido: number) =>
+            new URL(await enderecoPara(r, pedido)).searchParams.get('X-Amz-Expires')
+
+        const clinico = await expiraDe({ ...ref, classe: CLASSES.CLINICO }, 99999)
         ok(
-            'validade é limitada ao máximo',
-            expira === String(VALIDADE_MAXIMA_SEGUNDOS),
-            `X-Amz-Expires=${expira}`
+            'clínico: a assinatura sai com dez minutos',
+            clinico === String(VALIDADE_MAXIMA_SEGUNDOS),
+            `X-Amz-Expires=${clinico}`
         )
+
+        const marca = await expiraDe(
+            { ...ref, classe: CLASSES.PUBLICO, chave: 'ws1/agents/ag1.png' },
+            99999999
+        )
+        ok(
+            'ativo de marca: a assinatura sai com sete dias',
+            marca === String(VALIDADE_MAXIMA_DO_PUBLICO),
+            `X-Amz-Expires=${marca}`
+        )
+
+        const pessoa = await expiraDe(
+            { ...ref, classe: CLASSES.PUBLICO, chave: 'ws1/retratos/usuario/u1.png' },
+            99999999
+        )
+        ok(
+            'retrato de pessoa: a assinatura sai com dez minutos',
+            pessoa === String(VALIDADE_MAXIMA_SEGUNDOS),
+            `X-Amz-Expires=${pessoa}`
+        )
+
+        // Pedir menos continua valendo: o teto é teto, não piso.
+        const curta = await expiraDe({ ...ref, classe: CLASSES.PUBLICO }, 60)
+        ok('pedir menos que o teto é respeitado', curta === '60', `X-Amz-Expires=${curta}`)
 
         await apagar(ref)
         ok('apagou', !(await existe(ref)))
