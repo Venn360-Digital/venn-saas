@@ -654,13 +654,10 @@ export default function ConversasPage() {
     }
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
-    // Incrementa para derrubar e recriar o canal do Realtime depois de um erro.
-    const [realtimeGeneration, setRealtimeGeneration] = useState(0)
-    // Última mensagem conhecida da conversa aberta, para o polling detectar
+    // Última mensagem conhecida da conversa aberta, para a rede detectar
     // atividade nova sem depender do evento.
     const trackedConversationRef = useRef<string | null>(null)
     const lastSeenMessageIdRef = useRef<string | null>(null)
-    const pollRef = useRef<NodeJS.Timeout | null>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const prevTotalUnreadRef = useRef<number>(0)
     const soundEnabledRef = useRef<boolean>(true)
@@ -1168,6 +1165,14 @@ export default function ConversasPage() {
                     return
                 }
 
+                /**
+                 * Digitando chega **neste** socket, e não num segundo.
+                 *
+                 * Antes era um canal por conversa, criado e destruído a cada
+                 * troca de conversa aberta — um socket extra por clique. Agora é
+                 * um evento da sala como os outros, e o filtro de "é da conversa
+                 * aberta?" acontece aqui, no handler.
+                 */
                 if (tipo === 'digitando') {
                     const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null
                     if (payload.source !== 'contact') return
@@ -1293,17 +1298,6 @@ export default function ConversasPage() {
         }
     }, [conversations, selectedConversation, fetchMessages, markAsRead])
 
-    /**
-     * O indicador de digitação some daqui.
-     *
-     * Era um **segundo canal**, por conversa, criado e destruído a cada troca de
-     * conversa aberta — um socket extra por clique. Agora é um evento
-     * `digitando` no mesmo socket da sala, tratado junto com os outros, e o
-     * filtro de "é da conversa aberta?" acontece no handler.
-     *
-     * O auto-clear de 4 s continua: o evento diz "está digitando" mas não há
-     * garantia de chegar um "parou", e um indicador preso é pior que nenhum.
-     */
     const visibleMessages = conversationSearch.trim()
         ? messages.filter((m) => {
               const q = conversationSearch.trim().toLowerCase()
