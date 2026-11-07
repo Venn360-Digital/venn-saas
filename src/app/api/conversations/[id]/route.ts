@@ -63,7 +63,15 @@ export async function GET(
                     select: {
                         id: true,
                         name: true,
-                        avatar: true,
+                        /**
+                         * `updatedAt` e não `avatar`: ninguém desenha este
+                         * valor — a tela não o usa —, e a coluna guarda
+                         * `ref:publico:…`, que num `<img src>` apareceria como
+                         * texto. Se um dia a ficha quiser a foto do agente, o
+                         * caminho é `enderecoDoRetrato('agente', …)`, como o
+                         * cartão da lista já faz.
+                         */
+                        updatedAt: true,
                         // Se o agente responde sozinho nesta conversa, ou se a
                         // fila é só da equipe. Ver `estadoDaLinha` na tela.
                         isActive: true,
@@ -90,7 +98,7 @@ export async function GET(
                 collaborators: {
                     select: {
                         userId: true,
-                        user: { select: { name: true, lastName: true, avatar: true, updatedAt: true } },
+                        user: { select: { name: true, lastName: true, updatedAt: true } },
                     },
                     orderBy: { createdAt: 'asc' },
                 },
@@ -229,7 +237,7 @@ export async function GET(
                 colaboradores: conversation.collaborators.map((c) => ({
                     userId: c.userId,
                     nome: [c.user.name, c.user.lastName].filter(Boolean).join(' ') || 'Sem nome',
-                    retrato: enderecoDoRetrato('usuario', c.userId, c.user.avatar, c.user.updatedAt),
+                    retrato: enderecoDoRetrato('usuario', c.userId, c.user.updatedAt),
                 })),
                 /** Se **eu** colaboro — é o que faz o botão de sair existir. */
                 euColaboro: conversation.collaborators.some((c) => c.userId === user.id),

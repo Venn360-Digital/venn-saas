@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { readAutomations } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 
@@ -20,7 +21,7 @@ export async function GET() {
                 id: true,
                 email: true,
                 name: true,
-                avatar: true,
+                updatedAt: true,
             }
         })
 
@@ -47,7 +48,7 @@ export async function GET() {
                 id: dbUser?.id || user.id,
                 email: dbUser?.email || user.email,
                 name: dbUser?.name || user.email?.split('@')[0] || 'User',
-                avatar: dbUser?.avatar || null,
+                avatar: enderecoDoRetrato('usuario', user.id, dbUser?.updatedAt),
                 initials: getInitials(dbUser?.name || user.email || 'U'),
             },
             workspace: workspace || null,

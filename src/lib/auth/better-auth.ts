@@ -189,21 +189,29 @@ function construir() {
             modelName: 'AuthSession',
 
             /**
-             * Oito horas, renovada a cada hora de uso.
+             * Quatro horas, renovada a cada hora de uso.
              *
              * O padrão da biblioteca é **sete dias**. Numa clínica o computador da
              * recepção é compartilhado e fica ligado: sete dias significa que quem
              * sentar nele amanhã continua logado como a atendente de ontem, com
              * acesso a prontuário.
              *
-             * Com `updateAge` de uma hora, quem está trabalhando tem a sessão
-             * renovada sozinha e não é interrompido — então na prática isto é um
-             * limite de **oito horas de inatividade**, não de jornada. A máquina
-             * deixada ligada à noite desloga; quem passa o dia inteiro na tela, não.
+             * Era oito horas; o Andre pediu quatro em 2026-11-07. Com `updateAge`
+             * de uma hora, quem está trabalhando tem a sessão renovada sozinha e
+             * não é interrompido — então isto é um limite de **quatro horas de
+             * inatividade**, não de jornada. Quem passa o dia na tela não desloga;
+             * a máquina esquecida ligada no almoço, sim.
+             *
+             * O número também tem efeito de custo, e foi medido em 2026-11-07: a
+             * aba aberta consulta o banco a cada 15 s, e isso impede o Neon de
+             * suspender (o ociosidade dele é de 5 min). Deslogar antes encurta a
+             * janela em que uma aba esquecida mantém o compute de pé — mas é
+             * paliativo, porque o `fetch` da tela não para só porque a sessão
+             * expirou: o conserto de verdade é pausar o polling com a aba oculta.
              *
              * É um número, e muda em uma linha se a operação pedir outro.
              */
-            expiresIn: 60 * 60 * 8,
+            expiresIn: 60 * 60 * 4,
             updateAge: 60 * 60,
         },
         account: { modelName: 'AuthAccount' },
