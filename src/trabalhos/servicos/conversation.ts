@@ -309,19 +309,19 @@ async function resolveConversation(
 
     if (closed) {
         /**
-         * Reabrir devolve a conversa ao agente — **sem perder de quem ela é.**
+         * Reabrir devolve a conversa ao agente — **sem tocar em quem ela é.**
          *
-         * O portão volta a `bot`, e é ele que faz o agente falar primeiro: era
-         * para isso que `assignedTo` era zerado aqui. Mas zerá-lo agora apagaria
-         * o responsável, porque o rodízio passou a escrever naquela coluna — e
-         * a decisão registrada no schema é a oposta: "quando o paciente volta a
-         * escrever depois de finalizada, quem já falou com ele continua
-         * respondendo por ele".
+         * O portão volta a `bot`, e é ele que faz o agente falar primeiro. Era
+         * para isso que `assignedTo` era zerado aqui, e zerá-lo era a única
+         * forma de dizer "o bot assume" quando as duas perguntas moravam na
+         * mesma coluna.
          *
-         * Então o responsável é **reposto** a partir de `ownerId`, que reabrir
-         * nunca limpou. Antes isso não era possível de expressar: a mesma coluna
-         * dizia "é dela" e "ela está atendendo", e manter a primeira ligava a
-         * segunda. Com duas colunas, dá.
+         * Agora `assignedTo` simplesmente **não aparece neste `data`** — fica
+         * como está. É o que a decisão registrada no schema sempre pediu:
+         * "quando o paciente volta a escrever depois de finalizada, quem já
+         * falou com ele continua respondendo por ele". A versão anterior desta
+         * linha repunha o responsável a partir de `ownerId`; não precisa mais,
+         * porque ele nunca saiu de `assignedTo`.
          */
         const reopened = await prisma.conversation.update({
             where: { id: closed.id },
@@ -329,7 +329,6 @@ async function resolveConversation(
                 status: 'active',
                 agentId,
                 integrationId,
-                assignedTo: closed.ownerId,
                 /**
                  * E o portão volta ao bot.
                  *
