@@ -29,6 +29,7 @@ generator clientWorkerd {
   output       = "../src/generated/prisma-workerd"
   runtime      = "workerd"
   moduleFormat = "esm"
+  engineType   = "client"
 
   previewFeatures = ["postgresqlExtensions"]
 }
