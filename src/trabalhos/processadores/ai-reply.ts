@@ -107,7 +107,7 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
 
     const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        select: { id: true, status: true, assignedTo: true, handoffAt: true, atendidaPor: true, closedAt: true },
+        select: { id: true, status: true, assignedTo: true, atendidaPor: true, closedAt: true },
     })
 
     if (!conversation) {
@@ -118,7 +118,7 @@ async function gerarResposta(payload: AiReplyJob): Promise<void> {
     /**
      * Reconferido aqui, e não só ao enfileirar: alguém pode ter assumido a
      * conversa durante a janela de debounce — ou o próprio agente pode tê-la
-     * entregue na resposta anterior, que é o caso que `handoffAt` cobre.
+     * entregue na resposta anterior, que é o caso que o portão cobre.
      */
     if (isHumanHandled(conversation)) {
         log.info(`conversation ${conversationId} is human-handled; skipping`)
@@ -639,7 +639,7 @@ async function registrarLacuna(sinais: SinaisDaLacuna): Promise<void> {
 
         const conversa = await prisma.conversation.findUnique({
             where: { id: sinais.conversationId },
-            select: { assignedTo: true, handoffAt: true, atendidaPor: true },
+            select: { assignedTo: true, atendidaPor: true },
         })
 
         if (!deveEscalar({ lacunasNoAtendimento: lacunas, jaEntregue: conversa ? isHumanHandled(conversa) : true })) {

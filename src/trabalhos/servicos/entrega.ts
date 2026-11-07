@@ -47,7 +47,7 @@ export interface ResultadoDaEntrega {
 export async function entregarAEquipe(pedido: PedidoDeEntrega): Promise<ResultadoDaEntrega> {
     const atual = await prisma.conversation.findFirst({
         where: { id: pedido.conversationId, workspaceId: pedido.workspaceId },
-        select: { assignedTo: true, handoffAt: true, atendidaPor: true, ownerId: true },
+        select: { assignedTo: true, atendidaPor: true },
     })
 
     if (!atual) {
@@ -89,20 +89,28 @@ export async function entregarAEquipe(pedido: PedidoDeEntrega): Promise<Resultad
      *
      * Ver §11.3.2 do estudo e `lib/conversas/distribuicao.ts`.
      */
+    /**
+     * Quem já responde por esta conversa é `assignedTo`, não mais `ownerId`.
+     *
+     * A pergunta não mudou — "o responsável está em condição de atender
+     * agora?" —, só a coluna onde a resposta mora. O rodízio passou a escrever
+     * `assignedTo` na chegada, então é lá que está quem recebeu a carteira.
+     */
     const responsavel =
-        (await donoDisponivel(pedido.workspaceId, atual.ownerId)) ??
+        (await donoDisponivel(pedido.workspaceId, atual.assignedTo)) ??
         (await responsavelDaLinha(pedido.workspaceId, pedido.integrationId))
 
     await prisma.conversation.update({
         where: { id: pedido.conversationId },
         data: {
             /**
-             * `handoffAt` cala o agente; `assignedTo` diz quem atende.
+             * `handoffAt` **deixou de calar o agente** — e fica, como registro.
              *
-             * **Os dois, e não um.** Só `assignedTo` deixa invisível a entrega sem
-             * destino — era o defeito da regra `notify_human`. Só `handoffAt`
-             * deixa a conversa calada em "Em espera", onde nenhum atendente a vê
-             * como dele.
+             * Quem cala agora é `atendidaPor` (ver `isHumanHandled`). O que esta
+             * coluna guarda é *quando* a entrega aconteceu, e isso continua
+             * valendo: é a base de "há quanto tempo esta conversa espera uma
+             * pessoa", a métrica do Andar 3. Nenhum portão a lê, e é assim que
+             * deve ser — portão em duas colunas foi o que criou o nó.
              */
             handoffAt: new Date(),
             handoffReason: pedido.motivo,
@@ -130,7 +138,7 @@ export async function entregarAEquipe(pedido: PedidoDeEntrega): Promise<Resultad
                 pedido.nota +
                 (responsavel
                     ? ''
-                    : atual.ownerId
+                    : atual.assignedTo
                       ? '\n\nO responsável por esta conversa não está disponível agora: ela está na fila geral.'
                       : '\n\nSem responsável definido: a linha não tem departamento.'),
             contentType: 'text',

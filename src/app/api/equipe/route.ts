@@ -80,14 +80,31 @@ export async function GET() {
      */
     const abertasPorPessoa = podeVerTodos
         ? await prisma.conversation.groupBy({
-              by: ['ownerId'],
-              where: { workspaceId, status: 'open', ownerId: { not: null } },
+              by: ['assignedTo'],
+              /**
+               * `status: 'active'`, e isto é um **conserto**.
+               *
+               * Estava `status: 'open'` — valor que `Conversation.status` nunca
+               * tem. Os valores são `active | closed | snoozed` (ver o schema),
+               * e `open` é do **negócio**, não da conversa. Conferido na
+               * produção em 2026-11-07: zero linhas com `open`, 49 com `active`
+               * e responsável.
+               *
+               * Ou seja: `emAtendimento` mostrava **0 para todo mundo** desde
+               * que esta consulta foi escrita. O painel de equipe é onde a
+               * gestão olha carga de trabalho, e ele dizia que ninguém tinha
+               * nenhuma. Erro silencioso: número plausível, sempre errado.
+               *
+               * E `assignedTo` em vez de `ownerId` pela mesma razão do resto
+               * desta rodada — é lá que o responsável mora agora.
+               */
+              where: { workspaceId, status: 'active', assignedTo: { not: null } },
               _count: { _all: true },
           })
         : []
 
     const abertas = new Map(
-        abertasPorPessoa.map((linha) => [linha.ownerId, linha._count._all])
+        abertasPorPessoa.map((linha) => [linha.assignedTo, linha._count._all])
     )
 
     const agora = new Date()
