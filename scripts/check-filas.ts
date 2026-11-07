@@ -167,7 +167,8 @@ async function main() {
 
     ok(
         'a configuração gera os crons pela agenda, não os lista à mão',
-        config.includes('cronsParaWrangler()')
+        /cronsParaWrangler\(/.test(config),
+        'com argumento desde 2026-11-07: a agenda de homologação é menor'
     )
     ok(
         'e não há padrão de hora fixa escrito literalmente nela',
@@ -190,9 +191,32 @@ async function main() {
     {
         const daVarredura = cronDaVarredura()
         ok(
-            'a varredura da outbox tem um gatilho publicado',
-            cronsParaWrangler().includes(daVarredura),
+            'a varredura da outbox tem um gatilho publicado em produção',
+            cronsParaWrangler('production').includes(daVarredura),
             daVarredura
+        )
+
+        /**
+         * **Em homologação ela NÃO tem gatilho, e isso é deliberado.**
+         *
+         * A regra de ambiente derruba o que dispara mais de uma vez por dia, e
+         * a varredura pega carona no `*​/10` — então ela cai junto. Fica
+         * afirmado aqui, e não só comentado, porque é exactamente a forma de
+         * falha que o teste de baixo existe para pegar: gatilho que não existe
+         * faz `agendado.ts` nunca casar o `event.cron` e a varredura para em
+         * silêncio.
+         *
+         * Em homologação isso é aceitável — `publicarAgora` continua imediato e
+         * a varredura é a rede, não o caminho. Em produção não seria, e é por
+         * isso que o teste acima existe separado.
+         *
+         * Se um dia homologação precisar da varredura, o conserto não é afrouxar
+         * a regra: é dar à tarefa dela um horário de uma vez por dia.
+         */
+        ok(
+            'e em homologação ela não tem — de propósito, porque é a rede e não o caminho',
+            !cronsParaWrangler('stg').includes(daVarredura),
+            'publicarAgora segue imediato lá'
         )
         ok(
             'e esse gatilho despacha a rotina de que ela pega carona',
