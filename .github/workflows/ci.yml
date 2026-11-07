@@ -121,6 +121,7 @@ jobs:
           npm run test:mencoes
           npm run test:retratos
           npm run test:recortes
+          npm run test:portao
           npm run test:convite
           npm run test:sonda
 
@@ -155,13 +156,26 @@ jobs:
   # ==========================================================================
   # O que precisa de Postgres. Em branch própria do Neon, descartada ao fim.
   #
-  # PEÇA TRANSITÓRIA, com condição de morte escrita: este job é a única prova
-  # de migração ANTES do merge enquanto a Odontobox não tem ambiente de
-  # staging. Quando `odontobox-stg` entrar no fluxo (PR → staging → main), o
-  # deploy de staging passa a exercitar `migrate-guarded` contra banco real
-  # antes de qualquer merge em `main` — e este job morre junto com o segredo
-  # `NEON_API_KEY` deste repositório. Não replicar nos clones: o staging deles
-  # já cumpre esse papel.
+  # A condição de morte deste job CHEGOU, e ele fica — por outro motivo.
+  #
+  # Ele nasceu como peça transitória: era a única prova de migração antes do
+  # merge enquanto a Odontobox não tinha staging, e deveria morrer quando
+  # `odontobox-stg` entrasse no fluxo PR → staging → main. Isso aconteceu em
+  # 2026-11-06: o merge em `staging` rodou `portao:stg` e migrou a branch
+  # `staging` do Neon antes do merge em `main`.
+  #
+  # Mas a premissa de que o staging substituiria este job era falsa, e deu para
+  # medir no mesmo dia: a branch `staging` do Neon tem 1 unidade, 1 usuário e
+  # ZERO conversas. Ela prova que o DDL aplica; não prova nada sobre migração
+  # que mexe em dado. As três migrações daquele deploy incluíam um UPDATE de
+  # backfill sobre `conversations` — e o único lugar onde ele rodou contra
+  # volume real foi aqui, numa branch tirada da produção (87 conversas).
+  #
+  # Então o papel do job mudou de "suprir a falta de staging" para "exercitar
+  # migração contra dado de verdade", que é coisa que staging vazio não faz.
+  # Não replicar nos apps irmãos pela mesma medição: o acervo de produção deles
+  # é de unidades de conversas — menor que o desta branch de staging —, então um
+  # job destes lá provaria menos do que o deploy de staging já prova.
   # ==========================================================================
   banco:
     name: Provas contra o Neon

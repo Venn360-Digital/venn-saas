@@ -308,15 +308,28 @@ async function resolveConversation(
     })
 
     if (closed) {
-        // Reopening clears the assignee, which puts the thread back in "em espera"
-        // so the agent — not the previous operator — picks it up.
+        /**
+         * Reabrir devolve a conversa ao agente — **sem perder de quem ela é.**
+         *
+         * O portão volta a `bot`, e é ele que faz o agente falar primeiro: era
+         * para isso que `assignedTo` era zerado aqui. Mas zerá-lo agora apagaria
+         * o responsável, porque o rodízio passou a escrever naquela coluna — e
+         * a decisão registrada no schema é a oposta: "quando o paciente volta a
+         * escrever depois de finalizada, quem já falou com ele continua
+         * respondendo por ele".
+         *
+         * Então o responsável é **reposto** a partir de `ownerId`, que reabrir
+         * nunca limpou. Antes isso não era possível de expressar: a mesma coluna
+         * dizia "é dela" e "ela está atendendo", e manter a primeira ligava a
+         * segunda. Com duas colunas, dá.
+         */
         const reopened = await prisma.conversation.update({
             where: { id: closed.id },
             data: {
                 status: 'active',
                 agentId,
                 integrationId,
-                assignedTo: null,
+                assignedTo: closed.ownerId,
                 /**
                  * E o portão volta ao bot.
                  *
@@ -452,26 +465,35 @@ export async function resolveInboundContext(input: {
 /**
  * O agente tem de ficar calado nesta conversa?
  *
- * **Duas colunas, e as duas significam coisas diferentes.**
+ * **Uma coluna, e é a que foi feita para responder isto:** `atendidaPor`.
  *
- *   - `assignedTo`: uma pessoa está atendendo. É o mutex histórico, lido em mais
- *     de vinte lugares.
- *   - `handoffAt`: a conversa foi **entregue** à equipe, com ou sem responsável
- *     definido.
+ * ## O que havia antes, e por que doía
  *
- * Ler só `assignedTo` era um defeito com sintoma estranho: a regra `notify_human`
- * sem destino e o teto de interações anunciavam ao paciente que a equipe
- * assumiria, não atribuíam ninguém (porque não havia quem), e o agente respondia
- * a mensagem seguinte normalmente — por cima da própria despedida. A conversa
- * ficava com duas versões de si mesma.
+ * Era `Boolean(assignedTo) || Boolean(handoffAt)` — duas colunas, nenhuma das
+ * duas sobre "quem está conduzindo". `assignedTo` é *quem é a pessoa*, e usá-lo
+ * como mutex amarrou as duas perguntas num campo só. A consequência media-se:
+ * **o rodízio não podia escrever `assignedTo`**, porque distribuir calaria o
+ * agente no ato de distribuir. Então ele escrevia `ownerId`, uma coluna que a
+ * lista não lia — e o lead chegava, ganhava responsável, e não aparecia nas
+ * "Minhas" de ninguém. Foi o defeito que o Andre relatou nessas palavras, e
+ * medi em produção no primeiro lead depois do deploy do portão: `ownerId` =
+ * Rachel, `assignedTo` nulo.
+ *
+ * `handoffAt` entrou na conjunção para tapar o outro buraco: a entrega sem
+ * destino não atribuía ninguém, e o agente respondia por cima da própria
+ * despedida. Com o portão, entregar grava `atendidaPor = 'humano'` e o caso
+ * desaparece — não é mais preciso conjugar duas colunas para ter um estado.
+ *
+ * ## O que esta troca libera
+ *
+ * Com o mutex aqui, `assignedTo` volta a responder **uma** pergunta, e o
+ * rodízio pode escrevê-lo. É a condição de `darDono` gravar o responsável onde
+ * a tela o procura.
  *
  * O tipo é estrutural, e não `Conversation`, porque os chamadores fazem `select`
  * de duas ou três colunas: exigir a entidade inteira obrigaria a trazer o resumo
  * da conversa e o histórico de avisos num caminho quente.
  */
-export function isHumanHandled(conversation: {
-    assignedTo: string | null
-    handoffAt: Date | null
-}): boolean {
-    return Boolean(conversation.assignedTo) || Boolean(conversation.handoffAt)
+export function isHumanHandled(conversation: { atendidaPor: string }): boolean {
+    return conversation.atendidaPor === 'humano'
 }

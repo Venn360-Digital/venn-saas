@@ -65,7 +65,8 @@ export async function GET() {
                 ? estadoVisivel(
                       membro.status as StatusDoMembro,
                       membro.ultimaAtividadeEm,
-                      readAutomations(workspaceCru?.automations).minutosParaAusente
+                      membro.minutosParaAusente ??
+                          readAutomations(workspaceCru?.automations).minutosParaAusente
                   )
                 : null,
             recebeConversas: membro?.recebeConversas ?? false,

@@ -396,5 +396,73 @@ conferir(
     null
 )
 
+console.log('\n— a paciência por pessoa ganha da conta —\n')
+
+{
+    const agora = new Date('2026-11-06T12:00:00Z')
+    const paradoHa = (min: number) => new Date(agora.getTime() - min * 60_000)
+
+    // Padrão da conta: 60 min. Parado há 90 → ausente.
+    conferir(
+        'sem valor próprio, segue o padrão da conta',
+        estaDisponivel(
+            { userId: 'a', status: 'disponivel', ultimaAtribuicao: null, abertas: 0, ultimaAtividadeEm: paradoHa(90) },
+            60,
+            agora
+        ),
+        false
+    )
+
+    // A mesma pessoa, com 120 min de paciência própria → ainda disponível.
+    conferir(
+        'o valor da pessoa estende a paciência',
+        estaDisponivel(
+            { userId: 'a', status: 'disponivel', ultimaAtribuicao: null, abertas: 0, ultimaAtividadeEm: paradoHa(90), minutosParaAusente: 120 },
+            60,
+            agora
+        ),
+        true
+    )
+
+    // E encurta, na outra direção.
+    conferir(
+        'o valor da pessoa também encurta',
+        estaDisponivel(
+            { userId: 'a', status: 'disponivel', ultimaAtribuicao: null, abertas: 0, ultimaAtividadeEm: paradoHa(30), minutosParaAusente: 10 },
+            60,
+            agora
+        ),
+        false
+    )
+
+    /**
+     * A afirmação que o `??` existe para sustentar.
+     *
+     * Zero desliga a queda automática para aquela pessoa — o caso de quem
+     * trabalha fora da tela. Com `||` em vez de `??`, zero cairia no padrão da
+     * conta e a exceção seria impossível de expressar.
+     */
+    conferir(
+        'zero na pessoa DESLIGA a queda, não cai no padrão',
+        estaDisponivel(
+            { userId: 'a', status: 'disponivel', ultimaAtribuicao: null, abertas: 0, ultimaAtividadeEm: paradoHa(600), minutosParaAusente: 0 },
+            60,
+            agora
+        ),
+        true
+    )
+
+    // E o que a pessoa marcou continua valendo acima de tudo: ocupado não recebe.
+    conferir(
+        'paciência própria não ressuscita quem se marcou ocupado',
+        estaDisponivel(
+            { userId: 'a', status: 'ocupado', ultimaAtribuicao: null, abertas: 0, ultimaAtividadeEm: paradoHa(1), minutosParaAusente: 999 },
+            60,
+            agora
+        ),
+        false
+    )
+}
+
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)

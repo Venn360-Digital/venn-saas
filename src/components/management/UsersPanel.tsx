@@ -32,6 +32,8 @@ interface WorkspaceUser {
     canTransfer: boolean
     /** Entra na distribuição de conversas. */
     recebeConversas: boolean
+    /** Minutos até cair para ausente; nulo usa o padrão da conta. */
+    minutosParaAusente: number | null
     /** `disponivel | ocupado | ausente`. Quem muda é a própria pessoa. */
     disponibilidade: string
     isActive: boolean
@@ -112,6 +114,8 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
      * que é o mesmo efeito com menos acoplamento.
      */
     const [conviteToken, setConviteToken] = useState(0)
+    /** O padrão da conta, só para o campo Paciência dizer qual é. */
+    const [ausenteDaConta, setAusenteDaConta] = useState<number | null>(null)
 
     const fetchUsers = useCallback(async () => {
         setLoading(true)
@@ -121,6 +125,13 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                 const data = await response.json()
                 setUsers(data.data ?? data)
                 setSemDepartamento(Number(data.semDepartamento) || 0)
+                // O padrão da conta, para o campo Paciência mostrar qual é no
+                // `placeholder` em vez de dizer só "padrão".
+                setAusenteDaConta(
+                    typeof data.minutosParaAusenteDaConta === 'number'
+                        ? data.minutosParaAusenteDaConta
+                        : null
+                )
             }
         } catch (error) {
             console.error('[USUARIOS] load', error)
@@ -353,7 +364,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                     {openItem ? (
                         <UserPanel
                             key={openItem.id}
-                            item={openItem}
+                            item={{ ...openItem, minutosParaAusenteDaConta: ausenteDaConta }}
                             departments={departments}
                             canEdit={canManage}
                             onClose={() => setOpenId(null)}

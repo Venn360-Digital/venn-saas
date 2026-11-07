@@ -87,6 +87,8 @@ export interface WorkspaceMember {
     recebeConversas: boolean
     /** Última ação no sistema. É daqui que sai a queda automática para ausente. */
     ultimaAtividadeEm: Date | null
+    /** Paciência desta pessoa em minutos; nulo usa o padrão da conta. */
+    minutosParaAusente: number | null
 }
 
 /** Why authorisation failed, so the caller can pick the right status code. */
@@ -154,6 +156,17 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
                 canTransfer: assumida.modo === 'total',
                 status: 'ocupado',
                 recebeConversas: false,
+                /**
+
+                 * Nulo: a participação sintética não tem paciência própria — herda o
+
+                 * padrão da conta do cliente, que é o que faz a tela mostrar o mesmo
+
+                 * que ela mostraria para quem é de lá.
+
+                 */
+
+                minutosParaAusente: null,
                 ultimaAtividadeEm: new Date(),
             },
         }
@@ -171,6 +184,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
         status: true,
         recebeConversas: true,
         ultimaAtividadeEm: true,
+        minutosParaAusente: true,
         departments: { select: { departmentId: true } },
     } as const
 
@@ -287,6 +301,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             /** `disponivel | ocupado | ausente`. Ver §11.3.3 do estudo. */
             status: statusAgora,
             recebeConversas: membership.recebeConversas,
+            minutosParaAusente: membership.minutosParaAusente,
             ultimaAtividadeEm: membership.ultimaAtividadeEm,
         },
     }

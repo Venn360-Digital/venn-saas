@@ -564,6 +564,25 @@ model WorkspaceUser {
   /// Não confundir com presença por sessão, descartada no desenho: sessão dura
   /// 7 dias e não diz quem está na mesa. Isto é ação real no sistema.
   ultimaAtividadeEm DateTime?
+
+  /// Minutos de inatividade até cair para ausente. Nulo = o padrão da conta.
+  ///
+  /// **Era só da conta** (`Workspace.automations.minutosParaAusente`), e o
+  /// Andre apontou que é atributo de pessoa: a recepcionista que atende balcão
+  /// fica minutos fora do sistema sem estar ausente; quem só trabalha na tela
+  /// não.
+  ///
+  /// **Mas é configuração da gestão, não da pessoa** — e essa parte é a que
+  /// importa. Isto entra em `estaDisponivel`, que decide quem recebe conversa:
+  /// se cada um escolhesse o seu, quem pusesse 5 minutos receberia menos
+  /// trabalho que quem pusesse 120. Vira alavanca de carga com cara de
+  /// preferência. Por isso mora ao lado de `recebeConversas` e `canTransfer`,
+  /// no painel que só a gestão edita.
+  ///
+  /// Nulo e não um número: o padrão continua sendo o da conta, então mexer no
+  /// valor da conta continua valendo para quem não tem o seu — e ninguém
+  /// precisa preencher 20 fichas para mudar uma política.
+  minutosParaAusente Int?
   permissions       Json? // Granular permissions
   createdAt         DateTime  @default(now())
 

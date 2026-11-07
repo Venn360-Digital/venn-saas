@@ -47,7 +47,7 @@ export interface ResultadoDaEntrega {
 export async function entregarAEquipe(pedido: PedidoDeEntrega): Promise<ResultadoDaEntrega> {
     const atual = await prisma.conversation.findFirst({
         where: { id: pedido.conversationId, workspaceId: pedido.workspaceId },
-        select: { assignedTo: true, handoffAt: true, ownerId: true },
+        select: { assignedTo: true, handoffAt: true, atendidaPor: true, ownerId: true },
     })
 
     if (!atual) {
@@ -55,7 +55,21 @@ export async function entregarAEquipe(pedido: PedidoDeEntrega): Promise<Resultad
         return { jaEstava: true }
     }
 
-    if (atual.handoffAt || atual.assignedTo) {
+    /**
+     * "Já entregue" é **`atendidaPor === 'humano'`**, e a troca não é cosmética.
+     *
+     * Era `handoffAt || assignedTo`. Funcionava enquanto `assignedTo` só era
+     * escrito por gente assumindo — mas agora o rodízio o escreve na chegada
+     * (ver `lib/conversas/dono.ts`), e com a guarda antiga **toda conversa
+     * distribuída pareceria já entregue**: o `passar_para_equipe` do agente
+     * recusaria entregá-la, e o paciente que pedisse para falar com uma pessoa
+     * ficaria preso com o bot sem ninguém ser avisado.
+     *
+     * O portão separa as duas coisas de novo: ter responsável é uma coisa,
+     * estar com a equipe é outra. É a mesma razão pela qual `isHumanHandled`
+     * deixou de conjugar duas colunas.
+     */
+    if (atual.atendidaPor === 'humano') {
         return { responsavel: atual.assignedTo ?? undefined, jaEstava: true }
     }
 
