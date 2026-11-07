@@ -1,35 +1,43 @@
 import 'server-only'
 import type { JobPayloads, QueueName } from './definitions'
 import { driverAtual } from './driver'
-import { getQueue } from './index'
 
 /**
- * Entrega um trabalho à fila nos dois mundos da transição — **a partir de
- * rotas da aplicação**.
+ * Entrega um trabalho à fila — **a partir de rotas da aplicação**.
  *
- * Com driver registrado — o Worker da Cloudflare o registra na inicialização,
- * no próprio `fetch` (ver `src/cloudflare/costuras.ts` e `entrada.ts`) — vai
- * pela costura, que fala Cloudflare Queues. Sem driver — o servidor Next na
- * VPS, que não registra nenhum — cai no BullMQ direto, com o `jobId` que o
- * Redis usa para deduplicar.
+ * Vai pela costura, que fala Cloudflare Queues. O driver é registrado na
+ * primeira linha das três entradas do Worker — `fetch`, `queue` e `scheduled`
+ * (ver `src/cloudflare/entrada.ts`) —, então quando uma rota chega aqui ele
+ * existe. Não existir é defeito de inicialização, e é o que a exceção diz.
+ *
+ * **Havia um segundo caminho, e ele saiu em 2026-11-07.** Enquanto a VPS
+ * esteve no ar, o servidor Next de lá não registrava driver nenhum e este
+ * módulo caía no BullMQ direto, com o `jobId` que o Redis usa para deduplicar.
+ * A VPS foi desligada em 2026-10-23 e o caminho ficou inalcançável — mas
+ * `import { Queue } from 'bullmq'` continuava no grafo, e com ele o `bullmq` e
+ * o `ioredis` inteiros dentro do bundle do Worker. No Node isso seria peso
+ * parado; num Worker é **tempo de inicialização de isolate frio**, cobrado de
+ * quem abre a primeira tela.
  *
  * **Por que existe além de `trabalhos/filas.ts`.** O `enfileirar()` de lá é
- * para os processadores, que só rodam onde há driver, e por isso **lança**
- * quando não há. Uma rota do Next roda nos dois lugares, então precisa do
- * caminho de volta ao BullMQ — é o que este módulo acrescenta.
- *
- * Medido em 2026-10-23: quatro rotas ainda chamavam `getQueue().add()` direto
- * — o envio humano de mensagem, a indexação de RAG, o webhook do Asaas e o
- * widget do site. No Worker, sem Redis, cada uma lançava
- * `MissingRedisUrlError`: a atendente digitava e a mensagem **não saía da
- * caixa**, com a linha pareada e o resto no ar.
+ * para os processadores. Este é a porta das rotas — mesma costura, chamador
+ * diferente.
  */
 export interface OpcoesDeEntrega {
     /** Rótulo do job no painel do BullMQ. O Queues não tem nome nem painel. */
     nome: string
     /**
-     * Dedup no envio, **só no BullMQ**. O Queues não deduplica ao enviar; lá a
-     * garantia mora no consumo (ver `IDS_DE_DEDUP` em `entrada.ts`).
+     * **Ignorado hoje**, e de propósito — não é resto esquecido.
+     *
+     * Era a dedup no envio do BullMQ, que saiu junto com ele. O Queues não
+     * deduplica ao enviar: a garantia mora no consumo, em `IDS_DE_DEDUP` de
+     * `entrada.ts`, e é de lá que ela vale hoje.
+     *
+     * Continua no contrato porque os três chamadores que o passam constroem um
+     * identificador **estável e correto** do trabalho (`send-{messageId}`,
+     * `web-{conversaId}-{t}`, o do provedor). Tirá-lo agora jogaria fora essa
+     * construção, e é exatamente o que um driver com dedup no envio pediria de
+     * volta no dia em que houver um. Fica como dado, não como promessa.
      */
     jobId?: string
     /**
@@ -48,30 +56,24 @@ export async function entregar<N extends QueueName>(
     opcoes: OpcoesDeEntrega
 ): Promise<void> {
     const driver = driverAtual()
-    if (driver) {
-        await driver.enviar(
-            fila,
-            payload,
-            opcoes.atrasoSegundos ? { atrasoSegundos: opcoes.atrasoSegundos } : undefined
+
+    if (!driver) {
+        /**
+         * Sem driver não há para onde entregar, e inventar um silêncio aqui
+         * seria pior: a rota responderia 200 e o trabalho nunca aconteceria.
+         * As três entradas do Worker registram antes de qualquer rota correr,
+         * então chegar aqui significa que alguém acrescentou uma quarta.
+         */
+        throw new Error(
+            `Nenhum driver de fila registrado ao entregar em "${fila}". ` +
+                'As entradas do Worker chamam registrarCosturas(env) antes de rotear — ' +
+                'uma entrada nova precisa fazer o mesmo.'
         )
-        return
     }
 
-    // O `add` do BullMQ deriva os tipos de nome e dado da fila por tipos
-    // condicionais que não simplificam sob `fila` genérica, então o compilador
-    // não prova a correspondência aqui — ainda que cada chamada concreta esteja
-    // certa. Caso a handle para a forma que de fato usamos.
-    const bull = getQueue(fila) as unknown as {
-        add(
-            nome: string,
-            dado: JobPayloads[N],
-            opcoes?: { jobId?: string; delay?: number }
-        ): Promise<unknown>
-    }
-
-    const extras: { jobId?: string; delay?: number } = {}
-    if (opcoes.jobId) extras.jobId = opcoes.jobId
-    if (opcoes.atrasoSegundos) extras.delay = opcoes.atrasoSegundos * 1_000
-
-    await bull.add(opcoes.nome, payload, Object.keys(extras).length ? extras : undefined)
+    await driver.enviar(
+        fila,
+        payload,
+        opcoes.atrasoSegundos ? { atrasoSegundos: opcoes.atrasoSegundos } : undefined
+    )
 }

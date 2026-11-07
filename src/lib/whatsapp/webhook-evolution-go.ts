@@ -2,8 +2,7 @@ import { igualEmTempoConstante } from '@/lib/comparacao'
 import 'server-only'
 import crypto from 'node:crypto'
 
-import { MissingRedisUrlError } from '@/lib/queue'
-import { enqueueNormalizedEvents } from '@/lib/queue/enqueue-whatsapp'
+import { enqueueNormalizedEvents, MissingRedisUrlError } from '@/lib/queue/enqueue-whatsapp'
 import { readEvolutionGoEvent } from '@/lib/whatsapp/envelopes'
 
 /**
