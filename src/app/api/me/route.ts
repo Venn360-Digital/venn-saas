@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { getPlatformAdmin } from '@/lib/platform-credentials'
 
@@ -32,7 +33,7 @@ export async function GET() {
 
         const perfil = await prisma.user.findUnique({
             where: { id: membro.userId },
-            select: { id: true, name: true, lastName: true, email: true, avatar: true },
+            select: { id: true, name: true, lastName: true, email: true, updatedAt: true },
         })
 
         return NextResponse.json({
@@ -40,7 +41,7 @@ export async function GET() {
             name: perfil?.name ?? null,
             lastName: perfil?.lastName ?? null,
             email: perfil?.email ?? null,
-            avatar: perfil?.avatar ?? null,
+            avatar: enderecoDoRetrato('usuario', user.id, perfil?.updatedAt),
             role: membro.role,
             canTransfer: membro.canTransfer,
             workspaceId: membro.workspaceId,

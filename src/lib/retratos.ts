@@ -35,6 +35,10 @@
  */
 
 /** O que o retrato é, decidido pela forma do valor guardado. */
+import { CLASSES } from '@/lib/storage/classificacao'
+import { comoReferencia } from '@/lib/midia'
+import { gravar } from '@/lib/storage'
+
 export type FormaDoRetrato =
     /** `data:image/png;base64,…` — bytes embutidos na coluna. */
     | { tipo: 'embutido'; mime: string; base64: string }
@@ -81,27 +85,48 @@ export function formaDoRetrato(valor: string | null | undefined): FormaDoRetrato
 export type SujeitoDoRetrato = 'usuario' | 'agente'
 
 /**
- * O endereço do retrato, ou `null` quando não há foto.
+ * O endereço do retrato. **Sempre existe, mesmo sem foto.**
  *
- * `null` não é falha: é a informação de que o cartão deve escrever o nome.
- * Devolver um endereço que responde 404 faria cada cartão sem foto pagar uma
- * requisição para descobrir o que a lista já sabia.
+ * ## Por que deixou de receber o valor da coluna
  *
- * `v` é o `updatedAt` em base 36 — curto, monotônico e já existente nas duas
- * tabelas. Ele muda também quando outro campo da linha muda, e isso é aceitável:
- * o custo é um download a mais de vez em quando, contra a alternativa de hashear
- * 277 KB a cada montagem de lista.
+ * A primeira versão recebia `avatar` e devolvia `null` quando não havia foto,
+ * para o cartão escrever o nome sem gastar uma requisição. Parecia economia e
+ * era o contrário: para saber se havia foto, **toda** consulta de lista tinha
+ * de trazer a coluna — e a coluna guarda a foto inteira. Medido em produção
+ * (2026-11-07): 275 kB em dois usuários, ~40% da tabela `users`. Cada carga da
+ * lista de conversas, do painel de equipe e de `/api/auth/me` arrastava esses
+ * bytes do Neon até o Worker **para produzir um booleano**.
+ *
+ * Agora o endereço sai de `id` + `updatedAt`, que são baratos, e quem decide se
+ * há foto é a **rota**, que precisa dos bytes de todo jeito para servi-los.
+ * Nenhuma lista precisa mais da coluna.
+ *
+ * Quem não tem foto recebe 404 — e o 404 vem com cabeçalho de cache, então o
+ * navegador não repergunta. O componente `Retrato` desenha o nome primeiro e só
+ * revela a imagem quando ela carrega, então não há piscada nem imagem quebrada.
+ *
+ * `v` é o `updatedAt` em base 36: curto, monotônico, e muda quando a foto muda.
+ * Muda também quando outro campo da linha muda, e isso é aceitável — o custo é
+ * um download a mais de vez em quando, contra hashear a foto a cada lista.
  */
 export function enderecoDoRetrato(
     sujeito: SujeitoDoRetrato,
     sujeitoId: string,
-    avatar: string | null | undefined,
     atualizadoEm: Date | null | undefined
-): string | null {
-    if (formaDoRetrato(avatar).tipo === 'nenhum') return null
+): string {
     const v = atualizadoEm ? atualizadoEm.getTime().toString(36) : '0'
     return `/api/retratos/${sujeito}/${encodeURIComponent(sujeitoId)}?v=${v}`
 }
+
+/**
+ * O cabeçalho do 404 — "esta pessoa não tem foto", e não reperguntar tão cedo.
+ *
+ * Uma hora, e não um ano como o do retrato que existe: quem põe uma foto hoje
+ * quer vê-la hoje. Uma hora é o bastante para a lista parar de bater na rota a
+ * cada carregamento, e pouco para a espera incomodar quem acabou de subir a
+ * foto — que, de todo modo, muda o `v` e vira outro endereço.
+ */
+export const CACHE_DO_SEM_RETRATO = 'private, max-age=3600'
 
 /**
  * O cabeçalho de cache da resposta.
@@ -113,10 +138,91 @@ export function enderecoDoRetrato(
  */
 export const CACHE_DO_RETRATO = 'private, max-age=31536000, immutable'
 
-/** Os bytes de um retrato embutido. Separado para a rota não decodificar à mão. */
-export function bytesDoEmbutido(base64: string): Uint8Array {
+/**
+ * Os bytes de um retrato embutido. Separado para a rota não decodificar à mão.
+ *
+ * O tipo é `Uint8Array<ArrayBuffer>` e não o genérico `Uint8Array` porque é o
+ * que `gravar` exige — ele precisa de um buffer que sabe ser transferível, e
+ * `ArrayBufferLike` inclui `SharedArrayBuffer`, que não é. Construir sobre um
+ * `ArrayBuffer` explícito satisfaz os dois usos sem conversão em quem chama.
+ */
+export function bytesDoEmbutido(base64: string): Uint8Array<ArrayBuffer> {
     const bruto = atob(base64)
-    const bytes = new Uint8Array(bruto.length)
+    const bytes = new Uint8Array(new ArrayBuffer(bruto.length))
     for (let i = 0; i < bruto.length; i++) bytes[i] = bruto.charCodeAt(i)
     return bytes
+}
+
+/**
+ * A chave do retrato no acervo. Determinística, e é isso que a torna útil.
+ *
+ * `<workspaceId>/retratos/<sujeito>/<id>.<ext>` — trocar a foto sobrescreve a
+ * mesma chave em vez de acumular lixo, e o cache do navegador é furado pelo `v`
+ * do endereço (o `updatedAt`), não pelo nome do arquivo. O oposto — chave
+ * aleatória por upload — deixaria a foto antiga no bucket para sempre, sem
+ * ninguém apontando para ela.
+ *
+ * O `workspaceId` na frente porque é assim que o resto do acervo é organizado,
+ * e porque facilita apagar tudo de uma unidade quando for o caso.
+ */
+export function chaveDoRetrato(
+    workspaceId: string,
+    sujeito: SujeitoDoRetrato,
+    sujeitoId: string,
+    mime: string
+): string {
+    const ext = mime === 'image/jpeg' ? 'jpg' : mime.replace('image/', '')
+    return `${workspaceId}/retratos/${sujeito}/${sujeitoId}.${ext}`
+}
+
+/**
+ * Guarda o retrato no acervo e devolve a referência para a coluna.
+ *
+ * ## Por que a coluna deixa de receber os bytes
+ *
+ * Era `data:image/png;base64,…` gravado direto em `users.avatar` — o único
+ * lugar do produto que ainda fazia isso (anexo de conversa e foto de contato já
+ * vão para o acervo há tempo). O custo foi medido: 275 kB em dois usuários, e
+ * um deles com 277.026 bytes numa coluna que meia dúzia de consultas traziam
+ * para decidir um booleano.
+ *
+ * **Consertar a fonte vem antes de migrar o acervado.** Sem isto, a migração
+ * seria esteira: cada pessoa que trocasse a foto repunha um data URI.
+ *
+ * ## O que acontece quando o acervo recusa
+ *
+ * Devolve `null`, e quem chama decide. Para o perfil, a decisão certa é
+ * **falhar o pedido** em vez de gravar o data URI como antes: aceitar o
+ * fallback silencioso traria de volta exatamente o que esta função existe para
+ * tirar, e ninguém notaria até a tabela crescer de novo.
+ */
+export async function guardarRetrato(entrada: {
+    workspaceId: string
+    sujeito: SujeitoDoRetrato
+    sujeitoId: string
+    /** O `data:` que a tela mandou. Outra coisa é devolvida como está. */
+    valor: string
+}): Promise<{ referencia: string } | null> {
+    const forma = formaDoRetrato(entrada.valor)
+
+    // Já é referência ou URL: nada a fazer, e devolver o próprio valor é o
+    // caminho por onde um PATCH que não mexeu na foto passa sem reescrevê-la.
+    if (forma.tipo === 'acervo') return { referencia: entrada.valor }
+    if (forma.tipo === 'nenhum') return null
+
+    const bytes = bytesDoEmbutido(forma.base64)
+    const chave = chaveDoRetrato(
+        entrada.workspaceId,
+        entrada.sujeito,
+        entrada.sujeitoId,
+        forma.mime
+    )
+
+    try {
+        const ref = await gravar(CLASSES.PUBLICO, chave, bytes, { contentType: forma.mime })
+        return { referencia: comoReferencia(ref) }
+    } catch (erro) {
+        console.error('[RETRATO] não deu para arquivar', erro)
+        return null
+    }
 }

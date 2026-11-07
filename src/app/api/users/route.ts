@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { readAutomations } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
@@ -87,7 +88,11 @@ export async function GET(request: NextRequest) {
                             lastName: true,
                             email: true,
                             phone: true,
-                            avatar: true,
+                            // `updatedAt` e não `avatar`: o endereço do retrato
+                            // sai de `id` + `updatedAt`, e pedir a coluna
+                            // arrastaria a foto inteira do Neon para decidir um
+                            // booleano. Ver `lib/retratos.ts`.
+                            updatedAt: true,
                         }
                     },
                     departments: {
@@ -126,7 +131,7 @@ export async function GET(request: NextRequest) {
                 lastName: wu.user.lastName,
                 email: wu.user.email,
                 phone: wu.user.phone,
-                avatar: wu.user.avatar,
+                avatar: enderecoDoRetrato('usuario', wu.userId, wu.user.updatedAt),
                 role: wu.role,
                 departments: wu.departments.map((d) => d.department),
                 canTransfer: wu.canTransfer,

@@ -1,6 +1,7 @@
 'use client'
 
 import { activityType } from '@/lib/activity-types'
+import { useIntervaloVisivel } from '@/hooks/useIntervaloVisivel'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, LogOut, User, Settings, Volume2, VolumeX, Clock} from 'lucide-react'
@@ -202,12 +203,19 @@ export function Topbar({ marca }: { marca?: UnidadeAberta | null }) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         loadReminders()
         void loadNotifications()
-        const interval = setInterval(() => {
-            loadReminders()
-            void loadNotifications()
-        }, 60000) // every 60s
-        return () => clearInterval(interval)
     }, [loadReminders, loadNotifications])
+
+    /**
+     * Lembretes e avisos a cada 60 s, **só com a aba à vista**.
+     *
+     * Era `setInterval` sem condição, e a Topbar está em toda tela do painel —
+     * então ela sozinha garantia uma consulta por minuto de cada aba aberta,
+     * para sempre. Ver `useIntervaloVisivel` para a medição que motivou isto.
+     */
+    useIntervaloVisivel(() => {
+        loadReminders()
+        void loadNotifications()
+    }, 60_000)
 
 
     const handleDismissReminder = async (id: string) => {

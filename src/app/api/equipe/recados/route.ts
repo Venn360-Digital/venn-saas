@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { transmitir } from '@/trabalhos/tempo-real'
 
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
             readAt: true,
             fromUserId: true,
             toUserId: true,
-            from: { select: { name: true, lastName: true, avatar: true } },
+            from: { select: { id: true, name: true, lastName: true, updatedAt: true } },
         },
     })
 
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
             meu: r.fromUserId === userId,
             deUserId: r.fromUserId,
             deNome: [r.from.name, r.from.lastName].filter(Boolean).join(' ') || 'Sem nome',
-            deAvatar: r.from.avatar,
+            deAvatar: enderecoDoRetrato('usuario', r.from.id, r.from.updatedAt),
         })),
         naoLidos,
     })

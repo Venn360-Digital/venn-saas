@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { RetratoEmDisco } from '@/components/shared/Retrato'
 import { toast } from 'sonner'
 
 import { assinarTempoReal } from '@/lib/realtime/assinatura'
@@ -196,12 +197,14 @@ export function GatilhoDaEquipe() {
                                 i > 0 && '-ml-2'
                             )}
                         >
-                            {p.retrato ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={p.retrato} alt="" className="size-full rounded-full object-cover" />
-                            ) : (
-                                p.nome.trim()[0]?.toUpperCase()
-                            )}
+                            {/* Ver `RetratoEmDisco`: o endereço sempre existe,
+                                então o ternário antigo mostraria imagem
+                                quebrada para quem não tem foto. */}
+                            <RetratoEmDisco
+                                endereco={p.retrato}
+                                nome={p.nome}
+                                className="absolute inset-0 size-full border-0 bg-transparent text-[9px]"
+                            />
                         </span>
                     ))}
                 </span>

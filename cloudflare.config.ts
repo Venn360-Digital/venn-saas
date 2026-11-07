@@ -205,7 +205,16 @@ const GATILHOS = [
          * compara as duas — porque a divergência não daria erro: valeria o
          * que está aqui, e a tabela do código passaria a ser ficção.
          */
-        ...cronsParaWrangler().map((schedule) => triggers.scheduled({ schedule })),
+        /**
+         * Em homologação, só os de uma vez por dia — ver `cronsParaWrangler`.
+         *
+         * Medido em 2026-11-07: os Workers `-stg` registravam a agenda inteira
+         * de produção, e o compute de homologação consumia **mais** que o de
+         * produção num app sem usuários. A regra está na agenda, não aqui,
+         * porque é decisão de produto sobre cadência — e porque `check:filas`
+         * compara a lista gerada com a tabela do código.
+         */
+        ...cronsParaWrangler(DEPLOY_ENV).map((schedule) => triggers.scheduled({ schedule })),
 ]
 
 export default defineConfig({

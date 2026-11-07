@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
+import { enderecoDoRetrato } from '@/lib/retratos'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
 
@@ -70,7 +71,7 @@ export async function GET(
                         lastName: true,
                         email: true,
                         phone: true,
-                        avatar: true,
+                        updatedAt: true,
                     }
                 },
                 departments: {
@@ -90,7 +91,7 @@ export async function GET(
             lastName: workspaceUser.user.lastName,
             email: workspaceUser.user.email,
             phone: workspaceUser.user.phone,
-            avatar: workspaceUser.user.avatar,
+            avatar: enderecoDoRetrato('usuario', workspaceUser.userId, workspaceUser.user.updatedAt),
             role: workspaceUser.role,
             departments: workspaceUser.departments.map((d) => d.department),
             canTransfer: workspaceUser.canTransfer,

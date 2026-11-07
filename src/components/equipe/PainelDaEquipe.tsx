@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useIntervaloVisivel } from '@/hooks/useIntervaloVisivel'
+import { RetratoEmDisco } from '@/components/shared/Retrato'
 import { ArrowLeft, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -33,8 +35,8 @@ import { cn } from '@/lib/utils'
 export interface Pessoa {
     userId: string
     nome: string
-    /** Endereço de `/api/retratos`, nunca os bytes. `null` = iniciais. */
-    retrato: string | null
+    /** Endereço de `/api/retratos`. Sempre existe; 404 quando não há foto. */
+    retrato: string
     papel: string
     departamento: string | null
     estado: 'disponivel' | 'ocupado' | 'ausente' | 'desconectado'
@@ -167,12 +169,17 @@ export function PainelDaEquipe({
         if (recados.length) fimDaLista.current?.scrollIntoView({ block: 'end' })
     }, [recados])
 
-    // Enquanto o painel está aberto, a presença vale minutos, não horas.
-    useEffect(() => {
-        if (!aberto) return
-        const t = setInterval(recarregarPessoas, 30_000)
-        return () => clearInterval(t)
-    }, [aberto, recarregarPessoas])
+    /**
+     * Enquanto o painel está aberto, a presença vale minutos, não horas — e
+     * **só enquanto a aba está à vista**.
+     *
+     * O `aberto` já limitava bastante (o painel é uma gaveta), mas aba em
+     * segundo plano com a gaveta aberta continuava consultando o banco a cada
+     * 30 s e impedindo o Neon de suspender. Ver `useIntervaloVisivel`.
+     */
+    useIntervaloVisivel(() => {
+        if (aberto) void recarregarPessoas()
+    }, 30_000)
 
     const outros = useMemo(() => pessoas.filter((p) => !p.souEu), [pessoas])
 
@@ -405,18 +412,14 @@ function Avatar({ pessoa, tamanho }: { pessoa: Pessoa; tamanho: number }) {
             className="relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full bg-muted text-[11px] font-bold text-muted-foreground"
             style={{ width: tamanho, height: tamanho }}
         >
-            {pessoa.retrato ? (
-                // Origem variável (Storage ou data URL), fora do alcance do
-                // next/image sem configurar remotePatterns.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                    src={pessoa.retrato}
-                    alt=""
-                    className="size-full rounded-full object-cover"
-                />
-            ) : (
-                iniciais(pessoa.nome)
-            )}
+            {/* `RetratoEmDisco` e não `retrato ? <img> : iniciais`: o endereço
+                do retrato agora **sempre existe** (404 quando não há foto), e
+                aquele ternário mostraria imagem quebrada. Ver `lib/retratos.ts`. */}
+            <RetratoEmDisco
+                endereco={pessoa.retrato}
+                nome={pessoa.nome}
+                className="absolute inset-0 size-full text-[11px]"
+            />
             <span
                 aria-hidden="true"
                 className={cn(

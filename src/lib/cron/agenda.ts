@@ -364,8 +364,73 @@ export function rotinasEmUTC(): Array<{ task: CronJobName; brt: string; utc: str
  * repetido na configuração seria duas invocações para o mesmo instante, cada uma
  * despachando as duas rotinas: quatro execuções em vez de duas.
  */
-export function cronsParaWrangler(): string[] {
-    return [...new Set(rotinasEmUTC().map((r) => r.utc))].sort()
+/**
+ * Em homologação, **só o que dispara uma vez por dia**.
+ *
+ * ## O que foi medido, e por que isto existe
+ *
+ * Em 2026-11-07 a franquia do Neon estourou e a Odontobox saiu do ar. Ao
+ * levantar a causa apareceu um consumidor que ninguém havia contado: os
+ * Workers de homologação registram **a mesma agenda de produção**, e cada
+ * disparo mantém o banco acordado pelos 5 min de ociosidade do Neon.
+ *
+ * A medição, no projeto de um app irmão, nos 7 dias do período:
+ *
+ *   - branch `staging`:    64 h de compute acordado
+ *   - branch `production`: 58 h
+ *
+ * **Homologação consumia mais que produção, num app sem um único usuário.**
+ * Somando os dois computes dos três projetos: ~450 CU-hora/mês, com zero
+ * tráfego.
+ *
+ * ## A regra, e por que é regra e não lista
+ *
+ * Cai em homologação tudo que dispara **mais de uma vez por dia**: minuto ou
+ * hora que não seja um número único. Fica o resto, no horário exato.
+ *
+ * É regra e não lista de nomes porque lista envelhece: a tarefa que alguém
+ * acrescentar amanhã com `*​/5` entraria em homologação sem ninguém notar, e o
+ * custo voltaria calado. A regra julga a cadência, que é o que custa.
+ *
+ * Efeito medido na tabela de hoje: de 14 gatilhos para **7**, e de ~164 disparos
+ * por dia para **7** — de ~10 h para ~35 min de compute acordado por dia.
+ *
+ * ## O que homologação perde
+ *
+ * As nove tarefas de alta frequência não rodam lá: lembrete de atividade, saúde
+ * das integrações, despacho de transmissão, a varredura da outbox e as quatro
+ * de hora em hora. O que isso custa em capacidade de ensaio é pouco e vale
+ * dizer qual é:
+ *
+ *   - a varredura da outbox é a **rede** do tempo real, não o caminho — o
+ *     `publicarAgora` continua imediato em homologação;
+ *   - as outras oito ainda disparam em produção, e `check:filas` /
+ *     `check:trabalhos` continuam provando a tabela inteira nos dois ambientes.
+ *
+ * O que se perde de verdade é exercitar aquelas nove **em execução** antes da
+ * produção. Foi uma troca consciente: elas custavam metade da franquia para
+ * ensaiar código que o CI já tipa e cujas provas já afirmam a estrutura.
+ */
+function disparaMaisDeUmaVezPorDia(utc: string): boolean {
+    const [minuto, hora] = utc.split(' ')
+    /**
+     * A hora tem de ser **um número só**. Qualquer outra coisa — `*`, `10-23`,
+     * `*​/2`, `8,14` — dispara mais de uma vez por dia.
+     *
+     * A primeira versão desta função só olhava `*` e `/`, e deixou passar
+     * `17 10-23` — que dispara **catorze** vezes por dia. Quatro das tarefas
+     * estão nessa forma, e elas sozinhas respondem por mais da metade dos
+     * disparos; a regra que as deixava passar não resolvia nada.
+     */
+    const horaUnica = /^\d{1,2}$/.test(hora)
+    const minutoUnico = /^\d{1,2}$/.test(minuto)
+    return !minutoUnico || !horaUnica
+}
+
+export function cronsParaWrangler(ambiente: 'production' | 'stg' = 'production'): string[] {
+    const todos = [...new Set(rotinasEmUTC().map((r) => r.utc))]
+    const alvo = ambiente === 'stg' ? todos.filter((u) => !disparaMaisDeUmaVezPorDia(u)) : todos
+    return alvo.sort()
 }
 
 /**
