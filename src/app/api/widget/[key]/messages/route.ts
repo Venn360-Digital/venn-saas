@@ -176,7 +176,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let conversa = await prisma.conversation.findFirst({
         where: { workspaceId, visitorKey: visitante, channel: 'web' },
-        select: { id: true, assignedTo: true, handoffAt: true, atendidaPor: true, contactId: true },
+        select: { id: true, assignedTo: true, atendidaPor: true, contactId: true },
     })
 
     /**
@@ -284,7 +284,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 visitorKey: visitante,
                 status: 'active',
             },
-            select: { id: true, assignedTo: true, handoffAt: true, atendidaPor: true, contactId: true },
+            select: { id: true, assignedTo: true, atendidaPor: true, contactId: true },
         })
     }
 

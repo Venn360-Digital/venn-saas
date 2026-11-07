@@ -73,19 +73,19 @@ export async function elegiveisDaLinha(
      */
     const [ultimas, abertas] = await Promise.all([
         prisma.conversation.groupBy({
-            by: ['ownerId'],
-            where: { workspaceId, ownerId: { in: ids } },
+            by: ['assignedTo'],
+            where: { workspaceId, assignedTo: { in: ids } },
             _max: { ownerAssignedAt: true },
         }),
         prisma.conversation.groupBy({
-            by: ['ownerId'],
-            where: { workspaceId, ownerId: { in: ids }, status: 'active' },
+            by: ['assignedTo'],
+            where: { workspaceId, assignedTo: { in: ids }, status: 'active' },
             _count: { _all: true },
         }),
     ])
 
-    const porUltima = new Map(ultimas.map((u) => [u.ownerId, u._max.ownerAssignedAt]))
-    const porAbertas = new Map(abertas.map((a) => [a.ownerId, a._count._all]))
+    const porUltima = new Map(ultimas.map((u) => [u.assignedTo, u._max.ownerAssignedAt]))
+    const porAbertas = new Map(abertas.map((a) => [a.assignedTo, a._count._all]))
 
     return membros.map((m) => ({
         userId: m.userId,
@@ -109,9 +109,9 @@ async function politicaDo(workspaceId: string) {
 /**
  * Dá dono a uma conversa que ainda não tem. Devolve o `userId`, ou `null`.
  *
- * **Idempotente por desenho:** o `updateMany` exige `ownerId: null`, então duas
- * mensagens que cheguem no mesmo instante não trocam o dono uma da outra — a
- * segunda não encontra linha para atualizar e sai sem fazer nada.
+ * **Idempotente por desenho:** o `updateMany` exige `assignedTo: null`, então
+ * duas mensagens que cheguem no mesmo instante não trocam o responsável uma da
+ * outra — a segunda não encontra linha para atualizar e sai sem fazer nada.
  *
  * Nunca lança. O chamador é o caminho de entrada da mensagem, e uma conversa
  * sem dono é um estado previsto — não um erro que justifique derrubar o
@@ -149,16 +149,37 @@ export async function darDono(entrada: {
          * exatamente a combinação "Com a IA + com responsável" que a coluna
          * passou a saber mostrar.
          *
-         * A guarda do `where` segue sendo `ownerId: null` enquanto a coluna
-         * existe: é ela que torna a distribuição idempotente, e trocá-la por
-         * `assignedTo: null` na mesma mudança faria duas coisas de uma vez. A
-         * troca vem na fase de contract, junto da queda da coluna.
          */
         const r = await prisma.conversation.updateMany({
-            where: { id: entrada.conversationId, workspaceId: entrada.workspaceId, ownerId: null },
+            /**
+             * A guarda é `assignedTo: null` — a coluna que a distribuição
+             * agora preenche, e portanto a que diz se ela já rodou aqui.
+             *
+             * Era `ownerId: null`, e tinha de ser enquanto `ownerId` era onde o
+             * responsável morava. Trocar as duas coisas em deploys separados
+             * seria pedir para uma conversa ser distribuída duas vezes na
+             * janela entre eles.
+             */
+            where: {
+                id: entrada.conversationId,
+                workspaceId: entrada.workspaceId,
+                assignedTo: null,
+            },
             data: {
                 assignedTo: escolhido,
-                ownerId: escolhido,
+                /**
+                 * `ownerAssignedAt` e `ownerSource` **ficam, com estes nomes.**
+                 *
+                 * O primeiro é a única coluna que responde "quando esta pessoa
+                 * recebeu a última conversa", e é dela que sai a ordem do
+                 * rodízio — sem ela não há como saber quem esperou mais.
+                 * O segundo é a procedência (`rodizio` | `ia` | `assumiu`), que
+                 * é como se audita quem distribuiu.
+                 *
+                 * Os nomes são históricos e ficam: renomear coluna exige três
+                 * deploys (adicionar, copiar, derrubar) porque a migração roda
+                 * antes do publish, e o ganho seria estético.
+                 */
                 ownerAssignedAt: new Date(),
                 ownerSource: entrada.origem ?? politica.estrategia,
             },
@@ -178,21 +199,26 @@ export async function darDono(entrada: {
 /**
  * Para quem vai a entrega — e aqui o status vale **sempre**.
  *
- * O dono serve a duas coisas: a carteira e saber quem entra quando a IA não dá
- * conta. A primeira tolera erro; a segunda não. Se o dono não está disponível,
- * a entrega vai para a fila geral, visível a todos.
+ * O responsável serve a duas coisas: a carteira e saber quem entra quando a IA
+ * não dá conta. A primeira tolera erro; a segunda não. Se ele não está
+ * disponível, a entrega vai para a fila geral, visível a todos.
  *
- * O caso concreto: paciente com dor às 19h, dono designado às 14h já em casa.
+ * O caso concreto: paciente com dor às 19h, responsável designado às 14h já em
+ * casa.
+ *
+ * O parâmetro é o `assignedTo` da conversa. Era o `ownerId`, e a troca é a
+ * mesma de `darDono`: o responsável deixou de morar numa coluna que a tela não
+ * lê.
  */
 export async function donoDisponivel(
     workspaceId: string,
-    ownerId: string | null
+    responsavel: string | null
 ): Promise<string | null> {
-    if (!ownerId) return null
+    if (!responsavel) return null
 
     const [m, politica] = await Promise.all([
         prisma.workspaceUser.findFirst({
-            where: { workspaceId, userId: ownerId, isActive: true },
+            where: { workspaceId, userId: responsavel, isActive: true },
             select: { userId: true, status: true, ultimaAtividadeEm: true, minutosParaAusente: true },
         }),
         politicaDo(workspaceId),
@@ -243,7 +269,7 @@ export async function varrerFilaSemDono(workspaceId: string, gatilho: string): P
         if (politica.estrategia === 'nenhuma') return 0
 
         const semDono = await prisma.conversation.findMany({
-            where: { workspaceId, ownerId: null, status: 'active' },
+            where: { workspaceId, assignedTo: null, status: 'active' },
             select: { id: true, integrationId: true },
             orderBy: { createdAt: 'asc' },
             take: TETO,
