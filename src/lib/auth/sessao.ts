@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth/better-auth'
 
@@ -61,8 +62,21 @@ export interface UsuarioDaSessao {
  * `null` e não exceção: "não autenticado" é resposta normal — toda rota pública
  * e toda página de login passam por aqui esperando `null`. Quem precisa de
  * erro usa `requireUsuario()`.
+ *
+ * **Memoizada por requisição**, e é o que a torna barata o bastante para ser
+ * chamada à vontade. O layout do painel resolvia a sessão **duas vezes** por
+ * navegação — `marcaDaSessao()` e `avaliacaoDaSessao()` correm em
+ * `Promise.all` e cada uma chamava `getWorkspaceMember()`, que chama esta —, e
+ * a página renderizada em seguida chamava de novo. Três consultas a
+ * `auth_sessions` para responder à mesma pergunta, em cada troca de tela.
+ *
+ * `cache()` é do React e vale **só dentro da requisição**: duas pessoas nunca
+ * compartilham resposta, e o pedido seguinte resolve do zero. É por isso que
+ * trocar de unidade continua funcionando — `api/workspace/switch` grava o
+ * cookie e **responde**; quem lê o cookie novo é a requisição seguinte, com a
+ * memória já limpa.
  */
-export async function usuarioDaSessao(): Promise<UsuarioDaSessao | null> {
+export const usuarioDaSessao = cache(async (): Promise<UsuarioDaSessao | null> => {
     /**
      * Uma consulta ao banco, não uma ida à rede.
      *
@@ -81,7 +95,7 @@ export async function usuarioDaSessao(): Promise<UsuarioDaSessao | null> {
         email: sessao.user.email ?? '',
         nome: sessao.user.name?.trim() || undefined,
     }
-}
+})
 
 export class NaoAutenticadoError extends Error {
     readonly status = 401
