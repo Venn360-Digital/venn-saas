@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
 
 const patchSchema = z.object({
     name: z.string().min(1).optional(),
@@ -27,8 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const b = await prisma.broadcast.findFirst({
         where: { id, workspaceId: member.workspaceId },
         include: {
-            template: { select: { metaName: true, language: true } },
-            integration: { select: { label: true, phoneNumber: true } },
+            ...INCLUDE_DA_APRESENTACAO,
             lists: { include: { list: { select: { id: true, name: true } } } },
         },
     })
@@ -49,8 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         startedAt: b.startedAt,
         finishedAt: b.finishedAt,
         throttlePerMin: b.throttlePerMin,
-        template: b.template.metaName,
-        line: b.integration.label || b.integration.phoneNumber,
+        ...apresentarCampanha(b),
         lists: b.lists.map((l) => l.list),
         totalCount: b.totalCount,
         sentCount: b.sentCount,

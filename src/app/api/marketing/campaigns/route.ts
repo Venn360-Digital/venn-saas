@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
 
 const createSchema = z.object({
     name: z.string().min(1),
@@ -28,10 +29,7 @@ export async function GET(request: NextRequest) {
             ...(status ? { status } : {}),
         },
         orderBy: { createdAt: 'desc' },
-        include: {
-            template: { select: { metaName: true } },
-            integration: { select: { label: true, phoneNumber: true } },
-        },
+        include: INCLUDE_DA_APRESENTACAO,
     })
 
     return NextResponse.json(
@@ -41,8 +39,7 @@ export async function GET(request: NextRequest) {
             labels: b.labels,
             status: b.status,
             scheduledAt: b.scheduledAt,
-            template: b.template.metaName,
-            line: b.integration.label || b.integration.phoneNumber,
+            ...apresentarCampanha(b),
             totalCount: b.totalCount,
             sentCount: b.sentCount,
             failedCount: b.failedCount,

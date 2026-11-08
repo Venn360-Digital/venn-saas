@@ -12,6 +12,7 @@ import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { STATUS_CAMPANHA } from '../dados'
+import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 
 export interface CampanhaDetalhe {
     id: string
@@ -22,8 +23,12 @@ export interface CampanhaDetalhe {
     startedAt: string | null
     finishedAt: string | null
     throttlePerMin: number
-    template: string
-    line: string | null
+    canal: CanalDeCampanha
+    canalLabel: string
+    /** O que a campanha manda: template no WhatsApp, assunto no e-mail. */
+    conteudo: string
+    /** Por onde sai: a linha no WhatsApp, o endereco do remetente no e-mail. */
+    origem: string
     lists: { id: string; name: string }[]
     totalCount: number
     sentCount: number
@@ -185,8 +190,12 @@ export function CampanhaDetalheClient({ inicial }: { inicial: CampanhaDetalhe })
                 <section className="rounded-xl border border-border/60 bg-card p-4">
                     <h2 className="mb-3 text-sm font-medium text-foreground">Resumo</h2>
                     <dl className="space-y-2 text-sm">
-                        <Linha termo="Linha" valor={c.line ?? '—'} />
-                        <Linha termo="Template" valor={c.template} />
+                        <Linha termo="Canal" valor={c.canalLabel} />
+                        <Linha termo="Origem" valor={c.origem} />
+                        <Linha
+                            termo={c.canal === 'email' ? 'Assunto' : 'Template'}
+                            valor={c.conteudo}
+                        />
                         <Linha termo="Listas" valor={c.lists.map((l) => l.name).join(', ') || '—'} />
                         <Linha termo="Ritmo" valor={`${c.throttlePerMin} msgs/min`} />
                         {c.labels.length > 0 && <Linha termo="Rótulos" valor={c.labels.join(', ')} />}

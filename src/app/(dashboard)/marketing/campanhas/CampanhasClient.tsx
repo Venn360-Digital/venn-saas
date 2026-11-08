@@ -174,7 +174,7 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
             cell: (c) => (
                 <div className="flex flex-col">
                     <span className="text-sm text-foreground">{c.name}</span>
-                    <span className="text-xs text-muted-foreground">{c.template}</span>
+                    <span className="text-xs text-muted-foreground">{c.conteudo}</span>
                 </div>
             ),
         },
@@ -187,10 +187,16 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
             cell: (c) => <span className="text-sm">{STATUS_CAMPANHA[c.status] ?? c.status}</span>,
         },
         {
-            id: 'line',
-            header: 'Linha',
+            id: 'canal',
+            header: 'Canal',
+            width: '7rem',
+            cell: (c) => <span className="text-sm">{c.canalLabel}</span>,
+        },
+        {
+            id: 'origem',
+            header: 'Origem',
             width: '12rem',
-            cell: (c) => <span className="text-sm text-muted-foreground">{c.line ?? '—'}</span>,
+            cell: (c) => <span className="text-sm text-muted-foreground">{c.origem}</span>,
         },
         {
             id: 'progress',

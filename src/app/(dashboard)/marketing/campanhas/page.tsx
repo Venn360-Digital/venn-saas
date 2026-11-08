@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma'
 import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
 
 import { CampanhasClient } from './CampanhasClient'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
 
 /**
  * Campanhas — a primeira pintura vem do servidor. A consulta espelha o
@@ -15,8 +16,7 @@ export default async function CampanhasPage() {
             where: { workspaceId: membro.workspaceId },
             orderBy: { createdAt: 'desc' },
             include: {
-                template: { select: { metaName: true } },
-                integration: { select: { label: true, phoneNumber: true } },
+                ...INCLUDE_DA_APRESENTACAO,
             },
         })
         return campanhas.map((b) => ({
@@ -25,8 +25,7 @@ export default async function CampanhasPage() {
             labels: b.labels,
             status: b.status,
             scheduledAt: b.scheduledAt?.toISOString() ?? null,
-            template: b.template.metaName,
-            line: b.integration.label || b.integration.phoneNumber,
+            ...apresentarCampanha(b),
             totalCount: b.totalCount,
             sentCount: b.sentCount,
             failedCount: b.failedCount,

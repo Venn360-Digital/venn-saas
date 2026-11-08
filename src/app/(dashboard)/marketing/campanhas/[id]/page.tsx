@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma'
 import { membroOuLogin } from '@/lib/indice-servidor'
 
 import { CampanhaDetalheClient, type CampanhaDetalhe } from './CampanhaDetalheClient'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
 
 /**
  * Detalhe da campanha — carregado no servidor e passado pronto ao cliente, que
@@ -16,8 +17,7 @@ export default async function CampanhaPage({ params }: { params: Promise<{ id: s
     const b = await prisma.broadcast.findFirst({
         where: { id, workspaceId: membro.workspaceId },
         include: {
-            template: { select: { metaName: true, language: true } },
-            integration: { select: { label: true, phoneNumber: true } },
+            ...INCLUDE_DA_APRESENTACAO,
             lists: { include: { list: { select: { id: true, name: true } } } },
         },
     })
@@ -38,8 +38,7 @@ export default async function CampanhaPage({ params }: { params: Promise<{ id: s
         startedAt: b.startedAt?.toISOString() ?? null,
         finishedAt: b.finishedAt?.toISOString() ?? null,
         throttlePerMin: b.throttlePerMin,
-        template: b.template.metaName,
-        line: b.integration.label || b.integration.phoneNumber,
+        ...apresentarCampanha(b),
         lists: b.lists.map((l) => l.list),
         totalCount: b.totalCount,
         sentCount: b.sentCount,
