@@ -49,6 +49,8 @@ export async function cobrarNoCartaoSalvo(opcoes: {
     descricao: string
     pacote?: { credits: number; price: number } | null
     unidades: number
+    /** Quantos treinamentos de agente — compra única, como o crédito. */
+    treinamentos?: number
 }): Promise<CobrancaNoCartao> {
     const {
         accountId,
@@ -60,6 +62,7 @@ export async function cobrarNoCartaoSalvo(opcoes: {
         descricao,
         pacote,
         unidades,
+        treinamentos = 0,
     } = opcoes
 
     /**
@@ -79,6 +82,7 @@ export async function cobrarNoCartaoSalvo(opcoes: {
             packCredits: pacote?.credits ?? null,
             packPriceCents: pacote ? Math.round(pacote.price * 100) : null,
             units: unidades > 0 ? unidades : null,
+            trainings: treinamentos > 0 ? treinamentos : null,
         },
         select: { id: true },
     })

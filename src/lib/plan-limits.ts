@@ -223,3 +223,178 @@ export function limitesEfetivos(
 export function tetoDeUnidades(plan: string | null | undefined, adicionais: number): number {
     return limitesEfetivos(plan, adicionais).maxWorkspaces
 }
+
+/**
+ * Mensal ou anual — e o que o anual desconta.
+ *
+ * Decisão do Andre em 2026-11-07: **10% em todos os planos** na assinatura de
+ * 12 meses. Um número só, igual para os três, porque desconto que varia por
+ * plano transforma a escada em tabela — e a escada é o que faz o cliente subir.
+ *
+ * Mora aqui, com os preços, pela mesma razão que eles: o **worker** precisa
+ * recalcular o valor da recorrência numa troca, e `plans.ts` arrasta ícones do
+ * Lucide.
+ *
+ * **O ciclo é de cobrança, não de franquia.** O crédito continua renovando de
+ * 30 em 30 dias em qualquer um dos dois: quem paga 12 meses adiantado não
+ * recebe 12 × 10.000 créditos de uma vez para gastar em janeiro. Por isso a
+ * assinatura passou a ter duas datas — `currentPeriodEnd`, que é a franquia, e
+ * `renewsAt`, que é a cobrança. Ver `credits-reset.ts`.
+ */
+export type BillingCycle = 'monthly' | 'annual'
+
+/** O desconto da assinatura de 12 meses, em todos os planos. */
+export const DESCONTO_ANUAL = 0.1
+
+export interface Ciclo {
+    /** Quantos meses a fatura cobre. */
+    meses: number
+    /** Abatimento sobre o preço de tabela, de 0 a 1. */
+    desconto: number
+    /** Para o rótulo da tela. */
+    label: string
+    /** Como o Asaas chama a recorrência. */
+    asaas: 'MONTHLY' | 'YEARLY'
+    /**
+     * Quantos dias o ciclo de **cobrança** dura.
+     *
+     * 365 e não "um ano de calendário": é a mesma escolha que fez o mensal ser
+     * 30 dias contados da contratação (ver `RENEWAL_DAYS`), e manter as duas
+     * contas na mesma aritmética é o que impede a renovação anual de cair num
+     * 29 de fevereiro que não existe.
+     */
+    dias: number
+}
+
+export const CICLOS: Record<BillingCycle, Ciclo> = {
+    monthly: { meses: 1, desconto: 0, label: 'Mensal', asaas: 'MONTHLY', dias: 30 },
+    annual: { meses: 12, desconto: DESCONTO_ANUAL, label: 'Anual', asaas: 'YEARLY', dias: 365 },
+}
+
+export function isBillingCycle(v: string | null | undefined): v is BillingCycle {
+    return v === 'monthly' || v === 'annual'
+}
+
+/** O ciclo, caindo no mensal quando o valor guardado não é reconhecido. */
+export function cicloDe(v: string | null | undefined): BillingCycle {
+    return isBillingCycle(v) ? v : 'monthly'
+}
+
+/** Centavos exatos: a conta passa por `value` do Asaas, que recusa dízima. */
+function emReais(valor: number): number {
+    return Math.round(valor * 100) / 100
+}
+
+/**
+ * O que **uma fatura** cobra: a mensalidade × meses, menos o desconto do ciclo.
+ *
+ * É este o número que vai para o `value` da recorrência no Asaas — no anual, a
+ * cobrança é uma por ano e carrega os doze meses de uma vez.
+ */
+export function valorDaFatura(
+    plan: string | null | undefined,
+    adicionais: number,
+    ciclo: BillingCycle
+): number {
+    const { meses, desconto } = CICLOS[ciclo]
+    const mensal =
+        PLAN_PRICES[isPlanId(plan) ? plan : 'flow'] + Math.max(0, adicionais) * PRECO_ADICIONAL
+
+    return emReais(mensal * meses * (1 - desconto))
+}
+
+/**
+ * O mensal equivalente do ciclo — o número que o cartão de plano compara.
+ *
+ * A tela mostra "R$ 801/mês, cobrados R$ 9.612 por ano" e não só o total: o
+ * cliente escolhe plano comparando mensalidades, e substituir a mensalidade
+ * pelo total anual faz o Multiclínica parecer dez vezes mais caro que o Prime.
+ */
+export function mensalEquivalente(
+    plan: string | null | undefined,
+    adicionais: number,
+    ciclo: BillingCycle
+): number {
+    return emReais(valorDaFatura(plan, adicionais, ciclo) / CICLOS[ciclo].meses)
+}
+
+/** Quanto o ciclo anual economiza por ano, para a tela poder dizer. */
+export function economiaDoAnual(plan: string | null | undefined, adicionais: number): number {
+    return emReais(valorDaFatura(plan, adicionais, 'monthly') * 12 - valorDaFatura(plan, adicionais, 'annual'))
+}
+
+/**
+ * O treinamento do agente, vendido à parte.
+ *
+ * **Serviço, não recurso do sistema**: a nossa equipe levanta o conteúdo da
+ * {@link https://odontobox.venn360.com/suporte | base} com a clínica, escreve
+ * os sete documentos e afina o agente até ele responder como a clínica
+ * responderia. Não se confunde com a tela **Treinamento**, que é onde o cliente
+ * faz isso por conta própria — e é justamente por ela existir que o adicional
+ * precisa dizer, em letra, que o que se compra é o trabalho.
+ *
+ * **Compra única.** Não entra na mensalidade: treinar é um projeto com começo e
+ * fim, e cobrar por mês um trabalho que acabou é assinatura de nada.
+ *
+ * O preço de tabela e o promocional vêm do Andre em 2026-11-07. A promoção foi
+ * pedida "até 31/11/2026", data que não existe — novembro tem 30 dias —, e
+ * ficou no **último dia de novembro**, que é a leitura que não encurta nem
+ * estende o que ele pediu.
+ */
+export const TREINAMENTO = {
+    nome: 'Treinamento de agente',
+    precoCheio: 3400,
+    precoPromocional: 2400,
+    /** Último dia válido da promoção, no calendário de São Paulo. */
+    promoAte: '2026-11-30',
+    /** Quantos cabem numa compra. Mais que isto é projeto, e projeto é conversa. */
+    maximoPorCompra: 5,
+} as const
+
+export interface PrecoDoTreinamento {
+    /** O que se cobra hoje, por agente. */
+    valor: number
+    /** O de tabela, para a tela riscar. */
+    cheio: number
+    /** Se a promoção está valendo agora. */
+    promocional: boolean
+    /** O último dia da promoção, "AAAA-MM-DD". */
+    promoAte: string
+}
+
+/**
+ * O preço do treinamento hoje — puro, para a tela e o servidor concordarem.
+ *
+ * A comparação é pelo **dia em São Paulo**, e não por `Date` cru: o Worker roda
+ * em UTC (ver `fuso-workers`), e às 22h do dia 30 em São Paulo já é dia 1º em
+ * UTC — a promoção terminaria duas horas antes para quem está no Brasil.
+ */
+export function precoDoTreinamento(agora: Date = new Date()): PrecoDoTreinamento {
+    const hoje = agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+    const promocional = hoje <= TREINAMENTO.promoAte
+
+    return {
+        valor: promocional ? TREINAMENTO.precoPromocional : TREINAMENTO.precoCheio,
+        cheio: TREINAMENTO.precoCheio,
+        promocional,
+        promoAte: TREINAMENTO.promoAte,
+    }
+}
+
+/**
+ * Quantos treinamentos o plano **dá** — zero, ou um.
+ *
+ * Decisão do Andre em 2026-11-07: o plano de topo (Multiclínica aqui, Business
+ * no Conecta, Global no Stagent — é sempre o `advanced`) inclui o treinamento
+ * de 1 agente **na assinatura de 12 meses**.
+ *
+ * As duas condições juntas, e não uma delas: no mensal o cliente pode sair no
+ * mês seguinte levando um serviço de R$ 2.400, e aí o brinde custa mais que a
+ * assinatura que ele pagou. É o compromisso de doze meses que o financia.
+ */
+export function treinamentoIncluido(
+    plan: string | null | undefined,
+    ciclo: BillingCycle
+): number {
+    return plan === 'advanced' && ciclo === 'annual' ? 1 : 0
+}

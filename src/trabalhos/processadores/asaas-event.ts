@@ -7,11 +7,11 @@ import { aplicarPlano } from '@/lib/billing/aplicar-plano'
 import {
     descreverAssinatura,
     sincronizarValorDaAssinatura,
+    trocarCicloNoGateway,
     vincularContaAoAsaas,
 } from '@/lib/asaas/vincular'
 import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
-import { mensalidade } from '@/lib/billing/troca-de-plano'
-import { isPlanId } from '@/lib/plan-limits'
+import { cicloDe, isPlanId, valorDaFatura } from '@/lib/plan-limits'
 import { fimDaCarencia } from '@/lib/billing/inadimplencia'
 import { sendBillingEmail } from '@/lib/email/billing'
 import { createLogger } from '@/trabalhos/registro'
@@ -379,6 +379,8 @@ async function entregarCestaDoPagamento(
             packCredits: true,
             packPriceCents: true,
             units: true,
+            trainings: true,
+            cycle: true,
             appliedAt: true,
         },
     })
@@ -395,6 +397,7 @@ async function entregarCestaDoPagamento(
         packCredits: tentativa.packCredits,
         packPriceCents: tentativa.packPriceCents,
         units: tentativa.units,
+        trainings: tentativa.trainings,
     })
 
     await prisma.asaasCheckout.update({
@@ -404,7 +407,8 @@ async function entregarCestaDoPagamento(
 
     log.info(
         `pagamento ${p.id} entregou a cesta ${tentativa.id}: ` +
-            `${entregue.creditosAdicionados} créditos e ${entregue.unidadesAdicionadas} unidade(s)`
+            `${entregue.creditosAdicionados} créditos, ${entregue.unidadesAdicionadas} unidade(s) ` +
+            `e ${entregue.treinamentosAdicionados} treinamento(s)`
     )
 
     if (entregue.unidadesAdicionadas > 0) {
@@ -733,6 +737,8 @@ async function tratarCheckout(
             packCredits: true,
             packPriceCents: true,
             units: true,
+            trainings: true,
+            cycle: true,
         },
     })
 
@@ -806,6 +812,7 @@ async function tratarCheckout(
             packCredits: tentativa.packCredits,
             packPriceCents: tentativa.packPriceCents,
             units: tentativa.units,
+            trainings: tentativa.trainings,
         })
 
         await prisma.asaasCheckout.update({
@@ -815,7 +822,9 @@ async function tratarCheckout(
 
         log.info(
             `CHECKOUT_PAID (adicionais): conta ${tentativa.accountId} recebeu ` +
-                `${entregue.creditosAdicionados} créditos e ${entregue.unidadesAdicionadas} unidade(s)`
+                `${entregue.creditosAdicionados} créditos, ` +
+                `${entregue.unidadesAdicionadas} unidade(s) e ` +
+                `${entregue.treinamentosAdicionados} treinamento(s)`
         )
 
         if (entregue.unidadesAdicionadas > 0) {
@@ -882,10 +891,27 @@ async function tratarCheckout(
             return
         }
 
+        /**
+         * O ciclo **de antes**, lido antes de aplicar.
+         *
+         * É o que distingue os dois casos que chegam por aqui: um upgrade de
+         * plano dentro do mesmo ciclo, em que só o valor da recorrência muda, e
+         * a troca de mensal para anual, em que mudam o valor, o `cycle` e a data
+         * da próxima cobrança. Depois de `aplicarPlano` a informação já foi
+         * sobrescrita — ler antes é o que torna a distinção possível.
+         */
+        const anterior = await prisma.subscription.findUnique({
+            where: { accountId: tentativa.accountId },
+            select: { billingCycle: true, asaasSubscriptionId: true },
+        })
+        const cicloAntes = cicloDe(anterior?.billingCycle)
+        const ciclo = cicloDe(tentativa.cycle)
+
         const { notas } = await aplicarPlano({
             accountId: tentativa.accountId,
             workspaceId: unidade.id,
             plan: tentativa.plan,
+            ciclo,
         })
 
         await prisma.asaasCheckout.update({
@@ -895,19 +921,42 @@ async function tratarCheckout(
 
         const assinatura = await prisma.subscription.findUnique({
             where: { accountId: tentativa.accountId },
-            select: { asaasSubscriptionId: true },
+            select: { asaasSubscriptionId: true, renewsAt: true },
         })
 
         if (assinatura?.asaasSubscriptionId) {
             const adicionais = await prisma.unitAddon.count({
                 where: { accountId: tentativa.accountId, ...adicionaisVivos() },
             })
+            const valor = valorDaFatura(tentativa.plan, adicionais, ciclo)
+
             try {
-                await descreverAssinatura({
-                    accountId: tentativa.accountId,
-                    subscriptionId: assinatura.asaasSubscriptionId,
-                    value: mensalidade(tentativa.plan, adicionais),
-                })
+                if (ciclo !== cicloAntes && assinatura.renewsAt) {
+                    /**
+                     * Troca de ciclo: o `cycle`, o valor e a data vão juntos.
+                     *
+                     * A data é a que `aplicarPlano` acabou de gravar — hoje mais
+                     * o ciclo contratado. O cliente pagou agora os doze meses
+                     * (com o saldo do período anterior descontado na cobrança),
+                     * então a próxima fatura é daqui a um ano.
+                     */
+                    await trocarCicloNoGateway({
+                        subscriptionId: assinatura.asaasSubscriptionId,
+                        ciclo,
+                        value: valor,
+                        nextDueDate: assinatura.renewsAt,
+                    })
+                    log.info(
+                        `conta ${tentativa.accountId} passou para o ciclo ${ciclo} no gateway ` +
+                            `(R$ ${valor.toFixed(2)})`
+                    )
+                } else {
+                    await descreverAssinatura({
+                        accountId: tentativa.accountId,
+                        subscriptionId: assinatura.asaasSubscriptionId,
+                        value: valor,
+                    })
+                }
             } catch (erro) {
                 log.error(
                     `ATENÇÃO: conta ${tentativa.accountId} subiu para ${tentativa.plan} mas a ` +
@@ -919,6 +968,7 @@ async function tratarCheckout(
 
         log.info(
             `upgrade proporcional aplicado: conta ${tentativa.accountId} em ${tentativa.plan}` +
+                ` (${ciclo})` +
                 (notas.length ? ` — ${notas.join('; ')}` : '')
         )
         return
@@ -940,6 +990,8 @@ async function tratarCheckout(
         accountId: tentativa.accountId,
         workspaceId: unidade.id,
         plan: tentativa.plan,
+        /** O ciclo que esta tentativa contratou — ver a coluna `cycle`. */
+        ciclo: cicloDe(tentativa.cycle),
     })
 
     await prisma.asaasCheckout.update({
@@ -949,6 +1001,7 @@ async function tratarCheckout(
 
     log.info(
         `CHECKOUT_PAID: conta ${tentativa.accountId} ativada no plano ${tentativa.plan}` +
+            ` (${cicloDe(tentativa.cycle)})` +
             (notas.length ? ` — ${notas.join('; ')}` : '')
     )
 

@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { purchaseExpiry } from '@/lib/billing'
-import { ADICIONAL_INCLUI, PRECO_ADICIONAL } from '@/lib/plan-limits'
+import { ADICIONAL_INCLUI, PRECO_ADICIONAL, precoDoTreinamento } from '@/lib/plan-limits'
 
 /**
  * Entregar o que uma compra de adicionais comprou.
@@ -27,13 +27,20 @@ export async function aplicarAdicionais(opcoes: {
     packPriceCents?: number | null
     /** Quantas unidades adicionais, quando houve. */
     units?: number | null
-}): Promise<{ creditosAdicionados: number; unidadesAdicionadas: number }> {
+    /** Quantos treinamentos de agente, quando houve. */
+    trainings?: number | null
+}): Promise<{
+    creditosAdicionados: number
+    unidadesAdicionadas: number
+    treinamentosAdicionados: number
+}> {
     const { accountId, workspaceId } = opcoes
     const credits = Math.max(0, opcoes.packCredits ?? 0)
     const units = Math.max(0, opcoes.units ?? 0)
+    const trainings = Math.max(0, opcoes.trainings ?? 0)
 
-    if (credits === 0 && units === 0) {
-        return { creditosAdicionados: 0, unidadesAdicionadas: 0 }
+    if (credits === 0 && units === 0 && trainings === 0) {
+        return { creditosAdicionados: 0, unidadesAdicionadas: 0, treinamentosAdicionados: 0 }
     }
 
     const expiresAt = purchaseExpiry()
@@ -96,7 +103,34 @@ export async function aplicarAdicionais(opcoes: {
                 },
             })
         }
+
+        if (trainings > 0) {
+            /**
+             * Uma linha por treinamento, pela mesma razão da unidade: cada uma
+             * guarda o preço do dia e tem o seu próprio andamento.
+             *
+             * **Nada muda na assinatura.** Treinamento não é capacidade — não
+             * dá agente, número nem crédito —, é serviço: alguém da equipe vai
+             * sentar com a clínica. Por isso a linha nasce `pending` e nenhum
+             * teto é incrementado aqui.
+             *
+             * O preço é relido do catálogo e não vem da cesta de propósito: é
+             * dinheiro, e dinheiro que chega pela requisição é dinheiro que o
+             * cliente escolhe. O preço da promoção é o do instante da entrega.
+             */
+            await tx.trainingAddon.createMany({
+                data: Array.from({ length: trainings }, () => ({
+                    accountId,
+                    origin: 'purchased',
+                    priceCents: Math.round(precoDoTreinamento().valor * 100),
+                })),
+            })
+        }
     })
 
-    return { creditosAdicionados: credits, unidadesAdicionadas: units }
+    return {
+        creditosAdicionados: credits,
+        unidadesAdicionadas: units,
+        treinamentosAdicionados: trainings,
+    }
 }

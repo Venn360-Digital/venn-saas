@@ -1,15 +1,47 @@
-import { CREDIT_PACKS, PLAN_LIST, TRIAL, UNIDADE_ADICIONAL, creditPackFor, formatPrice, planFor } from '@/lib/plans'
+import {
+    CREDIT_PACKS,
+    PLAN_LIST,
+    TRIAL,
+    TREINAMENTO_DE_AGENTE,
+    UNIDADE_ADICIONAL,
+    creditPackFor,
+    formatPrice,
+    planFor,
+} from '@/lib/plans'
 import { currentMembership } from '@/lib/auth/workspace'
 import { canBuyAddons, getBillingState, spokenRepliesLeft } from '@/lib/billing'
-import { isPlanId, limitesEfetivos, tetoDeUnidades } from '@/lib/plan-limits'
+import {
+    CICLOS,
+    TREINAMENTO,
+    cicloDe,
+    isBillingCycle,
+    isPlanId,
+    limitesEfetivos,
+    precoDoTreinamento,
+    tetoDeUnidades,
+    treinamentoIncluido,
+    valorDaFatura,
+} from '@/lib/plan-limits'
 import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@/lib/asaas/checkout'
 import { cobrarNoCartaoSalvo } from '@/lib/asaas/cobranca-no-cartao'
 import { regimeDaConta } from '@/lib/asaas/cobranca'
 import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
 import { AsaasError, asaas } from '@/lib/asaas/client'
 import { aplicarPlano } from '@/lib/billing/aplicar-plano'
-import { descreverAssinatura, sincronizarValorDaAssinatura } from '@/lib/asaas/vincular'
-import { MINIMO_DO_ASAAS, diferencaProporcional, direcaoDaTroca, mensalidade, proporcionalDoAdicional } from '@/lib/billing/troca-de-plano'
+import {
+    descreverAssinatura,
+    recriarAssinatura,
+    sincronizarValorDaAssinatura,
+    trocarCicloNoGateway,
+} from '@/lib/asaas/vincular'
+import {
+    MINIMO_DO_ASAAS,
+    diferencaDeContrato,
+    inicioDaCobranca,
+    proporcionalDoAdicional,
+    proximaCobranca,
+} from '@/lib/billing/troca-de-plano'
+import { cobrancaCompleta, conferirCobranca, listarFaltantes } from '@/lib/billing/dados-de-cobranca'
 
 /**
  * O endereço desta aplicação, para o Asaas devolver o pagador.
@@ -46,10 +78,98 @@ const PLANS = Object.fromEntries(
             price: p.price,
             badge: p.badge ?? null,
             features: p.features,
+            /**
+             * O preço nos dois ciclos, pronto.
+             *
+             * A tela poderia calcular — as funções são puras e ela as importa
+             * para outras coisas —, mas quem decide preço é o servidor. Mandar o
+             * número feito é o que garante que o cartão e a fatura concordem no
+             * dia em que o desconto do anual mudar.
+             */
+            precos: {
+                monthly: {
+                    fatura: valorDaFatura(p.id, 0, 'monthly'),
+                    mensal: valorDaFatura(p.id, 0, 'monthly'),
+                },
+                annual: {
+                    fatura: valorDaFatura(p.id, 0, 'annual'),
+                    mensal: valorDaFatura(p.id, 0, 'annual') / 12,
+                },
+            },
+            /** Quantos treinamentos este plano inclui, por ciclo. */
+            treinamentoIncluido: {
+                monthly: treinamentoIncluido(p.id, 'monthly'),
+                annual: treinamentoIncluido(p.id, 'annual'),
+            },
             ...p.limits,
         },
     ])
 )
+
+/**
+ * O catálogo do treinamento, como a tela o recebe.
+ *
+ * Função e não constante porque o preço depende do **dia**: a promoção termina,
+ * e um valor congelado na carga do módulo seguiria em promoção até o próximo
+ * deploy. O Worker vive por horas.
+ */
+function treinamentoParaATela() {
+    const preco = precoDoTreinamento()
+
+    return {
+        name: TREINAMENTO_DE_AGENTE.name,
+        pitch: TREINAMENTO_DE_AGENTE.pitch,
+        rodape: TREINAMENTO_DE_AGENTE.rodape,
+        maximoPorCompra: TREINAMENTO.maximoPorCompra,
+        ...preco,
+    }
+}
+
+/**
+ * O estado dos dados de cobrança — e por que ele vem nesta rota.
+ *
+ * A guia de plano precisa saber, **antes** do clique, se o checkout vai poder
+ * ser aberto: é isso que permite abrir o formulário ali mesmo em vez de mandar
+ * a pessoa para outra guia e esperar que ela volte (a queixa do Andre em
+ * 2026-11-07). Pedir isso a `/api/account` seria uma segunda chamada para
+ * desenhar a primeira tela.
+ *
+ * **Os valores só vão para quem pode gravá-los.** Endereço e documento de
+ * cobrança são da conta, e `contaDoMaster` é a camada que o projeto já usa para
+ * eles — o mesmo portão dos cartões salvos, logo acima. Para quem não é o
+ * responsável, vai só a contagem do que falta: a tela precisa dela para explicar
+ * por que o botão de contratar leva a uma recusa, sem mostrar dado de cobrança a
+ * quem não cuida da fatura.
+ */
+async function cobrancaDaConta(accountId: string | null, souMaster: boolean) {
+    if (!accountId) return null
+
+    const conta = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: {
+            cpfCnpj: true,
+            postalCode: true,
+            address: true,
+            addressNumber: true,
+            complement: true,
+            province: true,
+            city: true,
+            state: true,
+            billingPhone: true,
+        },
+    })
+
+    if (!conta) return null
+
+    const estado = conferirCobranca(conta)
+
+    return {
+        ...estado,
+        souMaster,
+        /** Para o formulário nascer preenchido com o que já existe. */
+        dados: souMaster ? conta : null,
+    }
+}
 
 // GET /api/account/subscription - Get subscription details
 export async function GET() {
@@ -110,6 +230,17 @@ export async function GET() {
                 plans: PLANS,
                 trial: TRIAL,
                 creditPacks: CREDIT_PACKS,
+                treinamento: treinamentoParaATela(),
+                treinamentos: [],
+                billingCycle: 'monthly',
+                renewsAt: null,
+                canceledAt: null,
+                cobranca: await cobrancaDaConta(
+                    accountId,
+                    accountId
+                        ? (await contaDoMaster(workspaceUser.workspaceId, workspaceUser.userId)).ok
+                        : false
+                ),
                 creditos: estado.credits,
                 // A mesma forma do caso com assinatura: uma resposta que às
                 // vezes traz o campo e às vezes não obriga a tela a adivinhar.
@@ -184,6 +315,20 @@ export async function GET() {
             currentPeriodStart: subscription.currentPeriodStart,
             currentPeriodEnd: subscription.currentPeriodEnd,
             /**
+             * Mensal ou anual, e quando a **cobrança** se repete.
+             *
+             * `renewsAt` responde "quando vou pagar de novo" e
+             * `currentPeriodEnd`, "quando o crédito renova". Elas coincidem no
+             * mensal e se afastam no anual; mandar as duas é o que permite a tela
+             * dizer cada coisa no seu lugar em vez de chamar as duas de
+             * "renovação". A queda para trás (`?? currentPeriodEnd`) atende a
+             * assinatura criada antes da coluna existir.
+             */
+            billingCycle: subscription.billingCycle,
+            renewsAt: subscription.renewsAt ?? subscription.currentPeriodEnd,
+            /** Quando o cancelamento foi pedido — a faixa da tela nasce disto. */
+            canceledAt: subscription.canceledAt,
+            /**
              * Até quando a clínica tem para regularizar, quando há atraso.
              *
              * Vai para a tela porque a carência só protege quem sabe dela: um
@@ -233,6 +378,34 @@ export async function GET() {
             pastDueSince: subscription.pastDueSince,
             plans: PLANS,
             creditPacks: CREDIT_PACKS,
+            treinamento: treinamentoParaATela(),
+            /**
+             * Os treinamentos contratados, um a um.
+             *
+             * Como os contratos de unidade e os lotes de crédito: cada um tem a
+             * sua data e o seu andamento, e uma frase só ("2 treinamentos")
+             * esconderia que um foi entregue e o outro não.
+             */
+            treinamentos: accountId
+                ? await prisma.trainingAddon.findMany({
+                      where: { accountId },
+                      orderBy: { createdAt: 'asc' },
+                      select: {
+                          id: true,
+                          createdAt: true,
+                          priceCents: true,
+                          origin: true,
+                          status: true,
+                          doneAt: true,
+                      },
+                  })
+                : [],
+            cobranca: await cobrancaDaConta(
+                accountId,
+                accountId
+                    ? (await contaDoMaster(workspaceUser.workspaceId, workspaceUser.userId)).ok
+                    : false
+            ),
             /** Franquia e avulso somados, para o medidor não contradizer a sidebar. */
             creditos: estado.credits,
             /**
@@ -272,12 +445,20 @@ export async function GET() {
 function resumoDaCesta(
     pack: { credits: number; price: number } | null,
     unidades: number,
-    tetoDeUnidades: number
+    tetoDeUnidades: number,
+    treinamentos = 0
 ): string {
     const partes: string[] = []
 
     if (pack) {
         partes.push(`${pack.credits.toLocaleString('pt-BR')} créditos avulsos`)
+    }
+
+    if (treinamentos > 0) {
+        partes.push(
+            `${treinamentos} treinamento${treinamentos === 1 ? '' : 's'} de agente` +
+                ' — nossa equipe entra em contato para agendar'
+        )
     }
 
     if (unidades > 0) {
@@ -326,9 +507,22 @@ export async function POST(request: NextRequest) {
              * que vai ser recusada é cobrar por nada.
              */
             case 'change-plan': {
-                const { plan } = data
+                const { plan, cycle } = data
                 if (!isPlanId(plan)) {
                     return NextResponse.json({ error: 'Plano inválido' }, { status: 400 })
+                }
+                /**
+                 * Ciclo ausente conserva o que a conta já tem.
+                 *
+                 * Um padrão `'monthly'` aqui rebaixaria, calado, o cliente anual
+                 * que apenas troca de plano — e o rebaixamento apareceria como
+                 * uma fatura de um mês onde havia uma de doze.
+                 */
+                if (cycle !== undefined && !isBillingCycle(cycle)) {
+                    return NextResponse.json(
+                        { error: 'Ciclo inválido: use mensal ou anual.' },
+                        { status: 400 }
+                    )
                 }
 
                 const planConfig = PLANS[plan]
@@ -391,22 +585,45 @@ export async function POST(request: NextRequest) {
                         asaasSubscriptionId: true,
                         currentPeriodStart: true,
                         currentPeriodEnd: true,
+                        billingCycle: true,
+                        renewsAt: true,
                     },
                 })
 
                 const temAssinaturaViva = Boolean(
                     assinatura?.asaasSubscriptionId && assinatura.status === 'active'
                 )
-                const direcao = direcaoDaTroca(
-                    temAssinaturaViva && isPlanId(assinatura?.plan) ? assinatura.plan : null,
-                    plan
-                )
+
+                const cicloAtual = cicloDe(assinatura?.billingCycle)
+                const ciclo = isBillingCycle(cycle) ? cycle : cicloAtual
+
+                /**
+                 * O período que importa aqui é o de **cobrança**.
+                 *
+                 * `renewsAt` com queda para trás no fim da franquia, e o começo
+                 * deduzido dela: num ciclo anual, usar o `currentPeriodStart` da
+                 * franquia diria "ciclo de 30 dias" e cobraria doze vezes a
+                 * diferença certa num upgrade.
+                 */
+                const fimDaCobranca = assinatura?.renewsAt ?? assinatura?.currentPeriodEnd ?? null
+                const { direcao, cobranca: aCobrar } = diferencaDeContrato({
+                    atual:
+                        temAssinaturaViva && isPlanId(assinatura?.plan)
+                            ? { plan: assinatura.plan, ciclo: cicloAtual }
+                            : null,
+                    novo: { plan, ciclo },
+                    adicionais: unidades.cobraveis,
+                    inicioDoCiclo: inicioDaCobranca(cicloAtual, fimDaCobranca),
+                    fimDoCiclo: fimDaCobranca,
+                    agora: new Date(),
+                })
 
                 if (!regime.precisaPagar) {
                     const { notas } = await aplicarPlano({
                         accountId,
                         workspaceId: workspaceUser.workspaceId,
                         plan,
+                        ciclo,
                     })
 
                     const porque =
@@ -432,10 +649,54 @@ export async function POST(request: NextRequest) {
                  * valer na próxima.
                  */
                 if (direcao === 'downgrade' && assinatura?.asaasSubscriptionId) {
+                    const valorNovo = valorDaFatura(plan, unidades.cobraveis, ciclo)
+                    const mudaDeCiclo = ciclo !== cicloAtual
+
+                    /**
+                     * Mudar o ciclo no gateway vem **antes** de gravar — e,
+                     * falhando, nada muda aqui.
+                     *
+                     * É a ordem do cancelamento, pela mesma razão: o estado que
+                     * não pode existir é "mensal aqui, anual lá". Ele cobraria
+                     * doze meses onde o cliente espera um, e ele só descobriria
+                     * pela fatura. Já a descrição e o valor, logo abaixo, podem
+                     * falhar sem desfazer nada: o pior caso é uma frase velha na
+                     * fatura, não dinheiro errado.
+                     *
+                     * A data **não** se move: o cliente pagou o período e usa o
+                     * período. Quem pagou doze meses passa a ser cobrado por mês
+                     * só quando o ano acabar.
+                     */
+                    if (mudaDeCiclo) {
+                        try {
+                            await trocarCicloNoGateway({
+                                subscriptionId: assinatura.asaasSubscriptionId,
+                                ciclo,
+                                value: valorNovo,
+                                nextDueDate: fimDaCobranca ?? proximaCobranca(cicloAtual),
+                            })
+                        } catch (erro) {
+                            console.error(
+                                `[CHANGE_PLAN] conta ${accountId}: o gateway recusou a troca de ` +
+                                    `ciclo para ${ciclo}. Nada foi alterado. ${String(erro)}`
+                            )
+                            return NextResponse.json(
+                                {
+                                    error:
+                                        'Não conseguimos mudar o ciclo da cobrança no gateway ' +
+                                        'agora, e por isso nada foi alterado — tentar de novo em ' +
+                                        'instantes evita que você fique num ciclo aqui e noutro lá.',
+                                },
+                                { status: 502 }
+                            )
+                        }
+                    }
+
                     await aplicarPlano({
                         accountId,
                         workspaceId: workspaceUser.workspaceId,
                         plan,
+                        ciclo,
                         somenteRegistro: true,
                     })
 
@@ -443,7 +704,7 @@ export async function POST(request: NextRequest) {
                         await descreverAssinatura({
                             accountId,
                             subscriptionId: assinatura.asaasSubscriptionId,
-                            value: mensalidade(plan, unidades.cobraveis),
+                            value: valorNovo,
                         })
                     } catch (erro) {
                         console.error(
@@ -452,17 +713,21 @@ export async function POST(request: NextRequest) {
                         )
                     }
 
-                    const virada = assinatura.currentPeriodEnd?.toLocaleDateString('pt-BR', {
-                        timeZone: 'America/Sao_Paulo',
-                    })
+                    const virada = (fimDaCobranca ?? assinatura.currentPeriodEnd)?.toLocaleDateString(
+                        'pt-BR',
+                        { timeZone: 'America/Sao_Paulo' }
+                    )
 
                     return NextResponse.json({
                         success: true,
                         pago: false,
                         message:
-                            `Plano alterado para ${planConfig.name}. Nada foi cobrado agora — ` +
-                            `você continua com os recursos do plano atual até ` +
-                            `${virada ?? 'a renovação'}, quando o novo preço passa a valer.`,
+                            (mudaDeCiclo
+                                ? `Assinatura ${CICLOS[ciclo].label.toLowerCase()} a partir da ` +
+                                  `renovação, no ${planConfig.name}.`
+                                : `Plano alterado para ${planConfig.name}.`) +
+                            ` Nada foi cobrado agora — você continua com os recursos do plano ` +
+                            `atual até ${virada ?? 'a renovação'}, quando o novo preço passa a valer.`,
                     })
                 }
 
@@ -490,13 +755,40 @@ export async function POST(request: NextRequest) {
                     },
                 })
 
-                if (!conta?.cpfCnpj) {
+                /**
+                 * **E agora a recusa não manda ninguém para outra tela.**
+                 *
+                 * O texto anterior era um roteiro de navegação — "Gerenciamento →
+                 * Conta → Assinatura → Comprar adicionais" — e a tela o
+                 * transformava num atalho para a guia da empresa, onde a pessoa
+                 * preenchia, voltava e começava de novo. Era a queixa do Andre em
+                 * 2026-11-07.
+                 *
+                 * O que mudou: a resposta diz **o que falta**, campo por campo, e
+                 * a tela abre o formulário ali mesmo, retomando a contratação ao
+                 * gravar. O 409 continua existindo para a corrida (dois cliques,
+                 * duas abas) e para quem chama a rota direto.
+                 *
+                 * E a exigência agora é o **conjunto**, não só o documento: o
+                 * Asaas recusa `customerData` pela metade, então endereço
+                 * incompleto significa o cliente redigitando na página deles o que
+                 * já digitou na nossa. Ver `dados-de-cobranca.ts`.
+                 */
+                if (!conta) {
+                    return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 })
+                }
+
+                const faltaNaCobranca = conferirCobranca(conta)
+                const pagador = cobrancaCompleta(conta)
+
+                if (!pagador) {
                     return NextResponse.json(
                         {
                             error:
-                                'Antes de contratar, informe o CPF ou CNPJ de cobrança em ' +
-                                'Gerenciamento → Conta → Assinatura → Comprar adicionais.',
+                                `Antes de contratar, complete os dados de cobrança — falta ` +
+                                `${listarFaltantes(faltaNaCobranca.faltando)}.`,
                             faltaDocumento: true,
+                            faltando: faltaNaCobranca.faltando,
                         },
                         { status: 409 }
                     )
@@ -520,38 +812,36 @@ export async function POST(request: NextRequest) {
                  * é cobrar a mais para respeitar um limite do gateway, e a
                  * diferença some na renovação cheia, que é logo ali.
                  */
+                /**
+                 * A cobrança avulsa, quando há uma: upgrade ou troca de ciclo.
+                 *
+                 * Os dois casos cobram **agora** sobre uma assinatura que já
+                 * existe, e por isso seguem o mesmo caminho — cobrança DETACHED,
+                 * aplicação no webhook, `PUT` no valor da recorrência. Era um
+                 * `if` só do upgrade; passar a ser uma pergunta sobre a direção
+                 * é o que deixou a troca de ciclo nascer sem um segundo
+                 * mecanismo.
+                 *
+                 * `adicionais` conta o que **não foi cancelado**: o cancelado
+                 * ainda vale até a renovação (capacidade), mas não entra em
+                 * fatura nenhuma a partir dela.
+                 */
                 const proporcional =
-                    direcao === 'upgrade' && isPlanId(assinatura?.plan)
-                        ? diferencaProporcional({
-                            atual: assinatura.plan,
-                            novo: plan,
-                            /**
-                             * Cobrança conta o que **não foi cancelado**.
-                             *
-                             * `adicionais` inclui o cancelado que ainda vale
-                             * até a renovação — capacidade, não fatura. Com ele
-                             * aqui, a assinatura nasceria cobrando um adicional
-                             * que morre na primeira renovação dela.
-                             */
-                            adicionais: unidades.cobraveis,
-                            inicioDoCiclo: assinatura.currentPeriodStart,
-                            fimDoCiclo: assinatura.currentPeriodEnd,
-                            agora: new Date(),
-                        })
-                        : null
+                    direcao === 'upgrade' || direcao === 'novo-ciclo' ? aCobrar : null
 
                 if (proporcional?.abaixoDoMinimo && assinatura?.asaasSubscriptionId) {
                     const { notas } = await aplicarPlano({
                         accountId,
                         workspaceId: workspaceUser.workspaceId,
                         plan,
+                        ciclo,
                     })
 
                     try {
                         await descreverAssinatura({
                             accountId,
                             subscriptionId: assinatura.asaasSubscriptionId,
-                            value: mensalidade(plan, unidades.cobraveis),
+                            value: valorDaFatura(plan, unidades.cobraveis, ciclo),
                         })
                     } catch (erro) {
                         console.error(`[CHANGE_PLAN] valor da assinatura não atualizado: ${String(erro)}`)
@@ -571,18 +861,19 @@ export async function POST(request: NextRequest) {
                     const { link } = await criarCheckoutDePlano({
                         accountId,
                         plan,
+                        ciclo,
                         adicionais: unidades.cobraveis,
                         asaasCustomerId: conta.asaasCustomerId,
                         ...(proporcional ? { valorProporcional: proporcional.valor } : {}),
                         pagador: {
                             name: conta.name,
-                            cpfCnpj: conta.cpfCnpj,
                             email: user.email ?? '',
-                            phone: conta.billingPhone,
-                            address: conta.address,
-                            addressNumber: conta.addressNumber,
-                            province: conta.province,
-                            postalCode: conta.postalCode,
+                            phone: pagador.billingPhone,
+                            cpfCnpj: pagador.cpfCnpj,
+                            address: pagador.address,
+                            addressNumber: pagador.addressNumber,
+                            province: pagador.province,
+                            postalCode: pagador.postalCode,
                         },
                         baseUrl: baseDaAplicacao(request),
                     })
@@ -592,10 +883,16 @@ export async function POST(request: NextRequest) {
                         pago: true,
                         /** A tela manda o pagador para cá. */
                         link,
-                        message: proporcional
-                            ? `Abrindo o pagamento da diferença até a renovação ` +
-                              `(${proporcional.diasRestantes} dia(s)).`
-                            : `Abrindo o pagamento do ${planConfig.name}.`,
+                        message:
+                            direcao === 'novo-ciclo'
+                                ? `Abrindo o pagamento dos 12 meses do ${planConfig.name}, ` +
+                                  `com o saldo dos ${proporcional?.diasRestantes ?? 0} dia(s) que ` +
+                                  `faltam do período atual já descontado.`
+                                : proporcional
+                                  ? `Abrindo o pagamento da diferença até a renovação ` +
+                                    `(${proporcional.diasRestantes} dia(s)).`
+                                  : `Abrindo o pagamento do ${planConfig.name} ` +
+                                    `${CICLOS[ciclo].label.toLowerCase()}.`,
                     })
                 } catch (erro) {
                     console.error('[CHANGE_PLAN] falha ao criar checkout', erro)
@@ -703,9 +1000,41 @@ export async function POST(request: NextRequest) {
                     )
                 }
 
-                if (!pack && unidadesPedidas === 0) {
+                /**
+                 * O treinamento, com o mesmo tipo de guarda da unidade.
+                 *
+                 * O teto por compra é de tela, não de negócio: cinco
+                 * treinamentos são R$ 12.000 de uma vez, e quem precisa de mais
+                 * está numa conversa comercial. **O preço é lido aqui**, do
+                 * catálogo, e nunca do corpo da requisição — preço que chega pelo
+                 * cliente é preço que o cliente escolhe.
+                 */
+                const treinamentosPedidos = Number(data.trainings) || 0
+                if (
+                    !Number.isInteger(treinamentosPedidos) ||
+                    treinamentosPedidos < 0 ||
+                    treinamentosPedidos > TREINAMENTO.maximoPorCompra
+                ) {
                     return NextResponse.json(
-                        { error: 'Escolha um pacote de créditos ou pelo menos uma unidade.' },
+                        {
+                            error:
+                                `Escolha de 1 a ${TREINAMENTO.maximoPorCompra} treinamentos de ` +
+                                'agente por compra.',
+                        },
+                        { status: 400 }
+                    )
+                }
+
+                const precoUnitarioDoTreinamento = precoDoTreinamento().valor
+                const valorDosTreinamentos = treinamentosPedidos * precoUnitarioDoTreinamento
+
+                if (!pack && unidadesPedidas === 0 && treinamentosPedidos === 0) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'Escolha um pacote de créditos, uma unidade adicional ou um ' +
+                                'treinamento de agente.',
+                        },
                         { status: 400 }
                     )
                 }
@@ -756,6 +1085,7 @@ export async function POST(request: NextRequest) {
                         packCredits: pack?.credits ?? null,
                         packPriceCents: pack ? Math.round(pack.price * 100) : null,
                         units: unidadesPedidas,
+                        trainings: treinamentosPedidos,
                     })
 
                     const [depois, unidades] = await Promise.all([
@@ -771,9 +1101,10 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({
                         success: true,
                         pago: false,
-                        message: `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max)} ${porque}`,
+                        message: `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max, treinamentosPedidos)} ${porque}`,
                         creditsAdded: entregue.creditosAdicionados,
                         unidadesAdicionadas: entregue.unidadesAdicionadas,
+                        treinamentosAdicionados: entregue.treinamentosAdicionados,
                         newTotal: depois.credits.available,
                         unidades,
                     })
@@ -792,7 +1123,8 @@ export async function POST(request: NextRequest) {
                  * regras diferentes para o mesmo limite seria o tipo de
                  * divergência que ninguém encontra até um cliente reclamar.
                  */
-                const totalDaCesta = (pack?.price ?? 0) + proporcional.valor
+                const totalDaCesta =
+                    (pack?.price ?? 0) + proporcional.valor + valorDosTreinamentos
 
                 if (totalDaCesta < MINIMO_DO_ASAAS) {
                     const entregue = await aplicarAdicionais({
@@ -801,6 +1133,7 @@ export async function POST(request: NextRequest) {
                         packCredits: pack?.credits ?? null,
                         packPriceCents: pack ? Math.round(pack.price * 100) : null,
                         units: unidadesPedidas,
+                        trainings: treinamentosPedidos,
                     })
 
                     if (unidadesPedidas > 0 && assinatura?.asaasSubscriptionId) {
@@ -816,11 +1149,12 @@ export async function POST(request: NextRequest) {
                         success: true,
                         pago: false,
                         message:
-                            `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max)} ` +
+                            `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max, treinamentosPedidos)} ` +
                             `Faltam ${proporcional.diasRestantes} dia(s) para a renovação e o ` +
                             `proporcional ficou abaixo do mínimo, então nada foi cobrado agora.`,
                         creditsAdded: entregue.creditosAdicionados,
                         unidadesAdicionadas: entregue.unidadesAdicionadas,
+                        treinamentosAdicionados: entregue.treinamentosAdicionados,
                         newTotal: depois.credits.available,
                         unidades,
                     })
@@ -859,11 +1193,29 @@ export async function POST(request: NextRequest) {
                     },
                 })
 
-                if (!conta?.cpfCnpj) {
+                /**
+                 * Mesma exigência da contratação, e pela mesma razão.
+                 *
+                 * Era só o documento, e o texto mandava a pessoa para outra guia
+                 * — o caminho que o Andre pediu para acabar em 2026-11-07. A
+                 * resposta agora diz o que falta, campo por campo, e a tela abre
+                 * o formulário sem sair daqui.
+                 */
+                if (!conta) {
+                    return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 })
+                }
+
+                const pagador = cobrancaCompleta(conta)
+
+                if (!pagador) {
+                    const falta = conferirCobranca(conta)
                     return NextResponse.json(
                         {
                             error:
-                                'Informe o CPF ou CNPJ de cobrança em Conta da Clínica antes de comprar.',
+                                `Antes de comprar, complete os dados de cobrança — falta ` +
+                                `${listarFaltantes(falta.faltando)}.`,
+                            faltaDocumento: true,
+                            faltando: falta.faltando,
                         },
                         { status: 409 }
                     )
@@ -917,10 +1269,12 @@ export async function POST(request: NextRequest) {
                             descricao: resumoDaCesta(
                                 pack ?? null,
                                 unidadesPedidas,
-                                unidadesDepois.max
+                                unidadesDepois.max,
+                                treinamentosPedidos
                             ),
                             pacote: pack ? { credits: pack.credits, price: pack.price } : null,
                             unidades: unidadesPedidas,
+                            treinamentos: treinamentosPedidos,
                         })
 
                         /**
@@ -936,6 +1290,7 @@ export async function POST(request: NextRequest) {
                                 packCredits: pack?.credits ?? null,
                                 packPriceCents: pack ? Math.round(pack.price * 100) : null,
                                 units: unidadesPedidas,
+                                trainings: treinamentosPedidos,
                             })
 
                             await prisma.asaasCheckout.update({
@@ -966,11 +1321,12 @@ export async function POST(request: NextRequest) {
                                 success: true,
                                 pago: false,
                                 message:
-                                    `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max)} ` +
+                                    `${resumoDaCesta(pack ?? null, unidadesPedidas, unidades.max, treinamentosPedidos)} ` +
                                     `Cobrado ${formatPrice(totalDaCesta)} no ${cartao.brand ?? 'cartão'} ` +
                                     `••••${cartao.last4 ?? ''}.`,
                                 creditsAdded: entregue.creditosAdicionados,
                                 unidadesAdicionadas: entregue.unidadesAdicionadas,
+                                treinamentosAdicionados: entregue.treinamentosAdicionados,
                                 newTotal: depois.credits.available,
                                 unidades,
                             })
@@ -1007,16 +1363,18 @@ export async function POST(request: NextRequest) {
                         pacote: pack ? { credits: pack.credits, price: pack.price } : null,
                         unidades: unidadesPedidas,
                         valorDasUnidades: proporcional.valor,
+                        treinamentos: treinamentosPedidos,
+                        precoDoTreinamento: precoUnitarioDoTreinamento,
                         asaasCustomerId: conta.asaasCustomerId,
                         pagador: {
                             name: conta.name,
-                            cpfCnpj: conta.cpfCnpj,
                             email: user.email ?? '',
-                            phone: conta.billingPhone,
-                            address: conta.address,
-                            addressNumber: conta.addressNumber,
-                            province: conta.province,
-                            postalCode: conta.postalCode,
+                            phone: pagador.billingPhone,
+                            cpfCnpj: pagador.cpfCnpj,
+                            address: pagador.address,
+                            addressNumber: pagador.addressNumber,
+                            province: pagador.province,
+                            postalCode: pagador.postalCode,
                         },
                         baseUrl: baseDaAplicacao(request),
                     })
@@ -1030,7 +1388,9 @@ export async function POST(request: NextRequest) {
                                 ? `Abrindo o pagamento. A unidade entra proporcional aos ` +
                                   `${proporcional.diasRestantes} dia(s) que faltam e passa a somar ` +
                                   `R$ ${(unidadesPedidas * UNIDADE_ADICIONAL.price).toFixed(2)} por mês na renovação.`
-                                : 'Abrindo o pagamento dos créditos.',
+                                : treinamentosPedidos > 0 && !pack
+                                  ? 'Abrindo o pagamento do treinamento de agente.'
+                                  : 'Abrindo o pagamento dos créditos.',
                         unidades: unidadesDepois,
                     })
                 } catch (erro) {
@@ -1410,8 +1770,21 @@ export async function POST(request: NextRequest) {
 
                 const assinatura = await prisma.subscription.findUnique({
                     where: { accountId },
-                    select: { asaasSubscriptionId: true, currentPeriodEnd: true },
+                    select: {
+                        asaasSubscriptionId: true,
+                        currentPeriodEnd: true,
+                        renewsAt: true,
+                        billingCycle: true,
+                        status: true,
+                    },
                 })
+
+                if (assinatura?.status === 'canceled') {
+                    return NextResponse.json(
+                        { error: 'Esta assinatura já está cancelada.' },
+                        { status: 409 }
+                    )
+                }
 
                 /**
                  * Cancelar no gateway **antes** de cancelar aqui.
@@ -1449,7 +1822,26 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                const fimDoCiclo = assinatura?.currentPeriodEnd ?? new Date()
+                /**
+                 * Até quando o acesso vale: o fim do **período de cobrança**.
+                 *
+                 * `renewsAt` e não `currentPeriodEnd`, com queda para trás: quem
+                 * pagou doze meses usa os doze meses, e usar a data da franquia
+                 * encurtaria o acesso de uma assinatura anual para trinta dias —
+                 * tirando até onze meses pagos.
+                 */
+                const fimDoCiclo =
+                    assinatura?.renewsAt ?? assinatura?.currentPeriodEnd ?? new Date()
+
+                /**
+                 * Um instante só, usado nas duas atualizações.
+                 *
+                 * É o que liga os adicionais a **este** cancelamento: desfazer
+                 * procura as linhas com exatamente este carimbo, e assim não
+                 * ressuscita o adicional que o cliente havia cancelado à mão
+                 * semanas antes.
+                 */
+                const agora = new Date()
 
                 await prisma.$transaction(async (tx) => {
                     /**
@@ -1474,6 +1866,7 @@ export async function POST(request: NextRequest) {
                         where: { accountId },
                         data: {
                             status: 'canceled',
+                            canceledAt: agora,
                             pastDueSince: null,
                             graceEndsAt: null,
                             /**
@@ -1497,7 +1890,7 @@ export async function POST(request: NextRequest) {
                      */
                     await tx.unitAddon.updateMany({
                         where: { accountId, ...adicionaisVivos() },
-                        data: { canceledAt: new Date(), endsAt: fimDoCiclo },
+                        data: { canceledAt: agora, endsAt: fimDoCiclo },
                     })
                 })
 
@@ -1507,9 +1900,211 @@ export async function POST(request: NextRequest) {
 
                 return NextResponse.json({
                     success: true,
+                    /**
+                     * A tela precisa da data para desenhar a faixa — e a faixa
+                     * é o conserto do que o Andre apontou: "ao cancelar só
+                     * aparece um pop-up no rodapé". O aviso em toast desaparece
+                     * em segundos; o estado da assinatura não pode desaparecer
+                     * com ele.
+                     */
+                    canceledAt: agora,
+                    currentPeriodEnd: fimDoCiclo,
+                    podeDesfazer: true,
                     message:
                         `Assinatura cancelada. Nada mais será cobrado, e você usa o que já ` +
-                        `pagou até ${ate}.`,
+                        `pagou até ${ate}. Dá para desfazer enquanto este período não terminar.`,
+                })
+            }
+
+            /**
+             * **Desfazer o cancelamento** — a volta que não existia.
+             *
+             * O Andre apontou em 2026-11-07 que cancelar só produzia um aviso
+             * no rodapé. Faltavam duas coisas: o estado na tela (ver `canceledAt`
+             * na resposta do cancelamento) e esta — um caminho de volta enquanto
+             * o período pago está correndo.
+             *
+             * ## Por que isto é mais que um `UPDATE`
+             *
+             * Cancelar faz `DELETE` na assinatura do Asaas, e lá não há volta: a
+             * recorrência deixou de existir. Restaurar só o nosso registro
+             * deixaria a conta **ativa e sem cobrança** — e o buraco não é
+             * teórico: o cron renova a franquia de toda assinatura ativa, então a
+             * clínica usaria o produto de graça até alguém notar. Por isso o
+             * gateway vem primeiro, e sem cartão salvo esta ação recusa e manda
+             * contratar (que é o caminho que cobra).
+             *
+             * ## O que volta
+             *
+             * O plano, o estado e **os adicionais que caíram neste
+             * cancelamento** — achados pelo carimbo `canceledAt` que a transação
+             * do cancelamento gravou nos dois lugares. O adicional que o cliente
+             * havia cancelado antes, à mão, continua cancelado: ele não faz parte
+             * desta decisão.
+             */
+            case 'resume': {
+                const accountId = await accountIdOf(workspaceUser.workspaceId)
+                if (!accountId) {
+                    return NextResponse.json(
+                        { error: 'Conta não encontrada para este workspace' },
+                        { status: 404 }
+                    )
+                }
+
+                const assinatura = await prisma.subscription.findUnique({
+                    where: { accountId },
+                    select: {
+                        plan: true,
+                        status: true,
+                        canceledAt: true,
+                        billingCycle: true,
+                        renewsAt: true,
+                        currentPeriodEnd: true,
+                        asaasSubscriptionId: true,
+                    },
+                })
+
+                if (!assinatura || assinatura.status !== 'canceled') {
+                    return NextResponse.json(
+                        { error: 'Esta assinatura não está cancelada.' },
+                        { status: 409 }
+                    )
+                }
+
+                const ate = assinatura.renewsAt ?? assinatura.currentPeriodEnd
+
+                /**
+                 * Passado o período pago, não há o que desfazer.
+                 *
+                 * O acesso já terminou e a conta está em somente-leitura; voltar
+                 * atrás aqui daria um ciclo que ninguém pagou. O caminho é
+                 * contratar, que cobra.
+                 */
+                if (!ate || ate.getTime() <= Date.now()) {
+                    return NextResponse.json(
+                        {
+                            error:
+                                'O período já pago terminou, então não há mais o que desfazer. ' +
+                                'Use “Contratar plano” para voltar a assinar.',
+                        },
+                        { status: 409 }
+                    )
+                }
+
+                const regime = await regimeDaConta(accountId)
+                const ciclo = cicloDe(assinatura.billingCycle)
+                const planoVigente = isPlanId(assinatura.plan) ? assinatura.plan : 'flow'
+
+                /**
+                 * A recorrência volta ao gateway **antes** de o banco mudar.
+                 *
+                 * Conta isenta não tem recorrência para recriar — e nunca teve.
+                 */
+                let novaAssinaturaNoAsaas: string | null = null
+
+                if (regime.precisaPagar) {
+                    const [conta, cartao] = await Promise.all([
+                        prisma.account.findUnique({
+                            where: { id: accountId },
+                            select: { asaasCustomerId: true },
+                        }),
+                        prisma.paymentCard.findFirst({
+                            where: { accountId },
+                            orderBy: [{ isDefault: 'desc' }, { lastSeenAt: 'desc' }],
+                            select: { asaasToken: true, brand: true, last4: true },
+                        }),
+                    ])
+
+                    if (!conta?.asaasCustomerId || !cartao) {
+                        return NextResponse.json(
+                            {
+                                error:
+                                    'Para desfazer o cancelamento precisamos recriar a cobrança, ' +
+                                    'e esta conta não tem cartão salvo. Use “Contratar plano” — ' +
+                                    'o seu acesso atual continua valendo até ' +
+                                    `${ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`,
+                                precisaContratar: true,
+                            },
+                            { status: 409 }
+                        )
+                    }
+
+                    /**
+                     * O valor conta os adicionais que **vão voltar**.
+                     *
+                     * Lidos pelo carimbo, antes da restauração: contar os vivos
+                     * agora daria zero (o cancelamento os derrubou) e a
+                     * recorrência nasceria sem eles — cobrando a menos todo mês
+                     * por uma unidade que a clínica tem de pé.
+                     */
+                    const voltam = assinatura.canceledAt
+                        ? await prisma.unitAddon.count({
+                              where: { accountId, canceledAt: assinatura.canceledAt },
+                          })
+                        : 0
+
+                    try {
+                        novaAssinaturaNoAsaas = await recriarAssinatura({
+                            accountId,
+                            customerId: conta.asaasCustomerId,
+                            creditCardToken: cartao.asaasToken,
+                            ciclo,
+                            value: valorDaFatura(planoVigente, voltam, ciclo),
+                            nextDueDate: ate,
+                        })
+                    } catch (erro) {
+                        console.error(
+                            `[RESUME] conta ${accountId}: o gateway recusou recriar a ` +
+                                `recorrência. Nada foi alterado. ${String(erro)}`
+                        )
+                        return NextResponse.json(
+                            {
+                                error:
+                                    erro instanceof AsaasError
+                                        ? `O gateway recusou: ${erro.detalhe}`
+                                        : 'Não conseguimos recriar a cobrança agora, e por isso ' +
+                                          'nada foi alterado. Tente de novo em instantes.',
+                            },
+                            { status: 502 }
+                        )
+                    }
+                }
+
+                await prisma.$transaction(async (tx) => {
+                    if (assinatura.canceledAt) {
+                        await tx.unitAddon.updateMany({
+                            where: { accountId, canceledAt: assinatura.canceledAt },
+                            data: { canceledAt: null, endsAt: null },
+                        })
+                    }
+
+                    await tx.subscription.update({
+                        where: { accountId },
+                        data: {
+                            status: 'active',
+                            canceledAt: null,
+                            asaasSubscriptionId: novaAssinaturaNoAsaas,
+                        },
+                    })
+                })
+
+                const unidades = await unidadesDaConta(accountId)
+
+                console.info(
+                    `[RESUME] conta ${accountId} voltou ao ${planoVigente} ` +
+                        `(${ciclo}), próxima cobrança em ${ate.toISOString()}`
+                )
+
+                return NextResponse.json({
+                    success: true,
+                    message:
+                        `Cancelamento desfeito: o ${planFor(planoVigente).name} continua ativo e a ` +
+                        `próxima cobrança volta para ` +
+                        `${ate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.` +
+                        (unidades.adicionais > 0
+                            ? ` ${unidades.adicionais} unidade(s) adicional(is) também voltaram.`
+                            : ''),
+                    unidades,
                 })
             }
 

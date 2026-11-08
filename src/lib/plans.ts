@@ -12,13 +12,23 @@
  * connections are created.
  */
 
-import { PLAN_LIMITS, PLAN_NAMES, PLAN_PRICES, PRECO_ADICIONAL, type PlanId, type PlanLimits } from '@/lib/plan-limits'
+import {
+    PLAN_LIMITS,
+    PLAN_NAMES,
+    PLAN_PRICES,
+    PRECO_ADICIONAL,
+    TREINAMENTO,
+    precoDoTreinamento,
+    type BillingCycle,
+    type PlanId,
+    type PlanLimits,
+} from '@/lib/plan-limits'
 import { InstagramIcon, WhatsAppIcon } from '@/components/shared/BrandIcons'
 import { Globe } from 'lucide-react'
 
 // Reexportados para quem já importava daqui — a definição mora em
 // `plan-limits.ts`, que o worker também lê.
-export { type PlanId }
+export { type PlanId, type BillingCycle }
 
 /**
  * **Havia uma segunda lista de canais aqui, técnica, e ela foi removida em
@@ -302,6 +312,37 @@ export const UNIDADE_ADICIONAL = {
     pitch:
         'Mais uma clínica na mesma conta — com agenda, pacientes e conversas próprios, ' +
         'mais 1 agente de IA e 1 número de WhatsApp. O crédito sai da franquia do plano.',
+}
+
+/**
+ * O treinamento de agente, como a tela o vende.
+ *
+ * O preço, a promoção e a regra do brinde moram em `plan-limits.ts`, com o
+ * resto da tabela comercial — o worker precisa deles para cobrar e para aplicar
+ * o que o plano inclui. Aqui fica só o que é texto de tela.
+ *
+ * **O rodapé é pedido do Andre em 2026-11-07, para as duas telas de plano** — a
+ * do onboarding e a de gerenciamento. Ele é recomendação, não aviso: fica em
+ * letra menor, no fim da tela, depois dos planos, e não disputa com o preço.
+ */
+export const TREINAMENTO_DE_AGENTE = {
+    name: TREINAMENTO.nome,
+    pitch:
+        'A nossa equipe levanta o conteúdo com você, escreve os documentos do agente e ' +
+        'afina as respostas até ele atender como a sua equipe atenderia. É um projeto ' +
+        'com começo e fim — compra única, não entra na mensalidade.',
+    /**
+     * A frase do rodapé das duas telas de plano.
+     *
+     * "Assertividade" com dois S: foi pedida com um, e um erro de grafia na
+     * tela que vende é o tipo de detalhe que o cliente lê como descuido do
+     * produto.
+     */
+    rodape:
+        'O treinamento do agente é recomendado para uma maior experiência e ' +
+        'assertividade na interação com os leads.',
+    /** Para a tela não precisar importar de dois lugares. */
+    preco: precoDoTreinamento,
 }
 
 export const TRIAL = {

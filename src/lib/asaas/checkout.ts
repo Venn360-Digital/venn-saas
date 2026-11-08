@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma'
 import { asaas } from '@/lib/asaas/client'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { UNIDADE_ADICIONAL } from '@/lib/plans'
+import { CICLOS, TREINAMENTO, valorDaFatura, type BillingCycle } from '@/lib/plan-limits'
 
 /**
  * O checkout hospedado do Asaas: a página onde o cliente paga.
@@ -116,6 +117,14 @@ function dadosCompletos(p: DadosDoPagador): Record<string, string> | null {
 export async function criarCheckoutDePlano(opcoes: {
     accountId: string
     plan: PlanId
+    /**
+     * Mensal ou anual — o que decide o `value` e o `cycle` da recorrência.
+     *
+     * Obrigatório, e não com padrão mensal: um padrão aqui transformaria um
+     * esquecimento em cobrança errada, e cobrança errada é o defeito mais caro
+     * desta integração (ver a assinatura dobrada em `vincular.ts`).
+     */
+    ciclo: BillingCycle
     adicionais: number
     pagador: DadosDoPagador
     /**
@@ -139,12 +148,21 @@ export async function criarCheckoutDePlano(opcoes: {
     /** Para onde o Asaas devolve o pagador. Sem rota, sem volta. */
     baseUrl: string
 }): Promise<{ link: string; checkoutId: string }> {
-    const { accountId, plan, adicionais, pagador, asaasCustomerId, valorProporcional, baseUrl } =
-        opcoes
+    const {
+        accountId,
+        plan,
+        ciclo,
+        adicionais,
+        pagador,
+        asaasCustomerId,
+        valorProporcional,
+        baseUrl,
+    } = opcoes
 
     const proporcional = valorProporcional !== undefined
-    const valor = proporcional ? valorProporcional : mensalidadeDoPlano(plan, adicionais)
+    const valor = proporcional ? valorProporcional : valorDaFatura(plan, adicionais, ciclo)
     const planConfig = PLANS[plan]
+    const anual = ciclo === 'annual'
 
     /**
      * A primeira cobrança é **hoje**.
@@ -164,6 +182,8 @@ export async function criarCheckoutDePlano(opcoes: {
             asaasCheckoutId: `pendente:${accountId}:${Date.now()}`,
             link: '',
             kind: proporcional ? 'proporcional' : 'assinatura',
+            /** O webhook não deduz o ciclo do valor pago — ver a coluna. */
+            cycle: ciclo,
             valueCents: Math.round(valor * 100),
         },
         select: { id: true },
@@ -228,12 +248,22 @@ export async function criarCheckoutDePlano(opcoes: {
                 },
                 items: [
                     {
-                        name: planConfig.name,
+                        name: anual ? `${planConfig.name} — 12 meses` : planConfig.name,
+                        /**
+                         * A linha da fatura diz o ciclo, não só o plano.
+                         *
+                         * Quem abre o extrato do cartão da clínica e vê
+                         * "R$ 9.612,00 · Plano Multiclínica" sem a palavra
+                         * "anual" liga para contestar — e tem razão em ligar.
+                         */
                         description: proporcional
                             ? `Diferença proporcional até a renovação — mudança para ${planConfig.name}`
-                            : adicionais > 0
-                              ? `Mensalidade do ${planConfig.name} com ${adicionais} unidade(s) adicional(is)`
-                              : `Mensalidade do ${planConfig.name}`,
+                            : (anual
+                                  ? `12 meses do ${planConfig.name} com 10% de desconto`
+                                  : `Mensalidade do ${planConfig.name}`) +
+                              (adicionais > 0
+                                  ? `, com ${adicionais} unidade(s) adicional(is)`
+                                  : ''),
                         quantity: 1,
                         value: valor,
                     },
@@ -263,7 +293,7 @@ export async function criarCheckoutDePlano(opcoes: {
                     ? {}
                     : {
                         subscription: {
-                            cycle: 'MONTHLY',
+                            cycle: CICLOS[ciclo].asaas,
                             nextDueDate: hoje,
                         },
                     }),
@@ -316,6 +346,9 @@ export async function criarCheckoutDeAdicionais(opcoes: {
     unidades: number
     /** Quanto as unidades custam agora, proporcional aos dias que faltam. */
     valorDasUnidades: number
+    /** Quantos treinamentos de agente, e o preço unitário vigente. */
+    treinamentos?: number
+    precoDoTreinamento?: number
     pagador: DadosDoPagador
     asaasCustomerId?: string | null
     baseUrl: string
@@ -327,13 +360,17 @@ export async function criarCheckoutDeAdicionais(opcoes: {
         pacote,
         unidades,
         valorDasUnidades,
+        treinamentos = 0,
+        precoDoTreinamento = 0,
         pagador,
         asaasCustomerId,
         baseUrl,
     } = opcoes
 
     const valorDoPacote = pacote ? pacote.price : 0
-    const valor = Math.round((valorDoPacote + valorDasUnidades) * 100) / 100
+    const valorDosTreinamentos = Math.max(0, treinamentos) * precoDoTreinamento
+    const valor =
+        Math.round((valorDoPacote + valorDasUnidades + valorDosTreinamentos) * 100) / 100
 
     /**
      * Um item por natureza, porque a fatura é lida por gente.
@@ -349,6 +386,20 @@ export async function criarCheckoutDeAdicionais(opcoes: {
             description: 'Crédito avulso, válido por 90 dias a partir da compra',
             quantity: 1,
             value: pacote.price,
+        })
+    }
+
+    if (treinamentos > 0 && valorDosTreinamentos > 0) {
+        items.push({
+            name:
+                treinamentos === 1
+                    ? TREINAMENTO.nome
+                    : `${treinamentos} × ${TREINAMENTO.nome}`,
+            description:
+                'Serviço de implantação: levantamento do conteúdo, escrita dos documentos ' +
+                'do agente e ajuste das respostas. Compra única',
+            quantity: 1,
+            value: valorDosTreinamentos,
         })
     }
 
@@ -377,6 +428,7 @@ export async function criarCheckoutDeAdicionais(opcoes: {
             packCredits: pacote?.credits ?? null,
             packPriceCents: pacote ? Math.round(pacote.price * 100) : null,
             units: unidades > 0 ? unidades : null,
+            trainings: treinamentos > 0 ? treinamentos : null,
         },
         select: { id: true },
     })
