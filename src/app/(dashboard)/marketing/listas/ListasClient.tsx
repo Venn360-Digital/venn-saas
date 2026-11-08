@@ -24,10 +24,22 @@ import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 
+import {
+    CANAIS_DE_CAMPANHA,
+    NOME_DO_CANAL,
+    type CanalDeCampanha,
+} from '@/lib/marketing/apresentacao'
+
 import type { DadosIniciais, ListaItem } from './dados'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
-const EMPTY_FORM = { name: '', search: '', tagId: '', dealStatus: '' }
+const EMPTY_FORM = {
+    name: '',
+    search: '',
+    tagId: '',
+    dealStatus: '',
+    channel: 'whatsapp' as CanalDeCampanha,
+}
 
 interface TagOpcao {
     id: string
@@ -102,8 +114,12 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
             search: form.search.trim() || null,
             tagId: form.tagId || null,
             dealStatus: form.dealStatus || null,
+            // O canal vai junto do filtro, e não só no corpo do POST: a prévia
+            // usa este mesmo objeto, e sem ele contaria por telefone uma lista
+            // de e-mail — número que só apareceria depois do disparo.
+            canal: form.channel,
         }),
-        [form.search, form.tagId, form.dealStatus],
+        [form.search, form.tagId, form.dealStatus, form.channel],
     )
 
     async function previsualizar() {
@@ -143,6 +159,7 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name,
+                        channel: form.channel,
                         mode: temFiltro ? 'filter' : 'manual',
                         filter: temFiltro ? filtroAtual : undefined,
                     }),
@@ -183,6 +200,15 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
             sortable: true,
             sortValue: (l) => l.name,
             cell: (l) => <span className="text-sm text-foreground">{l.name}</span>,
+        },
+        {
+            // Sem esta coluna, duas listas com o mesmo nome e canais diferentes
+            // ficam indistinguiveis — e escolher a errada na campanha so
+            // aparece na contagem de destinatarios.
+            id: 'canal',
+            header: 'Canal',
+            width: '7rem',
+            cell: (l) => <span className="text-sm">{NOME_DO_CANAL[l.channel] ?? l.channel}</span>,
         },
         {
             id: 'memberCount',
@@ -272,7 +298,9 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                 description={
                     editing
                         ? 'Muda só o nome; os contatos permanecem.'
-                        : 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem telefone e não pediu para sair.'
+                        : form.channel === 'email'
+                          ? 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem e-mail e não cancelou a inscrição.'
+                          : 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem telefone e não pediu para sair.'
                 }
                 submitLabel={editing ? 'Salvar lista' : 'Criar lista'}
                 hideAgain
@@ -294,7 +322,41 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
 
                 {!editing && (
                     <>
-                        <FormField label="Buscar por nome/telefone" htmlFor="lista-search" className="col-span-2">
+                        <FormField
+                            label="Canal"
+                            htmlFor="lista-canal"
+                            className="col-span-2"
+                            hint="Muda quem entra: a lista de WhatsApp só aceita contato com telefone, a de e-mail só aceita quem tem endereço — e cada canal tem a própria saída."
+                        >
+                            <Select
+                                value={form.channel}
+                                onValueChange={(v) => {
+                                    setForm((p) => ({ ...p, channel: v as CanalDeCampanha }))
+                                    setPrevia(null)
+                                }}
+                            >
+                                <SelectTrigger id="lista-canal">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CANAIS_DE_CAMPANHA.map((c) => (
+                                        <SelectItem key={c} value={c}>
+                                            {NOME_DO_CANAL[c]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+
+                        <FormField
+                            label={
+                                form.channel === 'email'
+                                    ? 'Buscar por nome/e-mail'
+                                    : 'Buscar por nome/telefone'
+                            }
+                            htmlFor="lista-search"
+                            className="col-span-2"
+                        >
                             <Input
                                 id="lista-search"
                                 value={form.search}

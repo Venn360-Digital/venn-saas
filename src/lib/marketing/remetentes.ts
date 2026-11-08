@@ -1,3 +1,5 @@
+import type { ToneEntry } from '@/components/shared/StatusBadge'
+
 /**
  * O que o cliente precisa publicar no DNS dele, e como o remetente se apresenta.
  *
@@ -63,11 +65,20 @@ export function nomeDoConfigurationSet(workspaceId: string): string {
     return `venn-${limpo}`
 }
 
-/** O estado do remetente, como a tela o escreve. */
-export const SITUACAO_DO_REMETENTE: Record<string, string> = {
-    pending: 'Aguardando DNS',
-    verified: 'Verificado',
-    failed: 'Falhou',
+/**
+ * O estado do remetente — rótulo e tom na mesma entrada.
+ *
+ * No formato que o `StatusBadge` consome, e não um `Record<string, string>` com
+ * a cor escolhida na tela: tom decidido em cada tela é como "verde" acaba
+ * significando "ativo" numa e "pago" noutra.
+ *
+ * `pending` é **warning**, não neutro: há trabalho pendente do lado do cliente,
+ * e um chip cinza faria parecer um estado em que não há nada a fazer.
+ */
+export const SITUACAO_DO_REMETENTE: Record<string, ToneEntry> = {
+    pending: { label: 'Aguardando DNS', tone: 'warning' },
+    verified: { label: 'Verificado', tone: 'success' },
+    failed: { label: 'Falhou', tone: 'destructive' },
 }
 
 /**
