@@ -108,28 +108,81 @@ export interface CamposDaMesclagem {
     unidade?: string | null
 }
 
+/**
+ * O que sai quando o campo não tem valor, e não há queda escrita no marcador.
+ *
+ * **Vazio, para todos.** A tentação é pôr uma palavra genérica em `nome`
+ * ("cliente", "tudo bem") e ela produz frase sem sentido, porque o padrão de
+ * queda **não sabe a frase em volta**: com `'tudo bem'`, o template
+ * "Oi {{nome}}, tudo bem?" vira "Oi tudo bem, tudo bem?". Foi o que a prévia
+ * acusou na primeira rodada.
+ *
+ * Vazio também produziria defeito — "Oi , tudo bem?", e a vírgula órfã é
+ * justamente o que denuncia o disparo em massa. Por isso vazio vem acompanhado
+ * de `engolirPontuacaoOrfa`, abaixo: a substituição vazia leva com ela a
+ * vírgula que a seguia.
+ *
+ * Quem quiser palavra no lugar escreve no marcador: `{{nome|amiga}}`.
+ */
 const PADRAO_DE_QUEDA: Record<keyof CamposDaMesclagem, string> = {
-    // "Olá, tudo bem?" em vez de "Olá , tudo bem?" — a vírgula órfã é o que
-    // denuncia o disparo em massa.
-    nome: 'tudo bem',
+    nome: '',
     nomeCompleto: '',
     unidade: '',
 }
 
 /**
- * Troca `{{nome}}` pelo valor, ou pelo padrão de queda quando não há valor.
+ * Troca `{{nome}}` pelo valor; `{{nome|amiga}}` usa "amiga" quando não há valor.
  *
  * Marcador desconhecido fica **como está**, visível. Apagá-lo em silêncio
  * esconderia o erro de digitação até o e-mail já ter saído para dois mil
  * contatos; deixá-lo à vista faz a prévia na tela acusar antes do disparo.
+ *
+ * Quando a substituição resulta em vazio, a vírgula (ou o travessão, ou os dois
+ * pontos) que vinha logo depois é engolida junto — senão "Olá {{nome}}, tudo
+ * bem?" viraria "Olá , tudo bem?" para todo contato sem nome cadastrado, que é
+ * metade de uma base importada de planilha.
  */
 export function aplicarCampos(texto: string, campos: CamposDaMesclagem): string {
-    return texto.replace(/\{\{\s*(\w+)\s*\}\}/g, (inteiro, chave: string) => {
-        if (!(chave in PADRAO_DE_QUEDA)) return inteiro
-        const nome = chave as keyof CamposDaMesclagem
-        const valor = campos[nome]
-        return valor && valor.trim().length > 0 ? valor.trim() : PADRAO_DE_QUEDA[nome]
-    })
+    return texto.replace(
+        // O espaço ANTES e a pontuação DEPOIS entram na captura: é o que permite
+        // engolir a pontuação órfã sem uma segunda passada sobre o texto.
+        /([ \t]*)\{\{\s*(\w+)\s*(?:\|([^}]*))?\}\}([,;:—-]?[ \t]*)/g,
+        (inteiro, antes: string, chave: string, queda: string | undefined, depois: string) => {
+            if (!(chave in PADRAO_DE_QUEDA)) return inteiro
+
+            const nome = chave as keyof CamposDaMesclagem
+            const valor = campos[nome]
+            const resolvido =
+                valor && valor.trim().length > 0
+                    ? valor.trim()
+                    : (queda ?? PADRAO_DE_QUEDA[nome]).trim()
+
+            // Resolveu em algo: o texto segue inteiro, pontuação inclusa.
+            if (resolvido.length > 0) return antes + resolvido + depois
+
+            /**
+             * Resolveu em nada. Três desfechos, e cada um corrige uma frase que
+             * a prévia (`scripts/previa-campanha.ts`) pegou errada:
+             *
+             * - pontuação logo depois → ela era do nome, vai com ele, e o espaço
+             *   da frente também: "Oi {{nome}}, tudo bem?" → "Oi tudo bem?"
+             * - nada depois → o marcador fechava a frase: "Olá {{nome}}!" → "Olá!"
+             * - só espaço depois → sobra **um** separador, senão as palavras
+             *   vizinhas colam: "Oi {{nome}} tudo bem?" → "Oi tudo bem?"
+             */
+            // Nada depois: o marcador fechava a frase, e o espaço da frente
+            // iria sobrar. "Olá {{nome}}!" → "Olá!"
+            if (depois.length === 0) return ''
+
+            // Sobra **um** separador, o da frente — e ele é vazio quando o
+            // marcador abria a frase. A pontuação de `depois` vai embora com o
+            // nome, porque era dele:
+            //   "Oi {{nome}}, tudo bem?"  → "Oi tudo bem?"
+            //   "{{nome}}, bem-vinda"     → "bem-vinda"
+            //   "Oi {{nome}} tudo bem?"   → "Oi tudo bem?"
+            return antes
+        }
+    )
 }
 
 /** O primeiro nome, para `{{nome}}`. */

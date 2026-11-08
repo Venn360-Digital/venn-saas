@@ -1,6 +1,7 @@
 import 'server-only'
 import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
+import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 
 /**
  * O filtro que origina uma lista de contatos — o mesmo vocabulário da tela de
@@ -15,17 +16,40 @@ export interface FiltroDeLista {
     search?: string | null
     /** Exclui quem pediu para não receber automáticos. Padrão: true. */
     excluirOptOut?: boolean
+    /**
+     * Por qual canal esta lista serve. Padrão `whatsapp` — era o único canal
+     * quando o módulo nasceu, e manter o padrão preserva as listas já criadas.
+     *
+     * **Muda quem entra na lista**, não só o rótulo: ver `whereDoFiltro`.
+     */
+    canal?: CanalDeCampanha
 }
 
-/** Monta o `where` a partir do filtro, sempre preso ao workspace. */
+/**
+ * Monta o `where` a partir do filtro, sempre preso ao workspace.
+ *
+ * ## Os dois eixos que o canal move
+ *
+ * **Endereço.** Contato sem telefone não recebe WhatsApp, e contato sem e-mail
+ * não recebe e-mail. O recorte acontece aqui, na origem da lista, e não no
+ * disparo: deixar passar faria a contagem da tela mentir sobre o alcance — a
+ * clínica veria "2.000 contatos" numa lista de e-mail onde 1.300 não têm
+ * endereço, e descobriria no relatório da campanha.
+ *
+ * **Opt-out.** São colunas separadas de propósito: quem se descadastrou da
+ * newsletter não pediu que o atendimento por WhatsApp parasse, e quem respondeu
+ * "pare" no WhatsApp não pediu para sair da newsletter. Consultar a coluna
+ * errada calaria o canal onde a clínica de fato atende.
+ */
 function whereDoFiltro(workspaceId: string, filtro: FiltroDeLista): Prisma.ContactWhereInput {
     const and: Prisma.ContactWhereInput[] = [{ workspaceId }]
 
-    // Broadcast precisa de número: contato sem telefone não recebe WhatsApp.
-    and.push({ phone: { not: null } })
+    const porEmail = filtro.canal === 'email'
+
+    and.push(porEmail ? { email: { not: null } } : { phone: { not: null } })
 
     if (filtro.excluirOptOut !== false) {
-        and.push({ autoMessagesPausedAt: null })
+        and.push(porEmail ? { emailOptOutAt: null } : { autoMessagesPausedAt: null })
     }
     if (filtro.tagId) {
         and.push({ tags: { some: { tagId: filtro.tagId } } })
@@ -41,7 +65,11 @@ function whereDoFiltro(workspaceId: string, filtro: FiltroDeLista): Prisma.Conta
         and.push({
             OR: [
                 { name: { contains: s, mode: 'insensitive' } },
-                { phone: { contains: s } },
+                // O segundo termo acompanha o canal: buscar por telefone numa
+                // lista de e-mail nao acha quem a pessoa esta procurando.
+                porEmail
+                    ? { email: { contains: s, mode: 'insensitive' } }
+                    : { phone: { contains: s } },
             ],
         })
     }
