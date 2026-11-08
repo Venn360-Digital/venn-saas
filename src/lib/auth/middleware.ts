@@ -131,6 +131,18 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
          * oposto do que a LGPD pretende.
          */
         pathname === '/privacidade' ||
+        /**
+         * O `robots.txt`.
+         *
+         * Sem esta linha ele cai na regra larga e um crawler que o pede recebe
+         * `307 → /login?redirectTo=%2Frobots.txt` — um convite para entrar na
+         * conta no lugar do arquivo que diz o que pode ser rastreado. Foi o que
+         * aconteceu até 2026-11-08.
+         *
+         * Público por definição: é lido **antes** de qualquer sessão existir, e
+         * por quem nunca vai ter uma.
+         */
+        pathname === '/robots.txt' ||
         // Container probe.
         pathname === '/api/health'
 
