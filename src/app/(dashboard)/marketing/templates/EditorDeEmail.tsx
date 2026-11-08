@@ -8,7 +8,6 @@ import {
     Image as ImageIcon,
     Minus,
     MousePointerClick,
-    Plus,
     Text as TextIcon,
     Trash2,
 } from 'lucide-react'

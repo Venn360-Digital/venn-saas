@@ -121,3 +121,32 @@ export async function adicionarMembros(listId: string, contactIds: string[]): Pr
     })
     return res.count
 }
+
+/**
+ * Quem é destinatário elegível de uma campanha, por canal.
+ *
+ * ## Por que isto é uma função e não dois `where` parecidos
+ *
+ * Dois lugares precisam da mesma resposta: a rota de disparo, que **estima** o
+ * alcance para conferir o teto do plano, e `congelarDestinatarios`, que
+ * **grava** os destinatários. Escritos separados, eles divergem — e o sintoma é
+ * cruel: a tela confere o plano contra 2.000, o disparo grava 700, e ninguém
+ * descobre até alguém comparar o relatório com a expectativa.
+ *
+ * Os dois eixos que o canal move são o endereço (telefone × e-mail) e a coluna
+ * de opt-out, que são separadas de propósito — ver `whereDoFiltro`.
+ */
+export function whereDeDestinatarios(
+    workspaceId: string,
+    canal: CanalDeCampanha,
+    listIds: string[]
+): Prisma.ContactWhereInput {
+    const porEmail = canal === 'email'
+    return {
+        workspaceId,
+        ...(porEmail
+            ? { email: { not: null }, emailOptOutAt: null }
+            : { phone: { not: null }, autoMessagesPausedAt: null }),
+        listMemberships: { some: { listId: { in: listIds } } },
+    }
+}

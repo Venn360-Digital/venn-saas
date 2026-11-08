@@ -18,6 +18,7 @@ import {
     type CamposDaMesclagem,
 } from '@/lib/email/blocos'
 import { urlDeDescadastro } from '@/lib/marketing/descadastro'
+import { whereDeDestinatarios } from '@/lib/marketing/lists'
 import { BRAND } from '@/config/brand'
 
 const log = createLogger('BROADCAST')
@@ -73,15 +74,15 @@ export async function congelarDestinatarios(broadcastId: string): Promise<number
      * só para os dois calaria o canal onde a clínica de fato atende.
      */
     const membros = await prisma.contact.findMany({
-        where: {
-            // Redundante com o escopo das listas, e de propósito: esconder da
-            // consulta não é autorização, e o custo de repetir é zero.
-            workspaceId: broadcast.workspaceId,
-            ...(porEmail
-                ? { email: { not: null }, emailOptOutAt: null }
-                : { phone: { not: null }, autoMessagesPausedAt: null }),
-            listMemberships: { some: { listId: { in: listIds } } },
-        },
+        // O MESMO predicado que a rota de disparo usa para estimar o alcance e
+        // conferir o teto do plano. Escritos separados, eles divergiriam — e o
+        // sintoma seria o plano aprovado contra um número e a campanha saindo
+        // com outro.
+        where: whereDeDestinatarios(
+            broadcast.workspaceId,
+            porEmail ? 'email' : 'whatsapp',
+            listIds
+        ),
         select: { id: true, phone: true, email: true },
     })
 
