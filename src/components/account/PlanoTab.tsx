@@ -1,7 +1,15 @@
 'use client'
 
-import { UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
-import { limitsFor, PLAN_PRICES, isPlanId } from '@/lib/plan-limits'
+import { TREINAMENTO_DE_AGENTE, UNIDADE_ADICIONAL, formatPrice, redesDoPlano } from '@/lib/plans'
+import {
+    CICLOS,
+    PLAN_PRICES,
+    cicloDe,
+    isPlanId,
+    limitsFor,
+    valorDaFatura,
+    type BillingCycle,
+} from '@/lib/plan-limits'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -11,20 +19,24 @@ import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import {
     AlertTriangle,
     ArrowUpDown,
+    Ban,
     Building2,
     Lock,
     Check,
     CreditCard,
     Gift,
+    GraduationCap,
     Loader2,
     Minus,
     Plus,
     Receipt,
+    RotateCcw,
     X
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BILLING_UPDATED } from '@/components/layout/AppSidebar'
 import { CancelarAssinaturaCard } from '@/components/account/CancelarAssinaturaCard'
+import { DadosDeCobrancaDialog } from '@/components/account/DadosDeCobrancaDialog'
 
 /**
  * Uma célula de consumo: rótulo, "usado de total", barra fina e a validade.
@@ -104,6 +116,18 @@ interface SubscriptionData {
     } | null
     trialEndsAt: string | null
     currentPeriodEnd: string | null
+    /** Mensal ou anual — o ciclo de **cobrança**. */
+    billingCycle?: string | null
+    /**
+     * Quando a próxima cobrança cai.
+     *
+     * Diferente de `currentPeriodEnd`, que é quando o crédito renova. As duas
+     * coincidem no mensal e se afastam no anual, e a tela precisa das duas para
+     * não chamar as duas coisas de "renovação".
+     */
+    renewsAt?: string | null
+    /** Quando o cancelamento foi pedido. A faixa de aviso nasce disto. */
+    canceledAt?: string | null
     /** Até quando a clínica tem para pagar, quando há cobrança vencida. */
     graceEndsAt?: string | null
     /** Cada contratação de unidade viva, para a faixa enfileirá-las. */
@@ -129,6 +153,47 @@ interface SubscriptionData {
         advanced: PlanConfig
     }
     creditPacks: { credits: number; price: number; discount: number; pitch: string }[]
+    /** O treinamento de agente: preço do dia, promoção e os textos da tela. */
+    treinamento?: {
+        name: string
+        pitch: string
+        rodape: string
+        maximoPorCompra: number
+        valor: number
+        cheio: number
+        promocional: boolean
+        promoAte: string
+    }
+    /** Os treinamentos já contratados, um por linha. */
+    treinamentos?: {
+        id: string
+        createdAt: string
+        priceCents: number
+        origin: string
+        status: string
+        doneAt: string | null
+    }[]
+    /**
+     * O estado dos dados de cobrança — é o que permite pedir o que falta
+     * **nesta** tela em vez de mandar a pessoa para outra guia.
+     */
+    cobranca?: {
+        completo: boolean
+        podeCobrar: boolean
+        faltando: string[]
+        souMaster: boolean
+        dados: {
+            cpfCnpj: string | null
+            postalCode: string | null
+            address: string | null
+            addressNumber: string | null
+            complement: string | null
+            province: string | null
+            city: string | null
+            state: string | null
+            billingPhone: string | null
+        } | null
+    } | null
     /** Os cartões que já pagaram algo desta conta — é entre eles que se troca. */
     cartoes?: {
         id: string
@@ -203,6 +268,10 @@ interface PlanConfig {
     price: number
     badge: string | null
     features: { text: string; strong?: boolean }[]
+    /** O preço nos dois ciclos, calculado pelo servidor. */
+    precos?: Record<BillingCycle, { fatura: number; mensal: number }>
+    /** Quantos treinamentos o plano inclui, por ciclo. */
+    treinamentoIncluido?: Record<BillingCycle, number>
     maxAgents: number
     maxMessages: number
     maxWhatsAppNumbers: number
@@ -241,6 +310,32 @@ export function PlanoTab() {
     const [pacoteEscolhido, setPacoteEscolhido] = useState<number | null>(null)
     /** Quantas unidades adicionais nesta compra. R$ 290 por mês cada. */
     const [unidadesEscolhidas, setUnidadesEscolhidas] = useState(0)
+    /** Quantos treinamentos de agente nesta compra. Compra única. */
+    const [treinamentosEscolhidos, setTreinamentosEscolhidos] = useState(0)
+
+    /**
+     * O ciclo escolhido no diálogo de plano — mensal ou anual.
+     *
+     * Nasce igual ao da assinatura (ver o efeito em `loadSubscription`), e não
+     * em "anual" para vender melhor: o padrão de uma tela que cobra não pode
+     * ser o que rende mais. Quem está no mensal e abre o diálogo para trocar de
+     * plano não deve sair dele com doze meses contratados sem ter pedido.
+     */
+    const [cicloEscolhido, setCicloEscolhido] = useState<BillingCycle>('monthly')
+
+    /**
+     * O formulário de dados de cobrança, e a ação que ele estava bloqueando.
+     *
+     * A intenção fica guardada porque é ela que faz o fluxo valer a pena: a
+     * pessoa escolheu Multiclínica anual, descobriu que falta o CNPJ, preencheu
+     * — e o pagamento abre no Multiclínica anual, sem ter de escolher de novo.
+     * Sem isto, o formulário inline seria só um atalho mais curto para o mesmo
+     * recomeço.
+     */
+    const [showCobrancaModal, setShowCobrancaModal] = useState(false)
+    const [intencao, setIntencao] = useState<
+        { tipo: 'plano'; plano: string; ciclo: BillingCycle } | { tipo: 'adicionais' } | null
+    >(null)
 
     /**
      * A janela do checkout, enquanto estiver aberta.
@@ -297,6 +392,17 @@ export function PlanoTab() {
      */
     const [avisoDispensado, setAvisoDispensado] = useState(false)
 
+    /**
+     * O ciclo que a conta **tem** — distinto do que está escolhido no diálogo.
+     *
+     * Declarado aqui, no topo, e não junto dos outros derivados: ele é lido por
+     * `handleChangePlan`, e uma constante declarada depois da função que a usa
+     * fica a um passo de ser lida antes de existir. O precedente da casa é claro
+     * sobre isso — `tsc` não acusa TDZ dentro de callback, e o primeiro render
+     * acusa.
+     */
+    const cicloDoPlano = cicloDe(subscription?.billingCycle)
+
     useEffect(() => {
         loadSubscription()
     }, [])
@@ -315,6 +421,15 @@ export function PlanoTab() {
                 const data = await res.json()
                 setSubscription(data)
                 setSelectedPlan(data.plan)
+                /**
+                 * O alternador começa no ciclo que a conta tem.
+                 *
+                 * Aqui e não num `useState` inicial: a assinatura chega depois
+                 * da primeira pintura, e um padrão fixo faria o cliente anual
+                 * abrir o diálogo vendo preços mensais — e concluir que o
+                 * desconto dele sumiu.
+                 */
+                setCicloEscolhido(cicloDe(data.billingCycle))
             }
         } catch (error) {
             console.error('Error loading subscription:', error)
@@ -348,6 +463,24 @@ export function PlanoTab() {
     useEffect(() => {
         void loadCobrancas()
     }, [loadCobrancas])
+
+    /**
+     * E relê quando **outro** pedaço da tela mexe na cobrança.
+     *
+     * Concretamente: o cartão de cancelar vive no fim desta mesma guia, busca o
+     * que precisa por conta própria e não conhece este componente. Sem este
+     * ouvinte, cancelar lá deixava a faixa de "assinatura cancelada" daqui
+     * invisível até alguém recarregar a página — o estado mais importante da
+     * tela, ausente da tela.
+     *
+     * Não há laço: `loadSubscription` lê, não dispara o evento. Quem dispara é
+     * quem escreve.
+     */
+    useEffect(() => {
+        const aoMudar = () => void loadSubscription()
+        window.addEventListener(BILLING_UPDATED, aoMudar)
+        return () => window.removeEventListener(BILLING_UPDATED, aoMudar)
+    }, [loadSubscription])
 
     /**
      * As unidades da conta, para a tela de contratações.
@@ -399,6 +532,46 @@ export function PlanoTab() {
     }, [loadUnidades, loadSubscription])
 
     /**
+     * Desfaz o cancelamento da assinatura.
+     *
+     * O caminho de volta que não existia: até 2026-11-07 cancelar produzia um
+     * aviso no rodapé e nada mais — nenhum estado na tela, nenhuma saída. Agora
+     * a faixa diz o que aconteceu e este botão reverte, enquanto o período pago
+     * estiver correndo.
+     *
+     * O servidor recria a cobrança no gateway antes de mudar qualquer coisa, e
+     * recusa quando não há cartão salvo (ver a ação `resume`). Quando ele
+     * recusa por isso, o caminho é contratar — e a mensagem dele já diz.
+     */
+    const desfazerCancelamento = useCallback(async () => {
+        setProcessing(true)
+        try {
+            const res = await fetch('/api/account/subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resume' }),
+            })
+            const data = await res.json()
+
+            if (res.ok) {
+                toast.success(data.message)
+                await loadSubscription()
+                window.dispatchEvent(new Event(BILLING_UPDATED))
+            } else if (data.precisaContratar) {
+                toast.error(data.error, {
+                    action: { label: 'Contratar', onClick: () => setShowPlanModal(true) },
+                })
+            } else {
+                toast.error(data.error || 'Não foi possível desfazer o cancelamento')
+            }
+        } catch {
+            toast.error('Não foi possível desfazer o cancelamento')
+        } finally {
+            setProcessing(false)
+        }
+    }, [loadSubscription])
+
+    /**
      * Troca o cartão da mensalidade por um que já pagou algo desta conta.
      *
      * Não há campo de número de cartão nesta tela, e isso é desenho: o número
@@ -439,10 +612,49 @@ export function PlanoTab() {
      * atual, o primeiro clique em qualquer cartão mandava o plano atual e caía
      * no "este já é o seu plano" — nada acontecia, e a tela parecia travada.
      */
-    const handleChangePlan = async (plano: string) => {
+    const handleChangePlan = async (
+        plano: string,
+        ciclo: BillingCycle = cicloEscolhido,
+        /**
+         * Pular a conferência dos dados de cobrança.
+         *
+         * Serve a um caminho só: a retomada depois de o formulário gravar.
+         * `loadSubscription` é assíncrona e o estado novo não chega no mesmo
+         * tick, então o portão abaixo ainda leria "incompleto" e reabriria o
+         * formulário — um laço com o diálogo piscando. Quem acabou de gravar
+         * sabe que está completo, e o servidor confere de novo de qualquer forma.
+         */
+        jaConferido = false
+    ) => {
         if (!plano) return
-        if (plano === subscription?.plan) {
+        if (plano === subscription?.plan && ciclo === cicloDoPlano) {
             toast.error('Este já é o seu plano atual')
+            return
+        }
+
+        /**
+         * **Os dados de cobrança primeiro, aqui dentro.**
+         *
+         * O servidor recusa a contratação sem o conjunto completo, e até
+         * 2026-11-07 essa recusa virava um atalho para outra guia: a pessoa saía
+         * da escolha do plano, preenchia, voltava e escolhia de novo. Perguntando
+         * antes de abrir a janela, o formulário entra **em cima** desta tela e a
+         * contratação continua de onde parou (ver `intencao`).
+         *
+         * A pergunta é feita pelo que o servidor já disse na carga da tela, e a
+         * recusa continua existindo no servidor: duas abas abertas, ou um
+         * `fetch` à mão, não passam por aqui.
+         */
+        if (!jaConferido && subscription?.cobranca && !subscription.cobranca.completo) {
+            if (!subscription.cobranca.souMaster) {
+                toast.error(
+                    'Faltam dados de cobrança da conta, e só o responsável por ela pode ' +
+                        'preenchê-los.'
+                )
+                return
+            }
+            setIntencao({ tipo: 'plano', plano, ciclo })
+            setShowCobrancaModal(true)
             return
         }
 
@@ -483,7 +695,7 @@ export function PlanoTab() {
             const res = await fetch('/api/account/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'change-plan', plan: plano })
+                body: JSON.stringify({ action: 'change-plan', plan: plano, cycle: ciclo })
             })
 
             if (res.ok) {
@@ -552,10 +764,20 @@ export function PlanoTab() {
                  * procurar o problema no lugar errado.
                  */
                 if (error.faltaDocumento) {
+                    /**
+                     * A corrida: a tela achava que os dados estavam completos e
+                     * o servidor discordou (outra aba gravou, ou a carga era
+                     * velha). Abre o formulário aqui mesmo e retoma — o atalho
+                     * para `?tab=empresa` que havia aqui era o caminho que o
+                     * Andre pediu para acabar.
+                     */
                     toast.error(error.error, {
                         action: {
                             label: 'Preencher',
-                            onClick: () => router.replace(`${pathname}?tab=empresa`),
+                            onClick: () => {
+                                setIntencao({ tipo: 'plano', plano, ciclo })
+                                setShowCobrancaModal(true)
+                            },
                         },
                     })
                     return
@@ -601,6 +823,7 @@ export function PlanoTab() {
                         action: 'buy-addons',
                         credits: pacoteEscolhido ?? undefined,
                         units: unidadesEscolhidas,
+                        trainings: treinamentosEscolhidos,
                         cardToken: comCartao,
                     }),
                 })
@@ -611,6 +834,7 @@ export function PlanoTab() {
                     setShowCreditsModal(false)
                     setPacoteEscolhido(null)
                     setUnidadesEscolhidas(0)
+                    setTreinamentosEscolhidos(0)
                     await loadSubscription()
                     window.dispatchEvent(new Event(BILLING_UPDATED))
                 } else {
@@ -644,6 +868,7 @@ export function PlanoTab() {
                     action: 'buy-addons',
                     credits: pacoteEscolhido ?? undefined,
                     units: unidadesEscolhidas,
+                    trainings: treinamentosEscolhidos,
                 }),
             })
 
@@ -680,12 +905,28 @@ export function PlanoTab() {
                 setShowCreditsModal(false)
                 setPacoteEscolhido(null)
                 setUnidadesEscolhidas(0)
+                setTreinamentosEscolhidos(0)
                 await loadSubscription()
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
                 janelaDoPagamento.current?.close()
                 janelaDoPagamento.current = null
                 const error = await res.json()
+
+                /** Mesma volta do plano: o formulário abre aqui e a compra segue. */
+                if (error.faltaDocumento && subscription?.cobranca?.souMaster) {
+                    toast.error(error.error, {
+                        action: {
+                            label: 'Preencher',
+                            onClick: () => {
+                                setIntencao({ tipo: 'adicionais' })
+                                setShowCobrancaModal(true)
+                            },
+                        },
+                    })
+                    return
+                }
+
                 toast.error(error.error || 'Erro ao comprar adicionais')
             }
         } catch {
@@ -860,8 +1101,17 @@ export function PlanoTab() {
      */
     const mensalDosAdicionais = (u?.cobraveis ?? 0) * UNIDADE_ADICIONAL.price
 
-    /** O que a compra em aberto custa, separado por natureza. */
-    const aPagarAgora = pacote?.price ?? 0
+    /** O preço do treinamento hoje — do servidor, que é quem decide preço. */
+    const treinamento = subscription?.treinamento ?? null
+
+    /**
+     * O que a compra em aberto custa, separado por natureza.
+     *
+     * O treinamento soma em **"agora, uma vez"**, junto do crédito: é serviço
+     * com começo e fim, não linha de mensalidade. Somá-lo ao "por mês" diria
+     * que a clínica vai pagar R$ 2.400 todo mês por um trabalho que acabou.
+     */
+    const aPagarAgora = (pacote?.price ?? 0) + treinamentosEscolhidos * (treinamento?.valor ?? 0)
     const aPagarPorMes = unidadesEscolhidas * UNIDADE_ADICIONAL.price
 
     if (loading) {
@@ -974,7 +1224,24 @@ export function PlanoTab() {
     /** A conta que o card nunca mostrou: plano + adicionais. */
     const mensalidadeTotal = precoDoPlano + mensalDosAdicionais
 
+    /**
+     * O que a **próxima fatura** cobra — que no anual não é a mensalidade.
+     *
+     * O card mostra este número grande, com o período ao lado ("por ano"), e o
+     * extrato logo abaixo continua em valores mensais: é assim que o cliente
+     * anual confere a conta sem dividir R$ 9.612 por doze de cabeça.
+     */
+    const valorDaProximaFatura = valorDaFatura(
+        subscription?.plan,
+        u?.cobraveis ?? 0,
+        cicloDoPlano
+    )
+
     const temPlano = Boolean(subscription?.plan)
+    const anual = cicloDoPlano === 'annual'
+
+    /** A assinatura foi cancelada e o período pago ainda está correndo. */
+    const cancelada = subscription?.status === 'canceled'
 
     /**
      * Quando cai a próxima cobrança.
@@ -982,13 +1249,25 @@ export function PlanoTab() {
      * Na avaliação é o fim dela — ali a primeira cobrança é o que a pessoa quer
      * saber, e `currentPeriodEnd` ainda não significa nada.
      */
+    /**
+     * A data da cobrança vem de `renewsAt`, com queda para trás na franquia.
+     *
+     * Antes as duas eram a mesma coluna. Com o ciclo anual elas se separam, e
+     * confundi-las aqui diria ao cliente anual que ele será cobrado em trinta
+     * dias — a pior frase possível numa tela de assinatura.
+     */
+    const dataDaCobranca = subscription?.renewsAt ?? subscription?.currentPeriodEnd ?? null
     const cobrancaEm = isTrialing
         ? subscription?.trialEndsAt
             ? new Date(subscription.trialEndsAt).toLocaleDateString('pt-BR', {
                   timeZone: 'America/Sao_Paulo',
               })
             : null
-        : renovaEm
+        : dataDaCobranca
+          ? new Date(dataDaCobranca).toLocaleDateString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+            })
+          : null
 
     /**
      * O atraso, e até quando ele pode ser resolvido sem parar a clínica.
@@ -1120,6 +1399,44 @@ export function PlanoTab() {
                 avaliação" e concluiria que o pagamento falhou — e aí paga de
                 novo. É o estado que o sistema nunca teve: "recebemos, estamos
                 esperando a confirmação". */}
+            {/* O CANCELAMENTO, NA TELA — e com volta.
+                O Andre, em 2026-11-07: "ao cancelar só aparece um pop-up no
+                rodapé". O toast dura segundos e leva embora a única notícia de
+                que a assinatura não vai renovar; quem fecha a tela e volta
+                amanhã não encontra vestígio nenhum. A faixa fica, diz até
+                quando o acesso vale, e traz o botão que reverte.
+
+                Acima do atraso de propósito: numa conta cancelada o atraso é
+                notícia velha — o que importa é que não há renovação. */}
+            {cancelada ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-destructive-subtle/50 px-5 py-4 md:px-6">
+                    <div className="flex items-start gap-3">
+                        <Ban className="mt-0.5 size-6 shrink-0 text-destructive-subtle-foreground" />
+                        <div>
+                            <p className="font-medium">
+                                Assinatura cancelada — sem renovação automática.
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {cobrancaEm
+                                    ? `O ${subscription?.planName ?? 'plano'} continua valendo até ${cobrancaEm}, e nada mais será cobrado. Depois dessa data os agentes param de responder e os números de WhatsApp são desconectados.`
+                                    : 'Nada mais será cobrado. Depois do fim do período os agentes param de responder.'}
+                            </p>
+                        </div>
+                    </div>
+                    {/* O botão existe enquanto o período pago corre: depois
+                        dele não há o que desfazer — seria um ciclo que ninguém
+                        pagou —, e o servidor recusa com essa razão. */}
+                    <Button
+                        variant="outline"
+                        disabled={processing}
+                        onClick={() => void desfazerCancelamento()}
+                    >
+                        <RotateCcw className="size-4" />
+                        Desfazer cancelamento
+                    </Button>
+                </div>
+            ) : null}
+
             {/* O ATRASO, antes de tudo.
                 Não é a mesma coisa que o aviso de avaliação: ali a clínica
                 ainda não pagou nada e aqui ela já é cliente. A faixa diz o
@@ -1202,18 +1519,31 @@ export function PlanoTab() {
                 <div className="px-5 pb-3 pt-5">
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            {isTrialing ? 'Primeira cobrança' : 'Próxima cobrança'}
+                            {cancelada
+                                ? 'Sem próxima cobrança'
+                                : isTrialing
+                                  ? 'Primeira cobrança'
+                                  : 'Próxima cobrança'}
                         </p>
                         <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                             {temPlano ? (
                                 <>
+                                    {/* O valor é o da **fatura**, não o da
+                                        mensalidade: numa conta anual são doze
+                                        meses com 10% de desconto, e mostrar a
+                                        mensalidade aqui faria o cliente esperar
+                                        R$ 801 e receber uma fatura de R$ 9.612.
+                                        O extrato logo abaixo segue em valores
+                                        mensais, que é como se confere a conta. */}
                                     <span className="num text-[2.25rem] font-bold leading-none tracking-tight">
-                                        {formatPrice(mensalidadeTotal)}
+                                        {formatPrice(valorDaProximaFatura)}
                                     </span>
                                     <span className="text-sm text-muted-foreground">
+                                        {anual ? 'por ano' : 'por mês'}
                                         {cobrancaEm ? (
                                             <>
-                                                em{' '}
+                                                {' · '}
+                                                {cancelada ? 'acesso até ' : 'em '}
                                                 <span className="num font-semibold text-foreground">
                                                     {cobrancaEm}
                                                 </span>
@@ -1268,6 +1598,39 @@ export function PlanoTab() {
                                     {formatPrice(mensalDosAdicionais)}
                                 </p>
                             </div>
+                        ) : null}
+
+                        {/* O ANUAL FECHA A CONTA NA TELA.
+                            As duas linhas acima são mensais — é como se confere
+                            o que foi contratado —, e a fatura anual é outro
+                            número. Sem estas duas linhas, o cliente anual veria
+                            "R$ 890 + R$ 580" embaixo de um total de R$ 15.876 e
+                            não teria como chegar de um ao outro. */}
+                        {anual ? (
+                            <>
+                                <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border py-2">
+                                    <p className="text-sm">
+                                        12 meses
+                                        <span className="text-muted-foreground">
+                                            {' · '}assinatura anual, cobrada de uma vez
+                                        </span>
+                                    </p>
+                                    <p className="num text-sm font-semibold">
+                                        {formatPrice(mensalidadeTotal * 12)}
+                                    </p>
+                                </div>
+                                <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border py-2">
+                                    <p className="text-sm">
+                                        Desconto anual
+                                        <span className="text-muted-foreground">
+                                            {' · '}10% em todos os planos
+                                        </span>
+                                    </p>
+                                    <p className="num text-sm font-semibold text-success-subtle-foreground">
+                                        −{formatPrice(mensalidadeTotal * 12 - valorDaProximaFatura)}
+                                    </p>
+                                </div>
+                            </>
                         ) : null}
                     </div>
                 ) : null}
@@ -1454,6 +1817,67 @@ export function PlanoTab() {
                             </p>
                         </div>
                     ))}
+
+                    {/* E cada treinamento, com o **andamento** no lugar da
+                        validade — é serviço, e o que a clínica quer saber é se
+                        já foi feito. O que veio no plano aparece sem valor ao
+                        lado, dizendo de onde veio: sem isso, um R$ 0,00 numa
+                        lista de contratações pareceria defeito de cobrança. */}
+                    {subscription?.treinamentos?.map((t) => {
+                        const doPlano = t.origin === 'plan'
+                        const entregue = t.status === 'done'
+
+                        return (
+                            <div
+                                key={t.id}
+                                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-dashed border-border py-2 first:border-t-0 first:pt-0"
+                            >
+                                <div>
+                                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                                        Treinamento de agente
+                                        <span
+                                            className={cn(
+                                                'rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                                                entregue
+                                                    ? 'bg-success-subtle text-success-subtle-foreground'
+                                                    : 'bg-info-subtle text-info-subtle-foreground'
+                                            )}
+                                        >
+                                            {entregue
+                                                ? `entregue${
+                                                      t.doneAt
+                                                          ? ` em ${new Date(t.doneAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`
+                                                          : ''
+                                                  }`
+                                                : t.status === 'scheduled'
+                                                  ? 'agendado'
+                                                  : 'a agendar'}
+                                        </span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {doPlano
+                                            ? 'Incluído no plano, na assinatura de 12 meses'
+                                            : 'Serviço da nossa equipe: levantamento, documentos e ajuste das respostas'}
+                                    </p>
+                                </div>
+                                <p className="num text-sm font-semibold">
+                                    {doPlano ? (
+                                        <span className="font-normal text-muted-foreground">
+                                            incluído
+                                        </span>
+                                    ) : (
+                                        <>
+                                            {formatPrice(t.priceCents / 100)}
+                                            <span className="font-normal text-muted-foreground">
+                                                {' '}
+                                                uma vez
+                                            </span>
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                        )
+                    })}
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
@@ -1479,6 +1903,7 @@ export function PlanoTab() {
                                 onClick={() => {
                                     setPacoteEscolhido(null)
                                     setUnidadesEscolhidas(0)
+                                    setTreinamentosEscolhidos(0)
                                     setShowCreditsModal(true)
                                 }}
                             >
@@ -1934,6 +2359,56 @@ export function PlanoTab() {
                         </p>
                     )}
 
+                    {/* MENSAL OU ANUAL — a escolha que muda os três preços.
+                        Pedido do Andre em 2026-11-07: anual com 10% em todos os
+                        planos. Um alternador e não um quarto cartão: o ciclo é
+                        um eixo **sobre** os planos, e três cartões × dois ciclos
+                        seriam seis cartões para comparar.
+
+                        O padrão é o ciclo que a conta já tem (ver
+                        `cicloEscolhido`), nunca o que rende mais. */}
+                    <div
+                        className="flex flex-wrap items-center justify-center gap-2"
+                        role="radiogroup"
+                        aria-label="Ciclo de cobrança"
+                    >
+                        <div className="inline-flex rounded-lg border border-border bg-muted p-1">
+                            {(['monthly', 'annual'] as const).map((c) => {
+                                const ativo = cicloEscolhido === c
+                                return (
+                                    <button
+                                        key={c}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={ativo}
+                                        onClick={() => setCicloEscolhido(c)}
+                                        className={cn(
+                                            'flex items-center gap-1.5 rounded-md px-4 py-1.5 text-[13px] font-semibold transition-colors',
+                                            ativo
+                                                ? 'bg-card text-foreground shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        {CICLOS[c].label}
+                                        {/* O desconto vive no rótulo do anual, e
+                                            não numa frase ao lado: é a razão de
+                                            o botão existir. */}
+                                        {c === 'annual' ? (
+                                            <span className="rounded-full bg-success-subtle px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-success-subtle-foreground">
+                                                −10%
+                                            </span>
+                                        ) : null}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                        {cicloEscolhido === 'annual' ? (
+                            <p className="text-[12px] text-muted-foreground">
+                                Pago uma vez por ano. O crédito de IA continua renovando todo mês.
+                            </p>
+                        ) : null}
+                    </div>
+
                     {/* Plan Cards */}
                     <div className="grid flex-1 grid-cols-1 items-stretch gap-3 md:grid-cols-3">
                         {(['flow', 'pro', 'advanced'] as const).map((planKey) => {
@@ -1941,8 +2416,22 @@ export function PlanoTab() {
                             if (!plan) return null
 
                             const isSelected = selectedPlan === planKey
-                            const isCurrent = subscription?.plan === planKey
+                            /**
+                             * "Atual" é plano **e** ciclo.
+                             *
+                             * Sem o ciclo na conta, o cliente mensal que abrisse
+                             * a aba anual veria o seu plano marcado como atual e
+                             * o botão desabilitado — justamente no gesto de
+                             * contratar o anual.
+                             */
+                            const isCurrent =
+                                subscription?.plan === planKey && cicloEscolhido === cicloDoPlano
                             const isPopular = planKey === 'pro'
+                            const preco = plan.precos?.[cicloEscolhido]
+                            /** O mensal equivalente é o que se compara entre planos. */
+                            const porMes = preco?.mensal ?? plan.price
+                            const ganhaTreinamento =
+                                (plan.treinamentoIncluido?.[cicloEscolhido] ?? 0) > 0
 
                             return (
                                 <div
@@ -1986,10 +2475,23 @@ export function PlanoTab() {
 
                                     <p className="mt-2">
                                         <span className="num text-2xl font-bold">
-                                            R$ {plan.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            R$ {porMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
                                         <span className="text-xs text-muted-foreground"> /mês</span>
                                     </p>
+                                    {/* No anual, o que se cobra de fato — e o
+                                        preço de tabela riscado ao lado. Mostrar
+                                        só "R$ 801/mês" esconderia que a fatura é
+                                        de R$ 9.612 de uma vez, que é o que sai
+                                        do caixa da clínica. */}
+                                    {cicloEscolhido === 'annual' && preco ? (
+                                        <p className="num mt-0.5 text-[11px] text-muted-foreground">
+                                            <span className="line-through">
+                                                R$ {plan.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>{' '}
+                                            · {formatPrice(preco.fatura)} por ano
+                                        </p>
+                                    ) : null}
                                     <p className="mt-0.5 text-xs text-muted-foreground">{plan.description}</p>
 
                                     {/* "Conexões disponíveis", com o glifo real
@@ -2049,6 +2551,20 @@ export function PlanoTab() {
                                                 </span>
                                             </li>
                                         ))}
+                                        {/* O treinamento que o plano de topo dá
+                                            em 12 meses. Entra na lista e não numa
+                                            tarja: é um item do que se recebe, e
+                                            quem compara três cartões lê a lista.
+                                            Em negrito porque é o único item que
+                                            depende do ciclo — e vale R$ 2.400. */}
+                                        {ganhaTreinamento ? (
+                                            <li className="flex items-start gap-1.5 text-[12.5px] leading-snug">
+                                                <GraduationCap className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                                                <span className="font-semibold">
+                                                    Treinamento de 1 agente incluído
+                                                </span>
+                                            </li>
+                                        ) : null}
                                     </ul>
 
                                     {/* `mt-auto`: o botão fica no pé do cartão, na
@@ -2080,18 +2596,67 @@ export function PlanoTab() {
                                             onClick={(e) => {
                                                 e.stopPropagation()
                                                 setSelectedPlan(planKey)
-                                                void handleChangePlan(planKey)
+                                                void handleChangePlan(planKey, cicloEscolhido)
                                             }}
                                             disabled={isCurrent || processing}
                                         >
                                             {isCurrent ? <Check className="size-4" /> : <ArrowUpDown className="size-4" />}
-                                            {isCurrent ? 'Plano atual' : 'Contratar'}
+                                            {isCurrent
+                                                ? 'Plano atual'
+                                                : cicloEscolhido === 'annual'
+                                                  ? 'Contratar 12 meses'
+                                                  : 'Contratar'}
                                         </Button>
                                     </div>
                                 </div>
                             )
                         })}
                     </div>
+
+                    {/* O RODAPÉ DO TREINAMENTO — pedido do Andre em 2026-11-07
+                        para **as duas** telas de plano (esta e a do onboarding).
+
+                        Recomendação, não aviso: letra pequena, no fim, depois
+                        dos planos. Acima dos cartões ela disputaria com o preço;
+                        em faixa colorida pareceria alerta de problema. E diz o
+                        preço, porque recomendação sem preço manda o cliente
+                        perguntar — o número é o que permite decidir na hora. */}
+                    {treinamento ? (
+                        <p className="flex items-start gap-2 border-t border-border pt-3 text-[11.5px] leading-snug text-muted-foreground">
+                            <GraduationCap className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                            <span>
+                                {treinamento.rodape}{' '}
+                                {treinamento.promocional ? (
+                                    <>
+                                        De{' '}
+                                        <span className="num line-through">
+                                            {formatPrice(treinamento.cheio)}
+                                        </span>{' '}
+                                        por{' '}
+                                        <strong className="num">
+                                            {formatPrice(treinamento.valor)}
+                                        </strong>{' '}
+                                        — promoção até{' '}
+                                        <span className="num">
+                                            {new Date(
+                                                `${treinamento.promoAte}T12:00:00-03:00`
+                                            ).toLocaleDateString('pt-BR', {
+                                                timeZone: 'America/Sao_Paulo',
+                                            })}
+                                        </span>
+                                        . Contrate em <strong>Comprar adicionais</strong>.
+                                    </>
+                                ) : (
+                                    <>
+                                        <strong className="num">
+                                            {formatPrice(treinamento.valor)}
+                                        </strong>{' '}
+                                        por agente, em <strong>Comprar adicionais</strong>.
+                                    </>
+                                )}
+                            </span>
+                        </p>
+                    ) : null}
                 </div>
             </RecordDialog>
 
@@ -2100,9 +2665,9 @@ export function PlanoTab() {
                 open={showCreditsModal}
                 onOpenChange={setShowCreditsModal}
                 title="Comprar adicionais"
-                description="Dois adicionais, de naturezas diferentes: crédito é compra única, válida por 90 dias; unidade soma à mensalidade enquanto existir. Pode levar um, o outro, ou os dois."
+                description="Três adicionais, de naturezas diferentes: crédito e treinamento são compra única; unidade soma à mensalidade enquanto existir. Pode levar um, dois ou os três."
                 submitLabel="Comprar"
-                submitDisabled={!pacote && unidadesEscolhidas === 0}
+                submitDisabled={!pacote && unidadesEscolhidas === 0 && treinamentosEscolhidos === 0}
                 hideAgain
                 onSubmit={() => {
                     setCartaoDaCompra(cartaoSugerido?.asaasToken ?? null)
@@ -2122,9 +2687,16 @@ export function PlanoTab() {
                             </span>
                             <span className="num text-lg font-bold">{formatPrice(aPagarAgora)}</span>
                             <span className="num text-[11px] text-muted-foreground">
-                                {pacote
-                                    ? `${pacote.credits.toLocaleString('pt-BR')} créditos · 90 dias`
-                                    : 'nenhum crédito escolhido'}
+                                {[
+                                    pacote
+                                        ? `${pacote.credits.toLocaleString('pt-BR')} créditos · 90 dias`
+                                        : null,
+                                    treinamentosEscolhidos > 0
+                                        ? `${treinamentosEscolhidos} treinamento${treinamentosEscolhidos === 1 ? '' : 's'} de agente`
+                                        : null,
+                                ]
+                                    .filter(Boolean)
+                                    .join(' · ') || 'nada de compra única escolhido'}
                             </span>
                         </SummaryCard>
 
@@ -2312,6 +2884,109 @@ export function PlanoTab() {
                     existir</strong>, diferente do crédito, que é uma vez. Depois de contratar,
                     dê nome à clínica em <strong>Conta da Clínica</strong>. Até 10 por compra.
                 </p>
+
+                {/* TREINAMENTO DE AGENTE — compra única, como o crédito.
+                    Terceiro adicional, pedido do Andre em 2026-11-07. Fica
+                    depois da unidade e não antes do crédito porque é o de maior
+                    valor e o de decisão mais lenta: quem abriu esta tela para
+                    recarregar crédito não deve topar com R$ 2.400 primeiro.
+
+                    Contador e não cartão por quantidade, pela mesma razão da
+                    unidade: o preço é linear, então o que varia é um número. */}
+                {treinamento ? (
+                    <>
+                        <p className="col-span-2 mt-2 border-t border-border pt-4 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Treinamento de agente — compra única
+                        </p>
+
+                        <div className="col-span-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+                            <div className="min-w-[16rem] flex-1">
+                                <p className="flex flex-wrap items-baseline gap-2">
+                                    <span className="num text-2xl font-bold leading-none">
+                                        {formatPrice(treinamento.valor)}
+                                    </span>
+                                    {/* O preço de tabela riscado só quando há
+                                        promoção: riscar um valor que não mudou
+                                        seria desconto inventado. */}
+                                    {treinamento.promocional ? (
+                                        <>
+                                            <span className="num text-sm text-muted-foreground line-through">
+                                                {formatPrice(treinamento.cheio)}
+                                            </span>
+                                            <span className="rounded-full bg-success-subtle px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-success-subtle-foreground">
+                                                até{' '}
+                                                {new Date(
+                                                    `${treinamento.promoAte}T12:00:00-03:00`
+                                                ).toLocaleDateString('pt-BR', {
+                                                    timeZone: 'America/Sao_Paulo',
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                })}
+                                            </span>
+                                        </>
+                                    ) : null}
+                                    <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                                        por agente
+                                    </span>
+                                </p>
+                                <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
+                                    {treinamento.pitch}
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Menos um treinamento"
+                                    disabled={treinamentosEscolhidos === 0}
+                                    onClick={() =>
+                                        setTreinamentosEscolhidos((n) => Math.max(0, n - 1))
+                                    }
+                                >
+                                    <Minus className="size-4" />
+                                </Button>
+                                <span
+                                    className="num w-10 text-center text-xl font-bold"
+                                    aria-live="polite"
+                                    aria-label={`${treinamentosEscolhidos} treinamentos de agente`}
+                                >
+                                    {treinamentosEscolhidos}
+                                </span>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Mais um treinamento"
+                                    disabled={
+                                        treinamentosEscolhidos >= treinamento.maximoPorCompra
+                                    }
+                                    onClick={() =>
+                                        setTreinamentosEscolhidos((n) =>
+                                            Math.min(treinamento.maximoPorCompra, n + 1)
+                                        )
+                                    }
+                                >
+                                    <Plus className="size-4" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
+                            {treinamento.rodape} É <strong>serviço da nossa equipe</strong>, não
+                            uma função do sistema: depois da compra entramos em contato para
+                            agendar. Não se confunde com a tela <strong>Treinamento</strong>, onde
+                            você faz isso por conta própria.{' '}
+                            {/* Dito aqui porque é a tela onde alguém poderia
+                                comprar o que o plano já dá. */}
+                            O{' '}
+                            {subscription?.plans?.advanced?.name ?? 'plano de topo'} na assinatura
+                            de 12 meses já inclui o treinamento de 1 agente.
+                        </p>
+                    </>
+                ) : null}
+
             </RecordDialog>
 
 
@@ -2408,6 +3083,45 @@ export function PlanoTab() {
                 </div>
             </RecordDialog>
 
+
+            {/* OS DADOS DE COBRANÇA, SOBRE ESTA TELA.
+                O conserto do caminho que o Andre reprovou em 2026-11-07. Ele
+                abre quando falta documento ou endereço, grava na conta, e
+                `onPronto` retoma exatamente a ação que estava bloqueada — com o
+                plano e o ciclo já escolhidos. Ver `DadosDeCobrancaDialog`. */}
+            <DadosDeCobrancaDialog
+                open={showCobrancaModal}
+                onOpenChange={(aberto) => {
+                    setShowCobrancaModal(aberto)
+                    // Fechar sem gravar descarta a intenção: retomar mais tarde
+                    // uma contratação que a pessoa abandonou seria decidir por
+                    // ela.
+                    if (!aberto) setIntencao(null)
+                }}
+                iniciais={subscription?.cobranca?.dados ?? null}
+                motivo={
+                    intencao?.tipo === 'adicionais'
+                        ? 'Precisamos deles para abrir o pagamento dos adicionais.'
+                        : 'Precisamos deles para abrir o pagamento do plano.'
+                }
+                onPronto={async () => {
+                    const retomar = intencao
+                    setIntencao(null)
+                    /**
+                     * Relê antes de retomar.
+                     *
+                     * `subscription.cobranca.completo` é o que o portão de
+                     * `handleChangePlan` consulta; sem a releitura ele ainda diria
+                     * "incompleto" e reabriria este mesmo diálogo — um laço.
+                     */
+                    await loadSubscription()
+                    if (retomar?.tipo === 'plano') {
+                        await handleChangePlan(retomar.plano, retomar.ciclo, true)
+                    } else if (retomar?.tipo === 'adicionais') {
+                        await handleBuyAddons()
+                    }
+                }}
+            />
 
             {/* Cancelar não é um "tem certeza?": é a operação mais cara da
                 tela. O quadro diz até quando o plano vale e o que acontece

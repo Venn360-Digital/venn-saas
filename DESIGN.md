@@ -688,7 +688,26 @@ cinco partes abaixo e nenhuma a menos. Os componentes: `IndexFrame`,
    primária só liga quando a pessoa digita o e-mail da conta em uso. O
    servidor confere o mesmo e-mail — confirmação que só existe no navegador
    some com um `fetch`.
-6. **O alerta de exclusão (`ConfirmDialog`, `destructive`).** Pela lixeira da
+   **E o que foi cancelado fica dito na tela, com a volta junto** (2026-11-07):
+   um aviso que some em segundos é a única notícia de que a assinatura não
+   renova, e quem fecha a tela não encontra mais vestígio dela. O estado vira
+   faixa no topo da guia — até quando o acesso vale, e um botão que desfaz
+   enquanto o período pago corre. O mesmo botão aparece no cartão onde se
+   cancelou: é lá que a pessoa volta para procurar a volta.
+6. **O eixo que vale para vários cartões é um alternador, não mais um cartão.**
+   Mensal/Anual sobre os três planos é um segmentado de dois botões acima da
+   grade (`role="radiogroup"`), com o desconto no próprio rótulo do anual —
+   seis cartões para comparar três planos em dois ciclos seria pedir à pessoa
+   que guardasse metade na memória. **O padrão é o que a conta já tem**, nunca o
+   que rende mais: quem abre a tela para trocar de plano não pode sair dela com
+   doze meses contratados sem ter pedido.
+7. **O que falta para concluir se pede ali, e a ação continua.** Faltando um
+   dado da conta (documento, endereço de cobrança), o diálogo que o coleta abre
+   **sobre** o que a pessoa estava fazendo e, ao gravar, retoma a ação com as
+   escolhas intactas (`DadosDeCobrancaDialog`). Mandar para outra guia com um
+   roteiro de navegação — "Gerenciamento → Conta → Assinatura" — custa quatro
+   passos e perde a escolha no caminho.
+8. **O alerta de exclusão (`ConfirmDialog`, `destructive`).** Pela lixeira da
    ficha, pelo ⋮ da linha e pelo lote. Título "Excluir X" (no lote, "Excluir
    N X"), descrição que diz **o que se perde** ("será removida de todos os
    pacientes e conversas que a usam"), botão "Excluir". O lote apaga um a um,

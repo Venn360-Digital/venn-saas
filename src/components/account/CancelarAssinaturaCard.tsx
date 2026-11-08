@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, Check, X } from 'lucide-react'
+import { Ban, Check, RotateCcw, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,8 @@ interface Resumo {
     planName: string | null
     credits: number
     currentPeriodEnd: string | null
+    /** Quando a **cobrança** se repete — no anual, não é o fim da franquia. */
+    renewsAt: string | null
     trialEndsAt: string | null
     status: string
 }
@@ -50,38 +52,56 @@ export function CancelarAssinaturaCard() {
     const [digitado, setDigitado] = useState('')
     const [enviando, setEnviando] = useState(false)
 
-    useEffect(() => {
-        let cancelado = false
-
-        void Promise.all([
-            fetch('/api/account/subscription').then((r) => (r.ok ? r.json() : null)),
-            fetch('/api/account/profile').then((r) => (r.ok ? r.json() : null)),
-        ])
-            .then(([assinatura, perfil]) => {
-                if (cancelado) return
-                if (assinatura) {
-                    setResumo({
-                        planName: assinatura.planName ?? null,
-                        credits: assinatura.credits ?? 0,
-                        currentPeriodEnd: assinatura.currentPeriodEnd ?? null,
-                        trialEndsAt: assinatura.trialEndsAt ?? null,
-                        status: assinatura.status ?? 'none',
-                    })
-                }
-                if (perfil?.email) setAdminEmail(perfil.email)
-            })
-            .catch(() => {
-                // Sem o resumo o cartão ainda cancela: quem confere o e-mail e
-                // quem encerra de verdade é o servidor.
-            })
-
-        return () => {
-            cancelado = true
+    /**
+     * A leitura, extraída para poder ser refeita.
+     *
+     * Era um `useEffect` com o `fetch` dentro, e o cartão nunca relia: desfazer
+     * o cancelamento pela faixa do topo da guia deixava este cartão aqui
+     * embaixo ainda oferecendo "Desfazer", sobre uma assinatura já ativa.
+     */
+    const carregar = useCallback(async () => {
+        try {
+            const [assinatura, perfil] = await Promise.all([
+                fetch('/api/account/subscription').then((r) => (r.ok ? r.json() : null)),
+                fetch('/api/account/profile').then((r) => (r.ok ? r.json() : null)),
+            ])
+            if (assinatura) {
+                setResumo({
+                    planName: assinatura.planName ?? null,
+                    credits: assinatura.credits ?? 0,
+                    currentPeriodEnd: assinatura.currentPeriodEnd ?? null,
+                    renewsAt: assinatura.renewsAt ?? null,
+                    trialEndsAt: assinatura.trialEndsAt ?? null,
+                    status: assinatura.status ?? 'none',
+                })
+            }
+            if (perfil?.email) setAdminEmail(perfil.email)
+        } catch {
+            // Sem o resumo o cartão ainda cancela: quem confere o e-mail e quem
+            // encerra de verdade é o servidor.
         }
     }, [])
 
-    /** Até quando o acesso vale: o fim do ciclo pago ou o fim da avaliação. */
-    const ate = resumo?.currentPeriodEnd ?? resumo?.trialEndsAt ?? null
+    /** Relê quando a faixa do topo mexe na assinatura — e vice-versa. */
+    useEffect(() => {
+        const aoMudar = () => void carregar()
+        window.addEventListener(BILLING_UPDATED, aoMudar)
+        return () => window.removeEventListener(BILLING_UPDATED, aoMudar)
+    }, [carregar])
+
+    useEffect(() => {
+        void carregar()
+    }, [carregar])
+
+    /**
+     * Até quando o acesso vale: o fim do **ciclo de cobrança** pago, ou o fim
+     * da avaliação.
+     *
+     * `renewsAt` primeiro: quem pagou doze meses usa os doze meses, e o fim da
+     * franquia de crédito (`currentPeriodEnd`) encurtaria essa promessa para
+     * trinta dias — numa tela que fala de encerrar contrato.
+     */
+    const ate = resumo?.renewsAt ?? resumo?.currentPeriodEnd ?? resumo?.trialEndsAt ?? null
     const ateLabel = ate
         ? new Date(ate).toLocaleDateString('pt-BR', {
               day: '2-digit',
@@ -101,6 +121,41 @@ export function CancelarAssinaturaCard() {
         adminEmail.trim().length > 0 &&
         digitado.trim().toLowerCase() === adminEmail.trim().toLowerCase()
 
+    /**
+     * Desfaz o cancelamento — a mesma ação do botão na faixa do topo.
+     *
+     * Chamada própria em vez de estado compartilhado porque este cartão já vive
+     * assim: ele busca o que precisa por conta própria (ver o cabeçalho), e
+     * passar função e estado por três níveis para reaproveitar seis linhas
+     * acoplaria as duas telas pelo que menos importa.
+     *
+     * Quem decide se é possível é o servidor: ele recria a cobrança no gateway
+     * antes de mexer no registro, e recusa quando não há cartão salvo.
+     */
+    const desfazer = useCallback(async () => {
+        setEnviando(true)
+        try {
+            const res = await fetch('/api/account/subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resume' }),
+            })
+            const data = await res.json()
+
+            if (res.ok) {
+                toast.success(data.message)
+                setResumo((r) => (r ? { ...r, status: 'active' } : r))
+                window.dispatchEvent(new Event(BILLING_UPDATED))
+            } else {
+                toast.error(data.error || 'Não foi possível desfazer o cancelamento')
+            }
+        } catch {
+            toast.error('Não foi possível desfazer o cancelamento')
+        } finally {
+            setEnviando(false)
+        }
+    }, [])
+
     const cancelar = useCallback(async () => {
         setEnviando(true)
         try {
@@ -115,6 +170,15 @@ export function CancelarAssinaturaCard() {
                 toast.success(data.message)
                 setAberto(false)
                 setDigitado('')
+                /**
+                 * E o cartão troca de estado na hora.
+                 *
+                 * Faltava: depois de cancelar, este cartão continuava oferecendo
+                 * "Cancelar assinatura" até alguém recarregar a página — e era
+                 * justamente onde a pessoa estava olhando. Agora ele passa a
+                 * mostrar o acesso garantido e o botão de desfazer.
+                 */
+                setResumo((r) => (r ? { ...r, status: 'canceled' } : r))
                 window.dispatchEvent(new Event(BILLING_UPDATED))
             } else {
                 toast.error(data.error || 'Não foi possível cancelar')
@@ -126,14 +190,32 @@ export function CancelarAssinaturaCard() {
         }
     }, [digitado])
 
-    /** Conta já cancelada não oferece cancelar de novo. */
+    /**
+     * Conta já cancelada não oferece cancelar de novo — oferece **desfazer**.
+     *
+     * O botão existe aqui e também na faixa do topo da guia, e isso é
+     * deliberado: a faixa é o anúncio do estado, logo onde o olho bate ao abrir
+     * a tela; este cartão é onde a pessoa cancelou, logo onde ela volta para
+     * procurar a volta. Mandá-la "subir até o aviso" seria instrução de
+     * navegação no lugar de um botão.
+     */
     if (resumo?.status === 'canceled') {
         return (
             <div className="px-5 py-4 md:px-6">
                 <SettingsCard title="Assinatura cancelada">
                     <SettingsRow
                         title={`O acesso continua até ${ateLabel}`}
-                        description="Nada mais será cobrado. Depois dessa data a clínica fica em somente-leitura: o histórico continua inteiro e exportável."
+                        description="Nada mais será cobrado. Depois dessa data a clínica fica em somente-leitura: o histórico continua inteiro e exportável. Dá para desfazer o cancelamento enquanto este período não terminar."
+                        action={
+                            <Button
+                                variant="outline"
+                                disabled={enviando}
+                                onClick={() => void desfazer()}
+                            >
+                                <RotateCcw className="size-4" />
+                                Desfazer cancelamento
+                            </Button>
+                        }
                     />
                 </SettingsCard>
             </div>

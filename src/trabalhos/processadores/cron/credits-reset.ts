@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma'
 import { adicionaisVivos } from '@/lib/account'
 import { RENEWAL_DAYS } from '@/lib/billing'
-import { limitesEfetivos } from '@/lib/plan-limits'
+import { CICLOS, cicloDe, limitesEfetivos } from '@/lib/plan-limits'
 import { applyPlanLimits } from '@/lib/limits'
 import { alinharVencimento } from '@/lib/asaas/vincular'
 import { createLogger } from '@/trabalhos/registro'
@@ -41,6 +41,13 @@ const PERIOD_MS = RENEWAL_DAYS * 86_400_000
  * efeito era que mudar o número em `plan-limits.ts` só alcançava cliente novo —
  * toda clínica já assinada ficava congelada no valor do dia em que assinou.
  *
+ * **E a franquia deixou de ser a cobrança, em 2026-11-07.** Com o ciclo anual,
+ * `currentPeriodEnd` passou a significar só o que o nome diz — o fim do período
+ * de franquia, sempre 30 dias. Quando a conta é cobrada mora em `renewsAt`, e
+ * quem a move é `renovarCobranca`, no fim deste arquivo. Sem a separação, uma
+ * assinatura anual zeraria o crédito e **empurraria a cobrança** trinta dias à
+ * frente doze vezes por ano: o cliente pagaria doze faturas anuais.
+ *
  * A sincronia tem duas velocidades, de propósito:
  *
  * - **Franquias** (`credits`, `maxMessages`, `maxSpokenReplies`) seguem a tabela
@@ -54,6 +61,13 @@ const PERIOD_MS = RENEWAL_DAYS * 86_400_000
  */
 export async function runCreditsReset(): Promise<void> {
     const now = new Date()
+
+    await renovarFranquia(now)
+    await renovarCobranca(now)
+}
+
+/** A franquia de crédito, de 30 em 30 dias. O nome antigo desta tarefa. */
+async function renovarFranquia(now: Date): Promise<void> {
 
     const due = await prisma.subscription.findMany({
         where: {
@@ -73,6 +87,8 @@ export async function runCreditsReset(): Promise<void> {
             maxWhatsAppNumbers: true,
             /** Para alinhar o vencimento no gateway com o período novo. */
             asaasSubscriptionId: true,
+            billingCycle: true,
+            renewsAt: true,
         },
     })
 
@@ -138,12 +154,23 @@ export async function runCreditsReset(): Promise<void> {
             numeros: subscription.maxWhatsAppNumbers,
         }
 
+        /**
+         * No mensal, a cobrança anda com a franquia — e é aqui que a coluna
+         * nova deixa de ser nula para quem assinou antes dela existir.
+         *
+         * No anual não se toca em `renewsAt`: ela é a data da fatura, e a fatura
+         * não vence porque o crédito virou.
+         */
+        const cobrancaDoMensal =
+            cicloDe(subscription.billingCycle) === 'monthly' ? { renewsAt: periodEnd } : {}
+
         await prisma.subscription.update({
             where: { id: subscription.id },
             data: {
                 creditsUsed: 0,
                 currentPeriodStart: periodStart,
                 currentPeriodEnd: periodEnd,
+                ...cobrancaDoMensal,
                 credits: tabela.credits,
                 maxMessages: tabela.maxMessages,
                 maxSpokenReplies: tabela.maxSpokenReplies,
@@ -166,7 +193,18 @@ export async function runCreditsReset(): Promise<void> {
          * já tem o que renovou. Fica o aviso, e a conciliação da madrugada
          * conserta.
          */
-        if (asaasSubscriptionId) {
+        /**
+         * **Só no ciclo mensal.**
+         *
+         * No anual a recorrência no Asaas é `YEARLY` e a próxima cobrança está a
+         * meses daqui: mandar a ela a data da franquia seria pedir ao gateway
+         * para cobrar doze meses de novo em trinta dias. Quem move a data da
+         * cobrança anual é `renovarCobranca`, e o Asaas a move sozinho quando
+         * cobra.
+         */
+        const mensal = cicloDe(subscription.billingCycle) === 'monthly'
+
+        if (asaasSubscriptionId && mensal) {
             try {
                 await alinharVencimento(asaasSubscriptionId, periodEnd)
                 log.info(
@@ -218,6 +256,61 @@ export async function runCreditsReset(): Promise<void> {
                 `${subscription.creditsUsed}/${subscription.credits} used → 0` +
                 (mudouFranquia ? `, franquia ${subscription.credits}→${tabela.credits}` : '') +
                 `, next period ends ${periodEnd.toISOString()}`
+        )
+    }
+}
+
+/**
+ * Avança a data da **cobrança** quando ela passa — e só ela.
+ *
+ * Existe por causa do ciclo anual. Trinta dias e um ano não são múltiplos (365 =
+ * 12 × 30 + 5), então as duas datas se desencontram por desenho: a franquia vira
+ * doze vezes e a cobrança, uma. Pendurar o avanço da cobrança no laço da
+ * franquia significaria mover a fatura anual todo mês.
+ *
+ * **O que esta função NÃO faz: cobrar.** Quem cobra é o Asaas, pela recorrência
+ * `YEARLY` que já está lá. Isto é o espelho — a data que a tela mostra e que o
+ * cancelamento usa para dizer até quando o acesso vale. Se o pagamento não
+ * entrar, quem marca atraso é o webhook, como sempre foi.
+ *
+ * A assinatura mensal não passa por aqui: `renovarFranquia` já moveu as duas
+ * datas no mesmo passo, então `renewsAt` nunca está no passado quando chega
+ * aqui. O filtro por ciclo deixa isso explícito em vez de depender dessa sorte.
+ */
+async function renovarCobranca(now: Date): Promise<void> {
+    const vencidas = await prisma.subscription.findMany({
+        where: {
+            renewsAt: { lte: now },
+            billingCycle: 'annual',
+            status: 'active',
+        },
+        select: { id: true, accountId: true, renewsAt: true },
+    })
+
+    for (const assinatura of vencidas) {
+        /**
+         * Avança a partir da borda antiga, não de "agora".
+         *
+         * Mesma razão do laço da franquia: uma execução atrasada não pode mover
+         * o aniversário da conta. O laço de alcance cobre a tarefa parada por
+         * mais de um ciclo — que num ciclo anual significaria um ano inteiro,
+         * mas a conta é a mesma.
+         */
+        let proxima = new Date(
+            (assinatura.renewsAt ?? now).getTime() + CICLOS.annual.dias * 86_400_000
+        )
+        while (proxima <= now) {
+            proxima = new Date(proxima.getTime() + CICLOS.annual.dias * 86_400_000)
+        }
+
+        await prisma.subscription.update({
+            where: { id: assinatura.id },
+            data: { renewsAt: proxima },
+        })
+
+        log.info(
+            `conta ${assinatura.accountId}: ciclo anual renovado, ` +
+                `próxima cobrança em ${proxima.toISOString()}`
         )
     }
 }

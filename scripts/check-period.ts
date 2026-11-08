@@ -10,13 +10,28 @@
  */
 import { periodRange, matchPreset, resolvePeriodParams, isoDay } from '@/lib/period'
 import { resolveOwnerScope, canSeeEveryone, conversationScope, type WorkspaceRole } from '@/lib/auth/workspace'
-import { limitesEfetivos, tetoDeUnidades, PRECO_ADICIONAL, PLAN_PRICES } from '@/lib/plan-limits'
+import {
+    limitesEfetivos,
+    tetoDeUnidades,
+    PRECO_ADICIONAL,
+    PLAN_PRICES,
+    economiaDoAnual,
+    mensalEquivalente,
+    precoDoTreinamento,
+    treinamentoIncluido,
+    valorDaFatura,
+} from '@/lib/plan-limits'
+import { conferirCobranca, cobrancaCompleta, listarFaltantes } from '@/lib/billing/dados-de-cobranca'
 import { carenciaEmDias, fimDaCarencia, carenciaVencida } from '@/lib/billing/inadimplencia'
 import {
+    diferencaDeContrato,
     diferencaProporcional,
     direcaoDaTroca,
+    direcaoDoContrato,
+    inicioDaCobranca,
     mensalidade,
     proporcionalDoAdicional,
+    proximaCobranca,
 } from '@/lib/billing/troca-de-plano'
 
 let fails = 0
@@ -443,6 +458,138 @@ eq(
     diferencaProporcional({ atual: 'flow', novo: 'pro', adicionais: 0, inicioDoCiclo: null, fimDoCiclo: null, agora: meio }).valor,
     200
 )
+
+
+console.log('\n— o ciclo anual: 10% em todos os planos')
+eq('Digital anual', valorDaFatura('flow', 0, 'annual'), 4212)
+eq('Prime anual', valorDaFatura('pro', 0, 'annual'), 6372)
+eq('Multiclínica anual', valorDaFatura('advanced', 0, 'annual'), 9612)
+eq('mensal não desconta', valorDaFatura('pro', 0, 'monthly'), 590)
+// A unidade adicional entra no desconto: ela é parte da mensalidade, e cobrar
+// 10% menos no plano e cheio no adicional faria duas regras na mesma fatura.
+eq('com adicional, desconta os dois', valorDaFatura('pro', 1, 'annual'), (590 + 290) * 12 * 0.9)
+eq('o mensal equivalente é o que o cartão compara', mensalEquivalente('advanced', 0, 'annual'), 801)
+eq('e a economia é de um mês e um pouco', economiaDoAnual('advanced', 0), 1068)
+
+console.log('\n— a direção, agora que o ciclo também muda')
+eq('mensal para anual é ciclo novo', direcaoDoContrato({ plan: 'pro', ciclo: 'monthly' }, { plan: 'pro', ciclo: 'annual' }), 'novo-ciclo')
+eq('anual para mensal é descer', direcaoDoContrato({ plan: 'pro', ciclo: 'annual' }, { plan: 'pro', ciclo: 'monthly' }), 'downgrade')
+eq('subir de plano no mesmo ciclo', direcaoDoContrato({ plan: 'flow', ciclo: 'annual' }, { plan: 'pro', ciclo: 'annual' }), 'upgrade')
+eq('igual é igual nos dois eixos', direcaoDoContrato({ plan: 'pro', ciclo: 'annual' }, { plan: 'pro', ciclo: 'annual' }), 'igual')
+eq('sem contrato é a primeira', direcaoDoContrato(null, { plan: 'pro', ciclo: 'monthly' }), 'primeira')
+// Subir de plano E de ciclo ao mesmo tempo é ciclo novo: quem manda é o ciclo,
+// porque é ele que reinicia a cobrança. O plano entra no valor.
+eq('subir os dois é ciclo novo', direcaoDoContrato({ plan: 'flow', ciclo: 'monthly' }, { plan: 'advanced', ciclo: 'annual' }), 'novo-ciclo')
+
+console.log('\n— quanto se cobra na troca de contrato')
+const cicloMensal = { inicioDoCiclo: inicio, fimDoCiclo: fim, agora: meio }
+
+// Upgrade dentro do mensal: a conta de sempre, intacta.
+eq(
+    'upgrade mensal continua sendo a diferença proporcional',
+    diferencaDeContrato({ atual: { plan: 'flow', ciclo: 'monthly' }, novo: { plan: 'pro', ciclo: 'monthly' }, adicionais: 0, ...cicloMensal }).cobranca.valor,
+    100
+)
+
+/**
+ * Mensal para anual no meio do mês pago: cobra o ano menos o saldo.
+ *
+ * 15 dos 30 dias de um Prime de R$ 590 valem R$ 295, e o ano custa R$ 6.372.
+ * Sem o abatimento, trocar de ciclo no dia 15 cobraria duas vezes a mesma
+ * quinzena.
+ */
+eq(
+    'trocar para anual desconta o saldo do mês',
+    diferencaDeContrato({ atual: { plan: 'pro', ciclo: 'monthly' }, novo: { plan: 'pro', ciclo: 'annual' }, adicionais: 0, ...cicloMensal }).cobranca.valor,
+    6372 - 295
+)
+
+// Na virada exata não há saldo: o ano inteiro é cobrado.
+eq(
+    'na virada, o anual é cheio',
+    diferencaDeContrato({ atual: { plan: 'pro', ciclo: 'monthly' }, novo: { plan: 'pro', ciclo: 'annual' }, adicionais: 0, inicioDoCiclo: inicio, fimDoCiclo: fim, agora: fim }).cobranca.valor,
+    6372
+)
+
+// Descer — plano menor ou volta ao mensal — não cobra nada hoje.
+eq(
+    'voltar ao mensal não cobra',
+    diferencaDeContrato({ atual: { plan: 'pro', ciclo: 'annual' }, novo: { plan: 'pro', ciclo: 'monthly' }, adicionais: 0, ...cicloMensal }).cobranca.valor,
+    0
+)
+
+/**
+ * Upgrade **dentro** do anual: a diferença das duas faturas anuais,
+ * proporcional aos dias que faltam do ano.
+ *
+ * É o caso que o `valorMensal` antigo errava por doze: 6.372 → 9.612 são
+ * R$ 3.240 por ano; faltando meio ano, cobra-se a metade.
+ */
+const anoInicio = new Date('2026-01-01T12:00:00-03:00')
+const anoFim = new Date(anoInicio.getTime() + 365 * 86_400_000)
+const meioDoAno = new Date(anoInicio.getTime() + 182 * 86_400_000)
+eq(
+    'upgrade no anual é proporcional ao ano',
+    diferencaDeContrato({ atual: { plan: 'pro', ciclo: 'annual' }, novo: { plan: 'advanced', ciclo: 'annual' }, adicionais: 0, inicioDoCiclo: anoInicio, fimDoCiclo: anoFim, agora: meioDoAno }).cobranca.valor,
+    Math.round(((9612 - 6372) * 183) / 365 * 100) / 100
+)
+
+// A primeira contratação cobra a fatura cheia do ciclo escolhido.
+eq(
+    'primeira contratação anual cobra o ano',
+    diferencaDeContrato({ atual: null, novo: { plan: 'advanced', ciclo: 'annual' }, adicionais: 0, inicioDoCiclo: null, fimDoCiclo: null, agora: meio }).cobranca.valor,
+    9612
+)
+
+console.log('\n— as duas datas: franquia e cobrança')
+eq('o mensal cobra em 30 dias', proximaCobranca('monthly', inicio).toISOString(), new Date(inicio.getTime() + 30 * 86_400_000).toISOString())
+eq('o anual, em 365', proximaCobranca('annual', inicio).toISOString(), new Date(inicio.getTime() + 365 * 86_400_000).toISOString())
+// O começo do ciclo de cobrança é deduzido do fim, sem coluna: é exato porque
+// `renewsAt` só se move em passos de um ciclo.
+eq('o início sai do fim', inicioDaCobranca('annual', anoFim)?.toISOString(), anoInicio.toISOString())
+eq('sem fim, não há início', inicioDaCobranca('monthly', null), null)
+
+console.log('\n— o treinamento de agente')
+// A promoção vale até o último dia de novembro de 2026, e a conta é no
+// calendário de São Paulo: às 22h do dia 30 em SP já é dia 1º em UTC, e o Worker
+// roda em UTC.
+eq('na promoção, R$ 2.400', precoDoTreinamento(new Date('2026-11-07T12:00:00-03:00')).valor, 2400)
+eq('no último dia ainda vale', precoDoTreinamento(new Date('2026-11-30T22:00:00-03:00')).valor, 2400)
+eq('no dia seguinte, tabela cheia', precoDoTreinamento(new Date('2026-12-01T09:00:00-03:00')).valor, 3400)
+eq('e a tela sabe que acabou', precoDoTreinamento(new Date('2026-12-01T09:00:00-03:00')).promocional, false)
+// 23h de 30/11 em São Paulo é 1º/12 em UTC: sem o fuso, a promoção terminaria
+// uma hora antes para quem está no Brasil.
+eq('a virada é a de São Paulo', precoDoTreinamento(new Date('2026-12-01T01:00:00Z')).promocional, true)
+
+console.log('\n— quem ganha o treinamento')
+eq('Multiclínica anual inclui 1', treinamentoIncluido('advanced', 'annual'), 1)
+eq('Multiclínica mensal, nenhum', treinamentoIncluido('advanced', 'monthly'), 0)
+eq('Prime anual, nenhum', treinamentoIncluido('pro', 'annual'), 0)
+eq('Digital anual, nenhum', treinamentoIncluido('flow', 'annual'), 0)
+
+console.log('\n— os dados de cobrança, antes de abrir o pagamento')
+const completo = {
+    cpfCnpj: '12345678901',
+    postalCode: '30110000',
+    address: 'Av. Afonso Pena',
+    addressNumber: '1000',
+    province: 'Centro',
+    city: 'Belo Horizonte',
+    state: 'MG',
+    billingPhone: '31999999999',
+}
+eq('completo passa', conferirCobranca(completo).completo, true)
+eq('e devolve os oito campos', Object.keys(cobrancaCompleta(completo) ?? {}).length, 8)
+// O complemento não entra: nem o Asaas o exige, nem metade dos endereços o tem.
+eq('sem complemento continua completo', conferirCobranca({ ...completo, complement: null }).completo, true)
+eq('faltando o número, não está completo', conferirCobranca({ ...completo, addressNumber: '' }).completo, false)
+eq('mas ainda dá para cobrar com documento', conferirCobranca({ ...completo, addressNumber: '' }).podeCobrar, true)
+eq('sem documento não dá', conferirCobranca({ ...completo, cpfCnpj: null }).podeCobrar, false)
+eq('espaço em branco não preenche campo', conferirCobranca({ ...completo, city: '   ' }).faltando, ['city'])
+eq('a frase lista o que falta', listarFaltantes(['postalCode', 'addressNumber', 'billingPhone']), 'CEP, número e telefone')
+eq('e com um só, sem vírgula', listarFaltantes(['cpfCnpj']), 'CPF ou CNPJ')
+eq('nada faltando, frase vazia', listarFaltantes([]), '')
+eq('incompleto não vira pagador', cobrancaCompleta({ ...completo, state: '' }), null)
 
 console.log(fails === 0 ? '\nTodos passaram.' : `\n${fails} falharam.`)
 process.exit(fails === 0 ? 0 : 1)
