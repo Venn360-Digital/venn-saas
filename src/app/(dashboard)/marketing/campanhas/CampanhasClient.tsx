@@ -22,6 +22,12 @@ import { IndexFrame } from '@/components/shared/IndexFrame'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useIndiceServidor } from '@/hooks/useIndiceServidor'
 
+import {
+    CANAIS_DE_CAMPANHA,
+    NOME_DO_CANAL,
+    type CanalDeCampanha,
+} from '@/lib/marketing/apresentacao'
+
 import { type CampanhaItem, type DadosIniciais, ORDEM_STATUS, STATUS_CAMPANHA } from './dados'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
@@ -29,6 +35,7 @@ const RECORTE_INTEIRO = 'workspace-inteiro'
 interface ListaOpcao {
     id: string
     name: string
+    channel?: string
     memberCount: number
 }
 interface LinhaOpcao {
@@ -43,12 +50,44 @@ interface TemplateOpcao {
     variaveis: { body: number; header: number }
 }
 
+interface RemetenteOpcao {
+    id: string
+    from: string
+    status: string
+    domain: string
+}
+interface ModeloDeEmailOpcao {
+    id: string
+    name: string
+    subject: string | null
+}
+
 const EMPTY = {
     name: '',
     labels: '',
+    canal: 'whatsapp' as CanalDeCampanha,
+    // WhatsApp
     integrationId: '',
     templateId: '',
+    // E-mail
+    senderId: '',
+    emailTemplateId: '',
+    subject: '',
+    /**
+     * O ritmo padrao muda com o canal, e nao e preciosismo.
+     *
+     * No WhatsApp 30/min e conservador para o tier da WABA. No e-mail o teto e
+     * a cota diaria do SES e a reputacao de um dominio que costuma ser novo —
+     * uma rajada de dois mil e-mails num dominio sem historico e a forma mais
+     * rapida de ir para a caixa de spam. Comecar devagar e o que aquece.
+     */
     throttle: '30',
+}
+
+/** O ritmo inicial sugerido por canal. */
+const RITMO_PADRAO: Record<CanalDeCampanha, string> = {
+    whatsapp: '30',
+    email: '20',
 }
 
 export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
@@ -83,6 +122,8 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
     const [listas, setListas] = useState<ListaOpcao[]>([])
     const [linhas, setLinhas] = useState<LinhaOpcao[]>([])
     const [templates, setTemplates] = useState<TemplateOpcao[]>([])
+    const [remetentes, setRemetentes] = useState<RemetenteOpcao[]>([])
+    const [modelosDeEmail, setModelosDeEmail] = useState<ModeloDeEmailOpcao[]>([])
 
     useEffect(() => {
         if (!open) return
@@ -96,6 +137,19 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                 setLinhas(d?.linhas ?? [])
                 setTemplates(d?.templates ?? [])
             })
+            .catch(() => {})
+        /**
+         * As opcoes dos DOIS canais sao carregadas junto, e nao so as do canal
+         * escolhido: trocar de canal no meio do formulario nao pode render uma
+         * espera, e sao duas listas curtas.
+         */
+        fetch('/api/marketing/remetentes')
+            .then((r) => (r.ok ? r.json() : []))
+            .then((d: RemetenteOpcao[]) => setRemetentes(Array.isArray(d) ? d : []))
+            .catch(() => {})
+        fetch('/api/marketing/email-templates')
+            .then((r) => (r.ok ? r.json() : []))
+            .then((d: ModeloDeEmailOpcao[]) => setModelosDeEmail(Array.isArray(d) ? d : []))
             .catch(() => {})
     }, [open])
 
@@ -114,20 +168,52 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
     )
     const templateSel = templatesDaLinha.find((t) => t.id === form.templateId) ?? null
 
+    /**
+     * Só remetente `verified` entra na lista.
+     *
+     * Oferecer um pendente deixaria a pessoa montar a campanha inteira para o
+     * servidor recusar no fim — e a recusa certa ("publique os três registros
+     * de DNS") chegaria tarde demais para ser útil.
+     */
+    const remetentesVerificados = useMemo(
+        () => remetentes.filter((r) => r.status === 'verified'),
+        [remetentes]
+    )
+    const modeloSel = modelosDeEmail.find((m) => m.id === form.emailTemplateId) ?? null
+
     // Os arrays de variáveis não são redimensionados ao trocar de template de
     // propósito: a tela lê por índice até o número de variáveis do template, e
     // `montarComponentes` corta o resto no envio — valor sobrando é ignorado nos
     // dois lados, então não há estado a sincronizar aqui.
+
+    /**
+     * Só as listas do canal escolhido.
+     *
+     * Uma lista de WhatsApp numa campanha de e-mail resolveria em zero
+     * destinatários — os membros dela foram selecionados por terem telefone. A
+     * recusa aconteceria no disparo, depois de a pessoa já ter montado tudo.
+     */
+    const listasDoCanal = useMemo(
+        () => listas.filter((l) => (l.channel ?? 'whatsapp') === form.canal),
+        [listas, form.canal]
+    )
 
     function toggleLista(id: string) {
         setListIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
     }
 
     async function criar() {
+        const porEmail = form.canal === 'email'
+
         if (!form.name.trim()) { toast.error('Dê um nome à campanha'); return }
         if (listIds.length === 0) { toast.error('Escolha ao menos uma lista'); return }
-        if (!form.integrationId) { toast.error('Escolha a linha oficial'); return }
-        if (!form.templateId) { toast.error('Escolha um template aprovado'); return }
+        if (porEmail) {
+            if (!form.senderId) { toast.error('Escolha o remetente'); return }
+            if (!form.emailTemplateId) { toast.error('Escolha o modelo de e-mail'); return }
+        } else {
+            if (!form.integrationId) { toast.error('Escolha a linha oficial'); return }
+            if (!form.templateId) { toast.error('Escolha um template aprovado'); return }
+        }
 
         setSubmitting(true)
         try {
@@ -140,11 +226,23 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                         .split(',')
                         .map((s) => s.trim())
                         .filter(Boolean),
-                    integrationId: form.integrationId,
-                    templateId: form.templateId,
+                    channel: form.canal,
                     listIds,
-                    variables: { body: bodyVars, header: headerVars },
                     throttlePerMin: Number(form.throttle) || 30,
+                    ...(porEmail
+                        ? {
+                              senderId: form.senderId,
+                              emailTemplateId: form.emailTemplateId,
+                              // Vazio vira ausente: o servidor cai no assunto do
+                              // modelo, e mandar '' o faria recusar por assunto
+                              // em branco quando havia um no modelo.
+                              subject: form.subject.trim() || undefined,
+                          }
+                        : {
+                              integrationId: form.integrationId,
+                              templateId: form.templateId,
+                              variables: { body: bodyVars, header: headerVars },
+                          }),
                 }),
             })
             if (!res.ok) {
@@ -251,7 +349,7 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                             variant="inline"
                             icon={Megaphone}
                             title="Nenhuma campanha ainda"
-                            description="Dispare um template aprovado para uma lista de contatos pelo WhatsApp oficial."
+                            description="Dispare para uma lista de contatos — por e-mail, do domínio da unidade, ou por WhatsApp oficial com um template aprovado."
                             action={
                                 canEdit ? (
                                     <Button onClick={openNew}>
@@ -268,7 +366,11 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                 open={open}
                 onOpenChange={setOpen}
                 title="Nova campanha"
-                description="Escolha a linha oficial, o template aprovado e as listas. Nasce em rascunho — você revisa e dispara na tela seguinte."
+                description={
+                    form.canal === 'email'
+                        ? 'Escolha o remetente verificado, o modelo e as listas. Nasce em rascunho — você revisa e dispara na tela seguinte.'
+                        : 'Escolha a linha oficial, o template aprovado e as listas. Nasce em rascunho — você revisa e dispara na tela seguinte.'
+                }
                 submitLabel="Criar campanha"
                 hideAgain
                 onSubmit={criar}
@@ -293,6 +395,139 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                     />
                 </FormField>
 
+                <FormField
+                    label="Canal"
+                    htmlFor="c-canal"
+                    className="col-span-2"
+                    hint="Define por onde a campanha sai, quais listas servem e o que precisa estar pronto antes."
+                >
+                    <Select
+                        value={form.canal}
+                        onValueChange={(v) => {
+                            const canal = v as CanalDeCampanha
+                            /**
+                             * Trocar de canal limpa o que era do canal anterior.
+                             *
+                             * Sem isso, um `templateId` de WhatsApp sobreviveria
+                             * numa campanha de e-mail: a tela não o mostraria, o
+                             * servidor o ignoraria por canal, e ele ficaria
+                             * gravado dizendo algo que não é verdade.
+                             */
+                            setForm((p) => ({
+                                ...p,
+                                canal,
+                                integrationId: '',
+                                templateId: '',
+                                senderId: '',
+                                emailTemplateId: '',
+                                subject: '',
+                                throttle: RITMO_PADRAO[canal],
+                            }))
+                            setBodyVars([])
+                            setHeaderVars([])
+                            // As listas do outro canal não servem a este.
+                            setListIds([])
+                        }}
+                    >
+                        <SelectTrigger id="c-canal">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {CANAIS_DE_CAMPANHA.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                    {NOME_DO_CANAL[c]}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FormField>
+
+                {form.canal === 'email' && (
+                    <>
+                        <FormField
+                            label="Remetente"
+                            htmlFor="c-sender"
+                            required
+                            hint="O domínio da unidade. Só aparece aqui depois de verificado."
+                        >
+                            <Select
+                                value={form.senderId}
+                                onValueChange={(v) => setForm((p) => ({ ...p, senderId: v }))}
+                            >
+                                <SelectTrigger id="c-sender">
+                                    <SelectValue
+                                        placeholder={
+                                            remetentesVerificados.length
+                                                ? 'Escolha'
+                                                : 'Nenhum remetente verificado'
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {remetentesVerificados.map((r) => (
+                                        <SelectItem key={r.id} value={r.id}>
+                                            {r.from}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+
+                        <FormField label="Modelo" htmlFor="c-emailtpl" required>
+                            <Select
+                                value={form.emailTemplateId}
+                                onValueChange={(v) =>
+                                    setForm((p) => ({ ...p, emailTemplateId: v }))
+                                }
+                            >
+                                <SelectTrigger id="c-emailtpl">
+                                    <SelectValue
+                                        placeholder={
+                                            modelosDeEmail.length ? 'Escolha' : 'Nenhum modelo'
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {modelosDeEmail.map((m) => (
+                                        <SelectItem key={m.id} value={m.id}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+
+                        <FormField
+                            label="Assunto"
+                            htmlFor="c-subject"
+                            className="col-span-2"
+                            hint={
+                                modeloSel?.subject
+                                    ? `Em branco, usa o do modelo: "${modeloSel.subject}"`
+                                    : 'Obrigatório — o modelo escolhido não tem assunto próprio.'
+                            }
+                        >
+                            <Input
+                                id="c-subject"
+                                value={form.subject}
+                                onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
+                                placeholder={modeloSel?.subject ?? '{{nome}}, está na hora do retorno'}
+                            />
+                        </FormField>
+
+                        {remetentesVerificados.length === 0 && remetentes.length > 0 && (
+                            <p className="col-span-2 text-sm text-muted-foreground">
+                                Há {remetentes.length} domínio
+                                {remetentes.length === 1 ? '' : 's'} cadastrado
+                                {remetentes.length === 1 ? '' : 's'}, mas nenhum verificado ainda.
+                                Publique os três registros de DNS em Marketing → Remetentes.
+                            </p>
+                        )}
+                    </>
+                )}
+
+                {form.canal === 'whatsapp' && (
+                    <>
                 <FormField label="Linha oficial" htmlFor="c-line" required>
                     <Select
                         value={form.integrationId}
@@ -370,19 +605,27 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                     </div>
                 )}
 
+                    </>
+                )}
+
                 <FormField
                     label="Listas"
                     required
-                    hint="Quem recebe. Só entra contato com telefone e sem opt-out."
+                    hint={
+                        form.canal === 'email'
+                            ? 'Quem recebe. Só entra contato com e-mail que não cancelou a inscrição.'
+                            : 'Quem recebe. Só entra contato com telefone e sem opt-out.'
+                    }
                     className="col-span-2"
                 >
                     <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border/60 p-2">
-                        {listas.length === 0 ? (
+                        {listasDoCanal.length === 0 ? (
                             <p className="px-1 py-2 text-xs text-muted-foreground">
-                                Nenhuma lista. Crie uma em Marketing → Listas.
+                                Nenhuma lista de {NOME_DO_CANAL[form.canal].toLowerCase()}. Crie uma
+                                em Marketing → Listas.
                             </p>
                         ) : (
-                            listas.map((l) => (
+                            listasDoCanal.map((l) => (
                                 <label
                                     key={l.id}
                                     className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
@@ -403,7 +646,15 @@ export function CampanhasClient({ inicial }: { inicial: DadosIniciais }) {
                     </div>
                 </FormField>
 
-                <FormField label="Ritmo (msgs/min)" htmlFor="c-throttle" hint="Quantas mensagens por minuto o disparo envia.">
+                <FormField
+                    label="Ritmo (por minuto)"
+                    htmlFor="c-throttle"
+                    hint={
+                        form.canal === 'email'
+                            ? 'Devagar protege a reputação de um domínio novo — e a cota diária do provedor.'
+                            : 'Quantas mensagens por minuto o disparo envia.'
+                    }
+                >
                     <Input
                         id="c-throttle"
                         type="number"
