@@ -384,9 +384,9 @@ export function precoDoTreinamento(agora: Date = new Date()): PrecoDoTreinamento
 /**
  * Quantos treinamentos o plano **dá** — zero, ou um.
  *
- * Decisão do Andre em 2026-11-07: o plano de topo (Multiclínica aqui, Business
- * no Conecta, Global no Stagent — é sempre o `advanced`) inclui o treinamento
- * de 1 agente **na assinatura de 12 meses**.
+ * Decisão do Andre em 2026-11-07: o **plano de topo** inclui o treinamento de
+ * 1 agente **na assinatura de 12 meses**. É sempre o `advanced`, qualquer que
+ * seja o nome comercial que ele tenha nesta tabela.
  *
  * As duas condições juntas, e não uma delas: no mensal o cliente pode sair no
  * mês seguinte levando um serviço de R$ 2.400, e aí o brinde custa mais que a
