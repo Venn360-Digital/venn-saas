@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { criarIdentidade, credenciaisDoSes } from '@/lib/email/ses'
 import { registrosDeDns, nomeDoConfigurationSet } from '@/lib/marketing/remetentes'
+import { APP } from '@/config/app.config'
 
 /**
  * Os remetentes de e-mail da unidade — os domínios por onde a campanha sai.
@@ -138,12 +139,16 @@ export async function POST(request: NextRequest) {
     }
 
     /**
-     * O configuration set é por unidade, e o nome é derivado do id dela.
+     * O configuration set é **do app**, não da unidade — ele já existe, criado
+     * uma vez junto com as credenciais.
      *
-     * É por ele que os eventos (entrega, abertura, clique, reclamação) voltam
-     * carimbados com de quem são — sem ele o envio sai e nenhum recibo chega.
+     * É por ele que os eventos (entrega, abertura, clique, reclamação) voltam.
+     * De quem é cada evento vem das `EmailTags` do envio, que carregam o id da
+     * campanha e o do destinatário; um por unidade seria um objeto a criar por
+     * cliente para dizer o que a tag já diz — e criá-lo na hora exigiria
+     * permissão de configuração de conta no caminho de uma requisição.
      */
-    const configurationSetName = nomeDoConfigurationSet(member.workspaceId)
+    const configurationSetName = nomeDoConfigurationSet(APP.slug)
 
     const resultado = await criarIdentidade(domain, configurationSetName)
     if (!resultado.ok) {

@@ -48,21 +48,36 @@ export function registrosDeDns(dominio: string, tokens: string[]): RegistroDeDns
 }
 
 /**
- * O nome do configuration set do SES para uma unidade.
+ * O nome do configuration set do SES — **um por app**, não por unidade.
  *
- * Um por unidade, e **derivado do id** em vez de guardado: derivar não tem como
- * divergir, e guardar criaria uma segunda fonte para a mesma informação.
+ * ## Por que não um por unidade
  *
- * O prefixo existe porque a conta do SES é compartilhada entre os três apps — o
- * id de workspace sozinho não diz de qual produto é, e o painel do SES lista
- * todos juntos.
+ * A primeira versão derivava o nome do `workspaceId`, e estava errada de dois
+ * jeitos. O grave: o SES **não cria** um configuration set porque alguém o
+ * citou — enviar apontando para um que não existe falha com `NotFoundException`,
+ * e falharia no primeiro disparo de cada cliente novo. Criá-lo na hora exigiria
+ * `ses:CreateConfigurationSet` e `ses:CreateConfigurationSetEventDestination`
+ * nas credenciais da aplicação, que é poder de configuração de conta nas mãos
+ * de um caminho de requisição.
+ *
+ * O menor: ele não comprava nada. O configuration set serve para **rotear os
+ * eventos** (entrega, abertura, clique, reclamação) e para agrupar métrica — e
+ * de quem é cada evento já vem nas `EmailTags` do envio, que carregam o id da
+ * campanha e o do destinatário. Um por unidade seria um objeto a criar, a
+ * configurar e a limpar, por cliente, para dizer o que a tag já diz.
+ *
+ * ## Um por app, criado uma vez
+ *
+ * `venn-odontobox`, `venn-stagent`, `venn-conecta`. Criados à mão junto com as
+ * credenciais (ver `docs/ses-credenciais.md`), cada um com um destino de evento
+ * apontando para o webhook daquele app. Assim um app não escreve no caminho de
+ * evento do outro, e a credencial de cada um pode ser restrita ao seu.
+ *
+ * Vem de `SES_CONFIGURATION_SET` quando declarado; o padrão é derivado do slug,
+ * para um app novo funcionar sem variável nova.
  */
-export function nomeDoConfigurationSet(workspaceId: string): string {
-    // O SES aceita letras, números, hífen e sublinhado em nome de configuration
-    // set. `cuid()` já cabe nisso, mas a limpeza fica como guarda para o dia em
-    // que o id mudar de forma.
-    const limpo = workspaceId.replace(/[^A-Za-z0-9_-]/g, '')
-    return `venn-${limpo}`
+export function nomeDoConfigurationSet(slugDoApp: string): string {
+    return process.env.SES_CONFIGURATION_SET || `venn-${slugDoApp || 'app'}`
 }
 
 /**

@@ -536,6 +536,34 @@ export default defineConfig({
             BETTER_AUTH_SECRET: bindings.secret(),
             TOKEN_ENCRYPTION_KEY: bindings.secret(),
             OPENAI_API_KEY: bindings.secret(),
+
+            /**
+             * O envio de **campanha** de e-mail, pelo Amazon SES.
+             *
+             * O transacional continua no binding `EMAIL` acima e nada aqui o
+             * toca. Campanha é outro problema: ela sai do **domínio do
+             * cliente**, e o Email Sending da Cloudflare exige que o domínio de
+             * envio seja zona da nossa conta — ver o cabeçalho de
+             * `src/lib/email/ses.ts` para os três fatos que descartaram esse
+             * caminho.
+             *
+             * Chave e não binding porque SES é HTTPS assinado, não recurso da
+             * plataforma: chega por `process.env`, como `OPENAI_API_KEY`.
+             *
+             * **A ausência é estado válido.** Um app onde a campanha de e-mail
+             * ainda não foi ligada não tem estas chaves, e o código responde
+             * "não configurado" (503) em vez de quebrar — por isso elas não
+             * entram em nenhuma trava de boot. Ver `docs/ses-credenciais.md`.
+             */
+            SES_ACCESS_KEY_ID: bindings.secret(),
+            SES_SECRET_ACCESS_KEY: bindings.secret(),
+            /**
+             * Região e configuration set têm padrão no código (`sa-east-1` e
+             * `venn-<slug>`), então são texto e só mudam quando se foge da
+             * convenção. Declarados aqui para ficarem visíveis junto do resto.
+             */
+            SES_REGION: bindings.text('sa-east-1'),
+            SES_CONFIGURATION_SET: bindings.text('venn-odontobox'),
             /**
              * Todo tráfego de IA passa pelo **AI Gateway deste produto**.
              *
