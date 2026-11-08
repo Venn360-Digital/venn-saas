@@ -41,6 +41,37 @@ enquanto todo o resto usa `us-east-2`.
 
 ---
 
+## Já está feito — o que resta
+
+Executado em 2026-11-08. Os passos 1 a 5 abaixo **já foram aplicados**; ficam
+documentados para auditoria, para o dia em que um app novo entrar, e para quando
+uma chave precisar de rotação.
+
+| Item | Estado |
+|---|---|
+| Conta, região, perfil `venn360` | ✅ |
+| 3 configuration sets | ✅ `venn-odontobox`, `venn-stagent`, `venn-conecta` |
+| 3 políticas IAM de 4 ações | ✅ |
+| 3 usuários IAM + chave | ✅ |
+| 12 segredos nos 6 Workers | ✅ confirmado pela API da Cloudflare |
+| **Sair do sandbox** | ❌ **falta — passo 6, é ato humano** |
+
+### O que foi provado, e o que não foi
+
+**Provado** com a credencial da Odontobox: `ses:GetEmailIdentity` passa (devolve
+`NotFoundException`, ou seja o IAM deixou e o SES é que não achou o domínio), e
+tudo que está fora da política é barrado — `CreateConfigurationSet`,
+`ListConfigurationSets`, `GetAccount`, `DeleteEmailIdentity`, `iam:ListUsers` e
+`s3:ListBuckets` todos devolvem `AccessDenied`. A chave não é curinga.
+
+**Não provado:** que a credencial de um app não consegue enviar pelo
+configuration set de outro. O SES recusa por **remetente não verificado antes**
+de chegar na checagem de autorização do configuration set, então o teste volta
+`MessageRejected` e não diz nada sobre o IAM. Só dá para fechar essa prova com
+um domínio verificado em mãos — vale refazer depois do primeiro remetente real.
+
+---
+
 ## O estado da conta hoje
 
 Medido em 2026-11-08, com `aws sesv2 get-account --region us-east-2 --profile venn360`:
