@@ -72,26 +72,26 @@ model User {
   updatedAt        DateTime          @updatedAt
 
   // Multi-workspace support
-  workspaces           WorkspaceUser[]
+  workspaces  WorkspaceUser[]
   /// As contas das quais esta pessoa é o MASTER.
-  accounts             Account[]
-  activities           Activity[]
-  deals                Deal[]
-  specialists          Specialist[]
+  accounts    Account[]
+  activities  Activity[]
+  deals       Deal[]
+  specialists Specialist[]
 
   /// Sessões e credenciais do Better Auth.
   ///
   /// `authAccounts` e não `accounts` porque `accounts` já é das contas de
   /// cobrança — a colisão é o motivo de os modelos da biblioteca levarem
   /// prefixo. Ver `src/lib/auth/better-auth.ts`.
-  authSessions     AuthSession[]
-  authAccounts     AuthAccount[]
+  authSessions           AuthSession[]
+  authAccounts           AuthAccount[]
   /// Os recados que esta pessoa mandou e recebeu — ver `TeamMessage`.
-  recadosEnviados  TeamMessage[] @relation("RecadosEnviados")
-  recadosRecebidos TeamMessage[] @relation("RecadosRecebidos")
-  conversasQueColabora ConversationCollaborator[] @relation("ConversasQueColabora")
-  convitesQueEnviou Invite[] @relation("ConvitesQueEnviou")
-  conviteQueAceitou Invite[] @relation("ConviteQueAceitou")
+  recadosEnviados        TeamMessage[]              @relation("RecadosEnviados")
+  recadosRecebidos       TeamMessage[]              @relation("RecadosRecebidos")
+  conversasQueColabora   ConversationCollaborator[] @relation("ConversasQueColabora")
+  convitesQueEnviou      Invite[]                   @relation("ConvitesQueEnviou")
+  conviteQueAceitou      Invite[]                   @relation("ConviteQueAceitou")
   colaboradoresQueChamou ConversationCollaborator[] @relation("ColaboradoresQueChamou")
 
   @@map("users")
@@ -193,13 +193,14 @@ model Account {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner        User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
-  workspaces   Workspace[]
-  subscription Subscription?
-  unitAddons   UnitAddon[]
-  invoices     Invoice[]
-  checkouts    AsaasCheckout[]
-  paymentCards PaymentCard[]
+  owner          User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  workspaces     Workspace[]
+  subscription   Subscription?
+  unitAddons     UnitAddon[]
+  trainingAddons TrainingAddon[]
+  invoices       Invoice[]
+  checkouts      AsaasCheckout[]
+  paymentCards   PaymentCard[]
 
   @@index([ownerUserId])
   @@map("accounts")
@@ -215,6 +216,57 @@ model Account {
 ///
 /// `priceCents` guarda o preço cobrado, não o de tabela: se os R$ 290 mudarem,
 /// o que a clínica pagou continua escrito.
+/// Um treinamento de agente contratado — serviço, não recurso do sistema.
+///
+/// **Compra única**, como o lote de crédito e diferente da unidade adicional:
+/// treinar é um projeto com começo e fim, e cobrar por mês um trabalho que
+/// acabou é assinatura de nada. Por isso não há `endsAt` nem `canceledAt` aqui
+/// — o que existe é o andamento do serviço, em `status`.
+///
+/// Da **conta** e não da unidade: quem contrata é quem paga, e o agente
+/// treinado pode ser de qualquer clínica dela.
+model TrainingAddon {
+  id        String @id @default(cuid())
+  accountId String
+
+  /// Em centavos, o que foi cobrado. Zero quando veio no plano.
+  priceCents Int @default(0)
+
+  /// "purchased" | "plan" — comprado à parte, ou incluído no plano.
+  ///
+  /// O plano de topo em 12 meses dá um (ver `treinamentoIncluido`), e a origem
+  /// precisa ficar registrada: é ela que impede o brinde de ser concedido duas
+  /// vezes à mesma conta, e é ela que explica, na tela, por que aquele item não
+  /// tem valor nenhum ao lado.
+  origin String @default("purchased")
+
+  /// "pending" | "scheduled" | "done" — o andamento do serviço.
+  ///
+  /// Começa pendente porque o trabalho é humano: ninguém treina um agente num
+  /// webhook. A tela diz "nossa equipe entra em contato" e este campo é o que
+  /// sustenta a frase.
+  status String @default("pending")
+
+  /// O agente que este treinamento vai afinar, quando já se sabe qual.
+  ///
+  /// Nulo na contratação, de propósito: na maior parte das vendas o agente nem
+  /// existe ainda. `SetNull` porque apagar o agente não pode apagar o registro
+  /// de um serviço que foi pago.
+  agentId String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Quando o serviço foi entregue.
+  doneAt    DateTime?
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  agent   Agent?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([accountId, status])
+  @@map("training_addons")
+}
+
 model UnitAddon {
   id         String   @id @default(cuid())
   accountId  String
@@ -312,6 +364,16 @@ model AsaasCheckout {
   packCredits    Int?
   packPriceCents Int?
   units          Int?
+  /// Quantos treinamentos de agente esta cesta trazia. Compra única.
+  trainings      Int?
+  /// "monthly" | "annual" — o ciclo que esta tentativa contrata.
+  ///
+  /// O evento do Asaas não diz o ciclo, e o valor pago não serve para deduzi-lo:
+  /// doze meses de Digital e um mês de Multiclínica são números diferentes hoje
+  /// e podem não ser amanhã. Sem esta coluna, um `CHECKOUT_PAID` de assinatura
+  /// anual ativaria uma assinatura mensal — cliente cobrado por doze, com
+  /// renovação marcada para trinta dias.
+  cycle          String  @default("monthly")
   /// A unidade de onde a compra partiu: o lote de crédito avulso é dela.
   workspaceId    String?
 
@@ -581,8 +643,8 @@ model WorkspaceUser {
   /// valor da conta continua valendo para quem não tem o seu — e ninguém
   /// precisa preencher 20 fichas para mudar uma política.
   minutosParaAusente Int?
-  permissions       Json? // Granular permissions
-  createdAt         DateTime  @default(now())
+  permissions        Json? // Granular permissions
+  createdAt          DateTime @default(now())
 
   workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -728,6 +790,7 @@ model Agent {
   webhooks         AgentWebhook[]
   customFields     AgentCustomField[]
   usageLogs        UsageLog[]
+  trainingAddons   TrainingAddon[]
 
   @@index([workspaceId])
   @@map("agents")
@@ -1604,7 +1667,7 @@ model Message {
 
   createdAt DateTime @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   recados      TeamMessage[]
 
   @@index([conversationId])
@@ -1723,9 +1786,9 @@ model Invite {
 
   invitedByUserId String?
   /// Os três instantes de que o estado é derivado.
-  acceptedAt     DateTime?
-  acceptedUserId String?
-  revokedAt      DateTime?
+  acceptedAt      DateTime?
+  acceptedUserId  String?
+  revokedAt       DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1734,8 +1797,8 @@ model Invite {
   /// `SetNull`: o convite que alguém mandou não desaparece quando essa pessoa
   /// sai da clínica — "quem convidou" é registro, e perdê-lo apagaria a
   /// auditoria de como cada um entrou.
-  invitedBy User? @relation("ConvitesQueEnviou", fields: [invitedByUserId], references: [id], onDelete: SetNull)
-  accepted  User? @relation("ConviteQueAceitou", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+  invitedBy User?     @relation("ConvitesQueEnviou", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  accepted  User?     @relation("ConviteQueAceitou", fields: [acceptedUserId], references: [id], onDelete: SetNull)
 
   /// A lista de convites da unidade, e a procura por e-mail antes de convidar
   /// de novo.
@@ -1743,7 +1806,6 @@ model Invite {
   @@index([workspaceId, createdAt])
   @@map("invites")
 }
-
 
 // ============================================
 // 5. INTEGRATIONS (WhatsApp, Instagram, etc)
@@ -1817,6 +1879,35 @@ model Subscription {
 
   plan   String // "flow", "pro", "advanced"
   status String @default("active") // "active", "past_due", "canceled", "trialing"
+
+  /// "monthly" | "annual" — de quanto em quanto tempo esta conta é cobrada.
+  ///
+  /// O anual desconta 10% em todos os planos (decisão do Andre em 2026-11-07) e
+  /// cobra os doze meses numa fatura, com `cycle: YEARLY` no Asaas.
+  ///
+  /// **Não é o ciclo da franquia.** O crédito renova de 30 em 30 dias nos dois,
+  /// senão quem paga doze meses adiantado receberia 120.000 créditos para
+  /// gastar no primeiro mês. É por isso que existem duas datas — ver `renewsAt`.
+  billingCycle String @default("monthly")
+
+  /// Quando a **cobrança** se repete. `currentPeriodEnd` é a franquia.
+  ///
+  /// No mensal as duas andam juntas e o cron de renovação as move no mesmo
+  /// passo. No anual elas se separam: a franquia vira doze vezes e esta, uma.
+  ///
+  /// Nulo na assinatura criada antes desta coluna, e aí quem responde "quando
+  /// é a próxima cobrança" continua sendo `currentPeriodEnd` — que é a resposta
+  /// certa para toda assinatura mensal, que é o que existia até aqui.
+  renewsAt DateTime?
+
+  /// Quando o cliente pediu o cancelamento. Nulo = assinatura de pé.
+  ///
+  /// Gravado porque **desfazer** precisa de duas coisas que o `status` não
+  /// guarda: saber que ainda estamos dentro do período pago, e achar os
+  /// adicionais que caíram **neste** cancelamento — eles levam este mesmo
+  /// carimbo em `canceledAt`, e é por ele que a restauração os encontra sem
+  /// ressuscitar o que o cliente havia cancelado à mão antes.
+  canceledAt DateTime?
 
   /// Os tetos **pagos**, que podem estar acima do plano vigente.
   ///
@@ -2877,16 +2968,16 @@ model TeamMessage {
   /// É o trecho citado no recado. Separado de `conversationId` porque dá para
   /// encaminhar a conversa inteira sem apontar uma mensagem — e aí este fica
   /// nulo e o recado mostra só o link.
-  messageId String?
+  messageId      String?
 
   /// Quando o destinatário abriu. Nulo é "não lido", e é o que o contador conta.
   readAt DateTime?
 
   createdAt DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  from      User      @relation("RecadosEnviados", fields: [fromUserId], references: [id], onDelete: Cascade)
-  to        User      @relation("RecadosRecebidos", fields: [toUserId], references: [id], onDelete: Cascade)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  from         User          @relation("RecadosEnviados", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to           User          @relation("RecadosRecebidos", fields: [toUserId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   message      Message?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
 

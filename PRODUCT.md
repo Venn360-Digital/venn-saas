@@ -101,12 +101,50 @@ Assinar um plano restaura tudo imediatamente, sem reconectar nada.
 
 ## 4. Limites por plano
 
+> **A tabela abaixo está velha nos nomes e nos preços** — ela ficou em Essencial
+> / Evolução / Clínica 360 enquanto o produto passou a Digital / Prime /
+> Multiclínica. A fonte da verdade é `src/lib/plan-limits.ts`, que o worker e as
+> duas telas de plano leem; o que vale aqui é a **regra**, não o número.
+
 | | Essencial | Evolução | Clínica 360 |
 |---|---|---|---|
 | Preço | R$ 490,00 | R$ 690,00 | R$ 1.290,00 |
 | Agentes de IA | 1 | 2 | 3 |
 | Números de WhatsApp | 1 | 2 | 3 |
 | Usuários | ilimitados | ilimitados | ilimitados |
+
+### Mensal ou anual — decisão do Andre em 2026-11-07
+
+A assinatura de **12 meses desconta 10%** em todos os planos. Um número só, igual
+para os três: desconto que varia por plano transforma a escada em tabela, e a
+escada é o que faz o cliente subir.
+
+**O ciclo é de cobrança, não de franquia.** O crédito de IA continua renovando de
+30 em 30 dias nos dois — quem paga doze meses adiantado não recebe doze franquias
+de uma vez para gastar em janeiro. Por isso a assinatura tem **duas datas**:
+`currentPeriodEnd`, que é a franquia, e `renewsAt`, que é a cobrança. No mensal
+elas andam juntas; no anual, a primeira vira doze vezes e a segunda, uma.
+
+**Trocar de mensal para anual cobra o ano menos o saldo** dos dias já pagos do mês
+corrente, e entra na hora — é a mesma regra do upgrade de plano (§13), com o
+mesmo mecanismo. **Voltar ao mensal é descida**: vale na renovação, sem devolver
+nada do ano comprado com desconto.
+
+### O treinamento de agente
+
+**Serviço, não recurso do sistema**: a nossa equipe levanta o conteúdo com a
+clínica, escreve os documentos do agente e afina as respostas. Não se confunde
+com a tela **Treinamento**, que é onde o cliente faz isso por conta própria.
+
+**Compra única** — R$ 3.400,00, em promoção por R$ 2.400,00 até 30/11/2026.
+Treinar é projeto com começo e fim; cobrar por mês um trabalho que acabou é
+assinatura de nada. Por isso ele não entra na mensalidade e a linha que o
+registra tem andamento (`pending` → `done`), não validade.
+
+**O plano de topo em 12 meses inclui o treinamento de 1 agente.** As duas
+condições juntas, e não uma delas: no mensal o cliente pode sair no mês seguinte
+levando um serviço de R$ 2.400, e aí o brinde custa mais do que a assinatura que
+ele pagou. É o compromisso de doze meses que o financia.
 
 Canais em todos: WhatsApp QR-Code, WhatsApp API Oficial, Instagram, Facebook.
 

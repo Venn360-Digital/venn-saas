@@ -2,8 +2,7 @@ import prisma from '@/lib/prisma'
 import { deOutroApp, marcarReferencia } from '@/lib/asaas/referencia'
 import { adicionaisCobraveis } from '@/lib/account'
 import { asaas } from '@/lib/asaas/client'
-import { isPlanId, planNameFor } from '@/lib/plan-limits'
-import { mensalidade } from '@/lib/billing/troca-de-plano'
+import { CICLOS, cicloDe, isPlanId, planNameFor, valorDaFatura, type BillingCycle } from '@/lib/plan-limits'
 
 /**
  * Descobre o cliente e a assinatura que um checkout pago criou no Asaas.
@@ -190,12 +189,22 @@ export async function vincularContaAoAsaas(opcoes: {
 
         const nosso = await prisma.subscription.findUnique({
             where: { accountId },
-            select: { currentPeriodEnd: true },
+            select: { currentPeriodEnd: true, renewsAt: true },
         })
 
-        if (nosso?.currentPeriodEnd) {
+        /**
+         * A data que vai para o gateway é a da **cobrança**, não a da franquia.
+         *
+         * `renewsAt` nasceu com o ciclo anual: numa conta anual, mandar
+         * `currentPeriodEnd` pediria ao Asaas para cobrar doze meses de novo em
+         * trinta dias. Na mensal as duas são a mesma data, e a queda para trás
+         * (`?? currentPeriodEnd`) atende a assinatura criada antes da coluna.
+         */
+        const proxima = nosso?.renewsAt ?? nosso?.currentPeriodEnd
+
+        if (proxima) {
             try {
-                await alinharVencimento(ativa.id, nosso.currentPeriodEnd)
+                await alinharVencimento(ativa.id, proxima)
             } catch (erro) {
                 console.warn(
                     `[ASAAS_VINCULAR] a assinatura ${ativa.id} ficou com a data do gateway: ` +
@@ -364,8 +373,8 @@ export async function descreverAssinatura(opcoes: {
  * receberia duas cobranças por mês, uma do plano e outra da unidade. Uma
  * assinatura por conta, com o valor atualizado, mantém uma fatura só.
  *
- * Lê o estado em vez de receber o delta: a soma é `mensalidade(plano,
- * adicionais)` sobre o que está gravado **agora**, então duas compras
+ * Lê o estado em vez de receber o delta: a soma é `valorDaFatura(plano,
+ * adicionais, ciclo)` sobre o que está gravado **agora**, então duas compras
  * simultâneas não se perdem e cancelar um adicional (fase 4) usa a mesma
  * função para descer o valor.
  *
@@ -378,7 +387,10 @@ export async function sincronizarValorDaAssinatura(
     subscriptionId: string
 ): Promise<number> {
     const [assinatura, adicionais] = await Promise.all([
-        prisma.subscription.findUnique({ where: { accountId }, select: { plan: true } }),
+        prisma.subscription.findUnique({
+            where: { accountId },
+            select: { plan: true, billingCycle: true },
+        }),
         /**
          * Cobrança conta o que **não foi cancelado**, e não o que ainda vale.
          *
@@ -391,7 +403,14 @@ export async function sincronizarValorDaAssinatura(
     ])
 
     const plano = isPlanId(assinatura?.plan) ? assinatura.plan : 'flow'
-    const valor = mensalidade(plano, adicionais)
+    /**
+     * O valor é **o da fatura**, não o da mensalidade.
+     *
+     * Numa conta anual a recorrência cobra doze meses com 10% de desconto; usar
+     * a mensalidade aqui derrubaria a fatura dela para um doze avos na primeira
+     * compra de adicional — e o cliente passaria o ano pagando um mês.
+     */
+    const valor = valorDaFatura(plano, adicionais, cicloDe(assinatura?.billingCycle))
 
     await descreverAssinatura({ accountId, subscriptionId, value: valor })
 
@@ -417,4 +436,98 @@ export async function alinharVencimento(subscriptionId: string, quando: Date): P
         method: 'PUT',
         body: { nextDueDate: dia, updatePendingPayments: false },
     })
+}
+
+/**
+ * Troca o **ciclo** da recorrência no Asaas — mensal ⇄ anual.
+ *
+ * `PUT /subscriptions/{id}` aceita `cycle` ao lado de `value` e `nextDueDate`, e
+ * é isso que permite mudar de ciclo sem apagar a assinatura e criar outra. O
+ * caminho do `DELETE` + nova assinatura existe (é o que o checkout faz numa
+ * contratação), mas aqui ele seria pior: apagar a recorrência apaga as cobranças
+ * futuras dela, e o cliente que acabou de pagar doze meses ficaria sem o
+ * registro do que sustenta o acesso dele.
+ *
+ * **Os três campos vão juntos, de propósito.** Mudar o ciclo sem mudar o valor
+ * cobraria um mês por ano, ou doze meses por mês; mudar os dois sem mover a data
+ * cobraria na data velha. Ter um único lugar que move os três é o que impede uma
+ * dessas três metades de ficar para trás.
+ *
+ * `updatePendingPayments: false`: a cobrança deste período já foi paga, e
+ * reescrevê-la seria mexer no que o cliente pagou.
+ *
+ * Quem chama trata a falha **antes** de gravar no banco. Gravar primeiro
+ * deixaria a conta mensal aqui e anual lá — e o sintoma seria uma fatura de doze
+ * meses onde o cliente esperava uma de um.
+ */
+export async function trocarCicloNoGateway(opcoes: {
+    subscriptionId: string
+    ciclo: BillingCycle
+    /** O que a fatura passa a cobrar, já com o desconto do ciclo. */
+    value: number
+    /** Quando a próxima cobrança acontece. */
+    nextDueDate: Date
+}): Promise<void> {
+    const dia = opcoes.nextDueDate.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+
+    await asaas(`/subscriptions/${opcoes.subscriptionId}`, {
+        method: 'PUT',
+        body: {
+            cycle: CICLOS[opcoes.ciclo].asaas,
+            value: opcoes.value,
+            nextDueDate: dia,
+            updatePendingPayments: false,
+        },
+    })
+}
+
+/**
+ * Cria de novo a recorrência de uma conta, com o cartão que ela já usou.
+ *
+ * Existe para **desfazer o cancelamento**. Cancelar faz `DELETE` na assinatura
+ * do Asaas, e isso não tem volta: a recorrência deixou de existir lá. Então
+ * desfazer não é "reativar", é criar outra — com a nossa data de cobrança, o
+ * nosso valor e o cartão que já pagou esta conta.
+ *
+ * **Sem o número do cartão**, como a troca de cartão (`set-card`): o que vai
+ * para o Asaas é um `creditCardToken` que ele já conhece. O PAN continua fora
+ * desta aplicação, que é a razão de o checkout ser hospedado.
+ *
+ * `nextDueDate` é o **fim do período já pago**, não hoje: o cliente cancelou
+ * dentro de um ciclo que ele pagou, e desfazer não pode cobrá-lo de novo pelo
+ * mesmo período. A primeira cobrança da recorrência nova é a renovação que o
+ * cancelamento havia desmarcado.
+ *
+ * Quem chama grava `asaasSubscriptionId` só depois do sucesso — uma recorrência
+ * criada e não gravada é visível no painel e cancelável à mão; um id gravado
+ * para uma recorrência que não existe faz toda rotina futura dar `PUT` num
+ * fantasma.
+ */
+export async function recriarAssinatura(opcoes: {
+    accountId: string
+    customerId: string
+    creditCardToken: string
+    ciclo: BillingCycle
+    value: number
+    nextDueDate: Date
+}): Promise<string> {
+    const dia = opcoes.nextDueDate.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+    const description = await descricaoDaAssinatura(opcoes.accountId)
+
+    const criada = await asaas<{ id: string }>('/subscriptions', {
+        method: 'POST',
+        body: {
+            customer: opcoes.customerId,
+            billingType: 'CREDIT_CARD',
+            creditCardToken: opcoes.creditCardToken,
+            cycle: CICLOS[opcoes.ciclo].asaas,
+            value: opcoes.value,
+            nextDueDate: dia,
+            description,
+            /** Desta vez a referência vai na criação: nós é que criamos. */
+            externalReference: opcoes.accountId,
+        },
+    })
+
+    return criada.id
 }

@@ -2,7 +2,14 @@
  * Só `plan-limits`, nunca `plans`: o worker chama estas contas, e `plans.ts`
  * arrasta ícones do Lucide. Mesma razão que já separou nomes e limites.
  */
-import { PLAN_PRICES, PRECO_ADICIONAL, type PlanId } from '@/lib/plan-limits'
+import {
+    CICLOS,
+    PLAN_PRICES,
+    PRECO_ADICIONAL,
+    valorDaFatura,
+    type BillingCycle,
+    type PlanId,
+} from '@/lib/plan-limits'
 
 /**
  * A aritmética de trocar de plano no meio de um ciclo pago.
@@ -72,13 +79,19 @@ export const MINIMO_DO_ASAAS = 5
  * esperar um mês passar.
  */
 export function proporcionalDoCiclo(opcoes: {
-    /** O valor cheio de um mês. Zero ou negativo não gera cobrança. */
-    valorMensal: number
+    /**
+     * O valor cheio **do período** — um mês no ciclo mensal, doze no anual.
+     *
+     * Era `valorMensal`, e o nome mentiu no dia em que o ciclo anual nasceu: a
+     * conta é "quanto deste valor cabe nos dias que faltam", e ela não sabe
+     * quantos meses o valor cobre. Zero ou negativo não gera cobrança.
+     */
+    valorDoCiclo: number
     inicioDoCiclo: Date | null
     fimDoCiclo: Date | null
     agora: Date
 }): Proporcional {
-    const { valorMensal, inicioDoCiclo, fimDoCiclo, agora } = opcoes
+    const { valorDoCiclo, inicioDoCiclo, fimDoCiclo, agora } = opcoes
 
     const DIA = 86_400_000
 
@@ -102,11 +115,11 @@ export function proporcionalDoCiclo(opcoes: {
 
     // Descer não gera cobrança: a diferença negativa não vira crédito nem
     // devolução. O cliente usa o que pagou até o fim do ciclo.
-    if (valorMensal <= 0) {
+    if (valorDoCiclo <= 0) {
         return { valor: 0, diasRestantes, diasDoCiclo, abaixoDoMinimo: false }
     }
 
-    const bruto = (valorMensal * Math.min(diasRestantes, diasDoCiclo)) / diasDoCiclo
+    const bruto = (valorDoCiclo * Math.min(diasRestantes, diasDoCiclo)) / diasDoCiclo
     const valor = Math.round(bruto * 100) / 100
 
     if (valor < MINIMO_DO_ASAAS) {
@@ -134,7 +147,7 @@ export function diferencaProporcional(opcoes: {
     const { atual, novo, adicionais, ...ciclo } = opcoes
 
     return proporcionalDoCiclo({
-        valorMensal: mensalidade(novo, adicionais) - mensalidade(atual, adicionais),
+        valorDoCiclo: mensalidade(novo, adicionais) - mensalidade(atual, adicionais),
         ...ciclo,
     })
 }
@@ -154,7 +167,192 @@ export function proporcionalDoAdicional(opcoes: {
 }): Proporcional {
     const { unidades, ...ciclo } = opcoes
     return proporcionalDoCiclo({
-        valorMensal: Math.max(0, unidades) * PRECO_ADICIONAL,
+        valorDoCiclo: Math.max(0, unidades) * PRECO_ADICIONAL,
         ...ciclo,
     })
+}
+
+/**
+ * O que a conta contrata: um plano **e** um ciclo de cobrança.
+ *
+ * Os dois juntos num tipo porque trocar de ciclo e trocar de plano são a mesma
+ * decisão na tela — o cliente escolhe "Multiclínica, anual" num gesto — e
+ * porque o preço só existe com os dois em mãos.
+ */
+export interface Contrato {
+    plan: PlanId
+    ciclo: BillingCycle
+}
+
+/**
+ * Para que lado a troca vai, agora que o ciclo também muda.
+ *
+ * `novo-ciclo` é o caso que não existia: passar de mensal para anual não é subir
+ * de plano nem descer — é assumir doze meses de compromisso em troca de 10%. Ele
+ * **cobra agora** e reinicia o ciclo de cobrança, descontando o que sobrou do
+ * mês pago.
+ *
+ * O contrário — anual para mensal — é `downgrade`, e por isso vale só na
+ * renovação: quem pagou doze meses usa os doze meses. Devolver a diferença
+ * exigiria estornar parte de uma fatura paga, e isso não é botão de tela.
+ */
+export type DirecaoDoContrato = Direcao | 'novo-ciclo'
+
+export function direcaoDoContrato(
+    atual: Contrato | null,
+    novo: Contrato
+): DirecaoDoContrato {
+    if (!atual) return 'primeira'
+    if (atual.plan === novo.plan && atual.ciclo === novo.ciclo) return 'igual'
+
+    if (atual.ciclo !== novo.ciclo) {
+        return novo.ciclo === 'annual' ? 'novo-ciclo' : 'downgrade'
+    }
+
+    return direcaoDaTroca(atual.plan, novo.plan)
+}
+
+/**
+ * Quanto cobrar agora para passar de um contrato ao outro.
+ *
+ * Três desfechos, nesta ordem de leitura:
+ *
+ * **Mesmo ciclo, subindo de plano** → a diferença dos dias que faltam, que é a
+ * regra de 2026-10-19 sem alteração nenhuma. No anual a conta é a mesma com
+ * outro período: a diferença entre as duas faturas anuais, proporcional aos dias
+ * restantes do ano pago.
+ *
+ * **Trocando para o anual** → a fatura anual inteira **menos o saldo** do ciclo
+ * atual. O cliente pagou um mês e está no dia 10; os vinte dias que sobraram
+ * viram abatimento. Sem isso, trocar de ciclo no dia 2 cobraria doze meses em
+ * cima de um mês que acabou de ser pago.
+ *
+ * **Descendo** (plano menor, ou voltando ao mensal) → zero. Vale na renovação.
+ */
+export function diferencaDeContrato(opcoes: {
+    atual: Contrato | null
+    novo: Contrato
+    adicionais: number
+    /** O período de **cobrança** vigente, não o da franquia. */
+    inicioDoCiclo: Date | null
+    fimDoCiclo: Date | null
+    agora: Date
+}): { direcao: DirecaoDoContrato; cobranca: Proporcional } {
+    const { atual, novo, adicionais, ...periodo } = opcoes
+    const direcao = direcaoDoContrato(atual, novo)
+
+    const nada: Proporcional = {
+        valor: 0,
+        diasRestantes: 0,
+        diasDoCiclo: CICLOS[atual?.ciclo ?? 'monthly'].dias,
+        abaixoDoMinimo: false,
+    }
+
+    if (direcao === 'igual' || direcao === 'downgrade') {
+        return { direcao, cobranca: nada }
+    }
+
+    /**
+     * Primeira contratação: a fatura cheia do ciclo escolhido.
+     *
+     * Não é proporcional a nada — não há período pago para descontar.
+     */
+    if (direcao === 'primeira' || !atual) {
+        return {
+            direcao,
+            cobranca: {
+                valor: valorDaFatura(novo.plan, adicionais, novo.ciclo),
+                diasRestantes: CICLOS[novo.ciclo].dias,
+                diasDoCiclo: CICLOS[novo.ciclo].dias,
+                abaixoDoMinimo: false,
+            },
+        }
+    }
+
+    if (direcao === 'novo-ciclo') {
+        /**
+         * O saldo do ciclo atual abate a fatura nova.
+         *
+         * `proporcionalDoCiclo` é a mesma conta de sempre, usada no outro
+         * sentido: ali ela diz "quanto cobrar pelos dias que faltam", aqui diz
+         * "quanto o cliente já pagou pelos dias que faltam". É o mesmo número.
+         *
+         * O `abaixoDoMinimo` do saldo é ignorado de propósito: ele serve para
+         * decidir se vale cobrar, e o que se faz aqui com o saldo é subtrair.
+         * Um saldo de R$ 3 que virasse zero cobraria R$ 3 a mais do cliente.
+         */
+        const DIA = 86_400_000
+        const diasDoCiclo =
+            periodo.inicioDoCiclo && periodo.fimDoCiclo
+                ? Math.max(
+                      1,
+                      Math.round(
+                          (periodo.fimDoCiclo.getTime() - periodo.inicioDoCiclo.getTime()) / DIA
+                      )
+                  )
+                : CICLOS[atual.ciclo].dias
+        const diasRestantes = periodo.fimDoCiclo
+            ? Math.max(0, Math.ceil((periodo.fimDoCiclo.getTime() - periodo.agora.getTime()) / DIA))
+            : 0
+
+        const pagoDoCicloAtual = valorDaFatura(atual.plan, adicionais, atual.ciclo)
+        const saldo =
+            Math.round(
+                ((pagoDoCicloAtual * Math.min(diasRestantes, diasDoCiclo)) / diasDoCiclo) * 100
+            ) / 100
+
+        const bruto = valorDaFatura(novo.plan, adicionais, novo.ciclo) - saldo
+        const valor = Math.max(0, Math.round(bruto * 100) / 100)
+
+        return {
+            direcao,
+            cobranca: {
+                valor: valor < MINIMO_DO_ASAAS ? 0 : valor,
+                diasRestantes,
+                diasDoCiclo,
+                abaixoDoMinimo: valor < MINIMO_DO_ASAAS,
+            },
+        }
+    }
+
+    // Upgrade dentro do mesmo ciclo: a diferença das duas faturas, proporcional.
+    return {
+        direcao,
+        cobranca: proporcionalDoCiclo({
+            valorDoCiclo:
+                valorDaFatura(novo.plan, adicionais, novo.ciclo) -
+                valorDaFatura(atual.plan, adicionais, atual.ciclo),
+            ...periodo,
+        }),
+    }
+}
+
+/**
+ * A data da próxima **cobrança**, contada do contrato.
+ *
+ * Separada de `renewalDate` (que é a franquia de 30 dias, em `lib/billing`) pela
+ * razão que criou a coluna `renewsAt`: no anual as duas datas se afastam, e
+ * reusar uma para a outra faria o cliente anual ser cobrado doze vezes.
+ */
+export function proximaCobranca(ciclo: BillingCycle, de: Date = new Date()): Date {
+    return new Date(de.getTime() + CICLOS[ciclo].dias * 86_400_000)
+}
+
+/**
+ * Quando o ciclo de cobrança vigente começou, deduzido do fim dele.
+ *
+ * Não há coluna de início da cobrança, e não precisa haver: `renewsAt` só é
+ * movida em passos de `CICLOS[ciclo].dias`, então o começo é o fim menos um
+ * passo. Uma coluna a mais seria uma segunda verdade para manter alinhada — e a
+ * aritmética aqui é exata, não aproximação.
+ *
+ * Importa porque o proporcional precisa saber o tamanho do período: usar o
+ * `currentPeriodStart` da franquia num ciclo anual diria "ciclo de 30 dias" e
+ * cobraria doze vezes a diferença certa.
+ */
+export function inicioDaCobranca(
+    ciclo: BillingCycle,
+    fim: Date | null | undefined
+): Date | null {
+    return fim ? new Date(fim.getTime() - CICLOS[ciclo].dias * 86_400_000) : null
 }

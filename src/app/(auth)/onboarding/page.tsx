@@ -57,6 +57,14 @@ export default function OnboardingPage() {
 
     const [nomeDoWorkspace, setNomeDoWorkspace] = useState('')
     const [plano, setPlano] = useState('pro')
+    /**
+     * Mensal ou anual, escolhido no passo do plano.
+     *
+     * Não cobra nada agora — a avaliação é de graça —, mas viaja para a
+     * assinatura e volta como padrão na tela de contratação: quem escolheu
+     * "anual, −10%" aqui não deve encontrar preços mensais no dia de assinar.
+     */
+    const [ciclo, setCiclo] = useState<'monthly' | 'annual'>('monthly')
     const [nomeDoAgente, setNomeDoAgente] = useState('')
     const [aceito, setAceito] = useState(false)
 
@@ -126,6 +134,7 @@ export default function OnboardingPage() {
                     workspaceName: nomeDoWorkspace,
                     workspaceSlug: slug,
                     plan: plano,
+                    cycle: ciclo,
                     // O nome do agente é opcional no passo 4 e o pareamento não
                     // pode esperar por ele. O passo 5 renomeia este agente com o
                     // que for digitado lá.
@@ -167,6 +176,7 @@ export default function OnboardingPage() {
                     workspaceName: nomeDoWorkspace,
                     workspaceSlug: slug,
                     plan: plano,
+                    cycle: ciclo,
                     agentName: nomeDoAgente.trim(),
                     agentId: agenteDoPareamento,
                     acceptedTermsVersion: TERMS_VERSION,
@@ -259,7 +269,13 @@ export default function OnboardingPage() {
                     </>
                 }
             >
-                <Step2Plan data={{ plan: plano }} updateData={({ plan }) => setPlano(plan)} />
+                <Step2Plan
+                    data={{ plan: plano, cycle: ciclo }}
+                    updateData={({ plan, cycle }) => {
+                        if (plan !== undefined) setPlano(plan)
+                        if (cycle !== undefined) setCiclo(cycle)
+                    }}
+                />
             </OnboardingShell>
         ) : passo === 3 ? (
             <OnboardingShell
