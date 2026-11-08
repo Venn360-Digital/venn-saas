@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import type { Prisma } from '#prisma'
 import { cookies } from 'next/headers'
 import prisma from '@/lib/prisma'
@@ -104,8 +105,30 @@ export type AuthResult = { ok: true; member: WorkspaceMember } | AuthFailure
  *
  * Picks the oldest membership when a user belongs to several, so the choice is at
  * least stable until a workspace selector exists.
+ *
+ * **Memoizada por requisição.** Esta é a função mais chamada do produto — 83
+ * chamadas no código, em 50 arquivos de `src/app` — e o layout do painel a
+ * acionava duas vezes antes mesmo de a página começar a renderizar. Sem
+ * memória, cada troca de tela repetia a resolução inteira: sessão, conta
+ * assumida, e a consulta de participação com os seus `departments`.
+ *
+ * Dois efeitos além das consultas poupadas:
+ *
+ * - **O toque de atividade acontece uma vez.** Ele já tinha folga de cinco
+ *   minutos, mas na primeira requisição depois da folga as três chamadas
+ *   disparavam três UPDATEs concorrentes na mesma linha — três conexões
+ *   seguradas no Neon pelo que é um `void` sem ninguém esperando.
+ * - **A resposta fica coerente consigo mesma.** `voltou` reavaliado três vezes
+ *   na mesma requisição podia devolver `disponivel` a um chamador e
+ *   `desconectado` a outro, conforme o UPDATE de um tivesse chegado antes da
+ *   leitura do outro.
+ *
+ * O escopo é a requisição, nunca mais que isso: `cache()` é do React e a
+ * memória morre com o pedido. Trocar de unidade e assumir conta continuam
+ * valendo no pedido seguinte, que é como as duas rotas já funcionavam — elas
+ * gravam o cookie e respondem, sem reler.
  */
-export async function getWorkspaceMember(): Promise<AuthResult> {
+export const getWorkspaceMember = cache(async (): Promise<AuthResult> => {
     // Quem é a pessoa sai de `lib/auth/sessao.ts`, que é o único lugar que sabe
     // como isso é descoberto. Aqui só interessa o que ela pode.
     const user = await usuarioDaSessao()
@@ -305,7 +328,7 @@ export async function getWorkspaceMember(): Promise<AuthResult> {
             ultimaAtividadeEm: membership.ultimaAtividadeEm,
         },
     }
-}
+})
 
 /**
  * A participação ativa, crua — ou `null`.

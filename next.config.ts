@@ -145,8 +145,6 @@ const nextConfig: NextConfig = {
     '@langchain/core',
     // Keeps BullMQ and ioredis out of the bundler: both resolve Lua scripts and
     // native bits at runtime.
-    'bullmq',
-    'ioredis',
   ],
   // Empty turbopack config to silence warning
   turbopack: {},
