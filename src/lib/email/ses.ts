@@ -67,9 +67,16 @@ export function credenciaisDoSes(): CredenciaisDoSes | null {
     return {
         accessKeyId,
         secretAccessKey,
-        // `sa-east-1` é o padrão: o dado do contato fica no país, e a latência
-        // não importa porque todo envio passa pela fila.
-        region: process.env.SES_REGION ?? 'sa-east-1',
+        /**
+         * `us-east-2` é a região da conta (confirmado em 2026-11-08).
+         *
+         * Região **é parte da identidade do SES**: domínio verificado,
+         * configuration set, cota e estado de sandbox são todos por região.
+         * Apontar para a região errada dá `NotFoundException` sem dizer por quê.
+         *
+         * A latência não importa: todo envio passa pela fila.
+         */
+        region: process.env.SES_REGION ?? 'us-east-2',
     }
 }
 

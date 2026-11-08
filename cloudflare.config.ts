@@ -562,7 +562,7 @@ export default defineConfig({
              * `venn-<slug>`), então são texto e só mudam quando se foge da
              * convenção. Declarados aqui para ficarem visíveis junto do resto.
              */
-            SES_REGION: bindings.text('sa-east-1'),
+            SES_REGION: bindings.text('us-east-2'),
             SES_CONFIGURATION_SET: bindings.text('venn-odontobox'),
             /**
              * Todo tráfego de IA passa pelo **AI Gateway deste produto**.

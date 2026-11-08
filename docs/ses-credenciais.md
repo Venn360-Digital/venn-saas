@@ -30,20 +30,59 @@ cliente**, porque é ele que assina o DKIM. Uma clínica que queima o domínio d
 não afeta as outras — nem no mesmo app, nem nos outros dois. É o motivo de todo o
 desenho (ver `EmailSender` no schema).
 
-**Região: `sa-east-1` (São Paulo).** O dado de contato fica no país, e a latência
-não importa porque todo envio passa pela fila.
+**Região: `us-east-2` (Ohio)** — a região da conta, confirmada em 2026-11-08.
+Latência não importa, porque todo envio passa pela fila. O que importa é
+**consistência**: identidade verificada, configuration set, cota e estado de
+sandbox são todos por região.
+
+**A exceção é o Agent Toolkit**, que só existe em `us-east-1` — é por isso que os
+comandos `aws configure agent-toolkit` e `aws agent-toolkit` usam `us-east-1`
+enquanto todo o resto usa `us-east-2`.
+
+---
+
+## O estado da conta hoje
+
+Medido em 2026-11-08, com `aws sesv2 get-account --region us-east-2 --profile venn360`:
+
+| | |
+|---|---|
+| Conta | `264081376201` |
+| Região | `us-east-2` |
+| Perfil da CLI | `venn360` |
+| **Acesso de produção** | **`false` — a conta está no sandbox** |
+| Teto diário | 200 e-mails |
+| Taxa máxima | 1 por segundo |
+| Saúde | `HEALTHY` |
+| Plano | `ESSENTIALS` — **US$ 0,16 / 1.000** |
+| Supressão automática | `BOUNCE` e `COMPLAINT` já ligadas |
+
+O plano `ESSENTIALS` é o que a AWS passou a aplicar a conta nova desde julho de
+2026; o preço de US$ 0,10/1.000 que circula em material antigo era o avulso. Para
+100 mil e-mails por mês dá **US$ 16** — irrelevante perto dos R$ 32 mil que as
+mesmas 100 mil mensagens custariam como marketing no WhatsApp.
+
+A supressão automática já estar ligada poupa trabalho: endereço que deu bounce
+duro ou reclamou entra na lista sozinho, e `ses:PutSuppressedDestination` no
+nosso código serve para o caso que o SES não enxerga — o descadastro feito pela
+pessoa na nossa tela.
+
+Para reconsultar a qualquer momento:
+
+```bash
+aws sesv2 get-account --region us-east-2 --profile venn360
+```
 
 ---
 
 ## Passo 1 — Conta AWS e a região
 
 1. Entre no [console da AWS](https://console.aws.amazon.com/).
-2. No canto superior direito, troque a região para **América do Sul (São Paulo)
-   `sa-east-1`**.
+2. No canto superior direito, troque a região para **Leste dos EUA (Ohio) `us-east-2`**.
 
    > A região é parte da identidade do SES: identidade verificada, configuration
    > set, cota e estado de sandbox são **por região**. Criar em `us-east-1` e
-   > apontar o código para `sa-east-1` dá "NotFoundException" sem dizer por quê.
+   > apontar o código para `us-east-2` dá "NotFoundException" sem dizer por quê.
 
 ---
 
@@ -66,7 +105,7 @@ de recibos estiver publicado — o envio já funciona sem ele, só não traz mé
 Pela CLI, se preferir:
 
 ```bash
-for app in odontobox stagent conecta; do aws ses create-configuration-set --configuration-set "Name=venn-$app" --region sa-east-1; done
+for app in odontobox stagent conecta; do aws ses create-configuration-set --configuration-set "Name=venn-$app" --region us-east-2; done
 ```
 
 ---
@@ -91,15 +130,15 @@ slug do app:
       "Effect": "Allow",
       "Action": "ses:SendEmail",
       "Resource": [
-        "arn:aws:ses:sa-east-1:SEU_ID_DE_CONTA:identity/*",
-        "arn:aws:ses:sa-east-1:SEU_ID_DE_CONTA:configuration-set/venn-odontobox"
+        "arn:aws:ses:us-east-2:SEU_ID_DE_CONTA:identity/*",
+        "arn:aws:ses:us-east-2:SEU_ID_DE_CONTA:configuration-set/venn-odontobox"
       ]
     },
     {
       "Sid": "VerificarDominioDeCliente",
       "Effect": "Allow",
       "Action": ["ses:CreateEmailIdentity", "ses:GetEmailIdentity"],
-      "Resource": "arn:aws:ses:sa-east-1:SEU_ID_DE_CONTA:identity/*"
+      "Resource": "arn:aws:ses:us-east-2:SEU_ID_DE_CONTA:identity/*"
     },
     {
       "Sid": "SuprimirQuemReclamouOuNaoExiste",
@@ -189,7 +228,7 @@ Workers no total**, com a chave do app correspondente.
 > banco, não a credencial. Se um dia quiser separar de verdade, crie um
 > configuration set `venn-odontobox-stg` e um usuário próprio.
 
-`SES_REGION` e `SES_CONFIGURATION_SET` têm padrão no código (`sa-east-1` e
+`SES_REGION` e `SES_CONFIGURATION_SET` têm padrão no código (`us-east-2` e
 `venn-<slug>`), então **só precisam ser declarados se você fugir da convenção**.
 
 ### As duas armadilhas já registradas
@@ -212,7 +251,7 @@ para endereço verificado**. Dá para construir e provar; não dá para vender.
 Console: **Amazon SES → Account dashboard → Request production access**. Ou:
 
 ```bash
-aws sesv2 put-account-details --production-access-enabled --mail-type MARKETING --website-url https://odontobox360.com --additional-contact-email-addresses andre@venn360.com --contact-language EN --region sa-east-1
+aws sesv2 put-account-details --production-access-enabled --mail-type MARKETING --website-url https://odontobox360.com --additional-contact-email-addresses andre@venn360.com --contact-language EN --region us-east-2
 ```
 
 **Uma vez só** — o pedido é da conta, não do usuário IAM, então vale para os três
@@ -244,5 +283,5 @@ No sandbox, o destinatário precisa estar verificado — verifique o seu primeir
 Estado da conta, incluindo cota e sandbox:
 
 ```bash
-aws sesv2 get-account --region sa-east-1
+aws sesv2 get-account --region us-east-2
 ```
