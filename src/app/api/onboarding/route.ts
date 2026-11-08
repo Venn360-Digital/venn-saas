@@ -1,4 +1,5 @@
 import { planFor } from '@/lib/plans'
+import { isBillingCycle } from '@/lib/plan-limits'
 import { TRIAL_CREDITS, trialEndFrom } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest) {
         console.log('[ONBOARDING] User:', user.id, user.email)
 
         const body = await request.json()
-        const { workspaceName, workspaceSlug, plan, agentName, agentId: agentIdDoPasso3, acceptedTermsVersion } = body
+        const { workspaceName, workspaceSlug, plan, cycle, agentName, agentId: agentIdDoPasso3, acceptedTermsVersion } = body
 
         console.log('[ONBOARDING] Data:', { workspaceName, workspaceSlug, plan, agentName })
 
@@ -451,6 +452,20 @@ export async function POST(request: NextRequest) {
                     trialEndsAt,
                     currentPeriodStart: signedUpAt,
                     currentPeriodEnd: trialEndsAt,
+                    /**
+                     * O ciclo escolhido no passo do plano — preferência, não
+                     * cobrança.
+                     *
+                     * A avaliação não cobra nada, então isto não gera fatura
+                     * nenhuma. Serve para a tela de contratação abrir no ciclo
+                     * que a pessoa já escolheu aqui: sem isto, quem escolheu
+                     * "anual, −10%" no cadastro encontraria preços mensais no dia
+                     * de assinar e concluiria que o desconto não existia.
+                     *
+                     * `renewsAt` fica nulo de propósito — não há cobrança
+                     * marcada até alguém contratar.
+                     */
+                    billingCycle: isBillingCycle(cycle) ? cycle : 'monthly',
                 },
             })
             console.log('[ONBOARDING] Subscription created:', chosen.id)
