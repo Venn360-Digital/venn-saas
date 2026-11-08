@@ -9,8 +9,7 @@ import {
     metaVerifyToken,
     normalizarEventoMeta,
 } from '@/lib/meta/webhook'
-import { MissingRedisUrlError } from '@/lib/queue'
-import { enqueueNormalizedEvents } from '@/lib/queue/enqueue-whatsapp'
+import { enqueueNormalizedEvents, MissingRedisUrlError } from '@/lib/queue/enqueue-whatsapp'
 
 export const runtime = 'nodejs'
 /** Nada aqui pode ser servido de cache: cada evento é um evento. */
