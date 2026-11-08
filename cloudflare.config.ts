@@ -108,6 +108,21 @@ const CONSUMO = {
         maxBatchSize: 25,
         maxBatchTimeout: 5,
     },
+    'ses-event': {
+        retryDelay: 2,
+        /**
+         * Recibo de e-mail, igual ao de WhatsApp: barato e numeroso — até nove
+         * por e-mail enviado. Agrupar troca latência (que ninguém percebe num
+         * relatório) por muito menos invocação.
+         *
+         * Lote menor que o do WhatsApp porque cada evento aqui faz uma consulta
+         * por `sesMessageId` e, em bounce ou reclamação, ainda chama o SES para
+         * suprimir. Vinte e cinco desses numa invocação se aproximariam do teto
+         * de CPU.
+         */
+        maxBatchSize: 10,
+        maxBatchTimeout: 5,
+    },
     'whatsapp-outbound': {
         retryDelay: 3,
         // Uma por vez: enviar é chamada ao provedor, e um lote que falha no meio
@@ -174,7 +189,8 @@ const EH_PREVIEW = process.env.CF_PREVIEW === '1'
 const GATILHOS = [
 
         /**
-         * Os oito consumidores.
+         * Um consumidor por fila — a lista sai de `ALL_QUEUES`, então uma
+         * fila nova entra aqui sozinha.
          *
          * A DLQ é criada sozinha no deploy se não existir, e mensagem numa
          * DLQ sem consumidor persiste quatro dias — tempo de alguém ver.
@@ -358,6 +374,7 @@ export default defineConfig({
             AGENT_WEBHOOK: bindings.queue({ name: naConta('agent-webhook') }),
             ASAAS_EVENT: bindings.queue({ name: naConta('asaas-event') }),
             BROADCAST: bindings.queue({ name: naConta('broadcast') }),
+            SES_EVENT: bindings.queue({ name: naConta('ses-event') }),
             CRON: bindings.queue({ name: naConta('cron') }),
 
             /**
