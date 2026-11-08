@@ -189,6 +189,7 @@ export type CronJobName =
     | 'billing-dunning'
     | 'billing-reconcile'
     | 'broadcast-dispatch'
+    | 'ses-verificar-remetente'
     | 'minerar-lacunas'
     | 'ia-credencial'
 
