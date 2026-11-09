@@ -426,10 +426,10 @@ em 2026-11-09, para que uma tabela nova não nasça com moldura própria:
 | Console da plataforma (`/plataforma`) | cartão do sistema (`rounded-lg`, borda cheia): ela rola dentro de uma tela com `PageHeader` e divide o espaço com três resumos, então **é** um bloco entre outros — e bloco se separa por borda |
 | Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria: a moldura é a do cartão |
 | Agente → Webhooks | grade de três colunas com cara de tabela; é lista de cadastro curta, não índice |
-| Remetentes → os registros de DNS (dentro do diálogo) | cartão do sistema (`rounded-lg`, borda cheia). Nasceu copiando o cartão de tabela que saiu em 2026-11-09 e foi alinhada depois, quando a branch de campanhas parou de andar |
+| Domínios → os registros de DNS (na ficha do domínio) | cartão do sistema (`rounded-lg`, borda cheia). Nasceu copiando o cartão de tabela que saiu em 2026-11-09 e foi alinhada depois. A tabela é a **última faixa** do cartão, separada por borda de topo — não um segundo cartão dentro dele |
 | `/privacidade` (página pública) | `<table>` fora do shell, com o desenho da página pública |
 
-Telas novas de índice **não precisam fazer nada**: `Remetentes` e `Funis`
+Telas novas de índice **não precisam fazer nada**: `Domínios` e `Funis`
 nasceram na branch de campanhas sem nenhum `px` próprio e herdaram esta margem
 na mescla — é o teste de que a regra mora na peça.
 

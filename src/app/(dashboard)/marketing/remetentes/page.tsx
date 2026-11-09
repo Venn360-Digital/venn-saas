@@ -22,6 +22,7 @@ export default async function RemetentesPage() {
             id: r.id,
             domain: r.domain,
             from: `${r.fromLocal}@${r.domain}`,
+            fromLocal: r.fromLocal,
             fromName: r.fromName,
             replyTo: r.replyTo,
             status: r.status,

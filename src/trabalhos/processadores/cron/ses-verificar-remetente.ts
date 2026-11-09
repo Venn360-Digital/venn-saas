@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { createLogger } from '@/trabalhos/registro'
-import { credenciaisDoSes, lerIdentidade } from '@/lib/email/ses'
+import { credenciaisDoSes } from '@/lib/email/ses'
+import { conferirRemetente } from '@/lib/marketing/conferir-remetente'
 
 const log = createLogger('CRON:SES-REMETENTE')
 
@@ -49,50 +50,20 @@ export async function runSesVerificarRemetente(): Promise<void> {
     let desistidos = 0
 
     for (const remetente of pendentes) {
-        const resultado = await lerIdentidade(remetente.domain)
+        /**
+         * A consulta e a gravação moram em `conferirRemetente`, porque o botão
+         * "Verificar agora" da ficha faz exatamente a mesma coisa. Aqui sobra o
+         * que é só da rotina: o lote, o teto, e a decisão de desistir.
+         */
+        const desfecho = await conferirRemetente(remetente, remetente.createdAt < limite)
 
-        if (!resultado.ok) {
-            /**
-             * Falha de consulta **não** mexe no estado do remetente.
-             *
-             * Rede fora ou SES indisponível não diz nada sobre o DNS do
-             * cliente, e marcar `failed` aqui mandaria a tela pedir que ele
-             * conferisse registros que estão certos. Só carimba a data da
-             * tentativa, para a ordenação não travar neste.
-             */
-            await prisma.emailSender.update({
-                where: { id: remetente.id },
-                data: { lastCheckedAt: new Date() },
-            })
-            log.warn(`${remetente.domain}: ${resultado.error}`)
+        if (!desfecho.ok) {
+            log.warn(`${remetente.domain}: ${desfecho.error}`)
             continue
         }
 
-        const { identidade } = resultado
-        const venceu = remetente.createdAt < limite
-
-        const novoStatus = identidade.prontaParaEnvio
-            ? 'verified'
-            : identidade.dkimStatus === 'FAILED' || venceu
-              ? 'failed'
-              : 'pending'
-
-        await prisma.emailSender.update({
-            where: { id: remetente.id },
-            data: {
-                status: novoStatus,
-                dkimStatus: identidade.dkimStatus,
-                // Os tokens podem mudar se a identidade foi recriada do outro
-                // lado; a tela mostra o que o SES espera agora, não o que ela
-                // mostrava antes.
-                ...(identidade.tokens.length > 0 ? { dkimTokens: identidade.tokens } : {}),
-                lastCheckedAt: new Date(),
-                ...(identidade.prontaParaEnvio ? { verifiedAt: new Date() } : {}),
-            },
-        })
-
-        if (novoStatus === 'verified') verificados++
-        if (novoStatus === 'failed') desistidos++
+        if (desfecho.status === 'verified') verificados++
+        if (desfecho.status === 'failed') desistidos++
     }
 
     log.info(

@@ -7,6 +7,14 @@ export interface RemetenteItem {
     domain: string
     /** O endereço completo, já montado: `contato@clinica.com.br`. */
     from: string
+    /**
+     * Só a parte antes do @.
+     *
+     * Separada do `from` porque o campo da ficha edita **só** ela: o domínio
+     * aparece ao lado, em cinza e travado. Recortar o `from` por `@` na tela
+     * daria o mesmo valor com uma chance a mais de errar.
+     */
+    fromLocal: string
     fromName: string
     replyTo: string
     status: string

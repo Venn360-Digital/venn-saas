@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { AtSign, Check, Copy, Plus, Settings2 } from 'lucide-react'
+import { AtSign, Check, Copy, Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -24,8 +24,9 @@ import {
 import type { DadosIniciais, RemetenteItem } from './dados'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
-const FORM_VAZIO = { domain: '', fromLocal: 'contato', fromName: '', replyTo: '' }
 
+/** O formulário da ficha. O domínio só é editável na criação. */
+const FORM_VAZIO = { domain: '', fromLocal: 'contato', fromName: '', replyTo: '' }
 type CampoDoForm = keyof typeof FORM_VAZIO
 
 export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
@@ -34,7 +35,7 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
     const buscar = useCallback(async () => {
         const res = await fetch('/api/marketing/remetentes')
         if (!res.ok) {
-            toast.error('Não foi possível carregar os remetentes')
+            toast.error('Não foi possível carregar os domínios')
             return null
         }
         const itens = (await res.json()) as RemetenteItem[]
@@ -48,12 +49,34 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
     } = useIndiceServidor<RemetenteItem>({ inicial, recorte: RECORTE_INTEIRO, buscar })
 
     const [busca, setBusca] = useState('')
-    const [novoAberto, setNovoAberto] = useState(false)
-    const [form, setForm] = useState(FORM_VAZIO)
-    const [erros, setErros] = useState<Partial<Record<CampoDoForm, string>>>({})
-    const [enviando, setEnviando] = useState(false)
-    /** O remetente cujas instruções de DNS estão abertas. */
-    const [vendoDns, setVendoDns] = useState<RemetenteItem | null>(null)
+    /**
+     * Uma ficha, dois modos.
+     *
+     * `'novo'` abre em branco com o domínio editável; um item abre com os dados
+     * dele e o domínio travado. Antes eram dois diálogos — o de cadastro e o de
+     * registros DNS, que abria ao clicar na linha —, e o resultado era que ver
+     * os CNAME e conferir o remetente eram telas diferentes do mesmo assunto.
+     */
+    const [ficha, setFicha] = useState<RemetenteItem | 'novo' | null>(null)
+
+    /**
+     * A `key` da ficha, e por que ela existe em vez de um efeito.
+     *
+     * A ficha precisa recomeçar com os dados do alvo quando o alvo troca. A
+     * forma errada é sincronizar por `useEffect` + `setState` — o próprio
+     * ESLint do projeto recusa, e com razão: é render em cascata para resolver
+     * algo que o React já resolve remontando o componente.
+     *
+     * A `key` **não** volta a `null` ao fechar, de propósito: se voltasse, o
+     * componente desmontaria antes da animação de saída e o diálogo piscaria.
+     * Ela só muda quando outra ficha abre.
+     */
+    const [chaveDaFicha, setChaveDaFicha] = useState('vazia')
+
+    function abrir(alvo: RemetenteItem | 'novo') {
+        setChaveDaFicha(alvo === 'novo' ? `novo-${Date.now()}` : alvo.id)
+        setFicha(alvo)
+    }
 
     const visiveis = remetentes.filter(
         (r) =>
@@ -62,91 +85,22 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
             r.fromName.toLowerCase().includes(busca.trim().toLowerCase())
     )
 
-    function abrirNovo() {
-        setForm(FORM_VAZIO)
-        setErros({})
-        setNovoAberto(true)
-    }
-
-    async function salvar() {
-        setEnviando(true)
-        setErros({})
-        try {
-            const res = await fetch('/api/marketing/remetentes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(form),
-            })
-            const corpo = (await res.json()) as {
-                error?: string
-                campo?: CampoDoForm | null
-                id?: string
-                domain?: string
-                from?: string
-                status?: string
-                dns?: RegistroDeDns[]
-            }
-
-            if (!res.ok) {
-                /**
-                 * O erro vai para **baixo do campo** que o causou, nunca em
-                 * toast — é a regra do DESIGN.md (Tela 01, o diálogo). O toast
-                 * fica só para o erro que não pertence a campo nenhum, como o
-                 * provedor fora do ar.
-                 */
-                if (corpo.campo) setErros({ [corpo.campo]: corpo.error ?? 'Valor inválido' })
-                else toast.error(corpo.error ?? 'Não foi possível cadastrar o domínio')
-                return
-            }
-
-            setNovoAberto(false)
-            await recarregar()
-            toast.success('Domínio cadastrado. Agora publique os registros no DNS.')
-
-            /**
-             * Abre as instruções de DNS no ato.
-             *
-             * Sem isto, a pessoa cadastra o domínio, vê "Aguardando DNS" na
-             * lista e não tem como adivinhar que ainda falta ela fazer alguma
-             * coisa — e o remetente ficaria pendente para sempre, parecendo
-             * defeito nosso.
-             *
-             * O item sai da **resposta do POST**, não da releitura: `recarregar`
-             * não devolve a lista, e procurar o id nela dependeria do estado já
-             * ter sido aplicado — corrida que às vezes abriria o diálogo vazio.
-             */
-            setVendoDns({
-                id: corpo.id ?? '',
-                domain: corpo.domain ?? form.domain,
-                from: corpo.from ?? `${form.fromLocal}@${form.domain}`,
-                fromName: form.fromName,
-                replyTo: form.replyTo,
-                status: corpo.status ?? 'pending',
-                dkimStatus: null,
-                verifiedAt: null,
-                lastCheckedAt: null,
-                dns: corpo.dns ?? [],
-                createdAt: new Date().toISOString(),
-            })
-        } catch {
-            toast.error('Não foi possível cadastrar o domínio')
-        } finally {
-            setEnviando(false)
-        }
-    }
-
     const colunas: Column<RemetenteItem>[] = [
         {
-            id: 'remetente',
-            header: 'Remetente',
-            sortable: true,
-            sortValue: (r) => r.domain,
+            id: 'domain',
+            header: 'Domínio',
             cell: (r) => (
-                <div className="flex flex-col">
-                    <span className="text-sm text-foreground">{r.from}</span>
-                    <span className="text-xs text-muted-foreground">{r.fromName}</span>
+                <div className="min-w-0">
+                    <div className="truncate font-medium">{r.domain}</div>
+                    <div className="truncate text-xs text-muted-foreground">{r.from}</div>
                 </div>
             ),
+        },
+        {
+            id: 'fromName',
+            header: 'Nome que aparece',
+            width: '16rem',
+            cell: (r) => <span className="text-sm">{r.fromName}</span>,
         },
         {
             id: 'status',
@@ -165,13 +119,13 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
     return (
         <>
             <IndexFrame
-                title="Remetentes"
+                title="Domínios"
                 search={busca}
                 onSearchChange={setBusca}
                 primary={
                     canEdit ? (
-                        <Button onClick={abrirNovo}>
-                            <Plus /> Novo remetente
+                        <Button onClick={() => abrir('novo')}>
+                            <Plus /> Novo domínio
                         </Button>
                     ) : null
                 }
@@ -182,17 +136,17 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
                     getRowId={(r) => r.id}
                     loading={loading}
                     frame
-                    onRowClick={(r) => setVendoDns(r)}
+                    onRowClick={(r) => abrir(r)}
                     empty={
                         <EmptyState
                             variant="inline"
                             icon={AtSign}
-                            title="Nenhum remetente ainda"
+                            title="Nenhum domínio ainda"
                             description={`As campanhas de e-mail saem do domínio da ${BRAND.vocabulario.organizacao}, não de um endereço nosso — é o que faz quem recebe reconhecer quem mandou.`}
                             action={
                                 canEdit ? (
-                                    <Button onClick={abrirNovo}>
-                                        <Plus /> Novo remetente
+                                    <Button onClick={() => abrir('novo')}>
+                                        <Plus /> Novo domínio
                                     </Button>
                                 ) : null
                             }
@@ -201,148 +155,386 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
                 />
             </IndexFrame>
 
-            <RecordDialog
-                open={novoAberto}
-                onOpenChange={setNovoAberto}
-                title="Novo remetente"
-                description={`O e-mail sai do domínio da ${BRAND.vocabulario.organizacao}. Depois de cadastrar, três registros precisam ser publicados no DNS dele.`}
-                submitLabel="Cadastrar domínio"
-                hideAgain
-                onSubmit={salvar}
-                submitting={enviando}
-            >
-                <FormField
-                    label="Domínio"
-                    htmlFor="rem-domain"
-                    required
-                    error={erros.domain}
-                    className="col-span-2"
-                    hint="Só o domínio, sem https:// e sem @. Um subdomínio como mkt.clinica.com.br separa a reputação das campanhas da do e-mail do dia a dia."
-                >
-                    <Input
-                        id="rem-domain"
-                        value={form.domain}
-                        onChange={(e) => {
-                            setForm((p) => ({ ...p, domain: e.target.value }))
-                            if (erros.domain) setErros({})
-                        }}
-                        placeholder="clinica.com.br"
-                        autoFocus
-                    />
-                </FormField>
-
-                <FormField label="Endereço" htmlFor="rem-local" required error={erros.fromLocal}>
-                    <Input
-                        id="rem-local"
-                        value={form.fromLocal}
-                        onChange={(e) => setForm((p) => ({ ...p, fromLocal: e.target.value }))}
-                        placeholder="contato"
-                    />
-                </FormField>
-
-                <FormField
-                    label="Nome que aparece"
-                    htmlFor="rem-name"
-                    required
-                    error={erros.fromName}
-                >
-                    <Input
-                        id="rem-name"
-                        value={form.fromName}
-                        onChange={(e) => setForm((p) => ({ ...p, fromName: e.target.value }))}
-                        placeholder="Clínica Sorriso Claro"
-                    />
-                </FormField>
-
-                <FormField
-                    label="Respostas vão para"
-                    htmlFor="rem-reply"
-                    required
-                    error={erros.replyTo}
-                    className="col-span-2"
-                    hint="Quem responder a uma campanha chega nesta caixa. As respostas não entram em Conversas."
-                >
-                    <Input
-                        id="rem-reply"
-                        type="email"
-                        value={form.replyTo}
-                        onChange={(e) => setForm((p) => ({ ...p, replyTo: e.target.value }))}
-                        placeholder="contato@clinica.com.br"
-                    />
-                </FormField>
-            </RecordDialog>
-
-            <InstrucoesDeDns remetente={vendoDns} onClose={() => setVendoDns(null)} />
+            <FichaDoDominio
+                key={chaveDaFicha}
+                alvo={ficha}
+                podeEditar={canEdit}
+                onClose={() => setFicha(null)}
+                onSalvo={recarregar}
+                onCriado={(novo) => abrir(novo)}
+            />
         </>
     )
 }
 
 /**
- * Os registros que o cliente publica, num diálogo largo.
+ * A ficha de um domínio: os campos, os registros de DNS e o botão de verificar.
  *
- * `size="wide"` (1120px) porque isto é conteúdo que **se lê e se copia**, não
- * formulário que se preenche — e é exatamente o caso que o DESIGN.md reserva
- * para o largo. Em 840 a coluna do valor do CNAME corta no meio do token.
- *
- * Sem `submitLabel` e sem `onSubmit`: o `RecordDialog` já trata quadro de
- * leitura como caso próprio — sem ação primária ele desenha **um** botão, que
- * fecha. Passando um `submitLabel="Fechar"` saíam dois botões, "Cancelar" e
- * "Fechar", oferecendo uma escolha entre duas coisas idênticas.
+ * `size="wide"` (1120px) porque metade do conteúdo é **tabela que se copia**, e
+ * é o caso que o DESIGN.md reserva para o largo. Em 840 a coluna do valor do
+ * CNAME corta no meio do token, e o token é justamente o que a pessoa precisa
+ * levar inteiro para o painel de DNS dela.
  */
-function InstrucoesDeDns({
-    remetente,
+function FichaDoDominio({
+    alvo,
+    podeEditar,
     onClose,
+    onSalvo,
+    onCriado,
 }: {
-    remetente: RemetenteItem | null
+    alvo: RemetenteItem | 'novo' | null
+    podeEditar: boolean
     onClose: () => void
+    onSalvo: () => Promise<unknown> | void
+    onCriado: (novo: RemetenteItem) => void
 }) {
+    const ehNovo = alvo === 'novo'
+    const item = alvo && alvo !== 'novo' ? alvo : null
+
+    /**
+     * Tudo nasce do alvo, no inicializador — não num efeito.
+     *
+     * Quem garante que isto roda de novo quando a ficha troca é a `key` no
+     * componente (ver o pai). Sem ela, estes valores ficariam presos no
+     * primeiro alvo; com ela, o React remonta e o inicializador roda — que é o
+     * caminho que a documentação do React indica para "reiniciar estado quando
+     * uma prop muda", e o que evita o render em cascata que o `setState` dentro
+     * de efeito provoca.
+     */
+    const [form, setForm] = useState(() =>
+        item
+            ? {
+                  domain: item.domain,
+                  fromLocal: item.fromLocal,
+                  fromName: item.fromName,
+                  replyTo: item.replyTo,
+              }
+            : FORM_VAZIO
+    )
+    const [erros, setErros] = useState<Partial<Record<CampoDoForm, string>>>({})
+    const [enviando, setEnviando] = useState(false)
+
+    /** O estado vivo da verificação — ele muda sem recarregar a lista. */
+    const [situacao, setSituacao] = useState<string | null>(item?.status ?? null)
+    const [dkimStatus, setDkimStatus] = useState<string | null>(item?.dkimStatus ?? null)
+    const [dns, setDns] = useState<RegistroDeDns[]>(item?.dns ?? [])
+    const [verificando, setVerificando] = useState(false)
+
+    function mudar(campo: CampoDoForm, valor: string) {
+        setForm((p) => ({ ...p, [campo]: valor }))
+        if (erros[campo]) setErros((p) => ({ ...p, [campo]: undefined }))
+    }
+
+    async function salvar() {
+        setEnviando(true)
+        try {
+            const res = await fetch(
+                ehNovo ? '/api/marketing/remetentes' : `/api/marketing/remetentes/${item?.id}`,
+                {
+                    method: ehNovo ? 'POST' : 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(
+                        ehNovo
+                            ? form
+                            : {
+                                  fromLocal: form.fromLocal,
+                                  fromName: form.fromName,
+                                  replyTo: form.replyTo,
+                              }
+                    ),
+                }
+            )
+            const corpo = (await res.json().catch(() => ({}))) as {
+                id?: string
+                error?: string
+                campo?: CampoDoForm
+                dns?: RegistroDeDns[]
+                status?: string
+            }
+
+            if (!res.ok) {
+                if (corpo.campo) setErros({ [corpo.campo]: corpo.error })
+                else toast.error(corpo.error ?? 'Não foi possível salvar')
+                return
+            }
+
+            await onSalvo()
+
+            if (ehNovo && corpo.id) {
+                /**
+                 * Cadastrou: a ficha **continua aberta**, agora com os registros.
+                 *
+                 * Fechar aqui esconderia os três CNAME no instante em que eles
+                 * passam a existir, e a pessoa teria de descobrir que precisa
+                 * clicar na linha para vê-los. Publicar o DNS é o passo
+                 * seguinte do mesmo gesto.
+                 */
+                onCriado({
+                    id: corpo.id,
+                    domain: form.domain.trim().toLowerCase(),
+                    from: `${form.fromLocal}@${form.domain.trim().toLowerCase()}`,
+                    fromLocal: form.fromLocal,
+                    fromName: form.fromName,
+                    replyTo: form.replyTo,
+                    status: corpo.status ?? 'pending',
+                    dkimStatus: null,
+                    verifiedAt: null,
+                    lastCheckedAt: null,
+                    dns: corpo.dns ?? [],
+                    createdAt: new Date().toISOString(),
+                })
+                toast.success('Domínio cadastrado. Agora publique os três registros abaixo.')
+                return
+            }
+
+            toast.success('Domínio atualizado')
+            onClose()
+        } finally {
+            setEnviando(false)
+        }
+    }
+
+    async function verificarAgora() {
+        if (!item) return
+        setVerificando(true)
+        try {
+            const res = await fetch(`/api/marketing/remetentes/${item.id}/verificar`, {
+                method: 'POST',
+            })
+            const corpo = (await res.json().catch(() => ({}))) as {
+                status?: string
+                dkimStatus?: string | null
+                dns?: RegistroDeDns[]
+                error?: string
+            }
+            if (!res.ok) {
+                toast.error(corpo.error ?? 'Não foi possível verificar agora')
+                return
+            }
+            setSituacao(corpo.status ?? situacao)
+            setDkimStatus(corpo.dkimStatus ?? null)
+            if (corpo.dns) setDns(corpo.dns)
+            await onSalvo()
+
+            if (corpo.status === 'verified') toast.success('Domínio validado — já pode disparar')
+            else if (corpo.status === 'failed') toast.error('O provedor recusou os registros')
+            else toast.info('Os registros ainda não foram encontrados. Isso pode levar algumas horas.')
+        } finally {
+            setVerificando(false)
+        }
+    }
+
+    /** O sufixo cinza do campo de endereço. */
+    const sufixo = form.domain.trim() ? `@${form.domain.trim().toLowerCase()}` : '@seudominio.com.br'
+
     return (
         <RecordDialog
-            open={remetente !== null}
+            open={alvo !== null}
             onOpenChange={(aberto) => !aberto && onClose()}
             size="wide"
-            title={remetente ? `Registros de ${remetente.domain}` : 'Registros'}
-            description={remetente ? explicacaoDoDkim(remetente.dkimStatus) : ''}
+            title={ehNovo ? 'Novo domínio' : form.domain}
+            description={
+                ehNovo
+                    ? `O e-mail sai do domínio da ${BRAND.vocabulario.organizacao}. Depois de cadastrar, três registros precisam ser publicados no DNS dele.`
+                    : explicacaoDoDkim(dkimStatus)
+            }
+            submitLabel={podeEditar ? (ehNovo ? 'Cadastrar domínio' : 'Salvar') : undefined}
+            hideAgain
+            onSubmit={podeEditar ? salvar : undefined}
+            submitting={enviando}
         >
-            <div className="col-span-2 space-y-4">
+            <FormField
+                label="Domínio"
+                htmlFor="rem-domain"
+                required
+                error={erros.domain}
+                className="col-span-2"
+                hint={
+                    ehNovo
+                        ? 'Só o domínio, sem https:// e sem @. Recomendamos um subdomínio como mkt.clinica.com.br, assim separa a reputação do seu e-mail.'
+                        : 'O domínio não muda: no provedor de e-mail ele É a identidade, e trocá-lo exigiria publicar outros três registros. Para usar outro, cadastre um novo.'
+                }
+            >
+                <Input
+                    id="rem-domain"
+                    value={form.domain}
+                    onChange={(e) => mudar('domain', e.target.value)}
+                    placeholder="clinica.com.br"
+                    autoFocus={ehNovo}
+                    /**
+                     * Travado fora da criação, e a razão está no `hint` acima —
+                     * não é zelo de formulário: editar aqui invalidaria o DKIM
+                     * que o cliente já publicou, sem nada dizer.
+                     */
+                    disabled={!ehNovo || !podeEditar}
+                />
+            </FormField>
+
+            <FormField
+                label="Endereço"
+                htmlFor="rem-local"
+                required
+                error={erros.fromLocal}
+                hint="Só o que vem antes do @."
+            >
+                {/*
+                  O domínio fica à direita, em cinza e fora do campo.
+                  Antes o campo pedia só o prefixo e não mostrava o resto, e o
+                  erro previsível era digitar o endereço inteiro — que o schema
+                  recusa por causa do @, com uma mensagem que a pessoa não
+                  esperava. Mostrar o sufixo faz o formato ser óbvio sem precisar
+                  de aviso.
+                */}
+                <div className="flex h-9 items-center rounded-md border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring">
+                    <Input
+                        id="rem-local"
+                        value={form.fromLocal}
+                        onChange={(e) => mudar('fromLocal', e.target.value)}
+                        placeholder="contato"
+                        disabled={!podeEditar}
+                        className="h-8 min-w-0 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                    />
+                    <span
+                        className="shrink-0 select-all truncate px-2.5 text-sm text-muted-foreground"
+                        title={sufixo}
+                    >
+                        {sufixo}
+                    </span>
+                </div>
+            </FormField>
+
+            <FormField label="Nome que aparece" htmlFor="rem-name" required error={erros.fromName}>
+                <Input
+                    id="rem-name"
+                    value={form.fromName}
+                    onChange={(e) => mudar('fromName', e.target.value)}
+                    placeholder="Clínica Sorriso Claro"
+                    disabled={!podeEditar}
+                />
+            </FormField>
+
+            <FormField
+                label="Respostas vão para"
+                htmlFor="rem-reply"
+                required
+                error={erros.replyTo}
+                className="col-span-2"
+                hint="Quem responder a uma campanha chega nesta caixa. As respostas não entram em Conversas."
+            >
+                <Input
+                    id="rem-reply"
+                    type="email"
+                    value={form.replyTo}
+                    onChange={(e) => mudar('replyTo', e.target.value)}
+                    placeholder="contato@clinica.com.br"
+                    disabled={!podeEditar}
+                />
+            </FormField>
+
+            {ehNovo ? (
+                <p className="col-span-2 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    Ao cadastrar, aparecem aqui os três registros CNAME para publicar no DNS deste
+                    domínio. Enquanto eles não forem encontrados, as campanhas não saem.
+                </p>
+            ) : (
+                <CartaoDeDns
+                    situacao={situacao}
+                    dns={dns}
+                    verificando={verificando}
+                    podeVerificar={podeEditar}
+                    onVerificar={verificarAgora}
+                />
+            )}
+        </RecordDialog>
+    )
+}
+
+/**
+ * O cartão dos registros, dentro da própria ficha.
+ *
+ * Com o selo de situação e o botão de verificar no cabeçalho dele: é o mesmo
+ * assunto — "o DNS já está certo?" —, e separar o estado do que o produz
+ * obrigava a pessoa a olhar em dois lugares para responder a uma pergunta.
+ *
+ * ## A moldura é o cartão do sistema: `rounded-lg` com a borda cheia
+ *
+ * **Não** o "cartão de tabela" das telas de índice (`rounded-xl` com moldura
+ * `border/60`). Aquele desenho saiu do sistema em 2026-11-09, quando a tabela
+ * de índice passou a sangrar — margem zero nas quatro extremidades e o respiro
+ * na célula. Aqui é um bloco dentro de um diálogo, e bloco se separa por borda
+ * e superfície (DESIGN.md §4 e §5).
+ *
+ * E é **um** cartão, não dois. Na primeira versão deste arquivo a tabela tinha
+ * moldura própria dentro deste bloco, o que desenhava duas molduras
+ * concêntricas; ela virou a última faixa, separada por borda de topo, com
+ * `overflow-hidden` no pai para o arredondamento valer até a última linha.
+ */
+function CartaoDeDns({
+    situacao,
+    dns,
+    verificando,
+    podeVerificar,
+    onVerificar,
+}: {
+    situacao: string | null
+    dns: RegistroDeDns[]
+    verificando: boolean
+    podeVerificar: boolean
+    onVerificar: () => void
+}) {
+    return (
+        <div className="col-span-2 overflow-hidden rounded-lg border border-border">
+            <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+                <h3 className="text-sm font-medium">Registros no DNS</h3>
+                <StatusBadge value={situacao} map={SITUACAO_DO_REMETENTE} />
+                {podeVerificar && (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto"
+                        onClick={onVerificar}
+                        disabled={verificando}
+                    >
+                        <RefreshCw className={verificando ? 'animate-spin' : undefined} />
+                        {verificando ? 'Verificando…' : 'Verificar agora'}
+                    </Button>
+                )}
+            </div>
+
+            <div className="space-y-3 p-4">
                 <p className="text-sm text-muted-foreground">
                     Acrescente estes três registros na zona do domínio, onde o DNS dele é
-                    administrado. A verificação acontece sozinha — não é preciso voltar aqui.
+                    administrado. A verificação também acontece sozinha de hora em hora — o botão
+                    serve para não esperar.
                 </p>
 
-                {/* Cartão do sistema, e não o desenho das telas de índice.
-                    Esta tabela nasceu copiando o "cartão de tabela"
-                    (`rounded-xl` com moldura `border/60`), que saiu do sistema
-                    em 2026-11-09: a tabela de índice passou a **sangrar**, com
-                    margem zero e o respiro na célula, então aquele cartão não
-                    existe mais para copiar. Aqui é um bloco dentro de um
-                    diálogo — e bloco se separa por borda e superfície
-                    (DESIGN.md §4 e §5). */}
-                <div className="overflow-x-auto rounded-lg border border-border">
+                {dns.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                        Os registros ainda não foram gerados. Use “Verificar agora”.
+                    </p>
+                )}
+            </div>
+
+            {dns.length > 0 && (
+                <div className="overflow-x-auto border-t border-border">
                     <table className="w-full text-sm">
                         <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="px-3 py-2 text-left font-medium">Tipo</th>
                                 <th className="px-3 py-2 text-left font-medium">Nome</th>
                                 <th className="px-3 py-2 text-left font-medium">Valor</th>
-                                <th className="w-10" />
                             </tr>
                         </thead>
                         <tbody>
-                            {(remetente?.dns ?? []).map((registro) => (
+                            {dns.map((registro) => (
                                 <LinhaDeRegistro key={registro.nome} registro={registro} />
                             ))}
                         </tbody>
                     </table>
                 </div>
-
-                {(remetente?.dns.length ?? 0) === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                        Os registros ainda não foram gerados. Recarregue a página em instantes.
-                    </p>
-                )}
-            </div>
-        </RecordDialog>
+            )}
+        </div>
     )
 }
 
@@ -396,9 +588,6 @@ function LinhaDeRegistro({ registro }: { registro: RegistroDeDns }) {
                         <Copy className="size-3.5 shrink-0 opacity-40" />
                     )}
                 </button>
-            </td>
-            <td className="px-3 py-2 text-right">
-                <Settings2 className="ml-auto size-3.5 opacity-0" aria-hidden />
             </td>
         </tr>
     )
