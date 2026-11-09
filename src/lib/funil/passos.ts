@@ -120,7 +120,7 @@ export function lerCondicao(config: unknown): Condicao | null {
  */
 export function proximoPasso(
     atual: PassoDoFunil,
-    todos: PassoDoFunil[],
+    todos: readonly PassoDoFunil[],
     ramo: 'sim' | 'nao' | 'padrao' = 'padrao'
 ): PassoDoFunil | null {
     const arestas = comoObjeto(atual.edges)
@@ -155,8 +155,100 @@ export function proximoPasso(
     return ordenados[i + 1]
 }
 
+/**
+ * Para onde este passo **pode** levar — todos os ramos.
+ *
+ * Derivado de `proximoPasso`, nunca relendo `edges` por conta própria. É a regra
+ * da casa aqui: duas leituras do mesmo grafo divergiriam calado, e a que
+ * importa é a do motor. Se a navegação mudar, isto acompanha de graça.
+ *
+ * Só a condição tem `sim`/`nao`; os outros passos consultam `padrao`.
+ */
+export function sucessores(atual: PassoDoFunil, todos: readonly PassoDoFunil[]): PassoDoFunil[] {
+    const ramos: ('sim' | 'nao' | 'padrao')[] =
+        atual.type === 'condicao' ? ['sim', 'nao'] : ['padrao']
+
+    const achados = ramos
+        .map((ramo) => proximoPasso(atual, todos, ramo))
+        .filter((p): p is PassoDoFunil => p !== null)
+
+    // Dois ramos podem apontar para o mesmo passo; o grafo não precisa saber.
+    return [...new Map(achados.map((p) => [p.id, p])).values()]
+}
+
+/**
+ * Teto de transições numa passagem, como **rede** — não como regra de produto.
+ *
+ * `cicloNoDesenho` recusa o ciclo na publicação, que é onde o erro deve morrer.
+ * Este número existe porque a publicação não é o único caminho: um `edges`
+ * editado direto no banco, ou um funil publicado antes desta guarda existir,
+ * chegaria ao motor com ciclo. Sem teto, a passagem mandaria mensagem para
+ * sempre — e quem recebe é paciente de verdade.
+ *
+ * 200 porque o desenho cabe em 100 passos e nenhuma sequência honesta anda duas
+ * vezes por cada um.
+ */
+export const MAX_TRANSICOES = 200
+
+/**
+ * Existe ciclo no desenho? Devolve o caminho que volta, ou `null`.
+ *
+ * ## Por que isto bloqueia a publicação
+ *
+ * Um ciclo não dá erro: ele **funciona**. A passagem anda `a → b → a → b` e
+ * manda a mesma sequência de mensagens para sempre, sem exceção e sem log de
+ * falha. O primeiro a notar é a pessoa que está recebendo, e o estrago já está
+ * feito — no WhatsApp cada volta custa R$ 0,32 e, pior, custa a conversa.
+ *
+ * A espera não salva: `step.sleep` atrasa a volta, não a interrompe. Um ciclo
+ * com três dias de espera é uma mensagem a cada três dias, até alguém
+ * despublicar o funil.
+ *
+ * Devolve o **caminho**, e não só `true`, porque a tela precisa dizer quais nós
+ * fechar — "existe um ciclo" não ajuda quem desenhou noventa passos.
+ */
+export function cicloNoDesenho(todos: readonly PassoDoFunil[]): string[] | null {
+    /** 0 = não visitado, 1 = na pilha atual, 2 = fechado. */
+    const estado = new Map<string, 0 | 1 | 2>()
+    const caminho: string[] = []
+
+    const desce = (passo: PassoDoFunil): string[] | null => {
+        estado.set(passo.id, 1)
+        caminho.push(passo.id)
+
+        for (const proximo of sucessores(passo, todos)) {
+            const e = estado.get(proximo.id) ?? 0
+            if (e === 1) {
+                // Aresta de retorno: o ciclo é daqui até o reencontro.
+                const inicio = caminho.indexOf(proximo.id)
+                return [...caminho.slice(inicio), proximo.id]
+            }
+            if (e === 0) {
+                const achado = desce(proximo)
+                if (achado) return achado
+            }
+        }
+
+        caminho.pop()
+        estado.set(passo.id, 2)
+        return null
+    }
+
+    // De todos os nós, não só do primeiro: um ciclo pode estar num trecho que
+    // o início não alcança, e publicar isso deixaria a bomba armada para quando
+    // alguém ligasse uma aresta até lá.
+    for (const passo of todos) {
+        if ((estado.get(passo.id) ?? 0) === 0) {
+            const achado = desce(passo)
+            if (achado) return achado
+        }
+    }
+
+    return null
+}
+
 /** O primeiro passo do funil — o de menor `order`. */
-export function primeiroPasso(todos: PassoDoFunil[]): PassoDoFunil | null {
+export function primeiroPasso(todos: readonly PassoDoFunil[]): PassoDoFunil | null {
     if (todos.length === 0) return null
     return [...todos].sort((a, b) => a.order - b.order)[0]
 }

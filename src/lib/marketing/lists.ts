@@ -1,6 +1,7 @@
 import 'server-only'
 import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
+import { contatosEntraramNaLista } from '@/lib/funil/disparos'
 import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 
 /**
@@ -98,6 +99,25 @@ export async function popularListaPorFiltro(
         select: { id: true },
     })
 
+    /**
+     * Quem **entrou agora**, medido antes de reescrever.
+     *
+     * A sincronização é `deleteMany` + `createMany`: ela refaz o conjunto
+     * inteiro. Sem este diff, o gatilho de funil "entrou na lista" dispararia
+     * para todos os membros a cada sincronização, e o paciente receberia a
+     * sequência de novo a cada vez que alguém salvasse o filtro.
+     *
+     * Com o diff, a sincronização seguinte só liga o funil para quem cruzou o
+     * critério de verdade — paciente que acabou de completar seis meses sem
+     * retorno, que é exatamente o caso de uso.
+     */
+    const antes = await prisma.contactListMember.findMany({
+        where: { listId },
+        select: { contactId: true },
+    })
+    const jaEstavam = new Set(antes.map((m) => m.contactId))
+    const novos = contatos.map((c) => c.id).filter((id) => !jaEstavam.has(id))
+
     await prisma.$transaction([
         prisma.contactListMember.deleteMany({ where: { listId } }),
         prisma.contactListMember.createMany({
@@ -110,15 +130,51 @@ export async function popularListaPorFiltro(
         }),
     ])
 
+    /**
+     * A **primeira** sincronização de uma lista sobre uma base existente é
+     * indistinguível de um blast: todo mundo é "novo".
+     *
+     * A rédea não é um número escolhido aqui — é o teto de ativos do funil, que
+     * a clínica define e que a publicação **exige** quando o gatilho é de lista
+     * (ver `podePublicar` em `lib/funil/publicar.ts`). Quem não quer teto não
+     * usa gatilho de lista.
+     */
+    if (novos.length > 0) {
+        await contatosEntraramNaLista(workspaceId, listId, novos)
+    }
+
     return { total: contatos.length }
 }
 
 /** Adiciona contatos escolhidos à mão a uma lista (seleção manual). */
-export async function adicionarMembros(listId: string, contactIds: string[]): Promise<number> {
+export async function adicionarMembros(
+    listId: string,
+    contactIds: string[],
+    /**
+     * O workspace, para o gatilho de funil.
+     *
+     * Opcional porque esta função já existia sem ele; sem o workspace o vínculo
+     * é criado e **o funil não dispara**, o que é melhor que adivinhar a
+     * unidade a partir do `listId` numa função que nunca precisou disso.
+     */
+    workspaceId?: string
+): Promise<number> {
+    const antes = await prisma.contactListMember.findMany({
+        where: { listId, contactId: { in: contactIds } },
+        select: { contactId: true },
+    })
+    const jaEstavam = new Set(antes.map((m) => m.contactId))
+
     const res = await prisma.contactListMember.createMany({
         data: contactIds.map((contactId) => ({ listId, contactId })),
         skipDuplicates: true,
     })
+
+    if (workspaceId) {
+        const novos = contactIds.filter((id) => !jaEstavam.has(id))
+        if (novos.length > 0) await contatosEntraramNaLista(workspaceId, listId, novos)
+    }
+
     return res.count
 }
 

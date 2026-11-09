@@ -91,6 +91,13 @@ jobs:
         # Verificador que ninguém executa é verificador que não existe, com o
         # agravante de parecer que existe — `check:trabalhos` ficou meses
         # reprovando sem ninguém saber, até ser posto aqui.
+        #
+        # Aconteceu de novo: `check:sns` e `check:sns:assinatura` nasceram com a
+        # campanha de e-mail e ficaram fora desta lista, e `check:funil` nasceu
+        # com o funil. Os quatro entraram juntos. Fora da lista continuam, com
+        # motivo: `check:treinamento` é ferramenta manual (pede uma pasta como
+        # argumento) e `check:paridade` tem uma regressão anterior a este PR
+        # (T-001, o passo do onboarding) que precisa de decisão de produto.
         run: |
           npm run check:cofre
           npm run check:storage
@@ -100,6 +107,10 @@ jobs:
           npm run check:trabalhos
           npm run check:operacao
           npm run check:period
+          npm run check:sns
+          npm run check:sns:assinatura
+          npm run check:funil
+          npm run check:gatilhos
           npm run test:availability
           npm run test:audio
           npm run test:chunker

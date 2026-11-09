@@ -22,6 +22,9 @@ import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/pri
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'
 export { TravaDeContato } from './trava-de-contato'
+// O motor do funil é `WorkflowEntrypoint`, não Durable Object — mas vale a
+// mesma regra: é o módulo de entrada que o declara à plataforma.
+export { MotorDoFunil } from './motor-do-funil'
 
 /**
  * O ponto de entrada do Worker.

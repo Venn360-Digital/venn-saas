@@ -303,6 +303,30 @@ export default defineConfig({
             SalaDoWorkspace: exports.durableObject({ storage: 'sqlite' }),
             AgendaDaConversa: exports.durableObject({ storage: 'sqlite' }),
             TravaDeContato: exports.durableObject({ storage: 'sqlite' }),
+
+            /**
+             * O motor do funil de vendas.
+             *
+             * `steps: 1000` e não 100: o teto conta **passos do Workflow**, e
+             * uma volta do motor gasta de dois a três (ler, fazer, às vezes
+             * dormir). O desenho cabe em 100 passos de funil, então mil é o
+             * mesmo número com a folga certa — e `MAX_TRANSICOES` em
+             * `lib/funil/passos.ts` corta antes, com motivo gravado, em vez de
+             * a plataforma matar a instância sem explicação.
+             *
+             * **Sem `schedules`.** Quem entra num funil é um gatilho de
+             * produto (etiqueta, etapa, lista, contato novo), não o relógio.
+             *
+             * `errorRetention` maior que `successRetention` de propósito: a
+             * instância que deu certo não tem o que investigar, e a que falhou
+             * é a única fonte de qual passo parou — a tabela guarda o motivo,
+             * não o rastro.
+             */
+            MotorDoFunil: exports.workflow({
+                name: 'funil-de-vendas',
+                limits: { steps: 1000 },
+                defaultRetention: { successRetention: '7 days', errorRetention: '30 days' },
+            }),
         },
 
         env: {
@@ -356,6 +380,21 @@ export default defineConfig({
             AGENDA_DA_CONVERSA: bindings.durableObject({
                 worker: NOME,
                 exportName: 'AgendaDaConversa',
+            }),
+
+            /**
+             * O motor do funil, pelo próprio nome do Worker.
+             *
+             * Binding e não import, como todo o resto da plataforma aqui: quem
+             * cria instância é o Worker, e a aplicação a alcança pela costura
+             * `registrarMotorDoFunil` (ver `src/trabalhos/funil.ts`).
+             */
+            FUNIL: bindings.workflow({
+                // `name` repete o nome declarado no export acima — é assim que o
+                // binding acha o Workflow na conta, e o nome é único por conta.
+                name: 'funil-de-vendas',
+                worker: NOME,
+                exportName: 'MotorDoFunil',
             }),
 
             /**

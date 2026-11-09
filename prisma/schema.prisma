@@ -3058,10 +3058,18 @@ model FunnelRun {
   funnel  Funnel  @relation(fields: [funnelId], references: [id], onDelete: Cascade)
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
-  /// Uma passagem por vez. O mesmo contato não entra duas vezes no mesmo funil
-  /// enquanto a primeira não terminar — sem isto, uma etiqueta aplicada duas
-  /// vezes mandaria a sequência em dobro.
-  @@unique([funnelId, contactId])
+  /// Uma passagem **por vez**, e a trava NÃO está aqui.
+  ///
+  /// Ela é um índice único **parcial** — `(funnelId, contactId) WHERE status =
+  /// 'running'` —, declarado em
+  /// `migrations/20261109030000_funil_uma_passagem_por_vez`. Prisma não
+  /// expressa índice parcial, e um `@@unique` cheio seria a regra errada:
+  /// valeria para sempre, e o contato ficaria permanentemente fora do funil
+  /// depois da primeira passagem. Um funil de retorno anual pegaria cada
+  /// paciente uma vez na vida.
+  ///
+  /// `migrate diff` relata esse índice como diferença, junto das colunas
+  /// geradas e dos índices de vetor, que também só existem no SQL.
   @@index([funnelId, status])
   @@index([contactId])
   @@map("funnel_runs")

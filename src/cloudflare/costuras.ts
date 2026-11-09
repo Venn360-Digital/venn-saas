@@ -9,6 +9,7 @@ import { registrarAgenda } from '@/trabalhos/agenda'
 import { registrarTransmissor } from '@/trabalhos/tempo-real'
 import { registrarTravas } from '@/trabalhos/trava'
 import { registrarRemetenteDeEmail } from '@/lib/email/send'
+import { registrarMotorDoFunil } from '@/trabalhos/funil'
 
 /**
  * Onde o código da aplicação encontra a plataforma.
@@ -36,6 +37,21 @@ export interface EnvDasCosturas extends BindingsDeFila {
      */
     EMAIL: Parameters<typeof registrarRemetenteDeEmail>[0]
     EMAIL_FROM: string
+    /**
+     * O motor do funil.
+     *
+     * `Workflow<{ runId: string }>` e não `Workflow`: o parâmetro é o payload, e
+     * declarado assim o typecheck recusa `create` com corpo errado. É a mesma
+     * razão de os bindings de fila carregarem o tipo do job.
+     *
+     * **Opcional**, e isso é medição, não cautela. O deploy de preview da branch
+     * publicou com este binding declarado e **o Workflow não foi criado na
+     * conta** (`GET /accounts/{id}/workflows` devolveu vazio) — diferente da
+     * fila, cuja ausência aborta o publish com `[11000] Queue not found`. Então
+     * o binding pode chegar ausente em tempo de execução, e o tipo precisa
+     * dizer isso para a conferência em `registrarCosturas` ter sentido.
+     */
+    FUNIL?: Workflow<{ runId: string }>
 }
 
 /**
@@ -56,6 +72,56 @@ export function registrarCosturas(env: EnvDasCosturas): void {
     registrarDriver(criarDriverCloudflare(env))
 
     registrarRemetenteDeEmail(env.EMAIL, env.EMAIL_FROM)
+
+    /**
+     * O motor do funil.
+     *
+     * `id: runId` — o id da instância **é** o id da passagem.
+     *
+     * Deixar a plataforma gerar o id exigiria guardar o `instanceId` para achar
+     * a instância depois, e a tela precisa fazer o caminho inverso (passagem →
+     * progresso) em toda listagem. Com os dois iguais, `FUNIL.get(runId)` acha a
+     * instância sem consultar o banco.
+     *
+     * De brinde, isso dá idempotência: criar duas vezes a instância da mesma
+     * passagem é recusado pela própria plataforma, por id duplicado, em vez de
+     * gerar duas instâncias andando o mesmo funil em paralelo — que é o defeito
+     * que mandaria a sequência em dobro.
+     */
+    /**
+     * **Só registra se o binding existe de verdade.**
+     *
+     * Sem esta conferência, registrar a função bastaria para
+     * `temMotorDoFunil()` dizer "sim", e a falta do binding só apareceria no
+     * primeiro gatilho — longe da causa, dentro de `talvezEntrarNoFunil`, que
+     * **não lança** por desenho (ele roda dentro de rotas que estão fazendo
+     * outra coisa). O resultado seria um `TypeError` engolido e nenhuma
+     * passagem criada, em silêncio.
+     *
+     * Com a conferência, `temMotorDoFunil()` devolve `false` e a entrada segue o
+     * caminho previsto: um `warn` dizendo que não há motor, e **nenhuma linha
+     * criada** — que é o que importa, porque linha sem instância prende o
+     * contato fora do funil pela trava parcial.
+     *
+     * É o mesmo erro de forma do proxy sem `has`: faltar uma verificação de
+     * presença faz o defeito aparecer a quilômetros do lugar onde ele está.
+     */
+    const funil = env.FUNIL
+    if (funil) {
+        // Capturado numa const antes da closure: o estreitamento de tipo não
+        // sobrevive a uma função assíncrona, e `env` é guardado no módulo.
+        registrarMotorDoFunil({
+            async criar(runId) {
+                const instancia = await funil.create({ id: runId, params: { runId } })
+                return instancia.id
+            },
+        })
+    } else {
+        console.error(
+            '[COSTURAS] binding FUNIL ausente: nenhum funil vai receber gente. ' +
+                'O Workflow `funil-de-vendas` precisa existir na conta — ver cloudflare.config.ts.'
+        )
+    }
 
     // O gateway do Evolution Go NÃO é mais registrado: o canal saiu para o VPS
     // (2026-10-23) e o provider fala HTTP por `EVOLUTION_GO_URL`. Sem registro,
