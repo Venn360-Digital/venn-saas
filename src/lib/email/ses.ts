@@ -400,9 +400,22 @@ export async function suprimir(
     const cred = credenciaisDoSes()
     if (!cred) return { ok: false, error: 'SES não configurado' }
 
-    const resultado = await chamar(cred, `/suppression/addresses/${encodeURIComponent(email)}`, {
+    /**
+     * `PUT /suppression/addresses` — **sem** o endereço no caminho.
+     *
+     * O caminho com o endereço (`/suppression/addresses/{email}`) existe, mas é
+     * do `GetSuppressedDestination` e do `DeleteSuppressedDestination`. Um PUT
+     * nele não é rota nenhuma, e o SES responde `404 UnknownOperationException`
+     * — erro que não diz "caminho errado" e que o sandbox explica mal, porque a
+     * supressão de fato também está desabilitada no sandbox. Medido pela própria
+     * CLI (`aws sesv2 put-suppressed-destination --debug`), que monta
+     * `url_path: '/v2/email/suppression/addresses'`.
+     *
+     * Logo o endereço vai **no corpo**, junto do motivo.
+     */
+    const resultado = await chamar(cred, '/suppression/addresses', {
         method: 'PUT',
-        body: { Reason: motivo },
+        body: { EmailAddress: email, Reason: motivo },
     })
 
     return resultado.ok ? { ok: true } : { ok: false, error: resultado.error }
