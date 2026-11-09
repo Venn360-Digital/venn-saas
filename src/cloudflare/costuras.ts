@@ -43,8 +43,15 @@ export interface EnvDasCosturas extends BindingsDeFila {
      * `Workflow<{ runId: string }>` e não `Workflow`: o parâmetro é o payload, e
      * declarado assim o typecheck recusa `create` com corpo errado. É a mesma
      * razão de os bindings de fila carregarem o tipo do job.
+     *
+     * **Opcional**, e isso é medição, não cautela. O deploy de preview da branch
+     * publicou com este binding declarado e **o Workflow não foi criado na
+     * conta** (`GET /accounts/{id}/workflows` devolveu vazio) — diferente da
+     * fila, cuja ausência aborta o publish com `[11000] Queue not found`. Então
+     * o binding pode chegar ausente em tempo de execução, e o tipo precisa
+     * dizer isso para a conferência em `registrarCosturas` ter sentido.
      */
-    FUNIL: Workflow<{ runId: string }>
+    FUNIL?: Workflow<{ runId: string }>
 }
 
 /**
@@ -81,12 +88,40 @@ export function registrarCosturas(env: EnvDasCosturas): void {
      * gerar duas instâncias andando o mesmo funil em paralelo — que é o defeito
      * que mandaria a sequência em dobro.
      */
-    registrarMotorDoFunil({
-        async criar(runId) {
-            const instancia = await env.FUNIL.create({ id: runId, params: { runId } })
-            return instancia.id
-        },
-    })
+    /**
+     * **Só registra se o binding existe de verdade.**
+     *
+     * Sem esta conferência, registrar a função bastaria para
+     * `temMotorDoFunil()` dizer "sim", e a falta do binding só apareceria no
+     * primeiro gatilho — longe da causa, dentro de `talvezEntrarNoFunil`, que
+     * **não lança** por desenho (ele roda dentro de rotas que estão fazendo
+     * outra coisa). O resultado seria um `TypeError` engolido e nenhuma
+     * passagem criada, em silêncio.
+     *
+     * Com a conferência, `temMotorDoFunil()` devolve `false` e a entrada segue o
+     * caminho previsto: um `warn` dizendo que não há motor, e **nenhuma linha
+     * criada** — que é o que importa, porque linha sem instância prende o
+     * contato fora do funil pela trava parcial.
+     *
+     * É o mesmo erro de forma do proxy sem `has`: faltar uma verificação de
+     * presença faz o defeito aparecer a quilômetros do lugar onde ele está.
+     */
+    const funil = env.FUNIL
+    if (funil) {
+        // Capturado numa const antes da closure: o estreitamento de tipo não
+        // sobrevive a uma função assíncrona, e `env` é guardado no módulo.
+        registrarMotorDoFunil({
+            async criar(runId) {
+                const instancia = await funil.create({ id: runId, params: { runId } })
+                return instancia.id
+            },
+        })
+    } else {
+        console.error(
+            '[COSTURAS] binding FUNIL ausente: nenhum funil vai receber gente. ' +
+                'O Workflow `funil-de-vendas` precisa existir na conta — ver cloudflare.config.ts.'
+        )
+    }
 
     // O gateway do Evolution Go NÃO é mais registrado: o canal saiu para o VPS
     // (2026-10-23) e o provider fala HTTP por `EVOLUTION_GO_URL`. Sem registro,
