@@ -404,7 +404,7 @@ console.log('\n— a paciência por pessoa ganha da conta —\n')
 
     // Padrão da conta: 60 min. Parado há 90 → ausente.
     conferir(
-        'sem valor próprio, segue o padrão da conta',
+        'sem valor próprio, segue o padrão do sistema',
         estaDisponivel(
             { userId: 'a', status: 'disponivel', ultimaAtribuicao: null, abertas: 0, ultimaAtividadeEm: paradoHa(90) },
             60,

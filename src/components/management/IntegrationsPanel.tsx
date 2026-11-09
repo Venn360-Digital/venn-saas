@@ -1,13 +1,12 @@
 'use client'
 
 import { BRAND_COLORS } from '@/lib/brand-colors'
+import { BRAND } from '@/config/brand'
 import { useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Save, Unplug } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { PlatformCredentialsPanel } from '@/components/integrations/PlatformCredentialsPanel'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -89,13 +88,6 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
     const [connecting, setConnecting] = useState(false)
     const [disconnecting, setDisconnecting] = useState(false)
     const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
-    const [showOwnProject, setShowOwnProject] = useState(false)
-    const [clientId, setClientId] = useState('')
-    const [clientSecret, setClientSecret] = useState('')
-    const [savingClient, setSavingClient] = useState(false)
-    const redirectUri = typeof window === 'undefined'
-        ? ''
-        : `${window.location.origin}/api/integrations/google/callback`
 
     useEffect(() => {
         loadStatus()
@@ -133,34 +125,6 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
             if (res.ok) setStatus(await res.json())
         } catch { /* ignore */ }
         finally { setLoading(false) }
-    }
-
-    const handleSaveClient = async () => {
-        if (!clientId.trim() || !clientSecret.trim()) {
-            toast.error('Informe o Client ID e o Client Secret')
-            return
-        }
-        setSavingClient(true)
-        try {
-            const res = await fetch('/api/integrations/google/calendar', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientId: clientId.trim(), clientSecret: clientSecret.trim() }),
-            })
-            const data = await res.json()
-            if (!res.ok) {
-                toast.error(data.error || 'Não foi possível salvar as credenciais')
-                return
-            }
-            toast.success('Credenciais salvas. Agora conecte a conta Google.')
-            setClientSecret('')
-            setShowOwnProject(false)
-            await loadStatus()
-        } catch {
-            toast.error('Não foi possível salvar as credenciais')
-        } finally {
-            setSavingClient(false)
-        }
     }
 
     const handleConnect = async () => {
@@ -249,95 +213,45 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                 </div>
             )}
 
-            {/* Projeto próprio: exceção, não o caminho normal. A clínica clica
-                em Conectar e escolhe a conta; registrar um projeto no Google
-                Cloud só interessa a quem usa Google Workspace e prefere um app
-                Internal — que não passa pela verificação do Google nem pelo
-                refresh token de 7 dias de um app External não publicado. */}
-            {!loading && showOwnProject && !isConnected && (
-                <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/40 p-3">
-                    <div>
-                        <p className="text-xs font-semibold">Usar o projeto Google da própria clínica</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                            Opcional. Crie um projeto no Google Cloud, ative a Calendar API e
-                            gere um ID de cliente OAuth do tipo aplicativo web.
-                        </p>
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="g-client-id" className="text-xs">Client ID</Label>
-                        <Input
-                            id="g-client-id"
-                            value={clientId}
-                            onChange={(e) => setClientId(e.target.value)}
-                            placeholder="000000000000-xxxxxxxx.apps.googleusercontent.com"
-                            autoComplete="off"
-                            className="text-xs"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="g-client-secret" className="text-xs">Client Secret</Label>
-                        <Input
-                            id="g-client-secret"
-                            type="password"
-                            value={clientSecret}
-                            onChange={(e) => setClientSecret(e.target.value)}
-                            placeholder={status?.configured ? 'Informe para substituir' : 'GOCSPX-…'}
-                            autoComplete="off"
-                            className="text-xs"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="text-xs">URI de redirecionamento autorizada</Label>
-                        <div className="flex items-center gap-2">
-                            <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2 py-1.5 text-[11px]">
-                                {redirectUri}
-                            </code>
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                    void navigator.clipboard.writeText(redirectUri)
-                                    toast.success('URI copiada')
-                                }}
-                            >
-                                Copiar
-                            </Button>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                            Cole esta URI em &quot;URIs de redirecionamento autorizados&quot; no Google Cloud.
-                        </p>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button size="sm" onClick={handleSaveClient} disabled={savingClient} className="gap-2">
-                            {savingClient ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                            Salvar credenciais
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowOwnProject(false)}>
-                            Cancelar
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {!loading && !showOwnProject && !isConnected && (
+            {/*
+              * **Conectar com o Google é a única forma, desde 2026-11-09.**
+              *
+              * O cartão oferecia também "Usar projeto próprio": um formulário
+              * de Client ID, Client Secret e URI de redirecionamento, dentro
+              * da tela de ajustes de um cliente. Ele existia por duas razões,
+              * e as duas deixaram de valer para quem usa o produto:
+              *
+              *   - **antes de a plataforma ter o app registrado**, era a única
+              *     saída. Hoje o aplicativo do Google é registrado uma vez, no
+              *     nível da plataforma, e vale para todas as contas (ver
+              *     `PlatformCredentialsPanel`, logo abaixo nesta mesma tela);
+              *   - **quem usa Google Workspace** podia preferir um app
+              *     *Internal*, que não passa pela verificação do Google nem
+              *     expira o refresh token em 7 dias como um *External* não
+              *     publicado. Mas isso é um problema do app da plataforma
+              *     estar publicado — e ele está —, não de cada conta resolver
+              *     o seu.
+              *
+              * O que sobrava era pedir três segredos de OAuth a quem usa o
+              * produto para fazer o que um botão já faz. A rota `PUT` continua
+              * aceitando credenciais de workspace (conta antiga que registrou
+              * o próprio projeto continua conectando pelo app dela), e é por
+              * isso que `clientSource` ainda é lido aqui: a tela **conta** de
+              * quem é o app, só não oferece mais trocar.
+              */}
+            {!loading && !isConnected ? (
                 status?.configured ? (
-                    <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-                        <div className="min-w-0">
-                            <p className="text-xs font-medium">
-                                {status.clientSource === 'workspace'
-                                    ? 'Projeto Google da clínica'
-                                    : 'Pronto para conectar'}
-                            </p>
-                            <p className="truncate text-[11px] text-muted-foreground">
-                                {status.clientSource === 'workspace'
-                                    ? status.workspaceClientId
-                                    : 'Escolha a conta do Google da clínica na próxima tela.'}
-                            </p>
-                        </div>
-                        <Button size="sm" variant="ghost" onClick={() => { setClientId(status.workspaceClientId ?? ''); setShowOwnProject(true) }}>
-                            {status.clientSource === 'workspace' ? 'Alterar' : 'Usar projeto próprio'}
-                        </Button>
+                    <div className="mb-4 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                        <p className="text-xs font-medium">
+                            {status.clientSource === 'workspace'
+                                ? `Projeto Google da ${BRAND.vocabulario.organizacao}`
+                                : 'Pronto para conectar'}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                            {status.clientSource === 'workspace'
+                                ? status.workspaceClientId
+                                : `Escolha a conta do Google da ${BRAND.vocabulario.organizacao} na próxima tela.`}
+                        </p>
                     </div>
                 ) : (
                     <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3">
@@ -346,15 +260,12 @@ function GoogleCalendarCard({ def }: { def: IntegrationDef }) {
                             <p className="font-medium">Integração ainda não liberada</p>
                             <p className="mt-0.5 text-muted-foreground">
                                 O responsável pela plataforma precisa registrar o aplicativo do
-                                Google. Se a clínica tem o próprio projeto, você pode usá-lo.
+                                Google. Fale com o suporte — não há nada a configurar aqui.
                             </p>
-                            <Button size="sm" variant="ghost" className="mt-1.5 h-7 px-2" onClick={() => setShowOwnProject(true)}>
-                                Usar projeto próprio
-                            </Button>
                         </div>
                     </div>
                 )
-            )}
+            ) : null}
 
             {/* Actions */}
             <div className="space-y-3">

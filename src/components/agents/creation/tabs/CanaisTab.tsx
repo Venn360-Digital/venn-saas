@@ -636,7 +636,11 @@ export function CanaisTab({ agentId, canManage = true }: CanaisTabProps) {
         <div className="flex flex-col gap-4">
             <SettingsCard
                 title="Linhas de WhatsApp"
-                description="Cada linha é um número; a conversa responde pela linha por onde entrou. A fila diz quem vê essas conversas: o departamento escolhido, ou todo mundo na fila geral."
+                /* O texto é o do Andre, de 2026-11-09. Saiu "a conversa
+                   responde pela linha por onde entrou" — comportamento do
+                   sistema que a coluna Linha já mostra — e a explicação da
+                   fila virou a frase curta dele. */
+                description="Cada linha é um número; a fila indica quem vê as conversas, por departamento ou todos."
                 /*
                  * A ação primária sobe para o cabeçalho, ao lado do medidor.
                  *

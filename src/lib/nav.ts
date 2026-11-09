@@ -82,6 +82,24 @@ export const navSections: NavSection[] = [
             },
             { label: 'Conversas', href: '/atendimento/conversas' },
             { label: 'Etiquetas', href: '/atendimento/etiquetas' },
+            /**
+             * **Departamento é de atendimento, não de CRM** — mudança de menu
+             * pedida pelo Andre em 2026-11-09, logo depois de Etiquetas.
+             *
+             * Ele vivia em Vendas (CRM) por vizinhança com Especialistas e
+             * Procedimentos — três cadastros de apoio —, mas o que um
+             * departamento faz no produto é **recortar fila de conversa**: é
+             * ele que a linha de WhatsApp aponta, ele que a ficha do usuário
+             * marca, e é por ele que o atendente vê ou não vê uma conversa.
+             * Quem vem configurar fila procurava em Atendimento e encontrava
+             * Etiquetas e Respostas rápidas, nunca Departamentos.
+             *
+             * **A rota continua `/vendas/departamentos`.** O que mudou é onde
+             * o menu o anuncia; mover o segmento invalidaria links guardados e
+             * exigiria redirecionamento, por nenhum ganho — a trilha já lê o
+             * rótulo de `SEGMENT_LABELS`, não da seção.
+             */
+            { label: 'Departamentos', href: '/vendas/departamentos' },
             { label: 'Respostas rápidas', href: '/atendimento/respostas-rapidas' },
         ],
     },
@@ -94,7 +112,6 @@ export const navSections: NavSection[] = [
             { label: 'Agenda', href: '/vendas/agenda' },
             { label: 'Especialistas', href: '/vendas/especialistas' },
             { label: 'Procedimentos', href: '/vendas/procedimentos' },
-            { label: 'Departamentos', href: '/vendas/departamentos' },
         ],
     },
     {

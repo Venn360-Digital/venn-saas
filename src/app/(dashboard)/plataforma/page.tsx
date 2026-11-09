@@ -208,10 +208,16 @@ export default function PlataformaPage() {
                     <Resumo rotulo="Somente leitura" valor={travadas} alerta={travadas > 0} />
                 </div>
 
+                {/* Cartão do sistema, e não o desenho das telas de índice:
+                    aquelas sangram (margem zero, respiro na célula) porque a
+                    região inteira é delas. Esta rola dentro de uma tela com
+                    `PageHeader` e divide o espaço com os três resumos acima —
+                    aqui a tabela **é** um bloco entre outros, e bloco se
+                    separa por borda e superfície. Ver DESIGN.md §5. */}
                 <div className="overflow-hidden rounded-lg border border-border bg-card">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-border bg-background">
+                            <tr className="border-b border-border bg-muted">
                                 <Th>{BRAND.vocabulario.Organizacao}</Th>
                                 <Th>Plano</Th>
                                 <Th>Situação</Th>

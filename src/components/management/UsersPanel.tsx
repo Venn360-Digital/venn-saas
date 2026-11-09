@@ -114,8 +114,8 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
      * que é o mesmo efeito com menos acoplamento.
      */
     const [conviteToken, setConviteToken] = useState(0)
-    /** O padrão da conta, só para o campo Paciência dizer qual é. */
-    const [ausenteDaConta, setAusenteDaConta] = useState<number | null>(null)
+    /** O padrão do sistema, só para o campo Ausência dizer qual é. */
+    const [ausentePadrao, setAusentePadrao] = useState<number | null>(null)
 
     const fetchUsers = useCallback(async () => {
         setLoading(true)
@@ -125,11 +125,11 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                 const data = await response.json()
                 setUsers(data.data ?? data)
                 setSemDepartamento(Number(data.semDepartamento) || 0)
-                // O padrão da conta, para o campo Paciência mostrar qual é no
+                // O padrão do sistema, para o campo Ausência mostrar qual é no
                 // `placeholder` em vez de dizer só "padrão".
-                setAusenteDaConta(
-                    typeof data.minutosParaAusenteDaConta === 'number'
-                        ? data.minutosParaAusenteDaConta
+                setAusentePadrao(
+                    typeof data.minutosParaAusentePadrao === 'number'
+                        ? data.minutosParaAusentePadrao
                         : null
                 )
             }
@@ -364,7 +364,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                     {openItem ? (
                         <UserPanel
                             key={openItem.id}
-                            item={{ ...openItem, minutosParaAusenteDaConta: ausenteDaConta }}
+                            item={{ ...openItem, minutosParaAusentePadrao: ausentePadrao }}
                             departments={departments}
                             canEdit={canManage}
                             onClose={() => setOpenId(null)}

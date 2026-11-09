@@ -3,7 +3,7 @@ import { currentMembership } from '@/lib/auth/workspace'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import prisma from '@/lib/prisma'
 import { enderecoDoRetrato } from '@/lib/retratos'
-import { readAutomations } from '@/lib/automations'
+import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 
 export async function GET() {
@@ -66,8 +66,7 @@ export async function GET() {
                 ? estadoVisivel(
                       membro.status as StatusDoMembro,
                       membro.ultimaAtividadeEm,
-                      membro.minutosParaAusente ??
-                          readAutomations(workspaceCru?.automations).minutosParaAusente
+                      membro.minutosParaAusente ?? MINUTOS_PARA_AUSENTE_PADRAO
                   )
                 : null,
             recebeConversas: membro?.recebeConversas ?? false,

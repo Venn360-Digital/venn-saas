@@ -19,7 +19,7 @@ import { LacunasTab } from '@/components/agents/creation/tabs/LacunasTab'
 import { DocumentoDeTreinamento } from '@/components/agents/creation/DocumentoDeTreinamento'
 import { acharDocumento } from '@/lib/treinamento/documentos'
 import { useAgentCreation } from '@/hooks/useAgentCreation'
-import { Loader2, Save } from 'lucide-react'
+import { CloudUpload, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface KnowledgeSource {
@@ -405,8 +405,28 @@ function NovoAgenteContent() {
                                 if (id) await publicar(id)
                             }}
                             size="sm"
-                            variant="outline"
-                            className="h-8"
+                            /*
+                             * **Publicar tem cor própria, e um ícone** —
+                             * pedido do Andre em 2026-11-09.
+                             *
+                             * Era `outline` ao lado do Salvar em teal: o
+                             * botão que **põe no ar** parecia o secundário
+                             * dos dois, e quem só olha a tela salvava o
+                             * rascunho e ia embora achando que havia
+                             * publicado.
+                             *
+                             * `success` sólido é o token de "no ar,
+                             * confirmado, enviado" do DESIGN.md §2, e é o
+                             * par certo para a ação. Sim, isto deixa dois
+                             * botões preenchidos na mesma linha, contra o
+                             * "um `default` por tela" do §5 — e é por
+                             * decisão dele: as duas gravações são
+                             * diferentes em consequência (uma é rascunho, a
+                             * outra entra no atendimento e paga o embedding
+                             * do acervo), então aqui as duas pedem peso.
+                             * Não é um primário a mais: é o outro verbo.
+                             */
+                            className="h-8 bg-success text-success-foreground hover:bg-success-hover active:bg-success-hover"
                             disabled={publicando || isSaving || loading}
                             title={
                                 pendentes.length > 0 && desatualizados.length > 0
@@ -414,7 +434,11 @@ function NovoAgenteContent() {
                                     : undefined
                             }
                         >
-                            {publicando ? <Loader2 className="size-4 animate-spin" /> : null}
+                            {publicando ? (
+                                <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                                <CloudUpload className="size-4" aria-hidden="true" />
+                            )}
                             {publicando
                                 ? pendentes.length > 0
                                     ? 'Publicando…'
