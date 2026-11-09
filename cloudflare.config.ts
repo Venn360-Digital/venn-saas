@@ -108,6 +108,21 @@ const CONSUMO = {
         maxBatchSize: 25,
         maxBatchTimeout: 5,
     },
+    'ses-event': {
+        retryDelay: 2,
+        /**
+         * Recibo de e-mail, igual ao de WhatsApp: barato e numeroso — até nove
+         * por e-mail enviado. Agrupar troca latência (que ninguém percebe num
+         * relatório) por muito menos invocação.
+         *
+         * Lote menor que o do WhatsApp porque cada evento aqui faz uma consulta
+         * por `sesMessageId` e, em bounce ou reclamação, ainda chama o SES para
+         * suprimir. Vinte e cinco desses numa invocação se aproximariam do teto
+         * de CPU.
+         */
+        maxBatchSize: 10,
+        maxBatchTimeout: 5,
+    },
     'whatsapp-outbound': {
         retryDelay: 3,
         // Uma por vez: enviar é chamada ao provedor, e um lote que falha no meio
@@ -174,7 +189,8 @@ const EH_PREVIEW = process.env.CF_PREVIEW === '1'
 const GATILHOS = [
 
         /**
-         * Os oito consumidores.
+         * Um consumidor por fila — a lista sai de `ALL_QUEUES`, então uma
+         * fila nova entra aqui sozinha.
          *
          * A DLQ é criada sozinha no deploy se não existir, e mensagem numa
          * DLQ sem consumidor persiste quatro dias — tempo de alguém ver.
@@ -287,6 +303,30 @@ export default defineConfig({
             SalaDoWorkspace: exports.durableObject({ storage: 'sqlite' }),
             AgendaDaConversa: exports.durableObject({ storage: 'sqlite' }),
             TravaDeContato: exports.durableObject({ storage: 'sqlite' }),
+
+            /**
+             * O motor do funil de vendas.
+             *
+             * `steps: 1000` e não 100: o teto conta **passos do Workflow**, e
+             * uma volta do motor gasta de dois a três (ler, fazer, às vezes
+             * dormir). O desenho cabe em 100 passos de funil, então mil é o
+             * mesmo número com a folga certa — e `MAX_TRANSICOES` em
+             * `lib/funil/passos.ts` corta antes, com motivo gravado, em vez de
+             * a plataforma matar a instância sem explicação.
+             *
+             * **Sem `schedules`.** Quem entra num funil é um gatilho de
+             * produto (etiqueta, etapa, lista, contato novo), não o relógio.
+             *
+             * `errorRetention` maior que `successRetention` de propósito: a
+             * instância que deu certo não tem o que investigar, e a que falhou
+             * é a única fonte de qual passo parou — a tabela guarda o motivo,
+             * não o rastro.
+             */
+            MotorDoFunil: exports.workflow({
+                name: 'funil-de-vendas',
+                limits: { steps: 1000 },
+                defaultRetention: { successRetention: '7 days', errorRetention: '30 days' },
+            }),
         },
 
         env: {
@@ -343,6 +383,21 @@ export default defineConfig({
             }),
 
             /**
+             * O motor do funil, pelo próprio nome do Worker.
+             *
+             * Binding e não import, como todo o resto da plataforma aqui: quem
+             * cria instância é o Worker, e a aplicação a alcança pela costura
+             * `registrarMotorDoFunil` (ver `src/trabalhos/funil.ts`).
+             */
+            FUNIL: bindings.workflow({
+                // `name` repete o nome declarado no export acima — é assim que o
+                // binding acha o Workflow na conta, e o nome é único por conta.
+                name: 'funil-de-vendas',
+                worker: NOME,
+                exportName: 'MotorDoFunil',
+            }),
+
+            /**
              * As oito filas, como produtor.
              *
              * Oito e não uma com discriminador: as políticas de retentativa
@@ -358,6 +413,7 @@ export default defineConfig({
             AGENT_WEBHOOK: bindings.queue({ name: naConta('agent-webhook') }),
             ASAAS_EVENT: bindings.queue({ name: naConta('asaas-event') }),
             BROADCAST: bindings.queue({ name: naConta('broadcast') }),
+            SES_EVENT: bindings.queue({ name: naConta('ses-event') }),
             CRON: bindings.queue({ name: naConta('cron') }),
 
             /**
@@ -536,6 +592,34 @@ export default defineConfig({
             BETTER_AUTH_SECRET: bindings.secret(),
             TOKEN_ENCRYPTION_KEY: bindings.secret(),
             OPENAI_API_KEY: bindings.secret(),
+
+            /**
+             * O envio de **campanha** de e-mail, pelo Amazon SES.
+             *
+             * O transacional continua no binding `EMAIL` acima e nada aqui o
+             * toca. Campanha é outro problema: ela sai do **domínio do
+             * cliente**, e o Email Sending da Cloudflare exige que o domínio de
+             * envio seja zona da nossa conta — ver o cabeçalho de
+             * `src/lib/email/ses.ts` para os três fatos que descartaram esse
+             * caminho.
+             *
+             * Chave e não binding porque SES é HTTPS assinado, não recurso da
+             * plataforma: chega por `process.env`, como `OPENAI_API_KEY`.
+             *
+             * **A ausência é estado válido.** Um app onde a campanha de e-mail
+             * ainda não foi ligada não tem estas chaves, e o código responde
+             * "não configurado" (503) em vez de quebrar — por isso elas não
+             * entram em nenhuma trava de boot. Ver `infra/runbook/17-ses-credenciais.md`.
+             */
+            SES_ACCESS_KEY_ID: bindings.secret(),
+            SES_SECRET_ACCESS_KEY: bindings.secret(),
+            /**
+             * Região e configuration set têm padrão no código (`sa-east-1` e
+             * `venn-<slug>`), então são texto e só mudam quando se foge da
+             * convenção. Declarados aqui para ficarem visíveis junto do resto.
+             */
+            SES_REGION: bindings.text('us-east-2'),
+            SES_CONFIGURATION_SET: bindings.text('venn-odontobox'),
             /**
              * Todo tráfego de IA passa pelo **AI Gateway deste produto**.
              *

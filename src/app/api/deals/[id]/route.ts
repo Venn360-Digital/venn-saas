@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
+import { negocioEntrouNaEtapa } from '@/lib/funil/disparos'
 import { conferirRelacoes } from '@/lib/auth/relacoes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
@@ -178,6 +179,28 @@ export async function PATCH(
                     userId: user.id,
                 },
             })
+
+            /**
+             * E pode ligar um funil.
+             *
+             * Aqui e não na tela, pelo mesmo motivo do rastro acima: os três
+             * caminhos que movem o cartão convergem nesta rota. E dentro do
+             * `movedStage`, não fora — `stageId` chega no corpo a cada
+             * salvamento, e disparar sem comparar reentraria o funil a cada
+             * edição de valor ou de nota do mesmo cartão.
+             *
+             * O contato é o do negócio **depois** da edição: o corpo pode ter
+             * trocado o `contactId` na mesma chamada, e quem entrou na etapa é
+             * quem está no cartão agora.
+             */
+            const doNegocio = (contactId as string | undefined) ?? existingDeal.contactId
+            if (doNegocio) {
+                await negocioEntrouNaEtapa(
+                    workspaceUser.workspaceId,
+                    doNegocio,
+                    stageId as string
+                )
+            }
         }
 
         /**

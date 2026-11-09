@@ -10,6 +10,7 @@ import {
 import { DEFAULT_ENTITY_COLOR } from '@/lib/palette'
 import { horaMinutoNoFuso } from '@/lib/fuso'
 import { resolverResponsavel } from '@/lib/rules/atribuicao'
+import { etiquetaAplicada, negocioEntrouNaEtapa } from '@/lib/funil/disparos'
 
 /**
  * Carries out a matched rule's actions against the database.
@@ -240,10 +241,32 @@ export class RuleExecutor {
             skipDuplicates: true,
         })
 
+        const jaTinha = await prisma.contactTag.findFirst({
+            where: { contactId: context.contactId, tagId: tag.id },
+            select: { tagId: true },
+        })
+
         await prisma.contactTag.createMany({
             data: [{ contactId: context.contactId, tagId: tag.id }],
             skipDuplicates: true,
         })
+
+        /**
+         * Etiqueta nova pode ligar um funil.
+         *
+         * Só quando é nova: uma regra de agente que aplica a mesma etiqueta a
+         * cada mensagem recebida reentraria no funil a cada mensagem, e o
+         * paciente receberia a sequência de novo em cada troca.
+         *
+         * `talvezEntrarNoFunil` nunca lança (ver `lib/funil/entrar.ts`), e aqui
+         * isso pesa: uma exceção deixaria a regra pela metade, sem as ações
+         * seguintes — o `executeAction` captura por ação, mas a captura dele
+         * registra e segue, e um erro de funil não deve aparecer como "a ação
+         * add_tag falhou".
+         */
+        if (!jaTinha) {
+            await etiquetaAplicada(context.workspaceId, context.contactId, tag.id)
+        }
     }
 
     /** Move the contact's open deal to another stage, by id or by stage name. */
@@ -271,10 +294,25 @@ export class RuleExecutor {
             return
         }
 
+        /**
+         * Buscado antes do update: depois ele já é o novo, e "mudou de etapa"
+         * deixaria de ser distinguível de "já estava nela".
+         */
+        const antes = await prisma.deal.findUnique({
+            where: { id: deal.id },
+            select: { stageId: true },
+        })
+
         await prisma.deal.update({
             where: { id: deal.id },
             data: { stageId: stage.id },
         })
+
+        // Mover para a etapa em que já estava não é um fato novo, e disparar o
+        // funil ali reentraria a cada mensagem que a regra avaliasse.
+        if (antes && antes.stageId !== stage.id) {
+            await negocioEntrouNaEtapa(context.workspaceId, context.contactId, stage.id)
+        }
     }
 
     private async resolveStage(

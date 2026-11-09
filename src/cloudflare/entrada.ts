@@ -12,6 +12,7 @@ import { processRagIndex } from '@/trabalhos/processadores/rag-index'
 import { processAgentWebhook } from '@/trabalhos/processadores/agent-webhook'
 import { processAsaasEvent } from '@/trabalhos/processadores/asaas-event'
 import { processBroadcast } from '@/trabalhos/processadores/broadcast'
+import { processSesEvent } from '@/trabalhos/processadores/ses-event'
 import { processCron } from '@/trabalhos/processadores/cron'
 import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
@@ -21,6 +22,9 @@ import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/pri
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'
 export { TravaDeContato } from './trava-de-contato'
+// O motor do funil é `WorkflowEntrypoint`, não Durable Object — mas vale a
+// mesma regra: é o módulo de entrada que o declara à plataforma.
+export { MotorDoFunil } from './motor-do-funil'
 
 /**
  * O ponto de entrada do Worker.
@@ -62,6 +66,7 @@ const PROCESSADORES: { [N in QueueName]: Processador<N> | null } = {
     [QUEUE.AGENT_WEBHOOK]: processAgentWebhook,
     [QUEUE.ASAAS_EVENT]: processAsaasEvent,
     [QUEUE.BROADCAST]: processBroadcast,
+    [QUEUE.SES_EVENT]: processSesEvent,
     [QUEUE.CRON]: processCron,
 }
 
@@ -90,6 +95,12 @@ const IDS_DE_DEDUP: Partial<{ [N in QueueName]: (p: JobPayloads[N]) => string | 
      * `recipientId`, e uma reentrega do mesmo envio não manda o template de novo.
      */
     [QUEUE.BROADCAST]: (p) => (p.phase === 'send' ? p.recipientId : undefined),
+    /**
+     * O `MessageId` do SNS. O SNS entrega **pelo menos uma vez** e reentrega
+     * quando nao recebe 200 a tempo — sem a dedup, uma reentrega contaria a
+     * mesma falha de novo nos contadores da campanha.
+     */
+    [QUEUE.SES_EVENT]: (p) => p.snsMessageId,
 }
 
 /** Onde insistir devagar faz diferença. O resto usa o `retry_delay` da fila. */

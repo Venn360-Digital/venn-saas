@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dentroDoLimite, ipDaRequisicao } from '@/lib/limite'
 import prisma from '@/lib/prisma'
+import { contatoCriado } from '@/lib/funil/disparos'
 import { getBillingState } from '@/lib/billing'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
@@ -275,6 +276,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 originId: integracao.defaultOriginId,
             },
         })
+
+        /**
+         * Visitante do site é lead chegando — o caso clássico do funil de
+         * boas-vindas, e o único dos três pontos em que a pessoa não foi
+         * digitada por ninguém da clínica.
+         *
+         * Depois do `create` e antes da conversa: o funil pode atribuir
+         * responsável, e atribuir a uma conversa que ainda não existe não faria
+         * nada. A conversa recém-criada é pega no passo seguinte da passagem,
+         * que lê o mundo de novo.
+         */
+        await contatoCriado(workspaceId, contato.id)
+
         conversa = await prisma.conversation.create({
             data: {
                 workspaceId,

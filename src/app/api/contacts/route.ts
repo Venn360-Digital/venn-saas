@@ -1,6 +1,7 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { contatoCriado } from '@/lib/funil/disparos'
 import { Prisma } from '#prisma'
 import { z } from 'zod'
 import { normalizePhone } from '@/lib/intake'
@@ -122,6 +123,10 @@ export async function POST(request: NextRequest) {
                 customFields: (validatedData.customFields ?? undefined) as Prisma.InputJsonValue | undefined,
             }
         })
+
+        // Contato novo pode ligar um funil de boas-vindas. Depois da criação,
+        // e com o id já existindo.
+        await contatoCriado(workspaceUser.workspaceId, contact.id)
 
         return NextResponse.json(contact, { status: 201 })
     } catch (error) {

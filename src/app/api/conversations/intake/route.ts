@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { requireWritable } from '@/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
 import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
+import { contatoCriado } from '@/lib/funil/disparos'
 
 type Mode = 'active' | 'call'
 
@@ -68,6 +69,15 @@ export async function POST(request: NextRequest) {
     const canonical = existingContact?.phone
         ?? (await hasWhatsApp(workspaceId, digits)).canonical
         ?? digits
+
+    /**
+     * `ehNovo` separa "a recepção abriu a ficha de alguém que já existia" de
+     * "chegou gente nova".
+     *
+     * Sem a distinção, o funil de boas-vindas dispararia a cada vez que a
+     * recepção abrisse um atendimento para um paciente antigo.
+     */
+    const ehNovo = !existingContact
 
     const contact =
         existingContact ??
@@ -227,6 +237,8 @@ export async function POST(request: NextRequest) {
             data: { lastMessageAt: now },
         })
     }
+
+    if (ehNovo) await contatoCriado(workspaceId, contact.id)
 
     return NextResponse.json({
         conversationId: conversation.id,

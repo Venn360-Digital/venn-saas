@@ -143,6 +143,30 @@ export async function aplicarPortao(request: NextRequest): Promise<NextResponse>
          * por quem nunca vai ter uma.
          */
         pathname === '/robots.txt' ||
+        /**
+         * O descadastro de e-mail de campanha.
+         *
+         * Quem clica aqui e um contato da clinica: nunca entrou no sistema e nao
+         * tem conta. Sem esta linha ele cai na regra larga e recebe
+         * `307 -> /login?redirectTo=%2Fdescadastro%2F...` — e o que a pessoa faz
+         * em seguida e marcar o e-mail como spam, que e exatamente o que o link
+         * existe para evitar. Reclamacao de spam e a metrica que derruba a
+         * reputacao do dominio do cliente.
+         *
+         * E o mesmo defeito do `robots.txt`, que respondia 307 nos tres apps ate
+         * 2026-11-08 — por isso esta linha nasce junto da rota, e nao depois de
+         * alguem reclamar que continua recebendo.
+         *
+         * **Tambem e exigencia externa.** A RFC 8058 manda o endereco do
+         * `List-Unsubscribe-Post` funcionar sem interacao, e e por ele que o
+         * botao nativo do Gmail e do Outlook chama. Atras de login, o botao
+         * falha em silencio.
+         *
+         * O que protege a rota nao e sessao: e o token HMAC assinado, que
+         * ninguem forja sem o segredo do servidor. Ver
+         * `src/lib/marketing/descadastro.ts`.
+         */
+        pathname.startsWith('/descadastro/') ||
         // Container probe.
         pathname === '/api/health'
 
