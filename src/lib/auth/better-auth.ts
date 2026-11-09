@@ -71,6 +71,26 @@ export const ORIGEM_DE_RESERVA = 'https://odontobox.venn360.com'
  */
 export const HOSTS_PERMITIDOS: string[] = [
     'odontobox.venn360.com',
+    /**
+     * **O host de homologação, que faltava.**
+     *
+     * Achado em 2026-11-09 com o Andre sem conseguir entrar: `/login` em
+     * `homolog-odontobox.venn360.com` respondia **403 `INVALID_ORIGIN`** a todo
+     * `sign-in`, porque `getTrustedOrigins` deriva desta lista e o host não
+     * estava nela. Ninguém conseguia entrar em homologação pelo navegador —
+     * desde que o host nasceu, em 03/11.
+     *
+     * **E `curl` não via.** Sem cabeçalho `Origin`, a mesma requisição voltava
+     * 401 `INVALID_EMAIL_OR_PASSWORD`, que parece saúde. A confusão de origem
+     * só aparece quando o pedido traz a origem — ou seja, só no navegador.
+     * Quem for sondar login daqui tem de mandar `-H "Origin: https://<host>"`,
+     * senão prova a coisa errada.
+     *
+     * Em código e não em variável, pela mesma razão que o domínio oficial: o
+     * host fica ao lado da lista que o autoriza, o `typecheck` vê os dois, e
+     * `scripts/check-auth.ts` exige os dois.
+     */
+    'homolog-odontobox.venn360.com',
     // Os previews por PR — `pr-<n>-odontobox.andre-7ee.workers.dev`. O
     // subdomínio estável (`odontobox.andre-7ee...`) está desligado por
     // `workersDev: false`, então isto alcança só as versões de revisão.
