@@ -426,7 +426,7 @@ em 2026-11-09, para que uma tabela nova não nasça com moldura própria:
 | Console da plataforma (`/plataforma`) | cartão do sistema (`rounded-lg`, borda cheia): ela rola dentro de uma tela com `PageHeader` e divide o espaço com três resumos, então **é** um bloco entre outros — e bloco se separa por borda |
 | Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria: a moldura é a do cartão |
 | Agente → Webhooks | grade de três colunas com cara de tabela; é lista de cadastro curta, não índice |
-| Remetentes → os registros de DNS (dentro do diálogo) | `<table>` à mão, hoje com `rounded-xl border/60` — copiou o cartão de tabela que saiu em 2026-11-09. É um bloco dentro de um diálogo, então o certo é o cartão do sistema; não foi trocado aqui para não conflitar com a branch de campanhas, que estava em voo |
+| Remetentes → os registros de DNS (dentro do diálogo) | cartão do sistema (`rounded-lg`, borda cheia). Nasceu copiando o cartão de tabela que saiu em 2026-11-09 e foi alinhada depois, quando a branch de campanhas parou de andar |
 | `/privacidade` (página pública) | `<table>` fora do shell, com o desenho da página pública |
 
 Telas novas de índice **não precisam fazer nada**: `Remetentes` e `Funis`

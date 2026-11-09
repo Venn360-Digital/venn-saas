@@ -310,7 +310,15 @@ function InstrucoesDeDns({
                     administrado. A verificação acontece sozinha — não é preciso voltar aqui.
                 </p>
 
-                <div className="overflow-x-auto rounded-xl border border-border/60">
+                {/* Cartão do sistema, e não o desenho das telas de índice.
+                    Esta tabela nasceu copiando o "cartão de tabela"
+                    (`rounded-xl` com moldura `border/60`), que saiu do sistema
+                    em 2026-11-09: a tabela de índice passou a **sangrar**, com
+                    margem zero e o respiro na célula, então aquele cartão não
+                    existe mais para copiar. Aqui é um bloco dentro de um
+                    diálogo — e bloco se separa por borda e superfície
+                    (DESIGN.md §4 e §5). */}
+                <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-sm">
                         <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                             <tr>
