@@ -50,6 +50,16 @@ async function main() {
         HOSTS_PERMITIDOS.includes('odontobox.venn360.com'),
         HOSTS_PERMITIDOS.join(', ')
     )
+    /**
+     * O host de homologação, que faltou de 03/11 a 09/11 e deixou o login de
+     * homolog respondendo 403 `INVALID_ORIGIN` no navegador. A asserção existe
+     * porque a falta não quebra build, lint nem `curl` sem `Origin`.
+     */
+    ok(
+        'o host de homologação está na lista',
+        HOSTS_PERMITIDOS.includes('homolog-odontobox.venn360.com'),
+        HOSTS_PERMITIDOS.join(', ')
+    )
     ok(
         'nenhum padrão aceita host qualquer',
         !HOSTS_PERMITIDOS.some((h) => h.trim() === '*' || h.trim() === '*.*'),

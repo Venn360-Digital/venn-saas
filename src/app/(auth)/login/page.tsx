@@ -82,6 +82,18 @@ function LoginForm() {
                 return 'A senha precisa de pelo menos 8 caracteres.'
             case 'EMAIL_NOT_VERIFIED':
                 return 'Confirme seu e-mail pelo link que enviamos antes de entrar.'
+            /**
+             * O erro que custou uma hora de diagnóstico em 2026-11-09.
+             *
+             * O host de homologação não estava em `HOSTS_PERMITIDOS`, então
+             * todo `sign-in` do navegador voltava 403 `INVALID_ORIGIN` — e,
+             * sem este `case`, a tela dizia "Não foi possível continuar", que
+             * é exatamente a frase que não ajuda ninguém. O conserto da lista
+             * é o que resolve; este `case` é o que faz a próxima vez se
+             * anunciar.
+             */
+            case 'INVALID_ORIGIN':
+                return 'Este endereço não está autorizado a entrar. Avise quem cuida do sistema — a origem precisa ser liberada.'
             default:
                 return fallback || 'Não foi possível continuar'
         }
