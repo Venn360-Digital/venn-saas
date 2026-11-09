@@ -16,14 +16,18 @@
  */
 import {
     canalDoPasso,
+    cicloNoDesenho,
     deveParar,
     ESPERA_MAX_MIN,
     lerCondicao,
+    MAX_TRANSICOES,
     minutosDeEspera,
     primeiroPasso,
     proximoPasso,
+    sucessores,
     type PassoDoFunil,
 } from '../src/lib/funil/passos'
+import { casa, lerGatilho, TIPOS_DE_GATILHO } from '../src/lib/funil/gatilho'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -158,6 +162,121 @@ console.log('── O canal do passo ──')
 ok('padrão é WhatsApp', canalDoPasso({}) === 'whatsapp')
 ok('e-mail quando dito', canalDoPasso({ canal: 'email' }) === 'email')
 ok('canal inventado cai no padrão', canalDoPasso({ canal: 'pombo' }) === 'whatsapp')
+
+console.log('')
+console.log('── O grafo, derivado da navegação ──')
+
+/**
+ * `sucessores` existe para NÃO reler `edges`. Se ele divergisse de
+ * `proximoPasso`, a detecção de ciclo mediria um grafo que o motor não anda.
+ */
+const linear2 = [passo('a', 0), passo('b', 1)]
+ok('passo comum tem um sucessor', sucessores(linear2[0], linear2).map((p) => p.id).join() === 'b')
+ok('o último não tem nenhum', sucessores(linear2[1], linear2).length === 0)
+
+const cond2 = passo('c', 0, { sim: 'x', nao: 'y' }, 'condicao')
+const comDois = [cond2, passo('x', 1), passo('y', 2)]
+ok('condição tem os dois ramos', sucessores(cond2, comDois).map((p) => p.id).sort().join() === 'x,y')
+
+/** Dois ramos no mesmo destino são um sucessor, não dois. */
+const mesmoDestino = passo('c', 0, { sim: 'x', nao: 'x' }, 'condicao')
+ok(
+    'ramos no mesmo destino não duplicam',
+    sucessores(mesmoDestino, [mesmoDestino, passo('x', 1)]).length === 1
+)
+
+/** Passo comum NÃO consulta sim/nao — senão o grafo veria caminho que o motor não anda. */
+const comumComRamos = passo('a', 0, { sim: 'z' }, 'mensagem')
+const comZ = [comumComRamos, passo('b', 1), passo('z', 2)]
+ok('passo comum ignora sim/nao', sucessores(comumComRamos, comZ).map((p) => p.id).join() === 'b')
+
+console.log('')
+console.log('── Ciclo no desenho ──')
+
+/**
+ * Um ciclo não dá erro: ele **funciona**, e manda a mesma sequência para
+ * sempre. Quem nota primeiro é a pessoa que está recebendo.
+ */
+ok('desenho reto não tem ciclo', cicloNoDesenho(linear) === null)
+
+const voltaPraTras = [passo('a', 0, { padrao: 'b' }), passo('b', 1, { padrao: 'a' })]
+const c1 = cicloNoDesenho(voltaPraTras)
+ok('a → b → a é ciclo', c1 !== null, c1 ? c1.join(' → ') : '')
+
+const laçoEmSi = [passo('a', 0, { padrao: 'a' })]
+ok('passo que aponta para si é ciclo', cicloNoDesenho(laçoEmSi) !== null)
+
+/** Ciclo por dentro de uma condição conta igual. */
+const cicloNoRamo = [
+    passo('c', 0, { sim: 'x', nao: 'y' }, 'condicao'),
+    passo('x', 1, { padrao: 'c' }),
+    passo('y', 2),
+]
+ok('ciclo pelo ramo sim é ciclo', cicloNoDesenho(cicloNoRamo) !== null)
+
+/**
+ * O ciclo pode estar num trecho que o primeiro passo não alcança. Publicar isso
+ * deixaria a bomba armada para quando alguém ligasse uma aresta até lá.
+ */
+const ilhaComCiclo = [
+    passo('a', 0),
+    passo('ilha1', 10, { padrao: 'ilha2' }),
+    passo('ilha2', 11, { padrao: 'ilha1' }),
+]
+ok('ciclo em trecho inalcançável também é recusado', cicloNoDesenho(ilhaComCiclo) !== null)
+
+/** Dois caminhos que se juntam NÃO são ciclo — é desenho comum. */
+const junta = [
+    passo('c', 0, { sim: 'x', nao: 'y' }, 'condicao'),
+    passo('x', 1, { padrao: 'fim' }),
+    passo('y', 2, { padrao: 'fim' }),
+    passo('fim', 3),
+]
+ok('caminhos que se juntam não são ciclo', cicloNoDesenho(junta) === null)
+
+/** O caminho devolvido tem de fechar: o primeiro id repete no fim. */
+ok('o caminho devolvido fecha', c1 !== null && c1[0] === c1[c1.length - 1], c1?.join(' → '))
+
+ok('o teto de transições é rede, não regra', MAX_TRANSICOES >= 2 * 100)
+
+console.log('')
+console.log('── Os gatilhos ──')
+
+ok('etiqueta precisa de alvo', lerGatilho({ tipo: 'etiqueta_aplicada' }) === null)
+ok(
+    'com alvo passa',
+    lerGatilho({ tipo: 'etiqueta_aplicada', alvo: 'tag_1' })?.alvo === 'tag_1'
+)
+ok('contato criado não precisa de alvo', lerGatilho({ tipo: 'contato_criado' })?.tipo === 'contato_criado')
+ok('tipo inventado é recusado', lerGatilho({ tipo: 'quando_der_vontade' }) === null)
+
+/** Json malformado é "ninguém entra", nunca "entra todo mundo". */
+for (const [rotulo, valor] of [
+    ['nulo', null],
+    ['vazio', {}],
+    ['texto', 'etiqueta_aplicada'],
+    ['número', 7],
+] as const) {
+    ok(`trigger ${rotulo} não liga nada`, lerGatilho(valor) === null)
+}
+
+const gEtiqueta = { tipo: 'etiqueta_aplicada' as const, alvo: 'tag_1' }
+const base = { workspaceId: 'w1', contactId: 'c1' }
+ok('casa quando tipo e alvo batem', casa(gEtiqueta, { ...base, tipo: 'etiqueta_aplicada', alvo: 'tag_1' }))
+ok('não casa com outra etiqueta', !casa(gEtiqueta, { ...base, tipo: 'etiqueta_aplicada', alvo: 'tag_2' }))
+ok('não casa com outro tipo', !casa(gEtiqueta, { ...base, tipo: 'entrou_na_lista', alvo: 'tag_1' }))
+ok('não casa sem alvo no evento', !casa(gEtiqueta, { ...base, tipo: 'etiqueta_aplicada' }))
+
+/**
+ * `contato_criado` ignora alvo dos dois lados — mas um alvo sobrando no evento
+ * não pode fazer deixar de casar.
+ */
+ok(
+    'contato criado casa com alvo sobrando',
+    casa({ tipo: 'contato_criado' }, { ...base, tipo: 'contato_criado', alvo: 'sobra' })
+)
+
+ok('todo tipo declarado tem texto de tela', TIPOS_DE_GATILHO.length === 4)
 
 console.log('')
 if (falhas > 0) {

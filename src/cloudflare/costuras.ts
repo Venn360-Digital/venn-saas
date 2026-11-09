@@ -9,6 +9,7 @@ import { registrarAgenda } from '@/trabalhos/agenda'
 import { registrarTransmissor } from '@/trabalhos/tempo-real'
 import { registrarTravas } from '@/trabalhos/trava'
 import { registrarRemetenteDeEmail } from '@/lib/email/send'
+import { registrarMotorDoFunil } from '@/trabalhos/funil'
 
 /**
  * Onde o código da aplicação encontra a plataforma.
@@ -36,6 +37,14 @@ export interface EnvDasCosturas extends BindingsDeFila {
      */
     EMAIL: Parameters<typeof registrarRemetenteDeEmail>[0]
     EMAIL_FROM: string
+    /**
+     * O motor do funil.
+     *
+     * `Workflow<{ runId: string }>` e não `Workflow`: o parâmetro é o payload, e
+     * declarado assim o typecheck recusa `create` com corpo errado. É a mesma
+     * razão de os bindings de fila carregarem o tipo do job.
+     */
+    FUNIL: Workflow<{ runId: string }>
 }
 
 /**
@@ -56,6 +65,28 @@ export function registrarCosturas(env: EnvDasCosturas): void {
     registrarDriver(criarDriverCloudflare(env))
 
     registrarRemetenteDeEmail(env.EMAIL, env.EMAIL_FROM)
+
+    /**
+     * O motor do funil.
+     *
+     * `id: runId` — o id da instância **é** o id da passagem.
+     *
+     * Deixar a plataforma gerar o id exigiria guardar o `instanceId` para achar
+     * a instância depois, e a tela precisa fazer o caminho inverso (passagem →
+     * progresso) em toda listagem. Com os dois iguais, `FUNIL.get(runId)` acha a
+     * instância sem consultar o banco.
+     *
+     * De brinde, isso dá idempotência: criar duas vezes a instância da mesma
+     * passagem é recusado pela própria plataforma, por id duplicado, em vez de
+     * gerar duas instâncias andando o mesmo funil em paralelo — que é o defeito
+     * que mandaria a sequência em dobro.
+     */
+    registrarMotorDoFunil({
+        async criar(runId) {
+            const instancia = await env.FUNIL.create({ id: runId, params: { runId } })
+            return instancia.id
+        },
+    })
 
     // O gateway do Evolution Go NÃO é mais registrado: o canal saiu para o VPS
     // (2026-10-23) e o provider fala HTTP por `EVOLUTION_GO_URL`. Sem registro,
