@@ -39,6 +39,20 @@ export interface EventoDoSes {
     bounceDuro?: boolean
     /** Motivo legível, para a coluna de erro do destinatário. */
     motivo?: string
+    /**
+     * A passagem de funil que mandou este e-mail, quando foi um funil.
+     *
+     * Sai da tag `funnelRun`, que `acoes.ts` carimba no envio. Existe por um
+     * motivo estreito e importante: o e-mail de funil **não tem**
+     * `BroadcastRecipient`, então sem esta pista o recibo não acha o workspace,
+     * e um bounce duro deixaria de gravar `Contact.emailOptOutAt`.
+     *
+     * O efeito disso, medido em homologação antes do conserto: o funil
+     * continuaria mandando para um endereço que quica, a cada passo e a cada
+     * passagem nova — e é reclamação acumulada que derruba a reputação do
+     * domínio do cliente.
+     */
+    funnelRunId?: string
 }
 
 function texto(v: unknown): string | undefined {
@@ -47,6 +61,12 @@ function texto(v: unknown): string | undefined {
 
 function objeto(v: unknown): Record<string, unknown> {
     return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {}
+}
+
+/** O primeiro valor de uma tag do SES, que chega sempre como lista. */
+function primeiroDaTag(v: unknown): string | undefined {
+    if (!Array.isArray(v)) return undefined
+    return v.find((x): x is string => typeof x === 'string' && x.length > 0)
 }
 
 /**
@@ -76,10 +96,18 @@ export function lerEventoDoSes(cru: string): EventoDoSes | null {
         ? mail.destination.filter((d): d is string => typeof d === 'string')
         : []
 
+    /**
+     * As tags que o envio carimbou voltam em `mail.tags`, e sempre como
+     * **lista** de valores — é a forma do SES, não um erro de leitura.
+     */
+    const tags = objeto(mail.tags)
+    const funnelRunId = primeiroDaTag(tags.funnelRun)
+
     const base = {
         messageId,
         destinatarios,
         em: new Date(texto(mail.timestamp) ?? Date.now()),
+        ...(funnelRunId ? { funnelRunId } : {}),
     }
 
     switch (tipo) {

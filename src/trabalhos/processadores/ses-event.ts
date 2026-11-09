@@ -51,10 +51,37 @@ export async function processSesEvent(payload: SesEventJob): Promise<void> {
     })
 
     if (!destinatario) {
-        log.info(`sem destinatário para ${evento.messageId} (${evento.tipo})`)
-        // A supressão ainda vale: o endereço reclamou, e não mandar de novo é
-        // mais importante do que saber de qual campanha veio.
-        await talvezSuprimir(evento, null)
+        /**
+         * Sem destinatário de campanha, o e-mail pode ter saído de um **funil**
+         * — e aí o workspace vem da passagem, pela tag `funnelRun`.
+         *
+         * Isto não é refinamento. Antes dele, `talvezSuprimir` recebia
+         * `workspaceId` nulo e **pulava** a escrita de `Contact.emailOptOutAt`:
+         * um bounce duro num e-mail de funil não tirava ninguém da lista, e o
+         * funil continuava mandando para o endereço que quica a cada passo e a
+         * cada passagem nova. Medido em homologação — o recibo chegava com
+         * "sem destinatário" e nada era gravado.
+         *
+         * A supressão na conta do SES vale nos dois casos; o que faltava era a
+         * coluna por contato, que é a única proteção em pé enquanto a conta
+         * está no sandbox.
+         */
+        const doFunil = evento.funnelRunId
+            ? await prisma.funnelRun.findUnique({
+                  where: { id: evento.funnelRunId },
+                  select: { funnel: { select: { workspaceId: true } } },
+              })
+            : null
+
+        if (doFunil) {
+            log.info(
+                `recibo de funil ${evento.messageId} (${evento.tipo}) — passagem ${evento.funnelRunId}`
+            )
+        } else {
+            log.info(`sem destinatário para ${evento.messageId} (${evento.tipo})`)
+        }
+
+        await talvezSuprimir(evento, doFunil?.funnel.workspaceId ?? null)
         return
     }
 

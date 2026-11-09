@@ -82,6 +82,59 @@ const envelope = (tipo: string, extra: Record<string, unknown>) =>
     })
 
 ok('lê uma entrega', lerEventoDoSes(envelope('Delivery', { delivery: {} }))?.tipo === 'Delivery')
+
+console.log('')
+console.log('── A tag funnelRun, que liga o recibo à passagem ──')
+
+/**
+ * Sem esta pista, um bounce duro em e-mail de **funil** não gravava
+ * `Contact.emailOptOutAt`: o recibo não tem `BroadcastRecipient`, então o
+ * processador recebia `workspaceId` nulo e pulava a coluna. O funil seguiria
+ * mandando para o endereço que quica, a cada passo e a cada passagem nova.
+ *
+ * Medido em homologação antes do conserto: o recibo chegava com "sem
+ * destinatário" e nada era gravado.
+ */
+const comTag = (tags: Record<string, unknown>) =>
+    JSON.stringify({
+        eventType: 'Bounce',
+        mail: {
+            messageId: 'msg-f',
+            timestamp: '2026-11-09T12:00:00.000Z',
+            destination: ['quica@exemplo.com'],
+            tags,
+        },
+        bounce: { bounceType: 'Permanent', bouncedRecipients: [{ emailAddress: 'quica@exemplo.com' }] },
+    })
+
+/** O SES devolve toda tag como **lista**, mesmo com um valor só. */
+ok(
+    'lê a passagem da tag',
+    lerEventoDoSes(comTag({ funnelRun: ['run_1'], funnel: ['f_1'] }))?.funnelRunId === 'run_1'
+)
+
+ok('sem tag nenhuma, fica sem passagem', lerEventoDoSes(comTag({}))?.funnelRunId === undefined)
+
+/**
+ * Tag fora da forma não pode virar id. Um `funnelRunId` inventado faria o
+ * processador procurar uma passagem que não existe — e, pior, se casasse com
+ * outra, gravaria opt-out no workspace errado.
+ */
+for (const [rotulo, tags] of [
+    ['valor solto em vez de lista', { funnelRun: 'run_1' }],
+    ['lista vazia', { funnelRun: [] }],
+    ['lista de números', { funnelRun: [7] }],
+    ['lista com vazio', { funnelRun: [''] }],
+    ['nulo', { funnelRun: null }],
+] as const) {
+    ok(`${rotulo} não vira passagem`, lerEventoDoSes(comTag(tags))?.funnelRunId === undefined)
+}
+
+/** E a leitura do bounce continua inteira junto da tag. */
+const bounceDeFunil = lerEventoDoSes(comTag({ funnelRun: ['run_2'] }))
+ok('o bounce duro segue sendo duro', bounceDeFunil?.bounceDuro === true)
+ok('e o endereço é o que quicou', bounceDeFunil?.destinatarios.join() === 'quica@exemplo.com')
+
 ok('lê uma abertura', lerEventoDoSes(envelope('Open', { open: {} }))?.tipo === 'Open')
 
 const bounceDuro = lerEventoDoSes(
