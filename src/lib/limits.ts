@@ -1,6 +1,7 @@
 import { Prisma } from '#prisma'
 import prisma from '@/lib/prisma'
 import { accountIdOf, assinaturaDaUnidade, unidadesDaConta, type Unidades } from '@/lib/account'
+import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 import { limitesEfetivos, planNameFor } from '@/lib/plan-limits'
 
 /**
@@ -265,10 +266,14 @@ export async function canConnectWhatsApp(
  * saíram (sent/delivered/read) ou falharam no envio neste mês, em todas as
  * unidades da conta, e recusa se somar acima do teto. `skipped`/`pending` não
  * contam: ninguém foi disparado.
+ *
+ * **Um teto por canal.** WhatsApp e e-mail têm baldes próprios porque custam
+ * ordens de grandeza diferentes — ver `PlanLimits.maxEmailsPerMonth`.
  */
 export async function canBroadcast(
     workspaceId: string,
-    recipientCount: number
+    recipientCount: number,
+    canal: CanalDeCampanha = 'whatsapp'
 ): Promise<LimitCheck> {
     const limits = await getWorkspaceLimits(workspaceId)
 
@@ -280,14 +285,27 @@ export async function canBroadcast(
         }
     }
 
-    const allowance = limitesEfetivos(limits.planId, limits.units.adicionais)
-        .maxBroadcastRecipientsPerMonth
+    const efetivos = limitesEfetivos(limits.planId, limits.units.adicionais)
+
+    /**
+     * Cada canal tem o próprio teto, e a razão é o custo.
+     *
+     * Uma mensagem de marketing no WhatsApp custa R$ 0,3217 (Meta, Brasil); um
+     * e-mail, cerca de R$ 0,0009. Um teto só teria de ser calibrado pelo canal
+     * caro, e o barato ficaria artificialmente apertado sem nenhum ganho.
+     */
+    const porEmail = canal === 'email'
+    const allowance = porEmail
+        ? efetivos.maxEmailsPerMonth
+        : efetivos.maxBroadcastRecipientsPerMonth
 
     if (allowance <= 0) {
         return {
             ok: false,
             status: 402,
-            error: `O ${limits.planName} não inclui disparo de campanhas. Mude de plano em Gerenciamento → Conta.`,
+            error: porEmail
+                ? `O ${limits.planName} não inclui campanha de e-mail. Mude de plano em Gerenciamento → Conta.`
+                : `O ${limits.planName} não inclui disparo de campanhas. Mude de plano em Gerenciamento → Conta.`,
         }
     }
 
@@ -302,7 +320,11 @@ export async function canBroadcast(
 
     const usados = await prisma.broadcastRecipient.count({
         where: {
-            broadcast: daConta,
+            // O recorte do canal entra no `broadcast`, não no destinatário: é
+            // a campanha que tem canal. Sem ele, um mês cheio de e-mail
+            // bloquearia o disparo de WhatsApp, e vice-versa — que é
+            // exatamente o que dois tetos existem para evitar.
+            broadcast: { ...daConta, channel: canal },
             status: { in: ['sent', 'delivered', 'read', 'failed'] },
             createdAt: { gte: inicioDoMes },
         },
@@ -312,7 +334,7 @@ export async function canBroadcast(
         return {
             ok: false,
             status: 402,
-            error: `O ${limits.planName} inclui ${allowance.toLocaleString('pt-BR')} destinatários de campanha por mês, e você já usou ${usados.toLocaleString('pt-BR')}. Reduza a lista ou mude de plano em Gerenciamento → Conta.`,
+            error: `O ${limits.planName} inclui ${allowance.toLocaleString('pt-BR')} ${porEmail ? 'e-mails de campanha' : 'destinatários de campanha'} por mês, e você já usou ${usados.toLocaleString('pt-BR')}. Reduza a lista ou mude de plano em Gerenciamento → Conta.`,
         }
     }
 

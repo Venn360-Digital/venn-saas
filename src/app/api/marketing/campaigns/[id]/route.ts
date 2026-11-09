@@ -34,11 +34,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     })
     if (!b) return new NextResponse('Campanha não encontrada', { status: 404 })
 
-    const porStatus = await prisma.broadcastRecipient.groupBy({
-        by: ['status'],
-        where: { broadcastId: id },
-        _count: { _all: true },
-    })
+    const [porStatus, abertos, clicados] = await Promise.all([
+        prisma.broadcastRecipient.groupBy({
+            by: ['status'],
+            where: { broadcastId: id },
+            _count: { _all: true },
+        }),
+        // Colunas, não status: quem abriu E clicou apareceria uma vez só no
+        // groupBy. Ver o componente de servidor ao lado, que faz o mesmo.
+        prisma.broadcastRecipient.count({ where: { broadcastId: id, openedAt: { not: null } } }),
+        prisma.broadcastRecipient.count({ where: { broadcastId: id, clickedAt: { not: null } } }),
+    ])
 
     return NextResponse.json({
         id: b.id,
@@ -55,6 +61,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         sentCount: b.sentCount,
         failedCount: b.failedCount,
         recipientsByStatus: Object.fromEntries(porStatus.map((p) => [p.status, p._count._all])),
+        openedCount: abertos,
+        clickedCount: clicados,
     })
 }
 

@@ -34,6 +34,20 @@ export interface CampanhaDetalhe {
     sentCount: number
     failedCount: number
     recipientsByStatus: Record<string, number>
+    /** Quantos abriram e quantos clicaram. Só o e-mail os preenche. */
+    openedCount: number
+    clickedCount: number
+}
+
+/**
+ * A taxa entre parênteses, ou nada quando não há base para calculá-la.
+ *
+ * Dividir por zero daria "NaN%" na tela — e uma campanha ainda sem envio é
+ * estado normal, não erro.
+ */
+function taxa(parte: number, base: number): string {
+    if (base <= 0) return ''
+    return ` (${Math.round((parte / base) * 100)}%)`
 }
 
 const RECIPIENT_LABEL: Record<string, string> = {
@@ -215,6 +229,30 @@ export function CampanhaDetalheClient({ inicial }: { inicial: CampanhaDetalhe })
                                 c.recipientsByStatus[k] ? (
                                     <Linha key={k} termo={label} valor={String(c.recipientsByStatus[k])} />
                                 ) : null,
+                            )}
+
+                            {/*
+                                Abertura e clique vêm com a taxa ao lado.
+                                O número cru ("320") não diz nada sozinho — o que
+                                a clínica compara entre campanhas é a proporção, e
+                                calculá-la de cabeça a cada vez é trabalho que a
+                                tela pode poupar.
+
+                                A base é `sentCount`, não `totalCount`: quem não
+                                recebeu não teve chance de abrir, e usar o total
+                                afundaria a taxa de toda campanha que teve falha.
+                            */}
+                            {c.canal === 'email' && c.openedCount > 0 && (
+                                <Linha
+                                    termo="Abriram"
+                                    valor={`${c.openedCount}${taxa(c.openedCount, c.sentCount)}`}
+                                />
+                            )}
+                            {c.canal === 'email' && c.clickedCount > 0 && (
+                                <Linha
+                                    termo="Clicaram"
+                                    valor={`${c.clickedCount}${taxa(c.clickedCount, c.sentCount)}`}
+                                />
                             )}
                         </dl>
                     )}

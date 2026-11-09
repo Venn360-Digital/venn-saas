@@ -2,17 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { canBroadcast } from '@/lib/limits'
 import { congelarDestinatarios, iniciarDisparo } from '@/trabalhos/servicos/broadcast'
-import { whereDeDestinatarios } from '@/lib/marketing/lists'
-import { ehCanalDeCampanha, type CanalDeCampanha } from '@/lib/marketing/apresentacao'
-
-/** Por que a lista ficou vazia — e a resposta muda com o canal. */
-function semDestinatarios(canal: CanalDeCampanha): string {
-    return canal === 'email'
-        ? 'As listas não têm ninguém com e-mail cadastrado que não tenha cancelado a inscrição.'
-        : 'As listas não têm ninguém com telefone válido que não tenha pedido para parar.'
-}
+import { portaoDeDisparo, semDestinatarios } from '@/lib/marketing/portao'
 
 const sendSchema = z.object({
     /** ISO. Ausente ou no passado = dispara agora. */
@@ -20,52 +11,14 @@ const sendSchema = z.object({
 })
 
 /**
- * Quantos contatos distintos as listas da campanha alcançam, pelo canal dela.
+ * Dispara agora ou agenda.
  *
- * Usa `whereDeDestinatarios`, o **mesmo** predicado de `congelarDestinatarios`.
- * Escrito aqui de novo, ele divergiria — e o teto do plano seria conferido
- * contra um número e a campanha sairia com outro.
+ * O portão — configuração do canal, alcance das listas e teto do plano — mora
+ * em `lib/marketing/portao.ts` porque o **cron de agendamento aplica o mesmo**.
+ * Duas portas com a mesma regra escrita em dois lugares divergem, e aqui a
+ * divergência seria a pior possível: a que falharia é a do cron, de madrugada,
+ * sem ninguém para ler o log.
  */
-async function estimarDestinatarios(
-    workspaceId: string,
-    broadcastId: string,
-    canal: CanalDeCampanha
-): Promise<number> {
-    const listas = await prisma.broadcastList.findMany({
-        where: { broadcastId },
-        select: { listId: true },
-    })
-    const listIds = listas.map((l) => l.listId)
-    if (listIds.length === 0) return 0
-    return prisma.contact.count({ where: whereDeDestinatarios(workspaceId, canal, listIds) })
-}
-
-/**
- * O portão do canal, conferido **no disparo** e não só na criação.
- *
- * O rascunho pode ter ficado dias parado: o DKIM do remetente pode ter sido
- * removido da zona do cliente, a linha oficial pode ter caído. Conferir só na
- * criação deixaria o fan-out descobrir isso destinatário a destinatário,
- * marcando a campanha inteira como falha em vez de recusar antes de começar.
- */
-function portaoDoCanal(b: {
-    channel: string
-    sender: { status: string; domain: string } | null
-    integrationId: string | null
-}): string | null {
-    if (b.channel === 'email') {
-        if (!b.sender) return 'A campanha não tem remetente de e-mail.'
-        if (b.sender.status !== 'verified') {
-            return `O domínio ${b.sender.domain} não está verificado. Publique os três registros de DNS antes de disparar.`
-        }
-        return null
-    }
-    if (!b.integrationId) return 'A campanha não tem linha de envio.'
-    return null
-}
-
-// POST — dispara agora ou agenda. Congela os destinatários, confere o teto do
-// plano e enfileira (imediato) ou deixa para o cron (agendado).
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const member = await currentMembership()
     if (!member) return new NextResponse('Workspace não encontrado', { status: 404 })
@@ -74,50 +27,43 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const { id } = await params
-    const broadcast = await prisma.broadcast.findFirst({
+
+    /**
+     * O escopo primeiro, e separado do portão.
+     *
+     * O portão lê a campanha pelo id, sem workspace — ele serve ao cron, que
+     * não tem um. Então quem vem pela web confere a posse **antes**: id de
+     * outra unidade tem de dar 404 aqui, e não atravessar para o portão.
+     */
+    const minha = await prisma.broadcast.findFirst({
         where: { id, workspaceId: member.workspaceId },
-        select: {
-            id: true,
-            status: true,
-            channel: true,
-            integrationId: true,
-            sender: { select: { status: true, domain: true } },
-        },
+        select: { status: true },
     })
-    if (!broadcast) return new NextResponse('Campanha não encontrada', { status: 404 })
-    if (broadcast.status !== 'draft') {
+    if (!minha) return new NextResponse('Campanha não encontrada', { status: 404 })
+    if (minha.status !== 'draft') {
         return NextResponse.json(
             { error: 'Só uma campanha em rascunho pode ser disparada ou agendada.' },
             { status: 400 }
         )
     }
 
-    const bloqueio = portaoDoCanal(broadcast)
-    if (bloqueio) return NextResponse.json({ error: bloqueio }, { status: 400 })
-
-    const canal: CanalDeCampanha = ehCanalDeCampanha(broadcast.channel)
-        ? broadcast.channel
-        : 'whatsapp'
+    const portao = await portaoDeDisparo(id)
+    if (!portao.ok) {
+        return NextResponse.json({ error: portao.error }, { status: portao.status })
+    }
 
     const { scheduledAt } = sendSchema.parse(await request.json().catch(() => ({})))
     const quando = scheduledAt ? new Date(scheduledAt) : null
     const agendarParaFuturo = quando !== null && quando.getTime() > Date.now()
 
-    // Teto do plano, antes de qualquer escrita de destinatário.
-    const estimativa = await estimarDestinatarios(member.workspaceId, id, canal)
-    if (estimativa === 0) {
-        return NextResponse.json(
-            { error: semDestinatarios(canal) },
-            { status: 400 }
-        )
-    }
-    const permitido = await canBroadcast(member.workspaceId, estimativa)
-    if (!permitido.ok) {
-        return NextResponse.json({ error: permitido.error }, { status: permitido.status })
-    }
-
     if (agendarParaFuturo) {
-        // Agendada: o cron congela e dispara na hora. A lista fica atual.
+        /**
+         * Agendada: o cron congela e dispara na hora, e a lista fica atual.
+         *
+         * O portão acabou de passar, mas **o cron o aplica de novo** — dias
+         * podem passar até a hora chegar, e nesse intervalo o DKIM pode sair
+         * do ar e o teto do mês pode estourar com outro disparo.
+         */
         await prisma.broadcast.update({
             where: { id },
             data: { status: 'scheduled', scheduledAt: quando },
@@ -128,10 +74,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Imediata: congela agora e enfileira o fan-out.
     const total = await congelarDestinatarios(id)
     if (total === 0) {
-        return NextResponse.json(
-            { error: semDestinatarios(canal) },
-            { status: 400 }
-        )
+        return NextResponse.json({ error: semDestinatarios(portao.canal) }, { status: 400 })
     }
     await iniciarDisparo(id)
     return NextResponse.json({ id, status: 'running', totalCount: total })
