@@ -569,6 +569,7 @@ model Workspace {
   recados            TeamMessage[]
   emailSenders       EmailSender[]
   emailTemplates     EmailTemplate[]
+  funnels            Funnel[]
 
   @@index([accountId])
   @@map("workspaces")
@@ -1073,6 +1074,7 @@ model Contact {
   tags                ContactTag[]
   listMemberships     ContactListMember[]
   broadcastRecipients BroadcastRecipient[]
+  funnelRuns          FunnelRun[]
 
   @@unique([workspaceId, phone])
   @@unique([workspaceId, instagramId])
@@ -2926,6 +2928,143 @@ model BroadcastRecipient {
   /// por e-mail enviado.
   @@index([sesMessageId])
   @@map("broadcast_recipients")
+}
+
+// ───────────────────────────── Funil (B3) ─────────────────────────────
+
+/// Uma sequência automática: um gatilho e passos que acontecem ao longo do tempo.
+///
+/// ## Por que isto não é mais uma `AgentRule`
+///
+/// `AgentRule` é condição→ação **sem estado**: ela dispara e acaba. Um funil
+/// precisa lembrar em que passo cada pessoa está, esperar dias entre um passo e
+/// outro, e retomar de onde parou. É estado por contato, e é isso que o
+/// diferencia.
+///
+/// ## Onde o estado mora
+///
+/// **Não aqui.** Quem guarda o ponteiro é o Cloudflare Workflows: cada
+/// `FunnelRun` tem um `instanceId`, e o passo atual, as variáveis e o alarme da
+/// espera vivem dentro da instância. Este modelo guarda o **desenho** (o que o
+/// funil faz) e a **correlação** (quem está dentro, e qual instância é dele).
+///
+/// Duplicar o ponteiro aqui pareceria útil e seria a pior escolha: duas fontes
+/// para o mesmo fato, divergindo na primeira vez que a instância avançasse e a
+/// gravação falhasse.
+model Funnel {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+
+  /// O que faz alguém entrar. Forma validada em `src/lib/funil/gatilho.ts`:
+  /// etiqueta aplicada, mudança de etapa do negócio, entrada em lista, contato
+  /// criado. Json porque acrescentar um gatilho não deve ser migração.
+  trigger Json
+
+  /// `draft` | `published`. Só `published` recebe gente.
+  ///
+  /// Rascunho→publicar é ato explícito, como o ciclo que o PLANO.md pede para o
+  /// agente: um funil meio escrito que já começasse a mandar mensagem seria o
+  /// pior desfecho possível de "estou só experimentando".
+  status String @default("draft")
+
+  /// Sobe a cada publicação. Quem já está dentro continua rodando a versão com
+  /// que entrou — mudar o funil no meio do caminho de quem já está nele daria
+  /// sequências pela metade, com passos que nunca existiram para aquela pessoa.
+  version Int @default(1)
+
+  /// Quantos podem estar dentro ao mesmo tempo. Nulo = sem teto.
+  maxAtivos Int?
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps     FunnelStep[]
+  runs      FunnelRun[]
+
+  @@index([workspaceId, status])
+  @@map("funnels")
+}
+
+/// Um passo do funil.
+///
+/// `config` guarda o que o passo faz (texto da mensagem, dias de espera,
+/// etiqueta a aplicar) e `edges` para onde ele vai. Json nos dois porque o
+/// catálogo de passos cresce, e uma coluna por tipo de passo viraria uma
+/// migração por melhoria.
+model FunnelStep {
+  id       String @id @default(cuid())
+  funnelId String
+
+  /// `mensagem` | `espera` | `condicao` | `etiquetar` | `mover_etapa` |
+  /// `atribuir` | `encerrar`. Validado em `src/lib/funil/passos.ts`.
+  type   String
+  config Json
+
+  /// A ordem no desenho, e a posição no canvas. `order` é o que o motor segue
+  /// quando não há aresta explícita; `x`/`y` são só do React Flow.
+  order Int
+  x     Float @default(0)
+  y     Float @default(0)
+
+  /// Para onde ir depois. `{ "padrao": "<stepId>" }` no caso simples;
+  /// `{ "sim": "<id>", "nao": "<id>" }` numa condição. Vazio = fim do funil.
+  edges Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([funnelId, order])
+  @@map("funnel_steps")
+}
+
+/// A passagem de um contato por um funil.
+///
+/// Uma linha por contato por funil. O `instanceId` liga à instância do
+/// Workflows, que é quem de fato executa — aqui se guarda o suficiente para a
+/// tela mostrar quem está dentro e para o motor **parar** quem precisa parar.
+model FunnelRun {
+  id        String @id @default(cuid())
+  funnelId  String
+  contactId String
+
+  /// A instância do Cloudflare Workflows. Nulo só entre criar a linha e criar
+  /// a instância — janela de milissegundos, e é por isso que a listagem tolera.
+  instanceId String?
+
+  /// A versão do funil com que esta pessoa entrou. Publicar de novo não muda
+  /// quem já está dentro.
+  version Int @default(1)
+
+  /// `running` | `done` | `stopped` | `failed`.
+  ///
+  /// `stopped` é saída por **freio**, não por fim: humano assumiu a conversa,
+  /// contato pediu para parar, funil despublicado. É estado diferente de `done`
+  /// de propósito — na tela, "parou porque alguém atendeu" e "terminou" contam
+  /// histórias opostas sobre o funil.
+  status String @default("running")
+
+  /// Por que parou, quando parou por freio. Texto curto, para a tela dizer.
+  stoppedReason String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  funnel  Funnel  @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  /// Uma passagem por vez. O mesmo contato não entra duas vezes no mesmo funil
+  /// enquanto a primeira não terminar — sem isto, uma etiqueta aplicada duas
+  /// vezes mandaria a sequência em dobro.
+  @@unique([funnelId, contactId])
+  @@index([funnelId, status])
+  @@index([contactId])
+  @@map("funnel_runs")
 }
 
 /// Um documento de treinamento do agente, em Markdown.
