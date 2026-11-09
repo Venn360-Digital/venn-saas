@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Info, TriangleAlert } from 'lucide-react'
 
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 interface Limits {
@@ -46,7 +45,13 @@ export function PlanAllowance({
         }
     }, [])
 
-    if (loading) return <Skeleton className={cn('h-12 w-full', className)} />
+    /**
+     * Esperando é não existir, como no medidor da barra lateral: a linha
+     * seguinte já devolve `null` quando a leitura falha, então um bloco cinza
+     * de 48px prometeria uma nota que às vezes não vem. Conserto de 2026-11-09;
+     * ver DESIGN.md §5.
+     */
+    if (loading) return null
     if (!limits) return null
 
     const noun = resource === 'agents' ? 'agente de IA' : 'número de WhatsApp'

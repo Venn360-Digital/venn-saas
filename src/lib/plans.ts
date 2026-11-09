@@ -269,14 +269,21 @@ export interface CreditPack {
     price: number
     /** Desconto por crédito contra o pacote base, para a tela mostrar. */
     discount: number
-    /** O papel do pacote, em uma linha, na voz de quem compra. */
-    pitch: string
 }
 
+/**
+ * **Sem `pitch`, desde 2026-11-09.** Cada pacote tinha uma frase descrevendo o
+ * mês em que ele serve ("para o mês de campanha, quando o movimento triplica").
+ * O Andre mandou tirar as três ao compactar o diálogo de adicionais: o que
+ * decide a compra é o número de créditos e o preço, que estão em corpo grande
+ * logo acima, e três parágrafos lado a lado custavam as linhas que faziam o
+ * diálogo rolar. O campo saiu do tipo junto, porque era renderizado num lugar
+ * só.
+ */
 export const CREDIT_PACKS: CreditPack[] = [
-    { credits: 10_000, price: 49, discount: 0, pitch: 'Para o mês que passou um pouco do normal.' },
-    { credits: 30_000, price: 125, discount: 0.15, pitch: 'Para o mês de campanha, quando o movimento triplica.' },
-    { credits: 50_000, price: 184, discount: 0.25, pitch: 'Para a clínica que cresceu e ainda não quer trocar de plano.' },
+    { credits: 10_000, price: 49, discount: 0 },
+    { credits: 30_000, price: 125, discount: 0.15 },
+    { credits: 50_000, price: 184, discount: 0.25 },
 ]
 
 /** O pacote com exatamente esta quantidade, ou nada — a lista é fechada. */
@@ -309,9 +316,14 @@ export function creditPackFor(credits: unknown): CreditPack | undefined {
 export const UNIDADE_ADICIONAL = {
     price: PRECO_ADICIONAL,
     name: 'Unidade adicional',
-    pitch:
-        'Mais uma clínica na mesma conta — com agenda, pacientes e conversas próprios, ' +
-        'mais 1 agente de IA e 1 número de WhatsApp. O crédito sai da franquia do plano.',
+    /**
+     * Uma linha, e é a do Andre (2026-11-09). A anterior listava o que vem
+     * junto — agenda, pacientes, conversas, 1 agente, 1 número, e de onde sai o
+     * crédito — em três linhas dentro de um diálogo que precisava encurtar.
+     * "Cadastros independentes" diz o que importa decidir; o detalhe de
+     * capacidade está nos cartões de plano, que é onde se compara.
+     */
+    pitch: 'Mais uma unidade com cadastros independentes na mesma conta.',
 }
 
 /**

@@ -14,7 +14,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Skeleton } from '@/components/ui/skeleton'
 import { DISPONIBILIDADE } from '@/components/shared/StatusBadge'
 import {
     SidebarMenu,
@@ -185,16 +184,31 @@ export function NavUser() {
         window.location.assign('/login')
     }
 
+    /**
+     * **A moldura é real; o conteúdo não se inventa.** Conserto de 2026-11-09.
+     *
+     * Aqui eram três `Skeleton` — o quadrado do retrato e duas barras de texto
+     * — e esta é a ocorrência que mais aparecia da "sombra de campos" que o
+     * Andre apontou três vezes: o rodapé da barra lateral é desenhado em
+     * **toda** tela do sistema, então a sombra piscava a cada navegação que
+     * remonta o shell, não só nas duas telas que ele nomeou.
+     *
+     * Fica a linha com a altura que ela terá — `size-8` de retrato mais o
+     * `p-2` —, e vazia. Reservar o espaço importa: devolver `null` faria o
+     * rodapé nascer sem altura e empurrar a barra quando o nome chegasse, e
+     * salto de layout é a outra forma do mesmo incômodo. O que não se desenha é
+     * o que não se sabe — nome, e-mail e retrato.
+     *
+     * Sem limiar aqui, de propósito: não há o que mostrar depois dele. O limiar
+     * (`useEsperaLonga`) serve para adiar um **sinal**; onde o estado de espera
+     * já é o vazio, ele não tem função.
+     */
     if (loading) {
         return (
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <div className="flex items-center gap-2 p-2">
-                        <Skeleton className="size-8 shrink-0 rounded-lg" />
-                        <div className="flex-1 space-y-1.5 group-data-[collapsible=icon]:hidden">
-                            <Skeleton className="h-3 w-24" />
-                            <Skeleton className="h-2.5 w-32" />
-                        </div>
+                    <div aria-hidden="true" className="flex items-center gap-2 p-2">
+                        <span className="size-8 shrink-0" />
                     </div>
                 </SidebarMenuItem>
             </SidebarMenu>

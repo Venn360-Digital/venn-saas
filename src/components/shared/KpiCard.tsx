@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { ArrowDown, ArrowRight, ArrowUp, type LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { Skeleton } from '@/components/ui/skeleton'
 
 interface KpiCardProps {
     label: string
@@ -17,7 +16,6 @@ interface KpiCardProps {
     invert?: boolean
     hint?: string
     href?: string
-    loading?: boolean
     className?: string
 }
 
@@ -29,7 +27,6 @@ export function KpiCard({
     invert = false,
     hint,
     href,
-    loading = false,
     className,
 }: KpiCardProps) {
     const good = delta
@@ -56,13 +53,14 @@ export function KpiCard({
                 ) : null}
             </div>
 
-            {loading ? (
-                <Skeleton className="mt-2 h-8 w-24" />
-            ) : (
-                <p className="num mt-1 text-h1">{value}</p>
-            )}
+            {/* **Sem ramo de espera.** Havia um `Skeleton` aqui, e ele era
+                código morto: o painel é componente de servidor e entrega os
+                números já no HTML — nenhum chamador passa `loading`, medido em
+                2026-11-09. Código morto que só sabe produzir a "sombra de
+                campos" não fica esperando a chance; ver DESIGN.md §5. */}
+            <p className="num mt-1 text-h1">{value}</p>
 
-            {delta && !loading ? (
+            {delta ? (
                 <p
                     className={cn(
                         'mt-1 flex items-center gap-1 text-xs',
@@ -75,7 +73,7 @@ export function KpiCard({
                     <span className="num">{delta.value}</span>
                     {hint ? <span className="text-muted-foreground">{hint}</span> : null}
                 </p>
-            ) : hint && !loading ? (
+            ) : hint ? (
                 <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
             ) : null}
         </div>

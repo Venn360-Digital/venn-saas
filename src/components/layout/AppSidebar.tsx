@@ -13,7 +13,6 @@ import { ClinicBrand } from '@/components/layout/ClinicBrand'
 import type { UnidadeAberta } from '@/hooks/useUnidades'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
     Collapsible,
     CollapsibleContent,
@@ -329,14 +328,18 @@ function PlanSummary() {
     }, [token])
 
     // Hidden when the rail is collapsed to icons — there is no room to read it.
-    if (loading) {
-        return (
-            <div className="space-y-2 group-data-[collapsible=icon]:hidden">
-                <Skeleton className="h-3.5 w-24" />
-                <Skeleton className="h-2 w-full" />
-            </div>
-        )
-    }
+    /**
+     * **Esperando é não existir, aqui.** Conserto de 2026-11-09: eram dois
+     * `Skeleton` — uma barra de rótulo e uma de progresso — desenhados em
+     * **toda** tela do sistema, porque este bloco mora na barra lateral.
+     *
+     * E eles mentiam: a linha abaixo já devolve `null` quando a leitura falha,
+     * ou seja o bloco **pode não aparecer**. Um esqueleto prometendo medidor de
+     * crédito num rodapé que às vezes fica vazio é a "sombra" que o Andre
+     * apontou três vezes (ver DESIGN.md §5). Sem reservar altura, de propósito:
+     * o estado final também pode ser altura zero, então não há salto a evitar.
+     */
+    if (loading) return null
 
     if (!state) return null
 

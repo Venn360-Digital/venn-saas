@@ -1,13 +1,28 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
 /**
- * The loading vocabulary, in one file.
+ * O esqueleto da tabela, e **só ele**.
  *
- * Loading was expressed three different ways across the app — a Loader2 spinner
- * in fifteen files, `animate-pulse` in two, and the literal text "Carregando..."
- * in nine — so the same wait looked like a different thing depending on which
- * screen you were on, and a table collapsed to a single centred line before
- * jumping back to full height.
+ * Este arquivo nasceu como "o vocabulário de espera, num lugar só": a espera era
+ * expressa de três formas pelo app — `Loader2` em quinze arquivos,
+ * `animate-pulse` em dois e o texto "Carregando..." em nove —, então a mesma
+ * espera parecia coisa diferente em cada tela.
+ *
+ * **Tinha seis esqueletos; cinco saíram em 2026-11-09.** `CardGridSkeleton`,
+ * `KpiRowSkeleton`, `FormSkeleton`, `ListSkeleton` e `InboxSkeleton` estavam
+ * sem **nenhum** uso — uma biblioteca de geradores de campo fantasma esperando
+ * alguém pegar. E alguém pegava: a "sombra de campos" voltou três vezes
+ * (2026-10-26, 2026-11-05, 2026-11-09), e nas duas últimas vezes o conserto foi
+ * tirar esqueleto de tela, não ajustar o que estava aqui. Código morto que só
+ * sabe produzir o defeito recusado não fica de reserva.
+ *
+ * O que sobra é `TableSkeleton`, e ele passa na regra: a tabela de índice
+ * **vai** aparecer, as colunas são conhecidas, e o `DataTable` só o desenha
+ * depois do limiar de `useEsperaLonga`. Ver DESIGN.md §5, "carregando não
+ * desenha conteúdo falso".
+ *
+ * Para espera nova, o vocabulário é: nada abaixo do limiar; acima dele, o
+ * `Loader2` centrado. Não acrescente esqueleto aqui sem ler a regra.
  */
 
 export function TableSkeleton({ rows = 6, cols = 4 }: { rows?: number; cols?: number }) {
@@ -26,88 +41,6 @@ export function TableSkeleton({ rows = 6, cols = 4 }: { rows?: number; cols?: nu
                     ))}
                 </div>
             ))}
-        </div>
-    )
-}
-
-export function CardGridSkeleton({ n = 6 }: { n?: number }) {
-    return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: n }).map((_, i) => (
-                <div key={i} className="space-y-3 rounded-lg border border-border bg-card p-4">
-                    <div className="flex items-center gap-3">
-                        <Skeleton className="size-10 rounded-full" />
-                        <div className="flex-1 space-y-1.5">
-                            <Skeleton className="h-4 w-2/3" />
-                            <Skeleton className="h-3 w-1/3" />
-                        </div>
-                    </div>
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-4/5" />
-                </div>
-            ))}
-        </div>
-    )
-}
-
-export function KpiRowSkeleton({ n = 4 }: { n?: number }) {
-    return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: n }).map((_, i) => (
-                <div key={i} className="space-y-2 rounded-lg border border-border bg-card p-4">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-8 w-20" />
-                    <Skeleton className="h-3 w-16" />
-                </div>
-            ))}
-        </div>
-    )
-}
-
-export function FormSkeleton({ fields = 4 }: { fields?: number }) {
-    return (
-        <div className="space-y-5">
-            {Array.from({ length: fields }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                    <Skeleton className="h-3.5 w-28" />
-                    <Skeleton className="h-9 w-full" />
-                </div>
-            ))}
-        </div>
-    )
-}
-
-export function ListSkeleton({ rows = 8 }: { rows?: number }) {
-    return (
-        <div className="divide-y divide-border">
-            {Array.from({ length: rows }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 px-4 py-3">
-                    <Skeleton className="size-9 shrink-0 rounded-full" />
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                        <Skeleton className="h-4 w-1/3" />
-                        <Skeleton className="h-3 w-2/3" />
-                    </div>
-                    <Skeleton className="h-3 w-10 shrink-0" />
-                </div>
-            ))}
-        </div>
-    )
-}
-
-/** The inbox: conversation rail plus an empty thread pane. */
-export function InboxSkeleton() {
-    return (
-        <div className="flex h-full">
-            <div className="w-[320px] shrink-0 border-r border-border">
-                <div className="space-y-3 p-4">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-7 w-2/3" />
-                </div>
-                <ListSkeleton rows={7} />
-            </div>
-            <div className="flex flex-1 items-center justify-center">
-                <Skeleton className="size-16 rounded-full" />
-            </div>
         </div>
     )
 }
