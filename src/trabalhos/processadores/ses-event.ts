@@ -149,6 +149,7 @@ async function talvezSuprimir(evento: EventoDoSes, workspaceId: string | null): 
     if (!pedeSupressao(evento)) return
 
     const motivo = evento.tipo === 'Complaint' ? 'COMPLAINT' : 'BOUNCE'
+    let suprimidos = 0
 
     for (const endereco of evento.destinatarios) {
         if (workspaceId) {
@@ -163,10 +164,32 @@ async function talvezSuprimir(evento: EventoDoSes, workspaceId: string | null): 
         }
 
         const r = await suprimir(endereco, motivo)
-        if (!r.ok) log.warn(`supressão de ${endereco} falhou: ${r.error}`)
+        if (r.ok) suprimidos++
+        else log.warn(`supressão de ${endereco} falhou: ${r.error}`)
     }
 
-    log.info(`${evento.tipo}: ${evento.destinatarios.length} endereço(s) suprimido(s)`)
+    /**
+     * Conta o que **deu certo**, não o que foi tentado.
+     *
+     * A primeira versão imprimia `destinatarios.length` logo depois do aviso de
+     * falha, então o log dizia "1 endereço(s) suprimido(s)" justamente na linha
+     * em que a supressão havia falhado. Quem fosse investigar reenvio para um
+     * endereço que deu bounce leria o log, veria a supressão confirmada e
+     * procuraria o defeito em outro lugar.
+     *
+     * Os dois números aparecem quando divergem, porque a diferença é o que
+     * interessa: no sandbox ela é o total, e aí o `emailOptOutAt` é a única
+     * proteção em pé.
+     */
+    const total = evento.destinatarios.length
+    if (suprimidos === total) {
+        log.info(`${evento.tipo}: ${total} endereço(s) suprimido(s) no SES`)
+    } else {
+        log.warn(
+            `${evento.tipo}: ${suprimidos} de ${total} endereço(s) suprimido(s) no SES; ` +
+                'o resto está protegido só por emailOptOutAt nesta unidade'
+        )
+    }
 }
 
 export type { DestinatarioDoRecibo }
