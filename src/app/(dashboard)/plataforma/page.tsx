@@ -208,10 +208,14 @@ export default function PlataformaPage() {
                     <Resumo rotulo="Somente leitura" valor={travadas} alerta={travadas > 0} />
                 </div>
 
-                <div className="overflow-hidden rounded-lg border border-border bg-card">
+                {/* O mesmo cartão das telas de índice (`DataTable frame`):
+                    `rounded-xl` com moldura `border/60`. Aqui era `rounded-lg`
+                    com a borda cheia — duas tabelas do mesmo produto com dois
+                    desenhos de moldura. Ver DESIGN.md §5, "Tabela". */}
+                <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-border bg-background">
+                            <tr className="border-b border-border bg-muted">
                                 <Th>{BRAND.vocabulario.Organizacao}</Th>
                                 <Th>Plano</Th>
                                 <Th>Situação</Th>
@@ -226,7 +230,7 @@ export default function PlataformaPage() {
                                     <tr
                                         key={unidade.id}
                                         className={cn(
-                                            'border-t border-border',
+                                            'border-t border-border/60',
                                             conta.cortada && 'bg-warning-subtle/40'
                                         )}
                                     >

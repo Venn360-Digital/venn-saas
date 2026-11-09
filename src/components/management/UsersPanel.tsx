@@ -114,7 +114,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
      * que é o mesmo efeito com menos acoplamento.
      */
     const [conviteToken, setConviteToken] = useState(0)
-    /** O padrão da conta, só para o campo Paciência dizer qual é. */
+    /** O padrão da conta, só para o campo Ausência dizer qual é. */
     const [ausenteDaConta, setAusenteDaConta] = useState<number | null>(null)
 
     const fetchUsers = useCallback(async () => {
@@ -125,7 +125,7 @@ export const UsersPanel = forwardRef<UsersPanelHandle, object>(function UsersPan
                 const data = await response.json()
                 setUsers(data.data ?? data)
                 setSemDepartamento(Number(data.semDepartamento) || 0)
-                // O padrão da conta, para o campo Paciência mostrar qual é no
+                // O padrão da conta, para o campo Ausência mostrar qual é no
                 // `placeholder` em vez de dizer só "padrão".
                 setAusenteDaConta(
                     typeof data.minutosParaAusenteDaConta === 'number'

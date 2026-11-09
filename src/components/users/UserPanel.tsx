@@ -202,17 +202,25 @@ export function UserPanel({
                         <span className="text-xs text-muted-foreground">entra na distribuição automática</span>
                     </div>
                 </PanelField>
-                {/* Logo depois de "Recebe conversas", porque as duas decidem a
-                    mesma coisa: quem a distribuição alcança. A primeira diz
-                    *se*; esta diz *por quanto tempo sem mexer no sistema*.
+                <PanelField label="Ativo" htmlFor="user-panel-active" saved={saved === 'isActive'}>
+                    <Switch id="user-panel-active" checked={u.isActive} disabled={!canEdit || u.isFirstAdmin} onCheckedChange={(isActive) => void save('isActive', { isActive })} />
+                </PanelField>
+                {/* **O último campo da ficha**, e chamado de "Ausência" —
+                    pedido do Andre em 2026-11-09. Era "Paciência", logo depois
+                    de "Recebe conversas": o nome descrevia a metáfora (quanto
+                    o sistema espera antes de desistir da pessoa) e não o que o
+                    campo produz, que é o status de ausência que a equipe vê no
+                    painel. No fim da ficha porque é o ajuste mais fino dela —
+                    quem abre a ficha vem mexer em função, fila e acesso.
 
                     É atributo da pessoa — a recepcionista que atende balcão
                     fica minutos fora da tela sem estar ausente — mas **editado
                     pela gestão**: entra em `estaDisponivel`, e se cada um
                     escolhesse o seu, quem pusesse 5 minutos receberia menos
-                    trabalho. Vazio devolve ao padrão da conta, e é por isso que
-                    o campo aceita ser esvaziado. */}
-                <PanelField label="Paciência" htmlFor="user-panel-ausente" saved={saved === 'minutosParaAusente'}>
+                    trabalho. Vazio devolve ao padrão da conta (Conta →
+                    Automações), e é por isso que o campo aceita ser
+                    esvaziado. */}
+                <PanelField label="Ausência" htmlFor="user-panel-ausente" saved={saved === 'minutosParaAusente'}>
                     <div className="flex items-center gap-2">
                         <Input
                             id="user-panel-ausente"
@@ -237,12 +245,9 @@ export function UserPanel({
                             }}
                         />
                         <span className="text-xs text-muted-foreground">
-                            min parado antes de sair da fila
+                            min para status de ausência
                         </span>
                     </div>
-                </PanelField>
-                <PanelField label="Ativo" htmlFor="user-panel-active" saved={saved === 'isActive'}>
-                    <Switch id="user-panel-active" checked={u.isActive} disabled={!canEdit || u.isFirstAdmin} onCheckedChange={(isActive) => void save('isActive', { isActive })} />
                 </PanelField>
             </PanelSection>
         </RecordPanel>

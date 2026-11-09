@@ -117,7 +117,10 @@ cinza, e o hover de um botão secundário não lia como mudança.
 | `destructive` | `#C62828` | `#C62828` | apagar, falhar, perder |
 
 Cada um tem `-foreground` (para preenchimento sólido) e um par
-`-subtle` / `-subtle-foreground` (tinta pálida + texto escuro).
+`-subtle` / `-subtle-foreground` (tinta pálida + texto escuro). **`success` e
+`destructive` têm também `-hover`** — os dois que viram botão preenchido:
+`#11AA75` / `#5CE0B0` para o sucesso, `#A81F1F` para o destrutivo. Escurecem no
+claro e clareiam no escuro, nunca `/90`.
 
 **Qual dos dois usar:**
 
@@ -283,6 +286,19 @@ depender só de matiz.
 Ação que o servidor vai recusar nasce **desabilitada**, com a razão escrita ao
 lado — não habilitada para devolver erro três cliques depois.
 
+**A exceção ao "um `default` por tela": duas gravações com consequências
+diferentes.** Aberta em 2026-11-09, por decisão do Andre, e vale só para o
+rodapé do agente. Ali há **Salvar agente** (teal) e **Publicar N mudanças**
+(`bg-success`, com `CloudUpload`): salvar grava rascunho, publicar põe no ar e
+paga o embedding do acervo. Com o Publicar em `outline`, o botão que muda o
+atendimento parecia o secundário dos dois, e quem só olha a tela salvava e ia
+embora achando que havia publicado. O segundo peso não é um primário a mais — é
+**o outro verbo**, e `success` é o token de "no ar, confirmado, enviado" (§2).
+A exceção só se justifica onde as duas ações são irmãs e a consequência de
+confundi-las é real; não é licença para pintar o segundo botão de qualquer
+tela. O hover usa o token `success-hover`, nunca `bg-success/90` — a mesma
+armadilha do primário.
+
 **Botão leva ícone.** É o padrão do sistema, não enfeite: numa pilha de linhas
 que só diferem pelo verbo, o ícone é o que se lê primeiro. `<Icon className="size-4" />`
 antes do rótulo, dentro do botão. A exceção é espaço — botão que divide uma
@@ -379,6 +395,31 @@ e os fios entre as linhas acompanham (`border/60`): a tabela já é uma grade de
 horizontais, e somar uma moldura em força total endurece o conjunto. O rodapé de
 paginação e a `BulkBar` ficam **dentro** do cartão, então o `px` deles é respiro
 interno — a margem da página está na moldura, não neles.
+
+**E a margem é dos quatro lados.** Conserto de 2026-11-09, depois de o Andre
+dizer que "a margem das tabelas não está legal": o `frame` era
+`px-4 pb-4 md:px-6` — 24px nas laterais, 16 embaixo e **zero em cima**. O
+cartão nascia colado no fio da linha 2, então os dois cantos arredondados de
+cima não tinham onde aparecer (a moldura existia em três lados), e a faixa
+`bg-muted` do cabeçalho preso encostava no `bg-card` das duas linhas de
+cabeçalho, virando uma banda cinza sem começo. Agora é `px-4 py-4 md:px-6`, o
+mesmo ritmo que o Dashboard dá ao conteúdo dele — e, porque a margem mora no
+`frame` e não nas telas, as doze telas de tabela foram consertadas de uma vez.
+O painel lateral (`RecordPanel`) continua encostado no fio: ele é coluna da
+região, não conteúdo dentro da margem.
+
+**Toda tabela do produto usa este cartão.** Relação fechada em 2026-11-09, para
+que uma tabela nova não nasça com moldura própria:
+
+| Tela | Peça |
+|---|---|
+| Pacientes, Especialistas, Procedimentos, Departamentos, Etiquetas, Respostas rápidas, Campanhas, Listas, Templates | `DataTable frame` |
+| Negócios (visão lista), Agenda (visão lista) | `DataTable frame`, dentro da Tela 02 |
+| Conta → Usuários | `DataTable frame`, dentro da Tela 03 |
+| Console da plataforma (`/plataforma`) | `<table>` à mão, alinhada ao cartão em 2026-11-09 (`rounded-xl`, `border/60`, `thead` em `bg-muted`) |
+| Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria e sem banda no `thead`, de propósito: a moldura é a do cartão |
+| Agente → Webhooks | grade de três colunas com cara de tabela; é lista de cadastro curta, não índice |
+| `/privacidade` (página pública) | `<table>` fora do shell, com o desenho da página pública |
 
 **A primeira página de dados vem do servidor.** Decisão de 2026-10-26, e é o
 conserto de origem do pisca das telas de índice. Enquanto cada índice era um
@@ -861,6 +902,19 @@ de propósito.
   mostrar o próprio botão de salvar.
 - Na Conta, **todas as guias são sangradas**: a tela de guias não rola, e
   cartão dentro do cartão do shell é o que a fazia rolar.
+- **Uma faixa por assunto, não uma por campo.** Emenda de 2026-11-09, pedida
+  pelo Andre. O Perfil tinha três faixas nomeadas — Foto, Dados, Senha — para
+  seis campos que são todos o cadastro de quem está logado: três títulos em
+  caixa alta e dois fios para separar o que ninguém confundia. Virou uma faixa
+  só ("Informações do usuário"), com os grupos separados por respiro. A regra
+  que fica: a faixa nomeia um **assunto** que a pessoa escolheria entre outros,
+  não a espécie de cada campo. Se o nome da faixa é adivinhável a partir dos
+  campos que ela contém, ela não precisa existir.
+- **Legenda que descreve o modelo de dados sai.** Na Conta da Clínica, "a
+  assinatura, a fatura e o teto de unidades são da conta; as clínicas abaixo
+  pertencem a ela" explicava a relação num lugar onde ninguém vem aprendê-la — a
+  faixa de unidades, logo abaixo, **mostra** a relação. Mostrar dispensa
+  descrever.
 - **Guia de ajustes** (padrão, fora da Conta): cartões brancos (`SettingsCard`) sobre o fundo
   tingido, alinhados à esquerda na coluna do título — nunca centralizados, que
   os deixa recuados em relação ao nome da tela. Linhas de "o que é + o que
@@ -977,24 +1031,47 @@ vierem outras (novidades da versão, treinamento), nascem aqui.
   certo descreve o sintoma — e **ignora o tópico escolhido**: procurar é querer
   achar em qualquer lugar, e não encontrar por causa de um filtro que a pessoa
   esqueceu que estava ligado é o pior tipo de resultado vazio.
-- **Tópicos à esquerda, conteúdo à direita**, com contagem por tópico e o
-  índice preso ao rolar. Quem não sabe o que procurar navega; quem sabe, busca.
-  Abaixo de `lg` a coluna vira uma fileira rolável.
-- **Guia some durante a busca.** Quem procura algo específico não quer um
-  tutorial no caminho.
+- **Nada de conteúdo chega sem ser chamado.** Redesenho de 2026-11-09, pedido
+  pelo Andre com o Respond.io como referência, e é a mudança que define a tela:
+  abaixo da busca ficam **só os tópicos**, um cartão cada, com nome, uma linha
+  do que resolve e a contagem. Escolher um abre **só** o conteúdo dele, com
+  "Todos os tópicos" para voltar. A versão anterior empilhava tudo na mesma
+  rolagem — a capa, três guias desenhados, o roteiro de treinamento (com um
+  acordeão de ~2.500px) e por fim as 28 respostas —, então quem abria por um
+  motivo específico ("o agente parou") rolava três telas do que não pediu. E a
+  calha de tópicos filtrava **só o FAQ**: guias e treinamento ficavam de fora
+  dela, e "tópico" significava duas coisas diferentes na mesma tela.
+- **Tópico é tudo que a tela guarda, não só o FAQ.** Os dois primeiros são as
+  seções próprias — Primeiros passos (os guias) e Treinamento do agente (o
+  roteiro) —, e os outros são os grupos de perguntas. O número de cada cartão
+  vem com a unidade (`3 guias`, `8 documentos`, `6 respostas`), porque guia,
+  documento e resposta não se somam.
+- **Buscar atravessa os três tipos e ignora o tópico aberto.** Guia, roteiro e
+  resposta entram no mesmo resultado, com a contagem total. Esconder o guia
+  durante a busca — o que a versão de 2026-10-18 fazia — escondia justamente a
+  melhor resposta de quem digitou "agenda".
+- **A capa encurta quando se entrou.** A marca em 90px e o título em 32px são
+  da porta de entrada; dentro de um tópico ou de uma busca a pessoa já
+  escolheu, e repetir aquilo em tamanho de página inicial empurra o conteúdo
+  para fora da tela. A busca, porém, **não** encolhe: ela continua sendo a
+  saída de qualquer lugar.
 
-- **Coluna centralizada de 1024px** (`max-w-5xl mx-auto`), com respiro de 32px
-  em cima e 64px embaixo. Centralizar é o oposto do que a Tela 01 manda — e é
-  certo aqui pelo mesmo motivo que lá é errado: não há tabela nem título de
-  tela à esquerda para alinhar, e texto longo lê-se em coluna.
-- **A abertura leva a marca** (`Logo variant="wordmark"`), um título em 34px e
-  uma frase. É o único lugar do produto onde a logo aparece fora da barra
-  lateral: a página é um destino, não um ajuste.
-- **O que faz agir vem antes do que explica.** Os canais de contato ficam acima
-  das respostas, em cartões grandes e clicáveis por inteiro — não um botão
-  dentro de um cartão. Quem chega já tentou resolver sozinho.
-- **Um destaque só.** O canal principal leva borda e fundo de marca; os outros
-  ficam neutros. Dois destaques não destacam nada.
+- **Coluna centralizada**: a capa em 896px (`max-w-4xl`) e o conteúdo em
+  1152px (`max-w-6xl`), os dois com `mx-auto`. Centralizar é o oposto do que a
+  Tela 01 manda — e é certo aqui pelo mesmo motivo que lá é errado: não há
+  tabela nem título de tela à esquerda para alinhar, e texto longo lê-se em
+  coluna.
+- **A abertura leva a marca** (`Logo variant="wordmark"`), um título e uma
+  frase. É o único lugar do produto onde a logo aparece fora da barra lateral:
+  a página é um destino, não um ajuste.
+- **O que faz agir vem antes do que explica.** Os canais de contato ficam na
+  capa, logo abaixo da busca, como duas pílulas clicáveis — a principal
+  preenchida em `primary`, a outra de contorno. Quem chega já tentou resolver
+  sozinho. **Um destaque só**: dois destaques não destacam nada.
+- **O pedido já vai com quem pede.** O link do WhatsApp e o do e-mail levam no
+  corpo quem é a pessoa, de que unidade e em que plano — sem isso a primeira
+  resposta do suporte é sempre "de qual clínica você fala?", uma ida e volta
+  antes de começar. Nada é enviado sem a pessoa apertar enviar.
 - **Ilustração é desenhada, não capturada.** Print envelhece na primeira
   mudança de layout e ninguém lembra de trocar — uma ajuda que mostra a tela de
   três versões atrás é pior que nenhuma. SVG em `currentColor` e tokens, que

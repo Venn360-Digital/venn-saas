@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
+import { BRAND } from '@/config/brand'
 import {
     AlertTriangle,
     ArrowUpDown,
@@ -2665,7 +2666,17 @@ export function PlanoTab() {
                 open={showCreditsModal}
                 onOpenChange={setShowCreditsModal}
                 title="Comprar adicionais"
-                description="Três adicionais, de naturezas diferentes: crédito e treinamento são compra única; unidade soma à mensalidade enquanto existir. Pode levar um, dois ou os três."
+                /* **A tela compactada** — pedido do Andre em 2026-11-09:
+                   cabia em 840×700 sem rolagem vertical se os quatro
+                   parágrafos de explicação virassem quatro linhas. O que saiu
+                   era verdadeiro e continua verdadeiro em outro lugar: o
+                   descarte da franquia está em Dúvidas e suporte, o "dê nome à
+                   clínica" aparece na própria Conta da Clínica depois da
+                   compra, e a diferença entre esta compra e a tela Treinamento
+                   já está no nome das duas. O que **não** saiu é o que muda a
+                   decisão: compra única contra mensalidade recorrente, e os
+                   dois subtotais do resumo à direita. */
+                description="Crédito e treinamento são compra única; unidade soma à mensalidade."
                 submitLabel="Comprar"
                 submitDisabled={!pacote && unidadesEscolhidas === 0 && treinamentosEscolhidos === 0}
                 hideAgain
@@ -2764,7 +2775,7 @@ export function PlanoTab() {
                                    diálogo e reabrir. */
                                 onClick={() => setPacoteEscolhido(escolhido ? null : p.credits)}
                                 className={cn(
-                                    'group relative flex flex-col rounded-lg border p-4 text-left transition-all',
+                                    'group relative flex flex-col rounded-lg border p-3 text-left transition-all',
                                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                                     escolhido
                                         ? 'border-primary bg-primary-subtle shadow-sm'
@@ -2784,11 +2795,11 @@ export function PlanoTab() {
                                     créditos
                                 </span>
 
-                                <span className="num mt-3 text-lg font-semibold">
+                                <span className="num mt-2 text-lg font-semibold">
                                     R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </span>
 
-                                <span className="mt-2 border-t border-border pt-2 text-[12px] leading-snug text-muted-foreground">
+                                <span className="mt-1.5 border-t border-border pt-1.5 text-[11.5px] leading-snug text-muted-foreground">
                                     {p.pitch}
                                 </span>
 
@@ -2797,7 +2808,7 @@ export function PlanoTab() {
                                     diferentes. */}
                                 <span
                                     className={cn(
-                                        'mt-auto flex items-center gap-1.5 pt-3 text-[12px] font-semibold',
+                                        'mt-auto flex items-center gap-1.5 pt-2 text-[12px] font-semibold',
                                         escolhido ? 'text-primary-subtle-foreground' : 'text-muted-foreground'
                                     )}
                                 >
@@ -2813,12 +2824,10 @@ export function PlanoTab() {
                 </div>
 
                 <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
-                    Os créditos comprados entram num lote próprio, com validade de 90 dias, e são
-                    gastos <strong>depois</strong> da franquia do plano — que essa sim é descartada a
-                    cada renovação. Nada é cobrado de novo quando o lote vence.
+                    Lote próprio, 90 dias de validade, gasto <strong>depois</strong> da franquia do plano.
                 </p>
 
-                <p className="col-span-2 mt-2 border-t border-border pt-4 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                <p className="col-span-2 border-t border-border pt-3 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
                     Unidades adicionais — por mês
                 </p>
 
@@ -2828,7 +2837,7 @@ export function PlanoTab() {
                     uma quantidade, e quantidade se digita num contador. Três
                     cartões com o mesmo preço por unidade seriam três formas de
                     dizer a mesma coisa. */}
-                <div className="col-span-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+                <div className="col-span-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-3">
                     <div className="min-w-[14rem] flex-1">
                         <p className="flex items-baseline gap-2">
                             <span className="num text-2xl font-bold leading-none">
@@ -2838,7 +2847,7 @@ export function PlanoTab() {
                                 por unidade, por mês
                             </span>
                         </p>
-                        <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
+                        <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
                             {UNIDADE_ADICIONAL.pitch}
                         </p>
                     </div>
@@ -2877,12 +2886,9 @@ export function PlanoTab() {
                 </div>
 
                 <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
-                    Cada unidade adicional é <strong>uma clínica a mais na sua conta</strong>,
-                    com agenda, pacientes e conversas próprios, mais 1 agente e 1 número de
-                    WhatsApp. O crédito continua saindo da franquia do plano — se precisar de
-                    mais, compre avulso acima. <strong>Soma à mensalidade enquanto
-                    existir</strong>, diferente do crédito, que é uma vez. Depois de contratar,
-                    dê nome à clínica em <strong>Conta da Clínica</strong>. Até 10 por compra.
+                    Uma {BRAND.vocabulario.organizacao} a mais na conta, com 1 agente e 1
+                    número —{' '}
+                    <strong>soma à mensalidade enquanto existir</strong>. Até 10 por compra.
                 </p>
 
                 {/* TREINAMENTO DE AGENTE — compra única, como o crédito.
@@ -2895,11 +2901,11 @@ export function PlanoTab() {
                     unidade: o preço é linear, então o que varia é um número. */}
                 {treinamento ? (
                     <>
-                        <p className="col-span-2 mt-2 border-t border-border pt-4 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <p className="col-span-2 border-t border-border pt-3 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">
                             Treinamento de agente — compra única
                         </p>
 
-                        <div className="col-span-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+                        <div className="col-span-2 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-3">
                             <div className="min-w-[16rem] flex-1">
                                 <p className="flex flex-wrap items-baseline gap-2">
                                     <span className="num text-2xl font-bold leading-none">
@@ -2929,7 +2935,7 @@ export function PlanoTab() {
                                         por agente
                                     </span>
                                 </p>
-                                <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
+                                <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
                                     {treinamento.pitch}
                                 </p>
                             </div>
@@ -2974,15 +2980,8 @@ export function PlanoTab() {
                         </div>
 
                         <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
-                            {treinamento.rodape} É <strong>serviço da nossa equipe</strong>, não
-                            uma função do sistema: depois da compra entramos em contato para
-                            agendar. Não se confunde com a tela <strong>Treinamento</strong>, onde
-                            você faz isso por conta própria.{' '}
-                            {/* Dito aqui porque é a tela onde alguém poderia
-                                comprar o que o plano já dá. */}
-                            O{' '}
-                            {subscription?.plans?.advanced?.name ?? 'plano de topo'} na assinatura
-                            de 12 meses já inclui o treinamento de 1 agente.
+                            {treinamento.rodape} <strong>Serviço da nossa equipe</strong>: depois
+                            da compra entramos em contato para agendar.
                         </p>
                     </>
                 ) : null}

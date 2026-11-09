@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Play, Square } from 'lucide-react'
 import { VozData } from '@/types/agent-creation'
 import { cn } from '@/lib/utils'
+import { SettingsCard } from '@/components/shared/TabsFrame'
 
 interface VozTabProps {
     data: VozData
@@ -91,14 +92,17 @@ export function VozTab({ data, onChange }: VozTabProps) {
     }
 
     return (
-        <div className="space-y-6">
-            <div>
-                <p className="text-[12.5px] text-muted-foreground">
-                    Configure como seu agente se comunicará por áudio
-                </p>
-            </div>
-
-            <div className="space-y-6">
+        /* **Um cartão só** — pedido do Andre em 2026-11-09: o interruptor, o
+           modelo, o tom e a entonação são quatro decisões sobre a mesma coisa
+           (como o agente soa), e estavam soltas na guia, cada uma com a
+           própria moldura. O aviso de cobrança fica **fora** do cartão: é
+           estado da conta, não configuração da voz. */
+        <div className="space-y-4">
+            <SettingsCard
+                title="Resposta em áudio"
+                description="Como o agente soa quando responde por nota de voz."
+                contentClassName="space-y-5 p-4 md:p-5"
+            >
                 {/* Toggle de voz */}
                 <div className="flex items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
@@ -166,9 +170,11 @@ export function VozTab({ data, onChange }: VozTabProps) {
                 <div className="grid items-end gap-4 sm:grid-cols-2">
                     {/* Modelo de voz */}
                     <div className="space-y-2">
-                        <Label htmlFor="voiceModel">
-                            Escolha o modelo de voz a ser utilizado pelo seu Agente
-                        </Label>
+                        {/* "Modelo de voz", e não "Escolha o modelo de voz a
+                            ser utilizado pelo seu Agente": rótulo é nome do
+                            campo, não instrução (DESIGN.md §7). É também como o
+                            Andre chama o campo. */}
+                        <Label htmlFor="voiceModel">Modelo de voz</Label>
                         <div className="flex gap-2">
                             <Select
                                 value={vozValida(data.voiceModel)}
@@ -209,9 +215,9 @@ export function VozTab({ data, onChange }: VozTabProps) {
 
                     {/* Tom de Voz */}
                     <div className="space-y-2">
-                        <Label htmlFor="voiceTone">Tom de Voz</Label>
+                        <Label htmlFor="voiceTone">Tom de voz</Label>
                         <p className="text-xs text-muted-foreground">
-                            Ao mudar o tom de voz no áudio, a personalidade do Agente será atualizada para manter a consistência
+                            Acompanha a personalidade do agente, para as duas não se contradizerem.
                         </p>
                         <Select
                             // Era `voiceModel` nos dois campos: escolher o tom
@@ -239,14 +245,16 @@ export function VozTab({ data, onChange }: VozTabProps) {
                     escrever ali o que o agente deveria saber. */}
                 <div className="space-y-2">
                     <Label htmlFor="voiceTraining">Como o agente deve falar</Label>
+                    {/* "isto muda só a entonação do áudio" e "o português do
+                        Brasil já está garantido — não precisa pedir" saíram a
+                        pedido do Andre em 2026-11-09. A primeira repetia o que
+                        a frase anterior já diz; a segunda explicava uma
+                        garantia do sistema (a semente de idioma que
+                        `semearEntonacao` escreve no campo ao ligar a voz) num
+                        lugar onde a pessoa está escrevendo, não aprendendo. */}
                     <p className="text-xs text-muted-foreground">
                         Descreva o jeito da fala — ritmo, calor, pausas. Não escreva aqui o
-                        que o agente deve saber nem o que ele deve responder: isto muda só a
-                        entonação do áudio.{' '}
-                        <span className="font-medium text-foreground">
-                            O português do Brasil já está garantido
-                        </span>{' '}
-                        — não precisa pedir.
+                        que o agente deve saber nem o que ele deve responder.
                     </p>
                     <Textarea
                         id="voiceTraining"
@@ -257,18 +265,18 @@ export function VozTab({ data, onChange }: VozTabProps) {
                         disabled={!data.voiceEnabled}
                     />
                 </div>
+            </SettingsCard>
 
-                {data.voiceEnabled && (
-                    <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4">
-                        <p className="text-sm text-warning-subtle-foreground">
-                            💡 <strong>Nota:</strong> o áudio é cobrado pelo tamanho do texto
-                            falado, e desconta do mesmo crédito das respostas. Resposta longa
-                            vai como texto, porque nota de voz de minutos ninguém ouve até o
-                            fim.
-                        </p>
-                    </div>
-                )}
-            </div>
+            {data.voiceEnabled && (
+                <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4">
+                    <p className="text-sm text-warning-subtle-foreground">
+                        💡 <strong>Nota:</strong> o áudio é cobrado pelo tamanho do texto
+                        falado, e desconta do mesmo crédito das respostas. Resposta longa
+                        vai como texto, porque nota de voz de minutos ninguém ouve até o
+                        fim.
+                    </p>
+                </div>
+            )}
         </div>
     )
 }

@@ -18,7 +18,10 @@ import { toast } from 'sonner'
 function ComandosContent() {
     const { canManage } = usePermissions()
     const searchParams = useSearchParams()
-    const currentTab = searchParams.get('tab') || 'condicoes'
+    /* O padrão acompanha o primeiro assunto do índice, que virou Parâmetros
+       em 2026-11-09 (ver `SECOES` em `AgentFrame`). Sem isto, entrar pela
+       barra marcava "Parâmetros" no índice e desenhava "Regras de ação". */
+    const currentTab = searchParams.get('tab') || 'preferencias'
 
     const urlAgentId = searchParams.get('id')
     const agentIdRef = useRef<string | null>(urlAgentId)

@@ -104,8 +104,9 @@ const GUIAS_DE_TREINAMENTO: FrameTab[] = [
 /**
  * Ensaio, Lacunas e Voz **subiram** para a barra de seções.
  *
- * Decisão do Andre em 2026-11-04, e a ordem é a dele: Treinamento, Ensaio,
- * Lacunas, Voz, Parametrização, Integrações, Gerenciamento.
+ * Decisão do Andre em 2026-11-04. A ordem da barra é dele e mudou de novo em
+ * 2026-11-09: Canais de atendimento, Treinamento, Ensaio, Lacunas, Voz,
+ * Parametrização, Gerenciamento.
  *
  * O que isso corrige, além de ser o que ele pediu: as três eram guias de
  * Treinamento e **nenhuma delas é um documento de treinamento**. Ensaio é um
@@ -122,6 +123,32 @@ const GUIAS_DE_TREINAMENTO: FrameTab[] = [
  * com a seção Voz marcada em vez de Treinamento.
  */
 export const SECOES: Secao[] = [
+    /**
+     * **Canais de atendimento vem primeiro** — pedido do Andre em 2026-11-09.
+     *
+     * Era "Integrações", em penúltimo lugar. Os dois problemas eram um só: o
+     * nome dizia a categoria técnica ("integrações") e não o assunto (os
+     * canais por onde o agente fala), e a ordem punha em sexto lugar o passo
+     * que vem **antes** de todos os outros — um agente sem número conectado
+     * não atende ninguém, por mais treinado que esteja. Quem acabou de criar
+     * um agente abre a primeira seção da barra, e agora ela é a que precisa
+     * ser resolvida primeiro.
+     *
+     * O id e a rota continuam `integracoes`: é o que está nos links já
+     * guardados e no `?tab=`, a mesma escolha que "comandos" →
+     * "Parametrização".
+     */
+    {
+        id: 'integracoes',
+        label: 'Canais de atendimento',
+        icon: Plug,
+        rota: '/atendimento/agentes/integracoes',
+        tabs: [
+            { id: 'canais', label: 'Canais', icon: Plug },
+            { id: 'api', label: 'API', icon: Code2 },
+            { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+        ],
+    },
     {
         // O id e a rota continuam "personalidade": é o que está nos links já
         // guardados e no `?tab=`. O que muda é o nome que a conta lê — mesma
@@ -164,20 +191,13 @@ export const SECOES: Secao[] = [
         label: 'Parametrização',
         icon: Workflow,
         rota: '/atendimento/agentes/comandos',
+        /* Parâmetros antes de Regras — pedido do Andre em 2026-11-09.
+           Parâmetro é o que vale sempre (o que o agente pode e não pode, os
+           tetos); regra é a exceção condicional. Lê-se do geral para o
+           particular, e é o parâmetro que a clínica mexe primeiro. */
         tabs: [
-            { id: 'condicoes', label: 'Regras de ação', icon: GitBranch },
             { id: 'preferencias', label: 'Parâmetros do agente', icon: SlidersHorizontal },
-        ],
-    },
-    {
-        id: 'integracoes',
-        label: 'Integrações',
-        icon: Plug,
-        rota: '/atendimento/agentes/integracoes',
-        tabs: [
-            { id: 'canais', label: 'Canais', icon: Plug },
-            { id: 'api', label: 'API', icon: Code2 },
-            { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+            { id: 'condicoes', label: 'Regras de ação', icon: GitBranch },
         ],
     },
     {

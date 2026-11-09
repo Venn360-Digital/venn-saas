@@ -2,16 +2,23 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
+    ArrowLeft,
+    Bot,
     CalendarPlus,
     ChevronDown,
+    ChevronRight,
+    Compass,
+    CreditCard,
     GraduationCap,
     LifeBuoy,
     Mail,
     MessageCircle,
+    MessagesSquare,
     QrCode,
     Search,
     Sparkles,
     Users,
+    type LucideIcon,
 } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
@@ -29,6 +36,7 @@ import {
     type DocumentoDeTreinamento,
     type ModoDoDocumento,
 } from '@/lib/treinamento/documentos'
+import { BRAND } from '@/config/brand'
 import { cn } from '@/lib/utils'
 import { normalizeSearch } from '@/lib/search'
 
@@ -312,9 +320,22 @@ const TEXTO_TREINAMENTO = normalizeSearch(
 )
 
 // ─── Perguntas frequentes ────────────────────────────────────────────────
-const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
+/**
+ * O `resumo` e o `icone` existem desde a tela de 2026-11-09: no índice de
+ * tópicos cada grupo é um cartão, e cartão com só o nome e a contagem não
+ * ajuda a escolher entre seis. Uma linha dizendo o que se resolve ali ajuda.
+ */
+const FAQ: {
+    grupo: string
+    resumo: string
+    icone: LucideIcon
+    itens: { p: string; r: string }[]
+}[] = [
     {
         grupo: 'Agente e WhatsApp',
+        resumo:
+            'Por que o agente parou, mais de um número, QR Code contra API oficial, resposta em áudio.',
+        icone: Bot,
         itens: [
             { p: 'O agente parou de responder. O que houve?', r: 'São três causas, nesta ordem de frequência: os créditos de IA acabaram, o agente foi pausado em Atendimento → Agentes, ou o número desconectou. Quando o crédito acaba, o agente avisa o paciente uma vez e silencia — nunca repete o aviso. Nos três casos as conversas continuam chegando e a equipe segue respondendo normalmente.' },
             { p: 'Posso ter mais de um número no mesmo agente?', r: 'Pode, e é o arranjo certo para quem tem duas unidades: uma linha por número, cada uma com seu apelido. A conversa guarda por qual linha entrou, e a resposta sai pela mesma.' },
@@ -326,6 +347,9 @@ const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
     },
     {
         grupo: 'Créditos e plano',
+        resumo:
+            'O que é um crédito, quando a franquia renova, e o que acontece quando ela acaba.',
+        icone: CreditCard,
         itens: [
             { p: 'O que é um crédito de IA?', r: 'Uma ação de IA entregue: uma resposta do agente, um resumo de conversa, uma transcrição de áudio. Conversa que a equipe responde à mão não gasta crédito nenhum.' },
             { p: 'Quando a franquia renova?', r: '30 dias depois da contratação, não na virada do mês. O que sobra é descartado — crédito de plano não acumula.' },
@@ -337,6 +361,9 @@ const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
     },
     {
         grupo: 'Conversas e equipe',
+        resumo:
+            'Fila por departamento, fila geral, transferência, e o que cada papel vê.',
+        icone: MessagesSquare,
         itens: [
             { p: 'Por que não vejo a fila de outra unidade?', r: 'A fila é do departamento da linha por onde a conversa entrou. Você vê as filas dos departamentos de que faz parte, mais a fila geral — linhas sem dono.' },
             { p: 'Como dou acesso a mais filas para alguém?', r: 'Conta → Usuários → abra a ficha → marque os departamentos. Pode marcar vários, e é assim que uma pessoa cobre duas filas sem ser transferida de setor.' },
@@ -348,6 +375,9 @@ const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
     },
     {
         grupo: 'Agenda e procedimentos',
+        resumo:
+            'De onde sai a duração, feriado, recesso, e por que um item não aparece.',
+        icone: CalendarPlus,
         itens: [
             { p: 'De onde sai a duração de um compromisso?', r: 'Do item cadastrado em Vendas → Procedimentos. Avaliação 30 minutos, implante 120 — e é isso que impede o agente de encaixar uma cirurgia no buraco de uma consulta.' },
             { p: 'Como marco que a clínica atende num feriado?', r: 'Conta → Agenda da clínica. Os feriados nacionais já vêm bloqueando; desligue o que a clínica atende. A decisão vale para todos os especialistas.' },
@@ -358,6 +388,9 @@ const FAQ: { grupo: string; itens: { p: string; r: string }[] }[] = [
     },
     {
         grupo: 'Pacientes e negócios',
+        resumo:
+            'Canal contra origem, responsável, ficha repetida, e de onde vêm os contatos.',
+        icone: Users,
         itens: [
             { p: 'Qual a diferença entre canal e origem?', r: 'Canal é por onde a mensagem entrou — WhatsApp, Instagram, site — e o sistema grava sozinho. Origem é o que fez o paciente escrever: Facebook, indicação, a agência que trouxe o lead. Nenhum canal entrega essa informação, por isso ela é informada ou semeada pela linha.' },
             { p: 'Como a origem é preenchida sozinha?', r: 'Cada linha pode semear uma origem. Se o anúncio da agência leva ao número dela, toda ficha que nascer por ali já vem atribuída — sem ninguém digitar. Configure em Atendimento → Agentes → Canais.' },
@@ -389,9 +422,80 @@ const INDICE_PASSOS = new Map(
     PASSOS.map((t) => [t.id, normalizeSearch(`${t.titulo} ${t.resumo} ${t.passos.join(' ')} ${t.nota}`)])
 )
 
+// ─── Os tópicos ──────────────────────────────────────────────────────────
+/**
+ * **O índice da central, e o que ele conserta.**
+ *
+ * A tela de 2026-10-18 mostrava tudo de uma vez: a capa, os três guias
+ * desenhados, a seção de treinamento (o roteiro dos oito documentos, o prompt
+ * de conversão e um acordeão de 2.500px), e por fim a lista inteira de
+ * perguntas, com uma calha de tópicos à esquerda que filtrava só essa última
+ * parte. Quem abria por um motivo específico — "o agente parou" — rolava três
+ * telas de conteúdo que não pediu antes de chegar na busca do que queria. E a
+ * calha filtrava o FAQ mas não os guias nem o treinamento, então "tópico" na
+ * tela significava duas coisas diferentes.
+ *
+ * O desenho de 2026-11-09, pedido pelo Andre com o Respond.io como referência:
+ * **a busca é a tela, e abaixo dela só os tópicos**. Cada tópico é um cartão
+ * com nome, uma linha do que resolve e a contagem; escolher um abre **só** o
+ * conteúdo dele, com volta para o índice. Buscar atravessa os três tipos de
+ * conteúdo de uma vez e ignora o tópico aberto — procurar é querer achar em
+ * qualquer lugar.
+ *
+ * Nada de conteúdo foi removido: guias, roteiro de treinamento, prompt de
+ * conversão e as 28 respostas continuam todos aqui, e todos continuam
+ * alcançáveis pela busca. O que mudou é que nenhum deles chega sem ser
+ * chamado.
+ *
+ * Os dois primeiros tópicos não são grupos do FAQ — são as duas seções
+ * próprias da tela —, e por isso a lista é montada aqui em vez de sair direto
+ * de `FAQ`.
+ */
+interface Topico {
+    id: string
+    nome: string
+    resumo: string
+    icone: LucideIcon
+    /** Quantos itens o tópico guarda. É o número do cartão. */
+    n: number
+    /** O rótulo do número, porque guia, documento e resposta não se somam. */
+    unidade: string
+}
+
+const TOPICO_GUIAS = 'guias'
+const TOPICO_TREINAMENTO = 'treinamento'
+
+const TOPICOS: Topico[] = [
+    {
+        id: TOPICO_GUIAS,
+        nome: 'Primeiros passos',
+        resumo: 'Conectar o WhatsApp a um agente, marcar na agenda, dar acesso de fila a alguém.',
+        icone: Compass,
+        n: PASSOS.length,
+        unidade: 'guias',
+    },
+    {
+        id: TOPICO_TREINAMENTO,
+        nome: 'Treinamento do agente',
+        resumo: `Como preencher os ${DOCUMENTOS.length} documentos, e o prompt que organiza material que você já tem.`,
+        icone: GraduationCap,
+        n: DOCUMENTOS.length,
+        unidade: 'documentos',
+    },
+    ...FAQ.map((g) => ({
+        id: g.grupo,
+        nome: g.grupo,
+        resumo: g.resumo,
+        icone: g.icone,
+        n: g.itens.length,
+        unidade: 'respostas',
+    })),
+]
+
 export default function SuportePage() {
     const [busca, setBusca] = useState('')
-    const [topico, setTopico] = useState<string>('todos')
+    /** `null` é o índice de tópicos; qualquer outro valor é um tópico aberto. */
+    const [topico, setTopico] = useState<string | null>(null)
     const [promptCopiado, setPromptCopiado] = useState(false)
     /** Os oito documentos nascem fechados; a busca os abre (ver o Collapsible). */
     const [docsAbertos, setDocsAbertos] = useState(false)
@@ -438,58 +542,98 @@ export default function SuportePage() {
     const termo = normalizeSearch(busca)
     const buscando = termo.length > 0
 
+    /**
+     * O FAQ que a tela mostra.
+     *
+     * Buscando: todos os grupos, com as perguntas filtradas pelo termo. Com um
+     * tópico de FAQ aberto: aquele grupo inteiro. No índice: nenhum — o índice
+     * mostra cartões, não respostas.
+     */
     const resultado = useMemo(() => {
-        const base = buscando || topico === 'todos' ? FAQ : FAQ.filter((g) => g.grupo === topico)
-        if (!buscando) return base
-        return base
-            .map((g) => ({ ...g, itens: g.itens.filter((i) => INDICE.get(i.p)?.includes(termo)) }))
-            .filter((g) => g.itens.length > 0)
+        if (buscando) {
+            return FAQ.map((g) => ({
+                ...g,
+                itens: g.itens.filter((i) => INDICE.get(i.p)?.includes(termo)),
+            })).filter((g) => g.itens.length > 0)
+        }
+        if (topico === null || topico === TOPICO_GUIAS || topico === TOPICO_TREINAMENTO) return []
+        return FAQ.filter((g) => g.grupo === topico)
     }, [termo, buscando, topico])
 
     /**
-     * Os guias também entram na busca.
-     *
-     * Antes eles sumiam enquanto se buscava — então procurar "agenda" escondia
-     * justamente o guia de criar compromisso na agenda, que é a melhor
-     * resposta para quem digitou aquilo.
+     * Os guias entram na busca como o resto — quem procura "agenda" tem no
+     * guia da agenda a melhor resposta possível —, e fora da busca só aparecem
+     * no tópico deles.
      */
-    const guias = useMemo(
-        () => (buscando ? PASSOS.filter((t) => INDICE_PASSOS.get(t.id)?.includes(termo)) : PASSOS),
-        [termo, buscando]
-    )
+    const guias = useMemo(() => {
+        if (buscando) return PASSOS.filter((t) => INDICE_PASSOS.get(t.id)?.includes(termo))
+        return topico === TOPICO_GUIAS ? PASSOS : []
+    }, [termo, buscando, topico])
 
-    /**
-     * O roteiro de treinamento também é resultado de busca.
-     *
-     * Quem digita "prompt", "rag", "cenários" ou "como preencho os documentos"
-     * tem aqui a melhor resposta do produto inteiro — escondê-la durante a
-     * busca seria esconder justamente o que a pessoa procurou.
-     */
-    const mostrarTreinamento = !buscando || TEXTO_TREINAMENTO.includes(termo)
+    /** O roteiro de treinamento, pelo mesmo critério. */
+    const mostrarTreinamento = buscando
+        ? TEXTO_TREINAMENTO.includes(termo)
+        : topico === TOPICO_TREINAMENTO
 
     const achadosFaq = resultado.reduce((n, g) => n + g.itens.length, 0)
-    /** Guia encontrado é resultado como outro qualquer — e às vezes o melhor. */
+    /** Guia e roteiro são resultado como outro qualquer — e às vezes o melhor. */
     const achados = achadosFaq + (buscando ? guias.length + (mostrarTreinamento ? 1 : 0) : 0)
+
+    /** O índice só aparece quando não há busca nem tópico aberto. */
+    const noIndice = !buscando && topico === null
+    const aberto = topico === null ? null : TOPICOS.find((t) => t.id === topico) ?? null
+
+    /** Sair do tópico é voltar ao índice; buscar também, para não misturar. */
+    const abrirTopico = (id: string) => {
+        setBusca('')
+        setTopico(id)
+    }
 
     return (
         <div className="pb-16">
-            {/* ─── Capa: a busca é o elemento principal de uma base de
-                conhecimento; os canais ficam logo abaixo, à vista, sem tomar
-                o lugar dela. ──────────────────────────────────────────── */}
+            {/* ─── Capa ────────────────────────────────────────────────────
+                Numa base de conhecimento a busca **é** a tela: é o que resolve
+                o caso de quem chegou com um problema na cabeça. Os canais
+                ficam logo abaixo, à vista, para quem já sabe que precisa de
+                gente. Nada de conteúdo acima da dobra além disso.
+
+                A capa encurta quando se está dentro de um tópico ou de uma
+                busca: ali a pessoa já escolheu, e a marca repetida em tamanho
+                de página inicial empurra o conteúdo para fora da tela.
+                ──────────────────────────────────────────────────────────── */}
             <header className="border-b border-border bg-card">
-                <div className="mx-auto w-full max-w-4xl px-4 py-10 text-center md:px-8 md:py-14">
+                <div
+                    className={cn(
+                        'mx-auto w-full max-w-4xl px-4 text-center md:px-8',
+                        noIndice ? 'py-10 md:py-14' : 'py-6 md:py-8'
+                    )}
+                >
                     {/* `mx-auto` porque o `Logo` sai como `block`: o
                         `text-center` do cabeçalho alinha texto, não bloco — ele
                         ficava encostado à esquerda. */}
-                    <Logo variant="wordmark" height={90} priority className="mx-auto" />
-                    <h1 className="mt-5 text-[26px] font-bold tracking-tight md:text-[32px]">
-                        Central de ajuda
-                    </h1>
-                    <p className="mx-auto mt-1.5 max-w-[48ch] text-sm text-muted-foreground">
-                        {TOTAL_FAQ} respostas e {PASSOS.length} guias sobre o que a clínica faz todo dia.
-                    </p>
+                    <Logo
+                        variant="wordmark"
+                        height={noIndice ? 90 : 56}
+                        priority
+                        className="mx-auto"
+                    />
+                    {noIndice ? (
+                        <>
+                            <h1 className="mt-5 text-[26px] font-bold tracking-tight md:text-[32px]">
+                                Central de ajuda
+                            </h1>
+                            <p className="mx-auto mt-1.5 max-w-[48ch] text-sm text-muted-foreground">
+                                {TOTAL_FAQ} respostas, {PASSOS.length} guias e o roteiro de
+                                treinamento do agente.
+                            </p>
+                        </>
+                    ) : (
+                        <h1 className="mt-3 text-[19px] font-bold tracking-tight">
+                            Central de ajuda
+                        </h1>
+                    )}
 
-                    <div className="relative mx-auto mt-6 max-w-xl">
+                    <div className="relative mx-auto mt-5 max-w-xl">
                         <Search className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={busca}
@@ -501,7 +645,7 @@ export default function SuportePage() {
                     </div>
 
                     {WHATSAPP || EMAIL ? (
-                        <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm">
                             <span className="text-muted-foreground">Prefere falar com alguém?</span>
                             {WHATSAPP ? (
                                 <a
@@ -538,14 +682,102 @@ export default function SuportePage() {
             </header>
 
             <div className="mx-auto w-full max-w-6xl px-4 md:px-8">
-                {/* Os guias entram na busca como o resto: quem procura "agenda"
-                    tem no guia da agenda a melhor resposta possível. */}
-                {guias.length > 0 ? (
-                    <section className="pt-10">
-                        <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            {buscando ? `Guias (${guias.length})` : 'Guias'}
+                {/* ─── O índice de tópicos ─────────────────────────────────
+                    Seis cartões e nada mais. Cada um diz o nome, uma linha do
+                    que resolve e quantos itens guarda — o bastante para
+                    escolher sem abrir. ─────────────────────────────────── */}
+                {noIndice ? (
+                    <section className="pt-10" aria-labelledby="topicos">
+                        <h2
+                            id="topicos"
+                            className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                        >
+                            Tópicos
                         </h2>
-                        <div className={cn('mt-3 grid gap-4', guias.length > 1 && 'lg:grid-cols-3')}>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {TOPICOS.map((t) => (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => abrirTopico(t.id)}
+                                    className="group flex flex-col items-start rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                >
+                                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
+                                        <t.icone className="size-[18px]" aria-hidden="true" />
+                                    </span>
+                                    <span className="mt-3 flex w-full items-baseline gap-2">
+                                        <span className="text-[15px] font-bold leading-snug">
+                                            {t.nome}
+                                        </span>
+                                        <ChevronRight
+                                            className="ml-auto size-4 shrink-0 translate-x-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                                            aria-hidden="true"
+                                        />
+                                    </span>
+                                    <span className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                        {t.resumo}
+                                    </span>
+                                    <span className="num mt-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t.n} {t.unidade}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                ) : (
+                    /* ─── Dentro de um tópico, ou dentro de uma busca ──────
+                       A volta é um link e não um botão de contorno: é
+                       navegação, e o lugar dela é no alto à esquerda do
+                       conteúdo. Buscando, ela limpa a busca — que é o que
+                       "voltar" significa ali. ─────────────────────────── */
+                    <div className="pt-6">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setBusca('')
+                                setTopico(null)
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-md text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        >
+                            <ArrowLeft className="size-3.5" aria-hidden="true" />
+                            Todos os tópicos
+                        </button>
+
+                        {buscando ? (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                                {achados === 0
+                                    ? 'Nada encontrado para '
+                                    : `${achados} ${achados === 1 ? 'resultado' : 'resultados'} para `}
+                                <strong className="text-foreground">“{busca.trim()}”</strong>
+                            </p>
+                        ) : aberto ? (
+                            <div className="mt-3">
+                                <h2 className="text-[22px] font-bold tracking-tight">{aberto.nome}</h2>
+                                <p className="mt-1 max-w-[70ch] text-sm text-muted-foreground">
+                                    {aberto.resumo}
+                                </p>
+                            </div>
+                        ) : null}
+                    </div>
+                )}
+
+                {/* ─── Guias ───────────────────────────────────────────────
+                    O tópico "Primeiros passos", e qualquer guia que a busca
+                    encontre. ─────────────────────────────────────────── */}
+                {guias.length > 0 ? (
+                    <section className="pt-6">
+                        {buscando ? (
+                            <h2 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Guias ({guias.length})
+                            </h2>
+                        ) : null}
+                        <div
+                            className={cn(
+                                'grid gap-4',
+                                buscando && 'mt-3',
+                                guias.length > 1 && 'lg:grid-cols-3'
+                            )}
+                        >
                             {guias.map((t) => (
                                 <article
                                     key={t.id}
@@ -588,31 +820,30 @@ export default function SuportePage() {
                 ) : null}
 
                 {/* ─── Treinamento do agente ───────────────────────────────
-                    Seção própria, e não mais um cartão em Guias: os guias são
-                    tarefas de três passos, e isto é um roteiro de oito
-                    documentos com uma decisão de fundo. O DESIGN.md previa que
-                    treinamento nasceria aqui (Tela 05). ─────────────────── */}
+                    O roteiro dos documentos e o prompt de conversão. Era uma
+                    seção sempre aberta no meio da tela; agora é um tópico, e
+                    só aparece quando alguém o abre ou quando a busca o
+                    encontra. ───────────────────────────────────────────── */}
                 {mostrarTreinamento ? (
-                    <section className="pt-10" aria-labelledby="treinamento">
-                        <h2
-                            id="treinamento"
-                            className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
-                        >
-                            Treinamento do agente
-                        </h2>
+                    <section className="pt-6" aria-labelledby="treinamento">
+                        {buscando ? (
+                            <h2
+                                id="treinamento"
+                                className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                            >
+                                Treinamento do agente
+                            </h2>
+                        ) : null}
 
-                        <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
+                        <div className="overflow-hidden rounded-xl border border-border bg-card">
                             <div className="border-b border-border p-5">
-                                <span className="flex size-9 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
-                                    <GraduationCap className="size-[18px]" />
-                                </span>
-                                <h3 className="mt-3 text-[15px] font-bold leading-snug">
+                                <h3 className="text-[15px] font-bold leading-snug">
                                     Como preencher os {DOCUMENTOS.length} documentos
                                 </h3>
                                 <p className="mt-1.5 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">
-                                    Treinar o agente é escrever oito documentos, não ajustar dezenas de
-                                    campos. Antes de começar, a regra que decide onde cada coisa vai —
-                                    é a única decisão que erra caro.
+                                    Treinar o agente é escrever {DOCUMENTOS.length} documentos, não
+                                    ajustar dezenas de campos. Antes de começar, a regra que decide
+                                    onde cada coisa vai — é a única decisão que erra caro.
                                 </p>
 
                                 <dl className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -634,13 +865,13 @@ export default function SuportePage() {
                                 </p>
                             </div>
 
-                            {/* ─── Os oito, atrás de um clique ─────────────────
+                            {/* ─── Os documentos, atrás de um clique ───────────
                                 A lista inteira são ~2.500px, quase três telas.
-                                Quem abre a central por outro motivo ("o agente
-                                parou", "acabou o crédito") rolava tudo isso
-                                antes de chegar na pergunta dele.
+                                Mesmo dentro do tópico ela fica fechada: quem
+                                abre "Treinamento" vem primeiro entender a regra
+                                que divide prompt e busca.
 
-                                **Mas abre sozinho durante a busca.** Conteúdo
+                                **Mas abre sozinha durante a busca.** Conteúdo
                                 colapsado é conteúdo que ninguém acha, e sem
                                 isto procurar "cenários" mostraria a seção com a
                                 resposta escondida dentro — o pior dos dois
@@ -656,54 +887,54 @@ export default function SuportePage() {
                                     <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                                 </CollapsibleTrigger>
                                 <CollapsibleContent>
-                            {/* Um bloco por documento, na ordem em que as guias
-                                aparecem na tela do agente — quem lê aqui está
-                                com aquela tela aberta do lado. */}
-                            <ol className="divide-y divide-border border-t border-border">
-                                {DOCUMENTOS.map((d, i) => (
-                                    <li key={d.slug} className="grid gap-x-5 gap-y-2 p-5 md:grid-cols-[200px_1fr]">
-                                        <div>
-                                            <div className="flex items-baseline gap-2">
-                                                <span className="num text-[11px] font-semibold text-muted-foreground">
-                                                    {i + 1}
-                                                </span>
-                                                <h4 className="text-[14px] font-bold leading-snug">{d.item}</h4>
-                                            </div>
-                                            <p className="mt-1 text-xs text-muted-foreground">{d.titulo}</p>
-                                            <span className="mt-2 inline-flex rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                                {MODO[d.modo].rotulo}
-                                            </span>
-                                        </div>
-
-                                        <div className="min-w-0">
-                                            <p className="text-[13px] leading-relaxed">
-                                                {CONSELHO[d.slug]?.escreva}
-                                            </p>
-                                            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                                                <strong className="font-semibold text-foreground">
-                                                    O erro mais comum:
-                                                </strong>{' '}
-                                                {CONSELHO[d.slug]?.erro}
-                                            </p>
-                                            <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
-                                                Seções, nesta ordem:{' '}
-                                                {d.secoes.map((s, j) => (
-                                                    <span key={s}>
-                                                        {j > 0 ? ' · ' : ''}
-                                                        <code className="rounded bg-muted px-1 py-0.5 text-[11px]">{s}</code>
+                                    {/* Um bloco por documento, na ordem em que as
+                                        guias aparecem na tela do agente — quem lê
+                                        aqui está com aquela tela aberta do lado. */}
+                                    <ol className="divide-y divide-border border-t border-border">
+                                        {DOCUMENTOS.map((d, i) => (
+                                            <li key={d.slug} className="grid gap-x-5 gap-y-2 p-5 md:grid-cols-[200px_1fr]">
+                                                <div>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="num text-[11px] font-semibold text-muted-foreground">
+                                                            {i + 1}
+                                                        </span>
+                                                        <h4 className="text-[14px] font-bold leading-snug">{d.item}</h4>
+                                                    </div>
+                                                    <p className="mt-1 text-xs text-muted-foreground">{d.titulo}</p>
+                                                    <span className="mt-2 inline-flex rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                                        {MODO[d.modo].rotulo}
                                                     </span>
-                                                ))}
-                                            </p>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ol>
+                                                </div>
+
+                                                <div className="min-w-0">
+                                                    <p className="text-[13px] leading-relaxed">
+                                                        {CONSELHO[d.slug]?.escreva}
+                                                    </p>
+                                                    <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                                                        <strong className="font-semibold text-foreground">
+                                                            O erro mais comum:
+                                                        </strong>{' '}
+                                                        {CONSELHO[d.slug]?.erro}
+                                                    </p>
+                                                    <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+                                                        Seções, nesta ordem:{' '}
+                                                        {d.secoes.map((sec, j) => (
+                                                            <span key={sec}>
+                                                                {j > 0 ? ' · ' : ''}
+                                                                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">{sec}</code>
+                                                            </span>
+                                                        ))}
+                                                    </p>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ol>
                                 </CollapsibleContent>
                             </Collapsible>
 
                             <p className="border-t border-border bg-muted/40 px-5 py-3 text-xs leading-relaxed text-muted-foreground">
                                 A seção <code className="rounded bg-muted px-1 py-0.5">{SECAO_EXEMPLOS}</code> existe
-                                em todos os oito e é reservada: ela mostra o jeito de responder e nunca
+                                em todos eles e é reservada: ela mostra o jeito de responder e nunca
                                 é usada como fonte de verdade. Escreva ali as falas de exemplo — elas
                                 não entram na base consultável, de propósito.
                             </p>
@@ -711,7 +942,7 @@ export default function SuportePage() {
 
                         {/* ─── O prompt de conversão ──────────────────────────
                             Para quem já tem material escrito e não quer
-                            redigitar tudo em oito blocos. ───────────────── */}
+                            redigitar tudo em blocos. ───────────────────── */}
                         <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
                             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-5">
                                 <div className="min-w-0">
@@ -722,11 +953,12 @@ export default function SuportePage() {
                                         Já tem material escrito? Use este prompt
                                     </h3>
                                     <p className="mt-1.5 max-w-[70ch] text-[13px] leading-relaxed text-muted-foreground">
-                                        Se a clínica já tem manual de atendimento, roteiro do
-                                        consultor ou documento de treinamento, não redigite nada. Copie
-                                        o prompt abaixo, cole numa inteligência artificial junto com o
-                                        seu material, e ela devolve os oito arquivos já separados entre
-                                        o que vai no prompt e o que vai na busca.
+                                        Se a {BRAND.vocabulario.organizacao} já tem manual de
+                                        atendimento, roteiro do consultor ou documento de
+                                        treinamento, não redigite nada. Copie o prompt abaixo, cole
+                                        numa inteligência artificial junto com o seu material, e
+                                        ela devolve os arquivos já separados entre o que vai no
+                                        prompt e o que vai na busca.
                                     </p>
                                 </div>
                                 <Button
@@ -764,97 +996,70 @@ export default function SuportePage() {
                     </section>
                 ) : null}
 
-                {/* ─── Tópicos à esquerda, respostas à direita: é assim que se
-                    navega uma base de conhecimento — browsing, não só busca.
-                    Abaixo de `lg` a coluna vira uma fileira rolável. ────── */}
-                <section className="grid gap-8 py-10 lg:grid-cols-[216px_1fr]">
-                    <nav aria-label="Tópicos" className="lg:sticky lg:top-6 lg:self-start">
-                        <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Tópicos
-                        </h2>
-                        <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
-                            {[{ grupo: 'todos', n: TOTAL_FAQ }, ...FAQ.map((g) => ({ grupo: g.grupo, n: g.itens.length }))].map((t) => (
-                                <li key={t.grupo} className="shrink-0 lg:shrink">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setTopico(t.grupo); setBusca('') }}
-                                        aria-pressed={!buscando && topico === t.grupo}
-                                        className={cn(
-                                            'flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                                            !buscando && topico === t.grupo
-                                                ? 'bg-primary-subtle font-semibold text-primary-subtle-foreground'
-                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                                        )}
-                                    >
-                                        {t.grupo === 'todos' ? 'Todas as respostas' : t.grupo}
-                                        <span className="num text-[11px] opacity-70">{t.n}</span>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    </nav>
-
-                    <div className="min-w-0">
-                        {buscando ? (
-                            <p className="mb-3 text-sm text-muted-foreground">
-                                {achados === 0
-                                    ? 'Nada encontrado para '
-                                    : `${achados} ${achados === 1 ? 'resultado' : 'resultados'} para `}
-                                <strong className="text-foreground">“{busca.trim()}”</strong>
-                            </p>
-                        ) : null}
-
-                        {achadosFaq === 0 && achados > 0 ? null : achados === 0 ? (
-                            <EmptyState
-                                variant="inline"
-                                icon={Search}
-                                title="Nada encontrado"
-                                description="Tente outra palavra — ou mande a dúvida no WhatsApp. Toda pergunta que chega três vezes vira uma resposta aqui."
-                            />
-                        ) : (
-                            <div className="flex flex-col gap-7">
-                                {resultado.map((g) => (
-                                    <div key={g.grupo}>
+                {/* ─── As respostas ────────────────────────────────────────
+                    Sem a calha de tópicos à esquerda: ela filtrava só esta
+                    parte da tela, e a escolha de tópico agora é o índice. ── */}
+                {resultado.length > 0 ? (
+                    <section className="pt-6">
+                        <div className="flex max-w-4xl flex-col gap-7">
+                            {resultado.map((g) => (
+                                <div key={g.grupo}>
+                                    {/* O nome do grupo só quando há mais de um na
+                                        tela — dentro do tópico ele já está no
+                                        título, e repetido vira eco. */}
+                                    {resultado.length > 1 ? (
                                         <h3 className="mb-2.5 text-[15px] font-bold">{g.grupo}</h3>
-                                        <div className="overflow-hidden rounded-xl border border-border bg-card">
-                                            {g.itens.map((item, i) => (
-                                                <Collapsible
-                                                    key={item.p}
-                                                    className={cn(i > 0 && 'border-t border-border')}
-                                                >
-                                                    <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[13.5px] font-semibold hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
-                                                        {item.p}
-                                                        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                                                    </CollapsibleTrigger>
-                                                    <CollapsibleContent className="px-5 pb-4 text-[13px] leading-relaxed text-muted-foreground">
-                                                        {item.r}
-                                                    </CollapsibleContent>
-                                                </Collapsible>
-                                            ))}
-                                        </div>
+                                    ) : null}
+                                    <div className="overflow-hidden rounded-xl border border-border bg-card">
+                                        {g.itens.map((item, i) => (
+                                            <Collapsible
+                                                key={item.p}
+                                                className={cn(i > 0 && 'border-t border-border')}
+                                            >
+                                                <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-[13.5px] font-semibold hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">
+                                                    {item.p}
+                                                    <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                                </CollapsibleTrigger>
+                                                <CollapsibleContent className="px-5 pb-4 text-[13px] leading-relaxed text-muted-foreground">
+                                                    {item.r}
+                                                </CollapsibleContent>
+                                            </Collapsible>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                ) : null}
 
-                        {WHATSAPP ? (
-                            <div className="mt-8 flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border px-6 py-7 text-center">
-                                <LifeBuoy className="size-5 text-muted-foreground" />
-                                <p className="text-sm font-bold">Não achou o que precisava?</p>
-                                <p className="max-w-[44ch] text-xs leading-relaxed text-muted-foreground">
-                                    Toda pergunta que chega três vezes vira uma resposta nesta
-                                    página. Mandar a sua ajuda quem vier depois.
-                                </p>
-                                <Button asChild size="sm" className="mt-1">
-                                    <a href={linkWhatsApp} target="_blank" rel="noopener noreferrer">
-                                        <MessageCircle className="size-4" />
-                                        Falar no WhatsApp
-                                    </a>
-                                </Button>
-                            </div>
-                        ) : null}
+                {/* Nada encontrado é estado da busca, não do índice. */}
+                {buscando && achados === 0 ? (
+                    <div className="max-w-xl pt-8">
+                        <EmptyState
+                            variant="inline"
+                            icon={Search}
+                            title="Nada encontrado"
+                            description="Tente outra palavra — ou mande a dúvida no WhatsApp. Toda pergunta que chega três vezes vira uma resposta aqui."
+                        />
                     </div>
-                </section>
+                ) : null}
+
+                {WHATSAPP ? (
+                    <div className="mt-8 flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border px-6 py-7 text-center">
+                        <LifeBuoy className="size-5 text-muted-foreground" />
+                        <p className="text-sm font-bold">Não achou o que precisava?</p>
+                        <p className="max-w-[44ch] text-xs leading-relaxed text-muted-foreground">
+                            Toda pergunta que chega três vezes vira uma resposta nesta
+                            página. Mandar a sua ajuda quem vier depois.
+                        </p>
+                        <Button asChild size="sm" className="mt-1">
+                            <a href={linkWhatsApp} target="_blank" rel="noopener noreferrer">
+                                <MessageCircle className="size-4" />
+                                Falar no WhatsApp
+                            </a>
+                        </Button>
+                    </div>
+                ) : null}
             </div>
         </div>
     )

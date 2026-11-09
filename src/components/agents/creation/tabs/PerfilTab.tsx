@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { OPENAI_MODELS } from '@/lib/llm/models'
 import { GRUPOS_DE_FUSOS, rotuloDoFuso } from '@/lib/fusos'
-import { BRAND } from '@/config/brand'
 import { cn } from '@/lib/utils'
+import { SettingsCard } from '@/components/shared/TabsFrame'
 import {
     Select,
     SelectContent,
@@ -70,47 +70,6 @@ function descreveTemperatura(valor: number): string {
     return 'Muito imprevisível. Não recomendado para atendimento.'
 }
 
-/**
- * Um grupo de campos com um nome e um fio em cima.
- *
- * A guia tinha oito blocos soltos com `space-y`, cada um com o próprio rótulo e
- * a própria legenda, em larguras diferentes: a foto ao lado do nome, a mensagem
- * inicial inteira, um editor de documento, dois seletores em grade de três e
- * mais dois numa grade de duas. Lido de cima a baixo não havia agrupamento
- * nenhum — era a bagunça que o Andre apontou. Três grupos nomeados resolvem sem
- * esconder nada: quem é, como pensa, o que fala.
- */
-function Grupo({
-    titulo,
-    descricao,
-    children,
-}: {
-    /**
-     * Opcional desde 2026-11-05: o grupo do modelo e da criatividade perdeu o
-     * nome ("Como ele pensa") e a legenda a pedido do Andre. Sem título, o que
-     * separa o grupo do anterior é o fio de cima — que já era o papel dele.
-     */
-    titulo?: string
-    descricao?: string
-    children: React.ReactNode
-}) {
-    return (
-        <section className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-            {titulo ? (
-                <div className="mb-3">
-                    <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {titulo}
-                    </h2>
-                    {descricao ? (
-                        <p className="mt-0.5 text-xs text-muted-foreground/80">{descricao}</p>
-                    ) : null}
-                </div>
-            ) : null}
-            {children}
-        </section>
-    )
-}
-
 export function PerfilTab({
     data,
     onChange,
@@ -161,7 +120,7 @@ export function PerfilTab({
     }
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4">
             {/*
               * Três colunas, na ordem que o Andre pediu em 2026-11-05: nome e
               * idioma, função e fuso, imagem.
@@ -176,7 +135,7 @@ export function PerfilTab({
               * trabalha. Abaixo de `lg` as três empilham, e a imagem fica no fim
               * — que é a ordem certa num celular também.
               */}
-            <Grupo titulo="Identidade">
+            <SettingsCard title="Identidade">
                 <div className="grid items-start gap-4 lg:grid-cols-3">
                     <div className="space-y-4">
                         <div className="space-y-2">
@@ -326,12 +285,14 @@ export function PerfilTab({
                         </p>
                     </div>
                 </div>
-            </Grupo>
 
-            {/* Sem título: "Como ele pensa" e a legenda saíram a pedido dele. O
-                fio de cima separa o grupo, que é o que o nome fazia. */}
-            <Grupo>
-                <div className="grid items-start gap-4 sm:grid-cols-2">
+                {/* **O modelo e a criatividade entram na Identidade** — pedido
+                    do Andre em 2026-11-09. Eram um grupo sem nome, separado só
+                    por um fio: dois campos pairando entre a identidade e a
+                    mensagem inicial, sem dizer de quem eram. São do agente
+                    como o nome e o idioma, então moram no cartão do agente. O
+                    fio fica como separador interno, que é o que ele já era. */}
+                <div className="mt-4 grid items-start gap-4 border-t border-border pt-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <Label htmlFor="llmModel">Modelo</Label>
                         <Select
@@ -377,30 +338,29 @@ export function PerfilTab({
                         </p>
                     </div>
                 </div>
-            </Grupo>
+            </SettingsCard>
 
-            {/*
-              * Sobrou a mensagem inicial. A legenda dizia "e as instruções que
-              * valem para todas as outras" — as instruções saíram para a guia
-              * Instruções gerais, e a frase passaria a prometer um campo que
-              * não está mais aqui.
-              */}
-            <Grupo titulo="O que ele fala" descricao={`A primeira mensagem que o ${BRAND.vocabulario.pessoa} recebe.`}>
-                <div className="space-y-2">
-                    <Label htmlFor="initialMessage">Mensagem inicial</Label>
-                    <Textarea
-                        id="initialMessage"
-                        placeholder="Digite a mensagem inicial..."
-                        value={data.initialMessage || ''}
-                        onChange={(e) => onChange({ initialMessage: e.target.value })}
-                        className="min-h-[72px] resize-none"
-                        maxLength={maxChars}
-                    />
-                    <p className="num text-right text-xs text-muted-foreground">
-                        {charCount} de {maxChars} caracteres
-                    </p>
-                </div>
-            </Grupo>
+            {/* **"Mensagem inicial" é o nome do cartão** — pedido do Andre em
+                2026-11-09. O grupo se chamava "O que ele fala", com a legenda
+                "a primeira mensagem que o paciente recebe", e abaixo um rótulo
+                "Mensagem inicial": três textos para um campo. Fica o nome do
+                campo, que é o que a pessoa procura. O rótulo interno virou
+                `aria-label` — o leitor de tela continua ouvindo o nome, sem
+                que a tela o escreva duas vezes. */}
+            <SettingsCard title="Mensagem inicial">
+                <Textarea
+                    id="initialMessage"
+                    aria-label="Mensagem inicial"
+                    placeholder="Digite a mensagem inicial..."
+                    value={data.initialMessage || ''}
+                    onChange={(e) => onChange({ initialMessage: e.target.value })}
+                    className="min-h-[72px] resize-none"
+                    maxLength={maxChars}
+                />
+                <p className="num mt-2 text-right text-xs text-muted-foreground">
+                    {charCount} de {maxChars} caracteres
+                </p>
+            </SettingsCard>
         </div>
     )
 }

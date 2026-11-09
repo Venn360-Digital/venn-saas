@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
             semDepartamento,
             /**
              * O padrão da conta, para a ficha dizer qual é no `placeholder` do
-             * campo Paciência. Sem isto a tela escreveria "padrão" sem contar
+             * campo Ausência. Sem isto a tela escreveria "padrão" sem contar
              * qual, e quem fosse mudar não saberia de quanto estava partindo.
              */
             minutosParaAusenteDaConta: minutosParaAusente,

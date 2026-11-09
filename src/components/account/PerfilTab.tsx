@@ -198,7 +198,24 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                     if (!saving) void handleSave()
                 }}
             >
-                <SettingsBand title="Foto">
+                {/*
+                  * **Um card só, e não três faixas** — pedido do Andre em
+                  * 2026-11-09.
+                  *
+                  * A guia tinha "Foto", "Dados" e "Senha" como três faixas
+                  * nomeadas, separadas por fio: três títulos em caixa alta
+                  * para seis campos que são todos a mesma coisa — o cadastro
+                  * de quem está logado. O agrupamento não informava nada que
+                  * o próprio campo já não dissesse, e dividia uma tela curta
+                  * em três blocos.
+                  *
+                  * Agora é uma faixa só, "Informações do usuário", com os
+                  * grupos separados por respiro em vez de fio. A senha fica
+                  * dentro dela: é campo do usuário como os outros, e o que a
+                  * distingue — gravação à parte, pelo botão colado no último
+                  * campo — continua dito onde acontece.
+                  */}
+                <SettingsBand title="Informações do usuário" last>
                     <div className="flex items-center gap-4">
                         <button
                             type="button"
@@ -255,10 +272,8 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                         className="hidden"
                         onChange={handleAvatarChange}
                     />
-                </SettingsBand>
 
-                <SettingsBand title="Dados">
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <FormField label="Nome" htmlFor="name" required>
                             <Input
                                 id="name"
@@ -296,14 +311,14 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                             <Input id="account-email" value={profile?.email || ''} disabled />
                         </FormField>
                     </div>
-                </SettingsBand>
 
-                <SettingsBand
-                    title="Senha"
-                    description="Trocar a senha encerra as outras sessões abertas. Mínimo de 8 caracteres."
-                    last
-                >
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {/* A senha ganha um rótulo de grupo — não um fio — porque
+                        é o único trecho da faixa com regra própria: grava
+                        sozinha e encerra as outras sessões. */}
+                    <p className="mt-6 text-xs text-muted-foreground">
+                        Trocar a senha encerra as outras sessões abertas. Mínimo de 8 caracteres.
+                    </p>
+                    <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <FormField label="Senha atual" htmlFor="currentPassword">
                             <Input
                                 id="currentPassword"

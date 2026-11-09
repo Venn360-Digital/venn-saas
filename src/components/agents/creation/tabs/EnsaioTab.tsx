@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useEdicaoNaoSalva } from '@/components/agents/creation/unsaved'
 import { cn } from '@/lib/utils'
+import { SettingsCard } from '@/components/shared/TabsFrame'
 import { FOLGA_MINIMA, PISO_PADRAO } from '@/lib/rag/parametros'
 
 /**
@@ -379,7 +380,15 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
     }
 
     return (
-        <div className="space-y-4">
+        /* **Tudo dentro de um cartão** — pedido do Andre em 2026-11-09.
+           A guia era uma pilha de elementos soltos sobre o fundo da guia: a
+           frase de abertura, o aviso de edição pendente, os turnos e o
+           compositor, cada um com a própria moldura e nenhuma em volta. Num
+           console de teste isso importa mais que em outras telas, porque o
+           que se lê aqui (a pergunta, a resposta, os trechos) tem de parecer
+           uma peça só — o ensaio — e não quatro avisos empilhados. O cartão
+           não leva título: a barra de seções já diz "Ensaio". */
+        <SettingsCard contentClassName="space-y-4 p-4 md:p-5">
             <p className="text-sm text-muted-foreground">
                 Pergunte o que um cliente perguntaria e leia a resposta aqui. Nada é enviado por
                 WhatsApp e nada fica gravado na conversa de ninguém. Cada resposta consome{' '}
@@ -487,6 +496,6 @@ export function EnsaioTab({ agentId, canManage = true }: EnsaioTabProps) {
                     </span>
                 </div>
             </div>
-        </div>
+        </SettingsCard>
     )
 }

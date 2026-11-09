@@ -156,12 +156,11 @@ export function WebhooksTab({ agentId, webhooks, onChange }: WebhooksTabProps) {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div>
-                <p className="text-[12.5px] text-muted-foreground">
-                    Configure webhooks para receber e enviar dados do seu Agente
-                </p>
-            </div>
+            {/* As duas frases de "Configure webhooks para…" saíram a pedido do
+                Andre em 2026-11-09 — uma no alto e outra centralizada no pé,
+                dizendo a mesma coisa duas vezes e nenhuma delas dizendo nada
+                que "Webhooks de entrada" e "Webhooks de saída" já não
+                digam. */}
 
             {/* Inbound Webhooks */}
             <WebhookSection
@@ -182,11 +181,6 @@ export function WebhooksTab({ agentId, webhooks, onChange }: WebhooksTabProps) {
                 onUpdate={updateWebhook}
                 onDelete={deleteWebhook}
             />
-
-            {/* Info */}
-            <p className="text-sm text-muted-foreground text-center">
-                Configure webhooks para integração com sistemas externos
-            </p>
         </div>
     )
 }

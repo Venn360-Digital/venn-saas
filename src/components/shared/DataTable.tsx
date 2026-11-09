@@ -227,7 +227,20 @@ export function DataTable<T>({
                     // A margem do Dashboard mora aqui agora, e não dentro de
                     // cada bloco: ela emoldura o cartão da tabela, em vez de
                     // recuar o conteúdo de uma tabela que sangrava.
-                    'flex min-h-0 flex-1 flex-col bg-background px-4 pb-4 md:px-6',
+                    //
+                    // **E a margem é dos quatro lados.** Até 2026-11-09 era
+                    // `px-4 pb-4 md:px-6`: 24px nas laterais, 16 embaixo e
+                    // **zero em cima**. O cartão nascia colado no fio da linha
+                    // 2, então os dois cantos arredondados de cima não tinham
+                    // onde aparecer — a moldura só existia em três lados e o
+                    // `bg-muted` do cabeçalho preso encostava no `bg-card` das
+                    // duas linhas de filtro, virando uma faixa cinza sem
+                    // começo. Era isso que o Andre viu como "margem que não
+                    // está legal" (2026-11-09), e o conserto é o `py` que
+                    // faltava: o mesmo ritmo do Dashboard (`px-4 py-4
+                    // md:px-6`), em todas as telas de uma vez, porque a margem
+                    // mora aqui e não nas telas.
+                    'flex min-h-0 flex-1 flex-col bg-background px-4 py-4 md:px-6',
                     className
                 )}
             >

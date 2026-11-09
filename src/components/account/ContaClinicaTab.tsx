@@ -468,9 +468,15 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                     if (!salvando) void salvar()
                 }}
             >
+                {/* "Informações da conta" e sem legenda — pedido do Andre em
+                    2026-11-09. A frase explicava a relação entre conta e
+                    unidade ("a assinatura é da conta, as clínicas pertencem a
+                    ela") num lugar onde ninguém vem aprender o modelo de
+                    dados: a faixa de unidades, logo abaixo, mostra a relação
+                    em vez de descrevê-la. Os campos da conta e os de endereço
+                    de cobrança já viviam nesta faixa única. */}
                 <SettingsBand
-                    title="Conta"
-                    description="A assinatura, a fatura e o teto de unidades são da conta. As clínicas abaixo pertencem a ela."
+                    title="Informações da conta"
                     aside={
                         conta?.plano ? (
                             <span className="text-xs font-semibold text-muted-foreground">
