@@ -21,6 +21,7 @@ export default async function ListasPage() {
             id: l.id,
             name: l.name,
             kind: l.kind,
+            channel: l.channel as 'whatsapp' | 'email',
             memberCount: l._count.members,
             createdAt: l.createdAt.toISOString(),
         }))

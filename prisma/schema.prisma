@@ -567,6 +567,9 @@ model Workspace {
   whatsappTemplates  WhatsAppTemplate[]
   broadcasts         Broadcast[]
   recados            TeamMessage[]
+  emailSenders       EmailSender[]
+  emailTemplates     EmailTemplate[]
+  funnels            Funnel[]
 
   @@index([accountId])
   @@map("workspaces")
@@ -987,6 +990,20 @@ model Contact {
   /// automático.
   autoMessagesPausedAt DateTime?
 
+  /// Quando esta pessoa saiu do e-mail — e **só** do e-mail.
+  ///
+  /// Coluna separada de `autoMessagesPausedAt` de propósito: descadastrar-se de
+  /// uma campanha de e-mail não é pedir para o atendimento por WhatsApp parar, e
+  /// tratar como a mesma coisa calaria o canal onde a clínica realmente atende.
+  /// A recíproca também vale: quem pediu "pare" no WhatsApp não pediu para sair
+  /// da newsletter.
+  ///
+  /// Escrito por três caminhos, e nenhum deles é a equipe: o link de
+  /// descadastro, o botão nativo do cliente de e-mail (evento `Subscription` do
+  /// SES) e o recibo de reclamação de spam ou bounce duro. Opt-out é decisão de
+  /// quem recebe — a tela mostra, não edita.
+  emailOptOutAt DateTime?
+
   id          String @id @default(cuid())
   workspaceId String
 
@@ -1057,6 +1074,7 @@ model Contact {
   tags                ContactTag[]
   listMemberships     ContactListMember[]
   broadcastRecipients BroadcastRecipient[]
+  funnelRuns          FunnelRun[]
 
   @@unique([workspaceId, phone])
   @@unique([workspaceId, instagramId])
@@ -2590,6 +2608,82 @@ model ProcessedMessage {
 
 // ───────────────────────── Marketing / Broadcast (B2) ─────────────────────────
 
+/// Um domínio pelo qual esta unidade manda campanha de e-mail.
+///
+/// ## Por que o remetente é do cliente, e não nosso
+///
+/// Campanha sai do domínio da própria clínica (`contato@clinica.com.br`), nunca
+/// de um subdomínio nosso. Dois motivos, e o segundo é o que decide:
+///
+/// 1. **Quem recebe reconhece quem mandou.** E-mail de `mkt.venn360.com` com o
+///    nome da clínica no remetente é exatamente a forma de um phishing.
+/// 2. **Reputação não se compartilha.** Uma clínica que importa lista comprada
+///    queima a reputação do domínio por onde ela envia. Se esse domínio fosse
+///    nosso, ela derrubaria a entrega de todas as outras — e a do transacional,
+///    que carrega recuperação de senha e aviso de cobrança. Com domínio por
+///    cliente, o estrago fica onde nasceu.
+///
+/// ## O estado é do SES, não nosso
+///
+/// `dkimTokens` são os três CNAME que o cliente publica na zona dele; `status`
+/// só vira `verified` quando o SES confirma o DKIM (o cron `ses-verificar-remetente`
+/// pergunta). **Campanha não sai de remetente que não esteja `verified`** — é o
+/// mesmo portão que o WhatsApp tem com template aprovado, e pela mesma razão:
+/// disparar sem autenticação é queimar o domínio do cliente de uma vez.
+model EmailSender {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  /// O domínio verificado no SES. Pode ser o apex (`clinica.com.br`) ou um
+  /// subdomínio (`mkt.clinica.com.br`) — o SES trata cada um como identidade
+  /// própria, e subdomínio separa a reputação de marketing da do e-mail que a
+  /// equipe usa no dia a dia.
+  domain String
+
+  /// A parte antes do @. Junto com `domain` forma o `From`.
+  fromLocal String @default("contato")
+
+  /// O nome que aparece na caixa de entrada de quem recebe.
+  fromName String
+
+  /// Para onde vai a resposta. Obrigatório na prática: campanha gera resposta, e
+  /// não existe canal de e-mail no inbox — sem isto a resposta do contato morre.
+  replyTo String
+
+  /// Os tokens do Easy DKIM. Três, e cada um vira um CNAME
+  /// `<token>._domainkey.<domain>` → `<token>.dkim.amazonses.com`.
+  dkimTokens String[] @default([])
+
+  status String @default("pending") // pending|verified|failed
+
+  /// O estado cru do DKIM no SES (`PENDING`, `SUCCESS`, `FAILED`,
+  /// `TEMPORARY_FAILURE`). Guardado para a tela dizer *por que* não verificou em
+  /// vez de só "falhou" — `TEMPORARY_FAILURE` é esperar, `FAILED` é o CNAME estar
+  /// errado.
+  dkimStatus String?
+
+  /// O configuration set do SES que publica os eventos deste remetente. É por
+  /// ele que entrega, abertura, clique e reclamação voltam para nós.
+  configurationSetName String?
+
+  verifiedAt    DateTime?
+  lastCheckedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  broadcasts Broadcast[]
+
+  /// Um remetente por domínio em cada unidade. O SES guarda uma identidade por
+  /// domínio na conta inteira, então duas linhas para o mesmo domínio na mesma
+  /// unidade seriam duas vistas do mesmo estado, divergindo na primeira
+  /// verificação.
+  @@unique([workspaceId, domain])
+  @@index([status])
+  @@map("email_senders")
+}
+
 /// Uma lista de contatos para campanha. Entidade de primeira classe porque a
 /// campanha se associa a listas, não a um filtro solto: a lista é nomeada,
 /// reutilizável e — no disparo — congelada em destinatários.
@@ -2602,6 +2696,15 @@ model ContactList {
   workspaceId String
   name        String
   kind        String   @default("static") // "static" | "dynamic"
+
+  /// Por qual canal esta lista serve: `whatsapp` | `email`.
+  ///
+  /// Não é enfeite de tela — muda **quem entra na lista**. Lista de WhatsApp só
+  /// aceita contato com telefone; lista de e-mail só aceita contato com e-mail.
+  /// Uma lista só, servindo aos dois, mandaria a metade sem endereço para o
+  /// fan-out só para ela ser descartada lá, e a contagem que a tela mostra
+  /// mentiria sobre o alcance da campanha.
+  channel     String   @default("whatsapp")
   /// Filtros de origem quando a lista nasce de uma busca de pacientes. Informativo
   /// em lista estática; o critério a reavaliar em lista dinâmica.
   filter      Json?
@@ -2656,25 +2759,62 @@ model WhatsAppTemplate {
   @@map("whatsapp_templates")
 }
 
-/// Uma campanha de disparo em massa pelo WhatsApp oficial.
+/// Uma campanha de disparo em massa, por WhatsApp oficial **ou** por e-mail.
+///
+/// ## Um modelo, dois canais
+///
+/// `channel` discrimina, e é ele que diz quais colunas valem:
+///
+/// | `channel`   | exige                                  | entrega por |
+/// |-------------|----------------------------------------|-------------|
+/// | `whatsapp`  | `integrationId` + `templateId`         | Graph API da Meta, template HSM aprovado |
+/// | `email`     | `senderId` + `emailTemplateId` + `subject` | Amazon SES, domínio do cliente |
+///
+/// Os dois canais foram para o mesmo modelo porque o que é caro já é comum: o
+/// fan-out em duas fases, o ritmo escalonado, a idempotência por destinatário e
+/// o fechamento da campanha não têm nada de canal. Separar em dois modelos
+/// duplicaria `src/trabalhos/servicos/broadcast.ts` inteiro, e a segunda cópia
+/// divergiria na primeira correção feita só numa delas.
+///
+/// `integrationId` e `templateId` ficaram **nulos** para caber o e-mail. A
+/// obrigatoriedade não desapareceu — mudou de lugar: quem a aplica é a
+/// validação por canal na rota, porque o banco não sabe expressar "obrigatório
+/// quando `channel = 'whatsapp'`".
 ///
 /// Só a linha `whatsapp_business` dispara (o QR não alcança o broadcast, por
 /// decisão). `status` percorre draft→scheduled→running→done|failed; `canceled`
 /// é saída manual. Os contadores são denormalizados para a lista não ter de
 /// contar destinatários a cada pintura.
 model Broadcast {
-  id             String    @id @default(cuid())
-  workspaceId    String
-  name           String // interno, visível só à equipe
-  labels         String[]  @default([])
-  integrationId  String // linha whatsapp_business (obrigatória)
-  templateId     String // WhatsAppTemplate aprovado (obrigatório)
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String // interno, visível só à equipe
+  labels      String[] @default([])
+
+  /// `whatsapp` | `email`. Default preserva as campanhas que já existem — elas
+  /// nasceram todas de WhatsApp, quando era o único canal.
+  channel String @default("whatsapp")
+
+  integrationId String? // linha whatsapp_business — obrigatória quando channel = whatsapp
+  templateId    String? // WhatsAppTemplate aprovado — idem
   /// Mapeamento das variáveis do template ({{1}} → valor/campo). Forma livre.
-  variables      Json?
-  status         String    @default("draft") // draft|scheduled|running|done|failed|canceled
-  scheduledAt    DateTime?
-  startedAt      DateTime?
-  finishedAt     DateTime?
+  variables     Json?
+
+  /// Por onde o e-mail sai. Obrigatório quando `channel = 'email'`, e tem de
+  /// estar `verified` para a campanha deixar o rascunho.
+  senderId        String?
+  emailTemplateId String?
+
+  /// O assunto. Fica na campanha, e não no template, porque é o que mais muda
+  /// entre dois disparos do mesmo conteúdo — e é o que se testaria num A/B.
+  subject   String?
+  /// A linha de prévia que aparece ao lado do assunto na caixa de entrada.
+  preheader String?
+
+  status      String    @default("draft") // draft|scheduled|running|done|failed|canceled
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
   /// Teto de envios por minuto no fan-out. Conservador por padrão; o tier real
   /// da WABA define o seguro (ver DUVIDAS-B2.md D2).
   throttlePerMin Int       @default(30)
@@ -2684,15 +2824,55 @@ model Broadcast {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  integration AgentIntegration     @relation(fields: [integrationId], references: [id], onDelete: Restrict)
-  template    WhatsAppTemplate     @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  recipients  BroadcastRecipient[]
-  lists       BroadcastList[]
+  workspace     Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  integration   AgentIntegration?    @relation(fields: [integrationId], references: [id], onDelete: Restrict)
+  template      WhatsAppTemplate?    @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  sender        EmailSender?         @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  emailTemplate EmailTemplate?       @relation(fields: [emailTemplateId], references: [id], onDelete: Restrict)
+  recipients    BroadcastRecipient[]
+  lists         BroadcastList[]
 
   @@index([workspaceId, status])
   @@index([status, scheduledAt])
+  @@index([workspaceId, channel])
   @@map("broadcasts")
+}
+
+/// O conteúdo de um e-mail de campanha, em blocos.
+///
+/// ## Por que blocos e não HTML
+///
+/// `blocks` é uma lista de blocos tipados (título, texto, imagem, botão,
+/// divisor), traduzida para HTML por `src/lib/email/blocos.ts`. Guardar HTML
+/// cru pareceria mais simples e custaria três coisas: o dono da clínica teria de
+/// escrever HTML; um `<script>` ou um `onerror=` colado de fora viraria problema
+/// nosso (e o projeto não tem sanitizador); e a casca não poderia mudar depois —
+/// melhorar o rodapé obrigaria a reescrever cada template já salvo.
+///
+/// Com blocos, o conteúdo é dado e a aparência é código: o mesmo template
+/// renderiza melhor quando a casca melhora, e não há caminho para HTML
+/// arbitrário entrar no e-mail.
+model EmailTemplate {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+
+  /// Assunto e prévia padrão. A campanha pode sobrescrever — ver `Broadcast.subject`.
+  subject   String?
+  preheader String?
+
+  /// A lista de blocos. Forma validada em `src/lib/email/blocos.ts`, não aqui:
+  /// acrescentar um tipo de bloco não deve ser migração.
+  blocks Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  broadcasts Broadcast[]
+
+  @@index([workspaceId])
+  @@map("email_templates")
 }
 
 /// Quais listas uma campanha mira. Os destinatários são congelados no disparo
@@ -2710,24 +2890,181 @@ model BroadcastList {
 }
 
 model BroadcastRecipient {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   broadcastId String
   contactId   String
-  /// MSISDN congelado no momento do envio — a ficha pode mudar depois.
+  /// O endereço congelado no disparo — a ficha pode mudar depois. MSISDN numa
+  /// campanha de WhatsApp, e-mail numa de e-mail; qual dos dois é dito pelo
+  /// `channel` da campanha.
   to          String
-  status      String   @default("pending") // pending|sent|delivered|read|failed|skipped
+  status      String @default("pending") // pending|sent|delivered|read|failed|skipped
   /// A Message gerada, quando enviada. Liga o recibo da Meta ao destinatário.
+  /// Nulo em campanha de e-mail: e-mail não abre conversa, então não há Message.
   messageId   String?
   error       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  /// O `MessageId` do SES. É a chave pela qual o recibo (entrega, abertura,
+  /// clique, reclamação) encontra este destinatário — procurar pelo endereço
+  /// seria ambíguo, porque o mesmo contato pode estar em duas campanhas ao
+  /// mesmo tempo.
+  sesMessageId String?
+
+  /// Primeira abertura e primeiro clique. **Primeira**, não a última: o SES
+  /// emite um evento por abertura, e quem abre cinco vezes não é cinco pessoas.
+  /// Contar aberturas repetidas é relatório, e relatório sai dos eventos.
+  openedAt  DateTime?
+  clickedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
   contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@unique([broadcastId, contactId])
   @@index([broadcastId, status])
+  /// O recibo do SES chega com o `MessageId` e nada mais. Sem este índice, cada
+  /// evento viria a ser uma varredura da tabela inteira — e são até nove eventos
+  /// por e-mail enviado.
+  @@index([sesMessageId])
   @@map("broadcast_recipients")
+}
+
+// ───────────────────────────── Funil (B3) ─────────────────────────────
+
+/// Uma sequência automática: um gatilho e passos que acontecem ao longo do tempo.
+///
+/// ## Por que isto não é mais uma `AgentRule`
+///
+/// `AgentRule` é condição→ação **sem estado**: ela dispara e acaba. Um funil
+/// precisa lembrar em que passo cada pessoa está, esperar dias entre um passo e
+/// outro, e retomar de onde parou. É estado por contato, e é isso que o
+/// diferencia.
+///
+/// ## Onde o estado mora
+///
+/// **Não aqui.** Quem guarda o ponteiro é o Cloudflare Workflows: cada
+/// `FunnelRun` tem um `instanceId`, e o passo atual, as variáveis e o alarme da
+/// espera vivem dentro da instância. Este modelo guarda o **desenho** (o que o
+/// funil faz) e a **correlação** (quem está dentro, e qual instância é dele).
+///
+/// Duplicar o ponteiro aqui pareceria útil e seria a pior escolha: duas fontes
+/// para o mesmo fato, divergindo na primeira vez que a instância avançasse e a
+/// gravação falhasse.
+model Funnel {
+  id          String @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+
+  /// O que faz alguém entrar. Forma validada em `src/lib/funil/gatilho.ts`:
+  /// etiqueta aplicada, mudança de etapa do negócio, entrada em lista, contato
+  /// criado. Json porque acrescentar um gatilho não deve ser migração.
+  trigger Json
+
+  /// `draft` | `published`. Só `published` recebe gente.
+  ///
+  /// Rascunho→publicar é ato explícito, como o ciclo que o PLANO.md pede para o
+  /// agente: um funil meio escrito que já começasse a mandar mensagem seria o
+  /// pior desfecho possível de "estou só experimentando".
+  status String @default("draft")
+
+  /// Sobe a cada publicação. Quem já está dentro continua rodando a versão com
+  /// que entrou — mudar o funil no meio do caminho de quem já está nele daria
+  /// sequências pela metade, com passos que nunca existiram para aquela pessoa.
+  version Int @default(1)
+
+  /// Quantos podem estar dentro ao mesmo tempo. Nulo = sem teto.
+  maxAtivos Int?
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps     FunnelStep[]
+  runs      FunnelRun[]
+
+  @@index([workspaceId, status])
+  @@map("funnels")
+}
+
+/// Um passo do funil.
+///
+/// `config` guarda o que o passo faz (texto da mensagem, dias de espera,
+/// etiqueta a aplicar) e `edges` para onde ele vai. Json nos dois porque o
+/// catálogo de passos cresce, e uma coluna por tipo de passo viraria uma
+/// migração por melhoria.
+model FunnelStep {
+  id       String @id @default(cuid())
+  funnelId String
+
+  /// `mensagem` | `espera` | `condicao` | `etiquetar` | `mover_etapa` |
+  /// `atribuir` | `encerrar`. Validado em `src/lib/funil/passos.ts`.
+  type   String
+  config Json
+
+  /// A ordem no desenho, e a posição no canvas. `order` é o que o motor segue
+  /// quando não há aresta explícita; `x`/`y` são só do React Flow.
+  order Int
+  x     Float @default(0)
+  y     Float @default(0)
+
+  /// Para onde ir depois. `{ "padrao": "<stepId>" }` no caso simples;
+  /// `{ "sim": "<id>", "nao": "<id>" }` numa condição. Vazio = fim do funil.
+  edges Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([funnelId, order])
+  @@map("funnel_steps")
+}
+
+/// A passagem de um contato por um funil.
+///
+/// Uma linha por contato por funil. O `instanceId` liga à instância do
+/// Workflows, que é quem de fato executa — aqui se guarda o suficiente para a
+/// tela mostrar quem está dentro e para o motor **parar** quem precisa parar.
+model FunnelRun {
+  id        String @id @default(cuid())
+  funnelId  String
+  contactId String
+
+  /// A instância do Cloudflare Workflows. Nulo só entre criar a linha e criar
+  /// a instância — janela de milissegundos, e é por isso que a listagem tolera.
+  instanceId String?
+
+  /// A versão do funil com que esta pessoa entrou. Publicar de novo não muda
+  /// quem já está dentro.
+  version Int @default(1)
+
+  /// `running` | `done` | `stopped` | `failed`.
+  ///
+  /// `stopped` é saída por **freio**, não por fim: humano assumiu a conversa,
+  /// contato pediu para parar, funil despublicado. É estado diferente de `done`
+  /// de propósito — na tela, "parou porque alguém atendeu" e "terminou" contam
+  /// histórias opostas sobre o funil.
+  status String @default("running")
+
+  /// Por que parou, quando parou por freio. Texto curto, para a tela dizer.
+  stoppedReason String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  funnel  Funnel  @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  /// Uma passagem por vez. O mesmo contato não entra duas vezes no mesmo funil
+  /// enquanto a primeira não terminar — sem isto, uma etiqueta aplicada duas
+  /// vezes mandaria a sequência em dobro.
+  @@unique([funnelId, contactId])
+  @@index([funnelId, status])
+  @@index([contactId])
+  @@map("funnel_runs")
 }
 
 /// Um documento de treinamento do agente, em Markdown.

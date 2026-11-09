@@ -3,6 +3,7 @@ import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { popularListaPorFiltro, adicionarMembros, contarDoFiltro } from '@/lib/marketing/lists'
+import { CANAIS_DE_CAMPANHA } from '@/lib/marketing/apresentacao'
 
 const filtroSchema = z.object({
     tagId: z.string().nullish(),
@@ -10,10 +11,25 @@ const filtroSchema = z.object({
     dealStatus: z.string().nullish(),
     search: z.string().nullish(),
     excluirOptOut: z.boolean().optional(),
+    /**
+     * O canal entra tambem aqui, e nao so no POST.
+     *
+     * A previa usa o MESMO filtro do povoamento. Sem o canal, a tela diria
+     * "2.000 contatos entrarao nesta lista" contando por telefone, e a lista de
+     * e-mail nasceria com os 700 que tem endereco — numero que so apareceria no
+     * relatorio da campanha, depois de disparada.
+     */
+    canal: z.enum(CANAIS_DE_CAMPANHA).optional(),
 })
 
 const createSchema = z.object({
     name: z.string().min(1),
+    /**
+     * Por qual canal a lista serve. Padrao `whatsapp` — era o unico canal
+     * quando o modulo nasceu, e manter o padrao preserva as listas ja criadas
+     * e o cliente da API que nao manda o campo.
+     */
+    channel: z.enum(CANAIS_DE_CAMPANHA).default('whatsapp'),
     mode: z.enum(['filter', 'manual']).default('manual'),
     filter: filtroSchema.optional(),
     contactIds: z.array(z.string()).optional(),
@@ -38,6 +54,7 @@ export async function GET() {
             id: l.id,
             name: l.name,
             kind: l.kind,
+            channel: l.channel,
             memberCount: l._count.members,
             createdAt: l.createdAt,
         }))
@@ -64,6 +81,7 @@ export async function POST(request: NextRequest) {
         data: {
             workspaceId: member.workspaceId,
             name: data.name,
+            channel: data.channel,
             kind: data.mode === 'filter' ? 'static' : 'static',
             filter: data.mode === 'filter' && data.filter ? (data.filter as object) : undefined,
         },
@@ -71,7 +89,12 @@ export async function POST(request: NextRequest) {
 
     let total = 0
     if (data.mode === 'filter' && data.filter) {
-        ;({ total } = await popularListaPorFiltro(member.workspaceId, lista.id, data.filter))
+        ;({ total } = await popularListaPorFiltro(member.workspaceId, lista.id, {
+            ...data.filter,
+            // O canal da lista manda no filtro: e ele que decide se o contato
+            // precisa de telefone ou de e-mail, e qual coluna de opt-out vale.
+            canal: data.channel,
+        }))
     } else if (data.contactIds && data.contactIds.length > 0) {
         // Só contatos deste workspace entram — nunca confiar na lista de ids crua.
         const validos = await prisma.contact.findMany({

@@ -105,6 +105,7 @@ export const navSections: NavSection[] = [
             { label: 'Campanhas', href: '/marketing/campanhas' },
             { label: 'Listas', href: '/marketing/listas' },
             { label: 'Templates', href: '/marketing/templates' },
+            { label: 'Remetentes', href: '/marketing/remetentes' },
         ],
     },
 ]
@@ -151,6 +152,8 @@ const SEGMENT_LABELS: Record<string, string> = {
     campanhas: 'Campanhas',
     listas: 'Listas',
     templates: 'Templates',
+    remetentes: 'Remetentes',
+    descadastro: 'Cancelar inscrição',
 
     onboarding: 'Primeiros passos',
 }

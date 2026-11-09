@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
 
 const patchSchema = z.object({
     name: z.string().min(1).optional(),
@@ -27,18 +28,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const b = await prisma.broadcast.findFirst({
         where: { id, workspaceId: member.workspaceId },
         include: {
-            template: { select: { metaName: true, language: true } },
-            integration: { select: { label: true, phoneNumber: true } },
+            ...INCLUDE_DA_APRESENTACAO,
             lists: { include: { list: { select: { id: true, name: true } } } },
         },
     })
     if (!b) return new NextResponse('Campanha não encontrada', { status: 404 })
 
-    const porStatus = await prisma.broadcastRecipient.groupBy({
-        by: ['status'],
-        where: { broadcastId: id },
-        _count: { _all: true },
-    })
+    const [porStatus, abertos, clicados] = await Promise.all([
+        prisma.broadcastRecipient.groupBy({
+            by: ['status'],
+            where: { broadcastId: id },
+            _count: { _all: true },
+        }),
+        // Colunas, não status: quem abriu E clicou apareceria uma vez só no
+        // groupBy. Ver o componente de servidor ao lado, que faz o mesmo.
+        prisma.broadcastRecipient.count({ where: { broadcastId: id, openedAt: { not: null } } }),
+        prisma.broadcastRecipient.count({ where: { broadcastId: id, clickedAt: { not: null } } }),
+    ])
 
     return NextResponse.json({
         id: b.id,
@@ -49,13 +55,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         startedAt: b.startedAt,
         finishedAt: b.finishedAt,
         throttlePerMin: b.throttlePerMin,
-        template: b.template.metaName,
-        line: b.integration.label || b.integration.phoneNumber,
+        ...apresentarCampanha(b),
         lists: b.lists.map((l) => l.list),
         totalCount: b.totalCount,
         sentCount: b.sentCount,
         failedCount: b.failedCount,
         recipientsByStatus: Object.fromEntries(porStatus.map((p) => [p.status, p._count._all])),
+        openedCount: abertos,
+        clickedCount: clicados,
     })
 }
 
