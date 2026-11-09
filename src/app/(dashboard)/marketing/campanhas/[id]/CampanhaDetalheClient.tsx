@@ -12,6 +12,7 @@ import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { usePermissions } from '@/hooks/usePermissions'
 import { STATUS_CAMPANHA } from '../dados'
+import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 
 export interface CampanhaDetalhe {
     id: string
@@ -22,13 +23,31 @@ export interface CampanhaDetalhe {
     startedAt: string | null
     finishedAt: string | null
     throttlePerMin: number
-    template: string
-    line: string | null
+    canal: CanalDeCampanha
+    canalLabel: string
+    /** O que a campanha manda: template no WhatsApp, assunto no e-mail. */
+    conteudo: string
+    /** Por onde sai: a linha no WhatsApp, o endereco do remetente no e-mail. */
+    origem: string
     lists: { id: string; name: string }[]
     totalCount: number
     sentCount: number
     failedCount: number
     recipientsByStatus: Record<string, number>
+    /** Quantos abriram e quantos clicaram. Só o e-mail os preenche. */
+    openedCount: number
+    clickedCount: number
+}
+
+/**
+ * A taxa entre parênteses, ou nada quando não há base para calculá-la.
+ *
+ * Dividir por zero daria "NaN%" na tela — e uma campanha ainda sem envio é
+ * estado normal, não erro.
+ */
+function taxa(parte: number, base: number): string {
+    if (base <= 0) return ''
+    return ` (${Math.round((parte / base) * 100)}%)`
 }
 
 const RECIPIENT_LABEL: Record<string, string> = {
@@ -185,8 +204,12 @@ export function CampanhaDetalheClient({ inicial }: { inicial: CampanhaDetalhe })
                 <section className="rounded-xl border border-border/60 bg-card p-4">
                     <h2 className="mb-3 text-sm font-medium text-foreground">Resumo</h2>
                     <dl className="space-y-2 text-sm">
-                        <Linha termo="Linha" valor={c.line ?? '—'} />
-                        <Linha termo="Template" valor={c.template} />
+                        <Linha termo="Canal" valor={c.canalLabel} />
+                        <Linha termo="Origem" valor={c.origem} />
+                        <Linha
+                            termo={c.canal === 'email' ? 'Assunto' : 'Template'}
+                            valor={c.conteudo}
+                        />
                         <Linha termo="Listas" valor={c.lists.map((l) => l.name).join(', ') || '—'} />
                         <Linha termo="Ritmo" valor={`${c.throttlePerMin} msgs/min`} />
                         {c.labels.length > 0 && <Linha termo="Rótulos" valor={c.labels.join(', ')} />}
@@ -206,6 +229,30 @@ export function CampanhaDetalheClient({ inicial }: { inicial: CampanhaDetalhe })
                                 c.recipientsByStatus[k] ? (
                                     <Linha key={k} termo={label} valor={String(c.recipientsByStatus[k])} />
                                 ) : null,
+                            )}
+
+                            {/*
+                                Abertura e clique vêm com a taxa ao lado.
+                                O número cru ("320") não diz nada sozinho — o que
+                                a clínica compara entre campanhas é a proporção, e
+                                calculá-la de cabeça a cada vez é trabalho que a
+                                tela pode poupar.
+
+                                A base é `sentCount`, não `totalCount`: quem não
+                                recebeu não teve chance de abrir, e usar o total
+                                afundaria a taxa de toda campanha que teve falha.
+                            */}
+                            {c.canal === 'email' && c.openedCount > 0 && (
+                                <Linha
+                                    termo="Abriram"
+                                    valor={`${c.openedCount}${taxa(c.openedCount, c.sentCount)}`}
+                                />
+                            )}
+                            {c.canal === 'email' && c.clickedCount > 0 && (
+                                <Linha
+                                    termo="Clicaram"
+                                    valor={`${c.clickedCount}${taxa(c.clickedCount, c.sentCount)}`}
+                                />
                             )}
                         </dl>
                     )}

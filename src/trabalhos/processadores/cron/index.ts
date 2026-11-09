@@ -14,6 +14,7 @@ import { runInstagramTokenRefresh } from './instagram-token-refresh'
 import { runBillingDunning } from './billing-dunning'
 import { runBillingReconcile } from './billing-reconcile'
 import { runBroadcastDispatch } from './broadcast-dispatch'
+import { runSesVerificarRemetente } from './ses-verificar-remetente'
 import { runMinerarLacunas } from './minerar-lacunas'
 import { runIaCredencial } from './ia-credencial'
 
@@ -34,6 +35,7 @@ const TASKS: Record<CronJobName, () => Promise<void>> = {
     'billing-dunning': runBillingDunning,
     'billing-reconcile': runBillingReconcile,
     'broadcast-dispatch': runBroadcastDispatch,
+    'ses-verificar-remetente': runSesVerificarRemetente,
     'minerar-lacunas': runMinerarLacunas,
     'ia-credencial': runIaCredencial,
 }

@@ -41,10 +41,13 @@ export function Pagination({
     return (
         <div
             className={cn(
-                // Dentro do cartão da tabela: `px-4` é o respiro interno, e a
-                // margem da página fica na moldura do cartão. O fio de cima
-                // acompanha a leveza da moldura (`border/60`).
-                'flex flex-wrap items-center justify-between gap-3 border-t border-border/60 px-4 py-3',
+                // O mesmo respiro interno da célula — 16px, 24 de `md` para
+                // cima —, porque a tabela sangra e o rodapé sangra com ela: a
+                // contagem alinha com a primeira coluna e o seletor de página
+                // com a última. O fio de cima é a borda cheia do sistema; ele
+                // era `border/60` para acompanhar a moldura de um cartão que
+                // deixou de existir em 2026-11-09.
+                'flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 md:px-6',
                 className
             )}
         >

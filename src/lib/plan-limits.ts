@@ -58,6 +58,23 @@ export interface PlanLimits {
      * contagem de custo por mensagem da Meta é à parte.
      */
     maxBroadcastRecipientsPerMonth: number
+
+    /**
+     * Destinatários de campanha de **e-mail** por mês, na conta.
+     *
+     * Contador próprio, e não o mesmo balde do WhatsApp — decisão dele em
+     * 2026-11-08. O motivo é o custo, que difere em **duas ordens de
+     * grandeza**: uma mensagem de marketing no WhatsApp custa R$ 0,3217 à
+     * clínica (preço da Meta, Brasil, desde 01/10/2026), e um e-mail custa
+     * cerca de R$ 0,0009 (US$ 0,16/1.000 no plano Essentials do SES).
+     *
+     * Um teto só obrigaria a calibrá-lo pelo canal caro, e o e-mail — que é
+     * praticamente de graça — ficaria artificialmente apertado. Com dois, cada
+     * um fica no tamanho do que custa.
+     *
+     * Zero desliga a campanha de e-mail no plano.
+     */
+    maxEmailsPerMonth: number
 }
 
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
@@ -69,6 +86,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
         maxMessages: 10_000,
         maxSpokenReplies: 400,
         maxBroadcastRecipientsPerMonth: 1_000,
+        maxEmailsPerMonth: 10_000,
     },
     pro: {
         maxWorkspaces: 1,
@@ -78,6 +96,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
         maxMessages: 20_000,
         maxSpokenReplies: 750,
         maxBroadcastRecipientsPerMonth: 5_000,
+        maxEmailsPerMonth: 50_000,
     },
     advanced: {
         maxWorkspaces: 3,
@@ -87,6 +106,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
         maxMessages: 30_000,
         maxSpokenReplies: 1_500,
         maxBroadcastRecipientsPerMonth: 20_000,
+        maxEmailsPerMonth: 200_000,
     },
 }
 
@@ -180,14 +200,20 @@ export const ADICIONAL_INCLUI = {
     maxMessages: 0,
     maxSpokenReplies: 0,
     maxBroadcastRecipientsPerMonth: 0,
+    /**
+     * Zero, como os outros contadores de consumo. O adicional vende **unidade**
+     * — mais uma clínica na conta —, não mais alcance de campanha: as unidades
+     * novas dividem o mesmo teto mensal da conta.
+     */
+    maxEmailsPerMonth: 0,
 } satisfies PlanLimits
 
 /**
  * Os limites efetivos da conta: o plano mais o que os adicionais trazem.
  *
  * É a fonte única dessa soma. Antes só as unidades somavam (`tetoDeUnidades`), e
- * agora somam cinco coisas — espalhar isso por rota, worker e tela seria
- * garantir que um dos três esquecesse uma delas.
+ * agora são sete campos — espalhar isso por rota, worker e tela seria garantir
+ * que um dos três esquecesse um deles.
  */
 export function limitesEfetivos(
     plan: string | null | undefined,
@@ -206,6 +232,7 @@ export function limitesEfetivos(
         maxBroadcastRecipientsPerMonth:
             base.maxBroadcastRecipientsPerMonth +
             n * ADICIONAL_INCLUI.maxBroadcastRecipientsPerMonth,
+        maxEmailsPerMonth: base.maxEmailsPerMonth + n * ADICIONAL_INCLUI.maxEmailsPerMonth,
     }
 }
 

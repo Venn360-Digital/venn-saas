@@ -30,20 +30,30 @@ export interface Automations {
      */
     distribuicao: PoliticaDeDistribuicao
 
-    /**
-     * O **primeiro degrau** da escada: minutos sem ação até o verde virar
-     * amarelo. O segundo é fixo em 8 horas (ver `MINUTOS_PARA_DESCONECTADO`).
-     *
-     * Sem isto, todo mundo vai embora às 18h marcado como disponível e a
-     * distribuição da madrugada cai em quem não está — exatamente o que o
-     * interruptor existe para evitar. Zero desliga a escada.
-     *
-     * Uma hora por padrão: numa clínica a atendente passa esse tempo no balcão
-     * sem abrir o computador, e aí ela está ocupada de verdade — lead que cai
-     * para quem não vai olhar é pior que lead na fila geral.
-     */
-    minutosParaAusente: number
 }
+
+/**
+ * O **primeiro degrau** da escada: minutos sem ação até o verde virar amarelo,
+ * para quem não preencheu o campo Ausência na própria ficha. O segundo degrau é
+ * fixo em 8 horas (ver `MINUTOS_PARA_DESCONECTADO`).
+ *
+ * Sem isto, todo mundo vai embora às 18h marcado como disponível e a
+ * distribuição da madrugada cai em quem não está — exatamente o que o
+ * interruptor de "só disponíveis" existe para evitar.
+ *
+ * **Constante, e não ajuste de conta.** Era `Automations.minutosParaAusente`,
+ * configurável em Conta → Automações, e por isso o mesmo número existia em dois
+ * lugares: lá e no campo Ausência de cada pessoa. O Andre mandou ficar **só o
+ * da pessoa** em 2026-11-09. Medido no banco de produção antes de tirar: as
+ * duas contas tinham exatamente 60 gravado — o padrão —, e nenhum usuário tinha
+ * valor próprio, então a remoção não muda comportamento de ninguém.
+ *
+ * Uma hora: numa clínica a atendente passa esse tempo no balcão sem abrir o
+ * computador, e aí ela está ocupada de verdade — lead que cai para quem não vai
+ * olhar é pior que lead na fila geral. Quem precisa de outro número põe na
+ * ficha dela, que é onde o atributo mora.
+ */
+export const MINUTOS_PARA_AUSENTE_PADRAO = 60
 
 export const DEFAULT_AUTOMATIONS: Automations = {
     // Ligada por padrão porque não envia nada a paciente: só organiza a agenda
@@ -55,7 +65,6 @@ export const DEFAULT_AUTOMATIONS: Automations = {
     // distribuir sem ninguém ter marcado quem recebe seria pior que não
     // distribuir.
     distribuicao: POLITICA_PADRAO,
-    minutosParaAusente: 60,
 }
 
 export function readAutomations(value: Prisma.JsonValue | null | undefined): Automations {
@@ -71,7 +80,6 @@ export function readAutomations(value: Prisma.JsonValue | null | undefined): Aut
      */
     const dist = (raw.distribuicao ?? {}) as Record<string, unknown>
     const estrategias: EstrategiaDeDistribuicao[] = ['nenhuma', 'rodizio', 'balanceado']
-    const minutos = Number(raw.minutosParaAusente)
 
     return {
         followUpTasks: typeof raw.followUpTasks === 'boolean' ? raw.followUpTasks : DEFAULT_AUTOMATIONS.followUpTasks,
@@ -84,7 +92,5 @@ export function readAutomations(value: Prisma.JsonValue | null | undefined): Aut
             soDisponiveis:
                 typeof dist.soDisponiveis === 'boolean' ? dist.soDisponiveis : POLITICA_PADRAO.soDisponiveis,
         },
-        minutosParaAusente:
-            Number.isInteger(minutos) && minutos >= 0 ? minutos : DEFAULT_AUTOMATIONS.minutosParaAusente,
     }
 }

@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { getWorkspaceMember, canSeeEveryone } from '@/lib/auth/workspace'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 import { enderecoDoRetrato } from '@/lib/retratos'
-import { readAutomations } from '@/lib/automations'
+import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
 
 /**
  * Quem está na unidade agora — para o painel de equipe e para o recado.
@@ -66,9 +66,6 @@ export async function GET() {
         }),
     ])
 
-    // O primeiro degrau da escada é configurável por unidade, e a derivação
-    // precisa dele: sem o número, todo mundo ficaria verde para sempre.
-    const { minutosParaAusente } = readAutomations(ws?.automations)
 
     /**
      * A conta de conversas abertas por pessoa, numa consulta só.
@@ -130,7 +127,10 @@ export async function GET() {
         estado: estadoVisivel(
             m.status as StatusDoMembro,
             m.ultimaAtividadeEm,
-            m.minutosParaAusente ?? minutosParaAusente,
+            // O primeiro degrau da escada: o da pessoa, com a constante do
+            // sistema como queda. Era o número da conta, em Automações; virou
+            // constante em 2026-11-09 (ver `MINUTOS_PARA_AUSENTE_PADRAO`).
+            m.minutosParaAusente ?? MINUTOS_PARA_AUSENTE_PADRAO,
             agora
         ),
         /** Desde quando parado — a tela escreve "ausente há 14 min". */

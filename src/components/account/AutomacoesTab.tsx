@@ -78,9 +78,15 @@ export function AutomacoesTab() {
                 Vem antes das rotinas porque muda **quem trabalha**, e não o
                 que o sistema faz sozinho. É o ajuste que a clínica mexe na
                 primeira semana. ──────────────────────────────────────────── */}
+            {/* "Atribuir conversas", e a legenda sem a segunda metade —
+                pedido do Andre em 2026-11-09. A frase cortada explicava o que
+                ser responsável significa ("quem responde por ela quando uma
+                pessoa precisar entrar"); isso é vocabulário do produto, dito
+                em toda a tela de Conversas, e aqui só alongava a legenda de um
+                seletor de três opções. */}
             <SettingsBand
-                title="Distribuição de conversas"
-                description="Quem fica responsável por cada conversa nova. O agente continua atendendo — isto define quem responde por ela quando uma pessoa precisar entrar."
+                title="Atribuir conversas"
+                description="Quem fica responsável por cada conversa nova. O agente continua atendendo."
             >
                 <div className="divide-y divide-border rounded-lg border border-border">
                     <div className="flex items-start gap-3 p-4">
@@ -126,7 +132,7 @@ export function AutomacoesTab() {
                         opção não existe, e procurar por ela em outro lugar. */}
                     <Line
                         icon={UserCheck}
-                        title="Distribuir só para quem está disponível"
+                        title="Atribuir conversas para status disponível"
                         hint={
                             config.distribuicao.estrategia === 'nenhuma'
                                 ? 'Escolha uma forma de distribuir para usar esta opção.'
@@ -139,39 +145,25 @@ export function AutomacoesTab() {
                         }
                     />
 
-                    {/* Vale mesmo sem distribuição: o status também decide para
-                        quem vai a entrega quando o agente passa o atendimento. */}
-                    <div className="flex items-start gap-3 p-4">
-                        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary-subtle-foreground">
-                            <Sun className="size-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <Label htmlFor="ausente" className="text-sm font-semibold">
-                                Marcar como ausente sozinho
-                            </Label>
-                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                                Depois deste tempo sem usar o sistema, quem está disponível fica
-                                amarelo — e depois de 8 horas, cinza. Volta a verde sozinho ao
-                                mexer. Quem se marcou como ocupado ou ausente fica como se pôs.
-                            </p>
-                        </div>
-                        <Select
-                            value={String(config.minutosParaAusente)}
-                            onValueChange={(v) => void save({ minutosParaAusente: Number(v) })}
-                        >
-                            <SelectTrigger size="sm" className="w-[120px]" id="ausente">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="0">Nunca</SelectItem>
-                                {[15, 30, 60, 120, 240].map((m) => (
-                                    <SelectItem key={m} value={String(m)} className="num">
-                                        {m < 60 ? `${m} minutos` : m === 60 ? '1 hora' : `${m / 60} horas`}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {/* **"Marcar como ausente sozinho" saiu daqui** — decisão
+                        do Andre em 2026-11-09: fica **um** controle só, o da
+                        pessoa (campo Ausência, na ficha do usuário em
+                        Conta → Usuários).
+
+                        O mesmo número existia em dois lugares, e a tela
+                        anterior tentou resolver dizendo qual sobrepunha qual —
+                        "padrão da conta" no rótulo, com a legenda apontando
+                        para a ficha. Explicar a precedência de dois campos é
+                        pior que ter um: quem abre Automações para mudar a
+                        queda muda a da conta e não vê efeito em quem tem a
+                        própria preenchida.
+
+                        A queda de quem não preenche a ficha virou constante do
+                        sistema, `MINUTOS_PARA_AUSENTE_PADRAO` (60 min). Medido
+                        no banco de produção antes de tirar: as duas contas
+                        tinham exatamente 60 gravado e nenhum usuário tinha
+                        valor próprio — a remoção não mudou o comportamento de
+                        ninguém. */}
                 </div>
             </SettingsBand>
 

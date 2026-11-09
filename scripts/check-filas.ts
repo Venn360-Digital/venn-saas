@@ -36,13 +36,14 @@ const WS = `ws-prova-${Date.now()}`
 async function main() {
     // ============================================================= fuso dos crons
 
-    // Quinze entradas para catorze tarefas: `integration-health` tem duas, uma
-    // de dia e uma de noite. Ver a tabela em `agenda.ts`.
+    // Dezoito entradas para dezessete tarefas: `integration-health` tem duas,
+    // uma de dia e uma de noite. Ver a tabela em `agenda.ts`.
     //
     // O número é fixo de propósito — é o que faz uma rotina acrescentada ou
     // removida aparecer aqui, e não em produção. Estava em 14 desde antes de
-    // `broadcast-dispatch` entrar, e por isso esta prova vinha vermelha.
-    ok('as 17 entradas da agenda convertem sem erro', rotinasEmUTC().length === 17)
+    // `broadcast-dispatch` entrar, e em 17 antes de `ses-verificar-remetente`;
+    // nas duas vezes foi esta prova que acusou.
+    ok('as 18 entradas da agenda convertem sem erro', rotinasEmUTC().length === 18)
 
     /**
      * A primeira rotina **semanal** do sistema, e a primeira com restrição de

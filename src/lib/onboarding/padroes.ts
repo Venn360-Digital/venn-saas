@@ -65,10 +65,11 @@ export const MOTIVOS_PADRAO = {
  * sozinho mudaria a operação de alguém sem pedir. Para conta que nasce agora não
  * há operação para mudar, e o Andre escolheu rodízio.
  *
- * `soDisponiveis` fica desligado e `minutosParaAusente` em 60 — que são os
- * valores de `DEFAULT_AUTOMATIONS`, pedidos de novo por ele. Não são repetidos
- * aqui: o cadastro grava a política em cima do default, só trocando a
- * estratégia.
+ * `soDisponiveis` fica desligado, que é o valor de `DEFAULT_AUTOMATIONS`,
+ * pedido de novo por ele. Não é repetido aqui: o cadastro grava a política em
+ * cima do default, só trocando a estratégia. A queda para ausente saiu das
+ * automações em 2026-11-09 e virou `MINUTOS_PARA_AUSENTE_PADRAO` — não é mais
+ * coisa que o cadastro grave.
  */
 export const ESTRATEGIA_INICIAL = 'rodizio' as const
 

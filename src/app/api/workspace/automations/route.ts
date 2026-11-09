@@ -70,10 +70,11 @@ export async function PATCH(request: NextRequest) {
                     ? body.distribuicao.soDisponiveis
                     : current.distribuicao.soDisponiveis,
         },
-        minutosParaAusente:
-            Number.isInteger(body.minutosParaAusente) && body.minutosParaAusente >= 0
-                ? body.minutosParaAusente
-                : current.minutosParaAusente,
+        /* `minutosParaAusente` saiu daqui em 2026-11-09: a queda para ausente
+           é atributo da pessoa (campo Ausência, na ficha) e deixou de ser
+           ajuste de conta. Ver `MINUTOS_PARA_AUSENTE_PADRAO`. Corpo que ainda
+           mande a chave é ignorado — e o `...DEFAULT_AUTOMATIONS` abaixo não a
+           reintroduz, porque ela saiu do padrão também. */
     }
 
     await prisma.workspace.update({

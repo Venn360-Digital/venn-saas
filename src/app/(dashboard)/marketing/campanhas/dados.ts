@@ -1,4 +1,5 @@
 import type { PaginaDeIndice } from '@/lib/indice'
+import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 
 /** O estado de uma campanha, com rótulo em pt-BR. */
 export const STATUS_CAMPANHA: Record<string, string> = {
@@ -20,8 +21,12 @@ export interface CampanhaItem {
     labels: string[]
     status: string
     scheduledAt: string | null
-    template: string
-    line: string | null
+    canal: CanalDeCampanha
+    canalLabel: string
+    /** O que a campanha manda: template no WhatsApp, assunto no e-mail. */
+    conteudo: string
+    /** Por onde sai: a linha no WhatsApp, o endereco do remetente no e-mail. */
+    origem: string
     totalCount: number
     sentCount: number
     failedCount: number

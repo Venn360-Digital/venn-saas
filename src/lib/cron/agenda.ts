@@ -26,9 +26,9 @@ export interface Rotina {
 }
 
 /**
- * As rotinas. **Dezessete** entradas para dezesseis tarefas — a verificação de
+ * As rotinas. **Dezoito** entradas para dezessete tarefas — a verificação de
  * integração aparece duas vezes, com um intervalo de dia e outro de noite —
- * que o `cronsParaWrangler()` reduz a **catorze** gatilhos, porque padrões
+ * que o `cronsParaWrangler()` reduz a **quinze** gatilhos, porque padrões
  * repetidos caem no mesmo e um gatilho duplicado seria invocação dobrada.
  *
  * (Os números são medidos, não contados à mão: `check:filas` afirma a
@@ -207,6 +207,25 @@ export const ROTINAS: Rotina[] = [
      *   viraria 10–24 e seria recusado).
      */
     { task: 'broadcast-dispatch', brt: '*/10 7-20 * * *' },
+
+    /**
+     * Pergunta ao SES se o DKIM dos remetentes pendentes ja apareceu no DNS do
+     * cliente (ver `ses-verificar-remetente.ts`).
+     *
+     * **De hora em hora, nao de dez em dez minutos.** O que esta rotina espera e
+     * propagacao de DNS, que leva de minutos a 24 horas — perguntar seis vezes
+     * por hora nao faz o registro propagar mais cedo, e custa uma chamada por
+     * remetente pendente, em tres apps.
+     *
+     * **Vinte e quatro horas por dia**, e nao na janela comercial: quem publica
+     * os CNAME costuma faze-lo fora do horario, e o remetente so vira
+     * `verified` depois de alguem perguntar. Segurar a verificacao ate as 7h
+     * faria a clinica que configurou a noite achar que nao funcionou.
+     *
+     * O minuto 34 e escalonamento, como o resto da lista: rodar tudo em `:00`
+     * concentrava o banco no mesmo instante.
+     */
+    { task: 'ses-verificar-remetente', brt: '34 * * * *' },
 ]
 
 /**

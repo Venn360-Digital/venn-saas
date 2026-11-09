@@ -50,6 +50,14 @@ export const QUEUE = {
      * de disparos não podem bloquear a cabeça da fila do atendimento.
      */
     BROADCAST: 'broadcast',
+    /**
+     * Recibos do SES: entrega, abertura, clique, bounce, reclamação.
+     *
+     * Fila própria, e não a `broadcast`, porque os volumes são de ordens
+     * diferentes — são **até nove eventos por e-mail enviado**, e eles
+     * chegando em rajada não podem atrasar o disparo que os gerou.
+     */
+    SES_EVENT: 'ses-event',
     /** Scheduled maintenance: reminders, recurrences, credit reset, health checks. */
     CRON: 'cron',
 } as const
@@ -189,6 +197,7 @@ export type CronJobName =
     | 'billing-dunning'
     | 'billing-reconcile'
     | 'broadcast-dispatch'
+    | 'ses-verificar-remetente'
     | 'minerar-lacunas'
     | 'ia-credencial'
 
@@ -221,6 +230,21 @@ export type BroadcastJob =
     | { phase: 'fanout'; broadcastId: string }
     | { phase: 'send'; broadcastId: string; recipientId: string }
 
+/**
+ * Um recibo do SES para processar.
+ *
+ * Carrega o **corpo do evento** (o `Message` do SNS, já desembrulhado), e não
+ * uma referência: diferente do Asaas, não há tabela onde ele esteja gravado, e
+ * guardá-lo só para o job o ler seria uma tabela a mais sem leitor. Cabe
+ * folgado nos 128 KB — um evento do SES tem alguns kilobytes.
+ */
+export interface SesEventJob {
+    /** O `MessageId` do SNS — é a chave de idempotência. */
+    snsMessageId: string
+    /** O JSON do evento, como veio em `Message`. */
+    corpo: string
+}
+
 export interface JobPayloads {
     [QUEUE.WHATSAPP_INBOUND]: WhatsAppInboundJob
     [QUEUE.WHATSAPP_EVENT]: WhatsAppEventJob
@@ -230,6 +254,7 @@ export interface JobPayloads {
     [QUEUE.AGENT_WEBHOOK]: AgentWebhookJob
     [QUEUE.ASAAS_EVENT]: AsaasEventJob
     [QUEUE.BROADCAST]: BroadcastJob
+    [QUEUE.SES_EVENT]: SesEventJob
     [QUEUE.CRON]: CronJob
 }
 
@@ -298,6 +323,16 @@ export const DEFAULT_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
         // dele, não retentativa infinita que reenviaria aos demais.
         attempts: 3,
         backoff: { type: 'exponential', delay: 3_000 },
+    },
+    [QUEUE.SES_EVENT]: {
+        ...RETENTION,
+        /**
+         * Poucas tentativas. O recibo é informação sobre algo que já aconteceu
+         * — insistir num evento que não processa não melhora nada, e a DLQ
+         * guarda o que falhou para quem quiser olhar.
+         */
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2_000 },
     },
     [QUEUE.CRON]: {
         ...RETENTION,
