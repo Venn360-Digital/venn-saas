@@ -310,11 +310,22 @@ export function EditorDeEmail({
                         vai sair. O `sandbox` vazio mata script e navegação —
                         a prévia não executa nada do que está sendo editado.
                     */}
+                    {/*
+                        Sem cor de fundo na classe, e isso é deliberado.
+
+                        O HTML do e-mail pinta a própria — `renderCampanha` põe
+                        `background-color` no `body` —, e é essa que tem de
+                        aparecer. Uma cor fixa aqui seria redundante no melhor
+                        caso. Um token de superfície seria pior: e-mail não
+                        acompanha o tema do app, então a prévia ficaria escura
+                        no modo escuro, mostrando algo que o destinatário nunca
+                        vai ver.
+                    */}
                     <iframe
                         title="Prévia do e-mail"
                         srcDoc={html}
                         sandbox=""
-                        className="h-[420px] w-full rounded-lg border border-border/60 bg-white"
+                        className="h-[420px] w-full rounded-lg border border-border/60"
                     />
                     <p className="mt-2 text-xs text-muted-foreground">
                         Os nomes são de exemplo. No disparo, cada pessoa recebe o dela — e quem

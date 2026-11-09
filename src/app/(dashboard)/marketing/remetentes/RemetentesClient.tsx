@@ -369,7 +369,7 @@ function LinhaDeRegistro({ registro }: { registro: RegistroDeDns }) {
                 >
                     {registro.nome}
                     {copiado === 'nome' ? (
-                        <Check className="size-3.5 shrink-0 text-emerald-600" />
+                        <Check className="size-3.5 shrink-0 text-success-subtle-foreground" />
                     ) : (
                         <Copy className="size-3.5 shrink-0 opacity-40" />
                     )}
@@ -383,7 +383,7 @@ function LinhaDeRegistro({ registro }: { registro: RegistroDeDns }) {
                 >
                     {registro.valor}
                     {copiado === 'valor' ? (
-                        <Check className="size-3.5 shrink-0 text-emerald-600" />
+                        <Check className="size-3.5 shrink-0 text-success-subtle-foreground" />
                     ) : (
                         <Copy className="size-3.5 shrink-0 opacity-40" />
                     )}
