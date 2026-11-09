@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
+import { etiquetaAplicada } from '@/lib/funil/disparos'
 
 /**
  * As etiquetas de uma conversa — que são também as do paciente.
@@ -93,10 +94,24 @@ export async function POST(
             skipDuplicates: true,
         })
         if (auth.contactId) {
+            /**
+             * `createMany` com `skipDuplicates` não diz se criou. Para o funil a
+             * diferença importa — reaplicar etiqueta que já estava lá não é um
+             * fato novo —, então a conferência vem antes.
+             */
+            const jaTinha = await prisma.contactTag.findFirst({
+                where: { contactId: auth.contactId, tagId: tag.id },
+                select: { tagId: true },
+            })
+
             await prisma.contactTag.createMany({
                 data: [{ contactId: auth.contactId, tagId: tag.id }],
                 skipDuplicates: true,
             })
+
+            if (!jaTinha) {
+                await etiquetaAplicada(auth.workspaceId, auth.contactId, tag.id)
+            }
         }
 
         return NextResponse.json(tag, { status: 201 })

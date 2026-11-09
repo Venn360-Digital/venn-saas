@@ -31,6 +31,7 @@
     "migrar:usuarios": "tsx --conditions=react-server scripts/migrar-usuarios.ts",
     "check:trabalhos": "tsx --conditions=react-server scripts/check-trabalhos.ts",
     "check:funil": "tsx --conditions=react-server scripts/check-funil.ts",
+    "check:gatilhos": "tsx --conditions=react-server scripts/check-gatilhos.ts",
     "check:sns": "tsx --conditions=react-server scripts/check-sns.ts",
     "check:sns:assinatura": "tsx --conditions=react-server scripts/check-sns-assinatura.ts",
     "check:envelopes": "tsx --conditions=react-server scripts/check-envelopes.ts",

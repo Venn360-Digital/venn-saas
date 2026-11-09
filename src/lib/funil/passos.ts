@@ -120,7 +120,7 @@ export function lerCondicao(config: unknown): Condicao | null {
  */
 export function proximoPasso(
     atual: PassoDoFunil,
-    todos: PassoDoFunil[],
+    todos: readonly PassoDoFunil[],
     ramo: 'sim' | 'nao' | 'padrao' = 'padrao'
 ): PassoDoFunil | null {
     const arestas = comoObjeto(atual.edges)
@@ -164,7 +164,7 @@ export function proximoPasso(
  *
  * Só a condição tem `sim`/`nao`; os outros passos consultam `padrao`.
  */
-export function sucessores(atual: PassoDoFunil, todos: PassoDoFunil[]): PassoDoFunil[] {
+export function sucessores(atual: PassoDoFunil, todos: readonly PassoDoFunil[]): PassoDoFunil[] {
     const ramos: ('sim' | 'nao' | 'padrao')[] =
         atual.type === 'condicao' ? ['sim', 'nao'] : ['padrao']
 
@@ -207,7 +207,7 @@ export const MAX_TRANSICOES = 200
  * Devolve o **caminho**, e não só `true`, porque a tela precisa dizer quais nós
  * fechar — "existe um ciclo" não ajuda quem desenhou noventa passos.
  */
-export function cicloNoDesenho(todos: PassoDoFunil[]): string[] | null {
+export function cicloNoDesenho(todos: readonly PassoDoFunil[]): string[] | null {
     /** 0 = não visitado, 1 = na pilha atual, 2 = fechado. */
     const estado = new Map<string, 0 | 1 | 2>()
     const caminho: string[] = []
@@ -248,7 +248,7 @@ export function cicloNoDesenho(todos: PassoDoFunil[]): string[] | null {
 }
 
 /** O primeiro passo do funil — o de menor `order`. */
-export function primeiroPasso(todos: PassoDoFunil[]): PassoDoFunil | null {
+export function primeiroPasso(todos: readonly PassoDoFunil[]): PassoDoFunil | null {
     if (todos.length === 0) return null
     return [...todos].sort((a, b) => a.order - b.order)[0]
 }

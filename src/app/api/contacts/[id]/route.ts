@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, contactScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { normalizePhone } from '@/lib/intake'
+import { etiquetasAplicadas } from '@/lib/funil/disparos'
 
 // GET - Get contact details with full history
 export async function GET(
@@ -186,7 +187,28 @@ export async function PATCH(
         })
 
         // Sync contact tags if tagIds provided
+        let etiquetasNovas: string[] = []
         if (tagIds !== undefined && Array.isArray(tagIds)) {
+            /**
+             * As que **entraram agora**, e só elas, antes de reescrever.
+             *
+             * Esta rota sincroniza por `deleteMany` + `createMany`: ela reescreve
+             * o conjunto inteiro a cada salvamento. Disparar o gatilho de funil
+             * por cada `tagId` faria o funil entrar de novo sempre que alguém
+             * salvasse a ficha — mesmo sem tocar nas etiquetas —, e a trava de
+             * "uma passagem por vez" não protegeria: ela vale enquanto a
+             * passagem está `running`, então bastaria a primeira ter terminado.
+             *
+             * O sintoma seria paciente recebendo a mesma sequência a cada
+             * edição de cadastro.
+             */
+            const antes = await prisma.contactTag.findMany({
+                where: { contactId: id },
+                select: { tagId: true },
+            })
+            const jaTinha = new Set(antes.map((t) => t.tagId))
+            etiquetasNovas = (tagIds as string[]).filter((t) => !jaTinha.has(t))
+
             await prisma.contactTag.deleteMany({ where: { contactId: id } })
             if (tagIds.length > 0) {
                 await prisma.contactTag.createMany({
@@ -194,6 +216,13 @@ export async function PATCH(
                     skipDuplicates: true,
                 })
             }
+        }
+
+        // Depois de gravar, nunca antes: funil disparado sobre etiqueta que a
+        // gravação ainda pode recusar mandaria mensagem por um fato que não
+        // aconteceu.
+        if (etiquetasNovas.length > 0) {
+            await etiquetasAplicadas(workspaceUser.workspaceId, id, etiquetasNovas)
         }
 
         // Return contact with tags

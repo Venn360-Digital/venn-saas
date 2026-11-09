@@ -28,6 +28,7 @@ import {
     type PassoDoFunil,
 } from '../src/lib/funil/passos'
 import { casa, lerGatilho, TIPOS_DE_GATILHO } from '../src/lib/funil/gatilho'
+import { MAX_PASSOS, podePublicar } from '../src/lib/funil/publicar'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -277,6 +278,66 @@ ok(
 )
 
 ok('todo tipo declarado tem texto de tela', TIPOS_DE_GATILHO.length === 4)
+
+console.log('')
+console.log('── A publicação é o portão ──')
+
+const gTag = { tipo: 'etiqueta_aplicada', alvo: 'tag_1' }
+const bom = { trigger: gTag, maxAtivos: null, passos: linear }
+ok('desenho bom publica', podePublicar(bom) === null)
+
+ok('sem gatilho não publica', podePublicar({ ...bom, trigger: {} }) !== null)
+ok('sem passo não publica', podePublicar({ ...bom, passos: [] }) !== null)
+
+/**
+ * Passo de tipo desconhecido: o motor pararia a passagem nele, então publicar
+ * é prometer uma sequência que não anda.
+ */
+ok(
+    'tipo desconhecido não publica',
+    podePublicar({ ...bom, passos: [passo('a', 0, null, 'dancar')] }) !== null
+)
+
+const demais = Array.from({ length: MAX_PASSOS + 1 }, (_, i) => passo(`p${i}`, i))
+ok('acima do teto de passos não publica', podePublicar({ ...bom, passos: demais }) !== null)
+ok('no teto exato publica', podePublicar({ ...bom, passos: demais.slice(0, MAX_PASSOS) }) === null)
+
+/**
+ * Gatilho de lista exige teto. A primeira sincronização de uma lista por filtro
+ * sobre uma base existente é indistinguível de disparo em massa: todo mundo é
+ * "novo". Sem teto, "seja bem-vindo" sai para quem é paciente há dez anos.
+ */
+const gLista = { tipo: 'entrou_na_lista', alvo: 'lista_1' }
+ok(
+    'lista sem teto não publica',
+    podePublicar({ trigger: gLista, maxAtivos: null, passos: linear }) !== null
+)
+ok(
+    'lista com teto publica',
+    podePublicar({ trigger: gLista, maxAtivos: 50, passos: linear }) === null
+)
+ok(
+    'teto zero não conta como teto',
+    podePublicar({ trigger: gLista, maxAtivos: 0, passos: linear }) !== null
+)
+/** Os outros gatilhos não exigem teto — só lista recebe gente em lote. */
+ok('etiqueta sem teto publica', podePublicar({ ...bom, maxAtivos: null }) === null)
+
+/** Ciclo é a recusa mais grave, e ela devolve o caminho para a tela destacar. */
+const recusa = podePublicar({ ...bom, passos: voltaPraTras })
+ok('ciclo não publica', recusa !== null)
+ok('e a recusa traz o caminho do ciclo', Array.isArray(recusa?.ciclo), recusa?.ciclo?.join(' → '))
+
+/** Toda recusa é frase para a tela, não código. */
+for (const [rotulo, desenho] of [
+    ['sem gatilho', { ...bom, trigger: {} }],
+    ['sem passo', { ...bom, passos: [] }],
+    ['com ciclo', { ...bom, passos: voltaPraTras }],
+    ['lista sem teto', { trigger: gLista, maxAtivos: null, passos: linear }],
+] as const) {
+    const r = podePublicar(desenho)
+    ok(`recusa "${rotulo}" é frase legível`, Boolean(r && r.motivo.length > 30 && /[a-z] [a-z]/.test(r.motivo)))
+}
 
 console.log('')
 if (falhas > 0) {
