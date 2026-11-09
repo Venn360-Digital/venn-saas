@@ -41,7 +41,7 @@ o dos outros.
 | Conta | uma só, servindo aos três apps |
 | Região | **`us-east-2`** |
 | Perfil da CLI | `venn360` |
-| Configuration set | um por app: `venn-odontobox`, `venn-stagent`, `venn-conecta` |
+| Configuration set | um por app — aqui, `venn-odontobox` |
 | Credencial | um usuário IAM por app, com quatro ações |
 
 **Região é parte da identidade do SES.** Domínio verificado, configuration set,
@@ -50,7 +50,8 @@ código para `us-east-2` dá `NotFoundException` sem dizer por quê. A **exceç�
 o próprio Agent Toolkit da AWS, que só existe em `us-east-1`.
 
 O passo a passo para gerar credenciais está em
-[`docs/ses-credenciais.md`](docs/ses-credenciais.md). As quatro ações do IAM
+[`infra/runbook/17-ses-credenciais.md`](infra/runbook/17-ses-credenciais.md)
+— ele atravessa os três produtos, e por isso mora no runbook e não em `docs/`. As quatro ações do IAM
 saem dos quatro endpoints que `src/lib/email/ses.ts` chama — não há um quinto, e
 acrescentar permissão "por via das dúvidas" é o oposto do que esse arquivo
 documenta.

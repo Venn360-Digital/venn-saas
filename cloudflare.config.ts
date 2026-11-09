@@ -570,7 +570,7 @@ export default defineConfig({
              * **A ausência é estado válido.** Um app onde a campanha de e-mail
              * ainda não foi ligada não tem estas chaves, e o código responde
              * "não configurado" (503) em vez de quebrar — por isso elas não
-             * entram em nenhuma trava de boot. Ver `docs/ses-credenciais.md`.
+             * entram em nenhuma trava de boot. Ver `infra/runbook/17-ses-credenciais.md`.
              */
             SES_ACCESS_KEY_ID: bindings.secret(),
             SES_SECRET_ACCESS_KEY: bindings.secret(),

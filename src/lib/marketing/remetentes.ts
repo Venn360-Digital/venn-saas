@@ -68,10 +68,10 @@ export function registrosDeDns(dominio: string, tokens: string[]): RegistroDeDns
  *
  * ## Um por app, criado uma vez
  *
- * `venn-odontobox`, `venn-stagent`, `venn-conecta`. Criados à mão junto com as
- * credenciais (ver `docs/ses-credenciais.md`), cada um com um destino de evento
- * apontando para o webhook daquele app. Assim um app não escreve no caminho de
- * evento do outro, e a credencial de cada um pode ser restrita ao seu.
+ * `venn-<slug do app>`. Criado à mão junto com as credenciais (ver
+ * `infra/runbook/17-ses-credenciais.md`), com um destino de evento apontando
+ * para o webhook deste app. Assim um app não escreve no caminho de evento do
+ * outro, e a credencial de cada um pode ser restrita ao seu.
  *
  * Vem de `SES_CONFIGURATION_SET` quando declarado; o padrão é derivado do slug,
  * para um app novo funcionar sem variável nova.

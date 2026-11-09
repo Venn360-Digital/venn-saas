@@ -80,8 +80,7 @@ suporte é que exige, e é por isso que isto não dá para automatizar).
 > `PutSuppressedDestination` and records a per-contact opt-out, so a recipient
 > who bounces or complains is removed both at the account level and inside the
 > tenant that mailed them. We maintain a separate configuration set per product
-> (`venn-odontobox`, `venn-stagent`, `venn-conecta`) so delivery events can be
-> attributed and monitored per product.
+> so delivery events can be attributed and monitored per product.
 >
 > **Transactional mail does not use this account.** Password resets, invitations
 > and billing notices are sent through a different provider entirely. This SES

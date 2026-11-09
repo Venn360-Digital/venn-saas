@@ -35,7 +35,7 @@ if (!para) {
 const cred = credenciaisDoSes()
 if (!cred) {
     console.error('SES_ACCESS_KEY_ID e SES_SECRET_ACCESS_KEY precisam estar no ambiente.')
-    console.error('Ver docs/ses-credenciais.md, passo 5.')
+    console.error('Ver infra/runbook/17-ses-credenciais.md, passo 5.')
     process.exit(1)
 }
 
@@ -111,13 +111,13 @@ function diagnostico(erro: string): string {
     if (erro.includes('NotFoundException') && process.env.SES_CONFIGURATION_SET) {
         return [
             `O configuration set "${process.env.SES_CONFIGURATION_SET}" não existe nesta região.`,
-            'Crie-o antes (docs/ses-credenciais.md, passo 2) ou rode sem a variável.',
+            'Crie-o antes (infra/runbook/17-ses-credenciais.md, passo 2) ou rode sem a variável.',
         ].join('\n')
     }
     if (erro.includes('AccessDenied') || erro.includes('not authorized')) {
         return [
             'A política do usuário IAM não permite esta ação.',
-            'Compare com o passo 3 de docs/ses-credenciais.md — e confira que o ARN',
+            'Compare com o passo 3 de infra/runbook/17-ses-credenciais.md — e confira que o ARN',
             'do configuration set na política é o mesmo que está sendo usado.',
         ].join('\n')
     }
@@ -125,7 +125,7 @@ function diagnostico(erro: string): string {
         return [
             'A conta ainda está no sandbox: só manda para endereço verificado.',
             'Verifique o destinatário em SES → Identities, ou peça a saída do',
-            'sandbox (docs/ses-credenciais.md, passo 6).',
+            'sandbox (infra/runbook/17-ses-credenciais.md, passo 6).',
         ].join('\n')
     }
     return 'Sem diagnóstico conhecido para este erro. O código acima é do SES.'
