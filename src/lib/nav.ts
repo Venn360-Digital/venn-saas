@@ -106,6 +106,7 @@ export const navSections: NavSection[] = [
             { label: 'Listas', href: '/marketing/listas' },
             { label: 'Templates', href: '/marketing/templates' },
             { label: 'Remetentes', href: '/marketing/remetentes' },
+            { label: 'Funis', href: '/marketing/funis' },
         ],
     },
 ]

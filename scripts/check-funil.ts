@@ -29,6 +29,7 @@ import {
 } from '../src/lib/funil/passos'
 import { casa, lerGatilho, TIPOS_DE_GATILHO } from '../src/lib/funil/gatilho'
 import { MAX_PASSOS, podePublicar } from '../src/lib/funil/publicar'
+import { GALERIA_DE_FUNIS } from '../src/lib/funil/galeria'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -282,8 +283,22 @@ ok('todo tipo declarado tem texto de tela', TIPOS_DE_GATILHO.length === 4)
 console.log('')
 console.log('── A publicação é o portão ──')
 
+/**
+ * Passo **pronto**: com assunto. O ajudante `passo()` cria mensagem com config
+ * vazia, e desde que a publicação cobra conteúdo isso é — corretamente — um
+ * desenho incompleto.
+ */
+const pronto = (id: string, order: number, edges: unknown = null): PassoDoFunil => ({
+    id,
+    type: 'mensagem',
+    config: { assunto: 'Olá' },
+    order,
+    edges,
+})
+
+const linearPronto = [pronto('a', 0), pronto('b', 1), pronto('c', 2)]
 const gTag = { tipo: 'etiqueta_aplicada', alvo: 'tag_1' }
-const bom = { trigger: gTag, maxAtivos: null, passos: linear }
+const bom = { trigger: gTag, maxAtivos: null, passos: linearPronto }
 ok('desenho bom publica', podePublicar(bom) === null)
 
 ok('sem gatilho não publica', podePublicar({ ...bom, trigger: {} }) !== null)
@@ -298,7 +313,7 @@ ok(
     podePublicar({ ...bom, passos: [passo('a', 0, null, 'dancar')] }) !== null
 )
 
-const demais = Array.from({ length: MAX_PASSOS + 1 }, (_, i) => passo(`p${i}`, i))
+const demais = Array.from({ length: MAX_PASSOS + 1 }, (_, i) => pronto(`p${i}`, i))
 ok('acima do teto de passos não publica', podePublicar({ ...bom, passos: demais }) !== null)
 ok('no teto exato publica', podePublicar({ ...bom, passos: demais.slice(0, MAX_PASSOS) }) === null)
 
@@ -310,21 +325,64 @@ ok('no teto exato publica', podePublicar({ ...bom, passos: demais.slice(0, MAX_P
 const gLista = { tipo: 'entrou_na_lista', alvo: 'lista_1' }
 ok(
     'lista sem teto não publica',
-    podePublicar({ trigger: gLista, maxAtivos: null, passos: linear }) !== null
+    podePublicar({ trigger: gLista, maxAtivos: null, passos: linearPronto }) !== null
 )
 ok(
     'lista com teto publica',
-    podePublicar({ trigger: gLista, maxAtivos: 50, passos: linear }) === null
+    podePublicar({ trigger: gLista, maxAtivos: 50, passos: linearPronto }) === null
 )
 ok(
     'teto zero não conta como teto',
-    podePublicar({ trigger: gLista, maxAtivos: 0, passos: linear }) !== null
+    podePublicar({ trigger: gLista, maxAtivos: 0, passos: linearPronto }) !== null
 )
 /** Os outros gatilhos não exigem teto — só lista recebe gente em lote. */
 ok('etiqueta sem teto publica', podePublicar({ ...bom, maxAtivos: null }) === null)
 
+console.log('')
+console.log('── Passo incompleto não publica ──')
+
+/**
+ * Sem isto, um funil da galeria publicava e **toda** passagem falhava no
+ * primeiro passo: o motor devolve "sem assunto" e encerra. O resultado para
+ * quem usa seria 100% de falha, com o motivo só visível depois de alguém ter
+ * entrado.
+ */
+for (const [rotulo, p] of [
+    ['mensagem sem assunto nem modelo', passo('m', 0, null, 'mensagem')],
+    ['espera sem tempo', passo('e', 0, null, 'espera')],
+    ['condição sem pergunta', passo('c', 0, null, 'condicao')],
+    ['etiqueta sem etiqueta', passo('t', 0, null, 'etiquetar')],
+    ['etapa sem etapa', passo('p', 0, null, 'mover_etapa')],
+    ['atribuir sem pessoa', passo('a', 0, null, 'atribuir')],
+] as const) {
+    const r = podePublicar({ trigger: gTag, maxAtivos: null, passos: [p] })
+    ok(`${rotulo} não publica`, r !== null, r?.motivo)
+    ok(`e a recusa aponta o passo`, r?.passoId === p.id)
+}
+
+/** `encerrar` não precisa de nada — ele é só o fim. */
+ok(
+    'encerrar sozinho publica',
+    podePublicar({
+        trigger: gTag,
+        maxAtivos: null,
+        passos: [passo('f', 0, null, 'encerrar')],
+    }) === null
+)
+
+/** Modelo escolhido vale como conteúdo, mesmo sem assunto solto. */
+ok(
+    'mensagem com modelo publica',
+    podePublicar({
+        trigger: gTag,
+        maxAtivos: null,
+        passos: [{ id: 'm', type: 'mensagem', config: { templateId: 'tpl_1' }, order: 0, edges: null }],
+    }) === null
+)
+
 /** Ciclo é a recusa mais grave, e ela devolve o caminho para a tela destacar. */
-const recusa = podePublicar({ ...bom, passos: voltaPraTras })
+const voltaPronta = [pronto('a', 0, { padrao: 'b' }), pronto('b', 1, { padrao: 'a' })]
+const recusa = podePublicar({ ...bom, passos: voltaPronta })
 ok('ciclo não publica', recusa !== null)
 ok('e a recusa traz o caminho do ciclo', Array.isArray(recusa?.ciclo), recusa?.ciclo?.join(' → '))
 
@@ -332,11 +390,106 @@ ok('e a recusa traz o caminho do ciclo', Array.isArray(recusa?.ciclo), recusa?.c
 for (const [rotulo, desenho] of [
     ['sem gatilho', { ...bom, trigger: {} }],
     ['sem passo', { ...bom, passos: [] }],
-    ['com ciclo', { ...bom, passos: voltaPraTras }],
-    ['lista sem teto', { trigger: gLista, maxAtivos: null, passos: linear }],
+    ['com ciclo', { ...bom, passos: voltaPronta }],
+    ['lista sem teto', { trigger: gLista, maxAtivos: null, passos: linearPronto }],
 ] as const) {
     const r = podePublicar(desenho)
     ok(`recusa "${rotulo}" é frase legível`, Boolean(r && r.motivo.length > 30 && /[a-z] [a-z]/.test(r.motivo)))
+}
+
+console.log('')
+console.log('── A galeria de partida passa pelas próprias guardas ──')
+
+/**
+ * A galeria é dado escrito à mão, e portanto o lugar mais provável de um erro
+ * meu: aresta apontando para id que eu digitei errado, ciclo por descuido,
+ * ordem repetida. Nada disso daria erro em tempo de execução — daria funil
+ * mudo, ou funil em laço.
+ */
+for (const partida of GALERIA_DE_FUNIS) {
+    const passos = partida.passos as unknown as PassoDoFunil[]
+
+    ok(`${partida.id}: sem ciclo`, cicloNoDesenho(passos) === null, (cicloNoDesenho(passos) ?? []).join(' → '))
+
+    /** Toda aresta aponta para passo que existe — senão o motor encerra ali. */
+    const ids = new Set(passos.map((p) => p.id))
+    const orfas: string[] = []
+    for (const p of passos) {
+        const e = (p.edges ?? {}) as Record<string, string | undefined>
+        for (const ramo of ['padrao', 'sim', 'nao']) {
+            const alvo = e[ramo]
+            if (alvo && !ids.has(alvo)) orfas.push(`${p.id}.${ramo} → ${alvo}`)
+        }
+    }
+    ok(`${partida.id}: nenhuma aresta órfã`, orfas.length === 0, orfas.join(', '))
+
+    /** Ordem sem repetição: `primeiroPasso` e a queda por ordem dependem dela. */
+    const ordens = passos.map((p) => p.order)
+    ok(`${partida.id}: ordens distintas`, new Set(ordens).size === ordens.length)
+
+    ok(`${partida.id}: tem primeiro passo`, primeiroPasso(passos) !== null)
+
+    /**
+     * Toda espera da galeria tem valor. Espera com config vazia vale zero, e o
+     * motor seguiria sem dormir — três mensagens no mesmo minuto.
+     */
+    for (const p of passos.filter((x) => x.type === 'espera')) {
+        ok(`${partida.id}: a espera ${p.id} tem valor`, minutosDeEspera(p.config) > 0)
+    }
+
+    /**
+     * A galeria **não** publica sozinha, e isso é desenho: falta o alvo do
+     * gatilho (a etiqueta é da clínica) e falta o texto (escrito por nós sairia
+     * no nome dela prometendo preço que não sabemos).
+     *
+     * O que esta asserção cobra é que a recusa seja sempre por **escolha que
+     * cabe à clínica** — nunca por ciclo, teto de passos, tipo desconhecido ou
+     * espera sem valor, que seriam erros meus no dado.
+     */
+    const recusa = podePublicar({
+        trigger: partida.trigger,
+        maxAtivos: partida.maxAtivos,
+        passos,
+    })
+    const cabeAClinica =
+        /Escolha o que faz alguém entrar|teto de pessoas|sem assunto e sem modelo|sem etiqueta escolhida|sem etapa escolhida|sem pessoa escolhida/
+    ok(
+        `${partida.id}: se recusa, é por falta de escolha da clínica`,
+        recusa === null || cabeAClinica.test(recusa.motivo),
+        recusa?.motivo ?? 'publica'
+    )
+
+    /** E a recusa aponta qual nó, para o canvas poder destacá-lo. */
+    if (recusa?.passoId) {
+        ok(`${partida.id}: o passo apontado existe`, ids.has(recusa.passoId), recusa.passoId)
+    }
+}
+
+/** Nomes distintos: o seletor da tela usa o id, e a pessoa escolhe pelo nome. */
+ok(
+    'a galeria não tem id repetido',
+    new Set(GALERIA_DE_FUNIS.map((g) => g.id)).size === GALERIA_DE_FUNIS.length
+)
+ok(
+    'nem nome repetido',
+    new Set(GALERIA_DE_FUNIS.map((g) => g.nome)).size === GALERIA_DE_FUNIS.length
+)
+
+/**
+ * Nenhum passo de mensagem traz texto pronto.
+ *
+ * Texto escrito por nós sairia no nome da clínica prometendo o que não sabemos
+ * — preço, prazo, nome de procedimento. É a mesma regra da mineração de
+ * lacunas: a sugestão traz a pergunta e um branco marcado.
+ */
+for (const partida of GALERIA_DE_FUNIS) {
+    for (const p of partida.passos.filter((x) => x.type === 'mensagem')) {
+        const c = p.config as Record<string, unknown>
+        ok(
+            `${partida.id}/${p.id}: sem texto pronto`,
+            c.assunto === '' && Array.isArray(c.blocos) && (c.blocos as unknown[]).length === 0
+        )
+    }
 }
 
 console.log('')
