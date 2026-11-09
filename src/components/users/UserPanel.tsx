@@ -27,7 +27,7 @@ export interface UserPanelItem {
     /** Minutos até cair para ausente; nulo usa o padrão da conta. */
     minutosParaAusente: number | null
     /** O padrão da conta, só para o `placeholder` dizer qual é. */
-    minutosParaAusenteDaConta?: number | null
+    minutosParaAusentePadrao?: number | null
     isActive: boolean
     isFirstAdmin: boolean
 }
@@ -217,8 +217,13 @@ export function UserPanel({
                     fica minutos fora da tela sem estar ausente — mas **editado
                     pela gestão**: entra em `estaDisponivel`, e se cada um
                     escolhesse o seu, quem pusesse 5 minutos receberia menos
-                    trabalho. Vazio devolve ao padrão da conta (Conta →
-                    Automações), e é por isso que o campo aceita ser
+                    trabalho.
+
+                    **E é o único lugar onde esse número existe**, desde
+                    2026-11-09: o campo irmão em Conta → Automações saiu por
+                    decisão do Andre. Vazio devolve ao padrão do sistema
+                    (`MINUTOS_PARA_AUSENTE_PADRAO`, 60 min), que é o que o
+                    `placeholder` mostra — e é por isso que o campo aceita ser
                     esvaziado. */}
                 <PanelField label="Ausência" htmlFor="user-panel-ausente" saved={saved === 'minutosParaAusente'}>
                     <div className="flex items-center gap-2">
@@ -228,7 +233,7 @@ export function UserPanel({
                             min={0}
                             max={1440}
                             inputMode="numeric"
-                            placeholder={u.minutosParaAusenteDaConta != null ? String(u.minutosParaAusenteDaConta) : 'padrão'}
+                            placeholder={u.minutosParaAusentePadrao != null ? String(u.minutosParaAusentePadrao) : 'padrão'}
                             defaultValue={u.minutosParaAusente ?? ''}
                             disabled={!canEdit}
                             className="h-8 w-20 text-sm"

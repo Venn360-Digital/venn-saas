@@ -208,11 +208,13 @@ export default function PlataformaPage() {
                     <Resumo rotulo="Somente leitura" valor={travadas} alerta={travadas > 0} />
                 </div>
 
-                {/* O mesmo cartão das telas de índice (`DataTable frame`):
-                    `rounded-xl` com moldura `border/60`. Aqui era `rounded-lg`
-                    com a borda cheia — duas tabelas do mesmo produto com dois
-                    desenhos de moldura. Ver DESIGN.md §5, "Tabela". */}
-                <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
+                {/* Cartão do sistema, e não o desenho das telas de índice:
+                    aquelas sangram (margem zero, respiro na célula) porque a
+                    região inteira é delas. Esta rola dentro de uma tela com
+                    `PageHeader` e divide o espaço com os três resumos acima —
+                    aqui a tabela **é** um bloco entre outros, e bloco se
+                    separa por borda e superfície. Ver DESIGN.md §5. */}
+                <div className="overflow-hidden rounded-lg border border-border bg-card">
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-border bg-muted">
@@ -230,7 +232,7 @@ export default function PlataformaPage() {
                                     <tr
                                         key={unidade.id}
                                         className={cn(
-                                            'border-t border-border/60',
+                                            'border-t border-border',
                                             conta.cortada && 'bg-warning-subtle/40'
                                         )}
                                     >

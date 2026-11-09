@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
 import prisma from '@/lib/prisma'
 import { enderecoDoRetrato } from '@/lib/retratos'
-import { readAutomations } from '@/lib/automations'
+import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
@@ -115,14 +115,6 @@ export async function GET(request: NextRequest) {
 
         console.log('[USERS_GET] Found', users.length, 'users')
 
-        // O primeiro degrau da escada é configurável, então a derivação precisa
-        // dele. Uma consulta a mais na listagem, que não é caminho quente.
-        const ws = await prisma.workspace.findUnique({
-            where: { id: workspaceUser.workspaceId },
-            select: { automations: true },
-        })
-        const { minutosParaAusente } = readAutomations(ws?.automations)
-
         return NextResponse.json({
             data: users.map((wu) => ({
                 id: wu.id,
@@ -142,26 +134,28 @@ export async function GET(request: NextRequest) {
                 // mesmo que a distribuição usa. Mandar o gravado mostraria
                 // "Disponível" para quem a escada já pôs em amarelo.
                 //
-                // E o número é o **da pessoa**, com o da conta como queda —
-                // mesma conta de `estaDisponivel`. Usar só o da conta aqui
-                // faria a tabela pintar de amarelo quem a distribuição ainda
-                // considera disponível, que é a divergência que este
-                // comentário já existia para evitar.
+                // E o número é o **da pessoa**, com a constante do sistema
+                // como queda — mesma conta de `estaDisponivel`. Usar só a
+                // queda aqui faria a tabela pintar de amarelo quem a
+                // distribuição ainda considera disponível, que é a divergência
+                // que este comentário já existia para evitar.
                 disponibilidade: estadoVisivel(
                     wu.status as StatusDoMembro,
                     wu.ultimaAtividadeEm,
-                    wu.minutosParaAusente ?? minutosParaAusente
+                    wu.minutosParaAusente ?? MINUTOS_PARA_AUSENTE_PADRAO
                 ),
                 isFirstAdmin: wu.id === foundingMember?.id, // First member is protected
                 createdAt: wu.createdAt,
             })),
             semDepartamento,
             /**
-             * O padrão da conta, para a ficha dizer qual é no `placeholder` do
-             * campo Ausência. Sem isto a tela escreveria "padrão" sem contar
-             * qual, e quem fosse mudar não saberia de quanto estava partindo.
+             * O padrão do sistema, para a ficha dizer qual é no `placeholder`
+             * do campo Ausência. Sem isto a tela escreveria "padrão" sem
+             * contar qual, e quem fosse mudar não saberia de quanto estava
+             * partindo. Vai na resposta, e não escrito na tela, porque o
+             * número mora no servidor — ver `MINUTOS_PARA_AUSENTE_PADRAO`.
              */
-            minutosParaAusenteDaConta: minutosParaAusente,
+            minutosParaAusentePadrao: MINUTOS_PARA_AUSENTE_PADRAO,
             pagination: {
                 page,
                 limit,

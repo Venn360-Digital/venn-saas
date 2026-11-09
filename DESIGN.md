@@ -374,50 +374,57 @@ como defeito:
 e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
 tabela vira cartão.
 
-**A margem lateral é a do painel: `px-4 md:px-6`, igual em toda tela de
-cadastro.** Decisão do Andre em 2026-10-25, e ela **substitui** o "Desenho 1"
-da tabela sangrada: a tabela de índice (`DataTable frame`) não vai mais até a
-borda do cartão do shell — o cabeçalho, as linhas, o rodapé de paginação e a
-`BulkBar` recuam pela mesma margem que o Dashboard dá ao seu conteúdo, e então
-a tabela alinha com o título e os filtros das linhas 1 e 2. O limite é o mesmo
-em Pacientes, Especialistas, Procedimentos, Departamentos, Etiquetas, Respostas
-rápidas, Usuários e Negócios em lista — uma margem só, aprendida uma vez. A
-margem mora no `frame` do `DataTable` e no `Pagination`, não em cada tela: um
-índice novo nasce alinhado sem fazer nada. O que **continua** sangrado é o que
-não é tabela de cadastro — o quadro do kanban e o chat (Tela 02), que tratam a
-largura como recurso escasso.
+**A tabela sangra, e o respiro é da célula.** Terceiro desenho desta margem, e
+o que o Andre aprovou em 2026-11-09 — a história importa porque cada versão
+consertou o defeito da anterior e criou o seguinte:
 
-**E dentro dessa margem a tabela é um cartão arredondado.** Pedido do Andre em
-2026-10-26: `rounded-xl` com moldura `border/60`, e `overflow-hidden` para que
-as linhas e o cabeçalho preso respeitem o raio — sem ele a primeira linha vaza
-por cima do canto. A moldura é deliberadamente **mais fraca que a borda cheia**,
-e os fios entre as linhas acompanham (`border/60`): a tabela já é uma grade de
-horizontais, e somar uma moldura em força total endurece o conjunto. O rodapé de
-paginação e a `BulkBar` ficam **dentro** do cartão, então o `px` deles é respiro
-interno — a margem da página está na moldura, não neles.
+1. **Sangrada** (até 2026-10-25). A tabela ia até a borda do cartão do shell, e
+   as colunas não alinhavam com o título nem com os filtros.
+2. **Cartão recuado** (2026-10-25/26). `px-4 pb-4 md:px-6` com `rounded-xl` e
+   moldura `border/60`. Alinhou as colunas, e pôs um cartão dentro do cartão do
+   shell: duas molduras, dois raios. Pior, o `pt` faltava — o cartão nascia
+   colado no fio da linha 2, os cantos de cima não tinham onde aparecer, e a
+   banda `bg-muted` do cabeçalho preso encostava no `bg-card` dos filtros.
+   Somar o `pt` consertaria o canto e manteria as duas molduras.
+3. **Sangrada com respiro interno** (agora). Margem **zero nas quatro
+   extremidades**, e o recuo vai para a primeira e a última célula:
+   `px-4 md:px-6` em `th:first-child`/`last-child` e nos `td` equivalentes. A
+   tabela encosta nas laterais, e o conteúdo dela alinha com o título e os
+   filtros do mesmo jeito. **Uma moldura só na tela: a do shell.**
 
-**E a margem é dos quatro lados.** Conserto de 2026-11-09, depois de o Andre
-dizer que "a margem das tabelas não está legal": o `frame` era
-`px-4 pb-4 md:px-6` — 24px nas laterais, 16 embaixo e **zero em cima**. O
-cartão nascia colado no fio da linha 2, então os dois cantos arredondados de
-cima não tinham onde aparecer (a moldura existia em três lados), e a faixa
-`bg-muted` do cabeçalho preso encostava no `bg-card` das duas linhas de
-cabeçalho, virando uma banda cinza sem começo. Agora é `px-4 py-4 md:px-6`, o
-mesmo ritmo que o Dashboard dá ao conteúdo dele — e, porque a margem mora no
-`frame` e não nas telas, as doze telas de tabela foram consertadas de uma vez.
-O painel lateral (`RecordPanel`) continua encostado no fio: ele é coluna da
-região, não conteúdo dentro da margem.
+O que isso exige de quem mexe:
 
-**Toda tabela do produto usa este cartão.** Relação fechada em 2026-11-09, para
-que uma tabela nova não nasça com moldura própria:
+- **A superfície é `bg-card`.** Sem o cartão branco por dentro, é esta
+  superfície que as linhas pisam, e ela tem de ser a mesma das duas linhas de
+  cabeçalho — `bg-background` deixaria uma troca de tom no meio do nada.
+- **O rodapé e a `BulkBar` sangram junto**, com o mesmo `px-4 md:px-6`: a
+  contagem alinha com a primeira coluna e o seletor de página com a última.
+- **A primeira célula é a do checkbox** nas sete telas que selecionam em lote
+  (`selectable`: Pacientes, Especialistas, Procedimentos, Departamentos,
+  Etiquetas, Respostas rápidas, Usuários). O primitivo dá `pr-0` a ela, então é
+  o `pl` que recua a caixa de seleção — que é o que o olho usa para achar a
+  borda esquerda. Desenho que esquece a coluna de seleção mede a margem errada.
+- **Os fios voltaram à força cheia.** O `border/60` das linhas existia para não
+  somar peso à moldura do cartão; sem moldura, o fio é o `border` do sistema.
+- **E nada de sombra.** Nem na região, nem no cabeçalho preso. A separação é
+  por borda e superfície (§4). O único `shadow-` da peça tem blur zero e
+  deslocamento de 1px — é uma borda desenhada como sombra, porque borda de `tr`
+  não acompanha o `sticky`. Elevação em tabela de índice foi defeito antigo e
+  não volta.
+
+A margem mora no `frame` do `DataTable` e no `Pagination`, não em cada tela: um
+índice novo nasce alinhado sem fazer nada.
+
+**Toda tabela do produto usa esta peça — ou diz por que não.** Relação fechada
+em 2026-11-09, para que uma tabela nova não nasça com moldura própria:
 
 | Tela | Peça |
 |---|---|
 | Pacientes, Especialistas, Procedimentos, Departamentos, Etiquetas, Respostas rápidas, Campanhas, Listas, Templates | `DataTable frame` |
 | Negócios (visão lista), Agenda (visão lista) | `DataTable frame`, dentro da Tela 02 |
 | Conta → Usuários | `DataTable frame`, dentro da Tela 03 |
-| Console da plataforma (`/plataforma`) | `<table>` à mão, alinhada ao cartão em 2026-11-09 (`rounded-xl`, `border/60`, `thead` em `bg-muted`) |
-| Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria e sem banda no `thead`, de propósito: a moldura é a do cartão |
+| Console da plataforma (`/plataforma`) | cartão do sistema (`rounded-lg`, borda cheia): ela rola dentro de uma tela com `PageHeader` e divide o espaço com três resumos, então **é** um bloco entre outros — e bloco se separa por borda |
+| Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria: a moldura é a do cartão |
 | Agente → Webhooks | grade de três colunas com cara de tabela; é lista de cadastro curta, não índice |
 | `/privacidade` (página pública) | `<table>` fora do shell, com o desenho da página pública |
 
@@ -1016,71 +1023,60 @@ põem os filtros. Quem aprendeu a filtrar em Pacientes já sabe filtrar aqui.
 
 ---
 
-### Tela 05 — a base de conhecimento
+### Tela 05 — a central de ajuda
 
-**Aberta em 2026-10-18**, com a central de ajuda (`/suporte`).
+**Aberta em 2026-10-18**, refeita duas vezes no mesmo dia em 2026-11-09, e o que
+ficou é o terceiro desenho — o que o Andre aprovou.
 
-Conceito novo, e **de propósito fora dos outros quatro padrões**: não é índice,
-não é tela de trabalho, não tem guias. É conteúdo que se navega e se busca, com
-um caminho para agir quando o conteúdo não resolve. A primeira é a ajuda; se
-vierem outras (novidades da versão, treinamento), nascem aqui.
+Conceito à parte dos outros padrões: não é índice, não é tela de trabalho, não
+tem guias. É **uma porta**, e a pergunta que ela faz é uma só: o que você
+precisa? Mora em `/suporte` e não numa guia da Conta porque não é ajuste de
+conta.
 
-- **A busca é o elemento principal**, não um filtro no canto: campo grande e
-  centralizado na capa. É o que distingue base de conhecimento de página de
-  perguntas frequentes. Ela varre título **e** corpo — quem não sabe o termo
-  certo descreve o sintoma — e **ignora o tópico escolhido**: procurar é querer
-  achar em qualquer lugar, e não encontrar por causa de um filtro que a pessoa
-  esqueceu que estava ligado é o pior tipo de resultado vazio.
-- **Nada de conteúdo chega sem ser chamado.** Redesenho de 2026-11-09, pedido
-  pelo Andre com o Respond.io como referência, e é a mudança que define a tela:
-  abaixo da busca ficam **só os tópicos**, um cartão cada, com nome, uma linha
-  do que resolve e a contagem. Escolher um abre **só** o conteúdo dele, com
-  "Todos os tópicos" para voltar. A versão anterior empilhava tudo na mesma
-  rolagem — a capa, três guias desenhados, o roteiro de treinamento (com um
-  acordeão de ~2.500px) e por fim as 28 respostas —, então quem abria por um
-  motivo específico ("o agente parou") rolava três telas do que não pediu. E a
-  calha de tópicos filtrava **só o FAQ**: guias e treinamento ficavam de fora
-  dela, e "tópico" significava duas coisas diferentes na mesma tela.
-- **Tópico é tudo que a tela guarda, não só o FAQ.** Os dois primeiros são as
-  seções próprias — Primeiros passos (os guias) e Treinamento do agente (o
-  roteiro) —, e os outros são os grupos de perguntas. O número de cada cartão
-  vem com a unidade (`3 guias`, `8 documentos`, `6 respostas`), porque guia,
-  documento e resposta não se somam.
-- **Buscar atravessa os três tipos e ignora o tópico aberto.** Guia, roteiro e
-  resposta entram no mesmo resultado, com a contagem total. Esconder o guia
-  durante a busca — o que a versão de 2026-10-18 fazia — escondia justamente a
-  melhor resposta de quem digitou "agenda".
-- **A capa encurta quando se entrou.** A marca em 90px e o título em 32px são
-  da porta de entrada; dentro de um tópico ou de uma busca a pessoa já
-  escolheu, e repetir aquilo em tamanho de página inicial empurra o conteúdo
-  para fora da tela. A busca, porém, **não** encolhe: ela continua sendo a
-  saída de qualquer lugar.
-
-- **Coluna centralizada**: a capa em 896px (`max-w-4xl`) e o conteúdo em
-  1152px (`max-w-6xl`), os dois com `mx-auto`. Centralizar é o oposto do que a
-  Tela 01 manda — e é certo aqui pelo mesmo motivo que lá é errado: não há
-  tabela nem título de tela à esquerda para alinhar, e texto longo lê-se em
-  coluna.
-- **A abertura leva a marca** (`Logo variant="wordmark"`), um título e uma
-  frase. É o único lugar do produto onde a logo aparece fora da barra lateral:
-  a página é um destino, não um ajuste.
-- **O que faz agir vem antes do que explica.** Os canais de contato ficam na
-  capa, logo abaixo da busca, como duas pílulas clicáveis — a principal
-  preenchida em `primary`, a outra de contorno. Quem chega já tentou resolver
-  sozinho. **Um destaque só**: dois destaques não destacam nada.
+- **A capa é a tela.** Parada, a região de conteúdo inteira é a marca, o
+  título, uma linha, o campo de busca e os contatos — nessa ordem, centrada, e
+  nada abaixo. Sem rolagem, sem conteúdo esperando para ser rolado.
+- **Só a busca traz conteúdo.** Digitar encolhe a capa (a marca cai de 104 para
+  52px, o título e a legenda saem) e abre embaixo **o tópico encontrado**: o
+  nome do grupo, a linha que diz o que ele resolve, e as perguntas que casaram.
+  A primeira resposta do primeiro tópico nasce aberta — quem digitou o sintoma
+  quer ler, não clicar de novo. Busca que cruza dois assuntos mostra os dois,
+  cada um com o seu nome.
+- **O campo não encolhe com a capa.** Ele é a saída de qualquer estado da tela,
+  inclusive do "nada encontrado", e ganha um `×` para limpar.
+- **A capa termina nos contatos.** As duas saídas ficam no mesmo quadro: o
+  campo, para quem a resposta resolve, e o WhatsApp, para quem precisa de
+  gente. Um destaque só — o canal principal preenchido em `primary`, o outro de
+  contorno. Quem chega aqui já tentou resolver sozinho.
 - **O pedido já vai com quem pede.** O link do WhatsApp e o do e-mail levam no
   corpo quem é a pessoa, de que unidade e em que plano — sem isso a primeira
-  resposta do suporte é sempre "de qual clínica você fala?", uma ida e volta
-  antes de começar. Nada é enviado sem a pessoa apertar enviar.
-- **Ilustração é desenhada, não capturada.** Print envelhece na primeira
-  mudança de layout e ninguém lembra de trocar — uma ajuda que mostra a tela de
-  três versões atrás é pior que nenhuma. SVG em `currentColor` e tokens, que
-  acompanha o tema e sobrevive ao redesenho.
-- **Lista longa pede busca.** Acima de ~15 respostas, um campo que filtra por
-  pergunta **e** por resposta: quem não sabe o termo certo descreve o sintoma.
+  resposta do suporte é sempre "de qual unidade você fala?". Nada é enviado sem
+  a pessoa apertar enviar.
+- **A busca ignora acento e varre pergunta e resposta.** Quem não sabe o termo
+  certo descreve o sintoma: "parou de responder" não está em nenhum título. É a
+  mesma `normalizeSearch` que o banco usa em `searchText`, para a ajuda e o
+  resto do produto se comportarem igual.
+- **É o único lugar do produto onde a logo aparece fora da barra lateral**: a
+  página é um destino, não um ajuste.
 - O conteúdo não cita caminho de menu que não exista, e cada resposta sai de uma
   regra real do produto — texto genérico de ajuda não responde nada e ninguém
   volta uma segunda vez.
+
+**O que saiu, e por que as duas primeiras versões não serviam.** A de
+2026-10-18 empilhava tudo numa rolagem: capa, três guias desenhados com maquetes
+em SVG, o roteiro de preenchimento dos oito documentos (com um acordeão de
+~2.500px), o prompt de conversão de material pronto, e por fim as 28 respostas
+numa calha de tópicos que filtrava **só** o FAQ. Quem abria por um motivo
+específico — "o agente parou" — rolava três telas do que não pediu, e "tópico"
+significava duas coisas na mesma tela. A segunda versão trocou a pilha por seis
+cartões de tópico; ficou melhor e ainda era uma **página de conteúdo**, com seis
+títulos para ler antes de digitar. Na terceira os guias e o roteiro saíram.
+
+Uma perda que vale registrar: o roteiro **derivava do catálogo**
+(`lib/treinamento/documentos.ts`), então nunca divergia do produto. Ele não foi
+reescrito em outro lugar — não tem mais onde morar. Se voltar, o lugar é a
+própria tela de Treinamento do agente, que é onde alguém está com o documento
+aberto.
 
 ### Tela 06 — o cadastro
 

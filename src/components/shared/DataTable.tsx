@@ -224,51 +224,52 @@ export function DataTable<T>({
         return (
             <div
                 className={cn(
-                    // A margem do Dashboard mora aqui agora, e não dentro de
-                    // cada bloco: ela emoldura o cartão da tabela, em vez de
-                    // recuar o conteúdo de uma tabela que sangrava.
-                    //
-                    // **E a margem é dos quatro lados.** Até 2026-11-09 era
-                    // `px-4 pb-4 md:px-6`: 24px nas laterais, 16 embaixo e
-                    // **zero em cima**. O cartão nascia colado no fio da linha
-                    // 2, então os dois cantos arredondados de cima não tinham
-                    // onde aparecer — a moldura só existia em três lados e o
-                    // `bg-muted` do cabeçalho preso encostava no `bg-card` das
-                    // duas linhas de filtro, virando uma faixa cinza sem
-                    // começo. Era isso que o Andre viu como "margem que não
-                    // está legal" (2026-11-09), e o conserto é o `py` que
-                    // faltava: o mesmo ritmo do Dashboard (`px-4 py-4
-                    // md:px-6`), em todas as telas de uma vez, porque a margem
-                    // mora aqui e não nas telas.
-                    'flex min-h-0 flex-1 flex-col bg-background px-4 py-4 md:px-6',
+                    /**
+                     * **A tabela sangra, e o respiro é da célula.**
+                     *
+                     * Terceiro desenho desta margem, e o que o Andre aprovou em
+                     * 2026-11-09. A história importa porque cada versão
+                     * consertou o defeito da anterior e criou o seguinte:
+                     *
+                     *   1. **sangrada** (até 2026-10-25) — a tabela ia até a
+                     *      borda do cartão do shell, e as colunas não
+                     *      alinhavam com o título nem com os filtros;
+                     *   2. **cartão recuado** (2026-10-25/26) —
+                     *      `px-4 pb-4 md:px-6` com `rounded-xl`, que alinhou as
+                     *      colunas mas pôs um cartão dentro do cartão do shell:
+                     *      duas molduras, dois raios, e o `pt` faltando deixava
+                     *      os cantos de cima sem onde aparecer;
+                     *   3. **sangrada com respiro interno** (agora) — margem
+                     *      **zero nas quatro extremidades** e o recuo vai para
+                     *      a primeira e a última célula. A tabela encosta nas
+                     *      laterais, e o conteúdo dela alinha com o título e os
+                     *      filtros do mesmo jeito. Uma moldura só na tela: a do
+                     *      shell.
+                     *
+                     * `bg-card` e não `bg-background`: sem o cartão branco por
+                     * dentro, é esta superfície que as linhas pisam, e ela tem
+                     * de ser a mesma das duas linhas de cabeçalho acima.
+                     *
+                     * **E nada de sombra.** Nem aqui nem no cabeçalho preso —
+                     * a separação é por borda e superfície (DESIGN.md §4). O
+                     * único `shadow-` abaixo tem blur zero e deslocamento de
+                     * 1px: é uma borda desenhada como sombra, porque borda de
+                     * `tr` não acompanha o `sticky`. Elevação em tabela de
+                     * índice foi defeito antigo e não volta.
+                     */
+                    'flex min-h-0 flex-1 flex-col bg-card',
                     className
                 )}
             >
-                {/* **O cartão da tabela** — desenho pedido pelo Andre em
-                    2026-10-26: bordas suaves e arredondadas, no lugar da tabela
-                    de ponta a ponta.
-
-                    A borda é `border/60` e não a cheia: a tabela já é uma grade
-                    de linhas horizontais, e uma moldura em força total somada a
-                    elas endurece o conjunto. `overflow-hidden` é o que faz as
-                    linhas e o cabeçalho preso respeitarem o raio — sem ele a
-                    primeira linha vaza por cima do canto. */}
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/60 bg-card">
                 <div
                     className={cn(
                         'min-h-0 flex-1 overflow-auto overscroll-contain',
-                        // Fios internos mais leves que a moldura, pelo mesmo
-                        // motivo: muitas linhas em força total viram ruído.
-                        '[&_tbody_tr]:border-border/60',
-                        // Cabeçalho da tabela preso: superfície da página para
-                        // separar das linhas, e a borda como sombra interna porque
-                        // borda de `tr` não acompanha o `sticky`.
-                        // `muted` e não `background`: aquele tom foi escolhido
-                        // quando a tabela ficava SOBRE o fundo tingido, e
-                        // dentro do cartão branco ele vira 7 pontos de
-                        // diferença — faixa que não se lê como faixa. `muted`
-                        // dá a banda que o cabeçalho precisa, e o texto em
-                        // `muted-foreground` sobre ela mede 4,75:1 (passa AA).
+                        // Cabeçalho da tabela preso: `bg-muted` dá a banda que
+                        // ele precisa contra o `bg-card` das linhas, e o texto
+                        // em `muted-foreground` sobre ela mede 4,75:1 (passa
+                        // AA). A borda vai como sombra interna de 1px, sem
+                        // blur, porque borda de `tr` não acompanha o `sticky`
+                        // — é borda, não elevação.
                         '[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-muted',
                         '[&_th]:h-9 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]',
                         // O cabeçalho ordenável é um `button`, e o reset do botão
@@ -320,16 +321,26 @@ export function DataTable<T>({
                         porque fica dentro deste bloco. */}
                     <div
                         className={cn(
-                            // **O respiro é da célula, não do bloco.** Com
-                            // `px` no bloco a tabela ficava recuada dentro do
-                            // cartão, e a faixa do cabeçalho parava antes das
-                            // bordas — sobravam duas tiras sem cor nas pontas.
-                            // Jogando o recuo na primeira e na última célula, a
-                            // tabela ocupa a largura inteira, a cor do
-                            // cabeçalho corre a linha toda e o texto continua
-                            // sem encostar na borda arredondada.
+                            // **O respiro é da célula, não do bloco** — e é a
+                            // margem do painel, 24px (`px-4 md:px-6`), que é a
+                            // referência que o Andre pediu em 2026-11-09.
+                            //
+                            // Com `px` no bloco a tabela ficaria recuada e a
+                            // faixa do cabeçalho pararia antes das pontas,
+                            // deixando duas tiras sem cor. Na célula, a tabela
+                            // ocupa a largura inteira, a banda do cabeçalho
+                            // corre a linha toda, e o conteúdo alinha com o
+                            // título e os filtros das linhas 1 e 2.
+                            //
+                            // A primeira célula é a **do checkbox** nas sete
+                            // telas que selecionam em lote (`selectable`), e
+                            // o primitivo a deixa com `pr-0` — então o
+                            // `pl` aqui recua a caixa de seleção, que é o que
+                            // o olho usa para achar a borda esquerda.
                             '[&_th:first-child]:pl-4 [&_th:last-child]:pr-4',
                             '[&_td:first-child]:pl-4 [&_td:last-child]:pr-4',
+                            'md:[&_th:first-child]:pl-6 md:[&_th:last-child]:pr-6',
+                            'md:[&_td:first-child]:pl-6 md:[&_td:last-child]:pr-6',
                             mobile && 'hidden md:block',
                             density === 'compact' && '[&_td]:py-1.5 [&_th]:py-1.5'
                         )}
@@ -487,16 +498,15 @@ export function DataTable<T>({
                 </div>
 
                 {bulk ? (
-                    // Mesma margem lateral da tabela e do rodapé (padrão Dashboard).
-                    // Dentro do cartão, então o `px` é o respiro interno — a
-                    // margem da página já está na moldura.
-                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background">
+                    // O mesmo respiro interno da célula (16px, 24 de `md`
+                    // para cima): a barra sangra como a tabela sangra, e o
+                    // conteúdo dela alinha com a primeira coluna.
+                    <div className="flex h-11 shrink-0 items-center gap-1 bg-foreground px-4 text-background md:px-6">
                         {bulk}
                     </div>
                 ) : footer ? (
                     <div className="shrink-0">{footer}</div>
                 ) : null}
-                </div>
             </div>
         )
     }

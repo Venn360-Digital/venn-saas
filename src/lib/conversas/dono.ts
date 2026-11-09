@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import { readAutomations } from '@/lib/automations'
+import { readAutomations, MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
 import {
     destinoDaEntrega,
     escolherDono,
@@ -103,7 +103,9 @@ async function politicaDo(workspaceId: string) {
         select: { automations: true },
     })
     const a = readAutomations(w?.automations)
-    return { ...a.distribuicao, minutosParaAusente: a.minutosParaAusente }
+    // A queda para ausente não vem mais do JSON da conta: é constante do
+    // sistema desde 2026-11-09, e quem quer outro número põe na ficha.
+    return { ...a.distribuicao, minutosParaAusente: MINUTOS_PARA_AUSENTE_PADRAO }
 }
 
 /**

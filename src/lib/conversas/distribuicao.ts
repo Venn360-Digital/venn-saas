@@ -52,7 +52,7 @@ export interface MembroElegivel {
      */
     ultimaAtividadeEm?: Date | null
     /**
-     * A paciência desta pessoa, em minutos. **Nulo = o padrão da conta.**
+     * A paciência desta pessoa, em minutos. **Nulo = o padrão do sistema** (`MINUTOS_PARA_AUSENTE_PADRAO`).
      *
      * Opcional no tipo porque a maioria dos chamadores não tem motivo para
      * trazê-la — e quem não a trouxer continua caindo no padrão, que é o
@@ -148,7 +148,7 @@ export function estaDisponivel(m: MembroElegivel, minutosParaAusente: number, ag
     /**
      * O da pessoa ganha do da conta, e o `??` é o que faz isso.
      *
-     * `minutosParaAusente` do argumento é o padrão da conta; o do membro é a
+     * `minutosParaAusente` do argumento é o padrão do sistema; o do membro é a
      * exceção. Com `??` e não `||`, **zero continua valendo** — e zero tem
      * significado: desliga a queda automática para aquela pessoa, que é o caso
      * de quem trabalha fora da tela e não pode ser tirado da fila por isso.
