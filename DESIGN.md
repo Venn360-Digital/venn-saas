@@ -420,13 +420,18 @@ em 2026-11-09, para que uma tabela nova não nasça com moldura própria:
 
 | Tela | Peça |
 |---|---|
-| Pacientes, Especialistas, Procedimentos, Departamentos, Etiquetas, Respostas rápidas, Campanhas, Listas, Templates | `DataTable frame` |
+| Pacientes, Especialistas, Procedimentos, Departamentos, Etiquetas, Respostas rápidas, Campanhas, Listas, Templates, Remetentes, Funis | `DataTable frame` |
 | Negócios (visão lista), Agenda (visão lista) | `DataTable frame`, dentro da Tela 02 |
 | Conta → Usuários | `DataTable frame`, dentro da Tela 03 |
 | Console da plataforma (`/plataforma`) | cartão do sistema (`rounded-lg`, borda cheia): ela rola dentro de uma tela com `PageHeader` e divide o espaço com três resumos, então **é** um bloco entre outros — e bloco se separa por borda |
 | Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria: a moldura é a do cartão |
 | Agente → Webhooks | grade de três colunas com cara de tabela; é lista de cadastro curta, não índice |
+| Remetentes → os registros de DNS (dentro do diálogo) | `<table>` à mão, hoje com `rounded-xl border/60` — copiou o cartão de tabela que saiu em 2026-11-09. É um bloco dentro de um diálogo, então o certo é o cartão do sistema; não foi trocado aqui para não conflitar com a branch de campanhas, que estava em voo |
 | `/privacidade` (página pública) | `<table>` fora do shell, com o desenho da página pública |
+
+Telas novas de índice **não precisam fazer nada**: `Remetentes` e `Funis`
+nasceram na branch de campanhas sem nenhum `px` próprio e herdaram esta margem
+na mescla — é o teste de que a regra mora na peça.
 
 **A primeira página de dados vem do servidor.** Decisão de 2026-10-26, e é o
 conserto de origem do pisca das telas de índice. Enquanto cada índice era um
