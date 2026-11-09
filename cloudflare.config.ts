@@ -323,7 +323,16 @@ export default defineConfig({
              * não o rastro.
              */
             MotorDoFunil: exports.workflow({
-                name: 'funil-de-vendas',
+                /**
+                 * Prefixado como todo recurso daqui, e por um motivo que custou
+                 * um deploy de produção em 2026-11-09: **o nome do Workflow é
+                 * único por conta**. Sem prefixo, o primeiro ambiente a
+                 * publicar toma o nome e o segundo não publica mais — foi o que
+                 * aconteceu, com o staging tomando `funil-de-vendas` às 11:18 e
+                 * a produção falhando o publish às 14:57, depois de a migração
+                 * já ter aplicado.
+                 */
+                name: `${PREFIXO_RECURSOS}-funil-de-vendas`,
                 limits: { steps: 1000 },
                 defaultRetention: { successRetention: '7 days', errorRetention: '30 days' },
             }),
@@ -392,7 +401,8 @@ export default defineConfig({
             FUNIL: bindings.workflow({
                 // `name` repete o nome declarado no export acima — é assim que o
                 // binding acha o Workflow na conta, e o nome é único por conta.
-                name: 'funil-de-vendas',
+                // Daí o prefixo: ver o comentário no export.
+                name: `${PREFIXO_RECURSOS}-funil-de-vendas`,
                 worker: NOME,
                 exportName: 'MotorDoFunil',
             }),
