@@ -218,8 +218,12 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                 <SettingsBand title="Informações do usuário" last>
                     {/* **O título fora, os campos dentro de um cartão com
                         borda** — pedido do Andre em 2026-11-10, e o modelo é a
-                        Conta da Clínica: `max-w-4xl rounded-lg border-border
-                        p-4`, o mesmo raio e a mesma borda de cada unidade.
+                        Conta da Clínica: `rounded-lg border-border p-4`, o
+                        mesmo raio e a mesma borda de cada unidade. **Sem teto
+                        de largura**: o cartão acompanha a tela, recuado só pela
+                        margem que a `SettingsBand` aplica — igual às unidades
+                        da conta, que é a referência que o Andre apontou em
+                        2026-11-10 (DESIGN.md §5, "Cartão em guia").
 
                         A passada anterior juntou as três faixas numa (Foto,
                         Dados e Senha viraram "Informações do usuário") e
@@ -230,7 +234,7 @@ export function PerfilTab({ formId, onSavingChange }: PerfilTabProps) {
                         da Clínica, aqui pela mesma razão. O título continua
                         **do lado de fora**, como rótulo da faixa, porque é ele
                         que diz o assunto; o cartão só agrupa. */}
-                    <div className="max-w-4xl rounded-lg border border-border p-4">
+                    <div className="rounded-lg border border-border p-4">
                     <div className="flex items-center gap-4">
                         <button
                             type="button"

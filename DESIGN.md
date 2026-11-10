@@ -594,11 +594,26 @@ que a `SettingsBand` já aplica), igual ao conteúdo do Dashboard. O teto fixo
 deixava um card de assinatura parado no meio de uma tela larga, com metade
 direita vazia — e o vazio não é respiro, é desperdício que parece bug. Vale para
 o card de valor, o de adicionais e o de cancelar, que mudam de largura juntos.
-A exceção é a **grade de campos de formulário** (Perfil, Conta da Clínica): ali
-o `max-w-4xl` fica, porque campo de texto largo demais é pior de ler, não
-melhor — a regra é do card que **mostra**, não do que **preenche**. Vale também
-o teto de **medida de leitura** num parágrafo solto (`max-w-[46ch]`, na Agenda
-da clínica): isso é tipografia, não largura de cartão.
+
+**Não há exceção para formulário.** A versão anterior desta regra abria uma:
+"grade de campos de formulário (Perfil, Conta da Clínica) mantém o `max-w-4xl`,
+porque campo de texto largo demais é pior de ler — a regra é do card que
+*mostra*, não do que *preenche*". **O Andre derrubou essa exceção em
+2026-11-10**, olhando as duas guias lado a lado com as Unidades da conta: o
+cartão de campos parava em 896px enquanto o cartão de unidades, na faixa
+seguinte da **mesma tela**, acompanhava a janela. Duas larguras no mesmo
+formulário, e a de cima parecendo cortada. Vale a regra geral: **cartão em guia
+não leva `max-w-*`, nem o que mostra nem o que preenche.**
+
+Quem cuida da legibilidade do campo é a **grade**, não um teto no cartão: ela
+ganha coluna conforme a tela (`sm:grid-cols-2 lg:grid-cols-4` no Perfil,
+`sm:grid-cols-12` com `col-span` proporcional no endereço de cobrança), então o
+campo cresce até o ponto em que caberia outro ao lado, e aí passa a dividir.
+Teto no cartão resolvia o mesmo problema jogando o espaço fora.
+
+O único teto que sobra é o de **medida de leitura** num parágrafo solto
+(`max-w-[46ch]`, na Agenda da clínica): isso é tipografia, não largura de
+cartão.
 
 A regra vale para **as sete guias**, não só a Assinatura. Varrido no DOM em
 2026-10-26, a 1920px, medindo quem tinha `max-width` em pixel com folga de
@@ -614,6 +629,15 @@ O terceiro só renderiza para o responsável pela plataforma, e é por isso que
 passou: **varrer a guia como clínica não mostra tudo que a guia desenha.** Hoje
 as sete medem o mesmo: conteúdo de 280 a 1888, igual ao título e à tabela de
 Usuários.
+
+**Este teto já voltou duas vezes.** Em 2026-10-26 a varredura do DOM soltou três
+cartões (tabela acima); em 2026-11-09, ao atender "agrupe os campos num card com
+bordas", eu escrevi `max-w-4xl` nos dois cartões novos — amparado na exceção que
+estava escrita aqui, e que era justamente o que o Andre não queria. A lição não é
+"lembre da regra", é que **o teto nunca é visível em tela de desenvolvimento**:
+`max-w-4xl` só morde acima de ~1150px de janela, então a conferência local passa
+e o defeito aparece na tela dele. Cartão novo numa guia nasce sem `max-w-*`;
+quem quiser pôr um precisa medir o vazio à direita a 1920 e justificar o número.
 
 **Cabeçalho em ícone precisa continuar tendo nome.** Coluna estreita pode
 trocar o rótulo por um ícone — é o caso de WhatsApp e do medidor de dias sem
