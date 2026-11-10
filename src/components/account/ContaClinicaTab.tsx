@@ -485,6 +485,16 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         ) : undefined
                     }
                 >
+                    {/* **Um cartão com borda, como as unidades abaixo** —
+                        pedido do Andre em 2026-11-09, na segunda passada.
+                        Agrupar por respiro não bastou: a faixa punha os campos
+                        da conta e os de cobrança soltos sobre a superfície,
+                        enquanto a faixa seguinte desenhava cada unidade num
+                        `rounded-lg border-border`. Duas gramáticas na mesma
+                        tela, e a de cima parecia inacabada ao lado da de
+                        baixo. Agora é a mesma moldura, com o mesmo raio e a
+                        mesma borda. */}
+                    <div className="max-w-4xl rounded-lg border border-border p-4">
                     {/* Nome, documento e marca na mesma linha.
                         A logomarca morava no fim da faixa, numa área de soltar
                         de 96px com duas linhas de texto embaixo — ~140px de
@@ -492,7 +502,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         conta. Subiu para junto do documento, compacta: o campo
                         continua clicável e mostra a marca atual, e a tela
                         encurtou. */}
-                    <div className="grid max-w-4xl gap-4 sm:grid-cols-[1fr_1fr_auto]">
+                    <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
                         <FormField
                             label="Nome da conta"
                             htmlFor="conta-nome"
@@ -578,7 +588,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         telefone precisa de espaço para "(31) 99999-9999". Em
                         seis colunas, qualquer arranjo de duas linhas espremia
                         um deles. */}
-                    <div className="grid max-w-4xl gap-4 sm:grid-cols-12">
+                    <div className="grid gap-4 sm:grid-cols-12">
                         <FormField
                             label="CEP"
                             htmlFor="conta-cep"
@@ -683,7 +693,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                             />
                         </FormField>
                     </div>
-
+                    </div>
                 </SettingsBand>
 
                 <SettingsBand

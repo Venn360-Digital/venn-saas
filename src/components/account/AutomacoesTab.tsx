@@ -94,8 +94,12 @@ export function AutomacoesTab() {
                             <Shuffle className="size-4" />
                         </span>
                         <div className="min-w-0 flex-1">
+                            {/* "Como atribuir", não "Como distribuir" — pedido
+                                do Andre em 2026-11-09. A faixa já se chama
+                                "Atribuir conversas"; o campo tinha de falar o
+                                mesmo verbo. */}
                             <Label htmlFor="estrategia" className="text-sm font-semibold">
-                                Como distribuir
+                                Como atribuir
                             </Label>
                             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                                 {config.distribuicao.estrategia === 'rodizio'

@@ -2799,13 +2799,12 @@ export function PlanoTab() {
                                     R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </span>
 
-                                <span className="mt-1.5 border-t border-border pt-1.5 text-[11.5px] leading-snug text-muted-foreground">
-                                    {p.pitch}
-                                </span>
-
                                 {/* `mt-auto`: a marca de escolhido fica no pé nos
-                                    três cartões, mesmo com frases de alturas
-                                    diferentes. */}
+                                    três cartões. Antes isto importava porque as
+                                    frases de apoio tinham alturas diferentes;
+                                    elas saíram em 2026-11-09 e o `mt-auto`
+                                    fica, porque o selo de desconto ainda muda a
+                                    altura de um dos três. */}
                                 <span
                                     className={cn(
                                         'mt-auto flex items-center gap-1.5 pt-2 text-[12px] font-semibold',
@@ -2979,10 +2978,13 @@ export function PlanoTab() {
                             </div>
                         </div>
 
-                        <p className="col-span-2 text-[11.5px] leading-snug text-muted-foreground">
-                            {treinamento.rodape} <strong>Serviço da nossa equipe</strong>: depois
-                            da compra entramos em contato para agendar.
-                        </p>
+                        {/* O parágrafo de recomendação saiu daqui a pedido do
+                            Andre em 2026-11-09, na compactação do diálogo. Ele
+                            **continua** nas duas telas de plano (aqui mesmo,
+                            acima dos cartões, e no onboarding), que é onde ele
+                            foi pedido em 07/11 — ali é recomendação antes de
+                            escolher; aqui a escolha já foi feita, e o que a
+                            pessoa quer é ver o total. */}
                     </>
                 ) : null}
 

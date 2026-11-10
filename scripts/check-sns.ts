@@ -22,6 +22,8 @@
  * qualquer teste feito só com mensagens legítimas.
  */
 import { certificadoConfiavel } from '../src/lib/email/sns'
+import { SITUACAO_DO_REMETENTE } from '../src/lib/marketing/remetentes'
+import { situacaoDoRemetente } from '../src/lib/marketing/situacao-do-remetente'
 import {
     avanca,
     lerEventoDoSes,
@@ -196,6 +198,54 @@ ok('delivered → read sobe', avanca('delivered', 'read'))
 ok('read → delivered NÃO rebaixa', !avanca('read', 'delivered'))
 ok('failed → delivered NÃO rebaixa', !avanca('failed', 'delivered'))
 ok('read → read não repete', !avanca('read', 'read'))
+
+console.log('')
+console.log('── A situação do domínio ──')
+
+/**
+ * Dois caminhos perguntam ao SES: a rotina de hora em hora e o botão
+ * "Verificar agora" da ficha. A decisão escrita nos dois lugares divergiria, e
+ * a divergência apareceria como "o botão diz uma coisa e a tela mostra outra".
+ */
+const pronta = { prontaParaEnvio: true, dkimStatus: 'SUCCESS' }
+const procurando = { prontaParaEnvio: false, dkimStatus: 'PENDING' }
+const temporaria = { prontaParaEnvio: false, dkimStatus: 'TEMPORARY_FAILURE' }
+const recusada = { prontaParaEnvio: false, dkimStatus: 'FAILED' }
+
+ok('pronta vira validado', situacaoDoRemetente(pronta, false) === 'verified')
+ok('e validado vence até o vencimento', situacaoDoRemetente(pronta, true) === 'verified')
+ok('procurando fica aguardando', situacaoDoRemetente(procurando, false) === 'pending')
+ok('FAILED do SES é recusado', situacaoDoRemetente(recusada, false) === 'failed')
+
+/**
+ * `TEMPORARY_FAILURE` é "o DNS ainda não propagou, espere" — não é recusa.
+ * Tratá-lo como falha mandaria o cliente mexer num registro que está certo.
+ */
+ok('falha temporária NÃO é recusa', situacaoDoRemetente(temporaria, false) === 'pending')
+
+/**
+ * `venceu` é a regra de **desistir de perguntar**, e vale só para a rotina. No
+ * botão ele é sempre falso: quem clica está mexendo no DNS naquele instante, e
+ * recusar o domínio porque passaram sete dias seria hostil exatamente na hora
+ * em que a pessoa está consertando.
+ */
+ok('vencido sem resposta vira recusado (só o cron passa isso)', situacaoDoRemetente(procurando, true) === 'failed')
+ok('e sem vencer continua aguardando', situacaoDoRemetente(procurando, false) === 'pending')
+
+/** Todo estado que a função devolve tem rótulo de tela. */
+for (const estado of ['pending', 'verified', 'failed'] as const) {
+    ok(`${estado} tem rótulo`, Boolean(SITUACAO_DO_REMETENTE[estado]?.label), SITUACAO_DO_REMETENTE[estado]?.label)
+}
+
+/**
+ * Os rótulos são os que o André pediu. Ficam numa asserção porque "Recusado"
+ * carrega um risco que só o texto ao lado desarma: ninguém recusou nada — o SES
+ * não encontrou os CNAME. Se alguém for suavizar a palavra, que seja de
+ * propósito e aqui.
+ */
+ok('aguardando', SITUACAO_DO_REMETENTE.pending.label === 'Aguardando')
+ok('validado', SITUACAO_DO_REMETENTE.verified.label === 'Validado')
+ok('recusado', SITUACAO_DO_REMETENTE.failed.label === 'Recusado')
 
 console.log('')
 if (falhas > 0) {

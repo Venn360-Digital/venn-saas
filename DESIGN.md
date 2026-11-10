@@ -369,6 +369,57 @@ como defeito:
 - Quando um esqueleto **for** certo, ele só aparece depois de um limiar
   (`useEsperaLonga`, 200 ms): consulta que volta em 80 ms não pisca nada.
 
+**A terceira volta, e a varredura que a fechou (2026-11-09).** Ele apontou de
+novo — "aquele velho problema de aparecer uma sombra de campos/tabelas ao
+carregar" — citando `/login` e `/agentes`. A regra existia, o limiar existia
+(`useEsperaLonga`), e o `DataTable` já obedecia; três lugares nunca foram
+trazidos para ela. Varri o `src` inteiro por `Skeleton` e `animate-pulse`, e
+eram exatamente três:
+
+- **`/login`** — o pior, e o que nenhum limiar alcançava. O fallback de
+  `Suspense` eram cinco blocos cinza na forma do título, da legenda, dos dois
+  campos e do botão; como a página é renderizada no servidor, eles vinham **no
+  HTML da primeira pintura**, e `useEsperaLonga` é um `useEffect` — o fallback
+  é desenhado antes de qualquer efeito rodar. Entrar e sair fazem
+  `window.location.assign`, recarga inteira, então a sombra aparecia nas duas.
+  Virou `fallback={null}`, como `conta/page.tsx` já fazia. A fronteira fica:
+  `useSearchParams` a exige.
+- **`/agentes`** — três `Skeleton` de 220px na grade, mentindo duas vezes:
+  sobre **quantos** agentes vêm, e sobre **vir cartão**, quando o fim da espera
+  podia ser o estado vazio. Virou o `Loader2` centrado das quatro telas irmãs,
+  atrás do limiar.
+- **O rodapé da barra lateral** (`NavUser`) — e esta era a que mais aparecia,
+  porque é desenhada em **toda** tela: retrato e duas barras de texto. Virou a
+  linha com a altura real e vazia.
+
+As três lições, para a quarta vez não existir:
+
+1. **Fallback de `Suspense` não aceita limiar.** Ele é síncrono e anterior a
+   qualquer efeito. Em fronteira de `Suspense`, o conteúdo falso é sempre
+   visível — então ali é `null`, ou a moldura real, nunca esqueleto.
+2. **Reserve a moldura, não invente o conteúdo.** Onde o vazio causaria salto
+   de layout (o rodapé da barra), desenhe a linha com a altura que ela terá e
+   sem nada dentro. Salto é a outra forma do mesmo incômodo.
+3. **Onde a espera já é o vazio, o limiar não tem função.** `useEsperaLonga`
+   adia um **sinal**; se não há sinal a mostrar depois dele, ele não entra.
+4. **Bloco que pode não existir não ganha esqueleto.** O medidor de crédito da
+   barra e o `PlanAllowance` já devolviam `null` quando a leitura falhava — um
+   cinza prometendo o que às vezes não vem é mentira sobre existência, não
+   sobre instante. Esperando é não existir, ali.
+
+**E a biblioteca de esqueletos foi reduzida a um.** `shared/Skeletons.tsx` tinha
+seis; cinco (`CardGridSkeleton`, `KpiRowSkeleton`, `FormSkeleton`,
+`ListSkeleton`, `InboxSkeleton`) estavam **sem nenhum uso**, e o `loading` do
+`KpiCard` era código morto — o painel é componente de servidor e nenhum chamador
+o passa. Era uma prateleira de geradores de campo fantasma, e é assim que o
+defeito voltava: quem precisava de espera pegava um de lá. Sobrou
+`TableSkeleton`, que passa na regra (a tabela **vai** aparecer, as colunas são
+conhecidas, e o `DataTable` só a desenha depois do limiar).
+
+**O vocabulário de espera, fechado:** nada abaixo de 200ms; acima, o `Loader2`
+centrado. Esqueleto só para o que vai mesmo aparecer, com forma conhecida, e
+nunca em fallback de `Suspense`.
+
 **Tabela.** Cabeçalho em `text-muted-foreground`; **dado de célula em
 `text-foreground`**, não em muted — o dado é o conteúdo. Coluna numérica à direita
 e com `num`. Em telas estreitas, coluna que não cabe some (`hideBelow`) ou a
@@ -426,10 +477,10 @@ em 2026-11-09, para que uma tabela nova não nasça com moldura própria:
 | Console da plataforma (`/plataforma`) | cartão do sistema (`rounded-lg`, borda cheia): ela rola dentro de uma tela com `PageHeader` e divide o espaço com três resumos, então **é** um bloco entre outros — e bloco se separa por borda |
 | Agente → Canais, linhas de WhatsApp | `<table>` à mão **dentro** de um `SettingsCard` — sem moldura própria: a moldura é a do cartão |
 | Agente → Webhooks | grade de três colunas com cara de tabela; é lista de cadastro curta, não índice |
-| Remetentes → os registros de DNS (dentro do diálogo) | cartão do sistema (`rounded-lg`, borda cheia). Nasceu copiando o cartão de tabela que saiu em 2026-11-09 e foi alinhada depois, quando a branch de campanhas parou de andar |
+| Domínios → os registros de DNS (na ficha do domínio) | cartão do sistema (`rounded-lg`, borda cheia). Nasceu copiando o cartão de tabela que saiu em 2026-11-09 e foi alinhada depois. A tabela é a **última faixa** do cartão, separada por borda de topo — não um segundo cartão dentro dele |
 | `/privacidade` (página pública) | `<table>` fora do shell, com o desenho da página pública |
 
-Telas novas de índice **não precisam fazer nada**: `Remetentes` e `Funis`
+Telas novas de índice **não precisam fazer nada**: `Domínios` e `Funis`
 nasceram na branch de campanhas sem nenhum `px` próprio e herdaram esta margem
 na mescla — é o teste de que a regra mora na peça.
 

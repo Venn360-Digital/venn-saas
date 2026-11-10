@@ -1,5 +1,9 @@
 import type { ToneEntry } from '@/components/shared/StatusBadge'
 
+// A decisão de QUAL situação gravar não mora aqui: ela está em
+// `situacao-do-remetente.ts`, sem import nenhum, porque o Worker a importa e
+// este arquivo puxa um tipo de componente `.tsx`. Ver o cabeçalho de lá.
+
 /**
  * O que o cliente precisa publicar no DNS dele, e como o remetente se apresenta.
  *
@@ -91,9 +95,19 @@ export function nomeDoConfigurationSet(slugDoApp: string): string {
  * e um chip cinza faria parecer um estado em que não há nada a fazer.
  */
 export const SITUACAO_DO_REMETENTE: Record<string, ToneEntry> = {
-    pending: { label: 'Aguardando DNS', tone: 'warning' },
-    verified: { label: 'Verificado', tone: 'success' },
-    failed: { label: 'Falhou', tone: 'destructive' },
+    pending: { label: 'Aguardando', tone: 'warning' },
+    verified: { label: 'Validado', tone: 'success' },
+    /**
+     * "Recusado" é a palavra do André, e ela carrega um risco que o texto ao
+     * lado desarma: ninguém recusou nada — o SES simplesmente não encontrou os
+     * CNAME, quase sempre porque não foram publicados ou foram publicados
+     * errado. Sozinha, a palavra faria a clínica achar que o domínio dela foi
+     * rejeitado por nós ou pela AWS.
+     *
+     * Por isso o selo nunca aparece sem `explicacaoDoDkim`, que diz o que
+     * fazer. Ver a ficha do domínio.
+     */
+    failed: { label: 'Recusado', tone: 'destructive' },
 }
 
 /**

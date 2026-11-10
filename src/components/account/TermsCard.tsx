@@ -9,7 +9,7 @@ import { RecordDialog } from '@/components/shared/RecordDialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useEsperaLonga } from '@/hooks/useEsperaLonga'
 import { cn } from '@/lib/utils'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { SettingsBand } from '@/components/shared/TabsFrame'
@@ -77,6 +77,8 @@ interface TermsState {
  */
 export function TermsCard({ band = false }: { band?: boolean }) {
     const [state, setState] = useState<TermsState | null>(null)
+    /** O sinal de espera só depois de 200ms — ver `useEsperaLonga`. */
+    const esperaLonga = useEsperaLonga(state === null)
     const [accepted, setAccepted] = useState(false)
     const [reachedEnd, setReachedEnd] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -123,10 +125,26 @@ export function TermsCard({ band = false }: { band?: boolean }) {
        para fora da tela. */
     const Frame = band ? BandFrame : SectionCard
 
+    /**
+     * **A moldura entra, o corpo espera.** Conserto de 2026-11-09, na varredura
+     * da "sombra de campos" (DESIGN.md §5).
+     *
+     * O título é real — o acordo existe, e a faixa vai aparecer de qualquer
+     * jeito —, então ele fica. O que era `Skeleton` era a linha do corpo, e
+     * ali o cinza não mentia sobre quantidade (vem **uma** linha), só sobre o
+     * instante: numa leitura de 80ms ele aparecia e sumia, que é o pisca. Fica
+     * vazio abaixo do limiar e diz "carregando" acima dele — o mesmo critério
+     * do `DataTable` e das telas do agente.
+     */
     if (state === null) {
         return (
             <Frame title="Termos do acordo">
-                <Skeleton className="h-5 w-64" />
+                {esperaLonga ? (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        Carregando…
+                    </p>
+                ) : null}
             </Frame>
         )
     }
