@@ -493,8 +493,9 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                         `rounded-lg border-border`. Duas gramáticas na mesma
                         tela, e a de cima parecia inacabada ao lado da de
                         baixo. Agora é a mesma moldura, com o mesmo raio e a
-                        mesma borda. */}
-                    <div className="max-w-4xl rounded-lg border border-border p-4">
+                        mesma borda — e **sem teto de largura**, porque o cartão
+                        acompanha a tela como as unidades abaixo dele. */}
+                    <div className="rounded-lg border border-border p-4">
                     {/* Nome, documento e marca na mesma linha.
                         A logomarca morava no fim da faixa, numa área de soltar
                         de 96px com duas linhas de texto embaixo — ~140px de
