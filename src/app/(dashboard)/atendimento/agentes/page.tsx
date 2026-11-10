@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Agent } from '#prisma'
-import { Bot, Eye, Plus } from 'lucide-react'
+import { Bot, Eye, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useEsperaLonga } from '@/hooks/useEsperaLonga'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { RecordDialog } from '@/components/shared/RecordDialog'
@@ -52,6 +52,8 @@ export default function AgentsPage() {
     const [agents, setAgents] = useState<Agent[]>([])
     const [limites, setLimites] = useState<Limites | null>(null)
     const [loading, setLoading] = useState(true)
+    /** O sinal de espera só aparece depois de 200ms — ver `useEsperaLonga`. */
+    const esperaLonga = useEsperaLonga(loading)
     const [erro, setErro] = useState(false)
     const [busca, setBusca] = useState('')
     const [duplicando, setDuplicando] = useState<string | null>(null)
@@ -264,12 +266,27 @@ export default function AgentsPage() {
             }
         >
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-6">
+                {/* **Nada de cartão fantasma.** Conserto de 2026-11-09: aqui
+                    eram três `Skeleton` de 220px na grade, e eles mentiam duas
+                    vezes — sobre o número de agentes (a conta pode ter um, ou
+                    nenhum) e sobre haver cartão, quando o fim da espera podia
+                    ser o estado vazio. Era a "sombra de campos" que o Andre
+                    apontou pela terceira vez.
+
+                    O sinal passa a ser o mesmo das quatro telas irmãs do
+                    agente — o `Loader2` centrado —, e só depois do limiar de
+                    200ms (`useEsperaLonga`): consulta que volta em 80ms não
+                    pisca nada, e a área fica vazia por um instante que ninguém
+                    percebe. Ver DESIGN.md §5. */}
                 {loading ? (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {[0, 1, 2].map((i) => (
-                            <Skeleton key={i} className="h-[220px] rounded-lg" />
-                        ))}
-                    </div>
+                    esperaLonga ? (
+                        <div className="flex h-full min-h-[40vh] items-center justify-center">
+                            <Loader2
+                                className="size-8 animate-spin text-muted-foreground"
+                                aria-label="Carregando os agentes"
+                            />
+                        </div>
+                    ) : null
                 ) : erro ? (
                     <ErrorState
                         title="Não foi possível carregar os agentes"

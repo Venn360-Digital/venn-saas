@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Skeleton } from '@/components/ui/skeleton'
 
 function LoginForm() {
     /**
@@ -397,20 +396,27 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+    /**
+     * **O fallback não desenha campo falso.** `fallback={null}`, e não um
+     * esqueleto — conserto de 2026-11-09, terceira vez que o Andre reclama da
+     * "sombra de campos" (ver `useEsperaLonga` e DESIGN.md §5).
+     *
+     * Aqui era o pior caso dos três: o esqueleto eram cinco blocos cinza na
+     * forma do título, da legenda, dos dois campos e do botão — e, porque esta
+     * página é renderizada no servidor, eles vinham **no HTML da primeira
+     * pintura**. Não havia limiar que os evitasse: `useEsperaLonga` é um
+     * `useEffect`, e o fallback de `Suspense` é desenhado antes de qualquer
+     * efeito rodar. Então quem entrava e quem saía — as duas ações fazem
+     * `window.location.assign`, recarga inteira — via a sombra toda vez.
+     *
+     * A fronteira continua obrigatória: `LoginForm` usa `useSearchParams`, e
+     * sem ela o Next recusa a página. O que muda é o que ela mostra enquanto
+     * espera: nada, que é o que `conta/page.tsx` e `pagamento/retorno` já
+     * fazem. A espera é a hidratação do próprio bundle — abaixo do limiar que
+     * ninguém percebe, e nenhuma promessa de campo que ainda não está lá.
+     */
     return (
-        <Suspense
-            fallback={
-                <div className="flex min-h-svh items-center justify-center bg-background p-4">
-                    <div className="w-full max-w-sm space-y-4">
-                        <Skeleton className="h-8 w-40" />
-                        <Skeleton className="h-4 w-56" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-9 w-full" />
-                    </div>
-                </div>
-            }
-        >
+        <Suspense fallback={null}>
             <LoginForm />
         </Suspense>
     )
