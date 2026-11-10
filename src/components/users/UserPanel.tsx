@@ -22,7 +22,7 @@ export interface UserPanelItem {
     /** De quais departamentos ele é — as filas que ele pode ver. */
     departments: { id: string; name: string }[]
     canTransfer: boolean
-    /** Entra na distribuição automática e pode ficar responsável. */
+    /** Entra na atribuição automática e pode ficar responsável. */
     recebeConversas: boolean
     /** Minutos até cair para ausente; nulo usa o padrão da conta. */
     minutosParaAusente: number | null
@@ -199,7 +199,7 @@ export function UserPanel({
                 <PanelField label="Recebe conversas" htmlFor="user-panel-recebe" saved={saved === 'recebeConversas'}>
                     <div className="flex items-center gap-2">
                         <Switch id="user-panel-recebe" checked={u.recebeConversas} disabled={!canEdit} onCheckedChange={(recebeConversas) => void save('recebeConversas', { recebeConversas })} />
-                        <span className="text-xs text-muted-foreground">entra na distribuição automática</span>
+                        <span className="text-xs text-muted-foreground">entra na atribuição automática</span>
                     </div>
                 </PanelField>
                 <PanelField label="Ativo" htmlFor="user-panel-active" saved={saved === 'isActive'}>

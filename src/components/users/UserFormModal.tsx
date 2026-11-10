@@ -370,7 +370,7 @@ export function UserFormModal({
                     <div className="min-w-0">
                         <Label htmlFor="user-recebe">Recebe conversas</Label>
                         <p className="text-xs text-muted-foreground">
-                            Entra na distribuição automática e pode ficar responsável por uma
+                            Entra na atribuição automática e pode ficar responsável por uma
                             conversa. Quem só acompanha deixa desligado.
                         </p>
                     </div>
