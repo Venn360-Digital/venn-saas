@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
-import { negocioEntrouNaEtapa } from '@/lib/funil/disparos'
+import { negocioEntrouNaEtapa, negocioFoiFechado } from '@/lib/funil/disparos'
 import { conferirRelacoes } from '@/lib/auth/relacoes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { Prisma } from '#prisma'
@@ -154,6 +154,23 @@ export async function PATCH(
 
         const movedStage = stageId !== undefined && stageId !== existingDeal.stageId
 
+        /**
+         * O fechamento, medido como **transição** e não como estado.
+         *
+         * `status` chega no corpo a cada salvamento do cartão. Comparar com o
+         * status anterior é o que separa "esta venda acabou de ser fechada" de
+         * "alguém corrigiu o valor de uma venda fechada na semana passada" — e
+         * sem a comparação o funil de pós-venda reentraria o cliente a cada
+         * ajuste, mandando a sequência de agradecimento de novo.
+         *
+         * Reabrir e fechar outra vez dispara outra vez, e está certo: é um
+         * fechamento novo.
+         */
+        const fechouAgora =
+            (status === 'won' || status === 'lost') && status !== existingDeal.status
+                ? (status as 'won' | 'lost')
+                : null
+
         const deal = await prisma.deal.update({
             where: { id },
             data: updateData,
@@ -200,6 +217,22 @@ export async function PATCH(
                     doNegocio,
                     stageId as string
                 )
+            }
+        }
+
+        /**
+         * E o fechamento liga os funis de pós-venda e de recuperação.
+         *
+         * Fora do `movedStage` de propósito: fechar **não move o cartão** neste
+         * produto — a etapa de origem é guardada em `closedStageId` e o
+         * `stageId` fica como estava. Um funil de pós-venda montado sobre a
+         * mudança de etapa nunca dispararia, e o sintoma seria o desenho
+         * parecer certo e ninguém entrar.
+         */
+        if (fechouAgora) {
+            const doNegocio = (contactId as string | undefined) ?? existingDeal.contactId
+            if (doNegocio) {
+                await negocioFoiFechado(workspaceUser.workspaceId, doNegocio, fechouAgora)
             }
         }
 

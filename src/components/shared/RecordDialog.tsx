@@ -61,8 +61,14 @@ export function RecordDialog({
      * a lado ou nove parágrafos de contrato. Em 840px as colunas do plano
      * cortavam o texto e o quadro rolava; o formulário continua em 840, que é
      * a largura de duas colunas de campo.
+     *
+     * `grande` é o formulário que **não cabe** em 840×700 sem rolar o tempo
+     * todo — ficha com guias, tabela embutida, filtro com prévia. Mantém a
+     * proporção de 1,2:1 do padrão de propósito: `wide` tem altura automática e
+     * por isso sai baixo e retangular, que é certo para três cartões lado a
+     * lado e errado para um formulário, onde o olho perde a coluna.
      */
-    size?: 'default' | 'wide'
+    size?: 'default' | 'grande' | 'wide'
     /** Trava a ação primária enquanto a condição de segurança não é cumprida. */
     submitDisabled?: boolean
     /** A ação primária destrói algo: botão vermelho, como no alerta. */
@@ -91,7 +97,9 @@ export function RecordDialog({
                     // tela, e esticá-los até o rodapé deixava um vão morto.
                     size === 'wide'
                         ? 'md:h-auto md:w-[1120px]'
-                        : 'md:h-[700px] md:w-[840px]'
+                        : size === 'grande'
+                          ? 'md:h-[800px] md:w-[960px]'
+                          : 'md:h-[700px] md:w-[840px]'
                 )}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

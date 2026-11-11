@@ -21,18 +21,26 @@
  * tipo declarado aqui precisa de pelo menos um ponto de disparo no código.
  */
 
-/** Os quatro jeitos de entrar num funil. */
+/** Os jeitos de entrar num funil. */
 export type TipoDeGatilho =
     | 'etiqueta_aplicada'
     | 'etapa_do_negocio'
     | 'entrou_na_lista'
     | 'contato_criado'
+    | 'negocio_ganho'
+    | 'negocio_perdido'
+    | 'clicou_na_campanha'
+    | 'manual'
 
 export const TIPOS_DE_GATILHO: TipoDeGatilho[] = [
     'etiqueta_aplicada',
     'etapa_do_negocio',
     'entrou_na_lista',
     'contato_criado',
+    'negocio_ganho',
+    'negocio_perdido',
+    'clicou_na_campanha',
+    'manual',
 ]
 
 export const TEXTO_DO_GATILHO: Record<TipoDeGatilho, string> = {
@@ -40,6 +48,36 @@ export const TEXTO_DO_GATILHO: Record<TipoDeGatilho, string> = {
     etapa_do_negocio: 'Quando o negócio entrar numa etapa',
     entrou_na_lista: 'Quando o contato entrar numa lista',
     contato_criado: 'Quando um contato for criado',
+    negocio_ganho: 'Quando um negócio for marcado como ganho',
+    negocio_perdido: 'Quando um negócio for marcado como perdido',
+    clicou_na_campanha: 'Quando clicar num link de campanha de e-mail',
+    manual: 'Só quando alguém puser o contato aqui',
+}
+
+/**
+ * O que cada gatilho serve, dito para quem monta o funil.
+ *
+ * Mora junto do tipo e não na tela: é a diferença entre dois gatilhos que
+ * parecem iguais e levam a funis opostos, e essa diferença não pode existir só
+ * na cabeça de quem escreveu o código.
+ */
+export const AJUDA_DO_GATILHO: Record<TipoDeGatilho, string> = {
+    etiqueta_aplicada:
+        'O jeito mais controlado de pôr gente num funil: você escolhe quem, aplicando a etiqueta.',
+    etapa_do_negocio:
+        'Dispara ao entrar na etapa escolhida — não a cada salvamento do cartão, só na mudança.',
+    entrou_na_lista:
+        'Entra quem for acrescentado à lista. Lista recebe gente em lote, então o teto de ativos é obrigatório aqui.',
+    contato_criado:
+        'Cadastro novo, um por um. Importação de planilha NÃO dispara, de propósito: um CSV antigo mandaria boas-vindas para quem já é cliente há anos.',
+    negocio_ganho:
+        'Pós-venda: agradecer, pedir indicação, combinar o retorno. Dispara uma vez por fechamento, não a cada edição do cartão fechado.',
+    negocio_perdido:
+        'Recuperação: entender o motivo, guardar para depois, reabordar mais tarde. Reabrir e perder de novo dispara de novo — é um fechamento novo.',
+    clicou_na_campanha:
+        'Quem clicou demonstrou interesse. Serve para separar quem reage de quem só recebe, qualquer que seja a campanha.',
+    manual:
+        'Nada dispara sozinho: o funil só recebe quem for posto nele à mão, da ficha do contato. Use quando o critério é seu e não cabe em regra.',
 }
 
 /**
@@ -47,8 +85,13 @@ export const TEXTO_DO_GATILHO: Record<TipoDeGatilho, string> = {
  *
  * "Quando o negócio mudar de etapa" sem dizer qual etapa dispararia a cada
  * movimento do quadro — e um funil de boas-vindas sairia quando o negócio
- * fosse marcado como perdido. `contato_criado` é o único sem alvo porque
- * criação não tem variedade: ou aconteceu, ou não.
+ * fosse marcado como perdido.
+ *
+ * Os outros não têm alvo porque não têm variedade a recortar: criação, ganho,
+ * perda e entrada manual aconteceram ou não aconteceram. `clicou_na_campanha`
+ * é o caso que **poderia** ter (clicou em qual campanha?) e deliberadamente não
+ * tem: o uso real é separar quem reage de quem só recebe, e amarrar o funil a
+ * uma campanha específica o deixaria morto no dia seguinte ao disparo dela.
  */
 const EXIGEM_ALVO: ReadonlySet<TipoDeGatilho> = new Set([
     'etiqueta_aplicada',
@@ -68,6 +111,21 @@ export interface EventoDeGatilho {
     workspaceId: string
     contactId: string
     alvo?: string
+    /**
+     * Restringe a entrada a **um** funil, pelo id.
+     *
+     * Só a entrada manual usa isto, e ela precisa: os outros gatilhos descrevem
+     * um fato do mundo ("a etiqueta foi aplicada") e é correto que todo funil
+     * que escute aquele fato receba a pessoa. "Alguém apertou o botão" não é um
+     * fato do mundo — é uma ordem, e ela tem destinatário. Sem este campo, pôr
+     * um contato num funil manual o poria em todos os funis manuais da unidade
+     * de uma vez.
+     *
+     * Não é o `alvo`: `alvo` é o que o gatilho compara (qual etiqueta, qual
+     * etapa) e é escolhido por quem **monta** o funil; isto é escolhido por quem
+     * **dispara**, e é por isso que mora fora do `casa()`.
+     */
+    apenasFunil?: string
 }
 
 /**

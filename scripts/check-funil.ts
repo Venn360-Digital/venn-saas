@@ -27,7 +27,13 @@ import {
     sucessores,
     type PassoDoFunil,
 } from '../src/lib/funil/passos'
-import { casa, lerGatilho, TIPOS_DE_GATILHO } from '../src/lib/funil/gatilho'
+import {
+    AJUDA_DO_GATILHO,
+    casa,
+    lerGatilho,
+    TEXTO_DO_GATILHO,
+    TIPOS_DE_GATILHO,
+} from '../src/lib/funil/gatilho'
 import { MAX_PASSOS, podePublicar } from '../src/lib/funil/publicar'
 import { GALERIA_DE_FUNIS } from '../src/lib/funil/galeria'
 
@@ -278,7 +284,23 @@ ok(
     casa({ tipo: 'contato_criado' }, { ...base, tipo: 'contato_criado', alvo: 'sobra' })
 )
 
-ok('todo tipo declarado tem texto de tela', TIPOS_DE_GATILHO.length === 4)
+/**
+ * Mede o que o nome promete.
+ *
+ * Isto era `TIPOS_DE_GATILHO.length === 4` — um número cravado sob um rótulo
+ * que fala de texto de tela. Ele reprovava ao acrescentar um gatilho (foi o que
+ * aconteceu quando entraram ganho, perda, clique e manual) sem olhar uma única
+ * vez se havia texto, e passaria com quatro tipos todos sem rótulo. Agora
+ * confere tipo por tipo, nos dois mapas que a tela consome.
+ */
+ok(
+    'todo tipo declarado tem texto de tela',
+    TIPOS_DE_GATILHO.every((t) => Boolean(TEXTO_DO_GATILHO[t]?.trim()))
+)
+ok(
+    'todo tipo declarado tem ajuda',
+    TIPOS_DE_GATILHO.every((t) => Boolean(AJUDA_DO_GATILHO[t]?.trim()))
+)
 
 console.log('')
 console.log('── A publicação é o portão ──')
