@@ -94,6 +94,28 @@ function teste(r: Resultado) {
 // OdontoBox360: wizard de 5 passos (workspace/plano/WhatsApp/agente/termos),
 // com barra de progresso e CTA por passo — mas é outro conjunto, e o passo de
 // lifecycle e o de convidar colegas não estão no fluxo. PARCIAL.
+/**
+ * Esta invariante acusou REGRESSÃO sem nada ter regredido, e a causa vale
+ * registrar porque é a armadilha de toda prova estática.
+ *
+ * Ela afirmava `/currentStep/` em `onboarding/page.tsx`. O controle de passo
+ * continua ali, inteiro — virou `const [passo, setPasso] = useState(1)` quando
+ * o arquivo foi reescrito e os identificadores acompanharam o português que é
+ * o padrão do projeto. A invariante media a **grafia de um identificador**, não
+ * a propriedade que a regra exige, e um rename legítimo a derrubou.
+ *
+ * Agora são duas invariantes, porque são duas propriedades — e desde a
+ * reescrita elas moram em arquivos diferentes: a página é dona do estado, a
+ * moldura é dona do progresso.
+ *
+ * O padrão aceita as três grafias plausíveis de propósito. Casar o par
+ * destructuring + `useState` junto é o que o torna específico: `/passo/` solto
+ * passaria em qualquer comentário do arquivo (há dezenas), e aí a guarda de
+ * regressão não guardaria nada.
+ */
+const GRAFIAS_DO_PASSO =
+    /\[\s*(passo|currentStep|etapa)\s*,\s*set(Passo|CurrentStep|Etapa)\s*\]\s*=\s*useState/
+
 teste({
     id: 'T-001',
     regra: 'R-001',
@@ -103,13 +125,26 @@ teste({
     invariantes: [
         { nome: 'existe wizard de onboarding', ok: existe('src/app/(auth)/onboarding/page.tsx') },
         {
-            nome: 'tem controle de passo (currentStep) com progresso',
-            ok: contem('src/app/(auth)/onboarding/page.tsx', /currentStep/),
+            nome: 'a página controla o passo atual por estado',
+            ok: contem('src/app/(auth)/onboarding/page.tsx', GRAFIAS_DO_PASSO),
+        },
+        {
+            // O progresso saiu da página para a moldura na reescrita, e passou a
+            // ser TEXTO ("Passo N de T") além do trilho visual — era o primeiro
+            // item de `faltam` desta regra, e deixou de faltar.
+            nome: 'a moldura mostra o progresso em texto, com rótulo acessível',
+            ok:
+                contem('src/components/onboarding/OnboardingShell.tsx', /passo:\s*number/) &&
+                contem('src/components/onboarding/OnboardingShell.tsx', /total:\s*number/) &&
+                contem(
+                    'src/components/onboarding/OnboardingShell.tsx',
+                    /aria-label=\{`Passo \$\{passo\} de \$\{total\}`\}/
+                ),
         },
         { nome: 'provisiona workspace no backend', ok: existe('src/app/api/onboarding/route.ts') },
     ],
     faltam: [
-        'o progresso é visual (1..5), não o texto "N de 4"',
+        'o fluxo tem 5 passos (workspace/plano/WhatsApp/agente/termos), não os 4 do original',
         'não há passo de lifecycle/pipeline nem de convidar colegas no fluxo (existem fora do wizard)',
     ],
     nota: 'Conjunto de passos é de provisionamento, não o quarteto do respond.io. Divergência intencional de produto, não defeito.',
@@ -334,7 +369,21 @@ teste({
 // ───────────────────────── WORKFLOWS ─────────────────────────
 
 // T-012 / R-012 — galeria de templates por categoria + do zero.
-// OdontoBox360: sem galeria. GAP.
+//
+// O `alvoPresente` destas duas regras procurava `workflows` e `model Workflow`
+// — a grafia INGLESA. O que foi construído chama-se funil: `/marketing/funis`,
+// `api/marketing/funis/` e `model Funnel|FunnelStep|FunnelRun`. Então a detecção
+// nunca acendeu, e o verificador relatou GAP para duas features que estão em
+// produção nos três apps.
+//
+// É a mesma causa da regressão da T-001 (medir grafia, não propriedade), com um
+// agravante: aqui era SILENCIOSO. GAP que continua GAP não falha o run, então
+// ninguém foi avisado — e esta tabela é a que alimenta o PLANO.md.
+//
+// Corrigida a detecção, o aviso "GAP→PRESENTE / promover esta linha" passa a
+// aparecer, que é o comportamento que o cabeçalho deste arquivo já descrevia.
+// O `veredito` fica em `gap` de propósito: promover a linha da tabela é decisão
+// de produto, não do script.
 teste({
     id: 'T-012',
     regra: 'R-012',
@@ -342,13 +391,13 @@ teste({
     resumo: 'Workflows a partir do zero ou de galeria de templates por categoria',
     veredito: 'gap',
     invariantes: [],
-    alvoPresente: existe('src/app/api/workflows/route.ts') || existe('src/app/(dashboard)/workflows'),
-    nota: 'Não há builder visual nem templates.',
+    alvoPresente:
+        existe('src/app/(dashboard)/marketing/funis') || existe('src/app/api/marketing/funis'),
+    nota: 'Construído como Funis: canvas em React Flow, galeria de partida e publicação explícita. Linha a promover.',
 })
 
 // T-013 / R-013 — workflow = 1 gatilho + até 100 steps encadeados; Draft→Publicar.
-// OdontoBox360: motor de regras isoladas (1 condição→1 ação), sem encadeamento,
-// branch, esperas ou ciclo de publicação. GAP.
+// Mesma correção de grafia da T-012: o modelo chama-se Funnel, não Workflow.
 teste({
     id: 'T-013',
     regra: 'R-013',
@@ -356,8 +405,8 @@ teste({
     resumo: 'Workflow: 1 gatilho + até 100 steps encadeados; publicar ativa',
     veredito: 'gap',
     invariantes: [],
-    alvoPresente: noSchema(/model (Workflow|WorkflowStep|WorkflowNode)/),
-    nota: 'Base atual: AgentRule (condição→ação) com conditions/actions em Json — evolui sem migração destrutiva, mas encadeamento, branch, espera e ciclo Draft→Publicar exigem modelo e runtime novos.',
+    alvoPresente: noSchema(/model (Funnel|FunnelStep|FunnelRun) /),
+    nota: 'Construído como Funis: Funnel/FunnelStep/FunnelRun, motor em Cloudflare Workflows (step.sleep até 365 dias) e ciclo rascunho→publicar. Linha a promover.',
 })
 
 // ───────────────────────── Execução e relatório ─────────────────────────
