@@ -30,6 +30,7 @@ import {
     type CanalDeCampanha,
 } from '@/lib/marketing/apresentacao'
 
+import { FichaDaLista } from './FichaDaLista'
 import type { DadosIniciais, ListaItem } from './dados'
 
 const RECORTE_INTEIRO = 'workspace-inteiro'
@@ -76,7 +77,21 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
     const [pageSize, setPageSize] = useState(20)
 
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [editing, setEditing] = useState<ListaItem | null>(null)
+    /**
+     * A ficha de edição, e a `key` que a remonta.
+     *
+     * Editar deixou de ser "renomear": a ficha mexe em todos os atributos e nos
+     * contatos, e por isso vive em arquivo próprio (`FichaDaLista`). Ela nasce
+     * do alvo no inicializador, então quem troca o alvo tem de remontá-la — é a
+     * `key`, o mesmo padrão da ficha de Domínios.
+     */
+    const [ficha, setFicha] = useState<ListaItem | null>(null)
+    /**
+     * Não volta a `'vazia'` ao fechar, de propósito: se voltasse, o componente
+     * desmontaria antes da animação de saída e a ficha piscaria. Só muda quando
+     * outra lista abre.
+     */
+    const [chaveDaFicha, setChaveDaFicha] = useState('vazia')
     const [form, setForm] = useState(EMPTY_FORM)
     const [errors, setErrors] = useState<{ name?: string }>({})
     const [submitting, setSubmitting] = useState(false)
@@ -94,19 +109,15 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
     }, [isDialogOpen, tags.length])
 
     function openNew() {
-        setEditing(null)
         setForm(EMPTY_FORM)
         setErrors({})
         setPrevia(null)
         setIsDialogOpen(true)
     }
 
-    function openEdit(item: ListaItem) {
-        setEditing(item)
-        setForm({ ...EMPTY_FORM, name: item.name })
-        setErrors({})
-        setPrevia(null)
-        setIsDialogOpen(true)
+    function abrirFicha(item: ListaItem) {
+        setChaveDaFicha(item.id)
+        setFicha(item)
     }
 
     const filtroAtual = useMemo(
@@ -136,7 +147,15 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
         setPrevia(total)
     }
 
-    async function handleSave() {
+    /**
+     * Só a **criação** mora aqui. A edição é a `FichaDaLista`.
+     *
+     * Antes um diálogo fazia as duas coisas com `if (editing)`, e a edição era o
+     * ramo pobre: um campo de nome e nada mais, com o próprio título admitindo
+     * ("Renomear lista"). Separar deixou o nascimento com o filtro que o povoa e
+     * a ficha com os atributos e os contatos.
+     */
+    async function criar() {
         const name = form.name.trim()
         if (!name) {
             setErrors({ name: 'Dê um nome à lista.' })
@@ -144,34 +163,36 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
         }
         setSubmitting(true)
         try {
-            if (editing) {
-                const res = await fetch(`/api/marketing/lists/${editing.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name }),
-                })
-                if (!res.ok) throw new Error()
-                toast.success('Lista renomeada')
-            } else {
-                const temFiltro = Boolean(filtroAtual.search || filtroAtual.tagId || filtroAtual.dealStatus)
-                const res = await fetch('/api/marketing/lists', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        channel: form.channel,
-                        mode: temFiltro ? 'filter' : 'manual',
-                        filter: temFiltro ? filtroAtual : undefined,
-                    }),
-                })
-                if (!res.ok) throw new Error()
-                const { memberCount } = (await res.json()) as { memberCount: number }
-                toast.success(`Lista criada com ${memberCount} contato${memberCount === 1 ? '' : 's'}`)
-            }
+            const temFiltro = Boolean(
+                filtroAtual.search || filtroAtual.tagId || filtroAtual.dealStatus
+            )
+            const res = await fetch('/api/marketing/lists', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    channel: form.channel,
+                    mode: temFiltro ? 'filter' : 'manual',
+                    filter: temFiltro ? filtroAtual : undefined,
+                }),
+            })
+            if (!res.ok) throw new Error()
+            const { memberCount } = (await res.json()) as { memberCount: number }
+
+            /**
+             * Lista nascida sem filtro nasce vazia, e dizer "criada com 0
+             * contatos" soa a falha. O que a pessoa precisa saber é o passo
+             * seguinte: a guia Contatos da ficha.
+             */
+            toast.success(
+                memberCount > 0
+                    ? `Lista criada com ${memberCount} contato${memberCount === 1 ? '' : 's'}`
+                    : 'Lista criada, ainda vazia. Abra-a para acrescentar contatos.'
+            )
             setIsDialogOpen(false)
             void recarregar()
         } catch {
-            toast.error('Não foi possível salvar a lista')
+            toast.error('Não foi possível criar a lista')
         } finally {
             setSubmitting(false)
         }
@@ -224,7 +245,7 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
     return (
         <>
             <IndexFrame
-                title="Listas"
+                title="Listas de contatos"
                 search={search}
                 onSearchChange={(v) => {
                     setSearch(v)
@@ -245,7 +266,7 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                     rows={visiveis}
                     getRowId={(l) => l.id}
                     loading={loading}
-                    onRowClick={canEdit ? (l) => openEdit(l) : undefined}
+                    onRowClick={canEdit ? (l) => abrirFicha(l) : undefined}
                     footer={
                         <Pagination
                             page={currentPage}
@@ -263,8 +284,8 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                         canEdit
                             ? (l) => (
                                   <RowActions label={`Ações da lista ${l.name}`}>
-                                      <RowActionItem icon={Pencil} onClick={() => openEdit(l)}>
-                                          Renomear
+                                      <RowActionItem icon={Pencil} onClick={() => abrirFicha(l)}>
+                                          Abrir a ficha
                                       </RowActionItem>
                                       <RowActionItem icon={Trash2} destructive onClick={() => setDeleting(l)}>
                                           Excluir
@@ -294,17 +315,16 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
             <RecordDialog
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
-                title={editing ? 'Renomear lista' : 'Nova lista'}
+                size="grande"
+                title="Nova lista de contatos"
                 description={
-                    editing
-                        ? 'Muda só o nome; os contatos permanecem.'
-                        : form.channel === 'email'
-                          ? 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem e-mail e não cancelou a inscrição.'
-                          : 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem telefone e não pediu para sair.'
+                    form.channel === 'email'
+                        ? 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem e-mail e não cancelou a inscrição. Depois dá para acrescentar e tirar na ficha.'
+                        : 'Os contatos entram agora, pelo filtro escolhido. Só entra quem tem telefone e não pediu para sair. Depois dá para acrescentar e tirar na ficha.'
                 }
-                submitLabel={editing ? 'Salvar lista' : 'Criar lista'}
+                submitLabel="Criar lista"
                 hideAgain
-                onSubmit={handleSave}
+                onSubmit={criar}
                 submitting={submitting}
             >
                 <FormField label="Nome" htmlFor="lista-name" required error={errors.name} className="col-span-2">
@@ -320,9 +340,7 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                     />
                 </FormField>
 
-                {!editing && (
-                    <>
-                        <FormField
+                <FormField
                             label="Canal"
                             htmlFor="lista-canal"
                             className="col-span-2"
@@ -422,9 +440,15 @@ export function ListasClient({ inicial }: { inicial: DadosIniciais }) {
                                 </span>
                             )}
                         </div>
-                    </>
-                )}
             </RecordDialog>
+
+            <FichaDaLista
+                key={chaveDaFicha}
+                lista={ficha}
+                podeEditar={canEdit}
+                onClose={() => setFicha(null)}
+                onSalvo={recarregar}
+            />
 
             <ConfirmDialog
                 open={deleting !== null}
