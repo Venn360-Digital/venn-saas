@@ -49,7 +49,7 @@ export default async function FunilPage({ params }: { params: Promise<{ id: stri
 
     if (!funil) notFound()
 
-    const [etiquetas, etapas, pessoas, modelos] = await Promise.all([
+    const [etiquetas, etapas, pessoas, modelos, listas] = await Promise.all([
         prisma.tag.findMany({
             where: { workspaceId: membro.workspaceId },
             orderBy: { name: 'asc' },
@@ -69,6 +69,19 @@ export default async function FunilPage({ params }: { params: Promise<{ id: stri
             where: { workspaceId: membro.workspaceId },
             orderBy: { updatedAt: 'desc' },
             select: { id: true, name: true },
+        }),
+        /**
+         * As listas, para o gatilho "entrou na lista" ser escolhido por nome.
+         *
+         * Até aqui o campo pedia o **id** da lista digitado à mão, com um hint
+         * admitindo a dívida. Id digitado erra calado: um caractere trocado vira
+         * um funil publicado que nunca recebe ninguém, e não há tela que mostre
+         * isso — nem erro, nem contagem, nada.
+         */
+        prisma.contactList.findMany({
+            where: { workspaceId: membro.workspaceId },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true, channel: true },
         }),
     ])
 
@@ -101,6 +114,12 @@ export default async function FunilPage({ params }: { params: Promise<{ id: stri
                 name: p.user.name ?? p.user.email,
             })),
             modelos,
+            // O canal no rótulo: duas listas podem ter o mesmo nome e canais
+            // diferentes, e escolher a errada só apareceria na contagem.
+            listas: listas.map((l) => ({
+                id: l.id,
+                name: l.channel === 'email' ? `${l.name} (e-mail)` : `${l.name} (WhatsApp)`,
+            })),
         },
     }
 

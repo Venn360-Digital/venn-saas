@@ -51,7 +51,12 @@ async function entrar(evento: EventoDeGatilho): Promise<{ entrou: number }> {
     }
 
     const candidatos = await prisma.funnel.findMany({
-        where: { workspaceId: evento.workspaceId, status: 'published' },
+        where: {
+            workspaceId: evento.workspaceId,
+            status: 'published',
+            // A entrada manual tem destinatário: ver `apenasFunil` em gatilho.ts.
+            ...(evento.apenasFunil ? { id: evento.apenasFunil } : {}),
+        },
         select: {
             id: true,
             name: true,

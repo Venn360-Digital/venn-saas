@@ -120,7 +120,7 @@ export const navSections: NavSection[] = [
         allowedRoles: ['OWNER', 'ADMIN', 'GESTOR'],
         items: [
             { label: 'Campanhas', href: '/marketing/campanhas' },
-            { label: 'Listas', href: '/marketing/listas' },
+            { label: 'Listas de contatos', href: '/marketing/listas' },
             { label: 'Templates', href: '/marketing/templates' },
             { label: 'Domínios', href: '/marketing/remetentes' },
             { label: 'Funis', href: '/marketing/funis' },
@@ -168,7 +168,7 @@ const SEGMENT_LABELS: Record<string, string> = {
 
     marketing: 'Marketing',
     campanhas: 'Campanhas',
-    listas: 'Listas',
+    listas: 'Listas de contatos',
     templates: 'Templates',
     remetentes: 'Domínios',
     descadastro: 'Cancelar inscrição',

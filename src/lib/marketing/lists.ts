@@ -146,6 +146,116 @@ export async function popularListaPorFiltro(
     return { total: contatos.length }
 }
 
+/**
+ * **Acrescenta** quem casa com um filtro, sem tirar ninguém.
+ *
+ * ## Por que não é `popularListaPorFiltro`
+ *
+ * Aquela função **substitui** o conjunto: `deleteMany` + `createMany`. É o certo
+ * para repovoar uma lista a partir do critério dela, e é exatamente o errado
+ * para "acrescente também os de ortodontia" — tiraria todos os outros, em
+ * silêncio, e o único sinal seria a contagem caindo numa tela que a pessoa
+ * talvez nem esteja olhando.
+ *
+ * ## O canal vem da lista, não de quem chama
+ *
+ * Quem acrescenta escolhe etiqueta, origem, estado do negócio. **Não** escolhe
+ * o canal: ele é da lista, e deixá-lo passar no filtro permitiria entrar numa
+ * lista de e-mail alguém sem endereço — que é a única coisa que uma lista de
+ * e-mail não pode ter, porque faria a contagem da tela mentir sobre o alcance.
+ */
+export async function acrescentarPorFiltro(
+    workspaceId: string,
+    listId: string,
+    canal: CanalDeCampanha,
+    filtro: FiltroDeLista
+): Promise<number> {
+    const candidatos = await prisma.contact.findMany({
+        where: whereDoFiltro(workspaceId, { ...filtro, canal }),
+        select: { id: true },
+    })
+    if (candidatos.length === 0) return 0
+
+    return adicionarMembros(
+        listId,
+        candidatos.map((c) => c.id),
+        workspaceId
+    )
+}
+
+/**
+ * Quantos **entrariam** — os que casam e ainda não estão dentro.
+ *
+ * `contarDoFiltro` conta quem casa, e serve para a criação, onde a lista está
+ * vazia. Aqui os dois números divergem: "428 contatos têm esta etiqueta" e "12
+ * entrariam" respondem perguntas diferentes, e mostrar o primeiro no botão de
+ * acrescentar faria a pessoa esperar 428 entradas novas.
+ */
+export async function contarParaAcrescentar(
+    workspaceId: string,
+    listId: string,
+    canal: CanalDeCampanha,
+    filtro: FiltroDeLista
+): Promise<number> {
+    return prisma.contact.count({
+        where: {
+            AND: [
+                whereDoFiltro(workspaceId, { ...filtro, canal }),
+                { listMemberships: { none: { listId } } },
+            ],
+        },
+    })
+}
+
+/**
+ * Tira contatos de uma lista.
+ *
+ * Só o vínculo sai — o contato não é tocado. E **não** mexe em opt-out: sair de
+ * uma lista não é pedir para não receber nada, é não estar nesta lista. Quem
+ * confundir os dois tira do cliente a possibilidade de voltar.
+ */
+export async function removerMembros(listId: string, contactIds: string[]): Promise<number> {
+    if (contactIds.length === 0) return 0
+    const { count } = await prisma.contactListMember.deleteMany({
+        where: { listId, contactId: { in: contactIds } },
+    })
+    return count
+}
+
+/**
+ * Quem, nesta lista, **não serve** ao canal — por falta de endereço ou por
+ * opt-out naquele canal.
+ *
+ * Existe por causa da troca de canal numa lista que já tem gente: uma lista de
+ * WhatsApp virando lista de e-mail leva consigo todo mundo que não tem endereço,
+ * e esses contatos seriam congelados como destinatários e descartados no
+ * disparo — a contagem da tela prometendo um alcance que o relatório desmentiria.
+ *
+ * Devolve quem sobra para quem chama decidir: a tela mostra o número **antes**
+ * de salvar, e a rota remove ao salvar. Nenhuma remoção acontece sem a pessoa
+ * ter visto quantos são.
+ */
+export async function membrosForaDoCanal(
+    workspaceId: string,
+    listId: string,
+    canal: CanalDeCampanha
+): Promise<string[]> {
+    const dentro = await prisma.contactListMember.findMany({
+        where: { listId },
+        select: { contactId: true },
+    })
+    if (dentro.length === 0) return []
+
+    const ids = dentro.map((m) => m.contactId)
+    const servem = await prisma.contact.findMany({
+        where: { AND: [{ id: { in: ids } }, whereDoFiltro(workspaceId, { canal })] },
+        select: { id: true },
+    })
+
+    const ok = new Set(servem.map((c) => c.id))
+    return ids.filter((id) => !ok.has(id))
+}
+
 /** Adiciona contatos escolhidos à mão a uma lista (seleção manual). */
 export async function adicionarMembros(
     listId: string,

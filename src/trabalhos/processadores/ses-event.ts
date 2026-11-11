@@ -9,6 +9,7 @@ import {
     type EventoDoSes,
 } from '@/lib/email/eventos'
 import { suprimir } from '@/lib/email/ses'
+import { clicouNaCampanha } from '@/lib/funil/disparos'
 
 const log = createLogger('SES-EVENT')
 
@@ -85,8 +86,29 @@ export async function processSesEvent(payload: SesEventJob): Promise<void> {
         return
     }
 
+    const eraPrimeiroClique = evento.tipo === 'Click' && !destinatario.clickedAt
+
     await aplicar(evento, destinatario)
     await talvezSuprimir(evento, destinatario.broadcast.workspaceId)
+
+    /**
+     * O primeiro clique pode ligar um funil.
+     *
+     * **Só o primeiro**, e medido antes de `aplicar` gravar o `clickedAt`: o
+     * SES emite um evento por clique, e quem clica em três links da mesma
+     * campanha não demonstrou interesse três vezes. Sem a guarda, cada clique
+     * tentaria uma entrada nova — a trava parcial `WHERE status = 'running'`
+     * barraria as repetidas, então o efeito visível seria só log sujo, mas a
+     * pessoa que concluísse o funil e clicasse de novo recomeçaria a sequência
+     * sem ter feito nada novo.
+     *
+     * Não espera o resultado nem o deixa derrubar o recibo: `talvezEntrarNoFunil`
+     * já absorve tudo, e um funil que não entra não pode custar o registro da
+     * métrica da campanha.
+     */
+    if (eraPrimeiroClique && destinatario.contactId) {
+        await clicouNaCampanha(destinatario.broadcast.workspaceId, destinatario.contactId)
+    }
 }
 
 type DestinatarioDoRecibo = NonNullable<
