@@ -11,6 +11,37 @@ name: CI
 # plano atual do GitHub, um push direto em `main` pula o CI de PR inteiro — a
 # varredura de segredos é a única que precisa alcançá-lo aqui, porque as demais
 # re-rodam no build da Cloudflare.
+#
+# ---------------------------------------------------------------------------
+# NADA AQUI É OBRIGATÓRIO PARA MESCLAR (medido em 2026-11-11)
+# ---------------------------------------------------------------------------
+# `main` e `staging` têm `protected: false`, e quem publica é o Workers Builds
+# no push — o GitHub não participa do deploy. Então este arquivo pode estar
+# inteiro vermelho e o merge sai, o que foi exatamente o que aconteceu nos
+# quatro PRs de 10/11, com a conta do GitHub travada por pagamento (os jobs
+# morriam em 2 s, sem passo e sem log).
+#
+# Por isso a verificação que NÃO pode faltar mora no `package.json`, pendurada
+# nos hooks do npm, e roda dentro do build da Cloudflare:
+#
+#   prebuild:preview  → antes do build do preview
+#   preportao:stg     → antes de `migrate:stg`, no deploy command do staging
+#   preportao:prod    → idem, em produção
+#
+# Os três chamam `npm run verificar` = os dois typechecks + os quatro
+# verificadores estáticos. **71 s medidos.** O ESLint ficou de fora com motivo:
+# 102 s sozinho, mais que os três juntos, e o teto do Workers Builds é de 20 min
+# por build contra um build de vinext de ~12 min — não há folga para ele até o
+# Worker de CI dedicado existir.
+#
+# O que continua só aqui, e o que se perde ao ignorar o vermelho: ESLint, as ~35
+# provas (`check:*`/`test:*`), gitleaks, as provas contra o Neon e **o lint de
+# migração**. Esse último é o único que não dá para pular com migração no PR: o
+# portão da Cloudflare APLICA a migração antes de publicar, então DDL destrutivo
+# sem o marcador `-- contract` chegaria ao banco. Com migração em
+# `prisma/migrations/`, rode à mão antes de mesclar:
+#
+#   node scripts/lint-migracoes.mjs origin/staging
 on:
   pull_request:
     # `closed` entra por causa do job de coleta de lixo do preview — os outros

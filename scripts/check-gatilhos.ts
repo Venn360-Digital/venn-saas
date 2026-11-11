@@ -37,12 +37,25 @@ const ok = (nome: string, cond: boolean, extra = '') => {
     if (!cond) falhas++
 }
 
-/** A função de disparo de cada tipo, em `lib/funil/disparos.ts`. */
+/**
+ * A função de disparo de cada tipo, em `lib/funil/disparos.ts`.
+ *
+ * Dois tipos podem apontar para a **mesma** função — ganho e perda saem de
+ * `negocioFoiFechado`, porque são o mesmo fato do banco (o `status` do negócio
+ * mudou para um desfecho) com dois valores. O que o verificador cobra então é a
+ * conferência seguinte, "o disparo passa o tipo certo": a função precisa citar
+ * os dois literais, senão um deles ficaria declarado e morto com este teste
+ * passando.
+ */
 const DISPARO: Record<TipoDeGatilho, string> = {
     etiqueta_aplicada: 'etiquetaAplicada',
     etapa_do_negocio: 'negocioEntrouNaEtapa',
     entrou_na_lista: 'contatosEntraramNaLista',
     contato_criado: 'contatoCriado',
+    negocio_ganho: 'negocioFoiFechado',
+    negocio_perdido: 'negocioFoiFechado',
+    clicou_na_campanha: 'clicouNaCampanha',
+    manual: 'postoNoFunilAMao',
 }
 
 const RAIZ = 'src'

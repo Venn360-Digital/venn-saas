@@ -27,7 +27,12 @@ import { FormField } from '@/components/shared/FormField'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { usePermissions } from '@/hooks/usePermissions'
 import { NOME_DO_PASSO, PASSOS_NA_PALETA, SITUACAO_DO_FUNIL } from '@/lib/funil/apresentacao'
-import { TEXTO_DO_GATILHO, TIPOS_DE_GATILHO, type TipoDeGatilho } from '@/lib/funil/gatilho'
+import {
+    AJUDA_DO_GATILHO,
+    TEXTO_DO_GATILHO,
+    TIPOS_DE_GATILHO,
+    type TipoDeGatilho,
+} from '@/lib/funil/gatilho'
 import { ESPERA_MAX_MIN, type TipoDePasso } from '@/lib/funil/passos'
 import { podePublicar } from '@/lib/funil/publicar'
 
@@ -81,6 +86,7 @@ export interface FunilCarregado {
         etapas: { id: string; name: string }[]
         pessoas: { id: string; name: string }[]
         modelos: { id: string; name: string }[]
+        listas: { id: string; name: string }[]
     }
 }
 
@@ -523,14 +529,24 @@ function PainelDoFunil({
             ? escolhas.etiquetas
             : gatilho.tipo === 'etapa_do_negocio'
               ? escolhas.etapas
-              : null
+              : gatilho.tipo === 'entrou_na_lista'
+                ? escolhas.listas
+                : null
 
     return (
         <div className="space-y-5">
             <div>
                 <h2 className="text-sm font-medium">Quem entra</h2>
                 <div className="mt-2 space-y-3">
-                    <FormField label="Gatilho" htmlFor="g-tipo">
+                    {/*
+                      A ajuda muda com a escolha, e não é enfeite: "negócio
+                      ganho" e "negócio entrou numa etapa" parecem a mesma
+                      coisa e levam a funis opostos — fechar NÃO move o cartão
+                      neste produto, então um pós-venda montado sobre etapa
+                      nunca dispara. Quem monta o funil precisa dessa frase na
+                      hora de escolher, não depois de o funil não funcionar.
+                    */}
+                    <FormField label="Gatilho" htmlFor="g-tipo" hint={AJUDA_DO_GATILHO[gatilho.tipo]}>
                         <select
                             id="g-tipo"
                             value={gatilho.tipo}
@@ -566,23 +582,6 @@ function PainelDoFunil({
                                     </option>
                                 ))}
                             </select>
-                        </FormField>
-                    )}
-
-                    {gatilho.tipo === 'entrou_na_lista' && (
-                        <FormField
-                            label="Qual lista"
-                            htmlFor="g-lista"
-                            hint="O id da lista. A escolha por nome entra quando a tela de listas expor o seletor."
-                        >
-                            <Input
-                                id="g-lista"
-                                value={gatilho.alvo ?? ''}
-                                onChange={(e) =>
-                                    onGatilho({ ...gatilho, alvo: e.target.value || undefined })
-                                }
-                                disabled={!podeEditar}
-                            />
                         </FormField>
                     )}
 

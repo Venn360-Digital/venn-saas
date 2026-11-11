@@ -99,3 +99,71 @@ export async function contatosEntraramNaLista(
 export async function contatoCriado(workspaceId: string, contactId: string): Promise<void> {
     await talvezEntrarNoFunil({ tipo: 'contato_criado', workspaceId, contactId })
 }
+
+/**
+ * Um negócio foi fechado — ganho ou perdido.
+ *
+ * ## Por que é um fechamento e não uma etapa
+ *
+ * Ganho e perda **não são etapas** do funil de vendas neste produto: o negócio
+ * guarda a etapa em que estava (`closedStageId`) e muda de `status`. Um funil
+ * de pós-venda montado sobre `etapa_do_negocio` nunca dispararia, porque o
+ * cartão não se move ao ser fechado — e o sintoma seria o funil parecer certo e
+ * não entrar ninguém.
+ *
+ * ## Dispara na transição, não no estado
+ *
+ * Quem chama compara com o status anterior. Sem isso, cada salvamento de um
+ * negócio já fechado (corrigir o valor, trocar o motivo) reentraria o contato
+ * no funil, e o cliente receberia a sequência de pós-venda de novo a cada
+ * ajuste. Reabrir e fechar outra vez **é** um fechamento novo e dispara de
+ * novo, o que é o comportamento certo: a venda aconteceu de novo.
+ */
+export async function negocioFoiFechado(
+    workspaceId: string,
+    contactId: string,
+    desfecho: 'won' | 'lost'
+): Promise<void> {
+    await talvezEntrarNoFunil({
+        tipo: desfecho === 'won' ? 'negocio_ganho' : 'negocio_perdido',
+        workspaceId,
+        contactId,
+    })
+}
+
+/**
+ * Alguém clicou num link de uma campanha de e-mail.
+ *
+ * Chamado do processador de recibos do SES, pelo evento `Click` — o dado já
+ * chega, não há rastreio novo a construir.
+ *
+ * O clique é o único sinal de interesse que não depende de o contato responder,
+ * e por isso vale como entrada de funil: separa quem reage de quem só recebe.
+ * Abertura **não** entra: ela é inflada por pré-carregamento de imagem dos
+ * clientes de e-mail (o Apple Mail Privacy Protection abre tudo), e um funil
+ * montado sobre ela nutriria quem nunca olhou a mensagem.
+ */
+export async function clicouNaCampanha(workspaceId: string, contactId: string): Promise<void> {
+    await talvezEntrarNoFunil({ tipo: 'clicou_na_campanha', workspaceId, contactId })
+}
+
+/**
+ * Alguém pôs o contato no funil à mão.
+ *
+ * O gatilho genérico: nada dispara sozinho, e quem decide é uma pessoa olhando
+ * a ficha. Existe porque todo critério que o produto não modela — "os que
+ * conversei na feira", "os que o Dr. pediu para chamar" — caberia num campo
+ * novo e numa regra nova, ou cabe neste botão.
+ *
+ * O funil ainda precisa estar **publicado** e com o gatilho `manual`: pôr à mão
+ * não é furar o desenho, é ser a origem dele. E as três travas de entrada
+ * continuam valendo (humano assumiu, opt-out, teto de ativos) — é a diferença
+ * entre uma entrada manual e uma mensagem mandada na mão.
+ */
+export async function postoNoFunilAMao(
+    workspaceId: string,
+    contactId: string,
+    funnelId: string
+): Promise<void> {
+    await talvezEntrarNoFunil({ tipo: 'manual', workspaceId, contactId, apenasFunil: funnelId })
+}
