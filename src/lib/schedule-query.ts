@@ -21,7 +21,7 @@ const DURACAO_PADRAO = 30
 
 export interface VagasInput {
     workspaceId: string
-    specialistId: string
+    professionalId: string
     /** O Item (procedimento) que se quer marcar. */
     procedureId: string
     de: string
@@ -37,12 +37,12 @@ export type VagasResultado =
     | { ok: false; motivo: string }
 
 export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
-    const { workspaceId, specialistId, procedureId, de, ate, paraAgente, agora } = input
+    const { workspaceId, professionalId, procedureId, de, ate, paraAgente, agora } = input
 
     const [especialista, procedimento] = await Promise.all([
-        prisma.specialist.findFirst({
-            where: { id: specialistId, workspaceId, isActive: true },
-            include: { windows: { include: { procedures: true } } },
+        prisma.professional.findFirst({
+            where: { id: professionalId, workspaceId, isActive: true },
+            include: { windows: { include: { services: true } } },
         }),
         prisma.productService.findFirst({
             where: { id: procedureId, workspaceId, category: { in: SCHEDULABLE_CATEGORIES } },
@@ -64,7 +64,7 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
         startTime: w.startTime,
         endTime: w.endTime,
         agentCanBook: w.agentCanBook,
-        procedureIds: w.procedures.map((p) => p.productServiceId),
+        procedureIds: w.services.map((p) => p.productServiceId),
     }))
 
     if (janelas.length === 0) {
@@ -82,7 +82,7 @@ export async function buscarVagas(input: VagasInput): Promise<VagasResultado> {
     const compromissos = await prisma.activity.findMany({
         where: {
             workspaceId,
-            specialistId,
+            professionalId,
             completedAt: null,
             dueDate: { gte: inicio, lte: fim },
         },

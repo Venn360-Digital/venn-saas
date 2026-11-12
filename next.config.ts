@@ -164,23 +164,44 @@ const nextConfig: NextConfig = {
     ]
   },
   async redirects() {
+    // Em 2026-11-11 os segmentos de URL ficaram neutros e iguais nos três
+    // produtos (`clientes`, `profissionais`, `servicos`), preparando o código
+    // compartilhado. O nicho continua nos rótulos das telas, não na URL.
     return [
       {
-        // A tela de pacientes morava em /vendas/contatos até 2026-10-08, quando
-        // "contato" saiu do vocabulário do produto. Permanente porque o destino
-        // é definitivo, e aqui — e não numa página de redirecionamento — para
+        // A tela morava em /vendas/contatos até 2026-10-08 e em
+        // /vendas/pacientes até 2026-11-11. Permanente porque o destino é
+        // definitivo, e aqui — e não numa página de redirecionamento — para
         // resolver antes do roteamento, sem renderizar nada no caminho.
         source: '/vendas/contatos',
-        destination: '/vendas/pacientes',
+        destination: '/vendas/clientes',
         permanent: true,
       },
       {
-        // E a de procedimentos morava em /vendas/servicos até 2026-10-20.
-        // Mesma razão: "serviço" era a palavra de software, e a clínica chama
-        // de procedimento. Link guardado continua chegando.
-        source: '/vendas/servicos',
-        destination: '/vendas/procedimentos',
+        source: '/vendas/pacientes',
+        destination: '/vendas/clientes',
         permanent: true,
+      },
+      {
+        source: '/vendas/especialistas',
+        destination: '/vendas/profissionais',
+        permanent: true,
+      },
+      // ⚠️ /vendas/procedimentos NÃO pode ser redirect: até 2026-11-11 existiu
+      // o redirect permanente inverso (/vendas/servicos → /vendas/procedimentos),
+      // e navegadores guardam 308 — um redirect de volta criaria loop no
+      // navegador de quem tem aquele cache. Por isso é rewrite, logo abaixo.
+    ]
+  },
+  async rewrites() {
+    return [
+      {
+        // Link guardado de /vendas/procedimentos continua funcionando: a tela
+        // de /vendas/servicos é servida nesse caminho, sem redirecionar (ver o
+        // aviso em redirects()). São URLs atrás de login — não há canônica de
+        // SEO em jogo.
+        source: '/vendas/procedimentos',
+        destination: '/vendas/servicos',
       },
     ]
   },

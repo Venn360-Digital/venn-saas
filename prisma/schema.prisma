@@ -72,12 +72,12 @@ model User {
   updatedAt        DateTime          @updatedAt
 
   // Multi-workspace support
-  workspaces  WorkspaceUser[]
+  workspaces    WorkspaceUser[]
   /// As contas das quais esta pessoa é o MASTER.
-  accounts    Account[]
-  activities  Activity[]
-  deals       Deal[]
-  specialists Specialist[]
+  accounts      Account[]
+  activities    Activity[]
+  deals         Deal[]
+  professionals Professional[]
 
   /// Sessões e credenciais do Better Auth.
   ///
@@ -561,7 +561,7 @@ model Workspace {
   /// retomada. JSON porque a lista cresce a cada camada de automação, e uma
   /// coluna por chave viraria uma migração por melhoria.
   automations        Json?
-  specialists        Specialist[]
+  professionals      Professional[]
   scheduleExceptions ScheduleException[]
   contactLists       ContactList[]
   whatsappTemplates  WhatsAppTemplate[]
@@ -1327,7 +1327,7 @@ model Activity {
   ///
   /// `userId` acima continua sendo "Responsável": quem da equipe cuida disto.
   /// Esta coluna é quem atende o paciente, e é por ela que a agenda filtra.
-  specialistId String?
+  professionalId String?
 
   /// O que vai ser feito, do catálogo de Itens.
   ///
@@ -1374,14 +1374,14 @@ model Activity {
   user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   contact        Contact?        @relation(fields: [contactId], references: [id], onDelete: Cascade)
   deal           Deal?           @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  specialist     Specialist?     @relation(fields: [specialistId], references: [id], onDelete: SetNull)
+  professional   Professional?   @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   productService ProductService? @relation(fields: [productServiceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
   @@index([userId])
   @@index([dueDate])
   @@index([recurrenceParentId])
-  @@index([specialistId])
+  @@index([professionalId])
   @@map("activities")
 }
 
@@ -2107,7 +2107,7 @@ model UsageLog {
 /// duas colunas.
 ///
 /// `userId` liga os dois quando a mesma pessoa faz as duas coisas.
-model Specialist {
+model Professional {
   id          String  @id @default(cuid())
   workspaceId String
   name        String
@@ -2123,13 +2123,13 @@ model Specialist {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  windows    SpecialistWindow[]
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user       User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  windows    AvailabilityWindow[]
   activities Activity[]
 
   @@index([workspaceId])
-  @@map("specialists")
+  @@map("professionals")
 }
 
 /// Uma faixa de horário recorrente em que o especialista atende.
@@ -2138,9 +2138,9 @@ model Specialist {
 /// "janela liberada para o agente" — e aí os dois divergem: alguém muda o
 /// expediente, esquece a janela, e o agente marca num horário em que a doutora
 /// não está. Aqui a permissão é um campo da própria faixa.
-model SpecialistWindow {
-  id           String @id @default(cuid())
-  specialistId String
+model AvailabilityWindow {
+  id             String @id @default(cuid())
+  professionalId String
 
   /// 0 = domingo, 6 = sábado, como `Date.getDay()`.
   weekday   Int
@@ -2157,11 +2157,11 @@ model SpecialistWindow {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  specialist Specialist                  @relation(fields: [specialistId], references: [id], onDelete: Cascade)
-  procedures SpecialistWindowProcedure[]
+  professional Professional                @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  services     AvailabilityWindowService[]
 
-  @@index([specialistId])
-  @@map("specialist_windows")
+  @@index([professionalId])
+  @@map("availability_windows")
 }
 
 /// Quais procedimentos cabem nesta janela.
@@ -2172,16 +2172,16 @@ model SpecialistWindow {
 ///
 /// Vazia significa **nenhum** procedimento liberado, não todos: o padrão de uma
 /// permissão é não ter permissão.
-model SpecialistWindowProcedure {
+model AvailabilityWindowService {
   windowId         String
   productServiceId String
 
-  window  SpecialistWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
-  product ProductService   @relation(fields: [productServiceId], references: [id], onDelete: Cascade)
+  window  AvailabilityWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  product ProductService     @relation(fields: [productServiceId], references: [id], onDelete: Cascade)
 
   @@id([windowId, productServiceId])
   @@index([productServiceId])
-  @@map("specialist_window_procedures")
+  @@map("availability_window_services")
 }
 
 /// O que sobrepõe as janelas de **todos** os especialistas.
@@ -2335,7 +2335,7 @@ model ProductService {
   updatedAt  DateTime @updatedAt
 
   workspace  Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  windows    SpecialistWindowProcedure[]
+  windows    AvailabilityWindowService[]
   activities Activity[]
 
   @@index([workspaceId])
@@ -2692,10 +2692,10 @@ model EmailSender {
 /// guarda um `filter` (os mesmos filtros de `consultarPacientes`) a reavaliar;
 /// hoje o disparo usa os membros congelados (ver docs/paridade-respond-io/DUVIDAS-B2.md D3).
 model ContactList {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
   name        String
-  kind        String   @default("static") // "static" | "dynamic"
+  kind        String @default("static") // "static" | "dynamic"
 
   /// Por qual canal esta lista serve: `whatsapp` | `email`.
   ///
@@ -2704,12 +2704,12 @@ model ContactList {
   /// Uma lista só, servindo aos dois, mandaria a metade sem endereço para o
   /// fan-out só para ela ser descartada lá, e a contagem que a tela mostra
   /// mentiria sobre o alcance da campanha.
-  channel     String   @default("whatsapp")
+  channel   String   @default("whatsapp")
   /// Filtros de origem quando a lista nasce de uma busca de pacientes. Informativo
   /// em lista estática; o critério a reavaliar em lista dinâmica.
-  filter      Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  filter    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   workspace  Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members    ContactListMember[]
@@ -2786,7 +2786,7 @@ model WhatsAppTemplate {
 /// é saída manual. Os contadores são denormalizados para a lista não ter de
 /// contar destinatários a cada pintura.
 model Broadcast {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   workspaceId String
   name        String // interno, visível só à equipe
   labels      String[] @default([])
@@ -2811,10 +2811,10 @@ model Broadcast {
   /// A linha de prévia que aparece ao lado do assunto na caixa de entrada.
   preheader String?
 
-  status      String    @default("draft") // draft|scheduled|running|done|failed|canceled
-  scheduledAt DateTime?
-  startedAt   DateTime?
-  finishedAt  DateTime?
+  status         String    @default("draft") // draft|scheduled|running|done|failed|canceled
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
   /// Teto de envios por minuto no fan-out. Conservador por padrão; o tier real
   /// da WABA define o seguro (ver DUVIDAS-B2.md D2).
   throttlePerMin Int       @default(30)
@@ -2890,14 +2890,14 @@ model BroadcastList {
 }
 
 model BroadcastRecipient {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   broadcastId String
   contactId   String
   /// O endereço congelado no disparo — a ficha pode mudar depois. MSISDN numa
   /// campanha de WhatsApp, e-mail numa de e-mail; qual dos dois é dito pelo
   /// `channel` da campanha.
   to          String
-  status      String @default("pending") // pending|sent|delivered|read|failed|skipped
+  status      String  @default("pending") // pending|sent|delivered|read|failed|skipped
   /// A Message gerada, quando enviada. Liga o recibo da Meta ao destinatário.
   /// Nulo em campanha de e-mail: e-mail não abre conversa, então não há Message.
   messageId   String?
@@ -2952,7 +2952,7 @@ model BroadcastRecipient {
 /// para o mesmo fato, divergindo na primeira vez que a instância avançasse e a
 /// gravação falhasse.
 model Funnel {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   workspaceId String
   name        String
   description String?

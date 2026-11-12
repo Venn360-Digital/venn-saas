@@ -16,8 +16,8 @@ import { BulkBar, deleteEach } from '@/components/shared/BulkBar'
 import { Pagination } from '@/components/shared/Pagination'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
-import { JanelasDialog } from '@/components/specialists/JanelasDialog'
-import { EspecialistaPanel } from '@/components/specialists/EspecialistaPanel'
+import { JanelasDialog } from '@/components/professionals/JanelasDialog'
+import { EspecialistaPanel } from '@/components/professionals/EspecialistaPanel'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { usePermissions } from '@/hooks/usePermissions'
 import { normalizeSearch } from '@/lib/search'
@@ -66,7 +66,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
      * 500.
      */
     const buscar = useCallback(async () => {
-        const res = await fetch(`/api/specialists?all=${INCLUIR_INATIVOS}`)
+        const res = await fetch(`/api/professionals?all=${INCLUIR_INATIVOS}`)
         if (!res.ok) {
             toast.error('Não foi possível carregar os especialistas')
             return null
@@ -152,7 +152,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
         }
         setSalvando(true)
         try {
-            const res = await fetch(editandoId ? `/api/specialists/${editandoId}` : '/api/specialists', {
+            const res = await fetch(editandoId ? `/api/professionals/${editandoId}` : '/api/professionals', {
                 method: editandoId ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -181,7 +181,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
 
     const excluir = async () => {
         if (!excluindo) return
-        const res = await fetch(`/api/specialists/${excluindo.id}`, { method: 'DELETE' })
+        const res = await fetch(`/api/professionals/${excluindo.id}`, { method: 'DELETE' })
         const corpo = await res.json().catch(() => ({}))
         if (!res.ok) {
             toast.error(corpo.error ?? 'Não foi possível excluir')
@@ -208,7 +208,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
     const aberto = naPagina.find((e) => e.id === fichaDe) ?? null
 
     const excluirMarcados = async () => {
-        const ok = await deleteEach(marcados, (id) => `/api/specialists/${id}`)
+        const ok = await deleteEach(marcados, (id) => `/api/professionals/${id}`)
         if (ok > 0) {
             toast.success(`${ok} especialista${ok === 1 ? '' : 's'} excluído${ok === 1 ? '' : 's'}`)
         }
@@ -449,7 +449,7 @@ export function EspecialistasClient({ inicial }: { inicial: DadosIniciais }) {
             <JanelasDialog
                 open={janelasDe !== null}
                 onOpenChange={(a) => !a && setJanelasDe(null)}
-                specialistId={janelasDe}
+                professionalId={janelasDe}
                 onSaved={() => void recarregar()}
             />
         </>

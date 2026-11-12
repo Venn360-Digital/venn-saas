@@ -31,7 +31,7 @@ import { useNow } from '@/hooks/useNow'
 import { PERIOD_PRESETS, isoDay, matchPreset, periodRange, type PeriodPresetId, type PeriodRange } from '@/lib/period'
 import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { usePermissions } from '@/hooks/usePermissions'
-import { JanelasDialog } from '@/components/specialists/JanelasDialog'
+import { JanelasDialog } from '@/components/professionals/JanelasDialog'
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Activity {
@@ -48,7 +48,7 @@ interface Activity {
     deal: { id: string; title: string } | null
     user: { id: string; name: string | null } | null
     /** Quem executa — distinto de `user`, que é quem cuida da tarefa. */
-    specialist: { id: string; name: string; color: string } | null
+    professional: { id: string; name: string; color: string } | null
     /** O procedimento do catálogo; é dele que vem a duração. */
     productService: { id: string; name: string; durationMinutes: number | null } | null
     reminderMinutes: number | null
@@ -176,9 +176,9 @@ export default function AgendaPage() {
         title: '', type: 'meeting', description: '',
         dueDate: '', startTime: '', endTime: '',
         contactId: '', dealId: '', userId: '',
-        // Quem executa e o que é feito. `specialistId` não é o `userId`: um é o
+        // Quem executa e o que é feito. `professionalId` não é o `userId`: um é o
         // profissional que atende, o outro é quem da equipe cuida da tarefa.
-        specialistId: '', productServiceId: '',
+        professionalId: '', productServiceId: '',
         reminderMinutes: 0, recurrenceType: '', recurrenceEnd: '',
     })
 
@@ -187,7 +187,7 @@ export default function AgendaPage() {
     const [procedimentos, setProcedimentos] = useState<{ id: string; name: string; durationMinutes: number | null }[]>([])
 
     useEffect(() => {
-        void fetch('/api/specialists')
+        void fetch('/api/professionals')
             .then((r) => (r.ok ? r.json() : []))
             .then(setEspecialistas)
             .catch(() => undefined)
@@ -330,7 +330,7 @@ export default function AgendaPage() {
                 contactId: activity.contact?.id || '',
                 dealId: activity.deal?.id || '',
                 userId: activity.user?.id || '',
-                specialistId: activity.specialist?.id || '',
+                professionalId: activity.professional?.id || '',
                 productServiceId: activity.productService?.id || '',
                 reminderMinutes: activity.reminderMinutes || 0,
                 recurrenceType: activity.recurrenceType || '',
@@ -345,7 +345,7 @@ export default function AgendaPage() {
                 dueDate: prefilledDate || new Date().toISOString().split('T')[0],
                 startTime: '', endTime: '',
                 contactId: '', dealId: '', userId: '',
-                specialistId: '', productServiceId: '',
+                professionalId: '', productServiceId: '',
                 reminderMinutes: 0, recurrenceType: '', recurrenceEnd: '',
             })
             setSelectedContact(null)
@@ -491,7 +491,7 @@ export default function AgendaPage() {
     // O recorte por especialista é da tela também — a API já devolve o período
     // inteiro, e filtrar aqui evita uma ida ao servidor a cada troca de pílula.
     const porEspecialista = specialistFilter
-        ? activities.filter((a) => a.specialist?.id === specialistFilter)
+        ? activities.filter((a) => a.professional?.id === specialistFilter)
         : activities
     const visible = needle
         ? porEspecialista.filter(a =>
@@ -972,12 +972,12 @@ export default function AgendaPage() {
                     seletores vazios só ocupariam o formulário. */}
                 {especialistas.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3.5">
-                        <FormField label="Especialista" htmlFor="act-specialist">
+                        <FormField label="Especialista" htmlFor="act-professional">
                             <Select
-                                value={formData.specialistId || 'none'}
-                                onValueChange={(v) => setFormData({ ...formData, specialistId: v === 'none' ? '' : v })}
+                                value={formData.professionalId || 'none'}
+                                onValueChange={(v) => setFormData({ ...formData, professionalId: v === 'none' ? '' : v })}
                             >
-                                <SelectTrigger id="act-specialist" className="w-full">
+                                <SelectTrigger id="act-professional" className="w-full">
                                     <SelectValue placeholder="Ninguém" />
                                 </SelectTrigger>
                                 <SelectContent>

@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: PERMISSION_DENIED }, { status: 403 })
     }
 
-    const especialista = await prisma.specialist.findFirst({
+    const especialista = await prisma.professional.findFirst({
         where: { id, workspaceId: auth.member.workspaceId },
         select: { id: true },
     })
@@ -104,16 +104,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Substituição inteira numa transação: a grade nunca fica pela metade.
     await prisma.$transaction(async (tx) => {
-        await tx.specialistWindow.deleteMany({ where: { specialistId: id } })
+        await tx.availabilityWindow.deleteMany({ where: { professionalId: id } })
         for (const w of windows) {
-            await tx.specialistWindow.create({
+            await tx.availabilityWindow.create({
                 data: {
-                    specialistId: id,
+                    professionalId: id,
                     weekday: w.weekday,
                     startTime: w.startTime,
                     endTime: w.endTime,
                     agentCanBook: w.agentCanBook ?? false,
-                    procedures: {
+                    services: {
                         create: (w.procedureIds ?? []).map((productServiceId) => ({ productServiceId })),
                     },
                 },

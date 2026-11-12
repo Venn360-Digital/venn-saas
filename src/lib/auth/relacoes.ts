@@ -10,7 +10,7 @@ import prisma from '@/lib/prisma'
  * `update`. Isso protege o **alvo** da escrita.
  *
  * O que ficava de fora era o **conteúdo** da escrita. `activities/[id]` e
- * `deals/[id]` gravavam `contactId`, `dealId`, `userId`, `specialistId`,
+ * `deals/[id]` gravavam `contactId`, `dealId`, `userId`, `professionalId`,
  * `productServiceId`, `originId` e `mediaId` crus do corpo. A atividade era da
  * clínica certa; o paciente apontado por ela, não necessariamente.
  *
@@ -33,14 +33,14 @@ import prisma from '@/lib/prisma'
  * Não filtra por `isActive` ao conferir `userId`. Atribuir trabalho a um membro
  * desativado é discutível, mas é decisão de produto e mudá-la aqui quebraria
  * telas que listam quem já respondia por um registro. O padrão seguido é o de
- * `specialists/route.ts`, que confere participação e não atividade.
+ * `professionals/route.ts`, que confere participação e não atividade.
  */
 
 export type CampoDeRelacao =
     | 'contactId'
     | 'dealId'
     | 'userId'
-    | 'specialistId'
+    | 'professionalId'
     | 'productServiceId'
     | 'originId'
     | 'mediaId'
@@ -54,7 +54,7 @@ const ROTULO: Record<CampoDeRelacao, string> = {
     contactId: 'paciente',
     dealId: 'negócio',
     userId: 'usuário',
-    specialistId: 'especialista',
+    professionalId: 'especialista',
     productServiceId: 'serviço',
     originId: 'origem',
     mediaId: 'mídia',
@@ -84,8 +84,8 @@ async function quantosPertencem(
             return prisma.contact.count({ where })
         case 'dealId':
             return prisma.deal.count({ where })
-        case 'specialistId':
-            return prisma.specialist.count({ where })
+        case 'professionalId':
+            return prisma.professional.count({ where })
         case 'productServiceId':
             return prisma.productService.count({ where })
         case 'originId':
@@ -103,7 +103,7 @@ async function quantosPertencem(
         case 'userId': {
             /**
              * `User` não tem `workspaceId` — a ligação com a clínica é a
-             * participação. Mesma consulta que `specialists/route.ts:81-86`.
+             * participação. Mesma consulta que `professionals/route.ts:81-86`.
              *
              * `distinct` porque a contagem tem de ser de **usuários**, não de
              * linhas de participação: se um dia alguém tiver duas, a contagem

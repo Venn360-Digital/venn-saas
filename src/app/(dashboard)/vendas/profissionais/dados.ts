@@ -41,7 +41,7 @@ export const INCLUIR_INATIVOS: boolean = true
 /**
  * Uma linha da lista **já achatada**, como a API entrega.
  *
- * Não é o registro do Prisma: o `GET /api/specialists` mapeia `user.name` para
+ * Não é o registro do Prisma: o `GET /api/professionals` mapeia `user.name` para
  * `userName` e `_count.windows` para `windowCount` antes de responder. O
  * servidor desta tela repete o mesmo mapeamento, então os dois caminhos
  * (primeira pintura e releitura por `fetch`) entregam o mesmo formato.

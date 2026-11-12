@@ -355,7 +355,7 @@ const consultarHorarios: AgentTool = {
         }
         const procedimento = achadoProc.achado
 
-        const especialistas = await prisma.specialist.findMany({
+        const especialistas = await prisma.professional.findMany({
             where: { workspaceId: ctx.workspaceId, isActive: true },
             orderBy: { name: 'asc' },
             select: { id: true, name: true },
@@ -378,7 +378,7 @@ const consultarHorarios: AgentTool = {
         for (const e of alvos) {
             const r = await buscarVagas({
                 workspaceId: ctx.workspaceId,
-                specialistId: e.id,
+                professionalId: e.id,
                 procedureId: procedimento.id,
                 de,
                 ate,
@@ -437,7 +437,7 @@ const marcarConsulta: AgentTool = {
                 where: { workspaceId: ctx.workspaceId, category: { in: SCHEDULABLE_CATEGORIES } },
                 select: { id: true, name: true, durationMinutes: true },
             }),
-            prisma.specialist.findMany({
+            prisma.professional.findMany({
                 where: { workspaceId: ctx.workspaceId, isActive: true },
                 select: { id: true, name: true },
             }),
@@ -464,7 +464,7 @@ const marcarConsulta: AgentTool = {
          */
         const r = await buscarVagas({
             workspaceId: ctx.workspaceId,
-            specialistId: especialista.id,
+            professionalId: especialista.id,
             procedureId: procedimento.id,
             de: data,
             ate: data,
@@ -489,7 +489,7 @@ const marcarConsulta: AgentTool = {
             data: {
                 workspaceId: ctx.workspaceId,
                 contactId: ctx.contactId,
-                specialistId: especialista.id,
+                professionalId: especialista.id,
                 productServiceId: procedimento.id,
                 type: 'meeting',
                 title: `${procedimento.name} com ${especialista.name}`,

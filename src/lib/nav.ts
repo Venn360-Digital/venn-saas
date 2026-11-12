@@ -13,7 +13,7 @@ import {
  *
  * Breadcrumbs used to derive their labels by title-casing URL segments, which
  * rendered "/vendas/produtos-servicos" as "Produtos Servicos" — hyphen eaten,
- * accent gone (aquela rota hoje é `/vendas/procedimentos`).
+ * accent gone (aquela rota hoje é `/vendas/servicos`).
  * The sidebar carried its own copy of the same names, so the two
  * could disagree. Both read from here now, and so does the trail in the
  * topbar.
@@ -108,10 +108,13 @@ export const navSections: NavSection[] = [
         icon: TrendingUp,
         items: [
             { label: 'Negócios', href: '/vendas/negocios' },
-            { label: 'Pacientes', href: '/vendas/pacientes' },
+            // Os segmentos de URL são neutros (`clientes`, `profissionais`,
+            // `servicos`) e iguais nos três produtos — decisão de 2026-11-11,
+            // preparando o código compartilhado. O nicho mora só no rótulo.
+            { label: 'Pacientes', href: '/vendas/clientes' },
             { label: 'Agenda', href: '/vendas/agenda' },
-            { label: 'Especialistas', href: '/vendas/especialistas' },
-            { label: 'Procedimentos', href: '/vendas/procedimentos' },
+            { label: 'Especialistas', href: '/vendas/profissionais' },
+            { label: 'Procedimentos', href: '/vendas/servicos' },
         ],
     },
     {
@@ -148,18 +151,23 @@ const SEGMENT_LABELS: Record<string, string> = {
 
     vendas: 'Vendas',
     negocios: 'Negócios',
+    clientes: 'Pacientes',
+    // Slugs anteriores da mesma tela: `contatos` até 2026-10-08, `pacientes`
+    // até 2026-11-11 (quando o segmento ficou neutro entre os produtos). Os
+    // rótulos ficam porque um link antigo que alguém guardou ainda passa pelo
+    // redirecionamento, e a trilha não deve mostrar um slug cru no caminho.
     pacientes: 'Pacientes',
-    // A rota foi `contatos` até 2026-10-08. O rótulo fica porque um link antigo
-    // que alguém guardou ainda passa pelo redirecionamento, e a trilha não deve
-    // mostrar um slug cru no caminho.
     contatos: 'Pacientes',
     agenda: 'Agenda',
+    profissionais: 'Especialistas',
+    // `especialistas` foi o slug até 2026-11-11; fica mapeado pela mesma razão.
     especialistas: 'Especialistas',
-    procedimentos: 'Procedimentos',
-    // A rota foi `servicos` até 2026-10-20, e o rótulo "Serviços e
-    // procedimentos". O slug antigo fica mapeado porque um link guardado
-    // ainda passa pelo redirecionamento, e a trilha não deve mostrar slug cru.
+    // A rota foi `servicos` até 2026-10-20, virou `procedimentos`, e voltou a
+    // `servicos` em 2026-11-11 como segmento neutro entre os produtos. O rótulo
+    // segue sendo o do nicho, e o slug intermediário fica mapeado porque um
+    // link guardado ainda resolve (via rewrite) e a trilha não mostra slug cru.
     servicos: 'Procedimentos',
+    procedimentos: 'Procedimentos',
     departamentos: 'Departamentos',
 
     suporte: 'Dúvidas e suporte',

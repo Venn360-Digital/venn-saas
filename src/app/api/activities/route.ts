@@ -21,7 +21,7 @@ const activitySchema = z.object({
     dealId: z.string().optional(),
     userId: z.string().optional(),
     /** Quem executa — o profissional, não o responsável pela tarefa. */
-    specialistId: z.string().nullable().optional(),
+    professionalId: z.string().nullable().optional(),
     /** O procedimento do catálogo de Itens; é dele que vem a duração. */
     productServiceId: z.string().nullable().optional(),
     reminderMinutes: z.number().nullable().optional(),
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
                     contact: { select: { id: true, name: true, phone: true } },
                     deal: { select: { id: true, title: true } },
                     user: { select: { id: true, name: true } },
-                specialist: { select: { id: true, name: true, color: true } },
+                professional: { select: { id: true, name: true, color: true } },
                 productService: { select: { id: true, name: true, durationMinutes: true } }
                 },
                 orderBy: [{ completedAt: 'asc' }, { dueDate: 'asc' }],
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
                 contact: { select: { id: true, name: true, phone: true } },
                 deal: { select: { id: true, title: true } },
                 user: { select: { id: true, name: true } },
-                specialist: { select: { id: true, name: true, color: true } },
+                professional: { select: { id: true, name: true, color: true } },
                 productService: { select: { id: true, name: true, durationMinutes: true } }
             },
             orderBy: { dueDate: 'asc' },
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
             endTime: validatedData.endTime,
             contactId: validatedData.contactId,
             dealId: validatedData.dealId,
-            specialistId: validatedData.specialistId ?? null,
+            professionalId: validatedData.professionalId ?? null,
             productServiceId: validatedData.productServiceId ?? null,
             reminderMinutes: validatedData.reminderMinutes ?? null,
             recurrenceType: validatedData.recurrenceType ?? null,
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
                 contact: { select: { id: true, name: true, phone: true } },
                 deal: { select: { id: true, title: true } },
                 user: { select: { id: true, name: true } },
-                specialist: { select: { id: true, name: true, color: true } },
+                professional: { select: { id: true, name: true, color: true } },
                 productService: { select: { id: true, name: true, durationMinutes: true } }
             }
         })
