@@ -5,6 +5,7 @@ import { marcaDaSessao } from '@/lib/session-brand'
 import { DocumentTitle } from '@/components/layout/DocumentTitle'
 import { Topbar } from '@/components/layout/Topbar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { MoedaProvider } from '@/hooks/useMoeda'
 import { TarjaDeAcesso } from '@/components/plataforma/TarjaDeAcesso'
 
 /**
@@ -119,7 +120,16 @@ export default async function DashboardLayout({
                     tabIndex={-1}
                     className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-none"
                 >
-                    {children}
+                    {/* A moeda da conta desce daqui, do mesmo `marcaDaSessao()`
+                        que já trouxe a logomarca — e pelo mesmo motivo: ela
+                        precisa estar no primeiro paint. Buscada no cliente, a
+                        coluna Valor de Negócios nasceria em real e trocaria
+                        para euro um quadro depois, o que lê como erro de
+                        cálculo e não como carregamento.
+
+                        Envolve só o conteúdo: a calha e o cabeçalho não
+                        escrevem dinheiro. */}
+                    <MoedaProvider codigo={marca?.currency}>{children}</MoedaProvider>
                 </div>
             </SidebarInset>
         </SidebarProvider>

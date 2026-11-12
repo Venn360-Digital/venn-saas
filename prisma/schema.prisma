@@ -183,6 +183,24 @@ model Account {
   /// depois, segue a regra de todo mundo. Nulo = cobra desde já.
   billingStartsAt DateTime?
 
+  /// A moeda em que a conta vê dinheiro: negócios, painel, procedimentos, produtos.
+  ///
+  /// Da conta e não da unidade pelo mesmo motivo da logomarca — o painel soma
+  /// negócios de unidades irmãs na mesma coluna, e duas moedas dentro de uma
+  /// conta fariam a soma mentir.
+  ///
+  /// **Não** vale para a cobrança da plataforma: plano, fatura e checkout
+  /// seguem em BRL, que é o que o Asaas liquida e a moeda da tabela de preços.
+  /// Decisão do Andre em 2026-11-03.
+  ///
+  /// ISO 4217, validado na borda contra `CODIGOS_DE_MOEDA` (`src/lib/moedas.ts`)
+  /// e não por enum do Postgres: a lista de moedas cresce por pedido de cliente,
+  /// e cada uma viraria uma migração com `ALTER TYPE` — destrutivo pelo lint, e
+  /// caro para o que é, no fim, uma chave de formatação.
+  ///
+  /// `BRL` por omissão, que é o que toda conta existente já mostrava.
+  currency String @default("BRL")
+
   /// A logomarca que substitui a do produto no cabeçalho do sistema.
   ///
   /// Da conta, e não da unidade, por um motivo de tela: lida da unidade, a

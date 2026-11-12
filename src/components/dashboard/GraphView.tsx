@@ -1,4 +1,6 @@
 import { getDashboardCharts } from '@/lib/dashboard/charts'
+import { moedaDoWorkspace } from '@/lib/moeda-sessao'
+import { formatarMoedaCompacta, formatarMoedaInteira } from '@/lib/moedas'
 import {
     BarList,
     ChartCard,
@@ -8,8 +10,6 @@ import {
     Heatmap,
     PairedBars,
     ReferenceLineChart,
-    compactBRL,
-    fullBRL,
     type BarRow,
 } from './ChartPrimitives'
 
@@ -36,7 +36,22 @@ export async function GraphView({
     to: string
     userId: string | null
 }) {
-    const data = await getDashboardCharts(workspaceId, { from, to, userId })
+    const [data, moeda] = await Promise.all([
+        getDashboardCharts(workspaceId, { from, to, userId }),
+        moedaDoWorkspace(workspaceId),
+    ])
+
+    /**
+     * Os dois formatadores desta tela, fechados sobre a moeda da conta.
+     *
+     * Eram constantes de módulo em `ChartPrimitives` quando a moeda era sempre
+     * real. Agora nascem aqui, uma vez por render: `CumulativeChart` chama
+     * `format` por marca do eixo, e recriar o `Intl.NumberFormat` a cada marca
+     * é o custo que a constante de módulo existia para evitar — `lib/moedas`
+     * guarda os formatadores num mapa pelo mesmo motivo.
+     */
+    const cheio = (valor: number) => formatarMoedaInteira(valor, moeda)
+    const compacto = (valor: number) => formatarMoedaCompacta(valor, moeda)
 
     const revenueDelta =
         data.revenue.previousTotal > 0
@@ -77,7 +92,7 @@ export async function GraphView({
         key: reason.name,
         label: reason.name,
         percent: ((lossByCount ? reason.count : reason.value) / maxLoss) * 100,
-        value: fullBRL(reason.value),
+        value: cheio(reason.value),
         note: `${reason.count} negócio${reason.count === 1 ? '' : 's'} perdido${reason.count === 1 ? '' : 's'}`,
         tone: 'loss',
     }))
@@ -86,7 +101,7 @@ export async function GraphView({
         key: person.userId ?? 'sem-responsavel',
         label: person.name,
         percent: ((userByCount ? person.won : person.value) / maxUser) * 100,
-        value: fullBRL(person.value),
+        value: cheio(person.value),
         note: `${person.won} fechado${person.won === 1 ? '' : 's'}${person.rate !== null ? ` · ${person.rate.toFixed(0)}% de conversão` : ''}`,
         // Sem responsável fica cinza e não disputa com a equipe: é aviso de
         // cadastro, não desempenho de ninguém.
@@ -129,7 +144,7 @@ export async function GraphView({
                     {data.hasWindow && data.revenue.series.length > 0 ? (
                         <>
                             <ChartHero
-                                value={fullBRL(data.revenue.total)}
+                                value={cheio(data.revenue.total)}
                                 delta={
                                     revenueDelta === null
                                         ? null
@@ -140,11 +155,11 @@ export async function GraphView({
                                             good: revenueDelta >= 0,
                                         }
                                 }
-                                hint={`vs. ${fullBRL(data.revenue.previousTotal)} no período anterior`}
+                                hint={`vs. ${cheio(data.revenue.previousTotal)} no período anterior`}
                             />
                             <CumulativeChart
                                 points={data.revenue.series}
-                                format={compactBRL}
+                                format={compacto}
                                 labelCurrent="Este período"
                                 labelPrevious="Período anterior"
                             />

@@ -18,23 +18,19 @@ import { cn } from '@/lib/utils'
  * passado". Ver o comentário de `--chart-series` em `globals.css`.
  */
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-})
-
-/** "R$ 41,8 mil" — o eixo não comporta "R$ 41.800" em cada marca. */
-export function compactBRL(value: number): string {
-    if (Math.abs(value) >= 1000) {
-        return `R$ ${(value / 1000).toFixed(1).replace('.', ',')} mil`
-    }
-    return BRL.format(value)
-}
-
-export function fullBRL(value: number): string {
-    return BRL.format(value)
-}
+/**
+ * O dinheiro saiu daqui.
+ *
+ * Havia um `Intl.NumberFormat` fixo em BRL neste módulo e um `compactBRL` que
+ * dividia por mil e escrevia " mil" à mão. Os dois deixaram de servir quando a
+ * moeda passou a ser da conta: o sufixo de milhar não é "mil" em inglês nem em
+ * japonês, e um `R$` fixo escreveria o símbolo errado sobre o número certo.
+ *
+ * Quem formata agora é `src/lib/moedas.ts`, e quem sabe **qual** moeda é o
+ * chamador — `GraphView` lê a da conta e passa as funções já fechadas sobre
+ * ela em `format`. Este módulo voltou a ser o que diz ser: as peças de desenho,
+ * sem opinião sobre dinheiro.
+ */
 
 export function ChartCard({
     title,

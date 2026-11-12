@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { contaDoMaster, unidadesDaConta } from '@/lib/account'
 import { planFor } from '@/lib/plans'
+import { CODIGOS_DE_MOEDA, MOEDA_PADRAO } from '@/lib/moedas'
 
 /**
  * A conta — quem assina, paga e abriga as unidades.
@@ -31,6 +32,22 @@ const dadosSchema = z.object({
         .optional(),
     /** `null` remove a logomarca e devolve a marca do produto ao cabeçalho. */
     logo: z.string().nullable().optional(),
+
+    /**
+     * A moeda em que a conta vê dinheiro. ISO 4217, da lista que a tela oferece.
+     *
+     * Validada contra a lista e não contra `/^[A-Z]{3}$/`: um código que o
+     * `Intl` não conhece viraria exceção em toda tela que escreve dinheiro, e a
+     * borda é onde isso custa um 400 em vez de um 500.
+     *
+     * Não tem o par "vazio limpa" dos outros campos — moeda nenhuma não é um
+     * estado válido da conta, e o banco tem `BRL` por omissão.
+     */
+    currency: z
+        .enum(CODIGOS_DE_MOEDA as [string, ...string[]], {
+            message: 'Escolha uma das moedas da lista.',
+        })
+        .optional(),
 
     /**
      * O endereço de cobrança, em campos separados.
@@ -95,6 +112,7 @@ export async function GET() {
                     city: true,
                     state: true,
                     billingPhone: true,
+                    currency: true,
                 },
             },
         },
@@ -110,7 +128,13 @@ export async function GET() {
     ])
 
     /* O dono não vai na resposta em si — vira `souMaster`, logo abaixo. */
-    const daConta = { ...workspace.account, ownerUserId: undefined }
+    const daConta = {
+        ...workspace.account,
+        ownerUserId: undefined,
+        /* Conta gravada antes da coluna existir, ou com um código que saiu da
+           lista, abre a tela em real em vez de num `<select>` sem seleção. */
+        currency: workspace.account.currency || MOEDA_PADRAO,
+    }
 
     return NextResponse.json({
         ...daConta,
@@ -121,7 +145,11 @@ export async function GET() {
     })
 }
 
-/** O documento de cobrança e a logomarca. Do MASTER: os dois são da fatura e do cabeçalho. */
+/**
+ * O documento de cobrança, a moeda e a logomarca. Do MASTER: a fatura, o
+ * cabeçalho e a moeda em que a conta inteira lê dinheiro são decisões de quem
+ * assina, não de quem opera uma unidade.
+ */
 export async function PATCH(request: NextRequest) {
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -132,7 +160,7 @@ export async function PATCH(request: NextRequest) {
             {
                 error:
                     master.status === 403
-                        ? 'Só o responsável pela conta pode alterar o documento de cobrança e a logomarca.'
+                        ? 'Só o responsável pela conta pode alterar o documento de cobrança, a moeda e a logomarca.'
                         : master.error,
             },
             { status: master.status }
@@ -163,9 +191,10 @@ export async function PATCH(request: NextRequest) {
         data: {
             cpfCnpj: parsed.data.cpfCnpj === undefined ? undefined : parsed.data.cpfCnpj || null,
             logo: parsed.data.logo === undefined ? undefined : parsed.data.logo,
+            currency: parsed.data.currency ?? undefined,
             ...endereco,
         },
-        select: { name: true, cpfCnpj: true, logo: true },
+        select: { name: true, cpfCnpj: true, logo: true, currency: true },
     })
 
     return NextResponse.json(conta)

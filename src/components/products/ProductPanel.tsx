@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 import { isSchedulable } from '@/lib/product-categories'
+import { useMoeda } from '@/hooks/useMoeda'
+import { precoDoTexto, textoDePreco } from '@/lib/moedas'
 
 export interface ProductPanelItem {
     id: string
@@ -17,17 +19,16 @@ export interface ProductPanelItem {
     group: string | null
 }
 
-const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
-/** "180,00" ↔ 180: o que a pessoa digita e o que a API guarda. */
-function priceText(price: number | null) {
-    return price == null ? '' : price.toFixed(2).replace('.', ',')
-}
-function parsePrice(text: string): number | null {
-    if (!text) return null
-    const n = parseFloat(text.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'))
-    return Number.isFinite(n) ? n : null
-}
+/**
+ * A ida e a volta do preço digitado moram em `lib/moedas` desde que a moeda
+ * passou a ser da conta.
+ *
+ * O par antigo era de real escrito à mão: mostrava `180,00` e, na volta,
+ * descartava **todo** ponto como separador de milhar. Em dólar a tela passa a
+ * escrever `$180.00`, quem copia o formato digita `180.00`, e o ponto
+ * descartado transformava o preço em 18000 — cem vezes maior, gravado sem
+ * reclamação nenhuma.
+ */
 
 /** A ficha de um item do catálogo: tudo o que o diálogo tinha, gravado campo a campo. */
 export function ProductPanel({
@@ -53,6 +54,7 @@ export function ProductPanel({
     onDelete: (id: string) => void
 }) {
     const { save, saved, local } = usePanelSave<ProductPanelItem>(`/api/products/${item.id}`, onChanged, item)
+    const moeda = useMoeda()
     const p = { ...item, ...local }
 
     return (
@@ -61,7 +63,7 @@ export function ProductPanel({
             title={
                 <span className="flex min-w-0 items-baseline gap-2">
                     <span className="truncate">{p.name || 'Sem nome'}</span>
-                    {p.price != null ? <span className="num shrink-0 text-xs font-medium text-muted-foreground">{BRL.format(p.price)}</span> : null}
+                    {p.price != null ? <span className="num shrink-0 text-xs font-medium text-muted-foreground">{moeda.formatar(p.price)}</span> : null}
                 </span>
             }
             onClose={onClose}
@@ -104,13 +106,24 @@ export function ProductPanel({
                         />
                     </PanelField>
                 ) : null}
-                <PanelField label="Preço" htmlFor="prod-panel-price" saved={saved === 'price'}>
+                {/* O símbolo no rótulo, não no campo: a pessoa digita só o
+                    número, e sem ele não haveria nada na ficha dizendo em que
+                    moeda este preço está. O exemplo do placeholder segue a
+                    pontuação da moeda — pedir "180,00" numa conta em dólar é
+                    ensinar o formato errado. */}
+                <PanelField
+                    label={`Preço (${moeda.simbolo})`}
+                    htmlFor="prod-panel-price"
+                    saved={saved === 'price'}
+                >
                     <InlineField
                         id="prod-panel-price"
-                        value={priceText(p.price)}
+                        value={textoDePreco(p.price, moeda.codigo)}
                         disabled={!canEdit}
-                        placeholder="180,00"
-                        onCommit={(text) => void save('price', { price: parsePrice(text) })}
+                        placeholder={textoDePreco(180, moeda.codigo)}
+                        onCommit={(text) =>
+                            void save('price', { price: precoDoTexto(text, moeda.codigo) })
+                        }
                         className="num h-8 text-sm"
                     />
                 </PanelField>
