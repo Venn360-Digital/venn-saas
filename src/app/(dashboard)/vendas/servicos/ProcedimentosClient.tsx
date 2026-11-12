@@ -27,7 +27,9 @@ import { PRODUCT_CATEGORIES, isSchedulable } from '@/lib/product-categories'
 import { panelNeighbours, usePanelKeys } from '@/components/shared/RecordPanel'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
-import { formatCents, onlyDigits, parseCents } from '@/lib/masks'
+import { onlyDigits, parseCents } from '@/lib/masks'
+import { useMoeda } from '@/hooks/useMoeda'
+import { casasDecimais } from '@/lib/moedas'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { usePermissions } from '@/hooks/usePermissions'
 
@@ -43,12 +45,27 @@ const CATEGORY_TONES = {
     product: { label: 'Produto', tone: 'neutral' as const },
 }
 
-const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
 export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
     // Presentation only — the API enforces the same rule. Without this an
     // ATENDENTE would see Edit/Delete controls that answer 403.
     const { canEdit } = usePermissions()
+    const moeda = useMoeda()
+
+    /**
+     * Quantas menores unidades cabem numa inteira: 100 em real, **1 no iene**.
+     *
+     * O campo de preço é digitado em dígitos crus — "18000" vira "R$ 180,00" —
+     * e o `* 100` / `/ 100` que estava escrito aqui era real presumido. Numa
+     * conta em iene, que não tem centavos, ele dividiria ¥ 5.000 por cem e
+     * gravaria ¥ 50.
+     */
+    const fator = 10 ** casasDecimais(moeda.codigo)
+
+    /** Dígitos crus → o preço escrito na moeda da conta. */
+    const precoDigitado = (digitos: string) => {
+        const menores = parseCents(digitos)
+        return menores == null ? '' : moeda.formatar(menores / fator)
+    }
 
     const [search, setSearch] = useState('')
     const [query, setQuery] = useState('')
@@ -152,7 +169,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
     /** O lápis da ficha: o mesmo diálogo, com todos os campos do registro. */
     function openEdit(item: ProductItem) {
         setEditingId(item.id)
-        setFormData({ name: item.name, description: item.description ?? '', sku: item.sku ?? '', category: item.category, priceCents: item.price != null ? String(Math.round(item.price * 100)) : '', group: item.group ?? '', durationMinutes: item.durationMinutes != null ? String(item.durationMinutes) : '' })
+        setFormData({ name: item.name, description: item.description ?? '', sku: item.sku ?? '', category: item.category, priceCents: item.price != null ? String(Math.round(item.price * fator)) : '', group: item.group ?? '', durationMinutes: item.durationMinutes != null ? String(item.durationMinutes) : '' })
         setErrors({})
         setIsDialogOpen(true)
     }
@@ -180,7 +197,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                     durationMinutes: isSchedulable(formData.category)
                         ? Number(formData.durationMinutes) || null
                         : null,
-                    price: cents == null ? undefined : cents / 100,
+                    price: cents == null ? undefined : cents / fator,
                     group: formData.group.trim() || undefined,
                 }),
             })
@@ -277,7 +294,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
             numeric: true,
             cell: (p) =>
                 p.price != null ? (
-                    BRL.format(p.price)
+                    moeda.formatar(p.price)
                 ) : (
                     <span className="text-muted-foreground">—</span>
                 ),
@@ -424,7 +441,7 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                                 <StatusBadge value={formData.category} map={CATEGORY_TONES} />
                             </span>
                             <span className="num text-xs text-muted-foreground">
-                                {formData.priceCents ? formatCents(parseCents(formData.priceCents)) : 'Sem preço'}
+                                {formData.priceCents ? precoDigitado(formData.priceCents) : 'Sem preço'}
                                 {formData.sku.trim() ? <span className="font-mono"> · {formData.sku.trim()}</span> : null}
                             </span>
                         </SummaryCard>
@@ -456,13 +473,18 @@ export function ProcedimentosClient({ inicial }: { inicial: DadosIniciais }) {
                     </Select>
                 </FormField>
 
-                <FormField label="Preço" htmlFor="prod-price" hint="Só os números; a vírgula entra sozinha.">
+                <FormField
+                    label="Preço"
+                    htmlFor="prod-price"
+                    hint="Só os números; a pontuação entra sozinha."
+                >
                     <Input
                         id="prod-price"
                         inputMode="numeric"
-                        value={formData.priceCents ? formatCents(parseCents(formData.priceCents)) : ''}
+                        value={formData.priceCents ? precoDigitado(formData.priceCents) : ''}
                         onChange={(e) => setFormData((p) => ({ ...p, priceCents: onlyDigits(e.target.value).replace(/^0+(?=\d)/, '') }))}
-                        placeholder="R$ 0,00"
+                        /* O zero da moeda da conta — "R$ 0,00", "$0.00", "￥0". */
+                        placeholder={moeda.formatar(0)}
                         className="num"
                     />
                 </FormField>

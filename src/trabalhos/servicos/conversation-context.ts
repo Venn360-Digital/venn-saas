@@ -127,7 +127,7 @@ async function cadastroDoWorkspace(workspaceId: string): Promise<{
             orderBy: { name: 'asc' },
             select: { name: true },
         }),
-        prisma.specialist.findMany({
+        prisma.professional.findMany({
             where: { workspaceId, isActive: true, windows: { some: { agentCanBook: true } } },
             orderBy: { name: 'asc' },
             select: { name: true },

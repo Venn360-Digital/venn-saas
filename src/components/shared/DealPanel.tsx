@@ -35,6 +35,7 @@ import { type DealLike } from '@/lib/deal-health'
 import { canalComApelido } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
 import { cn } from '@/lib/utils'
+import { useMoeda } from '@/hooks/useMoeda'
 
 /**
  * Por onde o paciente entrou, em uma linha.
@@ -145,6 +146,7 @@ export function DealPanel<T extends PanelDeal>({
     const [mode, setMode] = useState<Mode>('ficha')
     const [saved, setSaved] = useState(false)
     const closed = deal.status !== 'open'
+    const moeda = useMoeda()
 
     // Listas que o painel cadastra por conta própria, para não esperar a tela
     // recarregar os lookups depois de um `+`.
@@ -298,7 +300,9 @@ export function DealPanel<T extends PanelDeal>({
                                 </p>
                                 {deal.outcomeReason ? <p className="mt-0.5">Motivo: {deal.outcomeReason.name}</p> : null}
                                 {deal.status === 'won' && deal.closedValue != null ? (
-                                    <p className="num">Valor fechado R$ {deal.closedValue.toLocaleString('pt-BR')}</p>
+                                    <p className="num">
+                                        Valor fechado {moeda.formatarInteiro(deal.closedValue)}
+                                    </p>
                                 ) : null}
                                 {deal.outcomeNotes ? <p className="mt-0.5 opacity-90">{deal.outcomeNotes}</p> : null}
                             </div>

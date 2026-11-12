@@ -11,6 +11,7 @@ import { formatPhone } from '@/lib/phone'
 import { useNow } from '@/hooks/useNow'
 import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { cn } from '@/lib/utils'
+import { useMoeda } from '@/hooks/useMoeda'
 
 export type FocusOrder = 'age' | 'value' | 'recent'
 
@@ -65,8 +66,10 @@ export function StageFocus({
     className?: string
 }) {
     const now = useNow()
-    // Desce por prop junto com o relógio, pelo mesmo motivo: um cartão não
-    // precisa de assinatura própria para saber em que fuso a clínica conta.
+    const moeda = useMoeda()
+    // Desce por prop junto com o relógio e a moeda, pelo mesmo motivo: um
+    // cartão não precisa de assinatura própria para saber em que fuso a clínica
+    // conta os dias.
     const fuso = useFusoDaUnidade()
 
     const sorted = [...deals].sort((a, b) => {
@@ -86,7 +89,7 @@ export function StageFocus({
                 </span>
                 {total > 0 ? (
                     <span className="num hidden text-xs text-muted-foreground sm:inline">
-                        R$ {total.toLocaleString('pt-BR')}
+                        {moeda.formatarInteiro(total)}
                     </span>
                 ) : null}
                 <span className="flex-1" />
@@ -149,6 +152,7 @@ function FocusRow({
     }
 }) {
     const closed = deal.status !== 'open'
+    const moeda = useMoeda()
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: deal.id,
         // Negócio fechado não se move de etapa: o que se move é reabrir.
@@ -222,7 +226,7 @@ function FocusRow({
 
             {deal.value ? (
                 <span className="num hidden w-[92px] shrink-0 text-right text-xs lg:inline">
-                    R$ {deal.value.toLocaleString('pt-BR')}
+                    {moeda.formatarInteiro(deal.value)}
                 </span>
             ) : (
                 <span className="hidden w-[92px] shrink-0 lg:inline" />

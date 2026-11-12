@@ -29,7 +29,7 @@ export async function PATCH(
         }
 
         const body = await request.json()
-        const { title, type, description, dueDate, startTime, endTime, completed, reminderMinutes, recurrenceType, recurrenceEnd, contactId, dealId, userId, specialistId, productServiceId } = body
+        const { title, type, description, dueDate, startTime, endTime, completed, reminderMinutes, recurrenceType, recurrenceEnd, contactId, dealId, userId, professionalId, productServiceId } = body
 
         /**
          * Os ids de relação vêm do navegador e **não eram conferidos**.
@@ -46,7 +46,7 @@ export async function PATCH(
             contactId,
             dealId,
             userId,
-            specialistId,
+            professionalId,
             productServiceId,
         })
         if (recusada) {
@@ -69,7 +69,7 @@ export async function PATCH(
                 ...(contactId !== undefined && { contactId: contactId || null }),
                 ...(dealId !== undefined && { dealId: dealId || null }),
                 ...(userId !== undefined && { userId: userId || null }),
-                ...(specialistId !== undefined && { specialistId: specialistId || null }),
+                ...(professionalId !== undefined && { professionalId: professionalId || null }),
                 ...(productServiceId !== undefined && { productServiceId: productServiceId || null }),
             },
             include: {

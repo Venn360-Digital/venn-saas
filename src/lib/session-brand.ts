@@ -28,17 +28,26 @@ export interface MarcaDaSessao {
     logo: string | null
     /** O nome da conta, que é o título do seletor de clínicas. */
     conta: string
+    /**
+     * A moeda da conta (ISO 4217) — em que o sistema escreve dinheiro.
+     *
+     * Viaja junto da marca, e não numa rota própria, porque é exatamente o
+     * mesmo problema: precisa estar no **primeiro paint**. Buscada no cliente,
+     * a coluna "Valor" de Negócios nasceria em real e trocaria para euro um
+     * quadro depois — um pisca em cima de número de dinheiro, que lê como erro
+     * de cálculo e não como carregamento.
+     */
+    currency: string
     /** As unidades de que esta pessoa participa, da mais antiga à nova. */
     unidades: { id: string; name: string }[]
     /**
      * O fuso da unidade aberta — o relógio em que a tela conta os dias.
      *
-     * Viaja aqui, e não numa busca própria, porque é a resposta que **toda**
-     * página do dashboard já carrega: o `settings` já vem na consulta abaixo, e
-     * "Hoje"/"Amanhã" precisam do fuso no primeiro paint, no cliente, sem outra
-     * ida ao servidor. De carona também ganha a invalidação que já existe —
-     * gravar o fuso na guia Conta da Clínica dispara `workspace:updated`, e os
-     * rótulos trocam sem recarregar.
+     * Viaja aqui pelo mesmo motivo da moeda, e é o mesmo problema: precisa estar
+     * no **primeiro paint**. Esta é a resposta que toda página do dashboard já
+     * carrega, o `settings` já vem na consulta abaixo, e de carona o fuso ganha
+     * a invalidação que já existe — gravar o fuso na guia Conta da Clínica
+     * dispara `workspace:updated`, e os rótulos trocam sem recarregar.
      */
     fuso: string
 }
@@ -72,7 +81,7 @@ async function lerMarca(): Promise<MarcaDaSessao | null> {
                 id: true,
                 name: true,
                 settings: true,
-                account: { select: { name: true, logo: true } },
+                account: { select: { name: true, logo: true, currency: true } },
             },
         }),
         /**
@@ -102,6 +111,7 @@ async function lerMarca(): Promise<MarcaDaSessao | null> {
         name: workspace.name,
         logo: workspace.account.logo,
         conta: workspace.account.name,
+        currency: workspace.account.currency,
         unidades: participacoes.map((p) => p.workspace),
         fuso: lerFusoDasConfiguracoes(workspace.settings),
     }
