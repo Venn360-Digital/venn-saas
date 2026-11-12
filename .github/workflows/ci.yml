@@ -22,7 +22,10 @@ name: CI
 # morriam em 2 s, sem passo e sem log).
 #
 # Por isso a verificação que NÃO pode faltar mora no `package.json`, pendurada
-# nos hooks do npm, e roda dentro do build da Cloudflare:
+# nos hooks `pre*` (o repo está em pnpm desde 12/11, com
+# `enable-pre-post-scripts=true` declarado no .npmrc justamente para estes
+# três não dependerem de um padrão que já mudou de valor), e roda dentro do
+# build da Cloudflare:
 #
 #   prebuild:preview  → antes do build do preview
 #   preportao:stg     → antes de `migrate:stg`, no deploy command do staging
@@ -77,6 +80,12 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v4
+        with:
+          # Explícita porque o `packageManager` saiu do package.json (o
+          # corepack travava o builder da Cloudflare pedindo confirmação
+          # de download — ver o comentário lá). Subir a versão do pnpm
+          # é mexer aqui.
+          version: 10.32.1
 
       - uses: actions/setup-node@v7
         with:
@@ -195,6 +204,12 @@ jobs:
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v4
+        with:
+          # Explícita porque o `packageManager` saiu do package.json (o
+          # corepack travava o builder da Cloudflare pedindo confirmação
+          # de download — ver o comentário lá). Subir a versão do pnpm
+          # é mexer aqui.
+          version: 10.32.1
 
       - uses: actions/setup-node@v7
         with:
@@ -236,6 +251,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
+        with:
+          # Explícita porque o `packageManager` saiu do package.json (o
+          # corepack travava o builder da Cloudflare pedindo confirmação
+          # de download — ver o comentário lá). Subir a versão do pnpm
+          # é mexer aqui.
+          version: 10.32.1
 
       - uses: actions/setup-node@v7
         with:
@@ -357,6 +378,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
+        with:
+          # Explícita porque o `packageManager` saiu do package.json (o
+          # corepack travava o builder da Cloudflare pedindo confirmação
+          # de download — ver o comentário lá). Subir a versão do pnpm
+          # é mexer aqui.
+          version: 10.32.1
 
       - uses: actions/setup-node@v7
         with:

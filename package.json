@@ -2,8 +2,7 @@
   "name": "venn.odontobox360",
   "version": "0.1.0",
   "private": true,
-  "//packageManager": "A versão do pnpm, fixada em um lugar só. Quem lê: o corepack (local e no builder da Cloudflare) e a `pnpm/action-setup` do CI — esta falha se o campo não existir. Subir a versão aqui sobe nos três ao mesmo tempo, que é o ponto.",
-  "packageManager": "pnpm@10.32.1",
+  "//packageManager": "AUSENTE DE PROPÓSITO. O campo faz o Node delegar ao corepack, e o corepack PERGUNTA antes de baixar uma versão que não tenha em cache — num builder não interativo isso vira travamento, não erro. Foi o que aconteceu no primeiro build de preview desta migração: 31 minutos em `in_progress` e depois falha, sem nada compilado (build id 94db6474, 12/11 15:43→16:14). Sem o campo, o builder da Cloudflare usa o pnpm que já traz na imagem, e o `pnpm-lock.yaml` é lockfileVersion 9.0 — lido por pnpm 9 e 10. A versão do CI é fixada no `with: version` da pnpm/action-setup, em .github/workflows/ci.yml. Se um dia este campo voltar, a build var COREPACK_ENABLE_DOWNLOAD_PROMPT=0 tem de vir com ele.",
   "imports": {
     "#prisma": {
       "workerd": "./src/generated/prisma-workerd/client.ts",
