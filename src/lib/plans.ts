@@ -364,7 +364,15 @@ export const TRIAL = {
     body: 'São 1.000 créditos de IA para validar o seu agente de atendimento. Não é necessário inserir o cartão de crédito agora, e nada é cobrado até você efetivar a assinatura.',
 }
 
-/** Price as "R$ 490,00". */
+/**
+ * Price as "R$ 490,00".
+ *
+ * Real **fixo**, e não a moeda da conta — não é esquecimento da troca de moeda
+ * de 2026-11-03. Esta tabela é o que a Venn360 cobra, o Asaas liquida em reais,
+ * e pintar `€` sobre "490" anunciaria um preço que não é o debitado. Quem
+ * segue a moeda da conta é `lib/moedas.ts`, e ele cobre os dados do cliente —
+ * negócios, painel, serviços, produtos.
+ */
 export function formatPrice(value: number): string {
     return new Intl.NumberFormat('pt-BR', {
         style: 'currency',

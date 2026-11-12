@@ -6,6 +6,7 @@ import { CheckCircle2 } from 'lucide-react'
 import { daysInStage, type DealLike } from '@/lib/deal-health'
 import { useNow } from '@/hooks/useNow'
 import { cn } from '@/lib/utils'
+import { useMoeda } from '@/hooks/useMoeda'
 
 export interface RailStage {
     id: string
@@ -81,6 +82,7 @@ function RailItem({
     onSelect: (stageId: string) => void
 }) {
     const now = useNow()
+    const moeda = useMoeda()
     const { setNodeRef, isOver } = useDroppable({ id: `rail-${stage.id}` })
 
     // `_count` já vem contado com o mesmo filtro da coluna, então ele vale
@@ -138,7 +140,7 @@ function RailItem({
             )}
 
             <span className="num mt-1.5 block text-[10.5px] text-muted-foreground">
-                {value > 0 ? `R$ ${value.toLocaleString('pt-BR')}` : 'sem valor'}
+                {value > 0 ? moeda.formatarInteiro(value) : 'sem valor'}
                 {health.stale > 0 ? ` · ${health.stale} ${health.stale === 1 ? 'parado' : 'parados'}` : ''}
             </span>
 

@@ -60,11 +60,11 @@ export function prettyPhone(digits: string | null | undefined): string {
     return applyMask(d, d.length <= 10 ? MASKS.phone8 : MASKS.phone)
 }
 
-/** Centavos → "R$ 5.000,00". O campo guarda centavos para não somar erro de ponto flutuante. */
-export function formatCents(cents: number | null | undefined): string {
-    if (cents == null) return ''
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100)
-}
+/* `formatCents` saiu daqui em 2026-11-03.
+   Ela escrevia "R$" fixo, e a moeda passou a ser da conta — quem formata agora
+   é `lib/moedas.ts`, com o divisor seguindo a moeda (100 onde há centavos, 1 no
+   iene). `parseCents`, logo abaixo, continua: ela só conta dígitos, e dígito
+   não tem moeda. */
 
 /** O que a pessoa digitou (só os números contam) → centavos. */
 export function parseCents(typed: string): number | null {

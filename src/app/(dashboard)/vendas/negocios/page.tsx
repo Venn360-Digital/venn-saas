@@ -104,11 +104,19 @@ import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
 import { cn } from '@/lib/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
+import { useMoeda } from '@/hooks/useMoeda'
 
 const STATUS_LABELS: Record<string, string> = { open: 'Abertos', won: 'Ganhos', lost: 'Perdidos', all: 'Todos' }
 
-function money(value?: number | null): string {
-    return value == null ? '—' : `R$ ${value.toLocaleString('pt-BR')}`
+/**
+ * O travessão quando não há valor, o número formatado quando há.
+ *
+ * Recebe o formatador em vez de chamar `useMoeda()`: ela é declarada fora de
+ * componente — é usada por três pastilhas do cabeçalho — e um hook aqui não
+ * teria React por perto.
+ */
+function money(value: number | null | undefined, formatar: (v: number) => string): string {
+    return value == null ? '—' : formatar(value)
 }
 
 function shortDate(iso: string): string {
@@ -228,6 +236,7 @@ function OutcomeZone({
 }) {
     const { setNodeRef } = useDroppable({ id: `outcome-${side}` })
     const won = side === 'won'
+    const moeda = useMoeda()
 
     return (
         <div
@@ -259,7 +268,7 @@ function OutcomeZone({
             </div>
             {count !== undefined && total !== undefined ? (
                 <span className="num ml-auto shrink-0 text-xs font-bold">
-                    {count} · R$ {total.toLocaleString('pt-BR')}
+                    {count} · {moeda.formatarInteiro(total)}
                 </span>
             ) : null}
         </div>
@@ -283,6 +292,7 @@ function DealCard({
     onSelect: (deal: Deal) => void
     selected: boolean
 }) {
+    const moeda = useMoeda()
     // Presentation only — the API enforces the same rule. Resolved here rather
     // than threaded as yet another prop through the kanban.
     const { canEdit } = usePermissions()
@@ -345,7 +355,7 @@ function DealCard({
                         {deal.value != null && deal.value > 0 && (
                             <span className="text-sm text-success-subtle-foreground flex items-center gap-0.5">
                                 <DollarSign className="h-3 w-3" />
-                                R$ {deal.value.toLocaleString('pt-BR')}
+                                {moeda.formatarInteiro(deal.value)}
                             </span>
                         )}
                         {deal.owner && (
@@ -420,6 +430,7 @@ function StageColumn({
 }) {
     const { canEdit } = usePermissions()
     const { setNodeRef } = useDroppable({ id: `stage-${stage.id}` })
+    const moeda = useMoeda()
     const totalValue = stage.deals.reduce((sum, d) => sum + (d.value || 0), 0)
     const now = useNow()
 
@@ -471,7 +482,7 @@ function StageColumn({
                     {stage.deals.length === 0 && <span className="w-full rounded-sm bg-border" />}
                 </div>
                 <p className="num mt-1.5 text-xs text-muted-foreground">
-                    {totalValue > 0 ? <span className="font-medium text-success-subtle-foreground">R$ {totalValue.toLocaleString('pt-BR')}</span> : 'Sem valor'}
+                    {totalValue > 0 ? <span className="font-medium text-success-subtle-foreground">{moeda.formatarInteiro(totalValue)}</span> : 'Sem valor'}
                     {health.stale > 0 ? ` · ${health.stale} ${health.stale === 1 ? 'parado' : 'parados'}` : null}
                 </p>
             </div>
@@ -538,6 +549,7 @@ export default function NegociosPage() {
     // The kanban card already gates Excluir on this; the list view did not, so
     // an ATENDENTE was offered a delete the API answers with 403.
     const { canEdit } = usePermissions()
+    const moeda = useMoeda()
     const [stages, setStages] = useState<Stage[]>([])
     // Os telefones de todos os cartões do quadro, numa consulta só.
     const [loading, setLoading] = useState(true)
@@ -1232,7 +1244,7 @@ export default function NegociosPage() {
             cell: deal =>
                 deal.value != null && deal.value > 0 ? (
                     <span className="text-success-subtle-foreground">
-                        R$ {deal.value.toLocaleString('pt-BR')}
+                        {moeda.formatarInteiro(deal.value)}
                     </span>
                 ) : (
                     <span className="text-muted-foreground">—</span>
@@ -1313,9 +1325,9 @@ export default function NegociosPage() {
                 <>
                     <StatPill value={summary?.open.count ?? '—'} label="em jogo" title="Negócios abertos" pressed={!lane} onClick={() => setLane(null)} />
                     {/* O dinheiro nas mesmas pastilhas, sem clique: informam, não filtram. */}
-                    <StatPill value={money(summary?.open.value)} label="em aberto" />
-                    <StatPill value={money(summary?.won.value)} label={summary ? `ganho · ${summary.won.count}` : 'ganho'} tone="ok" />
-                    <StatPill value={money(summary?.lost.value)} label={summary ? `perdido · ${summary.lost.count}` : 'perdido'} tone="danger" />
+                    <StatPill value={money(summary?.open.value, moeda.formatarInteiro)} label="em aberto" />
+                    <StatPill value={money(summary?.won.value, moeda.formatarInteiro)} label={summary ? `ganho · ${summary.won.count}` : 'ganho'} tone="ok" />
+                    <StatPill value={money(summary?.lost.value, moeda.formatarInteiro)} label={summary ? `perdido · ${summary.lost.count}` : 'perdido'} tone="danger" />
                 </>
             }
             actions={
@@ -1571,7 +1583,7 @@ export default function NegociosPage() {
                                 ) : null}
                                 {deal.value != null && deal.value > 0 ? (
                                     <span className="num text-success-subtle-foreground">
-                                        R$ {deal.value.toLocaleString('pt-BR')}
+                                        {moeda.formatarInteiro(deal.value)}
                                     </span>
                                 ) : null}
                             </div>

@@ -10,17 +10,13 @@ import {
 } from 'lucide-react'
 
 import { getDashboardSummary } from '@/lib/dashboard/summary'
+import { moedaDoWorkspace } from '@/lib/moeda-sessao'
+import { formatarMoedaInteira } from '@/lib/moedas'
 import { activityType } from '@/lib/activity-types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/shared/KpiCard'
 import { EmptyState } from '@/components/shared/EmptyState'
-
-const BRL = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-})
 
 /**
  * A visão Dados — a que o painel sempre teve.
@@ -49,10 +45,13 @@ export async function DataView({
      */
     vigia?: React.ReactNode
 }) {
-    const { kpis, snapshot, byStage, recentActivities } = await getDashboardSummary(
-        workspaceId,
-        { from, to, userId }
-    )
+    const [{ kpis, snapshot, byStage, recentActivities }, moeda] = await Promise.all([
+        getDashboardSummary(workspaceId, { from, to, userId }),
+        /* Na mesma viagem do resumo: a moeda é uma linha de `accounts` e
+           esperar por ela em sequência atrasaria o primeiro paint do painel
+           pelo tempo de uma consulta que não depende da outra. */
+        moedaDoWorkspace(workspaceId),
+    ])
     const totalInStages = byStage.reduce((sum, s) => sum + s.count, 0)
 
     return (
@@ -75,7 +74,7 @@ export async function DataView({
                 />
                 <KpiCard
                     label="Negócios ganhos"
-                    value={BRL.format(kpis.revenue.value)}
+                    value={formatarMoedaInteira(kpis.revenue.value, moeda)}
                     icon={CircleDollarSign}
                     delta={kpis.revenue.delta ?? undefined}
                     hint={`${kpis.revenue.count} fechado${kpis.revenue.count === 1 ? '' : 's'}`}

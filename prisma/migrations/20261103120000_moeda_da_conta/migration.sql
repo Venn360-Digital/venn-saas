@@ -1,0 +1,19 @@
+-- A moeda em que a conta vê dinheiro.
+--
+-- Até aqui todo valor da aplicação era real, escrito à mão em sete arquivos.
+-- Uma clínica que fecha tratamento em dólar ou euro via o símbolo errado em
+-- cima do número certo — pior que não mostrar símbolo nenhum.
+--
+-- Expand puro: coluna nova com padrão. O código anterior não a envia no INSERT
+-- e não precisa — o padrão responde por ele —, e não a lê, então produção
+-- rodando código velho contra este schema continua mostrando real, que é o que
+-- mostrava antes. Nenhuma fase `contract` pendente.
+--
+-- `text` com padrão, não enum: a lista de moedas cresce por pedido de cliente e
+-- cada uma viraria um `ALTER TYPE`, destrutivo pelo lint. Quem valida o código
+-- é a borda (`CODIGOS_DE_MOEDA`, em `src/lib/moedas.ts`), e um código fora da
+-- lista cai no real na leitura em vez de derrubar a tela.
+--
+-- Trocar a moeda **não converte** valor: um negócio de 50.000 passa a ler
+-- $ 50,000.00. Por isso nada aqui toca `deals`, `procedures` ou `products`.
+ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "currency" TEXT NOT NULL DEFAULT 'BRL';

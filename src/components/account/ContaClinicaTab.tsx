@@ -18,6 +18,7 @@ import { MASKS, onlyDigits } from '@/lib/masks'
 import { buscarCep } from '@/lib/cep'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 import { UNIDADE_ADICIONAL, formatPrice } from '@/lib/plans'
+import { MOEDAS, MOEDA_PADRAO, formatarMoeda } from '@/lib/moedas'
 import { GRUPOS_DE_FUSOS, rotuloDoFuso, rotuloDoValor } from '@/lib/fusos'
 import {
     Select,
@@ -86,6 +87,8 @@ interface Conta {
     city: string | null
     state: string | null
     billingPhone: string | null
+    /** ISO 4217 — a moeda em que esta conta vê dinheiro. */
+    currency: string
     souMaster: boolean
     plano: string | null
     unidades: {
@@ -122,6 +125,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
     /** O documento, o endereço de cobrança e a logo da conta, em edição. */
     const [formConta, setFormConta] = useState({
         cpfCnpj: '',
+        currency: MOEDA_PADRAO,
         logo: '',
         postalCode: '',
         address: '',
@@ -164,6 +168,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
             setConta(c)
             setFormConta({
                 cpfCnpj: onlyDigits(c.cpfCnpj),
+                currency: c.currency || MOEDA_PADRAO,
                 logo: c.logo ?? '',
                 postalCode: onlyDigits(c.postalCode),
                 address: c.address ?? '',
@@ -252,6 +257,7 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         cpfCnpj: formConta.cpfCnpj,
+                        currency: formConta.currency,
                         logo: formConta.logo || null,
                         postalCode: formConta.postalCode,
                         address: formConta.address,
@@ -571,6 +577,88 @@ export function ContaClinicaTab({ formId }: { formId: string }) {
                                 onChange={trocarImagem}
                             />
                         </FormField>
+                    </div>
+
+                    {/* A MOEDA DO SISTEMA.
+                        Linha própria e não uma quarta coluna no grid acima:
+                        ela precisa do aviso de que trocar não converte, e esse
+                        aviso é uma frase — espremido numa coluna de 1fr, ele
+                        viraria quatro linhas de texto ao lado de um campo de
+                        uma. Larga o suficiente para a frase caber, estreita o
+                        suficiente para o `<select>` não parecer um campo de
+                        texto vazio.
+
+                        O teto de largura saiu da grade e virou medida de
+                        leitura no parágrafo: cartão em guia acompanha a tela, e
+                        `max-w-4xl` aqui parava a linha inteira junto com a
+                        frase. Quem precisa de teto é o texto, não a grade. */}
+                    <div className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,18rem)_1fr]">
+                        <FormField
+                            label="Moeda do sistema"
+                            htmlFor="conta-moeda"
+                            hint="Vale para negócios, painel, serviços e produtos."
+                        >
+                            <Select
+                                value={formConta.currency}
+                                disabled={!conta?.souMaster}
+                                onValueChange={(codigo) =>
+                                    setFormConta((p) => ({ ...p, currency: codigo }))
+                                }
+                            >
+                                <SelectTrigger id="conta-moeda" className="w-full">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {MOEDAS.map((moeda) => (
+                                        <SelectItem key={moeda.codigo} value={moeda.codigo}>
+                                            {/* O código junto do nome porque
+                                                quatro moedas da lista desenham
+                                                o mesmo "$": sem "AUD" escrito,
+                                                dólar australiano e americano
+                                                ficam indistinguíveis na linha
+                                                selecionada. */}
+                                            {moeda.nome} ({moeda.codigo})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </FormField>
+
+                        {/* O aviso que evita o chamado de suporte.
+                            Trocar a moeda reinterpreta os números gravados, não
+                            os converte — e quem espera conversão veria o
+                            faturamento multiplicado por cinco sem nada ter
+                            vendido.
+
+                            O exemplo sai da moeda **gravada** para a escolhida,
+                            e aparece só quando as duas diferem: com o campo
+                            parado no que já está salvo, "um negócio de X passa
+                            a ler X" é uma frase que não diz nada. */}
+                        <p className="max-w-[70ch] self-end pb-2 text-xs leading-relaxed text-muted-foreground">
+                            {formConta.currency !== (conta?.currency || MOEDA_PADRAO) ? (
+                                <>
+                                    Troca o símbolo,{' '}
+                                    <strong className="font-semibold">não converte valor</strong>:
+                                    um negócio de{' '}
+                                    <span className="num">
+                                        {formatarMoeda(50000, conta?.currency || MOEDA_PADRAO)}
+                                    </span>{' '}
+                                    passa a ler{' '}
+                                    <span className="num">
+                                        {formatarMoeda(50000, formConta.currency)}
+                                    </span>
+                                    .{' '}
+                                </>
+                            ) : (
+                                <>
+                                    Trocar a moeda{' '}
+                                    <strong className="font-semibold">não converte</strong> os
+                                    valores já cadastrados — só muda o símbolo com que são
+                                    escritos.{' '}
+                                </>
+                            )}
+                            A cobrança da sua assinatura continua em reais.
+                        </p>
                     </div>
 
                     {/* O endereço de **cobrança** — o de quem paga, não o da

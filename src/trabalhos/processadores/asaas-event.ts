@@ -549,7 +549,12 @@ async function ligarPeloDocumento(
     return { id: conta.id }
 }
 
-/** R$ 1.260,00 — o mesmo formato da tela, porque o e-mail fala da mesma conta. */
+/**
+ * R$ 1.260,00 — o mesmo formato da tela, porque o e-mail fala da mesma conta.
+ *
+ * Real fixo de propósito: o e-mail fala de **fatura**, e a fatura é em reais
+ * qualquer que seja a moeda que a conta escolheu para ver os negócios dela.
+ */
 function formatarReais(valor: number): string {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor)
 }
