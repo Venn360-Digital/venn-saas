@@ -2,7 +2,7 @@
   "name": "venn.odontobox360",
   "version": "0.1.0",
   "private": true,
-  "//packageManager": "AUSENTE DE PROPÓSITO. O campo faz o Node delegar ao corepack, e o corepack PERGUNTA antes de baixar uma versão que não tenha em cache — num builder não interativo isso vira travamento, não erro. Foi o que aconteceu no primeiro build de preview desta migração: 31 minutos em `in_progress` e depois falha, sem nada compilado (build id 94db6474, 12/11 15:43→16:14). Sem o campo, o builder da Cloudflare usa o pnpm que já traz na imagem, e o `pnpm-lock.yaml` é lockfileVersion 9.0 — lido por pnpm 9 e 10. A versão do CI é fixada no `with: version` da pnpm/action-setup, em .github/workflows/ci.yml. Se um dia este campo voltar, a build var COREPACK_ENABLE_DOWNLOAD_PROMPT=0 tem de vir com ele.",
+  "//packageManager": "AUSENTE DE PROPÓSITO, por robustez em CI e não pelo motivo que eu supunha. O campo faz o Node delegar ao corepack, e o corepack PERGUNTA antes de baixar uma versão que não tenha em cache — num builder não interativo não há quem responda. Cheguei a atribuir a ele as falhas de build de 12/11; não era (os builds não chegaram a executar na Cloudflare). A armadilha do prompt é real de todo modo, e o pin não se perde: o `pnpm-lock.yaml` é lockfileVersion 9.0 (lido por pnpm 9 e 10) e a versão do CI está fixada no `with: version` da pnpm/action-setup, em .github/workflows/ci.yml. Se este campo voltar, a build var COREPACK_ENABLE_DOWNLOAD_PROMPT=0 tem de vir com ele.",
   "imports": {
     "#prisma": {
       "workerd": "./src/generated/prisma-workerd/client.ts",
@@ -171,7 +171,7 @@
       "@xmldom/xmldom": "0.8.15",
       "ws": "8.22.0"
     },
-    "// onlyBuiltDependencies": "O pnpm 10 não roda postinstall de dependência sem autorização explícita, e o npm rodava. Esta lista é a que o pnpm reportou como ignorada na primeira instalação — sem ela, o Prisma não gera os dois clients na instalação e o workerd não baixa o binário que o build do vinext usa no CI.",
+    "// onlyBuiltDependencies": "A lista que o pnpm pediu para autorizar — ele não roda postinstall de dependência sem permissão, e aqui estão os que instalam binário de plataforma (esbuild, que é quem o vite usa para transformar; workerd; os engines do Prisma) além do @prisma/client, que gera os dois clients. O log do builder mostra os seis terminando em ~2 segundos, então não custam tempo de build. Nota de honestidade: cheguei a remover esta lista achando que ela causava o travamento do build de 12/11 — não causava; o travamento era o vite seguindo os symlinks do pnpm, resolvido com `node-linker=hoisted` no .npmrc.",
     "onlyBuiltDependencies": [
       "@prisma/client",
       "@prisma/engines",
