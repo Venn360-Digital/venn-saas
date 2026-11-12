@@ -28,7 +28,7 @@ name: CI
 #   preportao:stg     → antes de `migrate:stg`, no deploy command do staging
 #   preportao:prod    → idem, em produção
 #
-# Os três chamam `npm run verificar` = os dois typechecks + os quatro
+# Os três chamam `pnpm run verificar` = os dois typechecks + os quatro
 # verificadores estáticos. **71 s medidos.** O ESLint ficou de fora com motivo:
 # 102 s sozinho, mais que os três juntos, e o teto do Workers Builds é de 20 min
 # por build contra um build de vinext de ~12 min — não há folga para ele até o
@@ -76,47 +76,51 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           # A mesma do desenvolvimento. Divergir aqui é como um defeito aparece
           # só no CI e ninguém consegue reproduzir.
           node-version: '24'
-          cache: npm
+          cache: pnpm
 
-      # `npm ci` e não `npm install`: o lockfile é a verdade, e `install` pode
-      # resolver versão diferente da que foi revisada no PR.
-      - run: npm ci
+      # `--frozen-lockfile` é o `npm ci` do pnpm: aborta se o lockfile não
+      # casar com o package.json, em vez de resolver uma versão diferente da
+      # que foi revisada no PR. (É o padrão em CI, mas explícito não depende
+      # da detecção de ambiente.)
+      - run: pnpm install --frozen-lockfile
 
       # Antes de qualquer typecheck: o cliente do Prisma é gerado, e sem ele
       # metade dos arquivos não compila.
-      - run: npx prisma generate
+      - run: pnpm exec prisma generate
 
       - name: Tipos — aplicação
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Tipos — Worker da Cloudflare
         # Os Durable Objects e a configuração, contra os tipos reais da
         # Cloudflare. Com os builds fora do CI, esta é a única verificação
         # desse código antes do build de preview na Cloudflare.
-        run: npm run typecheck:cloudflare
+        run: pnpm run typecheck:cloudflare
 
-      - run: npm run lint
+      - run: pnpm run lint
 
       - name: Auditoria de isolamento (recursos de outros apps)
         # `--strict` — o mesmo modo do portão de deploy. Rodar aqui um modo
         # mais frouxo do que o portão roda era descobrir a reprovação só no
         # deploy; validado verde em 01/11 depois de a auditoria passar a varrer
         # o que o git rastreia.
-        run: npm run audit:isolation -- --strict
+        run: pnpm run audit:isolation -- --strict
 
       # Os verificadores próprios do projeto. Rodados um a um — o `prebuild` já
       # os chama, mas em bloco: separados, a falha diz qual foi.
       - name: Verificadores do projeto
         run: |
-          npm run lint:colors
-          npm run lint:workspace
-          npm run lint:fuso
-          npm run check:widget
+          pnpm run lint:colors
+          pnpm run lint:workspace
+          pnpm run lint:fuso
+          pnpm run check:widget
 
       - name: Provas que não precisam de banco
         # Verificador que ninguém executa é verificador que não existe, com o
@@ -130,48 +134,48 @@ jobs:
         # argumento) e `check:paridade` tem uma regressão anterior a este PR
         # (T-001, o passo do onboarding) que precisa de decisão de produto.
         run: |
-          npm run check:cofre
-          npm run check:storage
-          npm run check:tempo-real
-          npm run check:envelopes
-          npm run check:fuso
-          npm run check:trabalhos
-          npm run check:operacao
-          npm run check:period
-          npm run check:sns
-          npm run check:sns:assinatura
-          npm run check:funil
-          npm run check:gatilhos
-          npm run test:availability
-          npm run test:audio
-          npm run test:chunker
-          npm run test:consulta
-          npm run test:treinamento
-          npm run test:prompt
-          npm run test:fusao
-          npm run test:escalada
-          npm run test:juiz
-          npm run test:versao
-          npm run test:agrupar
-          npm run test:cenarios
-          npm run test:regras
-          npm run test:condicoes
-          npm run test:widget-config
-          npm run test:fuso-unidade
-          npm run test:distribuicao
-          npm run test:marcacao
-          npm run test:mencoes
-          npm run test:retratos
-          npm run test:recortes
-          npm run test:portao
-          npm run test:convite
-          npm run test:sonda
+          pnpm run check:cofre
+          pnpm run check:storage
+          pnpm run check:tempo-real
+          pnpm run check:envelopes
+          pnpm run check:fuso
+          pnpm run check:trabalhos
+          pnpm run check:operacao
+          pnpm run check:period
+          pnpm run check:sns
+          pnpm run check:sns:assinatura
+          pnpm run check:funil
+          pnpm run check:gatilhos
+          pnpm run test:availability
+          pnpm run test:audio
+          pnpm run test:chunker
+          pnpm run test:consulta
+          pnpm run test:treinamento
+          pnpm run test:prompt
+          pnpm run test:fusao
+          pnpm run test:escalada
+          pnpm run test:juiz
+          pnpm run test:versao
+          pnpm run test:agrupar
+          pnpm run test:cenarios
+          pnpm run test:regras
+          pnpm run test:condicoes
+          pnpm run test:widget-config
+          pnpm run test:fuso-unidade
+          pnpm run test:distribuicao
+          pnpm run test:marcacao
+          pnpm run test:mencoes
+          pnpm run test:retratos
+          pnpm run test:recortes
+          pnpm run test:portao
+          pnpm run test:convite
+          pnpm run test:sonda
 
       # O mesmo conjunto, com o relógio do runner em UTC — que é como o Worker
       # roda. É o que impede a volta do defeito: na VPS o `TZ` era
       # `America/Sao_Paulo` e mascarava toda conta de data feita em hora local.
       - name: Provas de fuso, com o relógio em UTC
-        run: npm run check:fuso
+        run: pnpm run check:fuso
         env:
           TZ: UTC
 
@@ -190,6 +194,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -229,12 +235,14 @@ jobs:
       NEON_PROJECT_ID: polished-shape-42069569
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
-      - run: npx prisma generate
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
 
       - name: Criar branch do Neon para esta execução
         id: neon
@@ -272,7 +280,7 @@ jobs:
         if: steps.neon.outputs.pular != 'true'
         env:
           DATABASE_URL: ${{ steps.neon.outputs.uri }}
-        run: npx prisma migrate deploy
+        run: pnpm exec prisma migrate deploy
 
       - name: Provas contra o banco
         if: steps.neon.outputs.pular != 'true'
@@ -284,10 +292,10 @@ jobs:
           # um valor fixo no repositório — e não precisa ser, porque nenhuma
           # sessão criada aqui sobrevive ao job.
           export BETTER_AUTH_SECRET="$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")"
-          npm run check:neon
-          npm run check:auth
-          npm run check:filas
-          npm run check:tenant
+          pnpm run check:neon
+          pnpm run check:auth
+          pnpm run check:filas
+          pnpm run check:tenant
 
       - name: Apagar a branch do Neon
         # `always()`: a branch tem de sair mesmo quando a prova falha, senão
@@ -348,11 +356,13 @@ jobs:
     if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
       # `--worker` é obrigatório e `-f` pula a confirmação interativa. O erro de
       # "preview não existe" vira AVISO visível em vez de reprovar — mas não
@@ -370,7 +380,7 @@ jobs:
             echo "::warning::CLOUDFLARE_PREVIEW_GC_TOKEN ausente — preview $NOME não foi apagado; conferir Durable Objects órfãos em Workers → odontobox"
             exit 0
           fi
-          if npx cf previews delete "$NOME" --worker odontobox -f; then
+          if pnpm exec cf previews delete "$NOME" --worker odontobox -f; then
             echo "preview $NOME apagado"
           else
             echo "::warning::Não foi possível apagar o preview $NOME — conferir Durable Objects órfãos em Workers → odontobox"

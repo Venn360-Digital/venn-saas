@@ -2,6 +2,8 @@
   "name": "venn.odontobox360",
   "version": "0.1.0",
   "private": true,
+  "//packageManager": "A versão do pnpm, fixada em um lugar só. Quem lê: o corepack (local e no builder da Cloudflare) e a `pnpm/action-setup` do CI — esta falha se o campo não existir. Subir a versão aqui sobe nos três ao mesmo tempo, que é o ponto.",
+  "packageManager": "pnpm@10.32.1",
   "imports": {
     "#prisma": {
       "workerd": "./src/generated/prisma-workerd/client.ts",
@@ -16,11 +18,11 @@
     "typecheck": "tsc --noEmit",
     "lint:colors": "node scripts/lint-colors.mjs",
     "lint:estaticos": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/lint-fuso.mjs && node scripts/check-widget.mjs",
-    "prebuild": "npm run lint:estaticos",
-    "verificar": "node scripts/limpar-tipos-gerados.mjs && npm run typecheck && npm run typecheck:cloudflare && npm run lint:estaticos",
-    "prebuild:preview": "npm run verificar",
-    "preportao:stg": "npm run verificar",
-    "preportao:prod": "npm run verificar",
+    "prebuild": "pnpm run lint:estaticos",
+    "verificar": "node scripts/limpar-tipos-gerados.mjs && pnpm run typecheck && pnpm run typecheck:cloudflare && pnpm run lint:estaticos",
+    "prebuild:preview": "pnpm run verificar",
+    "preportao:stg": "pnpm run verificar",
+    "preportao:prod": "pnpm run verificar",
     "check:period": "tsx --conditions=react-server scripts/check-period.ts",
     "check:operacao": "tsx --conditions=react-server scripts/check-operacao.ts",
     "test:availability": "tsx scripts/test-availability.ts",
@@ -55,12 +57,12 @@
     "audit:isolation": "node scripts/audit-isolation.mjs",
     "migrate:prod": "node scripts/migrate-guarded.mjs --expect-slug odontobox --expect-env production",
     "migrate:stg": "node scripts/migrate-guarded.mjs --expect-slug odontobox --expect-env stg",
-    "portao:prod": "npm run migrate:prod && npm run audit:isolation -- --strict",
-    "portao:stg": "npm run migrate:stg && npm run audit:isolation -- --strict",
-    "build:prod": "npm run build:vinext",
-    "build:stg": "DEPLOY_ENV=stg npm run build:vinext",
-    "deploy:prod": "npm run deploy:vinext",
-    "deploy:stg": "DEPLOY_ENV=stg npm run deploy:vinext",
+    "portao:prod": "pnpm run migrate:prod && pnpm run audit:isolation -- --strict",
+    "portao:stg": "pnpm run migrate:stg && pnpm run audit:isolation -- --strict",
+    "build:prod": "pnpm run build:vinext",
+    "build:stg": "DEPLOY_ENV=stg pnpm run build:vinext",
+    "deploy:prod": "pnpm run deploy:vinext",
+    "deploy:stg": "DEPLOY_ENV=stg pnpm run deploy:vinext",
     "smoke:prod": "node scripts/smoke-identity.mjs production",
     "smoke:stg": "node scripts/smoke-identity.mjs stg",
     "lint:migracoes": "node scripts/lint-migracoes.mjs",
@@ -163,6 +165,23 @@
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
     "ws": "8.22.0"
+  },
+  "pnpm": {
+    "// overrides": "ESPELHO do campo `overrides` acima, e não duplicação por descuido: `overrides` é campo do npm e o pnpm NÃO o lê — ele quer `pnpm.overrides`. Os dois pins são de segurança, e a primeira instalação com pnpm trouxe ws@8.21.0 em vez de 8.22.0, calada. O campo npm fica porque o repo ainda pode ser instalado com npm por quem clonar sem pnpm; os dois precisam andar juntos — mexeu em um, mexa no outro.",
+    "overrides": {
+      "@xmldom/xmldom": "0.8.15",
+      "ws": "8.22.0"
+    },
+    "// onlyBuiltDependencies": "O pnpm 10 não roda postinstall de dependência sem autorização explícita, e o npm rodava. Esta lista é a que o pnpm reportou como ignorada na primeira instalação — sem ela, o Prisma não gera os dois clients na instalação e o workerd não baixa o binário que o build do vinext usa no CI.",
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma",
+      "unrs-resolver",
+      "workerd"
+    ]
   },
   "type": "module"
 }
