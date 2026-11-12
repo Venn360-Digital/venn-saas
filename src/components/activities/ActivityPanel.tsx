@@ -202,7 +202,7 @@ export function ActivityPanel({
 
             {a.contact ? (
                 <PanelSection title="Paciente">
-                    <Link href={`/vendas/pacientes?open=${a.contact.id}`} className="flex items-center gap-2 text-sm hover:text-primary-subtle-foreground">
+                    <Link href={`/vendas/clientes?open=${a.contact.id}`} className="flex items-center gap-2 text-sm hover:text-primary-subtle-foreground">
                         <span className="font-semibold">{a.contact.name || 'Sem nome'}</span>
                         {phone ? <span className="num text-muted-foreground">{prettyPhone(phone)}</span> : null}
                     </Link>

@@ -54,16 +54,16 @@ interface Especialista {
 export function JanelasDialog({
     open,
     onOpenChange,
-    specialistId,
+    professionalId,
     onSaved,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     /** Quando vem nulo, o diálogo pede o especialista — é a entrada pela Agenda. */
-    specialistId?: string | null
+    professionalId?: string | null
     onSaved?: () => void
 }) {
-    const [escolhido, setEscolhido] = useState<string | null>(specialistId ?? null)
+    const [escolhido, setEscolhido] = useState<string | null>(professionalId ?? null)
     const [especialistas, setEspecialistas] = useState<Especialista[]>([])
     const [procedimentos, setProcedimentos] = useState<Procedimento[]>([])
     const [janelas, setJanelas] = useState<Janela[]>([])
@@ -71,17 +71,17 @@ export function JanelasDialog({
     const [salvando, setSalvando] = useState(false)
 
     useEffect(() => {
-        if (open) setEscolhido(specialistId ?? null)
-    }, [open, specialistId])
+        if (open) setEscolhido(professionalId ?? null)
+    }, [open, professionalId])
 
     // A lista de especialistas só é necessária quando o diálogo precisa perguntar.
     useEffect(() => {
-        if (!open || specialistId) return
-        fetch('/api/specialists')
+        if (!open || professionalId) return
+        fetch('/api/professionals')
             .then((r) => (r.ok ? r.json() : []))
             .then(setEspecialistas)
             .catch(() => undefined)
-    }, [open, specialistId])
+    }, [open, professionalId])
 
     useEffect(() => {
         if (!open) return
@@ -95,16 +95,16 @@ export function JanelasDialog({
         if (!escolhido) return
         setCarregando(true)
         try {
-            const res = await fetch(`/api/specialists/${escolhido}`)
+            const res = await fetch(`/api/professionals/${escolhido}`)
             if (!res.ok) return
             const data = await res.json()
             setJanelas(
-                (data.windows ?? []).map((w: { weekday: number; startTime: string; endTime: string; agentCanBook: boolean; procedures: { id: string }[] }) => ({
+                (data.windows ?? []).map((w: { weekday: number; startTime: string; endTime: string; agentCanBook: boolean; services: { id: string }[] }) => ({
                     weekday: w.weekday,
                     startTime: w.startTime,
                     endTime: w.endTime,
                     agentCanBook: w.agentCanBook,
-                    procedureIds: w.procedures.map((p) => p.id),
+                    procedureIds: w.services.map((p) => p.id),
                 }))
             )
         } finally {
@@ -130,7 +130,7 @@ export function JanelasDialog({
         if (!escolhido) return
         setSalvando(true)
         try {
-            const res = await fetch(`/api/specialists/${escolhido}/windows`, {
+            const res = await fetch(`/api/professionals/${escolhido}/windows`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ windows: janelas }),
@@ -178,7 +178,7 @@ export function JanelasDialog({
         >
             <div className="col-span-2 flex flex-col gap-3">
 
-                {!specialistId ? (
+                {!professionalId ? (
                     <div className="flex items-center gap-2">
                         <span className="shrink-0 text-xs text-muted-foreground">Especialista:</span>
                         <Select value={escolhido ?? ''} onValueChange={setEscolhido}>

@@ -13,7 +13,7 @@ const patchSchema = z.object({
 
 /** Confirma que o especialista é desta clínica antes de qualquer coisa. */
 async function doWorkspace(id: string, workspaceId: string) {
-    return prisma.specialist.findFirst({ where: { id, workspaceId }, select: { id: true } })
+    return prisma.professional.findFirst({ where: { id, workspaceId }, select: { id: true } })
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,14 +21,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const auth = await getWorkspaceMember()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const especialista = await prisma.specialist.findFirst({
+    const especialista = await prisma.professional.findFirst({
         where: { id, workspaceId: auth.member.workspaceId },
         include: {
             user: { select: { name: true } },
             windows: {
                 orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
                 include: {
-                    procedures: {
+                    services: {
                         include: {
                             product: { select: { id: true, name: true, durationMinutes: true } },
                         },
@@ -55,7 +55,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
             startTime: w.startTime,
             endTime: w.endTime,
             agentCanBook: w.agentCanBook,
-            procedures: w.procedures.map((p) => ({
+            services: w.services.map((p) => ({
                 id: p.product.id,
                 name: p.product.name,
                 durationMinutes: p.product.durationMinutes,
@@ -80,7 +80,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
     }
 
-    const atualizado = await prisma.specialist.update({
+    const atualizado = await prisma.professional.update({
         where: { id },
         data: parsed.data,
         select: { id: true, name: true, isActive: true },
@@ -107,9 +107,9 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
      * já atendeu alguém sai de cena desativado, e continua explicando a agenda
      * de ontem.
      */
-    const compromissos = await prisma.activity.count({ where: { specialistId: id } })
+    const compromissos = await prisma.activity.count({ where: { professionalId: id } })
     if (compromissos > 0) {
-        await prisma.specialist.update({ where: { id }, data: { isActive: false } })
+        await prisma.professional.update({ where: { id }, data: { isActive: false } })
         return NextResponse.json({
             deactivated: true,
             message:
@@ -118,6 +118,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
         })
     }
 
-    await prisma.specialist.delete({ where: { id } })
+    await prisma.professional.delete({ where: { id } })
     return NextResponse.json({ success: true })
 }

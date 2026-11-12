@@ -21,7 +21,7 @@ import { INCLUIR_INATIVOS } from './dados'
  * isso que o Dashboard nunca piscou e os índices sempre piscaram.
  *
  * **Aqui a consulta não pagina**, e é por isso que o mecanismo é `listaInteira`
- * e não `primeiraPagina`: o `GET /api/specialists` devolve a lista inteira e a
+ * e não `primeiraPagina`: o `GET /api/professionals` devolve a lista inteira e a
  * tela recorta em memória — paginação, busca e ordenação são todas do cliente.
  * O envelope sai igual ao das telas paginadas de propósito (ver `dados.ts`), e
  * é o que faz o mesmo hook servir os dois regimes.
@@ -39,7 +39,7 @@ export default async function EspecialistasPage() {
     const membro = await membroOuLogin()
 
     const inicial = await listaInteira(async () => {
-        const linhas = await prisma.specialist.findMany({
+        const linhas = await prisma.professional.findMany({
             where: {
                 workspaceId: membro.workspaceId,
                 ...(INCLUIR_INATIVOS ? {} : { isActive: true }),

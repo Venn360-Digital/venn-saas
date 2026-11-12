@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // quem já saiu da clínica.
     const incluirInativos = searchParams.get('all') === 'true'
 
-    const especialistas = await prisma.specialist.findMany({
+    const especialistas = await prisma.professional.findMany({
         where: {
             workspaceId: auth.member.workspaceId,
             ...(incluirInativos ? {} : { isActive: true }),
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         if (!membro) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
     }
 
-    const criado = await prisma.specialist.create({
+    const criado = await prisma.professional.create({
         data: { ...parsed.data, workspaceId: auth.member.workspaceId },
         select: { id: true, name: true },
     })

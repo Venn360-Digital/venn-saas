@@ -3553,7 +3553,7 @@ export default function ConversasPage() {
                                         label={PANEL_TITLES[panel]}
                                         heading={PANEL_TITLES[panel]}
                                         onClose={() => setPanel(null)}
-                                        onEditFull={conv.contact?.id ? () => router.push(`/vendas/pacientes?open=${conv.contact.id}`) : undefined}
+                                        onEditFull={conv.contact?.id ? () => router.push(`/vendas/clientes?open=${conv.contact.id}`) : undefined}
                                         editLabel="Abrir a ficha do paciente"
                                         hint="Esc fecha"
                                         /* No celular o painel toma a tela, que é o padrão da

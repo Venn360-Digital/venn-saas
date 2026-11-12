@@ -55,7 +55,7 @@ export function EspecialistaPanel({
     onJanelas: (id: string) => void
 }) {
     const { save, saved, local } = usePanelSave<EspecialistaPanelItem>(
-        `/api/specialists/${item.id}`,
+        `/api/professionals/${item.id}`,
         onChanged,
         item
     )
