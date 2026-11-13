@@ -273,6 +273,32 @@ export default defineConfig({
         previewUrls: true,
 
         /**
+         * Os logs do Worker, guardados — e isto nasceu de uma investigação que
+         * **não deu para fazer**.
+         *
+         * Em 2026-11-13 um defeito de produção precisava de uma linha que o
+         * código já escreve: `[CONTACT_LOOKUP]` diz, a cada consulta de telefone
+         * na tela de novo atendimento, se a ficha existia, o que o provedor
+         * respondeu sobre o número ter WhatsApp e se havia canal conectado. Essa
+         * linha existe há meses. O que não existia era onde lê-la: sem
+         * `observability`, o Worker só emite para `wrangler tail`, que é ao vivo
+         * — ou seja, só se descobre o que aconteceu se alguém estiver olhando no
+         * instante em que acontece.
+         *
+         * O efeito prático era pedir ao cliente que **reproduzisse o defeito sob
+         * encomenda** para a gente ver. Para um defeito intermitente — e o deste
+         * caso depende de o Evolution responder — isso é o mesmo que não ter
+         * diagnóstico.
+         *
+         * Declarado aqui, e não pelo painel: a API de settings do Worker exige o
+         * payload inteiro, e um PATCH parcial foi **recusado** por derrubar a
+         * declaração dos Durable Objects. A recusa estava certa, e é a razão de
+         * isto morar na configuração, que é a fonte da verdade e sobrevive ao
+         * próximo deploy.
+         */
+        observability: { enabled: true, logs: { enabled: true } },
+
+        /**
          * O domínio, declarado aqui e não só preso pelo painel.
          *
          * Medido em 2026-11-02 nos clones: quando a config remota e a local
