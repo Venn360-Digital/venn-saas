@@ -176,9 +176,73 @@ export type MotivoDaEntrega =
     /** Regra de ação com `notify_human`. */
     | 'regra'
 
-/** A frase que o modelo devolve ao paciente quando a entrega acontece. */
-export function despedidaDaEntrega(temResponsavel: boolean): string {
+/**
+ * O destino genérico, quando o procedimento não disse para quem passar.
+ *
+ * "A nossa equipe" é a frase que serve a qualquer empresa e a qualquer motivo —
+ * e era a única que existia até a área entrar.
+ */
+const EQUIPE = 'a nossa equipe'
+
+/**
+ * O teto da área citada na despedida.
+ *
+ * Sessenta caracteres cabem "o especialista que calcula o preço dessa peça" com
+ * folga. O teto não é economia de token: é o que impede o modelo de escrever uma
+ * frase inteira aqui e produzir uma despedida de duas orações emendadas, que é o
+ * defeito que aparece quando texto livre do modelo entra no meio de uma frase
+ * nossa.
+ */
+const LIMITE_DA_AREA = 60
+
+/**
+ * O que a área **não** pode dizer, e esta é a razão de a função existir.
+ *
+ * A entrega tem de ser imperceptível: o paciente sabe que foi para outra pessoa,
+ * nunca que estava falando com um agente. Uma área escrita pelo modelo como
+ * "um atendente humano" ou "o time de IA" entrega justamente isso — e entrega
+ * numa frase que o produto montou, com a aparência de texto nosso.
+ *
+ * `\b` em volta de `ia` e de `ai` porque sem limite de palavra a lista reprova
+ * "assistência" e "financeira" por conterem as duas letras no meio.
+ */
+const REVELA_A_AUTOMACAO =
+    /\b(ia|ai|bot|bots|chatbot|robo|robot|humano|humana|humanos|humanas|maquina)\b|inteligencia artificial|virtual|automat/
+
+/**
+ * A área, limpa — ou nulo quando ela não serve e a despedida usa o genérico.
+ *
+ * Parte pura e exportada para ter prova própria: o que ela recusa é mais
+ * importante do que o que ela aceita.
+ */
+export function areaDaDespedida(area?: string | null): string | null {
+    const limpa = String(area ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+    if (!limpa) return null
+    if (limpa.length > LIMITE_DA_AREA) return null
+    if (REVELA_A_AUTOMACAO.test(normalizar(limpa))) return null
+
+    return limpa
+}
+
+/**
+ * A frase que o modelo devolve ao paciente quando a entrega acontece.
+ *
+ * `area` é opcional e vem do modelo, que a tira do procedimento da situação.
+ * Sem ela — ou com uma que não passa em `areaDaDespedida` — a frase é a de
+ * sempre.
+ *
+ * As duas variantes mudam só no fim, e a diferença não é estilo: com
+ * responsável há alguém designado para responder, e sem responsável a conversa
+ * está na fila geral, onde prometer uma pessoa específica seria promessa que o
+ * produto não sustenta.
+ */
+export function despedidaDaEntrega(temResponsavel: boolean, area?: string | null): string {
+    const destino = areaDaDespedida(area) ?? EQUIPE
+
     return temResponsavel
-        ? 'Já passei seu atendimento para a nossa equipe — alguém vai te responder por aqui.'
-        : 'Já passei seu atendimento para a nossa equipe, que continua por aqui com você.'
+        ? `Já passei seu atendimento para ${destino} — alguém vai te responder por aqui.`
+        : `Já passei seu atendimento para ${destino}, que continua por aqui com você.`
 }

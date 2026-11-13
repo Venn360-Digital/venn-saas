@@ -380,6 +380,9 @@ export function buildSystemPrompt(
         'quando for reclamação, e quando você já prometeu confirmar algo e não tem como. ' +
         '**Depois de chamar, você não responde mais nesta conversa** — então diga a frase ' +
         'que a ferramenta devolve e pare.\n' +
+        'Quando o procedimento desta situação disser para quem passar — a recepção, a coordenação, o especialista —, ' +
+        'informe isso em `area`: a frase de despedida passa a citar essa área em vez de ' +
+        'dizer "a nossa equipe".\n' +
         'Use `nao_encontrei` quando a base de conhecimento desta conversa trouxe material ' +
         'e ainda assim não respondeu à pergunta. Chame junto de prometer a confirmação.\n' +
         'Use `anotar_paciente` para guardar o que vale para os próximos atendimentos: ' +

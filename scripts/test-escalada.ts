@@ -17,6 +17,7 @@
  */
 import {
     LACUNAS_ATE_ESCALAR,
+    areaDaDespedida,
     despedidaDaEntrega,
     deveEscalar,
     ehLacuna,
@@ -161,6 +162,34 @@ conferir(
     false
 )
 conferir('as duas falam em equipe', despedidaDaEntrega(true).includes('equipe') && despedidaDaEntrega(false).includes('equipe'), true)
+
+console.log('\nA área citada na despedida')
+
+conferir(
+    'a área entra na frase, com o artigo que o modelo escreveu',
+    despedidaDaEntrega(true, 'o especialista do produto'),
+    'Já passei seu atendimento para o especialista do produto — alguém vai te responder por aqui.'
+)
+conferir(
+    'sem responsável, a área entra na outra variante',
+    despedidaDaEntrega(false, 'o gerente'),
+    'Já passei seu atendimento para o gerente, que continua por aqui com você.'
+)
+conferir('área ausente cai no genérico', despedidaDaEntrega(true), 'Já passei seu atendimento para a nossa equipe — alguém vai te responder por aqui.')
+conferir('área vazia cai no genérico', despedidaDaEntrega(true, '   '), 'Já passei seu atendimento para a nossa equipe — alguém vai te responder por aqui.')
+
+conferir('espaço repetido e quebra de linha são normalizados', areaDaDespedida('o  vendedor\n especializado'), 'o vendedor especializado')
+conferir('área acima do teto é recusada', areaDaDespedida('o'.padEnd(61, 'o')), null)
+
+conferir('"um atendente humano" é recusada — é o que a entrega não pode revelar', areaDaDespedida('um atendente humano'), null)
+conferir('"o time de IA" é recusada', areaDaDespedida('o time de IA'), null)
+conferir('"o assistente virtual" é recusada', areaDaDespedida('o assistente virtual'), null)
+conferir('"o robô do financeiro" é recusada', areaDaDespedida('o robô do financeiro'), null)
+conferir('"o bot de vendas" é recusada', areaDaDespedida('o bot de vendas'), null)
+
+conferir('"a assistência técnica" passa: "ia" no meio da palavra não conta', areaDaDespedida('a assistência técnica'), 'a assistência técnica')
+conferir('"o setor financeiro" passa', areaDaDespedida('o setor financeiro'), 'o setor financeiro')
+conferir('"o especialista em telas" passa', areaDaDespedida('o especialista em telas'), 'o especialista em telas')
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 process.exit(falhou > 0 ? 1 : 0)
