@@ -1,4 +1,4 @@
-import {
+import { msisdnDoJid,
     type ConnectionState,
     type CreatedInstance,
     type DownloadedMedia,
@@ -580,10 +580,15 @@ export class EvolutionGoProvider implements ChannelProvider {
             const asked = new Set(phoneVariants(number))
             const hit = users.find((u) => {
                 const query = normalizeNumber(String(u.Query ?? u.query ?? ''))
-                const jid = toMsisdn(String(u.JID ?? u.jid ?? ''))
+                /**
+                 * Só JID de **telefone** casa por número. Um LID nunca bate com
+                 * o que foi perguntado — e se batesse por acaso, casaria a
+                 * pessoa errada.
+                 */
+                const jid = msisdnDoJid(String(u.JID ?? u.jid ?? ''))
                 return (
                     phoneVariants(query).some((v) => asked.has(v)) ||
-                    phoneVariants(jid).some((v) => asked.has(v))
+                    (jid !== null && phoneVariants(jid).some((v) => asked.has(v)))
                 )
             })
             if (!hit) return { number, exists: false }

@@ -107,6 +107,7 @@ jobs:
       - name: Tipos — aplicação
         run: pnpm run typecheck
 
+      - run: npm run test:jid
       - name: Tipos — Worker da Cloudflare
         # Os Durable Objects e a configuração, contra os tipos reais da
         # Cloudflare. Com os builds fora do CI, esta é a única verificação

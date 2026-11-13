@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { resolveIntegration } from '@/lib/whatsapp'
-import { phoneVariants, toMsisdn } from '@/lib/whatsapp/types'
+import { msisdnDoJid, phoneVariants } from '@/lib/whatsapp/types'
 import { formatPhone, normalizePhone } from '@/lib/phone'
 
 // Reexportados para que as rotas continuem importando "o módulo do
@@ -47,8 +47,16 @@ export async function hasWhatsApp(
         const [result] = await resolved.provider.checkNumbers(resolved.credentials, [digits])
         return {
             exists: result?.exists,
-            // O JID é a palavra final sobre como este número é endereçado.
-            canonical: result?.jid ? toMsisdn(result.jid) : null,
+            /**
+             * O JID é a palavra final sobre como este número é endereçado —
+             * **quando ele é um telefone**.
+             *
+             * Com LID (`<id>@lid`) ele não é, e `msisdnDoJid` devolve nulo. Aí o
+             * chamador fica com o número digitado, que é o telefone de verdade.
+             * Antes, o LID vinha como canônico e era proposto para gravar na
+             * ficha — ver a nota em `msisdnDoJid`.
+             */
+            canonical: msisdnDoJid(result?.jid),
         }
     } catch {
         return { exists: undefined, canonical: null }
