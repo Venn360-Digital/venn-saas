@@ -399,6 +399,61 @@ export function toMsisdn(jid: string): string {
     return jid.replace(/@.*$/, '').split(':')[0]
 }
 
+/**
+ * O servidor do JID — o que vem depois do `@`.
+ *
+ * `s.whatsapp.net` e `c.us` são telefone. `lid` **não é**, e é essa distinção
+ * que importa aqui. Os outros (`g.us`, `broadcast`, `newsletter`) nunca foram
+ * telefone e entram pela mesma porta.
+ */
+function servidorDoJid(jid: string): string {
+    const corte = jid.indexOf('@')
+    return corte < 0 ? '' : jid.slice(corte + 1).toLowerCase()
+}
+
+/**
+ * O telefone de um JID — **nulo quando o JID não é um telefone**.
+ *
+ * ## O defeito que isto conserta
+ *
+ * O WhatsApp passou a endereçar contas por **LID** (`<id>@lid`), um
+ * identificador que não é número de telefone e existe justamente para não ser.
+ * `toMsisdn` tira o sufixo de qualquer JID, então um LID virava "telefone":
+ * dígitos plausíveis, e nada mais.
+ *
+ * Medido em produção em 2026-11-13. Alguém digitou um celular real na tela de
+ * novo atendimento e a tela respondeu:
+ *
+ *     Tem WhatsApp. Novo na base — será cadastrado ao confirmar.
+ *     No WhatsApp ele é 4526996250761 — é assim que fica salvo.
+ *
+ * `4526996250761` não é telefone de lugar nenhum. Era o LID, e o cadastro
+ * nasceria com ele no lugar do número — a mensagem iria para um endereço que não
+ * existe, e a ficha ficaria impossível de casar com o inbound.
+ *
+ * ## Por que nulo, e não o LID
+ *
+ * Quem chama precisa saber que **não houve** telefone na resposta, para ficar
+ * com o que a pessoa digitou — que é um telefone de verdade. Devolver os dígitos
+ * do LID é o defeito; devolver string vazia obrigaria cada chamador a lembrar de
+ * testar, e o primeiro a esquecer repete o estrago.
+ *
+ * Isto NÃO troca `toMsisdn` nos caminhos em que o JID é só identificador de
+ * conversa (inbound, avatar): lá o LID é o id legítimo daquele chat, e recusá-lo
+ * deixaria a conversa sem dono. O que não pode é um LID ser **gravado como
+ * telefone**.
+ */
+export function msisdnDoJid(jid: string | null | undefined): string | null {
+    const cru = String(jid ?? '').trim()
+    if (!cru) return null
+
+    const servidor = servidorDoJid(cru)
+    if (servidor && servidor !== 's.whatsapp.net' && servidor !== 'c.us') return null
+
+    const digitos = toMsisdn(cru).replace(/\D/g, '')
+    return digitos.length > 0 ? digitos : null
+}
+
 /** Digits only, as both providers expect for a recipient. */
 export function normalizeNumber(to: string): string {
     return to.replace(/\D/g, '')
