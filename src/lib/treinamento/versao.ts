@@ -122,6 +122,32 @@ export function slugsDesatualizados(docs: AcervoDoDocumento[]): string[] {
 }
 
 /**
+ * Os documentos que **deixaram de ser acervo** e têm trechos para trás.
+ *
+ * É a outra metade de `slugsDesatualizados`, e nasceu da troca de modo de
+ * `servicos` e `faq` em 2026-11-12. As duas funções olham para a mesma dupla de
+ * campos e separam dois estados que não se confundem:
+ *
+ *   - **desatualizado** é acervo cujo texto andou: reindexar;
+ *   - **resíduo** é quem não é mais acervo e ainda tem trechos: apagar.
+ *
+ * Existe por uma razão concreta: o `publicar` recusa com 409 quando não há
+ * rascunho pendente nem acervo atrasado. Uma conta que não editou nada depois do
+ * deploy cairia nesse 409 **para sempre**, com os trechos antigos vivos no
+ * acervo — o mesmo texto chegando ao modelo duas vezes, inteiro pelo prompt e em
+ * pedaços pela busca, e os pedaços tomando vaga de recuperação de outro
+ * documento. Contar o resíduo como motivo é o que torna a limpeza alcançável
+ * pelo botão que a conta já usa.
+ *
+ * `indexado !== null` é a mesma guarda da outra função: documento de modo
+ * `prompt` que nunca foi vetorizado não tem nada a limpar, e é o caso de quase
+ * todos.
+ */
+export function slugsComResiduoDeAcervo(docs: AcervoDoDocumento[]): string[] {
+    return docs.filter((d) => !d.ehAcervo && d.indexado !== null).map((d) => d.slug)
+}
+
+/**
  * O estado publicado depois de aplicar os rascunhos.
  *
  * Devolve **todos** os documentos, não só os que mudaram: é o instantâneo da
