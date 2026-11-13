@@ -3,7 +3,14 @@ import type { OpenAIEmbeddings } from '@langchain/openai'
 import prisma from '@/lib/prisma'
 import { criarEmbeddings } from './embeddings'
 import { candidatosDaBusca, maxPorDocumento, pisoDeSimilaridade } from './parametros'
-import { diversificarPorDocumento, fundirRRF, termosLexicais, type Candidato } from './fusao'
+import {
+    diversificarPorDocumento,
+    fundirRRF,
+    reservarVagaParaProcedimento,
+    termosLexicais,
+    type Candidato,
+} from './fusao'
+import { TIPO_DE_CENARIO } from '@/lib/treinamento/indexar'
 
 /** Uma linha do resultado da busca por similaridade. */
 export interface KnowledgeMatch {
@@ -250,12 +257,30 @@ export class DocumentRetriever {
             linhas.map<Candidato>((l) => ({
                 id: l.id,
                 titulo: l.title,
+                // O tipo não entra na nota: ele serve só à vaga reservada abaixo.
+                tipo: l.type,
                 posicaoVetor: l.vec_rank === null ? undefined : Number(l.vec_rank),
                 posicaoLexical: l.lex_rank === null ? undefined : Number(l.lex_rank),
             }))
         )
 
-        const escolhidos = diversificarPorDocumento(fundidos, maxPorDocumento(), limit)
+        /**
+         * Diversidade primeiro, vaga do procedimento depois — e a ordem importa.
+         *
+         * A diversificação decide quem entra pelo mérito da fusão, com teto por
+         * documento. A reserva age **sobre o resultado dela**: se nenhum
+         * procedimento entrou e havia um recuperável, ele toma a vaga do último.
+         *
+         * Invertido, o procedimento entraria antes de o teto por documento ser
+         * aplicado e poderia ser ele mesmo cortado pela diversificação em
+         * seguida — a reserva não valeria nada.
+         */
+        const escolhidos = reservarVagaParaProcedimento(
+            diversificarPorDocumento(fundidos, maxPorDocumento(), limit),
+            fundidos,
+            limit,
+            TIPO_DE_CENARIO
+        )
 
         return escolhidos.map((c) => {
             const l = porId.get(c.id)!

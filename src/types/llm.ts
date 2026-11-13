@@ -11,9 +11,29 @@
 export type LLMProviderName = 'openai'
 export type LLMRole = 'system' | 'user' | 'assistant' | 'tool'
 
+/**
+ * Uma imagem anexada à fala da pessoa.
+ *
+ * `dataUrl` e não endereço nosso, por duas razões que apontam na mesma direção:
+ * a mídia de conversa mora em bucket privado, cuja URL assinada vale dez
+ * minutos e **não deve existir em repouso** (ver `lib/midia.ts`); e mandar o
+ * byte não depende de o provedor do modelo conseguir alcançar o nosso storage.
+ */
+export interface LLMImagem {
+    dataUrl: string
+}
+
+/**
+ * O conteúdo de uma mensagem: texto, ou texto com imagens.
+ *
+ * A forma de array existe para a mensagem multimodal e **só** para ela — o resto
+ * do sistema continua passando `string`, que é o caso de 99% das mensagens.
+ */
+export type LLMConteudo = string | { texto: string; imagens: LLMImagem[] }
+
 export interface LLMMessage {
     role: LLMRole
-    content: string
+    content: LLMConteudo
     /**
      * As ferramentas que o modelo decidiu chamar nesta vez.
      *

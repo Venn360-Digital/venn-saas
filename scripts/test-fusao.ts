@@ -12,7 +12,13 @@
  * os termos que vão para o `to_tsquery`. O SQL é exercitado contra banco de
  * verdade por `npm run check:neon`.
  */
-import { diversificarPorDocumento, fundirRRF, K_RRF, termosLexicais } from '@/lib/rag/fusao'
+import {
+    diversificarPorDocumento,
+    fundirRRF,
+    K_RRF,
+    reservarVagaParaProcedimento,
+    termosLexicais,
+} from '@/lib/rag/fusao'
 
 let passou = 0
 let falhou = 0
@@ -183,6 +189,118 @@ conferir(
     'teto de termos, para a consulta não crescer sem limite',
     termosLexicais('uma duas tres quatro cinco seis sete oito nove dez onze doze', 3),
     'uma | duas | tres'
+)
+
+console.log('\nA vaga do procedimento')
+
+const CENARIO = 'cenario'
+
+/** O caso que motivou isto: muito site, um cenário, e ele ficou de fora. */
+const afogado = [
+    { id: 's1', titulo: 'Home | site', tipo: 'website' },
+    { id: 's2', titulo: 'Produtos | site', tipo: 'website' },
+    { id: 's3', titulo: 'Telas | site', tipo: 'website' },
+    { id: 's4', titulo: 'Arames | site', tipo: 'website' },
+    { id: 's5', titulo: 'Pregos | site', tipo: 'website' },
+    { id: 'c1', titulo: 'cenarios', tipo: CENARIO },
+]
+
+conferir(
+    'nenhum procedimento entrou: ele toma a vaga do ÚLTIMO colocado',
+    ids(reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 5, CENARIO)),
+    ['s1', 's2', 's3', 's4', 'c1']
+)
+
+conferir(
+    'o primeiro colocado nunca é trocado — seria entregar procedimento no lugar do melhor fato',
+    reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 5, CENARIO)[0].id,
+    's1'
+)
+
+const jaTem = [
+    { id: 'c1', titulo: 'cenarios', tipo: CENARIO },
+    { id: 's1', titulo: 'Home | site', tipo: 'website' },
+]
+conferir(
+    'procedimento já entre os escolhidos: nada muda, e é o caso comum',
+    ids(reservarVagaParaProcedimento(jaTem, jaTem, 5, CENARIO)),
+    ['c1', 's1']
+)
+
+const semCenario = [
+    { id: 's1', titulo: 'Home | site', tipo: 'website' },
+    { id: 't1', titulo: 'servicos', tipo: 'treinamento' },
+]
+conferir(
+    'a busca não achou procedimento nenhum: não há o que reservar',
+    ids(reservarVagaParaProcedimento(semCenario, semCenario, 5, CENARIO)),
+    ['s1', 't1']
+)
+
+/**
+ * Sobrou vaga: o procedimento entra **sem tirar ninguém**. É o acervo pequeno,
+ * em que a diversificação devolveu menos que o limite.
+ */
+const comVaga = [
+    { id: 's1', titulo: 'Home | site', tipo: 'website' },
+    { id: 's2', titulo: 'Produtos | site', tipo: 'website' },
+    { id: 'c1', titulo: 'cenarios', tipo: CENARIO },
+]
+conferir(
+    'com vaga livre, o procedimento entra sem custar nada a ninguém',
+    ids(reservarVagaParaProcedimento(comVaga.slice(0, 2), comVaga, 5, CENARIO)),
+    ['s1', 's2', 'c1']
+)
+
+conferir(
+    'o melhor procedimento é o escolhido, não qualquer um',
+    ids(
+        reservarVagaParaProcedimento(
+            [{ id: 's1', titulo: 'site', tipo: 'website' }],
+            [
+                { id: 's1', titulo: 'site', tipo: 'website' },
+                { id: 'c7', titulo: 'cenarios', tipo: CENARIO },
+                { id: 'c9', titulo: 'cenarios', tipo: CENARIO },
+            ],
+            2,
+            CENARIO
+        )
+    ),
+    ['s1', 'c7']
+)
+
+conferir('limite zero não inventa vaga', reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 0, CENARIO).length, 5)
+
+/**
+ * Trecho **sem** `tipo` não pode ser confundido com procedimento.
+ *
+ * O genérico é anotado à mão aqui, e isso não é estilo: sem a anotação o
+ * `T` é inferido do primeiro argumento, cujos literais não declaram `tipo`, e o
+ * resultado perde `id` — que é o que `ids()` lê. O `tsx` do `test:fusao` não
+ * reclama (não checa tipo), e foi assim que este arquivo passou verde aqui e
+ * derrubou o `tsc` do build.
+ */
+type CandidatoDeTeste = { id: string; titulo: string; tipo?: string | null }
+
+const semTipo: CandidatoDeTeste[] = [
+    { id: 'a', titulo: 'x' },
+    { id: 'b', titulo: 'y' },
+]
+
+conferir(
+    'trecho sem tipo nunca é confundido com procedimento',
+    ids(reservarVagaParaProcedimento(semTipo.slice(0, 1), semTipo, 2, CENARIO)),
+    ['a']
+)
+
+/**
+ * A invariante que importa de verdade: a reserva **nunca** muda o tamanho da
+ * resposta. Ela troca, não acrescenta — exceto quando havia vaga vazia.
+ */
+conferir(
+    'o tamanho da resposta nunca passa do limite',
+    reservarVagaParaProcedimento(afogado.slice(0, 5), afogado, 5, CENARIO).length,
+    5
 )
 
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)

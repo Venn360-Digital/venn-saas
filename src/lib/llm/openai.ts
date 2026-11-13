@@ -1,5 +1,13 @@
 import OpenAI from 'openai'
-import { LLMConfig, LLMMessage, LLMProvider, LLMResponse, LLMTool, LLMUsage } from '@/types/llm'
+import { textoDoConteudo } from '@/lib/llm/conteudo'
+import {
+    LLMConfig,
+    LLMMessage,
+    LLMProvider,
+    LLMResponse,
+    LLMTool,
+    LLMUsage,
+} from '@/types/llm'
 import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
 
 /**
@@ -14,14 +22,14 @@ function toApiMessages(messages: LLMMessage[]): OpenAI.Chat.ChatCompletionMessag
         if (m.role === 'tool') {
             return {
                 role: 'tool',
-                content: m.content,
+                content: textoDoConteudo(m.content),
                 tool_call_id: m.toolCallId ?? '',
             }
         }
         if (m.role === 'assistant' && m.toolCalls?.length) {
             return {
                 role: 'assistant',
-                content: m.content || null,
+                content: textoDoConteudo(m.content) || null,
                 tool_calls: m.toolCalls.map((c) => ({
                     id: c.id,
                     type: 'function' as const,
@@ -29,7 +37,35 @@ function toApiMessages(messages: LLMMessage[]): OpenAI.Chat.ChatCompletionMessag
                 })),
             }
         }
-        return { role: m.role, content: m.content } as OpenAI.Chat.ChatCompletionMessageParam
+
+        /**
+         * A mensagem multimodal: texto primeiro, imagens depois.
+         *
+         * A ordem importa para o modelo — a instrução antes do anexo é lida como
+         * "faça isto com o que vem a seguir", e o inverso deixa a imagem sem
+         * propósito até o fim da leitura.
+         *
+         * `detail: 'high'` porque o caso que motivou isto é **lista de preços
+         * fotografada**: em `low` a API reduz a imagem a 512px e o número vira
+         * borrão. Resolução é o que se está pagando aqui.
+         */
+        if (m.role === 'user' && typeof m.content !== 'string' && m.content.imagens.length > 0) {
+            return {
+                role: 'user',
+                content: [
+                    { type: 'text' as const, text: m.content.texto },
+                    ...m.content.imagens.map((i) => ({
+                        type: 'image_url' as const,
+                        image_url: { url: i.dataUrl, detail: 'high' as const },
+                    })),
+                ],
+            }
+        }
+
+        return {
+            role: m.role,
+            content: textoDoConteudo(m.content),
+        } as OpenAI.Chat.ChatCompletionMessageParam
     })
 }
 
