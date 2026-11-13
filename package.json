@@ -2,7 +2,7 @@
     "name": "venn.odontobox360",
     "version": "0.1.0",
     "private": true,
-    "//packageManager": "AUSENTE DE PROPÓSITO, por robustez em CI e não pelo motivo que eu supunha. O campo faz o Node delegar ao corepack, e o corepack PERGUNTA antes de baixar uma versão que não tenha em cache — num builder não interativo não há quem responda. Cheguei a atribuir a ele as falhas de build de 12/11; não era (os builds não chegaram a executar na Cloudflare). A armadilha do prompt é real de todo modo, e o pin não se perde: o `pnpm-lock.yaml` é lockfileVersion 9.0 (lido por pnpm 9 e 10) e a versão do CI está fixada no `with: version` da pnpm/action-setup, em .github/workflows/ci.yml. Se este campo voltar, a build var COREPACK_ENABLE_DOWNLOAD_PROMPT=0 tem de vir com ele.",
+    "//packageManager": "AUSENTE DE PROPÓSITO, por robustez em CI e não pelo motivo que eu supunha. O campo faz o Node delegar ao corepack, e o corepack PERGUNTA antes de baixar uma versão que não tenha em cache — num builder não interativo não há quem responda. Cheguei a atribuir a ele as falhas de build de 12/11; não era (os builds não chegaram a executar na Cloudflare). A armadilha do prompt é real de todo modo, e o pin não se perde: o `pnpm-lock.yaml` é lockfileVersion 9.0 (lido por pnpm 9 e 10) e o Workers Builds escolhe o pnpm pelo lockfile (o ci.yml do GitHub morreu em 13/11 — ver scripts/ci-worker.mjs). Se este campo voltar, a build var COREPACK_ENABLE_DOWNLOAD_PROMPT=0 tem de vir com ele.",
     "imports": {
         "#prisma": {
             "workerd": "./src/generated/prisma-workerd/client.ts",
@@ -20,6 +20,7 @@
         "prebuild": "pnpm run lint:estaticos",
         "verificar": "node scripts/limpar-tipos-gerados.mjs && pnpm run typecheck && pnpm run typecheck:cloudflare && pnpm run lint:estaticos",
         "prebuild:preview": "pnpm run verificar",
+        "ci:worker": "node scripts/ci-worker.mjs",
         "preportao:stg": "pnpm run verificar",
         "preportao:prod": "pnpm run verificar",
         "check:period": "tsx --conditions=react-server scripts/check-period.ts",
