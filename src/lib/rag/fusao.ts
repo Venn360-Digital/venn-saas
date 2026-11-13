@@ -48,6 +48,15 @@ export interface Candidato {
     posicaoVetor?: number
     /** Posição na busca lexical, 1 em diante. Ausente quando só o vetor achou. */
     posicaoLexical?: number
+    /**
+     * O tipo do trecho no acervo (`treinamento`, `cenario`, `website`, `doc`…).
+     *
+     * **Não entra na nota da fusão**, e isso é deliberado: ranquear por tipo
+     * desequilibraria a pergunta de fato para favorecer procedimento que não vem
+     * ao caso. Serve só a `reservarVagaParaProcedimento`, que age depois do
+     * corte.
+     */
+    tipo?: string | null
 }
 
 /**
@@ -162,4 +171,71 @@ export function termosLexicais(texto: string, maxTermos = 10): string | null {
 
     const unicos = [...new Set(termos)].slice(0, maxTermos)
     return unicos.length > 0 ? unicos.join(' | ') : null
+}
+
+/**
+ * Garante uma vaga ao **procedimento**, quando ele foi recuperável e perdeu.
+ *
+ * ## Por que o cenário perde, e por que isso é aritmética e não azar
+ *
+ * A busca filtra por agente e **não** por tipo: página de site carregada no
+ * Cérebro, documento de treinamento e cenário disputam as mesmas vagas. Medido
+ * em 2026-11-13 nas seis contas dos três apps, contando o acervo depois de
+ * `servicos` e `faq` irem para o prompt:
+ *
+ *   | conta              | site : cenário |
+ *   |--------------------|----------------|
+ *   | uma delas          | **43 : 1**     |
+ *   | outra              | 5 : 1          |
+ *   | outra              | 1,3 : 1        |
+ *
+ * Com 43 trechos de site para cada cenário e cinco vagas, os cenários que alguém
+ * escreveu são invisíveis na prática. Não é preciso medir a qualidade do
+ * embedding para prever isso.
+ *
+ * ## O que esta função faz, e o que ela deliberadamente NÃO faz
+ *
+ * Ela **não** reordena, não dá peso a tipo nenhum e não entrega mais trechos. Se
+ * o melhor cenário já entrou, não faz nada — e esse é o caso comum. Quando
+ * nenhum entrou **e havia um recuperável**, ele toma a vaga do **último**
+ * colocado: a troca mínima que existe, um de cinco.
+ *
+ * Isso é diferente de ranquear por tipo, que desequilibraria a pergunta de fato
+ * ("quanto custa?") para favorecer procedimento que não vem ao caso. O
+ * procedimento só entra se a busca já o tinha achado — ele estava na lista e
+ * ficou de fora pelo corte.
+ *
+ * A vaga livre é preenchida sem tirar nada de ninguém: num acervo pequeno a
+ * primeira passada da diversificação pode devolver menos que o limite.
+ */
+export function reservarVagaParaProcedimento<T extends { tipo?: string | null }>(
+    escolhidos: T[],
+    ordenados: T[],
+    limite: number,
+    tipoDoProcedimento: string
+): T[] {
+    if (limite <= 0) return escolhidos
+
+    // Já há procedimento entre os escolhidos: nada a fazer, e é o caso comum.
+    if (escolhidos.some((e) => e.tipo === tipoDoProcedimento)) return escolhidos
+
+    const dentro = new Set(escolhidos)
+    const melhorProcedimento = ordenados.find(
+        (c) => c.tipo === tipoDoProcedimento && !dentro.has(c)
+    )
+
+    // A busca não achou procedimento nenhum: não há o que reservar.
+    if (!melhorProcedimento) return escolhidos
+
+    // Sobrou vaga: entra sem tirar ninguém.
+    if (escolhidos.length < limite) return [...escolhidos, melhorProcedimento]
+
+    /**
+     * Sem vaga: troca o **último**.
+     *
+     * O último é o que o próprio RRF considerou o menos relevante dos que
+     * entraram, então é a troca de menor custo possível. Trocar o primeiro
+     * entregaria o procedimento no lugar do melhor fato da resposta.
+     */
+    return [...escolhidos.slice(0, limite - 1), melhorProcedimento]
 }

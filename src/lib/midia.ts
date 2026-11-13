@@ -57,6 +57,34 @@ const POR_NOME = new Map<string, Classe>(
 )
 
 /**
+ * A referência de volta, a partir do que está gravado na coluna.
+ *
+ * Nulo para linha antiga (`http`), para valor que não é referência, e para
+ * classe que este build não conhece. Existe porque **o agente precisa dos
+ * bytes**, não de um endereço: a imagem que a pessoa manda vai anexada ao
+ * modelo em `data:`, e assinar uma URL para depois baixá-la de volta seria uma
+ * viagem a mais e uma chave ao portador no meio do caminho.
+ *
+ * `enderecoDaMidia` faz este mesmo parse e continua fazendo: ele devolve o valor
+ * cru quando não entende, que é o certo para a **tela**, e nulo seria perder o
+ * link. Aqui a resposta tem de ser nula, porque quem chama precisa de bytes ou
+ * de nada.
+ */
+export function referenciaDaMidia(valor: string | null | undefined): Referencia | null {
+    if (!valor || !valor.startsWith(PREFIXO)) return null
+
+    const resto = valor.slice(PREFIXO.length)
+    const corte = resto.indexOf(':')
+    if (corte <= 0) return null
+
+    const classe = POR_NOME.get(resto.slice(0, corte))
+    const chave = resto.slice(corte + 1)
+    if (!classe || !chave) return null
+
+    return referenciaDe(classe, chave)
+}
+
+/**
  * O endereço utilizável de um valor gravado — assinado na hora, se for
  * referência.
  *

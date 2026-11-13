@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
+import {
+    extrairTexto,
+    FormatoNaoSuportado,
+    normalizarExtraido,
+} from '@/lib/documentos/extrair'
 
 export const runtime = 'nodejs'
 
@@ -15,46 +20,6 @@ const MAX_BYTES = 10 * 1024 * 1024
  */
 const MAX_CHARS = 200_000
 
-class UnsupportedFile extends Error {}
-
-/**
- * Extrai o texto do arquivo — é o texto que vira cérebro, não o arquivo.
- *
- * Imagem e planilha ficaram de fora porque extrair delas exige OCR e um
- * leitor de XLSX, que o projeto não tem. Aceitar e ignorar seria pior: o
- * arquivo apareceria na lista e o agente nunca saberia o que havia nele.
- */
-async function extractText(file: File): Promise<string> {
-    const name = file.name.toLowerCase()
-    const buffer = Buffer.from(await file.arrayBuffer())
-
-    if (name.endsWith('.pdf')) {
-        const { PDFParse } = await import('pdf-parse')
-        const parser = new PDFParse({ data: new Uint8Array(buffer) })
-        try {
-            const result = await parser.getText()
-            return result.text
-        } finally {
-            await parser.destroy()
-        }
-    }
-
-    if (name.endsWith('.docx')) {
-        const mammoth = await import('mammoth')
-        const result = await mammoth.extractRawText({ buffer })
-        return result.value
-    }
-
-    if (/\.(txt|md|markdown|csv|json)$/.test(name)) {
-        return buffer.toString('utf8')
-    }
-
-    throw new UnsupportedFile(
-        name.endsWith('.doc')
-            ? 'Formato .doc antigo não é lido. Salve como .docx ou PDF.'
-            : 'Formato não suportado. Envie PDF, DOCX, TXT, MD ou CSV.'
-    )
-}
 
 /**
  * O upload do cérebro, de verdade.
@@ -88,7 +53,8 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const raw = (await extractText(file)).replace(/\s+\n/g, '\n').trim()
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        const raw = normalizarExtraido(await extrairTexto(bytes, file.name))
         if (!raw) {
             return NextResponse.json(
                 { error: 'Nenhum texto encontrado no arquivo. PDF digitalizado precisa de OCR.' },
@@ -105,7 +71,7 @@ export async function POST(request: NextRequest) {
             content: truncated ? raw.slice(0, MAX_CHARS) : raw,
         })
     } catch (error) {
-        if (error instanceof UnsupportedFile) {
+        if (error instanceof FormatoNaoSuportado) {
             return NextResponse.json({ error: error.message }, { status: 415 })
         }
         console.error('[KNOWLEDGE_EXTRACT]', error)

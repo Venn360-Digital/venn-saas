@@ -106,6 +106,7 @@ jobs:
 
       - name: Tipos — aplicação
         run: pnpm run typecheck
+      - run: npm run test:midia
 
       - run: npm run test:jid
       - name: Tipos — Worker da Cloudflare
