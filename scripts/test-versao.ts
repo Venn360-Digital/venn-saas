@@ -16,6 +16,7 @@ import {
     aplicarRascunhos,
     proximaVersao,
     rascunhosDaRestauracao,
+    slugsComResiduoDeAcervo,
     slugsDesatualizados,
     slugsQueMudam,
     temRascunhoPendente,
@@ -93,6 +94,36 @@ conferir('em dia NÃO conta', slugsDesatualizados(acervo).includes('servicos'), 
 conferir('nunca indexado NÃO conta', slugsDesatualizados(acervo).includes('cenarios'), false)
 conferir('documento de prompt NÃO conta', slugsDesatualizados(acervo).includes('privacidade'), false)
 conferir('indexado com acervo hoje vazio conta', slugsDesatualizados(acervo).includes('empresa'), true)
+
+console.log('\nResíduo: quem deixou de ser acervo e ficou com trechos')
+
+/**
+ * O caso real que criou esta função: `servicos` e `faq` viraram modo prompt em
+ * 2026-11-12 com trechos já indexados. Note que o `acervo` acima já tem um
+ * documento nesse estado — `privacidade`, com `ehAcervo: false` e `indexado`
+ * preenchido —, e `slugsDesatualizados` o ignora de propósito. As duas funções
+ * leem os mesmos dois campos e respondem perguntas diferentes.
+ */
+conferir(
+    'não é mais acervo e tem trechos: é resíduo, e é o que a publicação apaga',
+    slugsComResiduoDeAcervo(acervo),
+    ['privacidade']
+)
+conferir(
+    'documento de prompt que NUNCA foi vetorizado não tem nada a limpar',
+    slugsComResiduoDeAcervo([{ slug: 'instrucoes-centrais', ehAcervo: false, indexado: null, agora: 'x' }]),
+    []
+)
+conferir(
+    'acervo de verdade com trechos NÃO é resíduo — reindexar é outra coisa',
+    slugsComResiduoDeAcervo([{ slug: 'cenarios', ehAcervo: true, indexado: 'aaa', agora: 'bbb' }]),
+    []
+)
+conferir(
+    'as duas funções não se sobrepõem: nenhum slug cai nas duas listas',
+    slugsDesatualizados(acervo).filter((s) => slugsComResiduoDeAcervo(acervo).includes(s)),
+    []
+)
 conferir('lista vazia não tem atrasado', slugsDesatualizados([]), [])
 
 console.log('\nO hash do acervo — a outra metade da comparação')

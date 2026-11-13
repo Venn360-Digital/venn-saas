@@ -103,39 +103,72 @@ console.log('\nModo e precedência')
  *     vetorialmente de qualquer pergunta.
  */
 /**
- * **Três no acervo, e só dois deles são fato.**
+ * **Sete no prompt, um no acervo, e nenhum documento de fato é recuperado.**
  *
- * `cenarios` entrou no passo 6 com modo `procedimento`: ele é indexado (o corpo
- * chega por busca), mas não é fonte de verdade — é ordem de execução. Por isso
- * `documentosDoAcervo` o inclui e `documentosDeFato` não, e é essa distinção que
- * o prompt usa para pôr os passos numa seção própria em vez de em "Base de
- * conhecimento".
+ * `servicos` e `faq` saíram do acervo em 2026-11-12, por decisão do Andre. Sobra
+ * `cenarios`, de modo `procedimento`: ele é indexado (o corpo chega por busca),
+ * mas não é fonte de verdade — é ordem de execução. Por isso `documentosDoAcervo`
+ * o inclui e `documentosDeFato` não, e é essa distinção que o prompt usa para pôr
+ * os passos numa seção própria em vez de em "Base de conhecimento".
+ *
+ * `documentosDeFato()` vazio é o estado **correto** agora, não um defeito: todo
+ * fato que a empresa escreve viaja no prompt. A função fica porque a distinção
+ * fato/procedimento continua valendo — é ela que decide a seção do prompt.
  */
 conferir(
-    'cinco no prompt, três no acervo — e dois deles são de fato',
+    'sete no prompt, um no acervo, e nenhum de fato é recuperado',
     [documentosDoPrompt().length, documentosDoAcervo().length, documentosDeFato().length],
-    [5, 3, 2]
+    [7, 1, 0]
 )
 
 conferir(
-    'os do prompt são os de comportamento, na ordem de precedência',
+    'os do prompt vêm na ordem de precedência, e agora são sete',
     documentosDoPrompt().map((d) => d.slug),
-    ['privacidade', 'instrucoes-centrais', 'processo-comercial', 'empresa', 'tecnicas-de-venda']
-)
-
-conferir(
-    'os de FATO são os que crescem com o cliente; o de procedimento vem junto no acervo',
-    [documentosDeFato().map((d) => d.slug), documentosDoAcervo().map((d) => d.slug)],
     [
-        ['servicos', 'faq'],
-        ['servicos', 'faq', 'cenarios'],
+        'privacidade',
+        'instrucoes-centrais',
+        'processo-comercial',
+        'empresa',
+        'servicos',
+        'tecnicas-de-venda',
+        'faq',
     ]
 )
 
-// Documento de prompt viaja inteiro em toda resposta: o teto dele é o menor.
 conferir(
-    'quem foi para o prompt levou o teto do prompt',
-    documentosDoPrompt().every((d) => d.teto === 10_000),
+    'no acervo sobrou só o procedimento; de fato, nenhum',
+    [documentosDeFato().map((d) => d.slug), documentosDoAcervo().map((d) => d.slug)],
+    [[], ['cenarios']]
+)
+
+/**
+ * **O teto do prompt deixou de ser um número só, e isso é deliberado.**
+ *
+ * Documento de prompt viaja inteiro em toda resposta, então o teto dele é o
+ * limite do que a conta pode nos custar por mensagem. Os cinco de comportamento
+ * cabem em 10.000 — é instrução, não acervo, e instrução que não cabe em 10.000
+ * não está instruindo.
+ *
+ * `servicos` e `faq` são outra coisa: catálogo e léxico crescem com o cliente, e
+ * o teto deles tinha de caber no que as contas **já escreveram** antes da troca
+ * de modo — 14.712 e 8.843 no maior caso medido. Um teto de 10.000 não seria
+ * economia: seria a tela recusando salvar o que já estava salvo.
+ */
+conferir(
+    'os cinco de comportamento cabem em 10.000',
+    documentosDoPrompt()
+        .filter((d) => d.slug !== 'servicos' && d.slug !== 'faq')
+        .every((d) => d.teto === 10_000),
+    true
+)
+conferir(
+    'catálogo e léxico têm teto próprio, acima do maior em uso na troca de modo',
+    [acharDocumento('servicos')!.teto, acharDocumento('faq')!.teto],
+    [20_000, 15_000]
+)
+conferir(
+    'e nenhum documento de prompt passa de 20.000',
+    documentosDoPrompt().every((d) => d.teto <= 20_000),
     true
 )
 
@@ -175,9 +208,14 @@ const orc = (chars: Record<string, number>) =>
     )
 
 conferir(
-    'soma só os documentos de modo prompt',
-    orc({ 'instrucoes-centrais': 100, privacidade: 50, servicos: 99999 }).usado,
+    'soma só os documentos de modo prompt — cenarios é procedimento e fica fora',
+    orc({ 'instrucoes-centrais': 100, privacidade: 50, cenarios: 99999 }).usado,
     150
+)
+conferir(
+    'e servicos agora SOMA, porque virou prompt',
+    orc({ 'instrucoes-centrais': 100, servicos: 400 }).usado,
+    500
 )
 conferir(
     'estima tokens a ~3,5 caracteres por token',
@@ -232,17 +270,27 @@ conferir(
     }).faixa,
     'muito-pesado'
 )
+/**
+ * **O máximo possível subiu de 50.000 para 85.000** com a troca de modo: cinco
+ * documentos a 10.000, mais `servicos` a 20.000 e `faq` a 15.000.
+ *
+ * As faixas **não** foram recalibradas junto, e é decisão: elas medem o que a
+ * conta custa por mensagem, e esse custo não mudou de natureza por o teto ter
+ * subido. O efeito é que `muito-pesado` passa a ser alcançável por conteúdo
+ * legítimo — uma conta com catálogo grande **de verdade** gasta muito contexto,
+ * e a tela tem de dizer isso em vez de esconder.
+ */
 conferir(
-    'o máximo possível é 50.000 — cinco documentos de prompt a 10.000',
+    'o máximo possível é 85.000 — cinco a 10.000, servicos a 20.000, faq a 15.000',
     documentosDoPrompt().reduce((soma, d) => soma + d.teto, 0),
-    50_000
+    85_000
 )
 
 // O teto por documento é o único limite rígido, e ele vive no catálogo.
 conferir(
-    'documento de prompt cabe em 10.000; o de acervo, em 50.000',
+    'o que vai no prompt cabe em 20.000; o que fica no acervo, em 50.000',
     [
-        documentosDoPrompt().every((d) => d.teto === 10_000),
+        documentosDoPrompt().every((d) => d.teto <= 20_000),
         documentosDoAcervo().every((d) => d.teto === 50_000),
     ],
     [true, true]
@@ -462,7 +510,14 @@ conferir(
 
 console.log('\nA decisão de indexar — o que evita pagar embedding sete vezes')
 
-const docRag = acharDocumento('servicos')!
+/**
+ * **`cenarios`, e não `servicos`.**
+ *
+ * Era `servicos` até ele virar modo prompt: o exemplo de "documento de acervo"
+ * tem de ser um documento que **é** acervo, senão todos os casos abaixo medem o
+ * caminho do prompt enquanto dizem medir o do acervo.
+ */
+const docRag = acharDocumento('cenarios')!
 const docPrompt = acharDocumento('instrucoes-centrais')!
 
 conferir(
