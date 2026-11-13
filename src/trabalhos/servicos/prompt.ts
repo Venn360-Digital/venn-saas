@@ -419,11 +419,39 @@ export function buildSystemPrompt(
         }
     }
 
-    // WhatsApp-specific shaping: long markdown answers read badly in a chat bubble.
+    /**
+     * A forma da mensagem — e **o padrão, não a lei**.
+     *
+     * Esta seção fica no fim do bloco estável, depois dos documentos que a
+     * empresa escreveu. Enquanto ela dizia "sem markdown", isso era uma
+     * contradição direta com o cliente que pede marcadores, negrito ou um modelo
+     * de orçamento com linhas fixas — e a contradição estava do lado mais forte,
+     * porque a nossa frase vem depois da dele.
+     *
+     * Medido numa conta real: o documento pedia "utilize marcadores para separar
+     * produtos no orçamento" e um MODELO DE PADRÃO DE ORÇAMENTO de seis linhas; o
+     * agente respondeu com marcadores improvisados, `**` literal na tela e **sem**
+     * o modelo. É o resultado típico de duas instruções em disputa — o modelo não
+     * desobedeceu, ele escolheu uma delas.
+     *
+     * A tabela de precedência do catálogo (`DOCUMENTOS[].precedencia`) ordena os
+     * oito documentos entre si e **não** alcança as seções que o produto escreve.
+     * Então a precedência contra a empresa tem de ser dita aqui, onde a seção
+     * mora.
+     *
+     * O negrito é a outra metade do conserto: no WhatsApp é `*um asterisco de
+     * cada lado*`, e `**dois**` aparece literal na bolha. Um modelo treinado em
+     * Markdown escreve `**` por hábito, e quem lê a mensagem vê os asteriscos.
+     */
     estaveis.push(
         '## Formato\n' +
         'Você está conversando pelo WhatsApp. Escreva mensagens curtas e diretas, ' +
-        'sem markdown, sem títulos e sem listas numeradas longas.'
+        'sem títulos e sem listas numeradas longas.\n' +
+        'Negrito no WhatsApp é *um asterisco de cada lado*. Dois asteriscos aparecem ' +
+        'literais na tela de quem lê, então nunca escreva **assim**.\n' +
+        'Esta seção é o padrão, e **as instruções da empresa ganham dela**: quando elas ' +
+        'pedirem marcadores, negrito, ou um modelo de mensagem com linhas fixas, siga o ' +
+        'que elas dizem, exatamente como está escrito lá.'
     )
 
     /**
