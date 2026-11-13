@@ -164,13 +164,30 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         slug: 'servicos',
         titulo: 'Serviços e Produtos',
         item: 'Serviços',
-        modo: 'rag',
-        teto: 50_000,
+        /**
+         * **Foi `rag` até 2026-11-12, e a troca é decisão do Andre.**
+         *
+         * O que a condenou foi uma medição: numa conta real, um pedido de
+         * orçamento com três produtos saiu com o preço de **um**. Os outros dois
+         * estavam no documento, indexados, num trecho com os nove preços — e a
+         * busca não o trouxe. As cinco vagas foram para páginas de site do
+         * Cérebro, que falam dos mesmos produtos e não têm preço nenhum.
+         *
+         * Preço é a mesma classe de pergunta que já tirou `empresa` do acervo:
+         * frequente, crítica, e o modelo preenche com plausibilidade quando não
+         * sabe. Não pode depender de a busca acertar.
+         *
+         * O teto é maior que os 10.000 dos outros documentos de prompt porque
+         * catálogo cresce com o cliente: o maior em uso na data da troca tinha
+         * **14.712** caracteres, e 10.000 travaria a conta no `PUT`.
+         */
+        modo: 'prompt',
+        teto: 20_000,
         precedencia: 6,
         secoes: ['Regra geral', 'Serviços', 'Diferenciais', SECAO_EXEMPLOS],
         explicacao:
-            'O que a empresa oferece, com valores e condições. É o documento mais ' +
-            'consultado: use um subtítulo por serviço, que é o que vira um trecho.',
+            'O que a empresa oferece, com valores e condições. Vai em toda mensagem: ' +
+            'preço e condição não podem depender de a busca acertar.',
     },
     {
         slug: 'processo-comercial',
@@ -211,13 +228,25 @@ export const DOCUMENTOS: readonly DocumentoDeTreinamento[] = [
         slug: 'faq',
         titulo: 'Sinônimos e FAQ',
         item: 'F.A.Q',
-        modo: 'rag',
-        teto: 50_000,
+        /**
+         * **Também saiu do acervo em 2026-11-12, junto de `servicos`.**
+         *
+         * Aqui a razão é mais forte do que a do catálogo: este documento é
+         * **léxico**, e léxico não se recupera por similaridade. A busca
+         * vetorial encontra o trecho que *fala do assunto* da pergunta; uma
+         * tabela de sinônimos não fala de assunto nenhum — ela traduz a palavra
+         * que o cliente usou para a palavra que o catálogo usa. Ela precisa
+         * estar presente **antes** de a pergunta ser interpretada, não depois.
+         *
+         * O teto é 15.000, acima dos 8.843 do maior em uso na data da troca.
+         */
+        modo: 'prompt',
+        teto: 15_000,
         precedencia: 8,
         secoes: ['Sinônimos e expressões comuns', 'Perguntas e respostas', SECAO_EXEMPLOS],
         explicacao:
-            'Como as pessoas de fato perguntam. Um subtítulo por pergunta: pergunta ' +
-            'com a sua resposta é a unidade que a busca recupera melhor.',
+            'Como as pessoas de fato perguntam, e o vocabulário que elas usam. Vai em ' +
+            'toda mensagem: sinônimo serve para entender a pergunta, não para responder.',
     },
     {
         slug: 'privacidade',

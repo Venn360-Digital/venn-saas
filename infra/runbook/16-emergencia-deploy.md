@@ -21,7 +21,7 @@ veja o limite abaixo.
 
 **Limite: emergência é code-only.** Este caminho publica código; **não migra
 banco**. Se a correção exige migração, o passo de migrar roda **desta máquina**
-(`npm run migrate:prod` com `DATABASE_URL_MIGRATOR` no ambiente — o que não roda
+(`pnpm run migrate:prod` com `DATABASE_URL_MIGRATOR` no ambiente — o que não roda
 em macOS 12.6 é o *build* do vinext, não o migrador), e só então o YAML publica
 o código. Hipótese ainda não medida: deploy local a partir de artefato de build
 arquivado (Apêndice B do arquivo 15).
@@ -69,6 +69,14 @@ Worker recém-nascido) e sem o passo de migração (fora por regra — veja o li
 acima). Da verificação, fica a auditoria de isolamento, que roda em qualquer
 runner.
 
+> ⚠️ **Durante a transição de gerenciador (a partir de 2026-11-12) o YAML tem
+> dois sabores.** A Odontobox está em **pnpm**; o stagent e o conecta ainda
+> estão em **npm**. Colar o YAML abaixo num clone falha no primeiro passo,
+> porque `pnpm install --frozen-lockfile` não acha `pnpm-lock.yaml` lá. Nos
+> clones, troque as duas linhas por `- run: npm ci` e `- run: npx prisma
+> generate`, e os `pnpm run` por `npm run` (remova o `pnpm/action-setup`).
+> Quando os clones migrarem, apague esta nota.
+
 ```yaml
 name: EMERGÊNCIA — deploy de produção (Workers Builds fora)
 
@@ -100,17 +108,18 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci
-      - run: npx prisma generate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
       - name: Auditoria de isolamento (strict)
-        run: npm run audit:isolation -- --strict
+        run: pnpm run audit:isolation -- --strict
       - name: Build (vinext)
-        run: npm run build:prod
+        run: pnpm run build:prod
       - name: Deploy
-        run: npm run deploy:prod
+        run: pnpm run deploy:prod
 ```
 
 Notas de fidelidade ao terreno:
@@ -121,7 +130,7 @@ Notas de fidelidade ao terreno:
 - `DEPLOY_ENV=production` é o que o `cloudflare.config.ts` lê para escolher o
   nome do Worker e o prefixo dos recursos. Nos clones, produção = nome limpo
   (`stagent`/`conecta`).
-- O smoke (`npm run smoke:prod`) precisa de `IDENTITY_TOKEN`; em emergência,
+- O smoke (`pnpm run smoke:prod`) precisa de `IDENTITY_TOKEN`; em emergência,
   rode-o **desta máquina** depois do deploy, em vez de pôr mais um segredo no
   GitHub: `IDENTITY_TOKEN=... node scripts/smoke-identity.mjs production`.
 - Sem migração neste YAML, de propósito. Se a correção precisa de schema, o

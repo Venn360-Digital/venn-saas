@@ -2,7 +2,7 @@ import prisma from '@/lib/prisma'
 import type { Prisma } from '#prisma'
 import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { normalizeSearch } from '@/lib/search'
-import { despedidaDaEntrega } from '@/lib/atendimento/escalada'
+import { areaDaDespedida, despedidaDaEntrega } from '@/lib/atendimento/escalada'
 import { entregarAEquipe } from './entrega'
 import type { LLMTool } from '@/types/llm'
 import { createLogger } from '@/trabalhos/registro'
@@ -550,6 +550,15 @@ const passarParaEquipe: AgentTool = {
                         'O que a pessoa da equipe precisa saber para continuar sem reler a conversa: ' +
                         'o que o paciente quer, o que já foi dito, o que ficou pendente.',
                 },
+                area: {
+                    type: 'string',
+                    description:
+                        'Para quem você está passando, como o paciente entende, COM artigo — a frase ' +
+                        'diz "passei seu atendimento para ___". Ex.: "a recepção", "a coordenação", "o especialista". ' +
+                        'Use o que o procedimento desta situação mandar. Nunca diga que é um ' +
+                        'atendimento automático, e não use palavras como "humano", "virtual" ou ' +
+                        '"IA". Sem isto, a frase diz "a nossa equipe".',
+                },
             },
             required: ['motivo'],
         },
@@ -558,13 +567,20 @@ const passarParaEquipe: AgentTool = {
         const motivo = String(args.motivo ?? '').trim() || 'não informado'
         const resumo = String(args.resumo ?? '').trim()
 
+        /**
+         * A área é lida **aqui** e não só na despedida, porque a nota interna
+         * também a usa: quem recebe a conversa lê para quem ela foi prometida,
+         * e é por essa frase que ele descobre que o caso é dele e não da fila.
+         */
+        const area = areaDaDespedida(args.area as string | undefined)
+
         const { responsavel, jaEstava } = await entregarAEquipe({
             workspaceId: ctx.workspaceId,
             conversationId: ctx.conversationId,
             integrationId: ctx.integrationId,
             motivo: 'ferramenta',
             nota:
-                `O agente passou o atendimento para a equipe. Motivo: ${motivo}.` +
+                `O agente passou o atendimento para ${area ?? 'a equipe'}. Motivo: ${motivo}.` +
                 (resumo ? `\n\n${resumo}` : ''),
         })
 
@@ -577,7 +593,7 @@ const passarParaEquipe: AgentTool = {
          */
         void jaEstava
 
-        return despedidaDaEntrega(Boolean(responsavel))
+        return despedidaDaEntrega(Boolean(responsavel), area)
     },
 }
 

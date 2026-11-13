@@ -6,10 +6,17 @@ import { manageAgent } from '@/lib/auth/agent'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
 import { acharDocumento, DOCUMENTOS } from '@/lib/treinamento/documentos'
-import { hashDoAcervo, textoParaAcervo, tipoDoAcervo, tituloDoAcervo } from '@/lib/treinamento/indexar'
+import {
+    decidirIndexacao,
+    hashDoAcervo,
+    TIPOS_DE_TREINAMENTO,
+    tipoDoAcervo,
+    tituloDoAcervo,
+} from '@/lib/treinamento/indexar'
 import {
     aplicarRascunhos,
     proximaVersao,
+    slugsComResiduoDeAcervo,
     slugsDesatualizados,
     slugsQueMudam,
     type AcervoDoDocumento,
@@ -115,7 +122,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         )
         const desatualizados = slugsDesatualizados(acervo)
 
-        if (mudaram.length === 0 && desatualizados.length === 0) {
+        /**
+         * Resíduo de quem deixou de ser acervo — e **conta como motivo**.
+         *
+         * Sem isto, a conta que não editou nada depois de um documento mudar de
+         * modo bate no 409 abaixo para sempre, e os trechos antigos seguem vivos.
+         * Ver `slugsComResiduoDeAcervo`.
+         */
+        const comResiduo = slugsComResiduoDeAcervo(acervo)
+
+        if (mudaram.length === 0 && desatualizados.length === 0 && comResiduo.length === 0) {
             return NextResponse.json(
                 { error: 'Nada para publicar: não há rascunho pendente nem acervo atrasado.' },
                 { status: 409 }
@@ -173,13 +189,32 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
 
         /**
-         * O acervo só de quem tem motivo **e** é de busca.
+         * O acervo, decidido por `decidirIndexacao` — e **isto foi um conserto**.
          *
-         * Documento de modo `prompt` não é indexado — ele vai inteiro no prompt —,
-         * e enfileirá-lo faria o processador descobrir isso depois de já ter
-         * entrado na fila. Documento esvaziado tem os trechos apagados aqui
-         * mesmo: apagar não custa embedding, e deixar para a fila manteria o
-         * agente respondendo pelo que a clínica acabou de apagar.
+         * A decisão vivia aqui, escrita à mão, e a parte pura que já existia
+         * (com prova em `test:treinamento`, incluindo o caso da troca de modo)
+         * **não era chamada por ninguém em produção**. As duas divergiam
+         * exatamente no caso que importa:
+         *
+         *     if (!doc || doc.modo === 'prompt') continue
+         *
+         * Esse `continue` pulava o documento de modo `prompt` **antes** de
+         * qualquer limpeza. Num documento que acabou de mudar de modo — e dois
+         * mudaram em 2026-11-12, `servicos` e `faq` — os trechos da época de
+         * acervo **ficavam**: o mesmo texto chegaria ao modelo duas vezes,
+         * inteiro no prompt e em pedaços pela busca, e os pedaços ainda tomariam
+         * vaga de recuperação de outro documento. Pior, ao editar um preço o
+         * bloco do prompt atualizaria e o trecho órfão não — duas versões do
+         * mesmo preço no mesmo contexto.
+         *
+         * `decidirIndexacao` devolve `apagar` nesse caso, e é auto-curativo: a
+         * primeira publicação de cada conta depois do deploy limpa o resíduo dela.
+         *
+         * **Varre `DOCUMENTOS`, não só os que mudaram.** Um documento que trocou
+         * de modo tem resíduo mesmo com o texto intacto — ninguém o editou, foi
+         * o catálogo que mudou debaixo dele. `decidirIndexacao` é quem decide o
+         * que fazer com cada um, e para quem não tem nada a fazer a resposta é
+         * `pular`, de graça.
          */
         const enfileirados: string[] = []
         const limpos: string[] = []
@@ -192,35 +227,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          * o embedding duas vezes para chegar ao mesmo texto.
          */
         const motivos = new Set([...mudaram, ...desatualizados])
-        const aReindexar = DOCUMENTOS.map((d) => d.slug).filter((slug) => motivos.has(slug))
 
-        for (const slug of aReindexar) {
-            const doc = acharDocumento(slug)
-            if (!doc || doc.modo === 'prompt') continue
-
+        for (const doc of DOCUMENTOS) {
+            const slug = doc.slug
             const texto = instantaneo.find((d) => d.slug === slug)?.content ?? ''
 
             /**
-             * **"Vazio" é vazio PARA O ACERVO, não para o editor.**
+             * A decisão é dela, inclusive sobre o que é "vazio".
              *
-             * Era `!texto.trim()`, e isso media a coisa errada. Documento
-             * reduzido a comentários — ou a só a seção reservada de exemplos —
-             * tem texto cru, então ele passava por "não vazio", era enfileirado,
-             * e o processador descobria lá que não havia nada a indexar: ele
-             * logava um aviso e **saía sem apagar**. Os trechos da geração
-             * anterior sobreviviam, o carimbo seguia dizendo "34 trechos", e o
-             * agente continuava respondendo pelo texto que o cliente acabou de
-             * remover.
-             *
-             * `textoParaAcervo` é a mesma normalização que o processador aplica
-             * — tira comentário e tira a seção de exemplos. Decidir por ela é o
-             * que faz as duas pontas concordarem sobre o que é vazio.
+             * `decidirIndexacao` aplica `textoParaAcervo` — a mesma normalização
+             * do processador, que tira comentário e a seção reservada de
+             * exemplos — antes de comparar. É o que faz as duas pontas
+             * concordarem sobre vazio: documento reduzido a comentários tem texto
+             * cru, passaria por "não vazio", e o processador descobriria lá que
+             * não havia nada a indexar, logando um aviso e **saindo sem apagar**.
              */
-            const { texto: paraOAcervo } = textoParaAcervo(texto)
+            const decisao = await decidirIndexacao({
+                doc,
+                content: texto,
+                hashGravado: porSlug.get(slug)?.indexedHash ?? null,
+            })
 
-            if (!paraOAcervo) {
+            if (decisao.acao === 'pular') continue
+
+            if (decisao.acao === 'apagar') {
+                /**
+                 * **O tipo vem do que foi gravado, não do modo de agora.**
+                 *
+                 * `tipoDoAcervo(doc.modo)` daria `treinamento` para um documento
+                 * que hoje é `prompt` — e os trechos de `cenarios` foram gravados
+                 * como `cenario`. Apagar pelos dois tipos é o que garante que a
+                 * limpeza não deixe metade para trás quando o modo muda.
+                 */
                 await prisma.knowledgeDocument.deleteMany({
-                    where: { agentId, title: tituloDoAcervo(slug), type: tipoDoAcervo(doc.modo) },
+                    where: {
+                        agentId,
+                        title: tituloDoAcervo(slug),
+                        type: { in: [...TIPOS_DE_TREINAMENTO] },
+                    },
                 })
                 await prisma.agentTrainingDoc.update({
                     where: { agentId_slug: { agentId, slug } },
@@ -229,6 +273,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 limpos.push(slug)
                 continue
             }
+
+            /**
+             * Só chega aqui o que é acervo de verdade e mudou. Documento cujo
+             * texto não andou sai em `pular` com motivo `inalterado`, que é o que
+             * evita pagar o embedding de novo para chegar ao mesmo vetor.
+             */
+            if (!motivos.has(slug)) continue
 
             await entregar(
                 QUEUE.RAG_INDEX,
@@ -246,7 +297,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             enfileirados.push(slug)
         }
 
-        return NextResponse.json({ publicado: true, versao, mudaram, desatualizados, enfileirados, limpos })
+        return NextResponse.json({
+            publicado: true,
+            versao,
+            mudaram,
+            desatualizados,
+            comResiduo,
+            enfileirados,
+            limpos,
+        })
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues[0]?.message ?? 'inválido' }, { status: 400 })

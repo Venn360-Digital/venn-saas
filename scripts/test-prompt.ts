@@ -428,6 +428,41 @@ conferir(
     true
 )
 
+console.log('\nFormato: padrão nosso, precedência da empresa')
+
+const formato = buildSystemPrompt(agenteDeTeste())
+
+conferir(
+    'a seção Formato existe e é estável',
+    formato.includes('## Formato') && formato.includes('conversando pelo WhatsApp'),
+    true
+)
+conferir(
+    'ensina o negrito do WhatsApp — asterisco simples',
+    formato.includes('*um asterisco de cada lado*'),
+    true
+)
+conferir(
+    'avisa que dois asteriscos aparecem literais',
+    formato.includes('literais na tela de quem lê'),
+    true
+)
+conferir(
+    'declara que as instruções da empresa ganham desta seção',
+    formato.includes('as instruções da empresa ganham dela'),
+    true
+)
+conferir(
+    'NÃO proíbe markdown: proibir contradizia o cliente que pede negrito e marcadores',
+    formato.includes('sem markdown'),
+    false
+)
+conferir(
+    'o Formato vem ANTES de Quando não souber — as duas são do fim do estável',
+    formato.indexOf('## Formato') < formato.indexOf('## Quando não souber'),
+    true
+)
+
 console.log(`\n${passou} ok, ${falhou} falha(s)\n`)
 
 /**

@@ -190,6 +190,21 @@ conta ganhar outro membro ou mudar de mãos, revisar.
 
 ### 6.2 Perfil App — comandos literais por Worker
 
+> **Gerenciador de pacotes: a Odontobox saiu do npm para o pnpm em 2026-11-12**
+> (etapa isolada, preparando o monorepo). Os comandos abaixo valem como estão
+> **nos três apps**: `npm run X` continua funcionando num projeto pnpm, porque
+> `npm run` só precisa do `package.json` e do `node_modules/.bin` no PATH, e o
+> builder instala as dependências sozinho pelo lockfile que encontra
+> (`pnpm-lock.yaml` → pnpm). **Nada no painel precisou mudar**, e isso foi
+> provado pelo build de preview da branch `migrar-para-pnpm` antes do merge.
+> Quando os clones migrarem, a coluna continua a mesma.
+>
+> O que mudou e vale saber: `prisma generate` agora também roda no
+> `postinstall` (via `pnpm.onlyBuiltDependencies` no `package.json`), então o
+> `npx prisma generate` do build command virou rede redundante — deixado de
+> propósito, porque custa segundos e protege de uma mudança futura naquele
+> campo.
+
 | Worker | branch | Build command | Deploy command | Build vars (valores: André) |
 |---|---|---|---|---|
 | `odontobox` | `main` | `npx prisma generate && npm run typecheck && npm run build:prod` | `npm run portao:prod && npm run deploy:prod && npm run smoke:prod` | `DATABASE_URL_MIGRATOR`, `IDENTITY_TOKEN` |
@@ -197,7 +212,7 @@ conta ganhar outro membro ou mudar de mãos, revisar.
 | `conecta-stg` | `staging` | idem stagent-stg | idem | idem |
 | `stagent` (go-live) | `main` | `npx prisma generate && npm run typecheck && npm run build:prod` | `npm run portao:prod && npm run deploy:prod && npm run smoke:prod` | `DATABASE_URL_MIGRATOR`, `IDENTITY_TOKEN` |
 | `conecta` (go-live) | `main` | idem | idem | idem |
-| `odontobox-stg` (futuro) | `staging` | como stagent-stg | como stagent-stg | como stagent-stg |
+| `odontobox-stg` | `staging` | como stagent-stg | como stagent-stg | como stagent-stg |
 
 Regras anexas: o `smoke:*` só entra no deploy command **junto** com o `IDENTITY_TOKEN` gravado (sem ele, vermelho pós-publicação vira ruído). Smoke falho = **alarme pós-publicação**, não portão: diagnóstico pela §6.3, nunca rollback automático. A base de previews permanece `build:preview`/`deploy:preview` (CF_PREVIEW=1, sem portão) — **conferir por GET após todo PATCH** que o preview não herdou o portão. Na Odontobox, PR com migração não valida pelo preview (que aponta para produção): valida pelo job `banco` do CI e espera o merge.
 
