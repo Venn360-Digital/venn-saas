@@ -90,7 +90,8 @@
         "test:regras": "tsx scripts/test-regras.ts",
         "test:condicoes": "tsx scripts/test-condicoes.ts",
         "check:treinamento": "tsx scripts/check-treinamento.ts",
-        "test:jid": "tsx scripts/test-jid.ts"
+        "test:jid": "tsx scripts/test-jid.ts",
+        "test:midia": "tsx scripts/test-midia.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

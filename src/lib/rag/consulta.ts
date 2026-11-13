@@ -40,6 +40,14 @@ export interface MensagemDaConversa {
     contentType?: string | null
     transcript?: string | null
     isInternal?: boolean | null
+    /**
+     * A referência do arquivo, quando a mensagem é mídia.
+     *
+     * Não serve à busca — `textoParaBusca` nunca a lê. Está aqui porque esta é a
+     * forma mínima que o `ai-reply` carrega, e é dela que sai a imagem que vai
+     * anexada ao modelo. Ver `lib/ai/midia-no-prompt.ts`.
+     */
+    mediaUrl?: string | null
 }
 
 /**

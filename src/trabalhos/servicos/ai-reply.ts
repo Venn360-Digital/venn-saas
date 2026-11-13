@@ -4,6 +4,16 @@ import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'
 import { montarConsulta, ultimaFalaDaPessoa, type MensagemDaConversa } from '@/lib/rag/consulta'
+import {
+    imagensParaAnexar,
+    imagemServeParaOModelo,
+    textoParaOModelo,
+    type MensagemComMidia,
+} from '@/lib/ai/midia-no-prompt'
+import { textoDoConteudo } from '@/lib/llm/conteudo'
+import { referenciaDaMidia } from '@/lib/midia'
+import { ler } from '@/lib/storage'
+import type { LLMImagem } from '@/types/llm'
 import { DocumentRetriever } from '@/lib/rag/retriever'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
@@ -105,16 +115,79 @@ const SLUG_DOS_CENARIOS = 'cenarios'
  * versoes significariam o ensaio exercitando um historico montado de outro
  * jeito, e aí ele deixaria de provar o atendimento real.
  */
-function toLlmHistory(history: MensagemDaConversa[]): LLMMessage[] {
+function toLlmHistory(
+    history: MensagemDaConversa[],
+    /**
+     * As imagens já lidas, por índice do histórico. Vazio no ensaio e em toda
+     * conversa sem foto, que é a esmagadora maioria.
+     */
+    imagens: Map<number, LLMImagem> = new Map()
+): LLMMessage[] {
     return history
+        .map((m, i) => ({ m, i }))
         // Internal operator notes are not part of the customer-facing dialogue.
-        .filter((m) => !m.isInternal && m.content.trim().length > 0)
-        .map((m) => ({
-            role: m.direction === 'inbound' ? ('user' as const) : ('assistant' as const),
-            // Uma nota de voz transcrita vira texto para o modelo. Sem isto ele
-            // via "🎵 Áudio" e respondia sem saber o que o paciente disse.
-            content: m.contentType === 'audio' && m.transcript ? `[Nota de voz] ${m.transcript}` : m.content,
-        }))
+        .filter(({ m }) => !m.isInternal && m.content.trim().length > 0)
+        .map(({ m, i }) => {
+            const texto = textoParaOModelo(m as MensagemComMidia)
+            const imagem = imagens.get(i)
+            const role = m.direction === 'inbound' ? ('user' as const) : ('assistant' as const)
+
+            /**
+             * Imagem só em mensagem da pessoa, e só quando foi lida.
+             *
+             * O texto continua indo junto: a legenda da foto é fala dela, e sem
+             * legenda vai o marcador, que é honesto ao lado do anexo.
+             */
+            if (imagem && role === 'user') {
+                return { role, content: { texto, imagens: [imagem] } }
+            }
+
+            return { role, content: texto }
+        })
+}
+
+/**
+ * Lê do storage as imagens que vão para esta resposta.
+ *
+ * **Falha de uma imagem não derruba a resposta.** O cliente está esperando, e
+ * responder sem ver a foto é pior do que não responder só na aparência: o texto
+ * dela, o histórico e o acervo seguem valendo. O que não pode acontecer é o
+ * modelo receber `data:` com byte de tipo errado, que faz a API recusar a
+ * mensagem inteira — é por isso que `imagemServeParaOModelo` decide pelo
+ * conteúdo e não pelo nome.
+ */
+async function lerImagensDoHistorico(
+    history: MensagemDaConversa[]
+): Promise<Map<number, LLMImagem>> {
+    const indices = imagensParaAnexar(history as MensagemComMidia[])
+    if (indices.length === 0) return new Map()
+
+    const lidas = new Map<number, LLMImagem>()
+
+    await Promise.all(
+        indices.map(async (i) => {
+            const ref = referenciaDaMidia((history[i] as MensagemComMidia).mediaUrl)
+            if (!ref) return
+
+            try {
+                const bytes = await ler(ref)
+                if (!bytes) return
+
+                const mime = imagemServeParaOModelo(bytes)
+                if (!mime) {
+                    log.warn(`imagem ignorada: tipo não reconhecido ou grande demais (${bytes.length} bytes)`)
+                    return
+                }
+
+                const base64 = Buffer.from(bytes).toString('base64')
+                lidas.set(i, { dataUrl: `data:${mime};base64,${base64}` })
+            } catch (error) {
+                log.warn('falha ao ler imagem do storage; respondendo sem ela', error)
+            }
+        })
+    )
+
+    return lidas
 }
 
 
@@ -180,7 +253,12 @@ function montarMensagens(
     context: ConversationContext | undefined,
     pecas: PecasDoPrompt,
     /** O resumo compactado, quando houver. Nulo no ensaio, que não tem conversa. */
-    resumo: string | null = null
+    resumo: string | null = null,
+    /**
+     * As imagens lidas do storage. Vazio no ensaio — ele não tem mídia, e esse é
+     * um limite conhecido dele, como as ferramentas.
+     */
+    imagens: Map<number, LLMImagem> = new Map()
 ): LLMMessage[] {
     return [
         {
@@ -194,7 +272,7 @@ function montarMensagens(
                 resumo
             ),
         },
-        ...toLlmHistory(historico),
+        ...toLlmHistory(historico, imagens),
     ]
 }
 
@@ -324,12 +402,23 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
     ])
     const { knowledge } = pecas
 
+    /**
+     * As imagens vêm **depois** das peças do prompt, e não ao lado delas.
+     *
+     * Parece desperdício não paralelizar, mas é o contrário: na conversa sem foto
+     * — quase todas — `imagensParaAnexar` devolve lista vazia e isto não toca o
+     * storage nenhuma vez. Colocar no `Promise.all` de cima obrigaria a decidir
+     * antes de ter o histórico em mão.
+     */
+    const imagens = await lerImagensDoHistorico(history)
+
     const messages: LLMMessage[] = montarMensagens(
         agent,
         history,
         context,
         pecas,
-        conversa?.summaryText ?? null
+        conversa?.summaryText ?? null,
+        imagens
     )
 
     const llm = LLMFactory.create(agent.llmProvider as LLMProviderName, {
@@ -596,6 +685,6 @@ export async function ensaiarResposta(input: EnsaioInput): Promise<EnsaioResult>
         usage: response.usage,
         trechos: pecas.knowledge,
         consulta: montarConsulta(historico),
-        prompt: messages[0].content,
+        prompt: textoDoConteudo(messages[0].content),
     }
 }

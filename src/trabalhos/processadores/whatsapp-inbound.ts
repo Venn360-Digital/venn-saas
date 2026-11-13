@@ -12,6 +12,12 @@ import { syncContactProfile } from '@/trabalhos/servicos/avatar'
 import { archiveInboundMedia, obterBytesDaMidia } from '@/trabalhos/servicos/media'
 import { delayForSpeed, scheduleAiReply } from '@/trabalhos/servicos/ai-reply-schedule'
 import { transcribeAudio } from '@/trabalhos/servicos/transcribe'
+import { nomeDoArquivo } from '@/lib/ai/midia-no-prompt'
+import {
+    ehFormatoLegivel,
+    extrairTexto,
+    textoParaOTranscript,
+} from '@/lib/documentos/extrair'
 import {
     NOME_PROVISORIO_INSTAGRAM,
     type ContactIdentity,
@@ -215,6 +221,44 @@ export async function processWhatsAppInbound(payload: WhatsAppInboundJob): Promi
                     log.warn('falha ao transcrever; seguindo sem texto', error)
                     return null
                 })
+            }
+
+            /**
+             * Documento: o texto dele vira `transcript`, como a nota de voz.
+             *
+             * **A mesma coluna, de propósito.** `transcript` é onde mora o texto
+             * de uma mídia, e todo o resto do sistema já a lê: o histórico que vai
+             * ao modelo, a consulta do Cérebro, o console de ensaio. Uma coluna
+             * nova obrigaria a ensinar o mesmo conceito a quatro lugares.
+             *
+             * Até aqui o agente recebia o **nome do arquivo** como se fosse a fala
+             * da pessoa — medido numa conta real com uma lista de orçamento em PDF.
+             *
+             * Formato que não sabemos ler **não é erro**: `ehFormatoLegivel`
+             * decide antes de tentar, e o que sobra (imagem, planilha, zip) segue
+             * sem transcript, com o aviso que `textoParaOModelo` monta. Tentar e
+             * capturar a exceção daria o mesmo resultado com um log de erro falso
+             * a cada foto recebida.
+             */
+            if (decoded.contentType === 'file' && bytes) {
+                const nome = nomeDoArquivo(decoded.content)
+                if (ehFormatoLegivel(nome)) {
+                    try {
+                        const extraido = await extrairTexto(
+                            Uint8Array.from(Buffer.from(bytes.base64, 'base64')),
+                            nome
+                        )
+                        const texto = textoParaOTranscript(extraido)
+                        transcript = texto || null
+                        log.info(
+                            texto
+                                ? `documento ${nome}: ${texto.length} caracteres extraídos`
+                                : `documento ${nome}: nenhum texto — PDF digitalizado precisa de OCR`
+                        )
+                    } catch (error) {
+                        log.warn(`falha ao extrair texto de ${nome}; seguindo sem ele`, error)
+                    }
+                }
             }
 
             const archived = await archiveInboundMedia({
