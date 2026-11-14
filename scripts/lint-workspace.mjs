@@ -22,11 +22,11 @@
  *   node scripts/lint-workspace.mjs --update   registra a contagem atual
  *   node scripts/lint-workspace.mjs --list     mostra onde ainda está
  */
-import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { arquivosDeCodigo, exigirPiso, conferirAllowlist } from './lib/raizes-de-codigo.mjs'
 
 const ROOT = process.cwd()
-const SRC = join(ROOT, 'src')
 const BASELINE_FILE = join(ROOT, 'scripts', 'workspace-baseline.json')
 
 /**
@@ -76,20 +76,30 @@ function chamadaCompleta(texto, i) {
     return texto.slice(ini)
 }
 
-function walk(dir, out = []) {
-    for (const entry of readdirSync(dir)) {
-        const full = join(dir, entry)
-        if (statSync(full).isDirectory()) walk(full, out)
-        else if (/\.tsx?$/.test(full)) out.push(full)
-    }
-    return out
-}
+/**
+ * As raízes vêm derivadas, e a varredura é medida — aqui isso é segurança.
+ *
+ * Este lint é a fronteira de isolamento multi-tenant: depois da remoção da
+ * RLS, ele é a única coisa que garante que nenhuma rota resolve o workspace
+ * por conta própria. Com `walk(join(ROOT,'src'))` fixo, no dia em que
+ * `src/app` e `src/lib` forem para `packages/core` ele varreria uma árvore sem
+ * rotas, imprimiria "Nenhuma rota resolve o workspace por conta própria" e
+ * **aprovaria** — dizendo a verdade sobre o nada. Num lint de isolamento, o
+ * falso verde é pior que a falha.
+ *
+ * Por isso duas travas: a contagem varrida é impressa e tem piso (hoje 682,
+ * piso 400, folgado para pegar colapso e não variação), e a isenção única é
+ * conferida — se `lib/auth/workspace.ts` mudar de lugar, falha no commit que
+ * o move, e não semanas depois.
+ */
+const arquivos = arquivosDeCodigo()
+exigirPiso('lint-workspace', arquivos, 400)
+conferirAllowlist('lint-workspace', ALLOWED, arquivos)
 
 const findings = []
-for (const file of walk(SRC)) {
-    const rel = relative(ROOT, file)
+for (const rel of arquivos) {
     if (ALLOWED.some((p) => rel.startsWith(p))) continue
-    const texto = readFileSync(file, 'utf8')
+    const texto = readFileSync(join(ROOT, rel), 'utf8')
     let count = 0
     let i = texto.indexOf(CHAMADA)
     while (i !== -1) {
