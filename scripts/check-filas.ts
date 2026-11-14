@@ -13,6 +13,7 @@
  *     DATABASE_URL='<homologação>' npm run check:filas
  */
 import { readFileSync } from 'node:fs'
+import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 import prisma from '@venn/db/cliente'
 import {
     gravarEvento,
@@ -288,7 +289,7 @@ async function main() {
      * clínica autorizou** — este é o lado que machuca.
      */
     {
-        const fonte = readFileSync('src/trabalhos/processadores/cron/auto-follow-up.ts', 'utf8')
+        const fonte = readFileSync(resolverNoCodigo('trabalhos/processadores/cron/auto-follow-up.ts'), 'utf8')
         const inicio = fonte.match(/BUSINESS_START\s*=\s*(\d+)/)?.[1]
         const fim = fonte.match(/BUSINESS_END\s*=\s*(\d+)/)?.[1]
         const rotina = ROTINAS.find((r) => r.task === 'auto-follow-up')

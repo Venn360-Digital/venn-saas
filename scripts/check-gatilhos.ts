@@ -27,7 +27,7 @@
  * está declarado e morto.
  */
 import { readFileSync } from 'node:fs'
-import { arquivosDeCodigo, exigirPiso } from './lib/raizes-de-codigo.mjs'
+import { arquivosDeCodigo, exigirPiso, resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 
 import { TIPOS_DE_GATILHO, TEXTO_DO_GATILHO, type TipoDeGatilho } from '@venn/core/lib/funil/gatilho'
 
@@ -147,7 +147,7 @@ ok(
     'importação é migração de acervo, não chegada de gente nova'
 )
 
-const noServico = readFileSync('src/trabalhos/servicos/conversation.ts', 'utf8')
+const noServico = readFileSync(resolverNoCodigo('trabalhos/servicos/conversation.ts'), 'utf8')
 ok(
     'o serviço de conversa não dispara funil',
     !/contatoCriado\(|talvezEntrarNoFunil\(/.test(noServico),

@@ -19,6 +19,7 @@
  *
  *     npm run check:trabalhos
  */
+import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 import { ALL_QUEUES, QUEUE, TENTATIVAS, DEFAULT_JOB_OPTIONS } from '@venn/core/lib/queue/definitions'
 import { consumirLote, type MensagemDaFila } from '@venn/core/lib/queue/consumidor'
 import { registrarDriver, driverAtual, type DriverDeFila } from '@venn/core/lib/queue/driver'
@@ -55,7 +56,7 @@ async function main() {
     // plugin do Vite — o Node não tem como carregá-lo. E para esta verificação
     // o texto basta: o que se quer saber é se alguém deixou um `null` no mapa.
     const fonte = await import('node:fs').then((fs) =>
-        fs.readFileSync('src/cloudflare/entrada.ts', 'utf8')
+        fs.readFileSync(resolverNoCodigo('cloudflare/entrada.ts'), 'utf8')
     )
     const cfg = await import('node:fs').then((fs) => fs.readFileSync('cloudflare.config.ts', 'utf8'))
     const mapa = fonte.slice(fonte.indexOf('const PROCESSADORES'), fonte.indexOf('IDS_DE_DEDUP'))
@@ -120,7 +121,7 @@ async function main() {
      * neste projeto com `evolution_go` contra `evolution-go`.
      */
     const despacho = await import('node:fs').then((fs) =>
-        fs.readFileSync('src/trabalhos/processadores/cron/index.ts', 'utf8')
+        fs.readFileSync(resolverNoCodigo('trabalhos/processadores/cron/index.ts'), 'utf8')
     )
     const blocoTasks = despacho.slice(despacho.indexOf('const TASKS'), despacho.indexOf('export async function'))
     const noDespacho = new Set([...blocoTasks.matchAll(/^\s*'?([a-z-]+)'?:/gm)].map((m) => m[1]!))
