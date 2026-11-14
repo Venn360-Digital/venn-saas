@@ -26,7 +26,8 @@
 // código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
 import './lib/marca-de-teste.ts'
 
-import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@venn/core/lib/auth/better-auth'
+import { hostsPermitidos, origemDeReserva, auth } from '@venn/core/lib/auth/better-auth'
+import { BRAND } from '@venn/core/marca'
 import { codificarEstado, lerEstado } from '@venn/core/lib/instagram/oauth'
 import prisma from '@venn/db/cliente'
 
@@ -49,10 +50,22 @@ async function main() {
      * Não é um teste do matcher do Better Auth — aquele é da biblioteca. É um
      * teste de que **a nossa lista** continua dizendo o que queremos.
      */
+    /**
+     * **Derivadas da marca registrada, não comparadas com literais.**
+     *
+     * Antes estas asserções diziam `includes('odontobox.venn360.com')`, e com
+     * isso provavam uma coisa só sobre um app só. O que elas têm de garantir é
+     * a RELAÇÃO — que a lista contém o host canônico de quem registrou a marca
+     * — porque é isso que continua verdadeiro quando o core servir os três. A
+     * marca aqui é a fictícia de `./lib/marca-de-teste.ts`, então um literal
+     * de produção nesta comparação passaria a ser simplesmente falso.
+     */
+    const hosts = hostsPermitidos()
+    const canonico = BRAND().appHost
     ok(
-        'o domínio oficial está entre os hosts aceitos',
-        HOSTS_PERMITIDOS.includes('odontobox.venn360.com'),
-        HOSTS_PERMITIDOS.join(', ')
+        'o host canônico da marca está entre os hosts aceitos',
+        hosts.includes(canonico),
+        `${canonico} em [${hosts.join(', ')}]`
     )
     /**
      * O host de homologação, que faltou de 03/11 a 09/11 e deixou o login de
@@ -61,18 +74,33 @@ async function main() {
      */
     ok(
         'o host de homologação está na lista',
-        HOSTS_PERMITIDOS.includes('homolog-odontobox.venn360.com'),
-        HOSTS_PERMITIDOS.join(', ')
+        hosts.includes(`homolog-${canonico}`),
+        `homolog-${canonico} em [${hosts.join(', ')}]`
     )
     ok(
         'nenhum padrão aceita host qualquer',
-        !HOSTS_PERMITIDOS.some((h) => h.trim() === '*' || h.trim() === '*.*'),
+        !hosts.some((h) => h.trim() === '*' || h.trim() === '*.*'),
         'um `*` solto devolveria a origem do atacante e anularia o controle'
     )
     ok(
-        'a origem de reserva é o domínio oficial, em https',
-        ORIGEM_DE_RESERVA === 'https://odontobox.venn360.com',
-        ORIGEM_DE_RESERVA
+        'a origem de reserva é https e aponta para um host aceito',
+        origemDeReserva().startsWith('https://') &&
+            hosts.includes(origemDeReserva().replace(/^https:\/\//, '')),
+        origemDeReserva()
+    )
+    /**
+     * Nenhum host de app escrito no core — a razão desta mudança.
+     *
+     * `audit:isolation` não pegaria: ele proíbe o identificador de OUTRO app, e
+     * `odontobox.venn360.com` dentro do core do odonto era o do próprio. Com os
+     * três servindo do mesmo core, a lista de origens aceitas e o `fallback` do
+     * Better Auth são controle de CSRF — herdá-los de um app irmão é falha de
+     * segurança, não cosmética.
+     */
+    ok(
+        'nenhum host da lista é literal de produção vindo do core',
+        !hosts.some((h) => /venn360\.com$/.test(h) && !h.endsWith(canonico)),
+        hosts.filter((h) => /venn360\.com$/.test(h)).join(', ') || '(nenhum)'
     )
 
     /**
@@ -83,7 +111,7 @@ async function main() {
      * isso a mensagem diz qual dos dois casos foi conferido — asserção que
      * passa por vacuidade sem avisar é portão oco.
      */
-    const comLoopback = HOSTS_PERMITIDOS.filter((h) => /^(localhost|127\.)/.test(h))
+    const comLoopback = hosts.filter((h) => /^(localhost|127\.)/.test(h))
     if (process.env.NODE_ENV === 'production') {
         ok('em produção não há loopback entre os hosts', comLoopback.length === 0, comLoopback.join(', '))
     } else {
