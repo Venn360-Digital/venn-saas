@@ -12,7 +12,16 @@
  * e duas execuções na mesma branch se atropelariam. Copy-on-write: custo
  * próximo de zero.
  *
- * Precisa de NEON_API_KEY — Build Variable SECRETA do Worker `odontobox-stg`.
+ * Precisa de NEON_API_KEY — Build Variable SECRETA do `odontobox-stg`, no lado
+ * **Preview** (não no de produção). São duas configurações: a tela de Settings
+ * → Build edita a de produção, e cada preview recebe uma cópia do
+ * `previews_base_config`, que NÃO herda segredo. Pôr só na produção faz este
+ * script dizer "ausente" em todo build de PR — custou três builds em 14/11.
+ * Conferir sem gastar build (o nome aparece com is_secret, ausência é prova):
+ *
+ *   GET /accounts/{conta}/builds/workers/{script_tag}
+ *       → previews_base_config.environment_variables
+ *
  * Sem a chave, avisa ALTO e sai verde: mesmo contrato do ci.yml, a ausência do
  * segredo não pode reprovar o código. A string de conexão nunca é impressa.
  *
@@ -31,7 +40,7 @@ if (!CHAVE) {
         '⚠'.repeat(30) +
         '\n⚠ NEON_API_KEY ausente — provas contra o banco PULADAS.\n' +
         '⚠ Migração contra dado de verdade NÃO foi exercitada neste build.\n' +
-        '⚠ A chave mora nas Build Variables (secreta) do Worker odontobox-stg.\n' +
+        '⚠ A chave mora nas Build Variables do odontobox-stg, no lado PREVIEW.\n' +
         '⚠'.repeat(30)
     )
     process.exit(0)
