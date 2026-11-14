@@ -13,7 +13,7 @@ import {
     hostDe,
     lerConfiguracaoDoWidget,
     origemPermitida,
-} from '../src/lib/widget-config'
+} from '@venn/core/lib/widget-config'
 
 let passou = 0
 let falhou = 0

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 import { z } from 'zod'
 import { Prisma } from '@venn/db'
-import { normalizeSearch } from '@/lib/search'
+import { normalizeSearch } from '@venn/core/lib/search'
 
 // GET - List departments with pagination and search
 export async function GET(request: NextRequest) {

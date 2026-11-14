@@ -16,8 +16,8 @@
  * O que cada falha costuma significar está em `diagnostico()`, no fim: o erro
  * cru do SES diz o código e nada sobre o que fazer com ele.
  */
-import { credenciaisDoSes, enviarPorSes } from '../src/lib/email/ses'
-import { campanhaEmTexto, renderCampanha, type Bloco } from '../src/lib/email/blocos'
+import { credenciaisDoSes, enviarPorSes } from '@venn/core/lib/email/ses'
+import { campanhaEmTexto, renderCampanha, type Bloco } from '@venn/core/lib/email/blocos'
 
 function argumento(nome: string): string | undefined {
     const i = process.argv.indexOf(`--${nome}`)

@@ -21,7 +21,7 @@ import {
     primeiroNome,
     renderCampanha,
     type Bloco,
-} from '../src/lib/email/blocos'
+} from '@venn/core/lib/email/blocos'
 
 const blocos: Bloco[] = [
     { tipo: 'titulo', texto: 'Oi {{nome}}, faz um tempinho!' },

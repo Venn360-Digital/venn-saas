@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
 import prisma from '@venn/db/cliente'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import {
     GOOGLE_CALENDAR_SCOPES,
     getGoogleOAuthClient,
     redirectUriFor,
-} from '@/lib/google-oauth-client'
+} from '@venn/core/lib/google-oauth-client'
 
 // GET - Generate Google OAuth authorize URL
 export async function GET(request: NextRequest) {

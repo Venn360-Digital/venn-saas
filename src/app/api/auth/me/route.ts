@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import prisma from '@venn/db/cliente'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
-import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { MINUTOS_PARA_AUSENTE_PADRAO } from '@venn/core/lib/automations'
+import { estadoVisivel, type StatusDoMembro } from '@venn/core/lib/conversas/distribuicao'
 
 export async function GET() {
     try {

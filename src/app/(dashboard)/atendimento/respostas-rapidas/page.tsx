@@ -1,5 +1,5 @@
 import prisma from '@venn/db/cliente'
-import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
+import { listaInteira, membroOuLogin } from '@venn/core/lib/indice-servidor'
 
 import { RespostasRapidasClient } from './RespostasRapidasClient'
 
@@ -13,7 +13,7 @@ import { RespostasRapidasClient } from './RespostasRapidasClient'
  * cabeçalho de coluna sozinho saltava quando as larguras eram recalculadas.
  * Com as linhas já no HTML, a segunda pintura deixa de existir.
  *
- * O mecanismo (auth, forma do resultado) vem de `@/lib/indice-servidor`; aqui
+ * O mecanismo (auth, forma do resultado) vem de `@venn/core/lib/indice-servidor`; aqui
  * fica só **a consulta**, que é o que varia de tela para tela. Ela é a mesma do
  * `GET /api/quick-responses` (mesmo `where`, mesma ordem) de propósito: a rota
  * continua servindo as releituras depois de gravar, excluir ou pausar, e as duas

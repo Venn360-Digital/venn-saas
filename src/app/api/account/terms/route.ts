@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { TERMS_VERSION } from '@/lib/terms'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { TERMS_VERSION } from '@venn/core/lib/terms'
 
 /**
  * O aceite dos termos, registrado de dentro do produto.

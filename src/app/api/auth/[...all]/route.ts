@@ -1,5 +1,5 @@
 import { toNextJsHandler } from 'better-auth/next-js'
-import { auth } from '@/lib/auth/better-auth'
+import { auth } from '@venn/core/lib/auth/better-auth'
 
 /**
  * Os endpoints do Better Auth: `/api/auth/sign-in/email`, `/sign-up/email`,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
 
 // PATCH - Update a pipeline stage

@@ -23,18 +23,18 @@ import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
-import { FormField } from '@/components/shared/FormField'
-import { StatusBadge } from '@/components/shared/StatusBadge'
-import { usePermissions } from '@/hooks/usePermissions'
-import { NOME_DO_PASSO, PASSOS_NA_PALETA, SITUACAO_DO_FUNIL } from '@/lib/funil/apresentacao'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { StatusBadge } from '@venn/core/components/shared/StatusBadge'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { NOME_DO_PASSO, PASSOS_NA_PALETA, SITUACAO_DO_FUNIL } from '@venn/core/lib/funil/apresentacao'
 import {
     AJUDA_DO_GATILHO,
     TEXTO_DO_GATILHO,
     TIPOS_DE_GATILHO,
     type TipoDeGatilho,
-} from '@/lib/funil/gatilho'
-import { ESPERA_MAX_MIN, type TipoDePasso } from '@/lib/funil/passos'
-import { podePublicar } from '@/lib/funil/publicar'
+} from '@venn/core/lib/funil/gatilho'
+import { ESPERA_MAX_MIN, type TipoDePasso } from '@venn/core/lib/funil/passos'
+import { podePublicar } from '@venn/core/lib/funil/publicar'
 
 /**
  * O canvas do funil.

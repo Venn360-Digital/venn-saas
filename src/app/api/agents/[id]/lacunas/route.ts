@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
-import { manageAgent } from '@/lib/auth/agent'
-import { acharDocumento } from '@/lib/treinamento/documentos'
-import { somarAoDocumento } from '@/lib/lacunas/rascunho'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
+import { somarAoDocumento } from '@venn/core/lib/lacunas/rascunho'
 
 /**
  * A fila de aprovação das lacunas.

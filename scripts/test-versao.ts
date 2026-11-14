@@ -22,9 +22,9 @@ import {
     temRascunhoPendente,
     type AcervoDoDocumento,
     type DocumentoComRascunho,
-} from '@/lib/treinamento/versao'
-import { hashDoAcervo, hashDoConteudo } from '@/lib/treinamento/indexar'
-import { semComentarios } from '@/lib/rag/secoes'
+} from '@venn/core/lib/treinamento/versao'
+import { hashDoAcervo, hashDoConteudo } from '@venn/core/lib/treinamento/indexar'
+import { semComentarios } from '@venn/core/lib/rag/secoes'
 
 let passou = 0
 let falhou = 0

@@ -20,8 +20,8 @@ import {
     podeReenviar,
     podeRevogar,
     vencimentoDe,
-} from '@/lib/convite/estado'
-import { pareceToken, resumoDoToken, sortearToken } from '@/lib/convite/token'
+} from '@venn/core/lib/convite/estado'
+import { pareceToken, resumoDoToken, sortearToken } from '@venn/core/lib/convite/token'
 
 let passou = 0
 let falhou = 0

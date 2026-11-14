@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { manageAgent } from '@/lib/auth/agent'
-import { INSTAGRAM_LOGIN_PROVIDER, urlDeAutorizacao } from '@/lib/instagram/login'
-import { codificarEstado, redirectUriFor } from '@/lib/instagram/oauth'
-import { getPlatformCredentials } from '@/lib/platform-credentials'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { INSTAGRAM_LOGIN_PROVIDER, urlDeAutorizacao } from '@venn/core/lib/instagram/login'
+import { codificarEstado, redirectUriFor } from '@venn/core/lib/instagram/oauth'
+import { getPlatformCredentials } from '@venn/core/lib/platform-credentials'
 
 export const runtime = 'nodejs'
 

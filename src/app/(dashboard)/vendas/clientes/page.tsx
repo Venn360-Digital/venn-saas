@@ -1,5 +1,5 @@
-import { membroOuLogin } from '@/lib/indice-servidor'
-import { consultarPacientes } from '@/lib/pacientes-consulta'
+import { membroOuLogin } from '@venn/core/lib/indice-servidor'
+import { consultarPacientes } from '@venn/core/lib/pacientes-consulta'
 
 import { PacientesClient } from './PacientesClient'
 

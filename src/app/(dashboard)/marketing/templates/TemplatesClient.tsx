@@ -13,16 +13,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@venn/ui/select'
-import { DataTable, type Column } from '@/components/shared/DataTable'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { FormField } from '@/components/shared/FormField'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
-import { RowActionItem, RowActions } from '@/components/shared/RowActions'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { DataTable, type Column } from '@venn/core/components/shared/DataTable'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { TabsFrame, type FrameTab } from '@venn/core/components/shared/TabsFrame'
+import { RowActionItem, RowActions } from '@venn/core/components/shared/RowActions'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
 import { EditorDeEmail, type TemplateDeEmail } from './EditorDeEmail'
-import { usePermissions } from '@/hooks/usePermissions'
-import { useIndiceServidor } from '@/hooks/useIndiceServidor'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 
 import type { DadosIniciais, TemplateItem } from './dados'
 

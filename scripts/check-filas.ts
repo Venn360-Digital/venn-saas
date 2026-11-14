@@ -20,10 +20,10 @@ import {
     podarOutbox,
     MAXIMO_DE_TENTATIVAS,
     type EventoPendente,
-} from '@/lib/outbox'
-import { reservar, liberar, umaVezSo, podarChaves, chaveDeIdempotencia } from '@/lib/queue/idempotencia'
-import { consumirLote, exponencial, type LoteDaFila, type MensagemDaFila } from '@/lib/queue/consumidor'
-import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, cronDaVarredura, TAREFA_DA_VARREDURA, PadraoNaoConversivelError, ROTINAS } from '@/lib/cron/agenda'
+} from '@venn/core/lib/outbox'
+import { reservar, liberar, umaVezSo, podarChaves, chaveDeIdempotencia } from '@venn/core/lib/queue/idempotencia'
+import { consumirLote, exponencial, type LoteDaFila, type MensagemDaFila } from '@venn/core/lib/queue/consumidor'
+import { paraUTC, rotinasEmUTC, cronsParaWrangler, rotinasDoDisparo, cronDaVarredura, TAREFA_DA_VARREDURA, PadraoNaoConversivelError, ROTINAS } from '@venn/core/lib/cron/agenda'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

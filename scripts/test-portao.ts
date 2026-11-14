@@ -28,7 +28,7 @@
  * conta, ela reprova — e é exatamente o que precisa reprovar.
  */
 
-import { isHumanHandled } from '../src/trabalhos/servicos/conversation'
+import { isHumanHandled } from '@venn/core/trabalhos/servicos/conversation'
 
 let ok = 0
 let falhas = 0

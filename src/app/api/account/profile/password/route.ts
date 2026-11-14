@@ -2,8 +2,8 @@ import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { auth } from '@/lib/auth/better-auth'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { auth } from '@venn/core/lib/auth/better-auth'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 
 /**
  * Troca a senha de quem está logado.

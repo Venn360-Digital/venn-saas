@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
+import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import {
     extrairTexto,
     FormatoNaoSuportado,
     normalizarExtraido,
-} from '@/lib/documentos/extrair'
+} from '@venn/core/lib/documentos/extrair'
 
 export const runtime = 'nodejs'
 

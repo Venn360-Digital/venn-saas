@@ -15,9 +15,9 @@
  * trechos tem cabeçalho de menos.
  */
 import { readFileSync, existsSync } from 'node:fs'
-import { DOCUMENTOS, conferirEstrutura, orcamentoDoPrompt } from '@/lib/treinamento/documentos'
-import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
-import { textoParaAcervo } from '@/lib/treinamento/indexar'
+import { DOCUMENTOS, conferirEstrutura, orcamentoDoPrompt } from '@venn/core/lib/treinamento/documentos'
+import { secionarMarkdown, semComentarios } from '@venn/core/lib/rag/secoes'
+import { textoParaAcervo } from '@venn/core/lib/treinamento/indexar'
 
 const pasta = process.argv[2]
 if (!pasta) {

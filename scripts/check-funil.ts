@@ -26,16 +26,16 @@ import {
     proximoPasso,
     sucessores,
     type PassoDoFunil,
-} from '../src/lib/funil/passos'
+} from '@venn/core/lib/funil/passos'
 import {
     AJUDA_DO_GATILHO,
     casa,
     lerGatilho,
     TEXTO_DO_GATILHO,
     TIPOS_DE_GATILHO,
-} from '../src/lib/funil/gatilho'
-import { MAX_PASSOS, podePublicar } from '../src/lib/funil/publicar'
-import { GALERIA_DE_FUNIS } from '../src/lib/funil/galeria'
+} from '@venn/core/lib/funil/gatilho'
+import { MAX_PASSOS, podePublicar } from '@venn/core/lib/funil/publicar'
+import { GALERIA_DE_FUNIS } from '@venn/core/lib/funil/galeria'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

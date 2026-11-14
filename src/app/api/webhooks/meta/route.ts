@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { readInstagramEvent } from '@/lib/instagram/webhook'
-import { readWhatsAppCloudEvent } from '@/lib/whatsapp/envelopes'
+import { readInstagramEvent } from '@venn/core/lib/instagram/webhook'
+import { readWhatsAppCloudEvent } from '@venn/core/lib/whatsapp/envelopes'
 import {
     ehEventoDeInstagram,
     metaAppSecrets,
     metaSignatureValid,
     metaVerifyToken,
     normalizarEventoMeta,
-} from '@/lib/meta/webhook'
-import { enqueueNormalizedEvents, MissingRedisUrlError } from '@/lib/queue/enqueue-whatsapp'
+} from '@venn/core/lib/meta/webhook'
+import { enqueueNormalizedEvents, MissingRedisUrlError } from '@venn/core/lib/queue/enqueue-whatsapp'
 
 export const runtime = 'nodejs'
 /** Nada aqui pode ser servido de cache: cada evento é um evento. */

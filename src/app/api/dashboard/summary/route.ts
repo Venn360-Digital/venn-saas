@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
-import { getDashboardSummary } from '@/lib/dashboard/summary'
+import { getWorkspaceMember, resolveOwnerScope } from '@venn/core/lib/auth/workspace'
+import { getDashboardSummary } from '@venn/core/lib/dashboard/summary'
 
 export const dynamic = 'force-dynamic'
 

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { manageAgent } from '@/lib/auth/agent'
-import { checkCredits, spendAiCredits } from '@/lib/llm/usage-tracker'
-import { OutOfCreditsError, ensaiarResposta, type TurnoDeEnsaio } from '@/trabalhos/servicos/ai-reply'
-import { createLogger } from '@/trabalhos/registro'
-import { pisoDeSimilaridade } from '@/lib/rag/parametros'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { checkCredits, spendAiCredits } from '@venn/core/lib/llm/usage-tracker'
+import { OutOfCreditsError, ensaiarResposta, type TurnoDeEnsaio } from '@venn/core/trabalhos/servicos/ai-reply'
+import { createLogger } from '@venn/core/trabalhos/registro'
+import { pisoDeSimilaridade } from '@venn/core/lib/rag/parametros'
 
 const log = createLogger('ENSAIO')
 

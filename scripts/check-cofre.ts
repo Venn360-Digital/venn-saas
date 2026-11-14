@@ -11,10 +11,10 @@
  *
  *     npm run check:cofre
  */
-import { cifrar, decifrar, ehEnvelope, gerarChave, CHAVE_ENV, ChaveAusenteError } from '@/lib/secrets/envelope'
-import { nomeDeAmbiente, segredoDeAmbiente, definidoNoAmbiente } from '@/lib/secrets/ambiente'
-import { PLATFORM_PROVIDERS, variaveisDoProvedor } from '@/lib/platform-credentials'
-import { META_VERIFY_TOKEN_SECRET } from '@/lib/meta/webhook'
+import { cifrar, decifrar, ehEnvelope, gerarChave, CHAVE_ENV, ChaveAusenteError } from '@venn/core/lib/secrets/envelope'
+import { nomeDeAmbiente, segredoDeAmbiente, definidoNoAmbiente } from '@venn/core/lib/secrets/ambiente'
+import { PLATFORM_PROVIDERS, variaveisDoProvedor } from '@venn/core/lib/platform-credentials'
+import { META_VERIFY_TOKEN_SECRET } from '@venn/core/lib/meta/webhook'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 

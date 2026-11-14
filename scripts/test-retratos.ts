@@ -20,7 +20,7 @@ import {
     chaveDoRetrato,
     enderecoDoRetrato,
     formaDoRetrato,
-} from '../src/lib/retratos'
+} from '@venn/core/lib/retratos'
 
 let ok = 0
 let falhas = 0

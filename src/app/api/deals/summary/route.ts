@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { periodWhere } from '@/lib/deal-filters'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { periodWhere } from '@venn/core/lib/deal-filters'
 
 /**
  * Em aberto, ganho e perdido — contagem e valor, no período filtrado.

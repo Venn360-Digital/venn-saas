@@ -1,5 +1,5 @@
 import prisma from '@venn/db/cliente'
-import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
+import { listaInteira, membroOuLogin } from '@venn/core/lib/indice-servidor'
 
 import { ListasClient } from './ListasClient'
 

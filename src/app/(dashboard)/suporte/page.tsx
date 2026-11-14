@@ -16,7 +16,7 @@ import {
     type LucideIcon,
 } from 'lucide-react'
 
-import { Logo } from '@/components/brand/Logo'
+import { Logo } from '@venn/core/components/brand/Logo'
 import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
 import {
@@ -24,9 +24,9 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@venn/ui/collapsible'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
 import { cn } from '@venn/ui/utils'
-import { normalizeSearch } from '@/lib/search'
+import { normalizeSearch } from '@venn/core/lib/search'
 
 /**
  * A central de ajuda, dentro do próprio produto.

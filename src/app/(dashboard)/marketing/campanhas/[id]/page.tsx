@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import prisma from '@venn/db/cliente'
-import { membroOuLogin } from '@/lib/indice-servidor'
+import { membroOuLogin } from '@venn/core/lib/indice-servidor'
 
 import { CampanhaDetalheClient, type CampanhaDetalhe } from './CampanhaDetalheClient'
-import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@/lib/marketing/apresentacao'
+import { apresentarCampanha, INCLUDE_DA_APRESENTACAO } from '@venn/core/lib/marketing/apresentacao'
 
 /**
  * Detalhe da campanha — carregado no servidor e passado pronto ao cliente, que

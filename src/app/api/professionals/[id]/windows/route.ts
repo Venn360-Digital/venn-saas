@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
+import { SCHEDULABLE_CATEGORIES } from '@venn/core/lib/product-categories'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
-import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
+import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
 
 /**
  * As faixas de horário em que um especialista atende.

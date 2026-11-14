@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { resolveConversationLine } from '@/lib/conversation-line'
-import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { resolveIntegration } from '@/lib/whatsapp'
-import { transmitir } from '@/trabalhos/tempo-real'
+import { resolveConversationLine } from '@venn/core/lib/conversation-line'
+import { conversationScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { resolveIntegration } from '@venn/core/lib/whatsapp'
+import { transmitir } from '@venn/core/trabalhos/tempo-real'
 
 // POST: Send typing indicator to contact + broadcast to realtime
 export async function POST(

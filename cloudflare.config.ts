@@ -1,8 +1,8 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from 'cf/config'
 
 import * as entrypoint from './src/cloudflare/entrada.ts' with { type: 'cf-worker' }
-import { cronsParaWrangler } from './src/lib/cron/agenda.ts'
-import { ALL_QUEUES, TENTATIVAS } from './src/lib/queue/definitions.ts'
+import { cronsParaWrangler } from '@venn/core/lib/cron/agenda'
+import { ALL_QUEUES, TENTATIVAS } from '@venn/core/lib/queue/definitions'
 
 /**
  * A configuração do Worker do OdontoBox360.

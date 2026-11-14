@@ -1,10 +1,10 @@
-import { igualEmTempoConstante } from '@/lib/comparacao'
+import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import { NextRequest, NextResponse } from 'next/server'
 
 import prisma from '@venn/db/cliente'
-import { asaasWebhookToken } from '@/lib/asaas/client'
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
+import { asaasWebhookToken } from '@venn/core/lib/asaas/client'
+import { QUEUE } from '@venn/core/lib/queue/definitions'
+import { entregar } from '@venn/core/lib/queue/entregar'
 import { isUniqueViolation } from '@venn/db/erros'
 
 /**

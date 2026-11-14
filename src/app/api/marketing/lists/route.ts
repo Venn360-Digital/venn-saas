@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import prisma from '@venn/db/cliente'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { popularListaPorFiltro, adicionarMembros, contarDoFiltro } from '@/lib/marketing/lists'
-import { CANAIS_DE_CAMPANHA } from '@/lib/marketing/apresentacao'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { popularListaPorFiltro, adicionarMembros, contarDoFiltro } from '@venn/core/lib/marketing/lists'
+import { CANAIS_DE_CAMPANHA } from '@venn/core/lib/marketing/apresentacao'
 
 const filtroSchema = z.object({
     tagId: z.string().nullish(),

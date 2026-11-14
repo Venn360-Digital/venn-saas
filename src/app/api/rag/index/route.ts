@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { manageAgent } from '@/lib/auth/agent'
+import { manageAgent } from '@venn/core/lib/auth/agent'
 import { z } from 'zod'
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
+import { QUEUE } from '@venn/core/lib/queue/definitions'
+import { entregar } from '@venn/core/lib/queue/entregar'
 
 const indexSchema = z.object({
     agentId: z.string(),

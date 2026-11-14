@@ -16,7 +16,7 @@ import {
     interpretarVeredito,
     promptDoJuiz,
     type CasoDourado,
-} from '@/lib/avaliacao/juiz'
+} from '@venn/core/lib/avaliacao/juiz'
 import {
     CASOS_MINIMOS,
     FRACAO_DE_HOLDOUT,
@@ -27,7 +27,7 @@ import {
     ordemDoCaso,
     quemGanhou,
     suspeitas,
-} from '@/lib/avaliacao/pareado'
+} from '@venn/core/lib/avaliacao/pareado'
 
 let passou = 0
 let falhou = 0

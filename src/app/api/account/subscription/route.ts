@@ -7,9 +7,9 @@ import {
     creditPackFor,
     formatPrice,
     planFor,
-} from '@/lib/plans'
-import { currentMembership } from '@/lib/auth/workspace'
-import { canBuyAddons, getBillingState, spokenRepliesLeft } from '@/lib/billing'
+} from '@venn/core/lib/plans'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import { canBuyAddons, getBillingState, spokenRepliesLeft } from '@venn/core/lib/billing'
 import {
     CICLOS,
     TREINAMENTO,
@@ -21,27 +21,27 @@ import {
     tetoDeUnidades,
     treinamentoIncluido,
     valorDaFatura,
-} from '@/lib/plan-limits'
-import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@/lib/asaas/checkout'
-import { cobrarNoCartaoSalvo } from '@/lib/asaas/cobranca-no-cartao'
-import { regimeDaConta } from '@/lib/asaas/cobranca'
-import { aplicarAdicionais } from '@/lib/billing/aplicar-adicionais'
-import { AsaasError, asaas } from '@/lib/asaas/client'
-import { aplicarPlano } from '@/lib/billing/aplicar-plano'
+} from '@venn/core/lib/plan-limits'
+import { criarCheckoutDePlano, criarCheckoutDeAdicionais } from '@venn/core/lib/asaas/checkout'
+import { cobrarNoCartaoSalvo } from '@venn/core/lib/asaas/cobranca-no-cartao'
+import { regimeDaConta } from '@venn/core/lib/asaas/cobranca'
+import { aplicarAdicionais } from '@venn/core/lib/billing/aplicar-adicionais'
+import { AsaasError, asaas } from '@venn/core/lib/asaas/client'
+import { aplicarPlano } from '@venn/core/lib/billing/aplicar-plano'
 import {
     descreverAssinatura,
     recriarAssinatura,
     sincronizarValorDaAssinatura,
     trocarCicloNoGateway,
-} from '@/lib/asaas/vincular'
+} from '@venn/core/lib/asaas/vincular'
 import {
     MINIMO_DO_ASAAS,
     diferencaDeContrato,
     inicioDaCobranca,
     proporcionalDoAdicional,
     proximaCobranca,
-} from '@/lib/billing/troca-de-plano'
-import { cobrancaCompleta, conferirCobranca, listarFaltantes } from '@/lib/billing/dados-de-cobranca'
+} from '@venn/core/lib/billing/troca-de-plano'
+import { cobrancaCompleta, conferirCobranca, listarFaltantes } from '@venn/core/lib/billing/dados-de-cobranca'
 
 /**
  * O endereço desta aplicação, para o Asaas devolver o pagador.
@@ -58,8 +58,8 @@ function baseDaAplicacao(request: NextRequest): string {
 }
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { contaDoMaster, accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@/lib/account'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { contaDoMaster, accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@venn/core/lib/account'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 
 
 /**

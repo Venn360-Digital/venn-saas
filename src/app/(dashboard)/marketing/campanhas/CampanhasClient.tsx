@@ -14,19 +14,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@venn/ui/select'
-import { DataTable, type Column } from '@/components/shared/DataTable'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { FormField } from '@/components/shared/FormField'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { usePermissions } from '@/hooks/usePermissions'
-import { useIndiceServidor } from '@/hooks/useIndiceServidor'
+import { DataTable, type Column } from '@venn/core/components/shared/DataTable'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 
 import {
     CANAIS_DE_CAMPANHA,
     NOME_DO_CANAL,
     type CanalDeCampanha,
-} from '@/lib/marketing/apresentacao'
+} from '@venn/core/lib/marketing/apresentacao'
 
 import { type CampanhaItem, type DadosIniciais, ORDEM_STATUS, STATUS_CAMPANHA } from './dados'
 

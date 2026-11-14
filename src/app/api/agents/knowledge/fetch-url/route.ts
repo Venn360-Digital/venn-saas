@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
-import { htmlToText, isPrivateHost, pageTitle } from '@/lib/rag/page-text'
+import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
+import { htmlToText, isPrivateHost, pageTitle } from '@venn/core/lib/rag/page-text'
 
 export const runtime = 'nodejs'
 

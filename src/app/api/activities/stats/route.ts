@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@venn/db'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
-import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
+import { getWorkspaceMember, resolveOwnerScope } from '@venn/core/lib/auth/workspace'
+import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@venn/core/lib/fuso'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 
 /**
  * Os quatro números do topo da Agenda.

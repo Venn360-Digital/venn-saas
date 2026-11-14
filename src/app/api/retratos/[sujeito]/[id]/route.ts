@@ -5,9 +5,9 @@ import {
     CACHE_DO_SEM_RETRATO,
     bytesDoEmbutido,
     formaDoRetrato,
-} from '@/lib/retratos'
-import { enderecoDaMidia } from '@/lib/midia'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+} from '@venn/core/lib/retratos'
+import { enderecoDaMidia } from '@venn/core/lib/midia'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 import prisma from '@venn/db/cliente'
 
 /**

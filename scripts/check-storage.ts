@@ -30,10 +30,10 @@ import {
     TRECHO_DE_PESSOA,
     tetoDaAssinatura,
     validadeEfetiva,
-} from '@/lib/storage'
-import { deBase64 } from '@/trabalhos/servicos/arquivo'
-import { comoReferencia, enderecoDaMidia } from '@/lib/midia'
-import { escapeCsv } from '@/lib/csv'
+} from '@venn/core/lib/storage'
+import { deBase64 } from '@venn/core/trabalhos/servicos/arquivo'
+import { comoReferencia, enderecoDaMidia } from '@venn/core/lib/midia'
+import { escapeCsv } from '@venn/core/lib/csv'
 
 let falhas = 0
 let pulados = 0

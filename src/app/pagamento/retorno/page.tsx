@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
-import { Logo } from '@/components/brand/Logo'
+import { Logo } from '@venn/core/components/brand/Logo'
 
 /**
  * Para onde o Asaas devolve o pagador — uma página de uma frase.

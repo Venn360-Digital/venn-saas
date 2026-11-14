@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@venn/db'
 import prisma from '@venn/db/cliente'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { manageAgent, readAgent } from '@/lib/auth/agent'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { manageAgent, readAgent } from '@venn/core/lib/auth/agent'
 import { z } from 'zod'
-import { findModel } from '@/lib/llm/models'
+import { findModel } from '@venn/core/lib/llm/models'
 import { agentPreferencesPatchSchema } from '@/types/agent-preferences'
-import { enderecoDoAvatar } from '@/lib/agents/avatar'
+import { enderecoDoAvatar } from '@venn/core/lib/agents/avatar'
 
 /**
  * O modelo precisa existir no catálogo de preços.

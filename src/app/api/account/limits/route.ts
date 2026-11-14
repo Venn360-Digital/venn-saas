@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { getWorkspaceLimits } from '@/lib/limits'
-import { getBillingState } from '@/lib/billing'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { getWorkspaceLimits } from '@venn/core/lib/limits'
+import { getBillingState } from '@venn/core/lib/billing'
 
 export const dynamic = 'force-dynamic'
 

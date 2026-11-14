@@ -21,7 +21,7 @@
  *
  * Acrescente `--aplicar` para valer. Sem ele, só lista quem seria afetado.
  */
-import { auth } from '@/lib/auth/better-auth'
+import { auth } from '@venn/core/lib/auth/better-auth'
 import prisma from '@venn/db/cliente'
 
 const aplicar = process.argv.includes('--aplicar')

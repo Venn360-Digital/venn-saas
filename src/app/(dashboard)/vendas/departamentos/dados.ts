@@ -1,4 +1,4 @@
-import type { PaginaDeIndice } from '@/lib/indice'
+import type { PaginaDeIndice } from '@venn/core/lib/indice'
 
 /**
  * O contrato entre a casca de servidor e o componente de cliente.
@@ -13,11 +13,11 @@ import type { PaginaDeIndice } from '@/lib/indice'
  *
  * Tipo pode atravessar (some na compilação); **valor não**.
  *
- * O limite e a forma da página vêm de `@/lib/indice`, o módulo neutro — não de
+ * O limite e a forma da página vêm de `@venn/core/lib/indice`, o módulo neutro — não de
  * `indice-servidor.ts`, que importa `currentMembership` e `redirect` e
  * arrastaria código de servidor para o bundle do cliente.
  */
-export { LIMITE_PADRAO } from '@/lib/indice'
+export { LIMITE_PADRAO } from '@venn/core/lib/indice'
 
 export interface DepartmentItem {
     id: string

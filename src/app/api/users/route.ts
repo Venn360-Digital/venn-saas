@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
+import { canSeeEveryone, currentMembership } from '@venn/core/lib/auth/workspace'
 import prisma from '@venn/db/cliente'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
-import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { MINUTOS_PARA_AUSENTE_PADRAO } from '@venn/core/lib/automations'
+import { estadoVisivel, type StatusDoMembro } from '@venn/core/lib/conversas/distribuicao'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { Prisma } from '@venn/db'
-import { normalizeSearch } from '@/lib/search'
+import { normalizeSearch } from '@venn/core/lib/search'
 
 // GET - List users
 export async function GET(request: NextRequest) {

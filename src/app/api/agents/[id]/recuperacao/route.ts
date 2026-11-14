@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { manageAgent } from '@/lib/auth/agent'
-import { DocumentRetriever } from '@/lib/rag/retriever'
-import { montarConsulta } from '@/lib/rag/consulta'
-import { pisoDeSimilaridade, trechosDoAtendimento } from '@/lib/rag/parametros'
-import { ehDeTreinamento } from '@/lib/treinamento/indexar'
-import { createLogger } from '@/trabalhos/registro'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { DocumentRetriever } from '@venn/core/lib/rag/retriever'
+import { montarConsulta } from '@venn/core/lib/rag/consulta'
+import { pisoDeSimilaridade, trechosDoAtendimento } from '@venn/core/lib/rag/parametros'
+import { ehDeTreinamento } from '@venn/core/lib/treinamento/indexar'
+import { createLogger } from '@venn/core/trabalhos/registro'
 
 const log = createLogger('RECUPERACAO')
 

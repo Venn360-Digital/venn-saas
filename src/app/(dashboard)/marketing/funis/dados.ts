@@ -1,4 +1,4 @@
-import type { PaginaDeIndice } from '@/lib/indice'
+import type { PaginaDeIndice } from '@venn/core/lib/indice'
 
 /** Um funil como a listagem o consome. */
 export interface FunilItem {

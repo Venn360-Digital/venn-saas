@@ -1,5 +1,5 @@
-import type { PaginaDeIndice } from '@/lib/indice'
-import type { RegistroDeDns } from '@/lib/marketing/remetentes'
+import type { PaginaDeIndice } from '@venn/core/lib/indice'
+import type { RegistroDeDns } from '@venn/core/lib/marketing/remetentes'
 
 /** Um remetente como a lista o consome. */
 export interface RemetenteItem {

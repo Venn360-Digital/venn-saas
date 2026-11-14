@@ -14,7 +14,7 @@
  * sufixo de qualquer JID, então o LID virava "telefone" — dígitos plausíveis e
  * nada mais —, e o cadastro nasceria com ele no lugar do número.
  */
-import { msisdnDoJid, toMsisdn } from '@/lib/whatsapp/types'
+import { msisdnDoJid, toMsisdn } from '@venn/core/lib/whatsapp/types'
 
 let passou = 0
 let falhou = 0

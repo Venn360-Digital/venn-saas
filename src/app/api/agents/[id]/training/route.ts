@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { manageAgent } from '@/lib/auth/agent'
-import { DOCUMENTOS } from '@/lib/treinamento/documentos'
-import { hashDoAcervo } from '@/lib/treinamento/indexar'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { DOCUMENTOS } from '@venn/core/lib/treinamento/documentos'
+import { hashDoAcervo } from '@venn/core/lib/treinamento/indexar'
 
 /**
  * Os sete documentos de treinamento do agente, sempre os sete.

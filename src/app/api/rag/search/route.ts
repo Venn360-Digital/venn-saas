@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readAgent } from '@/lib/auth/agent'
-import { DocumentRetriever } from '@/lib/rag/retriever'
+import { readAgent } from '@venn/core/lib/auth/agent'
+import { DocumentRetriever } from '@venn/core/lib/rag/retriever'
 import { z } from 'zod'
 
 const searchSchema = z.object({

@@ -15,8 +15,8 @@
  *
  *     npm run check:tempo-real
  */
-import { decidir, TETO_DA_RAJADA_MS } from '@/lib/realtime/debounce'
-import { assinar, verificar, BilheteInvalidoError, VALIDADE_SEGUNDOS } from '@/lib/realtime/bilhete'
+import { decidir, TETO_DA_RAJADA_MS } from '@venn/core/lib/realtime/debounce'
+import { assinar, verificar, BilheteInvalidoError, VALIDADE_SEGUNDOS } from '@venn/core/lib/realtime/bilhete'
 import {
     interpretar,
     decidirRecuperacao,
@@ -25,7 +25,7 @@ import {
     MensagemInvalidaError,
     HISTORICO_DA_SALA,
     type EventoDaSala,
-} from '@/lib/realtime/protocolo'
+} from '@venn/core/lib/realtime/protocolo'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -275,7 +275,7 @@ async function main() {
     const tela = fs.readFileSync('src/app/(dashboard)/atendimento/conversas/page.tsx', 'utf8')
     // De `chaves`, não de `avisar`: aquele importa o Prisma por `./index`, que
     // lança na carga sem DATABASE_URL — e este teste roda sem banco.
-    const { CHAVES } = await import('@/lib/outbox/chaves')
+    const { CHAVES } = await import('@venn/core/lib/outbox/chaves')
 
     // Direção 1: tudo o que os emissores mandam é lido pela tela.
     for (const [tipo, chaves] of Object.entries(CHAVES)) {
@@ -424,7 +424,7 @@ async function main() {
     g.fetch = async () =>
         ({ ok: true, status: 200, json: async () => ({ bilhete: 'b' }) }) as unknown as Response
 
-    const { assinarTempoReal, estadoDoTempoReal } = await import('@/lib/realtime/assinatura')
+    const { assinarTempoReal, estadoDoTempoReal } = await import('@venn/core/lib/realtime/assinatura')
 
     const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
 

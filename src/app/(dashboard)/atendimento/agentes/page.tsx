@@ -8,11 +8,11 @@ import { Bot, Eye, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@venn/ui/button'
-import { useEsperaLonga } from '@/hooks/useEsperaLonga'
+import { useEsperaLonga } from '@venn/core/hooks/useEsperaLonga'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { FormField } from '@/components/shared/FormField'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { FormField } from '@venn/core/components/shared/FormField'
 import {
     Select,
     SelectContent,
@@ -20,12 +20,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@venn/ui/select'
-import { useUnidades } from '@/hooks/useUnidades'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { ErrorState } from '@/components/shared/ErrorState'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { usePermissions } from '@/hooks/usePermissions'
-import { AgentCard } from '@/components/agents/AgentCard'
+import { useUnidades } from '@venn/core/hooks/useUnidades'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { ErrorState } from '@venn/core/components/shared/ErrorState'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { AgentCard } from '@venn/core/components/agents/AgentCard'
 
 interface Limites {
     planName: string | null

@@ -3,8 +3,8 @@ import { z } from 'zod'
 import { Prisma } from '@venn/db'
 
 import prisma from '@venn/db/cliente'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { contaDoMaster } from '@/lib/account'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { contaDoMaster } from '@venn/core/lib/account'
 
 /**
  * Move um agente para outra unidade da mesma conta.

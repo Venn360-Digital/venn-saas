@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { manageAgent } from '@/lib/auth/agent'
-import { conectarInstagram } from '@/lib/instagram/connect'
-import { basePublica, lerEstado, redirectUriFor, voltaCom } from '@/lib/instagram/oauth'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { conectarInstagram } from '@venn/core/lib/instagram/connect'
+import { basePublica, lerEstado, redirectUriFor, voltaCom } from '@venn/core/lib/instagram/oauth'
 
 export const runtime = 'nodejs'
 

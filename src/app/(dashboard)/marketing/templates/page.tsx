@@ -1,7 +1,7 @@
 import prisma from '@venn/db/cliente'
-import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
-import { linhasDeBroadcast } from '@/lib/marketing/lines'
-import { variaveisDoTemplate } from '@/lib/marketing/templates'
+import { listaInteira, membroOuLogin } from '@venn/core/lib/indice-servidor'
+import { linhasDeBroadcast } from '@venn/core/lib/marketing/lines'
+import { variaveisDoTemplate } from '@venn/core/lib/marketing/templates'
 
 import { TemplatesClient } from './TemplatesClient'
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@venn/db/cliente'
-import { manageAgent, readAgent } from '@/lib/auth/agent'
+import { manageAgent, readAgent } from '@venn/core/lib/auth/agent'
 import { z } from 'zod'
 
 const createIntegrationSchema = z.object({
