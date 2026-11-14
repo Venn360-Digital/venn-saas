@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { ChevronDown, FileText, Globe, Upload, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { cn } from '@venn/ui/utils'
 import { toast } from 'sonner'
 
 import { CerebroData, KnowledgeFile, KnowledgeWebsite } from '@/types/agent-creation'

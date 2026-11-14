@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { Smile } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Seletor de emojis do compositor.

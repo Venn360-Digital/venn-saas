@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Check, ChevronDown, X } from 'lucide-react'
 
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Um filtro exposto, que diz o próprio valor.

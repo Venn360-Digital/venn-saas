@@ -5,14 +5,14 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { FileText, Mail, MessageCircle, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FormField } from '@/components/shared/FormField'

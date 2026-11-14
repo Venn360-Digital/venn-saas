@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { Loader2, Shuffle, Sparkles, Sun, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import { Label } from '@venn/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
+import { Switch } from '@venn/ui/switch'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { DEFAULT_AUTOMATIONS, type Automations } from '@/lib/automations'
 

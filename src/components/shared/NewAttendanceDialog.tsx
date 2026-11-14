@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Loader2, MessageCircle, Phone, Route, TriangleAlert, User } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Dialog,
     DialogContent,
@@ -12,12 +12,12 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/dialog'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
+import { Textarea } from '@venn/ui/textarea'
+import { cn } from '@venn/ui/utils'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 
 interface LookupResult {

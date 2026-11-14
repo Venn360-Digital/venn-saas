@@ -2,14 +2,14 @@
 
 import { CalendarRange } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
 import { useNow } from '@/hooks/useNow'
 import { useFusoDaUnidade } from '@/hooks/useUnidades'
 import { PERIOD_PRESETS, matchPreset, periodRange, type PeriodPresetId } from '@/lib/period'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 function short(value: string): string {
     const [y, m, d] = value.split('-')

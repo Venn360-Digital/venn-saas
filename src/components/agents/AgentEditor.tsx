@@ -9,9 +9,9 @@ import { OPENAI_MODELS, DEFAULT_MODEL } from '@/lib/llm/models'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
 import {
     Dialog,
     DialogContent,
@@ -19,7 +19,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@venn/ui/dialog'
 import {
     Form,
     FormControl,
@@ -28,15 +28,15 @@ import {
     FormItem,
     FormLabel,
     FormMessage,
-} from '@/components/ui/form'
+} from '@venn/ui/form'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+} from '@venn/ui/select'
+import { Switch } from '@venn/ui/switch'
 import { AGENT_WIDGET_DEFAULTS } from '@/lib/palette'
 
 const formSchema = z.object({

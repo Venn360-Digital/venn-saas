@@ -1,6 +1,6 @@
 'use client'
 
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@venn/ui/switch'
 import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 

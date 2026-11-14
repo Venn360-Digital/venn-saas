@@ -1,8 +1,8 @@
 'use client'
 
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
+import { Label } from '@venn/ui/label'
 import { TrabalhoData } from '@/types/agent-creation'
 
 interface TrabalhoTabProps {

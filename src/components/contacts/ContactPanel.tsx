@@ -13,19 +13,19 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Avatar, AvatarFallback } from '@venn/ui/avatar'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+} from '@venn/ui/select'
+import { Switch } from '@venn/ui/switch'
 import { ActivityForm } from '@/components/shared/ActivityForm'
 import { ActivityList } from '@/components/shared/ActivityList'
 import { InlineField } from '@/components/shared/InlineField'
@@ -35,7 +35,7 @@ import { TagPicker, type PickableTag } from '@/components/shared/TagPicker'
 import { canalComApelido } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
 import { createdViaLabel } from '@/lib/created-via'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /** Os quatro modos da ficha, nos mesmos nomes da ficha do negócio. */
 type Mode = 'ficha' | 'schedule' | 'activities' | 'notes'

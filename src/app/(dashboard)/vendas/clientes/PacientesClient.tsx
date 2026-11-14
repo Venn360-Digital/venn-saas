@@ -29,12 +29,12 @@ import {
     Upload,
     User,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
+import { Badge } from '@venn/ui/badge'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Textarea } from '@venn/ui/textarea'
+import { Switch } from '@venn/ui/switch'
 import { formatPhone, nationalDigits, phoneIssue } from '@/lib/phone'
 import { MASKS, dateFromMask, maskDigitsFromIso, prettyPhone } from '@/lib/masks'
 import { useIndiceServidor } from '@/hooks/useIndiceServidor'
@@ -44,16 +44,16 @@ import { RecordDialog, SummaryCard, SummaryNotice } from '@/components/shared/Re
 import { FormField } from '@/components/shared/FormField'
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
+} from '@venn/ui/dialog'
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+} from '@venn/ui/table'
+import { Avatar, AvatarFallback } from '@venn/ui/avatar'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { usePermissions } from '@/hooks/usePermissions'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'

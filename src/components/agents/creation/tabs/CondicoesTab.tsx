@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, Trash2, AlertTriangle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Textarea } from '@venn/ui/textarea'
+import { Switch } from '@venn/ui/switch'
+import { cn } from '@venn/ui/utils'
 import { RuleData, RuleCondition, RuleAction } from '@/types/agent-creation'
 import {
     DIAS_DA_SEMANA,

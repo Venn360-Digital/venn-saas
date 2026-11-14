@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, X, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { Label } from '@venn/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A ficha lateral das telas de índice — o mesmo quadro da ficha do paciente,

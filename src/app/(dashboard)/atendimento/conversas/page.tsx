@@ -9,8 +9,8 @@ import { useNow } from '@/hooks/useNow'
 import { usePermissions } from '@/hooks/usePermissions'
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { Input } from '@venn/ui/input'
+import { Button } from '@venn/ui/button'
 import {
     ArrowLeft,
     ArrowRightLeft,
@@ -55,15 +55,15 @@ import {
     X,
     XCircle,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Separator } from '@/components/ui/separator'
-import { Toggle } from '@/components/ui/toggle'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@venn/ui/dropdown-menu'
+import { Separator } from '@venn/ui/separator'
+import { Toggle } from '@venn/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { RowActionItem, RowActionsSeparator } from '@/components/shared/RowActions'
 import { toast } from 'sonner'
 import { EmojiPicker } from '@/components/shared/EmojiPicker'
@@ -73,14 +73,14 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
     ContextMenuTrigger,
-} from '@/components/ui/context-menu'
+} from '@venn/ui/context-menu'
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@venn/ui/dialog'
 import {
     Command,
     CommandEmpty,
@@ -88,8 +88,8 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+} from '@venn/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
 import { AudioMessage } from '@/components/shared/AudioMessage'
 import { TextoDeWhatsApp } from '@/components/shared/TextoDeWhatsApp'
 import { EtapaChip } from '@/components/shared/EtapaChip'
@@ -112,7 +112,7 @@ import { NewAttendanceDialog } from '@/components/shared/NewAttendanceDialog'
 import { TagPicker } from '@/components/shared/TagPicker'
 import { TagChip } from '@/components/shared/TagChip'
 import { PanelField, PanelSection, RecordPanel } from '@/components/shared/RecordPanel'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
 import { waitedFor, type QueueCounts } from '@/components/shared/QueueMeter'
 import {
     DealJourney,

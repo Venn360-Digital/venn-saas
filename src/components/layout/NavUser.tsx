@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Check, ChevronsUpDown, Circle, Hospital, LogOut, Plug, User, Users } from 'lucide-react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@venn/ui/avatar'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -13,14 +13,14 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@venn/ui/dropdown-menu'
 import { DISPONIBILIDADE } from '@/components/shared/StatusBadge'
 import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
     useSidebar,
-} from '@/components/ui/sidebar'
+} from '@venn/ui/sidebar'
 import { signOut as encerrarSessao } from '@/lib/auth/cliente'
 import { esquecerUnidades } from '@/hooks/useUnidades'
 

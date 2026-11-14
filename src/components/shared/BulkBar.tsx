@@ -2,7 +2,7 @@
 
 import { Trash2, X } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 
 /**
  * O conteúdo da barra de lote — o rodapé escuro que substitui a paginação

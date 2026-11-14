@@ -4,20 +4,20 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { VOZES, instrucaoDeFala, semearEntonacao, vozValida } from '@/lib/voz'
 
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@venn/ui/label'
+import { Switch } from '@venn/ui/switch'
+import { Textarea } from '@venn/ui/textarea'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
+} from '@venn/ui/select'
+import { Button } from '@venn/ui/button'
 import { Play, Square } from 'lucide-react'
 import { VozData } from '@/types/agent-creation'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { SettingsCard } from '@/components/shared/TabsFrame'
 
 interface VozTabProps {

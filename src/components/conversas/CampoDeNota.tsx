@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AtSign } from 'lucide-react'
 
 import { RetratoEmDisco } from '@/components/shared/Retrato'
-import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+import { Textarea } from '@venn/ui/textarea'
+import { cn } from '@venn/ui/utils'
 import { gatilhoDeMencao, inserirMencao } from '@/lib/conversas/mencoes'
 import { normalizeSearch } from '@/lib/search'
 

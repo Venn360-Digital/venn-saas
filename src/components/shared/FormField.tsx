@@ -1,7 +1,7 @@
 import { useId } from 'react'
 
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { Label } from '@venn/ui/label'
+import { cn } from '@venn/ui/utils'
 
 interface FormFieldProps {
     label: string

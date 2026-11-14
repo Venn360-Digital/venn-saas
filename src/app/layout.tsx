@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { Open_Sans, Inter } from 'next/font/google'
 import './globals.css'
-import { Toaster } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@venn/ui/sonner'
+import { TooltipProvider } from '@venn/ui/tooltip'
 import { ThemeProvider } from '@/components/theme-provider'
 import { BRAND } from '@/config/brand'
 

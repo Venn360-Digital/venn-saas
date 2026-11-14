@@ -2,15 +2,15 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/select'
+import { cn } from '@venn/ui/utils'
 
 interface PaginationProps {
     page: number

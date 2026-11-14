@@ -1,6 +1,6 @@
 import Image from 'next/image'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 type Variant = 'wordmark' | 'full' | 'stacked' | 'mark'
 

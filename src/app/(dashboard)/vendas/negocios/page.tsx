@@ -27,31 +27,31 @@ import {
     User,
     XCircle,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogFooter,
-} from '@/components/ui/dialog'
+} from '@venn/ui/dialog'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@venn/ui/dropdown-menu'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
+} from '@venn/ui/select'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Textarea } from '@venn/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@venn/ui/tabs'
+import { Badge } from '@venn/ui/badge'
 import { toast } from 'sonner'
 import {
     DndContext,
@@ -89,7 +89,7 @@ import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
 import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
 import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
 import { formatPhone } from '@/lib/phone'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
 import { StageRail } from '@/components/shared/StageRail'
@@ -101,7 +101,7 @@ import { NewDealDialog } from '@/components/shared/NewDealDialog'
 import { PeriodFields } from '@/components/shared/PeriodPicker'
 import { BoardScroller } from '@/components/shared/BoardScroller'
 import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
 import { useMoeda } from '@/hooks/useMoeda'

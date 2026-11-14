@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Eraser, Loader2, Search, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@venn/ui/button'
+import { Textarea } from '@venn/ui/textarea'
 import { useEdicaoNaoSalva } from '@/components/agents/creation/unsaved'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { SettingsCard } from '@/components/shared/TabsFrame'
 import { FOLGA_MINIMA, PISO_PADRAO } from '@/lib/rag/parametros'
 

@@ -12,11 +12,11 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { buttonVariants } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/alert-dialog'
+import { buttonVariants } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { cn } from '@venn/ui/utils'
 
 interface ConfirmDialogProps {
     open: boolean

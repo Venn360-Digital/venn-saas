@@ -3,7 +3,7 @@
 import Link from 'next/link'
 
 import { Logo } from '@/components/brand/Logo'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { useUnidades, type UnidadeAberta } from '@/hooks/useUnidades'
 
 /** Reexportado de onde o evento mora agora, para quem já importava daqui. */

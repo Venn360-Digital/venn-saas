@@ -3,14 +3,14 @@
 import { useTheme } from 'next-themes'
 import { Check, Monitor, Moon, Sun } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@venn/ui/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@venn/ui/dropdown-menu'
 import { useMounted } from '@/hooks/useMounted'
 
 const OPTIONS = [

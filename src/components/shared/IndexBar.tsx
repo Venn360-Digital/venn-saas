@@ -2,19 +2,19 @@
 
 import { Filter, MoreHorizontal, Search, X } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@venn/ui/dropdown-menu'
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-} from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/popover'
+import { cn } from '@venn/ui/utils'
 
 export interface ActiveChip {
     /** Identifica a pastilha; é o que volta no `onClear`. */

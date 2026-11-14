@@ -12,11 +12,11 @@
  *   node scripts/lint-colors.mjs --update   record the current count
  *   node scripts/lint-colors.mjs --list     print every offending line
  */
-import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { arquivosDeCodigo, exigirPiso, conferirAllowlist } from './lib/raizes-de-codigo.mjs'
 
 const ROOT = process.cwd()
-const SRC = join(ROOT, 'src')
 const BASELINE_FILE = join(ROOT, 'scripts', 'color-baseline.json')
 
 /**
@@ -25,8 +25,9 @@ const BASELINE_FILE = join(ROOT, 'scripts', 'color-baseline.json')
  */
 const ALLOWED = [
     // Vendored shadcn primitives. They carry upstream's own classes, and a
-    // `shadcn add` would overwrite any edit we made here anyway.
-    'src/components/ui/',
+    // `shadcn add` would overwrite any edit we made here anyway. Mudaram para
+    // `packages/ui` na Fase 2; `conferirAllowlist` é que cobrou esta linha.
+    'packages/ui/src/',
     // The single component that renders a user-chosen hex from the database.
     'src/components/shared/TagChip.tsx',
     // Renders above ThemeProvider, where CSS variables are not guaranteed.
@@ -87,26 +88,28 @@ const MONOCHROME = new RegExp(
 const ARBITRARY_HEX = /\[#[0-9a-fA-F]{3,8}\]/g
 const QUOTED_HEX = /['"`]#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?['"`]/g
 
-function walk(dir, out = []) {
-    for (const entry of readdirSync(dir)) {
-        const full = join(dir, entry)
-        if (statSync(full).isDirectory()) walk(full, out)
-        else if (/\.tsx?$/.test(full)) out.push(full)
-    }
-    return out
-}
-
 function isAllowed(relPath) {
     return ALLOWED.some((prefix) => relPath.startsWith(prefix))
 }
 
+/**
+ * As raízes vêm derivadas, e a varredura é medida.
+ *
+ * Antes era `walk(join(ROOT,'src'))` fixo. No monorepo o código se espalha por
+ * `packages/<pacote>/src` e `apps/<app>/src`, e uma raiz fixa não erra alto:
+ * ela aprova uma árvore vazia. O piso de 400 é folgado de propósito — pega
+ * colapso, não a variação normal de um projeto que cresce (hoje: 682).
+ */
+const arquivos = arquivosDeCodigo()
+exigirPiso('lint-colors', arquivos, 400)
+conferirAllowlist('lint-colors', ALLOWED, arquivos)
+
 const findings = []
 
-for (const file of walk(SRC)) {
-    const rel = relative(ROOT, file)
+for (const rel of arquivos) {
     if (isAllowed(rel)) continue
 
-    const lines = readFileSync(file, 'utf8').split('\n')
+    const lines = readFileSync(join(ROOT, rel), 'utf8').split('\n')
     lines.forEach((line, i) => {
         for (const pattern of [PALETTE, MONOCHROME, ARBITRARY_HEX, QUOTED_HEX]) {
             pattern.lastIndex = 0

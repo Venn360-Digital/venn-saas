@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Trophy, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Dialog,
     DialogContent,
@@ -12,13 +12,13 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+} from '@venn/ui/dialog'
+import { Label } from '@venn/ui/label'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
 import { useOutcomeReasons, type Outcome, type OutcomeReason } from '@/hooks/useOutcomeReasons'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export type { Outcome, OutcomeReason }
 

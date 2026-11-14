@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { TriangleAlert } from 'lucide-react'
 
 import type { Avaliacao } from '@/lib/avaliacao'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A faixa de avaliação — proposta A, escolhida pelo Andre em 2026-11-04.

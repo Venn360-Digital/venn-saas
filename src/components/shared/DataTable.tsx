@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 
-import { Checkbox } from '@/components/ui/checkbox'
+import { Checkbox } from '@venn/ui/checkbox'
 import {
     Table,
     TableBody,
@@ -11,9 +11,9 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from '@/components/ui/table'
+} from '@venn/ui/table'
 import { useEsperaLonga } from '@/hooks/useEsperaLonga'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { TableSkeleton } from './Skeletons'
 
 export interface Column<T> {

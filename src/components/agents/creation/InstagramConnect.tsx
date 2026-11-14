@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Instagram, Loader2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { SettingsRow } from '@/components/shared/TabsFrame'
 

@@ -4,21 +4,21 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+} from '@venn/ui/dialog'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
 import { InlineField } from '@/components/shared/InlineField'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export interface ManagedStage {
     id: string

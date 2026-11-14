@@ -2,10 +2,10 @@
 
 import { forwardRef, useState } from 'react'
 
-import { Input } from '@/components/ui/input'
+import { Input } from '@venn/ui/input'
 import { MASKS, applyMask, maskRest } from '@/lib/masks'
 import { nationalDigits, phoneIssue } from '@/lib/phone'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /** DDD + 8 ou 9 dígitos. O país é do sistema, não do campo. */
 const MAX_DIGITS = 11

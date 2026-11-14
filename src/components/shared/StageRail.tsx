@@ -3,7 +3,7 @@
 import { Clock } from 'lucide-react'
 
 import { useNow } from '@/hooks/useNow'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export interface RailStage {
     id: string

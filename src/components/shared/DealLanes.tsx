@@ -3,7 +3,7 @@
 import { CalendarClock, Clock, TriangleAlert } from 'lucide-react'
 
 import { DEAL_LANES, type DealLane } from '@/lib/deal-lanes'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /** Ícone e tinta por faixa. Três tons, na ordem em que a urgência cresce. */
 const LOOK: Record<DealLane, { icon: typeof Clock; fill: string; ink: string; ring: string }> = {

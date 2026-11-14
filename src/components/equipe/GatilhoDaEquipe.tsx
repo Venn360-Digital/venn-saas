@@ -5,7 +5,7 @@ import { RetratoEmDisco } from '@/components/shared/Retrato'
 import { toast } from 'sonner'
 
 import { assinarTempoReal } from '@/lib/realtime/assinatura'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { PainelDaEquipe, type Pessoa, type Recado } from './PainelDaEquipe'
 
 /**

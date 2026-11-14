@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { getSession } from '@/lib/auth/cliente'
 import { TERMS_VERSION } from '@/lib/terms'
 import { WhatsAppQRModal } from '@/components/agents/creation/WhatsAppQRModal'

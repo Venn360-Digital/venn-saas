@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Loader2, Plus, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
+import { cn } from '@venn/ui/utils'
 
 export interface PickOption {
     id: string

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Dados | Gráfico.

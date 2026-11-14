@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowDown, ArrowRight, ArrowUp, type LucideIcon } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface KpiCardProps {
     label: string

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { cn } from '@venn/ui/utils'
 
 /** Quanto uma seta anda. Pouco mais que uma coluna, para o olho acompanhar. */
 const STEP = 280

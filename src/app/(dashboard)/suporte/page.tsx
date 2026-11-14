@@ -17,15 +17,15 @@ import {
 } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+} from '@venn/ui/collapsible'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { normalizeSearch } from '@/lib/search'
 
 /**

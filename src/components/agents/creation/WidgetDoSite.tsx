@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2, MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@venn/ui/button'
+import { Checkbox } from '@venn/ui/checkbox'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
 import { hostDe, type ConfiguracaoDoWidget } from '@/lib/widget-config'
 import { AGENT_WIDGET_DEFAULTS, TINTA_DO_WIDGET } from '@/lib/palette'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A configuração do widget do site: aparência, domínios e captura.

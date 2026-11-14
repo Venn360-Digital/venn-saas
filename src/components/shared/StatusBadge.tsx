@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { Badge } from '@venn/ui/badge'
+import { cn } from '@venn/ui/utils'
 
 export type Tone = 'neutral' | 'success' | 'warning' | 'destructive' | 'info' | 'primary'
 

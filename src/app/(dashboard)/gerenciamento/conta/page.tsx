@@ -4,7 +4,7 @@ import { Suspense, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CalendarOff, CreditCard, Hospital, Plug, Plus, User, Users, Zap } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
 import { AgendaClinicaTab } from '@/components/management/AgendaClinicaTab'
 import { AutomacoesTab } from '@/components/account/AutomacoesTab'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
 import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 import { isSchedulable } from '@/lib/product-categories'

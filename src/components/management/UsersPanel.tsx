@@ -4,8 +4,8 @@ import { forwardRef, useImperativeHandle, useState, useEffect, useCallback, useM
 import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@venn/ui/avatar'
+import { Button } from '@venn/ui/button'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { RowActionItem, RowActions } from '@/components/shared/RowActions'
 import { EmptyState } from '@/components/shared/EmptyState'

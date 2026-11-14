@@ -5,7 +5,7 @@ import { CalendarPlus, CheckCircle2, Circle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { activityType } from '@/lib/activity-types'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface ListedActivity {
     id: string

@@ -2,7 +2,7 @@
 
 import { Milestone } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A etapa do funil, onde ela aparece ao lado de etiquetas.

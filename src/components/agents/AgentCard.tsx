@@ -1,9 +1,9 @@
 import { Agent } from '@venn/db'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@venn/ui/card'
+import { Badge } from '@venn/ui/badge'
+import { Button } from '@venn/ui/button'
+import { Switch } from '@venn/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { ArrowRightLeft, Bot, Copy, Eye, Loader2, Pencil, Trash2 } from 'lucide-react'
 
 interface AgentCardProps {

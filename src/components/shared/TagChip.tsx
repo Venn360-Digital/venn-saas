@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface TagChipProps {
     name: string

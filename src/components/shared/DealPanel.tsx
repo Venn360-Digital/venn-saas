@@ -21,20 +21,20 @@ import { DealJourney } from '@/components/shared/DealJourney'
 import { InlineField } from '@/components/shared/InlineField'
 import { PickField, type PickOption } from '@/components/shared/PickField'
 import { RecordPanel } from '@/components/shared/RecordPanel'
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@venn/ui/dropdown-menu'
+import { Label } from '@venn/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { type DealLike } from '@/lib/deal-health'
 import { canalComApelido } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { useMoeda } from '@/hooks/useMoeda'
 
 /**

@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Building2, Code2, Database, Eye, FileText, FlaskConical, GitBranch, History, Inbox, MessagesSquare, Mic, Package, Plug, Route, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, TrendingUp, UserRound, Webhook, Workflow, Zap, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Switch } from '@venn/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { BandLayout, TabsFrame, type FrameTab } from '@/components/shared/TabsFrame'
 import { DOCUMENTOS } from '@/lib/treinamento/documentos'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { marcarSujo, useEdicaoNaoSalva } from './unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A moldura das sete seções do agente, na Tela 03.

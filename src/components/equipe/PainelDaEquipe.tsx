@@ -6,9 +6,9 @@ import { RetratoEmDisco } from '@/components/shared/Retrato'
 import { ArrowLeft, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { ScrollArea } from '@venn/ui/scroll-area'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O painel da equipe: quem está na clínica, e o recado.

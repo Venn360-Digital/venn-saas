@@ -8,8 +8,8 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+} from '@venn/ui/dialog'
+import { Button } from '@venn/ui/button'
 import { Loader2, RefreshCw, CheckCircle, XCircle, Smartphone } from 'lucide-react'
 
 interface WhatsAppQRModalProps {

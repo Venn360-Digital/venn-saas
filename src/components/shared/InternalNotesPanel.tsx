@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Plus, StickyNote } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { CampoDeNota } from '@/components/conversas/CampoDeNota'
 
 interface InternalNote {

@@ -4,8 +4,8 @@ import { useRef } from 'react'
 import { AlertTriangle, Check, Download, FileUp, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@venn/ui/button'
+import { Textarea } from '@venn/ui/textarea'
 import {
     conferirEstrutura,
     modeloDoDocumento,
@@ -13,7 +13,7 @@ import {
 } from '@/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@/lib/rag/secoes'
 import { textoParaAcervo } from '@/lib/treinamento/indexar'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O campo padrão da central de treinamento — um documento em Markdown.
