@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { APP } from '@venn/core/config/app'
-import { BRAND } from '@/config/brand'
+import { BRAND } from '@venn/core/marca'
 import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import { TEMPLATES } from '@venn/core/lib/email/templates'
 import { estadoDoConvite, podeReenviar, podeRevogar, vencimentoDe } from '@venn/core/lib/convite/estado'
@@ -94,7 +94,7 @@ export async function PATCH(
     const url = `${APP().url}/convite/${token}`
     void sendEmail({
         to: convite.email,
-        subject: `Você foi convidado para o ${BRAND.name}`,
+        subject: `Você foi convidado para o ${BRAND().name}`,
         html: TEMPLATES.inviteMember(url, convite.workspace.name),
     }).catch((erro) => console.error('[CONVITE] falha ao reenviar', erro))
 

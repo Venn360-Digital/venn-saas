@@ -9,7 +9,7 @@ import { Button } from '@venn/ui/button'
 import { Input } from '@venn/ui/input'
 import { Badge } from '@venn/ui/badge'
 import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
-import { BRAND } from '@/config/brand'
+import { useMarca } from '@venn/core/marca-contexto'
 import { cn } from '@venn/ui/utils'
 
 /**
@@ -115,6 +115,10 @@ function Situacao({ conta }: { conta: Conta }) {
 }
 
 export default function PlataformaPage() {
+    // A marca desce pelo React: no navegador o registro de módulo não existe
+    // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
+    const marca = useMarca()
+
     const [contas, setContas] = useState<Conta[]>([])
     const [carregando, setCarregando] = useState(true)
     const [semAcesso, setSemAcesso] = useState(false)
@@ -195,7 +199,7 @@ export default function PlataformaPage() {
                     <Input
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
-                        placeholder={`Buscar por ${BRAND.vocabulario.organizacao} ou e-mail`}
+                        placeholder={`Buscar por ${marca.vocabulario.organizacao} ou e-mail`}
                         className="w-64"
                     />
                 }
@@ -218,7 +222,7 @@ export default function PlataformaPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="border-b border-border bg-muted">
-                                <Th>{BRAND.vocabulario.Organizacao}</Th>
+                                <Th>{marca.vocabulario.Organizacao}</Th>
                                 <Th>Plano</Th>
                                 <Th>Situação</Th>
                                 <Th className="text-right">Créditos</Th>

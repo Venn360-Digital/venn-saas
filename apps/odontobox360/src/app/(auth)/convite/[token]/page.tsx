@@ -1,4 +1,4 @@
-import { BRAND } from '@/config/brand'
+import { BRAND } from '@venn/core/marca'
 import { ROTULO_DO_PAPEL } from '@venn/core/lib/papeis'
 import { diasRestantes, estadoDoConvite } from '@venn/core/lib/convite/estado'
 import { pareceToken, resumoDoToken } from '@venn/core/lib/convite/token'
@@ -7,7 +7,16 @@ import prisma from '@venn/db/cliente'
 import { ConviteEncerrado } from './encerrado'
 import { ConviteForm } from './form'
 
-export const metadata = { title: `Convite — ${BRAND.name}` }
+/*
+ * Função, e não `export const metadata`: a constante é avaliada quando a
+ * Cloudflare VALIDA o script, antes de qualquer requisição — e nessa hora
+ * ninguém registrou a marca ainda, então `BRAND()` falha rápido e a publicação
+ * é recusada com `MarcaNaoRegistradaError`. Foi assim cinco vezes nesta fase.
+ * O Next aceita as duas formas; só esta é avaliada por requisição.
+ */
+export function generateMetadata() {
+    return { title: `Convite — ${BRAND().name}` }
+}
 
 /**
  * Onde o link do convite chega.

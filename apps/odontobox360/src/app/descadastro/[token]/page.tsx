@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import prisma from '@venn/db/cliente'
 import { lerTokenDeDescadastro } from '@venn/core/lib/marketing/descadastro'
-import { BRAND } from '@/config/brand'
+import { BRAND } from '@venn/core/marca'
 
 /**
  * O descadastro de e-mail — **público, sem sessão, e de um clique**.
@@ -149,7 +149,7 @@ function Aviso({ titulo, children }: { titulo: string; children: React.ReactNode
                 <h1 className="text-xl font-semibold text-foreground">{titulo}</h1>
                 {children}
                 <p className="mt-8 text-xs text-muted-foreground/70">
-                    Enviado por {BRAND.name}
+                    Enviado por {BRAND().name}
                 </p>
             </div>
         </main>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { APP } from '@venn/core/config/app'
-import { BRAND } from '@/config/brand'
+import { BRAND } from '@venn/core/marca'
 import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import { TEMPLATES } from '@venn/core/lib/email/templates'
 import { estadoDoConvite, normalizarEmail, vencimentoDe } from '@venn/core/lib/convite/estado'
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     const url = `${APP().url}/convite/${token}`
     void sendEmail({
         to: email,
-        subject: `Você foi convidado para o ${BRAND.name}`,
+        subject: `Você foi convidado para o ${BRAND().name}`,
         html: TEMPLATES.inviteMember(url, unidade?.name),
     }).catch((erro) => console.error('[CONVITE] falha ao enviar', erro))
 
