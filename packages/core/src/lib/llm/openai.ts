@@ -7,7 +7,7 @@ import {
     LLMResponse,
     LLMTool,
     LLMUsage,
-} from '@/types/llm'
+} from '../../types/llm'
 import { OPENAI_BASE_URL } from './base-url'
 
 /**

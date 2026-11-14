@@ -21,6 +21,10 @@
  * assinatura **bate**. É a falha clássica desta integração, e ela passa em
  * qualquer teste feito só com mensagens legítimas.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { certificadoConfiavel } from '@venn/core/lib/email/sns'
 import { SITUACAO_DO_REMETENTE } from '@venn/core/lib/marketing/remetentes'
 import { situacaoDoRemetente } from '@venn/core/lib/marketing/situacao-do-remetente'

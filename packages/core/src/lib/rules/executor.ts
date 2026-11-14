@@ -6,7 +6,7 @@ import {
     RuleContext,
     RuleExecutionResult,
     RuleMessageDispatcher,
-} from '@/types/rules'
+} from '../../types/rules'
 import { DEFAULT_ENTITY_COLOR } from '../palette'
 import { horaMinutoNoFuso } from '../fuso'
 import { resolverResponsavel } from './atribuicao'

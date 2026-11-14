@@ -28,6 +28,10 @@
  * conta, ela reprova — e é exatamente o que precisa reprovar.
  */
 
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { isHumanHandled } from '@venn/core/trabalhos/servicos/conversation'
 
 let ok = 0

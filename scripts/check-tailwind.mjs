@@ -31,14 +31,19 @@
  */
 import postcss from 'postcss'
 import tailwind from '@tailwindcss/postcss'
-import { readFileSync, existsSync } from 'node:fs'
-import { arquivosDeCodigo } from './lib/raizes-de-codigo.mjs'
+import { readFileSync } from 'node:fs'
+import { arquivosDeCodigo, configuracoesDeApp } from './lib/raizes-de-codigo.mjs'
 
 /**
- * Entrada de CSS por app. Hoje uma; a partir da Fase 3, uma por app em
- * `apps/<app>/src/app/globals.css` — e cada uma tem de alcançar os pacotes.
+ * Uma entrada de CSS por app, DERIVADA — não listada.
+ *
+ * Eram dois caminhos escritos à mão, um da transição e um do app. Listar não
+ * escala para três apps, e a entrada obsoleta ficava para trás silenciosamente
+ * (filtrada por `existsSync`, ou seja: um caminho errado parecia só ausente).
+ * Agora os apps são descobertos, e cada `globals.css` é verificado — se um app
+ * novo não alcançar os pacotes, é ele que reprova, não a média.
  */
-const ENTRADAS = ['src/app/globals.css', 'apps/odontobox360/src/app/globals.css'].filter(existsSync)
+const ENTRADAS = configuracoesDeApp('src/app/globals.css')
 
 /**
  * Classe → arquivo que a contém, e só ele.

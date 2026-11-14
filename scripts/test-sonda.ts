@@ -13,6 +13,10 @@
  * dia; um 503 momentâneo da OpenAI que acorde o suporte é como se ensina
  * alguém a criar filtro para o remetente.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { assuntoDoAviso, julgar, mereceAviso } from '@venn/core/lib/llm/sonda'
 
 let passou = 0

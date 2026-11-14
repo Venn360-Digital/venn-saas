@@ -15,6 +15,10 @@
  * apagar o id errado remove a regra de outra pessoa, e não apagar é o defeito de
  * origem.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { idsParaApagar } from '@venn/core/lib/rules/sincronizar'
 
 let passou = 0

@@ -2,7 +2,7 @@ import type { Agent } from '@venn/db'
 import prisma from '@venn/db/cliente'
 import { LLMFactory } from '../../lib/llm/factory'
 import { checkCredits, trackUsage } from '../../lib/llm/usage-tracker'
-import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'
+import type { LLMMessage, LLMProviderName, LLMResponse } from '../../types/llm'
 import { montarConsulta, ultimaFalaDaPessoa, type MensagemDaConversa } from '../../lib/rag/consulta'
 import {
     imagensParaAnexar,
@@ -13,7 +13,7 @@ import {
 import { textoDoConteudo } from '../../lib/llm/conteudo'
 import { referenciaDaMidia } from '../../lib/midia'
 import { ler } from '../../lib/storage'
-import type { LLMImagem } from '@/types/llm'
+import type { LLMImagem } from '../../types/llm'
 import { DocumentRetriever } from '../../lib/rag/retriever'
 import { env } from '../ambiente'
 import { createLogger } from '../registro'
@@ -364,7 +364,7 @@ export async function generateReply(input: GenerateReplyInput): Promise<Generate
      * mensagem **de qualquer direção**, então quando a última era do agente — a
      * saudação, ou uma mensagem de regra — a lista de `inbound` ficava vazia e a
      * resposta saía **sem busca e sem a fala do paciente**. Ver a nota em
-     * `@/types/agent-preferences`.
+     * `../../types/agent-preferences`.
      */
     const recent = await prisma.message.findMany({
         where: { conversationId },

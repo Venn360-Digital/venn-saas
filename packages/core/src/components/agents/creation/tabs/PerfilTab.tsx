@@ -21,7 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@venn/ui/select'
-import { InstrucoesData, PerfilData } from '@/types/agent-creation'
+import { InstrucoesData, PerfilData } from '../../../../types/agent-creation'
 
 type AgentFunction = NonNullable<PerfilData['agentFunction']>
 

@@ -12,6 +12,10 @@
  * documento já indexado fica obsoleto de uma vez — e o incidente de 2026-10-31
  * está reproduzido aqui, com a regra de recorte antiga contra a nova.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     aplicarRascunhos,
     proximaVersao,

@@ -3,7 +3,7 @@
 import { Input } from '@venn/ui/input'
 import { Textarea } from '@venn/ui/textarea'
 import { Label } from '@venn/ui/label'
-import { TrabalhoData } from '@/types/agent-creation'
+import { TrabalhoData } from '../../../../types/agent-creation'
 
 interface TrabalhoTabProps {
     data: TrabalhoData

@@ -219,6 +219,8 @@ importers:
         specifier: ^1.31.1
         version: 1.33.0
 
+  apps/odontobox360: {}
+
   packages/config: {}
 
   packages/core: {}

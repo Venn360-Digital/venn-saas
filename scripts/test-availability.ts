@@ -12,6 +12,10 @@
  * Sexta-feira Santa de 2026 cai em 03/04 — esta última calculada pela Páscoa,
  * que é o caso que um cadastro de feriado "anual em data fixa" erraria.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { calcularVagas, diaDaSemana, type Janela, type Ocupado, type Excecao } from '@venn/core/lib/availability'
 
 let passou = 0

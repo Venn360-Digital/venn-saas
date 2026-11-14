@@ -4,7 +4,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 import prisma from '@venn/db/cliente'
 import { renderEmail } from '../email/layout'
 import { sendEmail } from '../email/send'
-import { APP } from '@/config/app.config'
+import { APP } from '../../config/app'
 
 /**
  * O Better Auth, montado sobre o schema que já existe.
@@ -395,7 +395,7 @@ function construir() {
              * Secure em https/produção, e forçá-lo sem poder validar em staging
              * arriscaria o cookie em preview. Fica para a validação da Fase 03.
              */
-            cookiePrefix: APP.authCookiePrefix || undefined,
+            cookiePrefix: APP().authCookiePrefix || undefined,
             crossSubDomainCookies: { enabled: false },
         },
     })

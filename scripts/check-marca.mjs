@@ -21,23 +21,63 @@
  *    `cloudflare/entrada.ts` cobre o que não tem — dez consumidores de fila,
  *    17 crons, três Durable Objects e um Workflow. Quatro dos arquivos que
  *    leem a marca rodam exatamente ali.
- * 3. **`packages/**` nunca importa o `brand.ts` do app.** É a direção que o
- *    monorepo existe para não ter (`core → app`), e é o que permite ao
+ * 3. **`packages/**` nunca importa NADA do app pelo alias `@/`.** É a direção
+ *    que o monorepo existe para não ter (`core → app`), e é o que permite ao
  *    `audit:isolation` proibir identificador de app dentro dos pacotes.
- * 4. **O provedor de cliente está na raiz.** Os componentes `'use client'` do
+ *
+ *    Começou olhando só `@/config/brand`, e isso foi estreito demais: 28
+ *    arquivos de `packages/core` importavam `@/types/…`, que resolvia para
+ *    `src/types/` do app pelo `paths` do tsconfig da raiz — e **compilava
+ *    verde**. Eram tipos de domínio no lugar errado, e passariam ao primeiro
+ *    app novo: o `paths` global aponta para UM app, então `apps/<outro>/**`
+ *    resolveria `@/types` neste. Agora a regra é o alias inteiro, não um
+ *    caminho dele.
+ *
+ *    (E o nome do app irmão não aparece acima de propósito: o
+ *    `audit:isolation --strict` reprova identificador de outro app em qualquer
+ *    arquivo, comentário incluído — foi assim que ele barrou um `.npmrc` em
+ *    13/11, e barrou este cabeçalho na primeira escrita. Comentário copiado
+ *    entre repositórios é vetor de vazamento de identidade.)
+ * 4. **Todo script que exercita o core registra a marca de teste.** Ver a
+ *    nota na regra 5, abaixo — foi um build reprovado.
+ * 5. **O provedor de cliente está na raiz.** Os componentes `'use client'` do
  *    core leem a marca por contexto; sem o provedor na raiz, `useMarca()`
  *    lança na primeira tela.
  */
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { arquivosDeCodigo } from './lib/raizes-de-codigo.mjs'
 
-const ENTRADAS = [
-    { arquivo: 'src/app/layout.tsx', cobre: 'tudo que é servido por requisição' },
-    { arquivo: 'src/cloudflare/entrada.ts', cobre: 'fila, cron, Durable Object e Workflow' },
-    // A partir da Fase 3 estes caminhos passam a ser `apps/<app>/src/...`; a
-    // ausência do arquivo é erro, e não silêncio, justamente para cobrar a
-    // atualização desta lista no commit que mover.
-].map((e) => ({ ...e, existe: existsSync(e.arquivo) }))
+/**
+ * Os dois pontos de entrada DE CADA APP, derivados — não listados.
+ *
+ * Eram dois caminhos fixos em `src/`, e a ausência deles era erro de propósito:
+ * foi assim que este verificador cobrou a atualização no commit que moveu o app
+ * para `apps/odontobox360/`. Mas listar à mão não escala para três apps — seria
+ * seis linhas repetindo a mesma decisão, e a sétima esquecida quando entrar o
+ * quarto app. Agora os apps são descobertos, e cada um responde pelos seus dois
+ * pontos.
+ *
+ * Um app sem `app/layout.tsx` ou sem `cloudflare/entrada.ts` é erro: os dois
+ * existem em todo app por construção, e a falta de um significa que o app está
+ * incompleto ou que a convenção mudou — nenhum dos dois pode passar calado.
+ */
+function appsDoRepo() {
+    if (!existsSync('apps')) return []
+    return readdirSync('apps')
+        .filter((a) => !a.startsWith('_') && existsSync(join('apps', a, 'src')))
+        .sort()
+}
+
+const ENTRADAS = appsDoRepo().flatMap((app) => [
+    { arquivo: join('apps', app, 'src', 'app', 'layout.tsx'), cobre: `${app}: o que é servido por requisição` },
+    { arquivo: join('apps', app, 'src', 'cloudflare', 'entrada.ts'), cobre: `${app}: fila, cron, Durable Object e Workflow` },
+]).map((e) => ({ ...e, existe: existsSync(e.arquivo) }))
+
+if (ENTRADAS.length === 0) {
+    console.error('✖ nenhum app encontrado em `apps/` — não há o que verificar, e isso não é sucesso.')
+    process.exit(1)
+}
 
 let falhas = 0
 const erro = (msg) => { console.error(`✖ ${msg}`); falhas++ }
@@ -81,19 +121,40 @@ for (const f of dosPacotes) {
     // procurava só a string e reprovou o próprio `packages/core/src/marca.ts`,
     // cujo cabeçalho cita `@/config/brand` para explicar por que o registro
     // existe. Verificador que reclama de comentário ensina a ignorá-lo.
-    if (/(?:from|import|require)\s*\(?\s*['"`]@\/config\/brand['"`]/.test(texto)) {
-        erro(`"${f}" importa '@/config/brand' — é a dependência core → app que não pode existir.`)
-        console.error('  Use `BRAND()` de @venn/core/marca (servidor) ou `useMarca()` (cliente).')
+    const alias = texto.match(/(?:from|import|require)\s*\(?\s*['"`](@\/[^'"`]+)['"`]/g)
+    if (alias) {
+        const quais = [...new Set(alias.map((a) => a.match(/@\/[^'"`]+/)[0]))]
+        erro(`"${f}" importa ${quais.map((q) => `'${q}'`).join(', ')} — o alias \`@/\` é do APP.`)
+        if (quais.some((q) => q.startsWith('@/config/brand'))) {
+            console.error('  Para a marca: `BRAND()` de @venn/core/marca (servidor) ou `useMarca()` (cliente).')
+        }
+        console.error('  Para o resto: o módulo pertence ao pacote (mova-o) ou ao app (receba-o por parâmetro/props).')
     }
 }
 
 // ── 4. o provedor está na raiz ───────────────────────────────────────────
-const raiz = ENTRADAS[0]
-if (raiz.existe) {
-    const texto = readFileSync(raiz.arquivo, 'utf8')
-    if (!texto.includes('ProvedorDeMarca')) {
-        erro(`"${raiz.arquivo}" não monta o <ProvedorDeMarca>.`)
+for (const { arquivo, existe } of ENTRADAS.filter((e) => e.arquivo.endsWith('layout.tsx'))) {
+    if (!existe) continue
+    if (!readFileSync(arquivo, 'utf8').includes('ProvedorDeMarca')) {
+        erro(`"${arquivo}" não monta o <ProvedorDeMarca>.`)
         console.error('  Sem ele, todo componente de cliente do core que chama useMarca() lança.')
+    }
+}
+
+// ── 5. script que exercita o core registra a marca de teste ─────────────
+//
+// O core PEDE a marca, e um script de verificação não tem ponto de entrada de
+// app que a registre. Foi assim que o build reprovou em 14/11: `check:auth`
+// chama `getAuth()` → `APP()` → `BRAND()`, e lançou `MarcaNaoRegistradaError`
+// depois de 11 PASS. Só aparecia no builder, porque esse check roda dentro das
+// provas contra o Neon, que pedem `NEON_API_KEY`.
+for (const f of readdirSync('scripts').filter((n) => n.endsWith('.ts'))) {
+    const caminho = join('scripts', f)
+    const texto = readFileSync(caminho, 'utf8')
+    if (!texto.includes('@venn/core')) continue
+    if (!texto.includes('marca-de-teste')) {
+        erro(`"${caminho}" importa de @venn/core e não registra a marca de teste.`)
+        console.error("  Acrescente `import './lib/marca-de-teste.ts'` como PRIMEIRO import.")
     }
 }
 
@@ -102,6 +163,6 @@ if (falhas > 0) {
     process.exit(1)
 }
 console.log(
-    `registro da marca: ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
-    `${dosPacotes.length} arquivo(s) de pacote sem importar a marca do app`
+    `registro da marca: ${appsDoRepo().length} app(s), ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
+    `${dosPacotes.length} arquivo(s) de pacote sem importar nada do app pelo alias`
 )

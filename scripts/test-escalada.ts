@@ -15,6 +15,10 @@
  * A escrita no banco é casca fina no processador do `ai-reply`; o que decide
  * está aqui, e é puro.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     LACUNAS_ATE_ESCALAR,
     areaDaDespedida,

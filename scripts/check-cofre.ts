@@ -11,11 +11,16 @@
  *
  *     npm run check:cofre
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { cifrar, decifrar, ehEnvelope, gerarChave, CHAVE_ENV, ChaveAusenteError } from '@venn/core/lib/secrets/envelope'
 import { nomeDeAmbiente, segredoDeAmbiente, definidoNoAmbiente } from '@venn/core/lib/secrets/ambiente'
 import { PLATFORM_PROVIDERS, variaveisDoProvedor } from '@venn/core/lib/platform-credentials'
 import { META_VERIFY_TOKEN_SECRET } from '@venn/core/lib/meta/webhook'
 import { readFileSync } from 'node:fs'
+import { configuracoesDeApp } from './lib/raizes-de-codigo.mjs'
 import { join } from 'node:path'
 
 async function main() {
@@ -108,7 +113,7 @@ async function main() {
      * `cloudflare.config.ts` é declarativo e **remove no deploy seguinte** o
      * segredo que não está nele.
      */
-    const config = readFileSync(join(process.cwd(), 'cloudflare.config.ts'), 'utf8')
+    const config = readFileSync(configuracoesDeApp('cloudflare.config.ts')[0], 'utf8')
     const declarados = new Set(
         [...config.matchAll(/^\s*(PLATFORM_[A-Z0-9_]+):\s*bindings\.secret\(\)/gm)].map(
             (m) => m[1]!

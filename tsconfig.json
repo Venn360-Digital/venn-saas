@@ -1,49 +1,48 @@
 {
-  "compilerOptions": {
-    "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
+    "//": [
+        "O tsconfig da RAIZ: cobre `scripts/` e `packages/`, não os apps.",
+        "",
+        "Cada app tem o seu, porque o `paths` de `@/*` aponta para UM diretório — e",
+        "um alias global seria um defeito silencioso com dois apps, resolvendo o",
+        "`@/…` de um no `src/` do outro, verde.",
+        "",
+        "Aqui NÃO há `@/*`, de propósito: dentro de `packages/` esse alias não",
+        "existe, e quem o usar reprova no `check-marca.mjs` — a regra da fronteira",
+        "core → app. Os pacotes se referenciam por nome (`@venn/core/...`), que o",
+        "workspace do pnpm resolve, ou por caminho relativo dentro de si mesmos.",
+        "",
+        "`lib: dom` fica porque `packages/ui` e os componentes do core são de",
+        "navegador. O código que roda DENTRO do Worker é excluído e tem o seu",
+        "próprio tsconfig no app — `@cloudflare/workers-types` redefine `Response` e",
+        "misturar os dois faz o typecheck acusar erros em arquivos que ninguém",
+        "tocou (foi o que aconteceu em 14/11, 627 deles)."
     ],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
+    "compilerOptions": {
+        "target": "ES2017",
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "jsx": "react-jsx",
+        "incremental": true
+    },
+    "include": [
+        "scripts/**/*.ts",
+        "scripts/**/*.mts",
+        "packages/*/src/**/*.ts",
+        "packages/*/src/**/*.tsx"
     ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    }
-  },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
-  "exclude": [
-    "node_modules",
-    "workers",
-    "infra",
-    "src/cloudflare",
-    "packages/core/src/cloudflare",
-    "cloudflare.config.ts",
-    "vite.config.ts",
-    "poc"
-  ]
+    "exclude": [
+        "node_modules",
+        "workers",
+        "infra",
+        "packages/core/src/cloudflare",
+        "packages/db/src/generated"
+    ]
 }

@@ -10,6 +10,10 @@
  * A lista de canais, essa sim, é a de produção — importada de `lib/plans`.
  */
 
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { REDES_DO_PLANO, redesDoPlano } from '@venn/core/lib/plans'
 import { isPlanId, type PlanId } from '@venn/core/lib/plan-limits'
 import { apelidoDaLinha } from '@venn/core/lib/linha'

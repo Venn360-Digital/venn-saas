@@ -11,6 +11,10 @@
  * Puro de propósito: nenhuma IO, conferido contra corpos gravados da forma que
  * a Meta documenta.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { readEvolutionGoEvent, readWhatsAppCloudEvent } from '@venn/core/lib/whatsapp/envelopes'
 import { LIMITE_DO_JOB_BYTES, semBase64, tamanhoDoJob } from '@venn/core/lib/queue/tamanho'
 import { segredoDoWebhookValido } from '@venn/core/lib/whatsapp/webhook-evolution-go'

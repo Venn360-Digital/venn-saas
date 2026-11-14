@@ -19,7 +19,11 @@
  *
  *     npm run check:trabalhos
  */
-import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
+import { resolverNoCodigo, configuracoesDeApp } from './lib/raizes-de-codigo.mjs'
 import { ALL_QUEUES, QUEUE, TENTATIVAS, DEFAULT_JOB_OPTIONS } from '@venn/core/lib/queue/definitions'
 import { consumirLote, type MensagemDaFila } from '@venn/core/lib/queue/consumidor'
 import { registrarDriver, driverAtual, type DriverDeFila } from '@venn/core/lib/queue/driver'
@@ -58,7 +62,7 @@ async function main() {
     const fonte = await import('node:fs').then((fs) =>
         fs.readFileSync(resolverNoCodigo('cloudflare/entrada.ts'), 'utf8')
     )
-    const cfg = await import('node:fs').then((fs) => fs.readFileSync('cloudflare.config.ts', 'utf8'))
+    const cfg = await import('node:fs').then((fs) => fs.readFileSync(configuracoesDeApp('cloudflare.config.ts')[0], 'utf8'))
     const mapa = fonte.slice(fonte.indexOf('const PROCESSADORES'), fonte.indexOf('IDS_DE_DEDUP'))
 
     // Do valor da fila para a chave da constante: o mapa é escrito

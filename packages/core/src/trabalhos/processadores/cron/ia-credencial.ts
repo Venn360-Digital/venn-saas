@@ -1,4 +1,4 @@
-import { APP } from '@/config/app.config'
+import { APP } from '../../../config/app'
 import { OPENAI_BASE_URL } from '../../../lib/llm/base-url'
 import { BRAND_HEX } from '../../../lib/palette'
 import { sendEmail } from '../../../lib/email/send'
@@ -126,14 +126,14 @@ async function avisar(veredito: VereditoComAviso): Promise<void> {
         `<tr><td style="color:${BRAND_HEX.slate};padding-right:12px">${rotulo}</td>` +
         `<td><strong>${valor}</strong></td></tr>`
 
-    const passos = comoConsertar(veredito, APP.slug || 'app')
+    const passos = comoConsertar(veredito, APP().slug || 'app')
     const html =
         `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.5">` +
         `<p style="font-size:16px;font-weight:600;color:${BRAND_HEX.red};margin:0 0 12px">` +
         `A IA deste app não está conseguindo falar com a OpenAI</p>` +
         passos.map((p) => `<p style="margin:0 0 10px">${p}</p>`).join('') +
         `<table cellpadding="4" style="border-collapse:collapse;margin-top:8px">` +
-        campo('Produto', `${APP.slug} / ${APP.env}`) +
+        campo('Produto', `${APP().slug} / ${APP().env}`) +
         campo('Caminho', hostDaBase()) +
         campo('Modelo da sonda', MODELO_DA_SONDA) +
         campo(
@@ -152,7 +152,7 @@ async function avisar(veredito: VereditoComAviso): Promise<void> {
     try {
         const r = await sendEmail({
             to: DESTINO,
-            subject: assuntoDoAviso(veredito, `${APP.slug}/${APP.env}`),
+            subject: assuntoDoAviso(veredito, `${APP().slug}/${APP().env}`),
             html,
         })
         if (!r.ok) log.error(`não consegui avisar a falha de credencial: ${r.error}`)
