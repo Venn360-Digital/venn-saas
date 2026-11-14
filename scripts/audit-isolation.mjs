@@ -153,11 +153,14 @@ if (!ENV_NAMES.includes('production') || !ENV_NAMES.includes('stg')) {
 }
 
 const fingerprints = [];
+/** TODOS os fingerprints, o do próprio app incluído — a regra por pasta precisa deles. */
+const fingerprintsTodos = [];
 if (existsSync(FINGERPRINT_DIR)) {
   for (const f of readdirSync(FINGERPRINT_DIR).filter((x) => x.endsWith('.json'))) {
     const fp = readJson(join(FINGERPRINT_DIR, f));
     const fpSlug = fp.slug || basename(f, '.json');
-    if (fpSlug === SLUG) continue; // o próprio app
+    fingerprintsTodos.push({ file: f, slug: fpSlug, data: fp });
+    if (fpSlug === SLUG) continue; // o próprio app: não entra na lista proibida global
     fingerprints.push({ file: f, slug: fpSlug, data: fp });
   }
 } else {
@@ -175,6 +178,53 @@ for (const fp of fingerprints) {
   }
 }
 
+/**
+ * De quem é a pasta `apps/<X>/`? Derivado do fingerprint, com fail-fast.
+ *
+ * Existe porque a regra 1 nasceu mono-app: um `SLUG` vindo do manifesto, e os
+ * outros fingerprints proibidos em TODO o repositório. Com os três apps no
+ * mesmo repositório isso deixa de fazer sentido — `apps/stagent360/**` tem de
+ * poder dizer "stagent", que é a identidade dele, e tem de NÃO poder dizer
+ * "odontobox".
+ *
+ * O dono não é adivinhado por prefixo (`odontobox360` não começa igual a
+ * `odontobox`): é o fingerprint cujo `strings` contém o nome exato da pasta.
+ * Zero ou mais de um é erro — um app sem fingerprint não pode ser auditado, e
+ * auditar com o dono errado é pior que não auditar.
+ */
+function donoDaPasta(nomeDaPasta) {
+  const candidatos = fingerprintsTodos.filter((fp) =>
+    deepStrings(fp.data.strings ?? []).some((t) => t.trim() === nomeDaPasta)
+  );
+  if (candidatos.length === 1) return candidatos[0].slug;
+  err(
+    candidatos.length === 0
+      ? `apps/${nomeDaPasta}/ não tem fingerprint em ${FINGERPRINT_DIR}/ — crie um antes de auditar o app.`
+      : `apps/${nomeDaPasta}/ casa com ${candidatos.length} fingerprints (${candidatos.map((c) => c.slug).join(', ')}) — ambíguo.`
+  );
+  return null;
+}
+
+/** O slug do app a que um caminho pertence, ou null para código compartilhado. */
+function appDoCaminho(rel) {
+  const m = rel.match(/^apps\/([^/]+)\//);
+  if (!m) return null;
+  if (!(m[1] in donoPorPasta)) donoPorPasta[m[1]] = donoDaPasta(m[1])
+  return donoPorPasta[m[1]];
+}
+const donoPorPasta = {};
+
+/** Tokens de TODOS os apps, com o dono — para a regra por pasta. */
+const todosOsTokens = [];
+for (const fp of fingerprintsTodos) {
+  for (const [key, val] of Object.entries(fp.data)) {
+    if (key === 'slug' || key === 'warnStrings' || key.startsWith('$')) continue;
+    for (const t of deepStrings(val).map((x) => x.trim()).filter((x) => x.length >= 3 && !x.startsWith('<'))) {
+      todosOsTokens.push({ token: t, lower: t.toLowerCase(), owner: fp.slug });
+    }
+  }
+}
+
 // ---------- 1. colisão manifesto × outros apps ----------
 const manifestValues = deepStrings(manifest).map((s) => s.toLowerCase()).filter((s) => s.length >= 3);
 for (const f of forbidden) {
@@ -188,7 +238,19 @@ let files;
 try { files = arquivosDoGit(); } catch { files = walk(ROOT); }
 for (const { rel, binary } of files) {
   const relLower = rel.toLowerCase();
-  for (const f of forbidden) {
+  /*
+   * O dono da pasta: dentro de `apps/<X>/` o proibido são os OUTROS apps, não
+   * os "outros" do manifesto. Fora de `apps/`, segue a lista global (código
+   * compartilhado não fala de app nenhum — e a regra de proibir TODOS os
+   * identificadores em `packages/**` entra quando o vocabulário sair do core,
+   * porque hoje ela reprovaria ~14 componentes que dizem o nome do 1º app).
+   */
+  const dono = appDoCaminho(rel);
+  const proibidosAqui = dono === null
+    ? forbidden
+    : todosOsTokens.filter((t) => t.owner !== dono);
+
+  for (const f of proibidosAqui) {
     if (relLower.includes(f.lower)) err(`Nome de arquivo ${rel} contém "${f.token}" (app "${f.owner}")`);
   }
   if (binary) continue;
@@ -196,7 +258,7 @@ for (const { rel, binary } of files) {
   try { text = readFileSync(join(ROOT, rel), 'utf8'); } catch { continue; }
   const lines = text.split('\n');
   const lower = text.toLowerCase();
-  for (const f of forbidden) {
+  for (const f of proibidosAqui) {
     if (!lower.includes(f.lower)) continue;
     const ln = lines.findIndex((l) => l.toLowerCase().includes(f.lower)) + 1;
     err(`${rel}:${ln} referencia "${f.token}" (app "${f.owner}")`);
@@ -206,6 +268,45 @@ for (const { rel, binary } of files) {
     const ln = lines.findIndex((l) => l.toLowerCase().includes(w.lower)) + 1;
     warn(`${rel}:${ln} contém termo do segmento "${w.token}" (revise se faz sentido neste produto)`);
   }
+}
+
+/* ----------  2b. identidade de app dentro do código compartilhado  ----------
+ *
+ * O nível seguinte da regra 1, ainda como AVISO contado e não como erro.
+ *
+ * O alvo final é: `packages/**` não contém identificador de app NENHUM — é o
+ * que força texto novo a nascer pelo vocabulário em vez de pelo nome do
+ * primeiro app. Hoje isso reprovaria o build, porque o core carrega o nome do
+ * 1º app em componentes e em chaves de armazenamento que ainda não passaram
+ * pelo `vocab()`.
+ *
+ * Então a regra entra medindo, e vira erro no passo do vocabulário. O número
+ * aqui é a lista de tarefas daquele passo — e manter isto como aviso silencioso
+ * seria o mesmo que não ter: o contador é o que impede a dívida de crescer sem
+ * ninguém ver.
+ */
+const vazamentosNoCompartilhado = new Map();
+for (const { rel, binary } of files) {
+  if (binary) continue;
+  if (!rel.startsWith('packages/')) continue;
+  if (IGNORE_PREFIXES.some((p) => rel.startsWith(p))) continue;
+  let texto;
+  try { texto = readFileSync(join(ROOT, rel), 'utf8').toLowerCase(); } catch { continue; }
+  for (const t of todosOsTokens) {
+    if (!texto.includes(t.lower)) continue;
+    if (!vazamentosNoCompartilhado.has(rel)) vazamentosNoCompartilhado.set(rel, new Set());
+    vazamentosNoCompartilhado.get(rel).add(`${t.token} (${t.owner})`);
+  }
+}
+if (vazamentosNoCompartilhado.size > 0) {
+  warn(
+    `${vazamentosNoCompartilhado.size} arquivo(s) de packages/** citam identidade de app ` +
+    '— vira ERRO quando o vocabulário sair do core:'
+  );
+  for (const [rel, toks] of [...vazamentosNoCompartilhado].slice(0, 20)) {
+    warn(`    ${rel} → ${[...toks].slice(0, 3).join(', ')}`);
+  }
+  if (vazamentosNoCompartilhado.size > 20) warn(`    … e ${vazamentosNoCompartilhado.size - 20} outro(s)`);
 }
 
 // ---------- 3. wrangler × manifesto ----------
