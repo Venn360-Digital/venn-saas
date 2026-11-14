@@ -10,3 +10,5 @@ export declare function arquivosDeCodigo(subcaminhos?: string[] | null): string[
 export declare function exigirPiso(nome: string, arquivos: unknown[], piso: number): void
 export declare function conferirAllowlist(nome: string, prefixos: string[], arquivos: string[]): void
 export declare function resolverNoCodigo(sufixo: string): string
+export declare function casaPrefixo(prefixo: string, caminho: string): boolean
+export declare function configuracoesDeApp(nome: string): string[]

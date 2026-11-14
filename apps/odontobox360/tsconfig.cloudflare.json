@@ -63,9 +63,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "server-only": ["./workers/src/shims/server-only.ts"]
+      "server-only": ["../../workers/src/shims/server-only.ts"]
     }
   },
-  "include": ["src/cloudflare/**/*.ts", "packages/core/src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
+  "include": ["src/cloudflare/**/*.ts", "../../packages/core/src/cloudflare/**/*.ts", "cloudflare.config.ts", "vite.config.ts"],
   "exclude": ["node_modules"]
 }

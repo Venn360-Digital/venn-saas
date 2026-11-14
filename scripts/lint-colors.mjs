@@ -14,7 +14,7 @@
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { arquivosDeCodigo, exigirPiso, conferirAllowlist } from './lib/raizes-de-codigo.mjs'
+import { arquivosDeCodigo, exigirPiso, conferirAllowlist, casaPrefixo } from './lib/raizes-de-codigo.mjs'
 
 const ROOT = process.cwd()
 const BASELINE_FILE = join(ROOT, 'scripts', 'color-baseline.json')
@@ -31,7 +31,7 @@ const ALLOWED = [
     // The single component that renders a user-chosen hex from the database.
     'packages/core/src/components/shared/TagChip.tsx',
     // Renders above ThemeProvider, where CSS variables are not guaranteed.
-    'src/app/global-error.tsx',
+    'apps/*/src/app/global-error.tsx',
     // Other companies' brand colours, declared in one place on purpose.
     'packages/core/src/lib/brand-colors.ts',
     // Our own palette as literal hex, for the three places a token cannot
@@ -41,7 +41,7 @@ const ALLOWED = [
     // A identidade da marca por app (Fase 03): o ÚNICO lugar com o hex da marca,
     // que é a fonte dos tokens. Clonar o produto é trocar este arquivo — por
     // isso o hex literal aqui é por decisão, como em `palette.ts`.
-    'src/config/brand.ts',
+    'apps/*/src/config/brand.ts',
     // E-mail HTML. CSS variables do not exist in a mail client, so the brand
     // has to be inlined; the values come from the same palette.
     'packages/core/src/lib/email/',
@@ -50,7 +50,7 @@ const ALLOWED = [
     // token seria pedir uma cor que ninguém definiu. Passava sem estar aqui
     // só porque os hex estão soltos dentro de um template, e não entre aspas —
     // isenção por acidente do padrão. Agora é por decisão.
-    'src/app/widget.js/',
+    'apps/*/src/app/widget.js/',
 ]
 
 const PREFIX =
@@ -89,7 +89,7 @@ const ARBITRARY_HEX = /\[#[0-9a-fA-F]{3,8}\]/g
 const QUOTED_HEX = /['"`]#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?['"`]/g
 
 function isAllowed(relPath) {
-    return ALLOWED.some((prefix) => relPath.startsWith(prefix))
+    return ALLOWED.some((prefix) => casaPrefixo(prefix, relPath))
 }
 
 /**

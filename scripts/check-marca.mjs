@@ -42,16 +42,40 @@
  *    core leem a marca por contexto; sem o provedor na raiz, `useMarca()`
  *    lança na primeira tela.
  */
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { arquivosDeCodigo } from './lib/raizes-de-codigo.mjs'
 
-const ENTRADAS = [
-    { arquivo: 'src/app/layout.tsx', cobre: 'tudo que é servido por requisição' },
-    { arquivo: 'src/cloudflare/entrada.ts', cobre: 'fila, cron, Durable Object e Workflow' },
-    // A partir da Fase 3 estes caminhos passam a ser `apps/<app>/src/...`; a
-    // ausência do arquivo é erro, e não silêncio, justamente para cobrar a
-    // atualização desta lista no commit que mover.
-].map((e) => ({ ...e, existe: existsSync(e.arquivo) }))
+/**
+ * Os dois pontos de entrada DE CADA APP, derivados — não listados.
+ *
+ * Eram dois caminhos fixos em `src/`, e a ausência deles era erro de propósito:
+ * foi assim que este verificador cobrou a atualização no commit que moveu o app
+ * para `apps/odontobox360/`. Mas listar à mão não escala para três apps — seria
+ * seis linhas repetindo a mesma decisão, e a sétima esquecida quando entrar o
+ * quarto app. Agora os apps são descobertos, e cada um responde pelos seus dois
+ * pontos.
+ *
+ * Um app sem `app/layout.tsx` ou sem `cloudflare/entrada.ts` é erro: os dois
+ * existem em todo app por construção, e a falta de um significa que o app está
+ * incompleto ou que a convenção mudou — nenhum dos dois pode passar calado.
+ */
+function appsDoRepo() {
+    if (!existsSync('apps')) return []
+    return readdirSync('apps')
+        .filter((a) => !a.startsWith('_') && existsSync(join('apps', a, 'src')))
+        .sort()
+}
+
+const ENTRADAS = appsDoRepo().flatMap((app) => [
+    { arquivo: join('apps', app, 'src', 'app', 'layout.tsx'), cobre: `${app}: o que é servido por requisição` },
+    { arquivo: join('apps', app, 'src', 'cloudflare', 'entrada.ts'), cobre: `${app}: fila, cron, Durable Object e Workflow` },
+]).map((e) => ({ ...e, existe: existsSync(e.arquivo) }))
+
+if (ENTRADAS.length === 0) {
+    console.error('✖ nenhum app encontrado em `apps/` — não há o que verificar, e isso não é sucesso.')
+    process.exit(1)
+}
 
 let falhas = 0
 const erro = (msg) => { console.error(`✖ ${msg}`); falhas++ }
@@ -107,11 +131,10 @@ for (const f of dosPacotes) {
 }
 
 // ── 4. o provedor está na raiz ───────────────────────────────────────────
-const raiz = ENTRADAS[0]
-if (raiz.existe) {
-    const texto = readFileSync(raiz.arquivo, 'utf8')
-    if (!texto.includes('ProvedorDeMarca')) {
-        erro(`"${raiz.arquivo}" não monta o <ProvedorDeMarca>.`)
+for (const { arquivo, existe } of ENTRADAS.filter((e) => e.arquivo.endsWith('layout.tsx'))) {
+    if (!existe) continue
+    if (!readFileSync(arquivo, 'utf8').includes('ProvedorDeMarca')) {
+        erro(`"${arquivo}" não monta o <ProvedorDeMarca>.`)
         console.error('  Sem ele, todo componente de cliente do core que chama useMarca() lança.')
     }
 }
@@ -121,6 +144,6 @@ if (falhas > 0) {
     process.exit(1)
 }
 console.log(
-    `registro da marca: ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
+    `registro da marca: ${appsDoRepo().length} app(s), ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
     `${dosPacotes.length} arquivo(s) de pacote sem importar nada do app pelo alias`
 )

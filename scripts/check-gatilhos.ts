@@ -140,7 +140,7 @@ console.log('── A importação em massa continua FORA ──')
  *
  * Se a decisão mudar, muda **aqui**, junto do comentário que explica por quê.
  */
-const naImportacao = readFileSync('src/app/api/contacts/import/route.ts', 'utf8')
+const naImportacao = readFileSync(resolverNoCodigo('app/api/contacts/import/route.ts'), 'utf8')
 ok(
     'contacts/import não dispara funil',
     !/contatoCriado\(|talvezEntrarNoFunil\(/.test(naImportacao),

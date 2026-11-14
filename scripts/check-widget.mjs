@@ -3,7 +3,7 @@
  *
  *   npm run check:widget
  *
- * Ele vive dentro de um template literal em `src/app/widget.js/route.ts`, e o
+ * Ele vive dentro de um template literal em resolverNoCodigo('app/widget.js/route.ts'), e o
  * TypeScript não olha o conteúdo de uma string. Um `if (x { ... }` ali dentro
  * passa pelo `tsc`, passa pelo build, e só quebra no navegador de um cliente —
  * **verificado**: com esse erro injetado, o `tsc` não reclama e esta checagem
@@ -15,8 +15,9 @@
  * pego antes de chegar aqui.
  */
 import { readFileSync } from 'node:fs'
+import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 
-const ARQUIVO = 'src/app/widget.js/route.ts'
+const ARQUIVO = resolverNoCodigo('app/widget.js/route.ts')
 const linhas = readFileSync(ARQUIVO, 'utf8').split('\n')
 
 const inicio = linhas.findIndex((l) => l.includes('=> `'))
