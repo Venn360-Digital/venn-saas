@@ -13,6 +13,10 @@
  *    troca a foto, e o que permite o `immutable` de um ano.
  */
 
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     CACHE_DO_RETRATO,
     CACHE_DO_SEM_RETRATO,

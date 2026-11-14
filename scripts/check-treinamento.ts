@@ -14,6 +14,10 @@
  * pista de que o Markdown está bem seccionado: documento longo que vira dois
  * trechos tem cabeçalho de menos.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { readFileSync, existsSync } from 'node:fs'
 import { DOCUMENTOS, conferirEstrutura, orcamentoDoPrompt } from '@venn/core/lib/treinamento/documentos'
 import { secionarMarkdown, semComentarios } from '@venn/core/lib/rag/secoes'

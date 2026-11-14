@@ -12,6 +12,10 @@
  *
  *     DATABASE_URL='<homologação>' npm run check:filas
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { readFileSync } from 'node:fs'
 import { resolverNoCodigo, configuracoesDeApp } from './lib/raizes-de-codigo.mjs'
 import prisma from '@venn/db/cliente'

@@ -13,6 +13,10 @@
  * O analisador é puro e não toca em React, então a decisão inteira se exercita
  * sem navegador.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { analisarTextoDeWhatsApp, semMarcacao, temMarcacao } from '@venn/core/lib/texto-whatsapp'
 
 let passou = 0

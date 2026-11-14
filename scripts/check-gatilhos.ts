@@ -26,6 +26,10 @@
  * pacientes mandaria 5.000 boas-vindas). O que ele garante é que nenhum tipo
  * está declarado e morto.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { readFileSync } from 'node:fs'
 import { arquivosDeCodigo, exigirPiso, resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 

@@ -17,6 +17,10 @@
  * E há uma terceira coisa, que vale nos dois: no **handoff**, o status é lido
  * sempre. Carteira tolera dono ausente; entrega urgente não.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     POLITICA_PADRAO,
     destinoDaEntrega,

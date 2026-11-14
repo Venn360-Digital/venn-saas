@@ -11,6 +11,10 @@
  * Nada aqui chama modelo: o prompt é texto, o veredito é string gravada. É o que
  * permite provar o juiz em Node, sem crédito e sem rede.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     CRITERIOS,
     interpretarVeredito,

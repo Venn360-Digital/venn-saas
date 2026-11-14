@@ -15,6 +15,10 @@
  *
  *     npm run check:tempo-real
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { resolverNoCodigo, raizesDeCodigo } from './lib/raizes-de-codigo.mjs'
 import { decidir, TETO_DA_RAJADA_MS } from '@venn/core/lib/realtime/debounce'
 import { assinar, verificar, BilheteInvalidoError, VALIDADE_SEGUNDOS } from '@venn/core/lib/realtime/bilhete'

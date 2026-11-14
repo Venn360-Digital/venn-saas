@@ -20,6 +20,10 @@
  * e número, e o avaliador recebe o instante **pelo contexto** — então a hora é
  * fixada aqui em vez de depender do relógio de quem roda.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { dentroDaJanela, descreverJanela, normalizarJanela } from '@venn/core/lib/rules/expediente'
 import { RuleEvaluator } from '@venn/core/lib/rules/evaluator'
 import type { RuleContext } from '@venn/core/types/rules'

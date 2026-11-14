@@ -38,7 +38,9 @@
  *    arquivo, comentário incluído — foi assim que ele barrou um `.npmrc` em
  *    13/11, e barrou este cabeçalho na primeira escrita. Comentário copiado
  *    entre repositórios é vetor de vazamento de identidade.)
- * 4. **O provedor de cliente está na raiz.** Os componentes `'use client'` do
+ * 4. **Todo script que exercita o core registra a marca de teste.** Ver a
+ *    nota na regra 5, abaixo — foi um build reprovado.
+ * 5. **O provedor de cliente está na raiz.** Os componentes `'use client'` do
  *    core leem a marca por contexto; sem o provedor na raiz, `useMarca()`
  *    lança na primeira tela.
  */
@@ -136,6 +138,23 @@ for (const { arquivo, existe } of ENTRADAS.filter((e) => e.arquivo.endsWith('lay
     if (!readFileSync(arquivo, 'utf8').includes('ProvedorDeMarca')) {
         erro(`"${arquivo}" não monta o <ProvedorDeMarca>.`)
         console.error('  Sem ele, todo componente de cliente do core que chama useMarca() lança.')
+    }
+}
+
+// ── 5. script que exercita o core registra a marca de teste ─────────────
+//
+// O core PEDE a marca, e um script de verificação não tem ponto de entrada de
+// app que a registre. Foi assim que o build reprovou em 14/11: `check:auth`
+// chama `getAuth()` → `APP()` → `BRAND()`, e lançou `MarcaNaoRegistradaError`
+// depois de 11 PASS. Só aparecia no builder, porque esse check roda dentro das
+// provas contra o Neon, que pedem `NEON_API_KEY`.
+for (const f of readdirSync('scripts').filter((n) => n.endsWith('.ts'))) {
+    const caminho = join('scripts', f)
+    const texto = readFileSync(caminho, 'utf8')
+    if (!texto.includes('@venn/core')) continue
+    if (!texto.includes('marca-de-teste')) {
+        erro(`"${caminho}" importa de @venn/core e não registra a marca de teste.`)
+        console.error("  Acrescente `import './lib/marca-de-teste.ts'` como PRIMEIRO import.")
     }
 }
 

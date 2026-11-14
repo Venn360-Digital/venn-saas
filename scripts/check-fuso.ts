@@ -13,6 +13,10 @@
  * Puro de propósito: nenhuma IO, e independe do fuso da máquina que roda o
  * teste — é justamente isso que as funções garantem.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     anoNoFuso,
     diaDaSemana,

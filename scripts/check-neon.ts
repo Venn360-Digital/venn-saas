@@ -17,6 +17,10 @@
  *
  *     DATABASE_URL='<branch de homologação>' npm run check:neon
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import prisma from '@venn/db/cliente'
 import { readVaultSecret, writeVaultSecret, vaultSecretExists, vaultSecretOrigin, platformSecretName, SegredoDeAmbienteError } from '@venn/core/lib/vault'
 import { gerarChave, CHAVE_ENV } from '@venn/core/lib/secrets/envelope'

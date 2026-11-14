@@ -19,6 +19,10 @@
  *
  *     npm run check:trabalhos
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { resolverNoCodigo, configuracoesDeApp } from './lib/raizes-de-codigo.mjs'
 import { ALL_QUEUES, QUEUE, TENTATIVAS, DEFAULT_JOB_OPTIONS } from '@venn/core/lib/queue/definitions'
 import { consumirLote, type MensagemDaFila } from '@venn/core/lib/queue/consumidor'

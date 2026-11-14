@@ -17,6 +17,10 @@
  * `buildSystemPrompt` é pura: recebe o agente, os trechos, o contexto e os
  * documentos, e devolve texto. Não precisa de banco nem de modelo.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { buildSystemPrompt, type DocumentoNoPrompt } from '@venn/core/trabalhos/servicos/prompt'
 import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 import type { Agent } from '@venn/db'
