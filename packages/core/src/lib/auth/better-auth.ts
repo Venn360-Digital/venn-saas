@@ -5,6 +5,7 @@ import prisma from '@venn/db/cliente'
 import { renderEmail } from '../email/layout'
 import { sendEmail } from '../email/send'
 import { APP } from '../../config/app'
+import { BRAND } from '../../marca'
 
 /**
  * O Better Auth, montado sobre o schema que já existe.
@@ -49,15 +50,55 @@ export function getAuth(): ReturnType<typeof construir> {
  * Existe porque sem ela a biblioteca **lança** — e o link do e-mail de
  * redefinição de senha é montado a partir do `baseURL`. Falhar ali deixaria a
  * pessoa sem caminho de volta.
+ *
+ * **Vem da MARCA — não de um literal, e não de `APP().url`.**
+ *
+ * O literal era identidade de um app dentro de código que vai servir os três:
+ * hoje é inofensivo porque há um app só, e no segundo passa a ser falha de
+ * segurança — este valor é o `fallback` que o Better Auth usa para decidir de
+ * onde aceita a requisição, então os apps irmãos herdariam o controle de CSRF
+ * deste.
+ *
+ * **Por que NÃO `APP().url`, que foi a minha primeira tentativa.** Parecia
+ * melhor: o padrão dele já é `https://${BRAND().appHost}`, e em homologação
+ * apontaria para o host de stg em vez de mandar a pessoa para produção. O
+ * portão reprovou, e com razão — no builder `APP().url` vale
+ * `http://localhost:3000`, porque a variável está no ambiente de build. Ou
+ * seja: `APP().url` é **configurável por ambiente**, e com ele o fallback de
+ * CSRF passaria a depender de uma variável que pode ser gravada errada. É
+ * exatamente a causa do incidente de 2026-10-23 — `NEXT_PUBLIC_APP_URL` gravada
+ * com valor que não batia com a origem real, e o acesso caiu — documentado
+ * algumas linhas abaixo, que eu havia acabado de ler quando errei.
+ *
+ * A marca é identidade: mora em código, o `typecheck` a vê, e não há como
+ * gravá-la errada num segredo. O ajuste de homologação que eu queria sai do
+ * `APP().env`, que é enum validado, de modo que o resultado é **sempre** um
+ * host que `hostsPermitidos()` aceita — e é isso que a asserção do `check:auth`
+ * passou a cobrar.
+ *
+ * (Este comentário não nomeia os apps irmãos de propósito: `audit:isolation`
+ * reprova identificador de outro app em `packages/**` **inclusive em
+ * comentário**, e com razão — foi comentário copiado que vazou nome de app duas
+ * vezes antes desta. Os valores medidos ficam na mensagem do commit.)
+ *
+ * Função e não `const`: `APP()` chama `BRAND()`, que é fail-fast, e um `const`
+ * de módulo o executaria quando a Cloudflare AVALIA o script para validá-lo —
+ * antes de existir requisição, portanto antes de alguém registrar a marca. Foi
+ * assim que duas publicações reprovaram em 14/11; `check:marca-tardia` agora
+ * pega essa forma.
  */
-export const ORIGEM_DE_RESERVA = 'https://odontobox.venn360.com'
+export function origemDeReserva(): string {
+    const host = APP().env === 'stg' ? `homolog-${BRAND().appHost}` : BRAND().appHost
+    return `https://${host}`
+}
 
 /**
  * Os hosts cuja origem o Better Auth aceita da requisição.
  *
- * Exportado para `scripts/check-auth.ts` poder provar as invariantes — a lista
+ * Exportada para `scripts/check-auth.ts` poder provar as invariantes — a lista
  * errada aqui não quebra o build, quebra o login, e foi exatamente assim que o
- * acesso caiu em 2026-10-23.
+ * acesso caiu em 2026-10-23. As asserções de lá derivam da marca registrada,
+ * não de literais, para valerem igual nos três apps.
  *
  * O loopback entra **só fora de produção**: em desenvolvimento o servidor é
  * `localhost:3000` e sem ele o login local resolveria para a origem de reserva,
@@ -69,8 +110,21 @@ export const ORIGEM_DE_RESERVA = 'https://odontobox.venn360.com'
  * atacante teria de mandar `Host: localhost:3000` ao Worker, e o que ele
  * conseguiria é um redirecionamento para a própria máquina dele.
  */
-export const HOSTS_PERMITIDOS: string[] = [
-    'odontobox.venn360.com',
+export function hostsPermitidos(): string[] {
+    /**
+     * O host canônico **do app que registrou a marca** — não um literal.
+     *
+     * Era o host de produção escrito como literal. **Medido nos três repos em
+     * 14/11, antes de derivar**: em todos eles o host de autenticação é o
+     * `appHost` da marca, o de homologação é exatamente `homolog-` + esse
+     * valor, e o curinga de preview é o mesmo `*.andre-7ee.workers.dev` —
+     * porque a conta Cloudflare é uma só. A derivação abaixo é fato medido, não
+     * padrão suposto; os valores conferidos estão na mensagem do commit, que
+     * não é varrida pelo `audit:isolation`.
+     */
+    const canonico = BRAND().appHost
+    return [
+    canonico,
     /**
      * **O host de homologação, que faltava.**
      *
@@ -90,13 +144,28 @@ export const HOSTS_PERMITIDOS: string[] = [
      * host fica ao lado da lista que o autoriza, o `typecheck` vê os dois, e
      * `scripts/check-auth.ts` exige os dois.
      */
-    'homolog-odontobox.venn360.com',
+    `homolog-${canonico}`,
     // Os previews por PR — `pr-<n>-odontobox.andre-7ee.workers.dev`. O
     // subdomínio estável (`odontobox.andre-7ee...`) está desligado por
     // `workersDev: false`, então isto alcança só as versões de revisão.
     '*.andre-7ee.workers.dev',
     ...(process.env.NODE_ENV === 'production' ? [] : ['localhost:*', '127.0.0.1:*']),
-]
+    /**
+     * Escape por ambiente, sem deploy: `TRUSTED_ORIGINS` (CSV) entra aqui.
+     *
+     * Serve para um host novo — um domínio próprio de cliente, um preview fora
+     * do padrão — ser aceito gravando um segredo, em vez de esperar build. O
+     * padrão é lista vazia, então não muda nada hoje.
+     *
+     * Ele NÃO substitui os quatro de cima, e isso é deliberado: o incidente de
+     * 09/11 (login de homologação em 403 `INVALID_ORIGIN` por seis dias) e o de
+     * 23/10 (`NEXT_PUBLIC_APP_URL` gravada com valor errado) foram os dois por
+     * host de autenticação depender de configuração. O que o app precisa para
+     * funcionar fica em código, derivado da marca, com `check:auth` cobrando.
+     */
+    ...APP().trustedOrigins,
+    ]
+}
 
 function construir() {
     return betterAuth({
@@ -163,8 +232,8 @@ function construir() {
          * volta.
          */
         baseURL: {
-            allowedHosts: HOSTS_PERMITIDOS,
-            fallback: ORIGEM_DE_RESERVA,
+            allowedHosts: hostsPermitidos(),
+            fallback: origemDeReserva(),
         },
 
         user: {

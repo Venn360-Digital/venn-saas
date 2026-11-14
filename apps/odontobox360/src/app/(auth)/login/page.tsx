@@ -84,7 +84,7 @@ function LoginForm() {
             /**
              * O erro que custou uma hora de diagnóstico em 2026-11-09.
              *
-             * O host de homologação não estava em `HOSTS_PERMITIDOS`, então
+             * O host de homologação não estava em `hostsPermitidos()`, então
              * todo `sign-in` do navegador voltava 403 `INVALID_ORIGIN` — e,
              * sem este `case`, a tela dizia "Não foi possível continuar", que
              * é exatamente a frase que não ajuda ninguém. O conserto da lista
