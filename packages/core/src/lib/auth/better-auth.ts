@@ -51,18 +51,30 @@ export function getAuth(): ReturnType<typeof construir> {
  * redefinição de senha é montado a partir do `baseURL`. Falhar ali deixaria a
  * pessoa sem caminho de volta.
  *
- * **Vem de `APP().url`, e não mais do literal `https://odontobox.venn360.com`.**
+ * **Vem da MARCA — não de um literal, e não de `APP().url`.**
+ *
  * O literal era identidade de um app dentro de código que vai servir os três:
  * hoje é inofensivo porque há um app só, e no segundo passa a ser falha de
  * segurança — este valor é o `fallback` que o Better Auth usa para decidir de
  * onde aceita a requisição, então os apps irmãos herdariam o controle de CSRF
  * deste.
  *
- * `APP().url` tem como padrão `https://${BRAND().appHost}`, logo o
- * comportamento de produção é idêntico ao do literal. Onde ele **melhora** é em
- * homologação: se `APP_URL` estiver gravada no Worker de stg, o link de
- * redefinição passa a apontar para o host de stg em vez de mandar a pessoa para
- * produção — que é o que o literal fazia, calado.
+ * **Por que NÃO `APP().url`, que foi a minha primeira tentativa.** Parecia
+ * melhor: o padrão dele já é `https://${BRAND().appHost}`, e em homologação
+ * apontaria para o host de stg em vez de mandar a pessoa para produção. O
+ * portão reprovou, e com razão — no builder `APP().url` vale
+ * `http://localhost:3000`, porque a variável está no ambiente de build. Ou
+ * seja: `APP().url` é **configurável por ambiente**, e com ele o fallback de
+ * CSRF passaria a depender de uma variável que pode ser gravada errada. É
+ * exatamente a causa do incidente de 2026-10-23 — `NEXT_PUBLIC_APP_URL` gravada
+ * com valor que não batia com a origem real, e o acesso caiu — documentado
+ * algumas linhas abaixo, que eu havia acabado de ler quando errei.
+ *
+ * A marca é identidade: mora em código, o `typecheck` a vê, e não há como
+ * gravá-la errada num segredo. O ajuste de homologação que eu queria sai do
+ * `APP().env`, que é enum validado, de modo que o resultado é **sempre** um
+ * host que `hostsPermitidos()` aceita — e é isso que a asserção do `check:auth`
+ * passou a cobrar.
  *
  * (Este comentário não nomeia os apps irmãos de propósito: `audit:isolation`
  * reprova identificador de outro app em `packages/**` **inclusive em
@@ -76,7 +88,8 @@ export function getAuth(): ReturnType<typeof construir> {
  * pega essa forma.
  */
 export function origemDeReserva(): string {
-    return APP().url
+    const host = APP().env === 'stg' ? `homolog-${BRAND().appHost}` : BRAND().appHost
+    return `https://${host}`
 }
 
 /**
