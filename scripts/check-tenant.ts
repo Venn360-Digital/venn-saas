@@ -40,7 +40,7 @@
  *
  *     DATABASE_URL='<homologação>' npm run check:tenant
  */
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { conferirRelacoes } from '@/lib/auth/relacoes'
 
 let falhas = 0

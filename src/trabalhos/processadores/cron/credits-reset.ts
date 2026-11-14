@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { adicionaisVivos } from '@/lib/account'
 import { RENEWAL_DAYS } from '@/lib/billing'
 import { CICLOS, cicloDe, limitesEfetivos } from '@/lib/plan-limits'

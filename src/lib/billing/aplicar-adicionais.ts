@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { purchaseExpiry } from '@/lib/billing'
 import { ADICIONAL_INCLUI, PRECO_ADICIONAL, precoDoTreinamento } from '@/lib/plan-limits'
 

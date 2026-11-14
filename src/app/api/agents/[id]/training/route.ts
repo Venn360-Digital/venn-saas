@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { manageAgent } from '@/lib/auth/agent'
 import { DOCUMENTOS } from '@/lib/treinamento/documentos'
 import { hashDoAcervo } from '@/lib/treinamento/indexar'

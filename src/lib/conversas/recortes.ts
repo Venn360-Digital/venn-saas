@@ -1,4 +1,4 @@
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
 /**
  * Os recortes da coluna de Conversas — as abas e o seletor `Ver`.

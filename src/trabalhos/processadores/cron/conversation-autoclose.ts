@@ -1,5 +1,5 @@
 import { subDays } from 'date-fns'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { readAgentPreferences } from '@/types/agent-preferences'
 import { createLogger } from '@/trabalhos/registro'
 

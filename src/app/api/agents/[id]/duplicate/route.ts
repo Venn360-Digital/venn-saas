@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { manageAgent } from '@/lib/auth/agent'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { assinaturaDaUnidade } from '@/lib/account'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
 // POST - Duplicar agente
 export async function POST(

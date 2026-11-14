@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember, canSeeEveryone } from '@/lib/auth/workspace'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 import { enderecoDoRetrato } from '@/lib/retratos'

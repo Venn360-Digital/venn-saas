@@ -1,10 +1,10 @@
 import { canConnectWhatsApp, getWorkspaceLimits } from '@/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { manageAgent } from '@/lib/auth/agent'
 import { lineName, phoneFromConfig } from '@/lib/conversation-line'
-import type { AgentIntegration } from '#prisma'
+import type { AgentIntegration } from '@venn/db'
 import {
     CHANNEL_PROVIDER,
     ChannelProviderError,

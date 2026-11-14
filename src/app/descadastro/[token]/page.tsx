@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { lerTokenDeDescadastro } from '@/lib/marketing/descadastro'
 import { BRAND } from '@/config/brand'
 

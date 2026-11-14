@@ -1,6 +1,6 @@
 import 'server-only'
-import type { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { definidoNoAmbiente, nomeDeAmbiente, segredoDeAmbiente } from '@/lib/secrets/ambiente'
 import { cifrar, decifrar } from '@/lib/secrets/envelope'
 

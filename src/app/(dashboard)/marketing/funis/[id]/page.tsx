@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { membroOuLogin } from '@/lib/indice-servidor'
 
 import { EditorDeFunil, type FunilCarregado } from './EditorDeFunil'

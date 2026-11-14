@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * The courtesy messages the product sends to a patient when the clinic cannot

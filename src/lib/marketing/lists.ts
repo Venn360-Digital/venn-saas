@@ -1,6 +1,6 @@
 import 'server-only'
-import { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
+import { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { contatosEntraramNaLista } from '@/lib/funil/disparos'
 import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 

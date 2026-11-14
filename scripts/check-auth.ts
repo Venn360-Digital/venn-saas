@@ -24,7 +24,7 @@
  */
 import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@/lib/auth/better-auth'
 import { codificarEstado, lerEstado } from '@/lib/instagram/oauth'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

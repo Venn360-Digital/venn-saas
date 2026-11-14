@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { criarEmbeddings } from '@/lib/rag/embeddings'
 import { LLMFactory } from '@/lib/llm/factory'
 import { trackUsage } from '@/lib/llm/usage-tracker'

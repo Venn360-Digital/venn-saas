@@ -3,7 +3,7 @@ import 'server-only'
 import { APP } from '@/config/app.config'
 import { sendEmail } from '@/lib/email/send'
 import { BRAND_HEX } from '@/lib/palette'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { createLogger } from '@/trabalhos/registro'
 
 const log = createLogger('ALERTA:LINHA')

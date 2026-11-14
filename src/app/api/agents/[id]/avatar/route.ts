@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { CLASSES, gravar } from '@/lib/storage'
 import { comoReferencia } from '@/lib/midia'
 import { enderecoDoAvatar } from '@/lib/agents/avatar'

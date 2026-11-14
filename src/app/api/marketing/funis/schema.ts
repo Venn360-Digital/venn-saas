@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
 import { ESPERA_MAX_MIN, TIPOS_DE_PASSO } from '@/lib/funil/passos'
 import { TIPOS_DE_GATILHO } from '@/lib/funil/gatilho'

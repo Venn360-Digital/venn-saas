@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { DEAL_LANES, laneWhere } from '@/lib/deal-lanes'
 import { readAutomations } from '@/lib/automations'
 import { createLogger } from '@/trabalhos/registro'

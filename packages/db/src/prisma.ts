@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-import { PrismaClient } from '#prisma'
+import { PrismaClient } from '@venn/db'
 
-import { criarAdapter } from '@/lib/prisma-adapters'
+import { criarAdapter } from '@venn/db/adapters'
 
 /**
  * O cliente do Prisma, agora sobre um **driver adapter**.

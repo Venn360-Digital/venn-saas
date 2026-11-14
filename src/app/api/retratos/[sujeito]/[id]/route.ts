@@ -8,7 +8,7 @@ import {
 } from '@/lib/retratos'
 import { enderecoDaMidia } from '@/lib/midia'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * O retrato de um usuário ou de um agente, servido por endereço estável.

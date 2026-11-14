@@ -1,6 +1,6 @@
 import { addDays, addMonths, addWeeks, addYears, isAfter, startOfDay } from 'date-fns'
-import type { Activity } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Activity } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { env } from '@/trabalhos/ambiente'
 import { createLogger } from '@/trabalhos/registro'
 

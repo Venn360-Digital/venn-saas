@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { adicionaisVivos } from '@/lib/account'
 import { applyPlanLimits } from '@/lib/limits'
 import { renewalDate } from '@/lib/billing'

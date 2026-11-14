@@ -13,7 +13,7 @@
  *     DATABASE_URL='<homologação>' npm run check:filas
  */
 import { readFileSync } from 'node:fs'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import {
     gravarEvento,
     publicarPendentes,

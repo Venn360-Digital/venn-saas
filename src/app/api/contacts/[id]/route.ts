@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, contactScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { normalizePhone } from '@/lib/intake'
 import { etiquetasAplicadas } from '@/lib/funil/disparos'

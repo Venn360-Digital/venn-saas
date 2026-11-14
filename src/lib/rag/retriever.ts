@@ -1,6 +1,6 @@
 import 'server-only'
 import type { OpenAIEmbeddings } from '@langchain/openai'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { criarEmbeddings } from './embeddings'
 import { candidatosDaBusca, maxPorDocumento, pisoDeSimilaridade } from './parametros'
 import {

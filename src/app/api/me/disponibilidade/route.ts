@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { varrerFilaSemDono } from '@/lib/conversas/dono'
 

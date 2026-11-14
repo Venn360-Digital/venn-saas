@@ -1,9 +1,9 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { z } from 'zod'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 import { searchTerms } from '@/lib/search'
 import { isDealLane, laneWhere } from '@/lib/deal-lanes'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
@@ -82,7 +82,7 @@ const dealInclude = {
         take: 1,
         select: { id: true, title: true, type: true, dueDate: true, startTime: true },
     },
-} satisfies import('#prisma').Prisma.DealInclude
+} satisfies import('@venn/db').Prisma.DealInclude
 
 // GET - List deals with optional filters
 export async function GET(request: NextRequest) {

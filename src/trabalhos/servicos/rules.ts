@@ -1,5 +1,5 @@
-import type { Agent } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Agent } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { RuleEvaluator } from '@/lib/rules/evaluator'
 import { RuleExecutor } from '@/lib/rules/executor'
 import { ruleConfigSchema, type RuleContext, type RuleExecutionResult } from '@/types/rules'

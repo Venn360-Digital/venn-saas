@@ -1,6 +1,6 @@
 import { enderecoDaMidia } from '@/lib/midia'
 import type { ContextoDaEntrega } from '@/lib/queue/consumidor'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { decidirEnvioNoInstagram } from '@/lib/instagram/window'
 import type { MediaKind, SendOptions } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'

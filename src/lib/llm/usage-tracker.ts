@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getBillingState, spendCredits } from '@/lib/billing'
 import { LLMProviderName } from '@/types/llm'
 /**
@@ -8,7 +8,7 @@ import { LLMProviderName } from '@/types/llm'
  * para um caminho fixo dentro de `@prisma/client` amarraria este arquivo a um
  * dos dois. `Prisma.Decimal` é reexportado pelos dois clientes.
  */
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 import { findModel, findTtsModel } from './models'
 
 

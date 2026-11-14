@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { comEnderecoDeMidia } from '@/lib/midia'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { enderecoDoRetrato } from '@/lib/retratos'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { phoneFromConfig } from '@/lib/conversation-line'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 import { avisarConversaAlterada , publicarAgora } from '@/lib/outbox/avisar'
 
 // GET: Get conversation details with messages

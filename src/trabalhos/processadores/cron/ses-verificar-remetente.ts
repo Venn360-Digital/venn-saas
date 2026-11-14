@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { createLogger } from '@/trabalhos/registro'
 import { credenciaisDoSes } from '@/lib/email/ses'
 import { conferirRemetente } from '@/lib/marketing/conferir-remetente'

@@ -1,5 +1,5 @@
 import 'server-only'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { canBroadcast } from '@/lib/limits'
 import { whereDeDestinatarios } from '@/lib/marketing/lists'
 import { ehCanalDeCampanha, type CanalDeCampanha } from '@/lib/marketing/apresentacao'

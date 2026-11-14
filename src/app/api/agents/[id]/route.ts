@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
+import { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { manageAgent, readAgent } from '@/lib/auth/agent'
 import { z } from 'zod'

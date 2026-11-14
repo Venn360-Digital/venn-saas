@@ -1,4 +1,4 @@
-import { Agent } from '#prisma'
+import { Agent } from '@venn/db'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

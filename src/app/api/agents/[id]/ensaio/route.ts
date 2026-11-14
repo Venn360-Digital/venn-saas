@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { manageAgent } from '@/lib/auth/agent'
 import { checkCredits, spendAiCredits } from '@/lib/llm/usage-tracker'
 import { OutOfCreditsError, ensaiarResposta, type TurnoDeEnsaio } from '@/trabalhos/servicos/ai-reply'

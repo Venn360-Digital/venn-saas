@@ -1,5 +1,5 @@
-import type { Agent } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Agent } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, trackUsage } from '@/lib/llm/usage-tracker'
 import type { LLMMessage, LLMProviderName, LLMResponse } from '@/types/llm'

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { conferirRelacoes } from '@/lib/auth/relacoes'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { syncActivityToGoogleCalendar, deleteActivityFromGoogleCalendar } from '@/lib/google-calendar'

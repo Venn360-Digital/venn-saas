@@ -1,4 +1,4 @@
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
 /**
  * Em que etapa do funil está a pessoa desta conversa.

@@ -134,6 +134,16 @@ const nextConfig: NextConfig = {
    * variável não pode quebrá-la. Os scripts `*:vinext` definem BUILD_TARGET.
    */
   output: process.env.BUILD_TARGET === "cloudflare" ? undefined : "standalone",
+  /**
+   * Pacotes do workspace cujo código é TypeScript cru, sem passo de build.
+   *
+   * `@venn/db` publica `.ts` direto no `exports` (é um pacote interno, não vai
+   * para registro nenhum). Sem esta linha, o `next build` o trata como
+   * dependência de `node_modules` e não o transpila — e o alvo Node quebra.
+   * O build da Cloudflare passa pelo vite, que já resolve pacote linkado como
+   * código-fonte; esta é a metade Next da mesma necessidade.
+   */
+  transpilePackages: ['@venn/db'],
   serverExternalPackages: [
     '@langchain/openai',
     '@langchain/textsplitters',

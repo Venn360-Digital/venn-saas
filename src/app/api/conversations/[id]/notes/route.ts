@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
 
 /**

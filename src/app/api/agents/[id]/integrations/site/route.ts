@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { manageAgent } from '@/lib/auth/agent'
 import { novaChave } from '@/lib/widget'
 import {
@@ -9,7 +9,7 @@ import {
     sanearConfiguracaoDoWidget,
     type ConfiguracaoDoWidget,
 } from '@/lib/widget-config'
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
 /**
  * O canal do site: liga, desliga, e devolve o código para colar.

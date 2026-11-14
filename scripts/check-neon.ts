@@ -17,7 +17,7 @@
  *
  *     DATABASE_URL='<branch de homologação>' npm run check:neon
  */
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { readVaultSecret, writeVaultSecret, vaultSecretExists, vaultSecretOrigin, platformSecretName, SegredoDeAmbienteError } from '@/lib/vault'
 import { gerarChave, CHAVE_ENV } from '@/lib/secrets/envelope'
 import { termosLexicais } from '@/lib/rag/fusao'

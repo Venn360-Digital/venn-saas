@@ -1,4 +1,4 @@
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 import { FUSO_DO_NEGOCIO, diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 
 /**

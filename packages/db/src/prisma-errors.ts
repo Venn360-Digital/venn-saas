@@ -1,4 +1,4 @@
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
 /**
  * Reconhecimento de erros do Prisma, tipado.

@@ -1,7 +1,7 @@
 import { requireWritable } from '@/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
 import { comoReferencia, enderecoDaMidia } from '@/lib/midia'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'

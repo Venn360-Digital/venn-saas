@@ -1,6 +1,6 @@
 import { claimAutoNotice } from '@/lib/auto-notice'
 import { instrucaoDeFala, vozValida } from '@/lib/voz'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { findIntegrationById, providerFor } from '@/trabalhos/servicos/integration'
 import { createLogger } from '@/trabalhos/registro'
 import type { AiReplyJob } from '@/lib/queue/definitions'

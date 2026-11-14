@@ -1,7 +1,7 @@
 import { getBillingState } from '@/lib/billing'
 import { claimAutoNotice } from '@/lib/auto-notice'
 import { enqueueOutboundText } from '@/trabalhos/servicos/outbound'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 import { decodeMessage, toMsisdn } from '@/lib/whatsapp'
 import type { RuleContext } from '@/types/rules'

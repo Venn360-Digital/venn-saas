@@ -45,6 +45,16 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Build artefacts and vendored infrastructure.
     "workers/dist/**",
+    // Cópias do repositório que as worktrees do Claude deixam DENTRO dele.
+    // Sem esta linha o eslint entra nelas e linta o projeto várias vezes —
+    // 2338 "erros" na última medição, todos de código que já passou, e que
+    // mascaravam os erros reais. O CI faz checkout limpo e nunca viu isso, o
+    // que fazia o lint local e o do portão discordarem; com a linha, o local
+    // dá exatamente os 189 avisos e 0 erros que o build do Worker dá.
+    ".claude/**",
+    // Cliente do Prisma, gerado. Mudou de lugar na Fase 2 do monorepo
+    // (era `src/generated/`), e o ignore tem de acompanhar.
+    "packages/db/src/generated/**",
   ]),
 ]);
 

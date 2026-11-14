@@ -1,5 +1,5 @@
 import { avisarQuedaDeLinha, avisarRetornoDeLinha } from '@/lib/alertas/linha-caiu'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { isWhatsAppChannel, resolveIntegration, webhookUrlFor } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'
 

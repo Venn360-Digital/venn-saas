@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, dealScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { negocioEntrouNaEtapa, negocioFoiFechado } from '@/lib/funil/disparos'
 import { conferirRelacoes } from '@/lib/auth/relacoes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
 const dealInclude = {
     contact: {

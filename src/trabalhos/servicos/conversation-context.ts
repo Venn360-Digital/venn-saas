@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { createLogger } from '@/trabalhos/registro'
 

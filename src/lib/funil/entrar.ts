@@ -1,5 +1,5 @@
 import 'server-only'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { createLogger } from '@/trabalhos/registro'
 import { criarInstanciaDoFunil, temMotorDoFunil } from '@/trabalhos/funil'
 import { cicloNoDesenho, primeiroPasso } from './passos'

@@ -1,5 +1,5 @@
-import type { Contact, Conversation } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Contact, Conversation } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { darDono } from '@/lib/conversas/dono'
 import { phoneVariants } from '@/lib/whatsapp/types'
 import { withLock } from '@/trabalhos/trava'

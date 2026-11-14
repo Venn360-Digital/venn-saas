@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { enderecoDoRetrato } from '@/lib/retratos'
 import { MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
 import { estadoVisivel, type StatusDoMembro } from '@/lib/conversas/distribuicao'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 import { normalizeSearch } from '@/lib/search'
 
 // GET - List users

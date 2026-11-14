@@ -57,7 +57,7 @@ function baseDaAplicacao(request: NextRequest): string {
     return host ? `${proto}://${host}` : (process.env.NEXT_PUBLIC_APP_URL ?? '')
 }
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { contaDoMaster, accountIdOf, adicionaisCobraveis, adicionaisVivos, assinaturaDaUnidade, daContaDaUnidade, unidadesDaConta } from '@/lib/account'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 

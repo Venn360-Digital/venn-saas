@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PERMISSION_DENIED, currentMembership, hasEditorRole } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { DEFAULT_PIPELINE_STAGES } from '@/lib/palette'
 
 // POST - Seed default pipeline stages

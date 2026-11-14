@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { linhasDeBroadcast } from '@/lib/marketing/lines'
 import { sincronizarTemplates, variaveisDoTemplate } from '@/lib/marketing/templates'

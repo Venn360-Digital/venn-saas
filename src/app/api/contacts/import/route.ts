@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
-import { isUniqueViolation } from '@/lib/prisma-errors'
+import prisma from '@venn/db/cliente'
+import { isUniqueViolation } from '@venn/db/erros'
 import { normalizePhone } from '@/lib/phone'
 
 // POST - Import contacts from CSV data

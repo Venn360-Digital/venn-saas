@@ -17,7 +17,7 @@ import { processCron } from '@/trabalhos/processadores/cron'
 import { aperto, ehAperto } from './aperto-de-mao'
 import { registrarCosturas, type EnvDasCosturas } from './costuras'
 import { aoSerAgendado } from './agendado'
-import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/prisma'
+import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@venn/db/cliente'
 
 export { SalaDoWorkspace } from './sala-do-workspace'
 export { AgendaDaConversa } from './agenda-da-conversa'

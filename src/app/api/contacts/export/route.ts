@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { escapeCsv } from '@/lib/csv'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { createdViaLabel } from '@/lib/created-via'
 import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 import { searchTerms } from '@/lib/search'
 
 // GET - Export contacts as CSV

@@ -1,4 +1,4 @@
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 import {
     POLITICA_PADRAO,
     type EstrategiaDeDistribuicao,

@@ -1,0 +1,10 @@
+# O monorepo venn-saas. Entrou em 14/11/2026, na Fase 2 da unificação dos três
+# produtos — ver `infra/runbook/` e o plano em ~/.claude/plans/.
+#
+# A ordem de chegada é proposital: `packages/db` primeiro, sozinho, porque ele
+# é quem exercita a mecânica nova inteira (resolução de workspace, condição
+# `workerd` no `exports`, geração do Prisma dentro de um pacote). Se ele passa
+# no typecheck duplo e no build de preview, o resto do movimento é repetição.
+packages:
+  - 'packages/*'
+  - 'apps/*'

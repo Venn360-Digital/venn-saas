@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { transmitir } from '@/trabalhos/tempo-real'
 import { createLogger } from '@/trabalhos/registro'
 import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'

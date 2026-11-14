@@ -1,4 +1,4 @@
-import type { AgentIntegration, Prisma } from '#prisma'
+import type { AgentIntegration, Prisma } from '@venn/db'
 import { instagramDirect } from '@/lib/instagram/provider'
 import { evolutionGo } from './evolution-go'
 import { metaWhatsApp } from './meta-whatsapp'

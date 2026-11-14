@@ -5,7 +5,7 @@ import { ROTULO_DO_PAPEL } from '@/lib/papeis'
 import { auth } from '@/lib/auth/better-auth'
 import { diasRestantes, estadoDoConvite, podeAceitar } from '@/lib/convite/estado'
 import { pareceToken, resumoDoToken } from '@/lib/convite/token'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * O aceite do convite — a única rota **pública** que cria credencial.

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { APP } from '@/config/app.config'
 import { enderecoDaMidia } from '@/lib/midia'
 import { igualEmTempoConstante } from '@/lib/comparacao'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { transcribeAudio } from '@/trabalhos/servicos/transcribe'
 
 /**

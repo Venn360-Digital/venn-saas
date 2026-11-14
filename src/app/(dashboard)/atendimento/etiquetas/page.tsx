@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { membroOuLogin, primeiraPagina } from '@/lib/indice-servidor'
 
 import { EtiquetasClient } from './EtiquetasClient'

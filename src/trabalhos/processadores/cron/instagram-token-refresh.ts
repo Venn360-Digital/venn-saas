@@ -1,5 +1,5 @@
-import { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
+import { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { renovarToken } from '@/lib/instagram/login'
 import type { InstagramCredentials } from '@/lib/whatsapp'
 import { createLogger } from '@/trabalhos/registro'

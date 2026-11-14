@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { manageAgent } from '@/lib/auth/agent'
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 import { ehHoldout } from '@/lib/avaliacao/pareado'
 
 /**

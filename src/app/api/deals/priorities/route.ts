@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { DEAL_LANES, laneWhere } from '@/lib/deal-lanes'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'

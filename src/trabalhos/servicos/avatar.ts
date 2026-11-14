@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { toMsisdn } from '@/lib/whatsapp'
 import type { IntegrationConfig, ChannelProvider } from '@/lib/whatsapp'
 import { NOME_PROVISORIO_INSTAGRAM } from './conversation'

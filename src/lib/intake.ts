@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { resolveIntegration } from '@/lib/whatsapp'
 import { msisdnDoJid, phoneVariants } from '@/lib/whatsapp/types'
 import { formatPhone, normalizePhone } from '@/lib/phone'

@@ -1,8 +1,8 @@
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
 import { contactScope, type WorkspaceMember } from '@/lib/auth/workspace'
 import { LIMITE_PADRAO, type PaginaDeIndice } from '@/lib/indice'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { searchTerms } from '@/lib/search'
 
 /**
