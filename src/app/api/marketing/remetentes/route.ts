@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { criarIdentidade, credenciaisDoSes } from '@/lib/email/ses'
-import { registrosDeDns, nomeDoConfigurationSet } from '@/lib/marketing/remetentes'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { criarIdentidade, credenciaisDoSes } from '@venn/core/lib/email/ses'
+import { registrosDeDns, nomeDoConfigurationSet } from '@venn/core/lib/marketing/remetentes'
 import { APP } from '@/config/app.config'
 
 /**

@@ -1,0 +1,28 @@
+{
+    "name": "@venn/core",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "// nasce pequeno": "Recebeu os ~405 arquivos de domínio na Fase 2 (lib, hooks, trabalhos, components e os Durable Objects/consumidores). Antes disso nasceu com um arquivo só — o registro da marca — porque era ele que tornava este movimento possível: 10 dos arquivos que vieram para cá importavam `@/config/brand`, e mover sem o registro criaria `core → app` em dez pontos.",
+    "exports": {
+        "./marca": "./src/marca.ts",
+        "./marca-contexto": "./src/marca-contexto.tsx",
+        "./hooks/useMoeda": "./src/hooks/useMoeda.tsx",
+        "./components/onboarding/types": "./src/components/onboarding/types.ts",
+        "./components/agents/creation/useFacebookSdk": "./src/components/agents/creation/useFacebookSdk.ts",
+        "./components/agents/creation/unsaved": "./src/components/agents/creation/unsaved.ts",
+        "./lib/outbox": "./src/lib/outbox/index.ts",
+        "./lib/storage": "./src/lib/storage/index.ts",
+        "./lib/whatsapp": "./src/lib/whatsapp/index.ts",
+        "./trabalhos/processadores/cron": "./src/trabalhos/processadores/cron/index.ts",
+        "./lib/*": "./src/lib/*.ts",
+        "./hooks/*": "./src/hooks/*.ts",
+        "./trabalhos/*": "./src/trabalhos/*.ts",
+        "./cloudflare/*": "./src/cloudflare/*.ts",
+        "./components/*": "./src/components/*.tsx"
+    },
+    "peerDependencies": {
+        "react": "*"
+    },
+    "// exports": "Padrão por grupo, com as quatro exceções de extensão listadas ANTES do padrão (o mais específico ganha). `components` é quase todo `.tsx` e os outros grupos são `.ts`, então cada grupo declara a sua extensão; os quatro arquivos que fogem à regra do grupo aparecem um a um. As quatro pastas que se importam pelo nome do diretório (`lib/outbox`, `lib/storage`, `lib/whatsapp`, `trabalhos/processadores/cron`) também vêm uma a uma: o padrão procuraria `lib/outbox.ts`, que não existe — o módulo é `lib/outbox/index.ts`. Não há risco de um arquivo novo ficar silenciosamente sem rota: o import dele falha no typecheck como módulo não encontrado, que é erro alto e local."
+}

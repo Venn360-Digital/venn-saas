@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { FileQuestion } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { Button } from '@venn/ui/button'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
 
 export default function NotFound() {
     return (

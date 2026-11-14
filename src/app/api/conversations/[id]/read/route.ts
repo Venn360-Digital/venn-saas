@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { assertConversationAccess, getWorkspaceMember } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { assertConversationAccess, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 
 // POST: Mark conversation as read
 export async function POST(

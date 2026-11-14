@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { enderecoDoRetrato } from '@/lib/retratos'
+import prisma from '@venn/db/cliente'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
 import {
     lerAba,
     lerVer,
     limiteDoAtendente,
     recorteDaAba,
     recorteDoVer,
-} from '@/lib/conversas/recortes'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
+} from '@venn/core/lib/conversas/recortes'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { Prisma } from '@venn/db'
 
 /**
  * Quantas conversas a lista devolve por chamada.
@@ -19,18 +19,18 @@ import { Prisma } from '#prisma'
  * `take` do `findMany`.
  */
 const TETO_DA_LISTA = 40
-import { searchTerms } from '@/lib/search'
+import { searchTerms } from '@venn/core/lib/search'
 import {
     SELECT_ETAPA,
     etapaPorContato,
     negocioNoFunil,
     recorteDeEtapa,
     recorteDeEtiqueta,
-} from '@/lib/conversas/etapa-do-funil'
-import { WHATSAPP_CHANNELS, phoneFromConfig } from '@/lib/conversation-line'
-import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
-import { inicioDoDiaDe } from '@/lib/fuso'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
+} from '@venn/core/lib/conversas/etapa-do-funil'
+import { WHATSAPP_CHANNELS, phoneFromConfig } from '@venn/core/lib/conversation-line'
+import { conversationScope, currentMembership, type WorkspaceRole } from '@venn/core/lib/auth/workspace'
+import { inicioDoDiaDe } from '@venn/core/lib/fuso'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 
 // GET: List conversations for the user's workspace
 export async function GET(request: NextRequest) {

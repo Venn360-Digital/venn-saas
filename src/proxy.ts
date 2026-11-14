@@ -1,5 +1,5 @@
 import { type NextRequest } from 'next/server'
-import { aplicarPortao } from '@/lib/auth/middleware'
+import { aplicarPortao } from '@venn/core/lib/auth/middleware'
 
 export async function proxy(request: NextRequest) {
     return await aplicarPortao(request)

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 
 // GET: List all active workspace members (for deal owner select)
 export async function GET() {

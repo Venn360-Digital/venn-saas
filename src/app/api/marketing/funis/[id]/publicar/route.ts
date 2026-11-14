@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { podePublicar } from '@/lib/funil/publicar'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { podePublicar } from '@venn/core/lib/funil/publicar'
 
 /**
  * Publicar e despublicar — os dois atos que mudam o que o sistema **faz**.

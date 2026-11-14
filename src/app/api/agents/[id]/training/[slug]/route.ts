@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { manageAgent } from '@/lib/auth/agent'
-import { acharDocumento } from '@/lib/treinamento/documentos'
+import prisma from '@venn/db/cliente'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 
 /**
  * Grava um documento de treinamento e decide o que fazer com o acervo.

@@ -18,7 +18,7 @@ import {
     K_RRF,
     reservarVagaParaProcedimento,
     termosLexicais,
-} from '@/lib/rag/fusao'
+} from '@venn/core/lib/rag/fusao'
 
 let passou = 0
 let falhou = 0

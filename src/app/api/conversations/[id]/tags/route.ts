@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { etiquetaAplicada } from '@/lib/funil/disparos'
+import prisma from '@venn/db/cliente'
+import { conversationScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { etiquetaAplicada } from '@venn/core/lib/funil/disparos'
 
 /**
  * As etiquetas de uma conversa — que são também as do paciente.

@@ -16,17 +16,17 @@ import {
     type LucideIcon,
 } from 'lucide-react'
 
-import { Logo } from '@/components/brand/Logo'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Logo } from '@venn/core/components/brand/Logo'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { cn } from '@/lib/utils'
-import { normalizeSearch } from '@/lib/search'
+} from '@venn/ui/collapsible'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { cn } from '@venn/ui/utils'
+import { normalizeSearch } from '@venn/core/lib/search'
 
 /**
  * A central de ajuda, dentro do próprio produto.

@@ -42,18 +42,31 @@
  * ocorrência, nunca para calar uma nova.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
-import { readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
+import { arquivosDeCodigo, exigirPiso, conferirAllowlist } from './lib/raizes-de-codigo.mjs'
 
 const RAIZ = process.cwd()
 const BASELINE = join(RAIZ, 'scripts', 'fuso-baseline.json')
 
-/** Só servidor: aqui o relógio é UTC e a hora local é mentira. */
-const PASTAS = ['src/app/api', 'src/trabalhos', 'src/lib', 'src/cloudflare']
+/**
+ * Só servidor: aqui o relógio é UTC e a hora local é mentira.
+ *
+ * São SUBcaminhos dentro de cada raiz de código, não caminhos absolutos a
+ * partir do repositório. Antes eram `src/app/api`, `src/trabalhos`, `src/lib`
+ * e `src/cloudflare` fixos — as quatro pastas que a Fase 2 leva para
+ * `packages/core`. Fixas, elas deixariam este lint varrendo o vazio e
+ * aprovando: 407 arquivos hoje, zero depois do `git mv`, e "nenhuma conta de
+ * calendário em hora local" continuaria sendo impresso.
+ */
+const PASTAS = ['app/api', 'trabalhos', 'lib', 'cloudflare']
 
 const ISENTOS = [
-    'src/lib/fuso.ts', // a implementação
-    'src/generated/',
+    // A implementação. O prefixo é explícito, e não um sufixo tolerante, de
+    // propósito: quando o arquivo mudar de pacote, `conferirAllowlist` reprova
+    // no commit que o move — que é o único momento em que alguém sabe para
+    // onde ele foi. `src/generated/` saiu da lista: o módulo de raízes já
+    // exclui toda pasta `generated`, em qualquer pacote.
+    'packages/core/src/lib/fuso.ts',
 ]
 
 const PROIBIDO = /\.(getHours|getDate|getMonth|getDay|getFullYear|getMinutes)\(\)/g
@@ -61,30 +74,19 @@ const PROIBIDO = /\.(getHours|getDate|getMonth|getDay|getFullYear|getMinutes)\(\
 /** `x.setDate(x.getDate() + N)` — desloca dias, independe do fuso. */
 const ARITMETICA_DE_DIAS = /\.set(Date|Month|FullYear)\(\s*[A-Za-z_$][\w$]*\.get(Date|Month|FullYear)\(\)\s*[+-]/
 
-function arquivos(dir) {
-    const saida = []
-    let entradas
-    try {
-        entradas = readdirSync(dir)
-    } catch {
-        return saida
-    }
-    for (const nome of entradas) {
-        const caminho = join(dir, nome)
-        if (statSync(caminho).isDirectory()) saida.push(...arquivos(caminho))
-        else if (caminho.endsWith('.ts')) saida.push(caminho)
-    }
-    return saida
-}
+// Só `.ts`: componente não faz conta de calendário no servidor, e incluir
+// `.tsx` encheria o resultado de hora local legítima de tela.
+const varridos = arquivosDeCodigo(PASTAS).filter((f) => f.endsWith('.ts'))
+exigirPiso('lint-fuso', varridos, 200)
+conferirAllowlist('lint-fuso', ISENTOS, varridos)
 
 const achados = []
 
-for (const pasta of PASTAS) {
-    for (const caminho of arquivos(join(RAIZ, pasta))) {
-        const rel = relative(RAIZ, caminho).split('\\').join('/')
+{
+    for (const rel of varridos) {
         if (ISENTOS.some((i) => rel.startsWith(i) || rel === i)) continue
 
-        const linhas = readFileSync(caminho, 'utf8').split('\n')
+        const linhas = readFileSync(join(RAIZ, rel), 'utf8').split('\n')
         linhas.forEach((linha, i) => {
             const semComentario = linha.replace(/\/\/.*$/, '')
             const cru = semComentario.trim()

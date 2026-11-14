@@ -27,7 +27,7 @@ import {
     podeReceber,
     type MembroElegivel,
     type PoliticaDeDistribuicao,
-} from '@/lib/conversas/distribuicao'
+} from '@venn/core/lib/conversas/distribuicao'
 
 let passou = 0
 let falhou = 0

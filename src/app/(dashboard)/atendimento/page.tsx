@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 
 /**
  * `/atendimento` não tem tela própria: manda para a primeira da seção.

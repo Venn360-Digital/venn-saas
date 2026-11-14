@@ -88,7 +88,12 @@ AGENTS.md
 
 # Clientes do Prisma, gerados por `prisma generate` (dois runtimes).
 # Carregam o engine nativo de ~21 MB cada: artefato, nunca fonte.
-src/generated/
+#
+# A entrada `src/generated/` saiu junto com a Fase 2 (14/11): o schema mora em
+# `packages/db/prisma/`, e o `output` relativo dele resolve para dentro do
+# pacote. Mantê-la cobriria a cópia que o `git mv` deixou atrás — 164 arquivos
+# que nada importa — e o ignore esconderia justamente o resto a limpar.
+packages/db/src/generated/
 
 # Artefatos de build/deploy do wrangler. Os dois que ficaram rastreados por
 # engano saíram do índice em 2026-10-24, junto com a correção da regra de

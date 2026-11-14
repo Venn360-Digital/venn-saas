@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { canSeeEveryone, currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { canSeeEveryone, currentMembership } from '@venn/core/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { z } from 'zod'
 
 // Schema for updating a user

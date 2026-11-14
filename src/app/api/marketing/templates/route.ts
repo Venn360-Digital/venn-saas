@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { linhasDeBroadcast } from '@/lib/marketing/lines'
-import { sincronizarTemplates, variaveisDoTemplate } from '@/lib/marketing/templates'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { linhasDeBroadcast } from '@venn/core/lib/marketing/lines'
+import { sincronizarTemplates, variaveisDoTemplate } from '@venn/core/lib/marketing/templates'
 
 const syncSchema = z.object({ integrationId: z.string().min(1) })
 

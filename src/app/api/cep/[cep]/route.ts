@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 
 /**
  * O CEP, consultado **pelo servidor** — e é isso que conserta a busca.

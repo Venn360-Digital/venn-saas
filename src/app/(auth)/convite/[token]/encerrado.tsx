@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
-import type { EstadoDoConvite } from '@/lib/convite/estado'
-import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/brand/Logo'
+import type { EstadoDoConvite } from '@venn/core/lib/convite/estado'
+import { Button } from '@venn/ui/button'
+import { Logo } from '@venn/core/components/brand/Logo'
 
 /**
  * O convite que não vale mais — e o que fazer agora.

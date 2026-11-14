@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { isUniqueViolation } from '@/lib/prisma-errors'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { isUniqueViolation } from '@venn/db/erros'
 
 // GET - List origins for the workspace
 export async function GET() {

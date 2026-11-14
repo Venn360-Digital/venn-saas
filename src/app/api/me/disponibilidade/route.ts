@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { varrerFilaSemDono } from '@/lib/conversas/dono'
+import prisma from '@venn/db/cliente'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { varrerFilaSemDono } from '@venn/core/lib/conversas/dono'
 
 /**
  * O próprio status de quem está logado.

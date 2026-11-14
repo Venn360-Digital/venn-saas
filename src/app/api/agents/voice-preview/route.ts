@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { requireWritable } from '@/lib/billing'
-import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
-import { TTS_MODELS } from '@/lib/llm/models'
-import { VOZES_IDS } from '@/lib/voz'
-import { OPENAI_BASE_URL } from '@/lib/llm/base-url'
+import { requireWritable } from '@venn/core/lib/billing'
+import { MANAGER_ROLES, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { TTS_MODELS } from '@venn/core/lib/llm/models'
+import { VOZES_IDS } from '@venn/core/lib/voz'
+import { OPENAI_BASE_URL } from '@venn/core/lib/llm/base-url'
 
 
 const schema = z.object({

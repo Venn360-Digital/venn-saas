@@ -24,7 +24,7 @@ import {
     gatilhoDeMencao,
     inserirMencao,
     temMencao,
-} from '@/lib/conversas/mencoes'
+} from '@venn/core/lib/conversas/mencoes'
 
 let passou = 0
 let falhou = 0

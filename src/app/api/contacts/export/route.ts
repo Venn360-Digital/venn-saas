@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { escapeCsv } from '@/lib/csv'
-import prisma from '@/lib/prisma'
-import { createdViaLabel } from '@/lib/created-via'
-import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { Prisma } from '#prisma'
-import { searchTerms } from '@/lib/search'
+import { escapeCsv } from '@venn/core/lib/csv'
+import prisma from '@venn/db/cliente'
+import { createdViaLabel } from '@venn/core/lib/created-via'
+import { contactScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { Prisma } from '@venn/db'
+import { searchTerms } from '@venn/core/lib/search'
 
 // GET - Export contacts as CSV
 export async function GET(request: NextRequest) {

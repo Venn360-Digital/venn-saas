@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { manageAgent } from '@/lib/auth/agent'
-import type { Prisma } from '#prisma'
-import { ehHoldout } from '@/lib/avaliacao/pareado'
+import prisma from '@venn/db/cliente'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import type { Prisma } from '@venn/db'
+import { ehHoldout } from '@venn/core/lib/avaliacao/pareado'
 
 /**
  * O conjunto dourado: os casos guardados no console de ensaio.

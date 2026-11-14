@@ -1,12 +1,12 @@
-import { AppSidebar } from '@/components/layout/AppSidebar'
-import { FaixaDeAvaliacao } from '@/components/layout/FaixaDeAvaliacao'
-import { avaliacaoDaSessao } from '@/lib/avaliacao'
-import { marcaDaSessao } from '@/lib/session-brand'
-import { DocumentTitle } from '@/components/layout/DocumentTitle'
-import { Topbar } from '@/components/layout/Topbar'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { MoedaProvider } from '@/hooks/useMoeda'
-import { TarjaDeAcesso } from '@/components/plataforma/TarjaDeAcesso'
+import { AppSidebar } from '@venn/core/components/layout/AppSidebar'
+import { FaixaDeAvaliacao } from '@venn/core/components/layout/FaixaDeAvaliacao'
+import { avaliacaoDaSessao } from '@venn/core/lib/avaliacao'
+import { marcaDaSessao } from '@venn/core/lib/session-brand'
+import { DocumentTitle } from '@venn/core/components/layout/DocumentTitle'
+import { Topbar } from '@venn/core/components/layout/Topbar'
+import { SidebarInset, SidebarProvider } from '@venn/ui/sidebar'
+import { MoedaProvider } from '@venn/core/hooks/useMoeda'
+import { TarjaDeAcesso } from '@venn/core/components/plataforma/TarjaDeAcesso'
 
 /**
  * The shell owns navigation and nothing else.

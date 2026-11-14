@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { connectedWhatsApp } from '@/lib/intake'
-import { normalizePhone } from '@/lib/intake'
-import { phoneVariants } from '@/lib/whatsapp/types'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { connectedWhatsApp } from '@venn/core/lib/intake'
+import { normalizePhone } from '@venn/core/lib/intake'
+import { phoneVariants } from '@venn/core/lib/whatsapp/types'
 
 /** Uma página da lista de pacientes por vez. */
 const MAX = 60

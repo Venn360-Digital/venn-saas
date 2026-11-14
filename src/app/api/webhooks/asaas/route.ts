@@ -1,11 +1,11 @@
-import { igualEmTempoConstante } from '@/lib/comparacao'
+import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { asaasWebhookToken } from '@/lib/asaas/client'
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
-import { isUniqueViolation } from '@/lib/prisma-errors'
+import prisma from '@venn/db/cliente'
+import { asaasWebhookToken } from '@venn/core/lib/asaas/client'
+import { QUEUE } from '@venn/core/lib/queue/definitions'
+import { entregar } from '@venn/core/lib/queue/entregar'
+import { isUniqueViolation } from '@venn/db/erros'
 
 /**
  * O endpoint que o Asaas chama. Grava, responde 200, e processa na fila.

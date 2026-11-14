@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Ban, CalendarClock, Send, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { FormField } from '@/components/shared/FormField'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { usePermissions } from '@/hooks/usePermissions'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { STATUS_CAMPANHA } from '../dados'
-import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
+import type { CanalDeCampanha } from '@venn/core/lib/marketing/apresentacao'
 
 export interface CampanhaDetalhe {
     id: string

@@ -26,10 +26,10 @@
  * pacientes mandaria 5.000 boas-vindas). O que ele garante é que nenhum tipo
  * está declarado e morto.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { arquivosDeCodigo, exigirPiso, resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
 
-import { TIPOS_DE_GATILHO, TEXTO_DO_GATILHO, type TipoDeGatilho } from '../src/lib/funil/gatilho'
+import { TIPOS_DE_GATILHO, TEXTO_DO_GATILHO, type TipoDeGatilho } from '@venn/core/lib/funil/gatilho'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {
@@ -58,23 +58,25 @@ const DISPARO: Record<TipoDeGatilho, string> = {
     manual: 'postoNoFunilAMao',
 }
 
-const RAIZ = 'src'
-const DISPAROS = 'src/lib/funil/disparos.ts'
+/**
+ * Onde o disparo mora, procurado em vez de fixado.
+ *
+ * Era `'src/lib/funil/disparos.ts'`. Na Fase 2 `src/lib` FOI para
+ * `packages/core`, e um caminho fixo aqui faria o `readFileSync` lançar — ou
+ * pior, faria a lista de chamadores ficar vazia e todas as provas de "cada
+ * disparo tem quem o chame" passarem sobre o nada.
+ */
+const SUFIXO_DOS_DISPAROS = 'lib/funil/disparos.ts'
 
-function arquivos(dir: string): string[] {
-    const saida: string[] = []
-    for (const nome of readdirSync(dir)) {
-        // `src/generated` é cliente do Prisma: megabytes de código gerado que
-        // não chama nada nosso.
-        if (nome === 'generated' || nome === 'node_modules') continue
-        const caminho = join(dir, nome)
-        if (statSync(caminho).isDirectory()) saida.push(...arquivos(caminho))
-        else if (/\.(ts|tsx)$/.test(nome)) saida.push(caminho)
-    }
-    return saida
+const todos = arquivosDeCodigo()
+exigirPiso('check-gatilhos', todos, 400)
+
+const DISPAROS = todos.find((f) => f.endsWith(SUFIXO_DOS_DISPAROS))
+if (!DISPAROS) {
+    console.error(`\n✖ não achei nenhum arquivo terminando em "${SUFIXO_DOS_DISPAROS}".`)
+    console.error('Sem ele não há o que verificar, e passar seria aprovar o nada.\n')
+    process.exit(1)
 }
-
-const todos = arquivos(RAIZ)
 const fonteDosDisparos = readFileSync(DISPAROS, 'utf8')
 
 console.log('── Cada tipo tem função de disparo ──')
@@ -145,7 +147,7 @@ ok(
     'importação é migração de acervo, não chegada de gente nova'
 )
 
-const noServico = readFileSync('src/trabalhos/servicos/conversation.ts', 'utf8')
+const noServico = readFileSync(resolverNoCodigo('trabalhos/servicos/conversation.ts'), 'utf8')
 ok(
     'o serviço de conversa não dispara funil',
     !/contatoCriado\(|talvezEntrarNoFunil\(/.test(noServico),

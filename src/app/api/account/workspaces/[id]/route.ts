@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
-import { getWorkspaceMember, MANAGER_ROLES } from '@/lib/auth/workspace'
-import { accountIdOf } from '@/lib/account'
-import type { Prisma } from '#prisma'
-import { comFusoNasConfiguracoes, lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
-import { FUSOS } from '@/lib/fusos'
+import prisma from '@venn/db/cliente'
+import { getWorkspaceMember, MANAGER_ROLES } from '@venn/core/lib/auth/workspace'
+import { accountIdOf } from '@venn/core/lib/account'
+import type { Prisma } from '@venn/db'
+import { comFusoNasConfiguracoes, lerFusoDasConfiguracoes } from '@venn/core/lib/fuso-da-unidade'
+import { FUSOS } from '@venn/core/lib/fusos'
 
 /**
  * Os dados de **uma** unidade: nome, endereço, telefone, fuso horário.

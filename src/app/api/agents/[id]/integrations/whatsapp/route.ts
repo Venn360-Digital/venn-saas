@@ -1,10 +1,10 @@
-import { canConnectWhatsApp, getWorkspaceLimits } from '@/lib/limits'
+import { canConnectWhatsApp, getWorkspaceLimits } from '@venn/core/lib/limits'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
-import prisma from '@/lib/prisma'
-import { manageAgent } from '@/lib/auth/agent'
-import { lineName, phoneFromConfig } from '@/lib/conversation-line'
-import type { AgentIntegration } from '#prisma'
+import prisma from '@venn/db/cliente'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { lineName, phoneFromConfig } from '@venn/core/lib/conversation-line'
+import type { AgentIntegration } from '@venn/db'
 import {
     CHANNEL_PROVIDER,
     ChannelProviderError,
@@ -14,8 +14,8 @@ import {
     resolveIntegration,
     toJsonConfig,
     webhookUrlFor,
-} from '@/lib/whatsapp'
-import type { ConnectionState } from '@/lib/whatsapp/types'
+} from '@venn/core/lib/whatsapp'
+import type { ConnectionState } from '@venn/core/lib/whatsapp/types'
 
 /**
  * As linhas de WhatsApp de um agente, servidas por Evolution Go (whatsmeow).

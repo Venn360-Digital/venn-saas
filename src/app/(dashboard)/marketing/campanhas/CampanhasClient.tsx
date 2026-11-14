@@ -5,28 +5,28 @@ import { useRouter } from 'next/navigation'
 import { Megaphone, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { DataTable, type Column } from '@/components/shared/DataTable'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { FormField } from '@/components/shared/FormField'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { usePermissions } from '@/hooks/usePermissions'
-import { useIndiceServidor } from '@/hooks/useIndiceServidor'
+} from '@venn/ui/select'
+import { DataTable, type Column } from '@venn/core/components/shared/DataTable'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
 
 import {
     CANAIS_DE_CAMPANHA,
     NOME_DO_CANAL,
     type CanalDeCampanha,
-} from '@/lib/marketing/apresentacao'
+} from '@venn/core/lib/marketing/apresentacao'
 
 import { type CampanhaItem, type DadosIniciais, ORDEM_STATUS, STATUS_CAMPANHA } from './dados'
 

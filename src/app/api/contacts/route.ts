@@ -1,13 +1,13 @@
-import { requireWritable } from '@/lib/billing'
+import { requireWritable } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { contatoCriado } from '@/lib/funil/disparos'
-import { Prisma } from '#prisma'
+import prisma from '@venn/db/cliente'
+import { contatoCriado } from '@venn/core/lib/funil/disparos'
+import { Prisma } from '@venn/db'
 import { z } from 'zod'
-import { normalizePhone } from '@/lib/intake'
-import { phoneVariants } from '@/lib/whatsapp/types'
-import { currentMembership, getWorkspaceMember } from '@/lib/auth/workspace'
-import { consultarPacientes, FILTROS_PADRAO } from '@/lib/pacientes-consulta'
+import { normalizePhone } from '@venn/core/lib/intake'
+import { phoneVariants } from '@venn/core/lib/whatsapp/types'
+import { currentMembership, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { consultarPacientes, FILTROS_PADRAO } from '@venn/core/lib/pacientes-consulta'
 
 const contactSchema = z.object({
     name: z.string().optional().nullable(),

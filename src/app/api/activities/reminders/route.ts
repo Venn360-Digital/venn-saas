@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { diaDeDataSemHora, instanteNoFuso } from '@venn/core/lib/fuso'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 
 // GET - Fetch pending reminders for the current user
 // Returns activities that have a reminder set and are due within the reminder window

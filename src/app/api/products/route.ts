@@ -1,11 +1,11 @@
-import { requireWritable } from '@/lib/billing'
+import { requireWritable } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { SCHEDULABLE_CATEGORIES, isSchedulable } from '@/lib/product-categories'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { SCHEDULABLE_CATEGORIES, isSchedulable } from '@venn/core/lib/product-categories'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 import { z } from 'zod'
-import { Prisma } from '#prisma'
-import { normalizeSearch } from '@/lib/search'
+import { Prisma } from '@venn/db'
+import { normalizeSearch } from '@venn/core/lib/search'
 
 const productSchema = z.object({
     name: z.string().min(1, 'Nome é obrigatório'),

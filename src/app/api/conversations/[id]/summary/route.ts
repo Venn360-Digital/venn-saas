@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { LLMFactory } from '@/lib/llm/factory'
-import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
-import { diaNoFuso, inicioDoDiaUtc } from '@/lib/fuso'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
+import prisma from '@venn/db/cliente'
+import { conversationScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { LLMFactory } from '@venn/core/lib/llm/factory'
+import { checkCredits, spendAiCredits, trackUsage } from '@venn/core/lib/llm/usage-tracker'
+import { diaNoFuso, inicioDoDiaUtc } from '@venn/core/lib/fuso'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 import {
     JANELA_DO_RESUMO,
     MODELO_DO_RESUMO,
     SYSTEM_DO_RESUMO,
     transcrever,
-} from '@/lib/conversas/resumo'
+} from '@venn/core/lib/conversas/resumo'
 
 /** Barato de propósito: resumir não precisa do modelo caro. */
 /**

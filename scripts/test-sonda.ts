@@ -13,7 +13,7 @@
  * dia; um 503 momentâneo da OpenAI que acorde o suporte é como se ensina
  * alguém a criar filtro para o remetente.
  */
-import { assuntoDoAviso, julgar, mereceAviso } from '@/lib/llm/sonda'
+import { assuntoDoAviso, julgar, mereceAviso } from '@venn/core/lib/llm/sonda'
 
 let passou = 0
 let falhou = 0

@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import type { Prisma } from '#prisma'
-import { manageAgent } from '@/lib/auth/agent'
-import { LLMFactory } from '@/lib/llm/factory'
-import { trackUsage } from '@/lib/llm/usage-tracker'
+import prisma from '@venn/db/cliente'
+import type { Prisma } from '@venn/db'
+import { manageAgent } from '@venn/core/lib/auth/agent'
+import { LLMFactory } from '@venn/core/lib/llm/factory'
+import { trackUsage } from '@venn/core/lib/llm/usage-tracker'
 import type { LLMProviderName } from '@/types/llm'
-import { OutOfCreditsError, ensaiarResposta } from '@/trabalhos/servicos/ai-reply'
-import { interpretarVeredito, promptDoJuiz, type CasoDourado } from '@/lib/avaliacao/juiz'
+import { OutOfCreditsError, ensaiarResposta } from '@venn/core/trabalhos/servicos/ai-reply'
+import { interpretarVeredito, promptDoJuiz, type CasoDourado } from '@venn/core/lib/avaliacao/juiz'
 import {
     agregar,
     ehHoldout,
@@ -16,7 +16,7 @@ import {
     quemGanhou,
     suspeitas,
     type Lado,
-} from '@/lib/avaliacao/pareado'
+} from '@venn/core/lib/avaliacao/pareado'
 
 /**
  * O Andar 2 da avaliação: o juiz pareado sobre o conjunto dourado.

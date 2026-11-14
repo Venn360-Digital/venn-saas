@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, contactScope, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
-import { normalizePhone } from '@/lib/intake'
-import { etiquetasAplicadas } from '@/lib/funil/disparos'
+import prisma from '@venn/db/cliente'
+import { PERMISSION_DENIED, contactScope, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { normalizePhone } from '@venn/core/lib/intake'
+import { etiquetasAplicadas } from '@venn/core/lib/funil/disparos'
 
 // GET - Get contact details with full history
 export async function GET(

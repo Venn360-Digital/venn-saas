@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { APP } from '@/config/app.config'
 import { BRAND } from '@/config/brand'
-import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
-import { TEMPLATES } from '@/lib/email/templates'
-import { estadoDoConvite, podeReenviar, podeRevogar, vencimentoDe } from '@/lib/convite/estado'
-import prisma from '@/lib/prisma'
-import { sendEmail } from '@/lib/email/send'
-import { sortearToken } from '@/lib/convite/token'
+import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
+import { TEMPLATES } from '@venn/core/lib/email/templates'
+import { estadoDoConvite, podeReenviar, podeRevogar, vencimentoDe } from '@venn/core/lib/convite/estado'
+import prisma from '@venn/db/cliente'
+import { sendEmail } from '@venn/core/lib/email/send'
+import { sortearToken } from '@venn/core/lib/convite/token'
 
 /**
  * Reenviar e revogar um convite.

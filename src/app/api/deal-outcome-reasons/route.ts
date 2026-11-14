@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { getWorkspaceMember, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { getWorkspaceMember, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 
 const KINDS = new Set(['won', 'lost'])
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { readAgent } from '@/lib/auth/agent'
-import { conversationScope } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { readAgent } from '@venn/core/lib/auth/agent'
+import { conversationScope } from '@venn/core/lib/auth/workspace'
 
 /** Teto de linhas: a tela é um histórico de leitura, não um relatório. */
 const LIMIT = 200

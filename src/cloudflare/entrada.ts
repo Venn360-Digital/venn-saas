@@ -1,30 +1,34 @@
 /// <reference types="@cloudflare/workers-types" />
 
+// PRIMEIRO de todos: este entrypoint cobre fila, cron e Durable Object, que
+// não têm requisição nem provider de React acima deles. Ver `src/marca-init.ts`.
+import '@/marca-init'
+
 import vinext from 'vinext/server/fetch-handler'
 
-import { ALL_QUEUES, QUEUE, type JobPayloads, type QueueName } from '@/lib/queue/definitions'
-import { consumirLote, exponencial, type Processador } from '@/lib/queue/consumidor'
-import { processWhatsAppInbound } from '@/trabalhos/processadores/whatsapp-inbound'
-import { processWhatsAppEvent } from '@/trabalhos/processadores/whatsapp-event'
-import { processWhatsAppOutbound } from '@/trabalhos/processadores/whatsapp-outbound'
-import { processAiReply } from '@/trabalhos/processadores/ai-reply'
-import { processRagIndex } from '@/trabalhos/processadores/rag-index'
-import { processAgentWebhook } from '@/trabalhos/processadores/agent-webhook'
-import { processAsaasEvent } from '@/trabalhos/processadores/asaas-event'
-import { processBroadcast } from '@/trabalhos/processadores/broadcast'
-import { processSesEvent } from '@/trabalhos/processadores/ses-event'
-import { processCron } from '@/trabalhos/processadores/cron'
-import { aperto, ehAperto } from './aperto-de-mao'
-import { registrarCosturas, type EnvDasCosturas } from './costuras'
-import { aoSerAgendado } from './agendado'
-import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/prisma'
+import { ALL_QUEUES, QUEUE, type JobPayloads, type QueueName } from '@venn/core/lib/queue/definitions'
+import { consumirLote, exponencial, type Processador } from '@venn/core/lib/queue/consumidor'
+import { processWhatsAppInbound } from '@venn/core/trabalhos/processadores/whatsapp-inbound'
+import { processWhatsAppEvent } from '@venn/core/trabalhos/processadores/whatsapp-event'
+import { processWhatsAppOutbound } from '@venn/core/trabalhos/processadores/whatsapp-outbound'
+import { processAiReply } from '@venn/core/trabalhos/processadores/ai-reply'
+import { processRagIndex } from '@venn/core/trabalhos/processadores/rag-index'
+import { processAgentWebhook } from '@venn/core/trabalhos/processadores/agent-webhook'
+import { processAsaasEvent } from '@venn/core/trabalhos/processadores/asaas-event'
+import { processBroadcast } from '@venn/core/trabalhos/processadores/broadcast'
+import { processSesEvent } from '@venn/core/trabalhos/processadores/ses-event'
+import { processCron } from '@venn/core/trabalhos/processadores/cron'
+import { aperto, ehAperto } from '@venn/core/cloudflare/aperto-de-mao'
+import { registrarCosturas, type EnvDasCosturas } from '@venn/core/cloudflare/costuras'
+import { aoSerAgendado } from '@venn/core/cloudflare/agendado'
+import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@venn/db/cliente'
 
-export { SalaDoWorkspace } from './sala-do-workspace'
-export { AgendaDaConversa } from './agenda-da-conversa'
-export { TravaDeContato } from './trava-de-contato'
+export { SalaDoWorkspace } from '@venn/core/cloudflare/sala-do-workspace'
+export { AgendaDaConversa } from '@venn/core/cloudflare/agenda-da-conversa'
+export { TravaDeContato } from '@venn/core/cloudflare/trava-de-contato'
 // O motor do funil é `WorkflowEntrypoint`, não Durable Object — mas vale a
 // mesma regra: é o módulo de entrada que o declara à plataforma.
-export { MotorDoFunil } from './motor-do-funil'
+export { MotorDoFunil } from '@venn/core/cloudflare/motor-do-funil'
 
 /**
  * O ponto de entrada do Worker.

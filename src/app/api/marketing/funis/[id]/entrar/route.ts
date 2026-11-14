@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { postoNoFunilAMao } from '@/lib/funil/disparos'
-import { lerGatilho } from '@/lib/funil/gatilho'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { postoNoFunilAMao } from '@venn/core/lib/funil/disparos'
+import { lerGatilho } from '@venn/core/lib/funil/gatilho'
 
 /**
  * Pôr um contato num funil à mão — o gatilho genérico.

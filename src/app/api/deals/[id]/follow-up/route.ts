@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { buildFollowUpSuggestion } from '@/lib/follow-up-suggestion'
+import prisma from '@venn/db/cliente'
+import { dealScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { buildFollowUpSuggestion } from '@venn/core/lib/follow-up-suggestion'
 
 /** As falhas da geração, traduzidas para quem está olhando a tela. */
 const MESSAGES: Record<string, { error: string; status: number }> = {

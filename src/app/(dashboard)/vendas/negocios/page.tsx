@@ -1,6 +1,6 @@
 'use client'
 
-import { ACTIVITY_TYPE_BY_ID } from '@/lib/activity-types'
+import { ACTIVITY_TYPE_BY_ID } from '@venn/core/lib/activity-types'
 import { useState, useEffect, useCallback } from 'react'
 import {
     AlertTriangle,
@@ -27,31 +27,31 @@ import {
     User,
     XCircle,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogFooter,
-} from '@/components/ui/dialog'
+} from '@venn/ui/dialog'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@venn/ui/dropdown-menu'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
+} from '@venn/ui/select'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Textarea } from '@venn/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@venn/ui/tabs'
+import { Badge } from '@venn/ui/badge'
 import { toast } from 'sonner'
 import {
     DndContext,
@@ -71,40 +71,40 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { usePermissions } from '@/hooks/usePermissions'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { DataTable, type Column } from '@/components/shared/DataTable'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { ContactPicker } from '@/components/shared/ContactPicker'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { FilterPill } from '@/components/shared/FilterPill'
-import { StatPill } from '@/components/shared/StatPill'
-import { ViewSeg } from '@/components/shared/ViewSeg'
-import { Pagination } from '@/components/shared/Pagination'
-import { DEAL_LANES, isDealLane, type DealLane } from '@/lib/deal-lanes'
-import { useNow } from '@/hooks/useNow'
-import { useFusoDaUnidade } from '@/hooks/useUnidades'
-import { PERIOD_PRESETS, matchPreset } from '@/lib/period'
-import { ageTone, daysInStage, nextStep } from '@/lib/deal-health'
-import { WhatsAppCell } from '@/components/shared/WhatsAppCell'
-import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
-import { formatPhone } from '@/lib/phone'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useWhatsAppStatus } from '@/hooks/useWhatsAppStatus'
-import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
-import { StageRail } from '@/components/shared/StageRail'
-import { OutcomeDialog } from '@/components/shared/OutcomeDialog'
-import { DealPanel } from '@/components/shared/DealPanel'
-import { CLOSED_RAIL_ID, PipelineRail } from '@/components/shared/PipelineRail'
-import { StageManagerDialog } from '@/components/shared/StageManagerDialog'
-import { NewDealDialog } from '@/components/shared/NewDealDialog'
-import { PeriodFields } from '@/components/shared/PeriodPicker'
-import { BoardScroller } from '@/components/shared/BoardScroller'
-import { StageFocus, type FocusOrder } from '@/components/shared/StageFocus'
-import { cn } from '@/lib/utils'
-import { OutcomeReasonsDialog } from '@/components/shared/OutcomeReasonsDialog'
-import { CreatableSelect } from '@/components/shared/CreatableSelect'
-import { useMoeda } from '@/hooks/useMoeda'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
+import { DataTable, type Column } from '@venn/core/components/shared/DataTable'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { ContactPicker } from '@venn/core/components/shared/ContactPicker'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { FilterPill } from '@venn/core/components/shared/FilterPill'
+import { StatPill } from '@venn/core/components/shared/StatPill'
+import { ViewSeg } from '@venn/core/components/shared/ViewSeg'
+import { Pagination } from '@venn/core/components/shared/Pagination'
+import { DEAL_LANES, isDealLane, type DealLane } from '@venn/core/lib/deal-lanes'
+import { useNow } from '@venn/core/hooks/useNow'
+import { useFusoDaUnidade } from '@venn/core/hooks/useUnidades'
+import { PERIOD_PRESETS, matchPreset } from '@venn/core/lib/period'
+import { ageTone, daysInStage, nextStep } from '@venn/core/lib/deal-health'
+import { WhatsAppCell } from '@venn/core/components/shared/WhatsAppCell'
+import { WhatsAppMark } from '@venn/core/components/shared/WhatsAppMark'
+import { formatPhone } from '@venn/core/lib/phone'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { useWhatsAppStatus } from '@venn/core/hooks/useWhatsAppStatus'
+import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@venn/core/lib/palette'
+import { StageRail } from '@venn/core/components/shared/StageRail'
+import { OutcomeDialog } from '@venn/core/components/shared/OutcomeDialog'
+import { DealPanel } from '@venn/core/components/shared/DealPanel'
+import { CLOSED_RAIL_ID, PipelineRail } from '@venn/core/components/shared/PipelineRail'
+import { StageManagerDialog } from '@venn/core/components/shared/StageManagerDialog'
+import { NewDealDialog } from '@venn/core/components/shared/NewDealDialog'
+import { PeriodFields } from '@venn/core/components/shared/PeriodPicker'
+import { BoardScroller } from '@venn/core/components/shared/BoardScroller'
+import { StageFocus, type FocusOrder } from '@venn/core/components/shared/StageFocus'
+import { cn } from '@venn/ui/utils'
+import { OutcomeReasonsDialog } from '@venn/core/components/shared/OutcomeReasonsDialog'
+import { CreatableSelect } from '@venn/core/components/shared/CreatableSelect'
+import { useMoeda } from '@venn/core/hooks/useMoeda'
 
 const STATUS_LABELS: Record<string, string> = { open: 'Abertos', won: 'Ganhos', lost: 'Perdidos', all: 'Todos' }
 

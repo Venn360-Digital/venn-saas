@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { contactScope, getWorkspaceMember } from '@/lib/auth/workspace'
-import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'
+import prisma from '@venn/db/cliente'
+import { contactScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { connectedWhatsApp, formatPhone, hasWhatsApp, normalizePhone, phoneVariants } from '@venn/core/lib/intake'
 
 /**
  * Quem é este número, antes de gravar qualquer coisa.

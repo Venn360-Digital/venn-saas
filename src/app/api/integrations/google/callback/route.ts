@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
-import prisma from '@/lib/prisma'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { currentMembership } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
 import {
     GOOGLE_CALENDAR_PROVIDER,
     redirectUriFor,
     resolveGoogleOAuthClient,
     type GoogleCalendarCredentials,
-} from '@/lib/google-oauth-client'
+} from '@venn/core/lib/google-oauth-client'
 
 // GET - Google OAuth callback (handles the authorization code)
 export async function GET(request: NextRequest) {

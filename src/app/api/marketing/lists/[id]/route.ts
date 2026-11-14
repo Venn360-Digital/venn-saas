@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
-import { membrosForaDoCanal, removerMembros } from '@/lib/marketing/lists'
-import { CANAIS_DE_CAMPANHA, type CanalDeCampanha } from '@/lib/marketing/apresentacao'
+import { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
+import { membrosForaDoCanal, removerMembros } from '@venn/core/lib/marketing/lists'
+import { CANAIS_DE_CAMPANHA, type CanalDeCampanha } from '@venn/core/lib/marketing/apresentacao'
 
 const filtroSchema = z.object({
     tagId: z.string().nullish(),

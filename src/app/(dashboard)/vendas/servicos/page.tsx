@@ -1,5 +1,5 @@
-import prisma from '@/lib/prisma'
-import { membroOuLogin, primeiraPagina } from '@/lib/indice-servidor'
+import prisma from '@venn/db/cliente'
+import { membroOuLogin, primeiraPagina } from '@venn/core/lib/indice-servidor'
 
 import { ProcedimentosClient } from './ProcedimentosClient'
 
@@ -14,7 +14,7 @@ import { ProcedimentosClient } from './ProcedimentosClient'
  * Com as linhas já no HTML, a segunda pintura deixa de existir.
  *
  * O mecanismo (auth, `findMany` + `count` numa ida só, conta de páginas) vem de
- * `@/lib/indice-servidor`; aqui fica só **a consulta**, que é o que varia de
+ * `@venn/core/lib/indice-servidor`; aqui fica só **a consulta**, que é o que varia de
  * tela para tela. Ela é a mesma do `GET /api/products` de propósito: a rota
  * continua servindo busca, filtro de categoria, paginação e as releituras
  * depois de gravar, e as duas precisam concordar — se divergirem, a primeira

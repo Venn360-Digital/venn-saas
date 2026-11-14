@@ -31,8 +31,8 @@
  * entrar pela API. A senha nunca é impressa.
  */
 import { readFileSync } from 'node:fs'
-import { acharDocumento } from '@/lib/treinamento/documentos'
-import { FOLGA_MINIMA, PISO_PADRAO } from '@/lib/rag/parametros'
+import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
+import { FOLGA_MINIMA, PISO_PADRAO } from '@venn/core/lib/rag/parametros'
 import { createInterface } from 'node:readline'
 
 interface Caso {

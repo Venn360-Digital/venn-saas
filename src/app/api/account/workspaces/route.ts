@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { adicionaisCobraveis, adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@/lib/account'
-import { tetoDeUnidades } from '@/lib/plan-limits'
-import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
-import { planFor } from '@/lib/plans'
+import prisma from '@venn/db/cliente'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { adicionaisCobraveis, adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@venn/core/lib/account'
+import { tetoDeUnidades } from '@venn/core/lib/plan-limits'
+import { lerFusoDasConfiguracoes } from '@venn/core/lib/fuso-da-unidade'
+import { planFor } from '@venn/core/lib/plans'
 
 /**
  * As unidades da conta: listar e criar.

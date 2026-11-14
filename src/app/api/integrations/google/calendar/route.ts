@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
-import { Prisma } from '#prisma'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import { Prisma } from '@venn/db'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import {
     GOOGLE_CALENDAR_PROVIDER,
     clientOf,
     redirectUriFor,
     resolveGoogleOAuthClient,
     type GoogleCalendarCredentials,
-} from '@/lib/google-oauth-client'
+} from '@venn/core/lib/google-oauth-client'
 
 /**
  * `Integration.credentials` e `Integration.metadata` são colunas `Json?`, então

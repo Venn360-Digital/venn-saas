@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { manageAgent } from '@/lib/auth/agent'
+import prisma from '@venn/db/cliente'
+import { manageAgent } from '@venn/core/lib/auth/agent'
 import {
     ChannelProviderError,
     evolutionGo,
     readIntegrationConfig,
     webhookUrlFor,
-} from '@/lib/whatsapp'
+} from '@venn/core/lib/whatsapp'
 
 const CHANNEL = 'whatsapp_qr'
 

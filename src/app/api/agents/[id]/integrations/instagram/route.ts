@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { manageAgent, readAgent } from '@/lib/auth/agent'
+import prisma from '@venn/db/cliente'
+import { manageAgent, readAgent } from '@venn/core/lib/auth/agent'
 
 export const runtime = 'nodejs'
 
@@ -74,8 +74,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         return NextResponse.json({ error: 'Não há conta de Instagram conectada.' }, { status: 404 })
     }
 
-    const { instagramDirect } = await import('@/lib/instagram/provider')
-    const { readIntegrationConfig } = await import('@/lib/whatsapp')
+    const { instagramDirect } = await import('@venn/core/lib/instagram/provider')
+    const { readIntegrationConfig } = await import('@venn/core/lib/whatsapp')
 
     /**
      * Desassinar pode falhar, e a linha sai de qualquer forma.
@@ -139,9 +139,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         )
     }
 
-    const { instagramDirect } = await import('@/lib/instagram/provider')
-    const { readIntegrationConfig } = await import('@/lib/whatsapp')
-    const { assinarConta } = await import('@/lib/instagram/login')
+    const { instagramDirect } = await import('@venn/core/lib/instagram/provider')
+    const { readIntegrationConfig } = await import('@venn/core/lib/whatsapp')
+    const { assinarConta } = await import('@venn/core/lib/instagram/login')
 
     try {
         if (corpo.ativo) {

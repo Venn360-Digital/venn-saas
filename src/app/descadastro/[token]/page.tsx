@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import prisma from '@/lib/prisma'
-import { lerTokenDeDescadastro } from '@/lib/marketing/descadastro'
+import prisma from '@venn/db/cliente'
+import { lerTokenDeDescadastro } from '@venn/core/lib/marketing/descadastro'
 import { BRAND } from '@/config/brand'
 
 /**

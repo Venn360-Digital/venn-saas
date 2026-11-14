@@ -13,7 +13,7 @@
  * O analisador é puro e não toca em React, então a decisão inteira se exercita
  * sem navegador.
  */
-import { analisarTextoDeWhatsApp, semMarcacao, temMarcacao } from '@/lib/texto-whatsapp'
+import { analisarTextoDeWhatsApp, semMarcacao, temMarcacao } from '@venn/core/lib/texto-whatsapp'
 
 let passou = 0
 let falhou = 0

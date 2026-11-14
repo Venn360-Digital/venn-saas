@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
-import prisma from '@/lib/prisma'
-import { getPlatformAdmin } from '@/lib/platform-credentials'
+import prisma from '@venn/db/cliente'
+import { getPlatformAdmin } from '@venn/core/lib/platform-credentials'
 import {
     COOKIE_ASSUMIR,
     DURACAO_MS,
@@ -11,7 +11,7 @@ import {
     fecharRegistro,
     lerCookie,
     type ModoDeAcesso,
-} from '@/lib/plataforma/acesso'
+} from '@venn/core/lib/plataforma/acesso'
 
 /**
  * Entrar na conta de um cliente, e sair dela.

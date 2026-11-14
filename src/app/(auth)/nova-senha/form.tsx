@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Check, Eye, EyeOff, Loader2, Lock, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { resetPassword } from '@/lib/auth/cliente'
-import { Logo } from '@/components/brand/Logo'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { resetPassword } from '@venn/core/lib/auth/cliente'
+import { Logo } from '@venn/core/components/brand/Logo'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { cn } from '@venn/ui/utils'
 
 const MIN = 8
 

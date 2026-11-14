@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { dentroDoLimite, ipDaRequisicao } from '@/lib/limite'
-import prisma from '@/lib/prisma'
-import { contatoCriado } from '@/lib/funil/disparos'
-import { getBillingState } from '@/lib/billing'
-import { QUEUE } from '@/lib/queue/definitions'
-import { entregar } from '@/lib/queue/entregar'
+import { dentroDoLimite, ipDaRequisicao } from '@venn/core/lib/limite'
+import prisma from '@venn/db/cliente'
+import { contatoCriado } from '@venn/core/lib/funil/disparos'
+import { getBillingState } from '@venn/core/lib/billing'
+import { QUEUE } from '@venn/core/lib/queue/definitions'
+import { entregar } from '@venn/core/lib/queue/entregar'
 import {
     TETO_DE_MENSAGENS_DO_VISITANTE,
     novaChave,
     widgetCors,
     widgetIntegration,
-} from '@/lib/widget'
-import { isHumanHandled } from '@/trabalhos/servicos/conversation'
-import { lerConfiguracaoDoWidget, origemPermitida } from '@/lib/widget-config'
+} from '@venn/core/lib/widget'
+import { isHumanHandled } from '@venn/core/trabalhos/servicos/conversation'
+import { lerConfiguracaoDoWidget, origemPermitida } from '@venn/core/lib/widget-config'
 
 /**
  * A conversa do visitante do site.

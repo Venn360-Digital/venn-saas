@@ -10,9 +10,9 @@
  * A lista de canais, essa sim, é a de produção — importada de `lib/plans`.
  */
 
-import { REDES_DO_PLANO, redesDoPlano } from '../src/lib/plans'
-import { isPlanId, type PlanId } from '../src/lib/plan-limits'
-import { apelidoDaLinha } from '../src/lib/linha'
+import { REDES_DO_PLANO, redesDoPlano } from '@venn/core/lib/plans'
+import { isPlanId, type PlanId } from '@venn/core/lib/plan-limits'
+import { apelidoDaLinha } from '@venn/core/lib/linha'
 
 interface Integracao {
     id: string

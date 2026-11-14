@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-import { ErrorState } from '@/components/shared/ErrorState'
+import { ErrorState } from '@venn/core/components/shared/ErrorState'
 
 /**
  * Keeps the shell. A failure inside one screen should not take the sidebar and

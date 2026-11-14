@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { currentMembership } from '@/lib/auth/workspace'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import prisma from '@/lib/prisma'
-import { daContaDaUnidade } from '@/lib/account'
+import { currentMembership } from '@venn/core/lib/auth/workspace'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import prisma from '@venn/db/cliente'
+import { daContaDaUnidade } from '@venn/core/lib/account'
 
 /**
  * Quando passou a existir um lugar onde gravar o aceite.

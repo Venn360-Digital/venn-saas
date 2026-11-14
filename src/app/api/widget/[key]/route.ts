@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { widgetCors, widgetIntegration } from '@/lib/widget'
-import { lerConfiguracaoDoWidget, origemPermitida } from '@/lib/widget-config'
-import { enderecoDoAvatar } from '@/lib/agents/avatar'
+import { widgetCors, widgetIntegration } from '@venn/core/lib/widget'
+import { lerConfiguracaoDoWidget, origemPermitida } from '@venn/core/lib/widget-config'
+import { enderecoDoAvatar } from '@venn/core/lib/agents/avatar'
 
 /**
  * O que o widget precisa saber para se desenhar, antes de alguém falar.

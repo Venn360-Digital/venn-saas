@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
-import { verificarIdentidade } from '@/lib/identidade/guarda'
+import { verificarIdentidade } from '@venn/core/lib/identidade/guarda'
 
 /**
  * Container liveness/readiness probe.

@@ -28,14 +28,14 @@ import {
     nomeDoArquivo,
     textoParaOModelo,
     type MensagemComMidia,
-} from '@/lib/ai/midia-no-prompt'
+} from '@venn/core/lib/ai/midia-no-prompt'
 import {
     AVISO_DE_CORTE,
     ehFormatoLegivel,
     MAX_CHARS_NO_PROMPT,
     normalizarExtraido,
     textoParaOTranscript,
-} from '@/lib/documentos/extrair'
+} from '@venn/core/lib/documentos/extrair'
 
 let passou = 0
 let falhou = 0

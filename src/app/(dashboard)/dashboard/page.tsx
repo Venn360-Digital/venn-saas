@@ -1,19 +1,19 @@
 import { redirect } from 'next/navigation'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import {
     canSeeEveryone,
     getWorkspaceMember,
     resolveOwnerScope,
-} from '@/lib/auth/workspace'
-import { resolvePeriodParams } from '@/lib/period'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { OperacaoCard } from '@/components/dashboard/OperacaoCard'
-import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
-import { DataView } from '@/components/dashboard/DataView'
-import { GraphView } from '@/components/dashboard/GraphView'
-import { ViewSwitch } from '@/components/dashboard/ViewSwitch'
+} from '@venn/core/lib/auth/workspace'
+import { resolvePeriodParams } from '@venn/core/lib/period'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { OperacaoCard } from '@venn/core/components/dashboard/OperacaoCard'
+import { DashboardFilters } from '@venn/core/components/dashboard/DashboardFilters'
+import { DataView } from '@venn/core/components/dashboard/DataView'
+import { GraphView } from '@venn/core/components/dashboard/GraphView'
+import { ViewSwitch } from '@venn/core/components/dashboard/ViewSwitch'
 
 /**
  * Stays a server component, so the figures are already in the HTML — no client

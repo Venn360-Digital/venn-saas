@@ -31,17 +31,17 @@ import {
     SECAO_EXEMPLOS,
     orcamentoDoPrompt,
     TAMANHO_DE_TRECHO,
-} from '@/lib/treinamento/documentos'
-import { secionarMarkdown, semComentarios, TAMANHO_MAX } from '@/lib/rag/secoes'
-import { MODELOS } from '@/lib/treinamento/modelos'
+} from '@venn/core/lib/treinamento/documentos'
+import { secionarMarkdown, semComentarios, TAMANHO_MAX } from '@venn/core/lib/rag/secoes'
+import { MODELOS } from '@venn/core/lib/treinamento/modelos'
 import {
     decidirIndexacao,
     hashDoConteudo,
     slugConhecido,
     textoParaAcervo,
     tituloDoAcervo,
-} from '@/lib/treinamento/indexar'
-import { ehSecaoDeExemplos, semExemplos } from '@/lib/treinamento/exemplos'
+} from '@venn/core/lib/treinamento/indexar'
+import { ehSecaoDeExemplos, semExemplos } from '@venn/core/lib/treinamento/exemplos'
 
 let passou = 0
 let falhou = 0

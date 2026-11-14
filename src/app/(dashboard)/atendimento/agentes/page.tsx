@@ -3,29 +3,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Agent } from '#prisma'
+import { Agent } from '@venn/db'
 import { Bot, Eye, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { useEsperaLonga } from '@/hooks/useEsperaLonga'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { FormField } from '@/components/shared/FormField'
+import { Button } from '@venn/ui/button'
+import { useEsperaLonga } from '@venn/core/hooks/useEsperaLonga'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { ConfirmDialog } from '@venn/core/components/shared/ConfirmDialog'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { FormField } from '@venn/core/components/shared/FormField'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { useUnidades } from '@/hooks/useUnidades'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { ErrorState } from '@/components/shared/ErrorState'
-import { IndexFrame } from '@/components/shared/IndexFrame'
-import { usePermissions } from '@/hooks/usePermissions'
-import { AgentCard } from '@/components/agents/AgentCard'
+} from '@venn/ui/select'
+import { useUnidades } from '@venn/core/hooks/useUnidades'
+import { EmptyState } from '@venn/core/components/shared/EmptyState'
+import { ErrorState } from '@venn/core/components/shared/ErrorState'
+import { IndexFrame } from '@venn/core/components/shared/IndexFrame'
+import { usePermissions } from '@venn/core/hooks/usePermissions'
+import { AgentCard } from '@venn/core/components/agents/AgentCard'
 
 interface Limites {
     planName: string | null

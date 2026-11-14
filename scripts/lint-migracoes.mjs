@@ -44,7 +44,7 @@ import { readFileSync } from 'node:fs'
 /** Exceções registradas, por nome do diretório da migração. Ver o cabeçalho. */
 function excecoes() {
     try {
-        const bruto = JSON.parse(readFileSync('prisma/lint-migracoes.excecoes.json', 'utf8'))
+        const bruto = JSON.parse(readFileSync('packages/db/prisma/lint-migracoes.excecoes.json', 'utf8'))
         return Object.fromEntries(Object.entries(bruto).filter(([k]) => !k.startsWith('$')))
     } catch {
         return {}
@@ -54,18 +54,44 @@ function excecoes() {
 const base = process.argv[2] || process.env.LINT_MIGRACOES_BASE || ''
 
 function novasMigracoes() {
-    const alvo = 'prisma/migrations/'
+    const alvo = 'packages/db/prisma/migrations/'
     // Dois pontos de propósito: diff de SNAPSHOT, que não exige merge-base —
     // o clone raso do Workers Builds tem a ref mas não garante ancestralidade
-    // ("no merge base", medido em 13/11). Para --diff-filter=A o resultado é o
-    // mesmo: migração presente no HEAD e ausente na base.
+    // ("no merge base", medido em 13/11). Para o filtro de adicionados o
+    // resultado é o mesmo: migração presente no HEAD e ausente na base.
+    //
+    // **Sem pathspec, e com `-M -l0`, de propósito** — e isto é a correção de
+    // um defeito que reprovou o build de 14/11 na Fase 2 do monorepo.
+    //
+    // A detecção de rename do git precisa VER OS DOIS LADOS do par. Quando o
+    // `git mv prisma/ packages/db/prisma/` moveu as migrações, um diff com
+    // `-- packages/db/prisma/migrations/` passou a enxergar só o lado de
+    // destino: a origem ficava fora do pathspec, não havia com que casar, e as
+    // **71 migrações históricas voltaram a contar como novas**. O lint então
+    // reavaliou o acervo inteiro e reprovou 6 migrações antigas, já aplicadas
+    // em produção — que não podem receber o marcador, porque editá-las muda o
+    // checksum e o `prisma migrate deploy` passa a recusar o ambiente onde
+    // rodaram. Medido: com pathspec, 71 `A`; sem pathspec e com `-M`, 71 `R`.
+    //
+    // `-l0` remove o teto de pares que o git compara (o padrão desiste em
+    // ~1000 e volta a reportar A+D) — um `git mv` de pasta grande estoura esse
+    // teto, e foi para isso que o teto virou zero.
+    //
+    // O filtro por diretório passa a ser feito aqui, sobre o caminho de
+    // destino, e não pelo git.
     const cmd = base
-        ? `git diff --name-only --diff-filter=A ${base}..HEAD -- ${alvo}`
-        : `git diff --name-only --diff-filter=A HEAD~1..HEAD -- ${alvo}`
+        ? `git diff --name-status -M -l0 ${base}..HEAD`
+        : `git diff --name-status -M -l0 HEAD~1..HEAD`
     try {
-        return execSync(cmd, { encoding: 'utf8' })
+        return execSync(cmd, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
             .split('\n')
-            .filter((f) => f.endsWith('.sql'))
+            // `--name-status` dá "A\tcaminho" para adicionado e
+            // "R100\tantigo\tnovo" para renomeado. Só o primeiro interessa:
+            // migração movida ou renomeada não é migração nova.
+            .map((linha) => linha.split('\t'))
+            .filter(([estado]) => estado === 'A')
+            .map(([, caminho]) => caminho)
+            .filter((f) => f.startsWith(alvo) && f.endsWith('.sql'))
     } catch {
         console.error(`não consegui diffar contra "${base || 'HEAD~1'}" — nada a verificar aqui não é verde: saindo com erro`)
         process.exit(2)

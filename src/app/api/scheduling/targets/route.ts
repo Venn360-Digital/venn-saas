@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 
 /**
  * Where an appointment made from the inbox should land.

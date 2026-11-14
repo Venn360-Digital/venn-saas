@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getWorkspaceMember } from '@/lib/auth/workspace'
-import { assinar, segredoDoBilhete, VALIDADE_SEGUNDOS } from '@/lib/realtime/bilhete'
+import { getWorkspaceMember } from '@venn/core/lib/auth/workspace'
+import { assinar, segredoDoBilhete, VALIDADE_SEGUNDOS } from '@venn/core/lib/realtime/bilhete'
 
 /**
  * Emite o bilhete que abre o socket do tempo real.

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { CLASSES, gravar } from '@/lib/storage'
-import { comoReferencia } from '@/lib/midia'
-import { enderecoDoAvatar } from '@/lib/agents/avatar'
-import { MANAGER_ROLES, assertAgentAccess, getWorkspaceMember } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { CLASSES, gravar } from '@venn/core/lib/storage'
+import { comoReferencia } from '@venn/core/lib/midia'
+import { enderecoDoAvatar } from '@venn/core/lib/agents/avatar'
+import { MANAGER_ROLES, assertAgentAccess, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 
 /**
  * A imagem do agente.

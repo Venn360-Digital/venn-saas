@@ -1,5 +1,5 @@
-import type { PaginaDeIndice } from '@/lib/indice'
-import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
+import type { PaginaDeIndice } from '@venn/core/lib/indice'
+import type { CanalDeCampanha } from '@venn/core/lib/marketing/apresentacao'
 
 /** O estado de uma campanha, com rótulo em pt-BR. */
 export const STATUS_CAMPANHA: Record<string, string> = {

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 import {
     acrescentarPorFiltro,
     adicionarMembros,
     contarParaAcrescentar,
     removerMembros,
-} from '@/lib/marketing/lists'
-import { CANAIS_DE_CAMPANHA, type CanalDeCampanha } from '@/lib/marketing/apresentacao'
+} from '@venn/core/lib/marketing/lists'
+import { CANAIS_DE_CAMPANHA, type CanalDeCampanha } from '@venn/core/lib/marketing/apresentacao'
 
 /**
  * Os contatos de uma lista: ver, acrescentar em lote e tirar.

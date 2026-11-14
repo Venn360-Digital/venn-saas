@@ -4,25 +4,25 @@ import { useCallback, useEffect, useState } from 'react'
 import { Filter, ListChecks, Trash2, UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { ContactPicker, type PickedContact } from '@/components/shared/ContactPicker'
-import { FormField } from '@/components/shared/FormField'
-import { Pagination } from '@/components/shared/Pagination'
-import { RecordDialog } from '@/components/shared/RecordDialog'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/select'
+import { ContactPicker, type PickedContact } from '@venn/core/components/shared/ContactPicker'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { Pagination } from '@venn/core/components/shared/Pagination'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
+import { cn } from '@venn/ui/utils'
 import {
     CANAIS_DE_CAMPANHA,
     NOME_DO_CANAL,
     type CanalDeCampanha,
-} from '@/lib/marketing/apresentacao'
+} from '@venn/core/lib/marketing/apresentacao'
 
 import type { ListaItem } from './dados'
 

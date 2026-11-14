@@ -9,8 +9,8 @@
  * serviço, com o agente respondendo normalmente. Foi assim que a nota de voz
  * atravessou o lançamento procurando no acervo pela string "🎵 Áudio".
  */
-import { montarConsulta, textoParaBusca } from '@/lib/rag/consulta'
-import { ehMarcadorDeMidia } from '@/lib/whatsapp/payload'
+import { montarConsulta, textoParaBusca } from '@venn/core/lib/rag/consulta'
+import { ehMarcadorDeMidia } from '@venn/core/lib/whatsapp/payload'
 
 let passou = 0
 let falhou = 0

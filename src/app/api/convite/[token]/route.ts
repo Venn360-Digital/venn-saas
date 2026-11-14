@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { ROTULO_DO_PAPEL } from '@/lib/papeis'
-import { auth } from '@/lib/auth/better-auth'
-import { diasRestantes, estadoDoConvite, podeAceitar } from '@/lib/convite/estado'
-import { pareceToken, resumoDoToken } from '@/lib/convite/token'
-import prisma from '@/lib/prisma'
+import { ROTULO_DO_PAPEL } from '@venn/core/lib/papeis'
+import { auth } from '@venn/core/lib/auth/better-auth'
+import { diasRestantes, estadoDoConvite, podeAceitar } from '@venn/core/lib/convite/estado'
+import { pareceToken, resumoDoToken } from '@venn/core/lib/convite/token'
+import prisma from '@venn/db/cliente'
 
 /**
  * O aceite do convite — a única rota **pública** que cria credencial.

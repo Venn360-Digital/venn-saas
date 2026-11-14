@@ -13,18 +13,18 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { FormField } from '@/components/shared/FormField'
-import { RecordDialog } from '@/components/shared/RecordDialog'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
+import { FormField } from '@venn/core/components/shared/FormField'
+import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
 import { BRAND } from '@/config/brand'
 import {
     campanhaEmTexto,
     primeiroNome,
     renderCampanha,
     type Bloco,
-} from '@/lib/email/blocos'
+} from '@venn/core/lib/email/blocos'
 
 /**
  * O editor de um e-mail de campanha.

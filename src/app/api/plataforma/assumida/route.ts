@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
-import { contaAssumida } from '@/lib/plataforma/acesso'
+import prisma from '@venn/db/cliente'
+import { contaAssumida } from '@venn/core/lib/plataforma/acesso'
 
 /**
  * O que a tarja precisa saber: estou dentro de quem, até quando, e com o quê.

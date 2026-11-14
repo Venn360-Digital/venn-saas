@@ -11,11 +11,11 @@
  * Puro de propósito: nenhuma IO, conferido contra corpos gravados da forma que
  * a Meta documenta.
  */
-import { readEvolutionGoEvent, readWhatsAppCloudEvent } from '@/lib/whatsapp/envelopes'
-import { LIMITE_DO_JOB_BYTES, semBase64, tamanhoDoJob } from '@/lib/queue/tamanho'
-import { segredoDoWebhookValido } from '@/lib/whatsapp/webhook-evolution-go'
-import { decodeMessage } from '@/lib/whatsapp/payload'
-import type { NormalizedAck, NormalizedInbound } from '@/lib/whatsapp/envelopes'
+import { readEvolutionGoEvent, readWhatsAppCloudEvent } from '@venn/core/lib/whatsapp/envelopes'
+import { LIMITE_DO_JOB_BYTES, semBase64, tamanhoDoJob } from '@venn/core/lib/queue/tamanho'
+import { segredoDoWebhookValido } from '@venn/core/lib/whatsapp/webhook-evolution-go'
+import { decodeMessage } from '@venn/core/lib/whatsapp/payload'
+import type { NormalizedAck, NormalizedInbound } from '@venn/core/lib/whatsapp/envelopes'
 
 let falhas = 0
 const ok = (nome: string, cond: boolean, extra = '') => {

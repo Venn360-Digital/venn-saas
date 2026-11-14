@@ -1,14 +1,14 @@
-import { requireWritable } from '@/lib/billing'
+import { requireWritable } from '@venn/core/lib/billing'
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
+import prisma from '@venn/db/cliente'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { z } from 'zod'
-import { Prisma } from '#prisma'
-import { searchTerms } from '@/lib/search'
-import { isDealLane, laneWhere } from '@/lib/deal-lanes'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
-import { periodWhere } from '@/lib/deal-filters'
-import { currentMembership, dealScope, getWorkspaceMember } from '@/lib/auth/workspace'
+import { Prisma } from '@venn/db'
+import { searchTerms } from '@venn/core/lib/search'
+import { isDealLane, laneWhere } from '@venn/core/lib/deal-lanes'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
+import { periodWhere } from '@venn/core/lib/deal-filters'
+import { currentMembership, dealScope, getWorkspaceMember } from '@venn/core/lib/auth/workspace'
 
 const dealSchema = z.object({
     title: z.string().min(1),
@@ -82,7 +82,7 @@ const dealInclude = {
         take: 1,
         select: { id: true, title: true, type: true, dueDate: true, startTime: true },
     },
-} satisfies import('#prisma').Prisma.DealInclude
+} satisfies import('@venn/db').Prisma.DealInclude
 
 // GET - List deals with optional filters
 export async function GET(request: NextRequest) {

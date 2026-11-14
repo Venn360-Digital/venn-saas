@@ -23,7 +23,7 @@ import {
     ehLacuna,
     melhorSimilaridade,
     pareceFallback,
-} from '@/lib/atendimento/escalada'
+} from '@venn/core/lib/atendimento/escalada'
 
 let passou = 0
 let falhou = 0

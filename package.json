@@ -3,20 +3,14 @@
     "version": "0.1.0",
     "private": true,
     "//packageManager": "AUSENTE DE PROPÓSITO, por robustez em CI e não pelo motivo que eu supunha. O campo faz o Node delegar ao corepack, e o corepack PERGUNTA antes de baixar uma versão que não tenha em cache — num builder não interativo não há quem responda. Cheguei a atribuir a ele as falhas de build de 12/11; não era (os builds não chegaram a executar na Cloudflare). A armadilha do prompt é real de todo modo, e o pin não se perde: o `pnpm-lock.yaml` é lockfileVersion 9.0 (lido por pnpm 9 e 10) e o Workers Builds escolhe o pnpm pelo lockfile (o ci.yml do GitHub morreu em 13/11 — ver scripts/ci-worker.mjs). Se este campo voltar, a build var COREPACK_ENABLE_DOWNLOAD_PROMPT=0 tem de vir com ele.",
-    "imports": {
-        "#prisma": {
-            "workerd": "./src/generated/prisma-workerd/client.ts",
-            "default": "./src/generated/prisma/client.ts"
-        }
-    },
     "scripts": {
         "dev": "next dev",
-        "build": "prisma generate && next build",
+        "build": "pnpm --filter @venn/db run generate && next build",
         "start": "next start",
         "lint": "eslint",
         "typecheck": "tsc --noEmit",
         "lint:colors": "node scripts/lint-colors.mjs",
-        "lint:estaticos": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/lint-fuso.mjs && node scripts/check-widget.mjs",
+        "lint:estaticos": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/lint-fuso.mjs && node scripts/check-widget.mjs && node scripts/check-tailwind.mjs && node scripts/check-marca.mjs",
         "prebuild": "pnpm run lint:estaticos",
         "verificar": "node scripts/limpar-tipos-gerados.mjs && pnpm run typecheck && pnpm run typecheck:cloudflare && pnpm run lint:estaticos",
         "prebuild:preview": "pnpm run ci:worker",
@@ -27,6 +21,9 @@
         "check:operacao": "tsx --conditions=react-server scripts/check-operacao.ts",
         "test:availability": "tsx scripts/test-availability.ts",
         "check:widget": "node scripts/check-widget.mjs",
+        "check:tailwind": "node scripts/check-tailwind.mjs",
+        "check:marca": "node scripts/check-marca.mjs",
+        "check:marca-tardia": "tsx --conditions=react-server scripts/check-marca-tardia.ts",
         "test:widget-config": "tsx scripts/test-widget-config.ts",
         "test:fuso-unidade": "tsx --conditions=react-server scripts/test-fuso-unidade.ts",
         "lint:workspace": "node scripts/lint-workspace.mjs",
@@ -67,7 +64,7 @@
         "smoke:stg": "node scripts/smoke-identity.mjs stg",
         "lint:migracoes": "node scripts/lint-migracoes.mjs",
         "db:migrate:guarded": "node scripts/migrate-guarded.mjs",
-        "db:migrate:unsafe": "prisma migrate deploy",
+        "db:migrate:unsafe": "pnpm --filter @venn/db exec prisma migrate deploy",
         "medir:recuperacao": "tsx scripts/medir-recuperacao.ts",
         "test:audio": "tsx scripts/test-audio.ts",
         "test:marcacao": "tsx scripts/test-marcacao.ts",
@@ -92,7 +89,8 @@
         "test:condicoes": "tsx scripts/test-condicoes.ts",
         "check:treinamento": "tsx scripts/check-treinamento.ts",
         "test:jid": "tsx scripts/test-jid.ts",
-        "test:midia": "tsx scripts/test-midia.ts"
+        "test:midia": "tsx scripts/test-midia.ts",
+        "db:generate": "pnpm --filter @venn/db run generate"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",
@@ -107,6 +105,10 @@
         "@prisma/adapter-pg": "6.19.3",
         "@prisma/client": "6.19.3",
         "@types/bcryptjs": "^2.4.6",
+        "@venn/config": "workspace:*",
+        "@venn/core": "workspace:*",
+        "@venn/db": "workspace:*",
+        "@venn/ui": "workspace:*",
         "@vinext/cloudflare": "^1.2.0",
         "@xyflow/react": "^12.12.1",
         "aws4fetch": "1.0.20",

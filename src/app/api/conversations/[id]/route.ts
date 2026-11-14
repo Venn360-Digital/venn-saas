@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { comEnderecoDeMidia } from '@/lib/midia'
-import prisma from '@/lib/prisma'
-import { enderecoDoRetrato } from '@/lib/retratos'
-import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
-import { phoneFromConfig } from '@/lib/conversation-line'
-import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
-import { avisarConversaAlterada , publicarAgora } from '@/lib/outbox/avisar'
+import { comEnderecoDeMidia } from '@venn/core/lib/midia'
+import prisma from '@venn/db/cliente'
+import { enderecoDoRetrato } from '@venn/core/lib/retratos'
+import { conversationScope, currentMembership, type WorkspaceRole } from '@venn/core/lib/auth/workspace'
+import { phoneFromConfig } from '@venn/core/lib/conversation-line'
+import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
+import { Prisma } from '@venn/db'
+import { avisarConversaAlterada , publicarAgora } from '@venn/core/lib/outbox/avisar'
 
 // GET: Get conversation details with messages
 export async function GET(

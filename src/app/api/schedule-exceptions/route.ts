@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
-import { feriadosNacionais } from '@/lib/holidays'
-import { anoNoFuso } from '@/lib/fuso'
-import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
+import prisma from '@venn/db/cliente'
+import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
+import { feriadosNacionais } from '@venn/core/lib/holidays'
+import { anoNoFuso } from '@venn/core/lib/fuso'
+import { fusoDaUnidade } from '@venn/core/lib/fuso-da-unidade'
 
 /**
  * O calendário da clínica: feriados e fechamentos.

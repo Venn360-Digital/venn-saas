@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { manageAgent, readAgent } from '@/lib/auth/agent'
-import { ehDeTreinamento, TIPOS_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
+import prisma from '@venn/db/cliente'
+import { manageAgent, readAgent } from '@venn/core/lib/auth/agent'
+import { ehDeTreinamento, TIPOS_DE_TREINAMENTO } from '@venn/core/lib/treinamento/indexar'
 
 export async function GET(
     request: NextRequest,

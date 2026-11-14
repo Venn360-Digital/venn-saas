@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
-import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
+import prisma from '@venn/db/cliente'
+import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@venn/core/lib/auth/workspace'
 
 const patchSchema = z.object({
     name: z.string().trim().min(1).max(120).optional(),

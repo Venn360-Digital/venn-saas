@@ -27,7 +27,7 @@ import {
     opcoesDeVer,
     recorteDaAba,
     recorteDoVer,
-} from '../src/lib/conversas/recortes'
+} from '@venn/core/lib/conversas/recortes'
 
 let ok = 0
 let falhas = 0
