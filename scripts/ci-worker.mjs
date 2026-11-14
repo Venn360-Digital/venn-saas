@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * O portão de verificação do Worker de CI dedicado (`odontobox-ci`).
+ * O portão de verificação pré-merge — roda no build de preview do `odontobox-stg`.
  *
  * Substitui o ci.yml do GitHub Actions — removido em 13/11/2026, quando o
  * billing do GitHub provou o que o próprio ci.yml já declarava: nada ali era
@@ -8,16 +8,15 @@
  * nenhuma (os quatro merges de 10/11, e o tsc que só apareceu depois do merge).
  * O Workers Builds é quem publica — então é ele quem verifica.
  *
- * Onde isto roda: no build do Worker `odontobox-ci`, um Worker à parte ligado
- * a este mesmo repositório, cujo único produto é este portão. Ele é dedicado
- * porque o build do vinext usa ~12 dos 20 minutos de teto do Workers Builds —
- * não há folga para ESLint (102 s medidos) + ~38 provas no mesmo build. No
- * Worker dedicado, os 20 minutos são todos da verificação.
- *
- *   build command:       pnpm install --frozen-lockfile && pnpm run ci:worker
- *   deploy command:      npx -y wrangler@4 deploy -c ci/wrangler.jsonc
- *   branch de produção:  staging — push em qualquer outra branch vira build de
- *                        preview, e o check aparece no PR antes do merge.
+ * Onde isto roda: no build de PREVIEW do Worker `odontobox-stg`, pelo hook
+ * `prebuild:preview` — todo push em branch de PR constrói o preview, e o
+ * portão roda antes do build, virando o check do PR. Não existe Worker de CI
+ * dedicado, por decisão do André em 13/11: a justificativa dele era o teto de
+ * 20 min contra um build de vinext de ~12 min (medição de outubro), e essa
+ * premissa morreu quando o vinext passou ao rolldown — o build inteiro caiu
+ * para ~2-3 min, e a bateria (~8-11 min) cabe com folga. Se o build engordar
+ * de volta e encostar no teto, o arranjo dedicado volta: este script não sabe
+ * onde roda, é só mudar quem o chama.
  *
  * Localmente: `pnpm run ci:worker` roda tudo menos o gitleaks (binário Linux)
  * e as provas contra o Neon (pedem NEON_API_KEY). A ordem é a do reprova-mais-
