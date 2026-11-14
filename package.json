@@ -19,7 +19,7 @@
         "lint:estaticos": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/lint-fuso.mjs && node scripts/check-widget.mjs",
         "prebuild": "pnpm run lint:estaticos",
         "verificar": "node scripts/limpar-tipos-gerados.mjs && pnpm run typecheck && pnpm run typecheck:cloudflare && pnpm run lint:estaticos",
-        "prebuild:preview": "pnpm run verificar",
+        "prebuild:preview": "pnpm run ci:worker",
         "ci:worker": "node scripts/ci-worker.mjs",
         "preportao:stg": "pnpm run verificar",
         "preportao:prod": "pnpm run verificar",

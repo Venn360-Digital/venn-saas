@@ -55,9 +55,13 @@ const base = process.argv[2] || process.env.LINT_MIGRACOES_BASE || ''
 
 function novasMigracoes() {
     const alvo = 'prisma/migrations/'
+    // Dois pontos de propósito: diff de SNAPSHOT, que não exige merge-base —
+    // o clone raso do Workers Builds tem a ref mas não garante ancestralidade
+    // ("no merge base", medido em 13/11). Para --diff-filter=A o resultado é o
+    // mesmo: migração presente no HEAD e ausente na base.
     const cmd = base
-        ? `git diff --name-only --diff-filter=A ${base}...HEAD -- ${alvo}`
-        : `git diff --name-only --diff-filter=A HEAD~1...HEAD -- ${alvo}`
+        ? `git diff --name-only --diff-filter=A ${base}..HEAD -- ${alvo}`
+        : `git diff --name-only --diff-filter=A HEAD~1..HEAD -- ${alvo}`
     try {
         return execSync(cmd, { encoding: 'utf8' })
             .split('\n')
