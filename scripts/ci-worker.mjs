@@ -61,31 +61,64 @@ function tenta(comando) {
 }
 
 /**
- * O lint de migração precisa de uma base de diff — e o clone do Workers Builds
- * não garante nem a ref `origin/staging` nem profundidade de histórico. A
- * cascata tenta, nesta ordem: a ref já presente; um fetch raso dela; o HEAD~1
- * (padrão do próprio lint). A base só serve se o diff de verdade funcionar
- * (ref presente mas sem merge-base no clone raso falha no diff, não no
- * rev-parse). Sem base nenhuma, o passo é PULADO com aviso alto — reprovar
- * todo PR porque o clone é raso seria pior que cobrar o lint à mão.
+ * O lint de migração e o gitleaks precisam de uma BASE de diff — só os commits
+ * novos do PR interessam aos dois. O motivo não é estético: vazamento antigo
+ * já conferido vive no `.gitleaksignore` com fingerprint preso ao SHA do
+ * commit, e no clone raso do builder o mesmo achado reaparece no SHA da
+ * fronteira do clone — varrer o histórico inteiro ali reprova TODO PR com os
+ * falsos positivos conhecidos de outro carimbo (14 deles, medido em 13/11).
+ *
+ * O clone do Workers Builds não garante nem a ref `origin/staging` nem
+ * profundidade. A cascata tenta: a ref presente; um fetch raso dela; o HEAD~1.
+ * A base só serve se o diff de verdade funcionar. Sem base nenhuma, os dois
+ * passos são PULADOS com aviso alto E com o diagnóstico de cada tentativa —
+ * reprovar todo PR porque o clone é raso seria pior que cobrar à mão.
  */
-function baseParaLintDeMigracoes() {
-    const serve = (base) => tenta(`git diff --name-only ${base}...HEAD -- prisma/migrations/`)
-    if (serve('origin/staging')) return 'origin/staging'
-    if (tenta('git fetch --depth=200 origin staging') && serve('origin/staging')) return 'origin/staging'
-    if (serve('HEAD~1')) return 'HEAD~1'
-    return null
+function baseParaVerificacoesDeDiff() {
+    const tentativas = []
+    const roda = (cmd) => {
+        try {
+            return execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'] }).toString()
+        } catch (e) {
+            const erro = String(e.stderr ?? e.message).trim().slice(0, 200)
+            tentativas.push(`${cmd} → ${erro || 'falhou sem mensagem'}`)
+            return null
+        }
+    }
+    const serve = (base) => roda(`git diff --name-only ${base}...HEAD`) !== null
+    let base = null
+    if (serve('origin/staging')) base = 'origin/staging'
+    else {
+        roda('git fetch --depth=200 origin staging:refs/remotes/origin/staging')
+        if (serve('origin/staging')) base = 'origin/staging'
+        else if (serve('HEAD~1')) base = 'HEAD~1'
+    }
+    if (!base) {
+        console.warn('⚠ nenhuma base de diff utilizável. O que cada tentativa disse:')
+        for (const t of tentativas) console.warn(`    ${t}`)
+        for (const cmd of ['git remote -v', 'git rev-parse --is-shallow-repository', 'git log --oneline -3', 'git branch -a']) {
+            console.warn(`    $ ${cmd}\n      ${(roda(cmd) ?? '(falhou)').trim().split('\n').join('\n      ')}`)
+        }
+    }
+    return base
 }
 
 /**
- * Varredura de segredos, pinada na mesma versão que o ci.yml usava. Só roda
- * no Linux (o container do Workers Builds); nesta máquina o aviso diz como
- * rodar à mão. Em clone raso a varredura cobre os commits disponíveis — menos
- * que o histórico inteiro, e o log declara a cobertura em vez de fingir.
+ * Varredura de segredos, pinada na mesma versão que o ci.yml usava — e, como
+ * lá, SÓ sobre os commits novos (base..HEAD): o histórico inteiro já foi
+ * conferido (allowlist no .gitleaksignore) e revarri-lo no clone raso reprova
+ * os falsos positivos conhecidos com fingerprint que não casa (ver a cascata
+ * de base acima). A varredura completa vira ato manual ocasional:
+ * `gitleaks detect --redact --log-opts="--all"` num clone cheio — rodada em
+ * 13/11: zero achados. Só roda no Linux (o binário baixado é o do builder).
  */
-function gitleaks() {
+function gitleaks(base) {
     if (process.platform !== 'linux') {
         console.warn('⚠ gitleaks pulado fora do Linux — rode à mão: gitleaks detect --redact --log-opts="--all"')
+        return
+    }
+    if (!base) {
+        console.warn('⚠ gitleaks PULADO: sem base de diff, varrer o histórico raso reprovaria falso positivo conhecido. Rode à mão num clone cheio.')
         return
     }
     const VERSAO = '8.30.1'
@@ -98,12 +131,7 @@ function gitleaks() {
             `curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSAO}/gitleaks_${VERSAO}_linux_x64.tar.gz" | tar -xz -C ${dir} gitleaks`
         )
     }
-    let raso = false
-    try {
-        raso = execSync('git rev-parse --is-shallow-repository', { encoding: 'utf8' }).trim() === 'true'
-    } catch { /* fora de um repositório git não acontece aqui */ }
-    if (raso) console.warn('⚠ clone raso: o gitleaks varre os commits disponíveis, não o histórico inteiro')
-    rodar('gitleaks (varredura de segredos)', `${bin} detect --no-banner --redact --log-opts="--all"`)
+    rodar(`gitleaks (segredos nos commits novos: ${base}..HEAD)`, `${bin} detect --no-banner --redact --log-opts="${base}..HEAD"`)
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +200,7 @@ rodar('check:fuso (relógio em UTC)', 'pnpm run check:fuso', { TZ: 'UTC' })
 // Migração nova tem de ser compatível com o código que está no ar: o portão
 // APLICA a migração antes de publicar, então DDL destrutivo sem o marcador
 // `-- contract` tem de reprovar aqui, onde é barato.
-const base = baseParaLintDeMigracoes()
+const base = baseParaVerificacoesDeDiff()
 if (base) {
     rodar(`lint de migração (base: ${base})`, `node scripts/lint-migracoes.mjs ${base}`)
 } else {
@@ -182,7 +210,7 @@ if (base) {
     )
 }
 
-gitleaks()
+gitleaks(base)
 
 // A parte que precisa de banco de verdade, em branch descartável do Neon.
 // Sem NEON_API_KEY ela avisa alto e sai verde — ver o cabeçalho do script.
