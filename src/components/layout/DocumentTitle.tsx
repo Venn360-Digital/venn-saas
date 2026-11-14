@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
 import { pageTitleFor } from '@/lib/nav'
-import { BRAND } from '@/config/brand'
+import { useMarca } from '@venn/core/marca-contexto'
 
 /**
  * Names the browser tab after the page you are on.
@@ -22,11 +22,15 @@ import { BRAND } from '@/config/brand'
  */
 export function DocumentTitle() {
     const pathname = usePathname()
+    // Pelo contexto, e não por import: este componente vai para
+    // `packages/core`, que não pode importar o `brand.ts` do app — seria
+    // `core → app`. Ver `packages/core/src/marca-contexto.tsx`.
+    const marca = useMarca()
 
     useEffect(() => {
         const page = pageTitleFor(pathname)
-        document.title = page === BRAND.name ? page : `${page} · ${BRAND.name}`
-    }, [pathname])
+        document.title = page === marca.name ? page : `${page} · ${marca.name}`
+    }, [pathname, marca.name])
 
     return null
 }

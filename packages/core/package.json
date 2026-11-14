@@ -1,0 +1,14 @@
+{
+    "name": "@venn/core",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "// nasce pequeno": "Este pacote vai receber ~405 arquivos (lib, trabalhos, cloudflare, hooks e os componentes de domínio) no passo seguinte. Nasce aqui com um arquivo só — o registro da marca — porque é ele que torna o movimento possível: 10 dos arquivos que vêm para cá importam hoje `@/config/brand`, e mover sem o registro criaria `core → app` em dez pontos de uma vez.",
+    "exports": {
+        "./marca": "./src/marca.ts",
+        "./marca-contexto": "./src/marca-contexto.tsx"
+    },
+    "peerDependencies": {
+        "react": "*"
+    }
+}

@@ -51,6 +51,9 @@ importers:
       '@venn/config':
         specifier: workspace:*
         version: link:packages/config
+      '@venn/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@venn/db':
         specifier: workspace:*
         version: link:packages/db
@@ -217,6 +220,8 @@ importers:
         version: 1.33.0
 
   packages/config: {}
+
+  packages/core: {}
 
   packages/db:
     dependencies:
