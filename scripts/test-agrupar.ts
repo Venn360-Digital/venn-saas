@@ -180,7 +180,7 @@ const prompt = promptDoRascunho(grupoDePreco, ['quanto custa o clareamento', 'qu
 
 conferir('diz quantas pessoas perguntaram', prompt.includes('3 pessoa(s)'), true)
 conferir('lista as formas usadas', prompt.includes('- qual o valor'), true)
-conferir('oferece só os alvos de acervo', ALVOS_POSSIVEIS.sort().join(','), 'faq,servicos')
+conferir('oferece só os documentos de conteúdo (faq e servicos), independente do modo', ALVOS_POSSIVEIS.sort().join(','), 'faq,servicos')
 conferir('e o padrão é a FAQ', ALVO_PADRAO, 'faq')
 conferir(
     'documento de modo prompt NÃO é alvo — sugestão automática não mexe na precedência',

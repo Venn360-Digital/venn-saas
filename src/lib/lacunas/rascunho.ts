@@ -32,14 +32,25 @@ import { DOCUMENTOS } from '@/lib/treinamento/documentos'
 import type { Grupo } from './agrupar'
 
 /**
- * Os documentos que podem receber um rascunho: só os de **acervo**.
+ * Os documentos que podem receber um rascunho: os dois de **conteúdo**, pelo
+ * slug — nunca pelo modo de indexação.
  *
- * Os de modo `prompt` carregam limites e identidade — o que o agente não
- * promete, o que ele não diagnostica. Deixar a mineração propor texto para eles
- * seria deixar uma sugestão automática mexer na precedência do prompt, que é a
- * parte do sistema em que um erro não tem como ser percebido depois.
+ * O critério já foi “modo rag”, e isso quebrou em silêncio: quando `servicos` e
+ * `faq` passaram ao modo `prompt` (12/11, para o preço não depender de busca),
+ * o filtro ficou vazio e a mineração morreu — todo alvo era recusado. O modo
+ * diz COMO o documento chega ao modelo; quem pode receber rascunho é decisão
+ * sobre O QUE o documento é.
+ *
+ * Os demais continuam fora, e o motivo continua o mesmo: carregam limites e
+ * identidade — o que o agente não promete, o que ele não diagnostica. Deixar a
+ * mineração propor texto para eles seria deixar uma sugestão automática mexer
+ * na parte do sistema em que um erro não tem como ser percebido depois. O
+ * branco segue seguro nos dois destinos: tanto o acervo (`indexar.ts`) quanto o
+ * prompt (`prompt.ts`) descartam comentário HTML via `semComentarios`.
  */
-export const ALVOS_POSSIVEIS = DOCUMENTOS.filter((d) => d.modo === 'rag').map((d) => d.slug)
+export const ALVOS_POSSIVEIS = ['faq', 'servicos'].filter((slug) =>
+    DOCUMENTOS.some((d) => d.slug === slug)
+)
 
 export type AlvoDoRascunho = (typeof ALVOS_POSSIVEIS)[number]
 
