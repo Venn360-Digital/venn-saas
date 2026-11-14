@@ -21,7 +21,11 @@
         "./cloudflare/*": "./src/cloudflare/*.ts",
         "./types/*": "./src/types/*.ts",
         "./config/app": "./src/config/app.ts",
-        "./components/*": "./src/components/*.tsx"
+        "./components/*": "./src/components/*.tsx",
+        "./rotas/*": [
+            "./src/rotas/*.ts",
+            "./src/rotas/*.tsx"
+        ]
     },
     "peerDependencies": {
         "react": "*"
