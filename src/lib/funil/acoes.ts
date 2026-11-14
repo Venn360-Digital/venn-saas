@@ -1,6 +1,6 @@
 import 'server-only'
 import prisma from '@venn/db/cliente'
-import { BRAND } from '@/config/brand'
+import { BRAND } from '@venn/core/marca'
 import {
     campanhaEmTexto,
     primeiroNome,
@@ -12,7 +12,19 @@ import { urlDeDescadastro } from '@/lib/marketing/descadastro'
 import { conteudoDoPasso, remetenteDoFunil, type Passagem } from './estado'
 
 /** Mesma derivação de `servicos/broadcast.ts`: o host da marca quando não há env. */
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND.appHost}`
+/**
+ * Preguiçoso de propósito, e isto é a diferença entre funcionar e ser refém da
+ * ordem dos imports.
+ *
+ * Era `const APP_URL = … BRAND.appHost` no nível do módulo. Com a marca vinda
+ * de um registro, um `const` aqui chamaria `BRAND()` no instante em que o
+ * módulo é avaliado — ou seja, antes de `registrarBrand()` se o grafo de
+ * imports mudar de ordem — e congelaria o valor para sempre. Resolver no ponto
+ * de uso tira a leitura do caminho crítico do arranque.
+ */
+function appUrl(): string {
+    return process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND().appHost}`
+}
 
 /**
  * O que um passo de funil **faz**.
@@ -193,7 +205,7 @@ export async function enviarEmailDoPasso(
      * no remetente, que é o que quem lê enxerga.
      */
     const descadastroUrl = await urlDeDescadastro(
-        APP_URL,
+        appUrl(),
         passagem.workspaceId,
         passagem.contactId
     )

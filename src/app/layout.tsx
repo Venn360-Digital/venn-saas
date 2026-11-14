@@ -1,3 +1,8 @@
+// PRIMEIRO de todos, de propósito: registra a marca no core antes de
+// qualquer módulo dele ser avaliado. `scripts/check-marca.mjs` cobra a
+// posição desta linha.
+import '@/marca-init'
+
 import type { Metadata } from 'next'
 import { Open_Sans, Inter } from 'next/font/google'
 import './globals.css'
@@ -5,6 +10,7 @@ import { Toaster } from '@venn/ui/sonner'
 import { TooltipProvider } from '@venn/ui/tooltip'
 import { ThemeProvider } from '@/components/theme-provider'
 import { BRAND } from '@/config/brand'
+import { ProvedorDeMarca } from '@venn/core/marca-contexto'
 
 // Both are variable fonts, so `weight` is deliberately omitted — naming weights
 // would ship four to six files per family instead of one, and the build runs on
@@ -42,12 +48,14 @@ export default function RootLayout({
     return (
         <html lang="pt-BR" suppressHydrationWarning>
             <body className={`${openSans.variable} ${inter.variable} font-sans`}>
+                <ProvedorDeMarca marca={BRAND}>
                 <ThemeProvider>
                     <TooltipProvider delayDuration={300}>
                         {children}
                         <Toaster />
                     </TooltipProvider>
                 </ThemeProvider>
+                </ProvedorDeMarca>
             </body>
         </html>
     )

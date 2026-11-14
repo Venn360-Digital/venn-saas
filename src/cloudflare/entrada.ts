@@ -1,5 +1,9 @@
 /// <reference types="@cloudflare/workers-types" />
 
+// PRIMEIRO de todos: este entrypoint cobre fila, cron e Durable Object, que
+// não têm requisição nem provider de React acima deles. Ver `src/marca-init.ts`.
+import '@/marca-init'
+
 import vinext from 'vinext/server/fetch-handler'
 
 import { ALL_QUEUES, QUEUE, type JobPayloads, type QueueName } from '@/lib/queue/definitions'
