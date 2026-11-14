@@ -4,7 +4,7 @@ import { avaliacaoDaSessao } from '@/lib/avaliacao'
 import { marcaDaSessao } from '@/lib/session-brand'
 import { DocumentTitle } from '@/components/layout/DocumentTitle'
 import { Topbar } from '@/components/layout/Topbar'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '@venn/ui/sidebar'
 import { MoedaProvider } from '@/hooks/useMoeda'
 import { TarjaDeAcesso } from '@/components/plataforma/TarjaDeAcesso'
 

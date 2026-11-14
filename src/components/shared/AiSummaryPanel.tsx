@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { CalendarCheck, CalendarOff, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { activityType } from '@/lib/activity-types'
 
 interface Appointment {

@@ -7,10 +7,10 @@ import { toast } from 'sonner'
 
 import { requestPasswordReset, signIn, signUp } from '@/lib/auth/cliente'
 import { Logo } from '@/components/brand/Logo'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '@venn/ui/tabs'
 
 function LoginForm() {
     /**

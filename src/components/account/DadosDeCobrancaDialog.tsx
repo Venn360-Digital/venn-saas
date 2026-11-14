@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Input } from '@/components/ui/input'
+import { Input } from '@venn/ui/input'
 import { MaskedInput } from '@/components/shared/MaskedInput'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { FormField } from '@/components/shared/FormField'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { Download, MessageCircle, Globe } from 'lucide-react'
 
 interface Conversation {

@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Checkbox } from '@venn/ui/checkbox'
+import { Label } from '@venn/ui/label'
+import { ScrollArea } from '@venn/ui/scroll-area'
 import { TERMS, TERMS_VERSION } from '@/lib/terms'
 
 /**

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Copy, Loader2, Power, Trash2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 

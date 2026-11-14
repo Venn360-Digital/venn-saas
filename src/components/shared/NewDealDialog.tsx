@@ -7,8 +7,8 @@ import { toast } from 'sonner'
 import { FormField } from '@/components/shared/FormField'
 import { PickField, type PickOption } from '@/components/shared/PickField'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@venn/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
 import { formatPhone } from '@/lib/phone'
 
 /**

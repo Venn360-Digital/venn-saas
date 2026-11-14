@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Campo que grava ao sair, sem botão e sem modo de edição.

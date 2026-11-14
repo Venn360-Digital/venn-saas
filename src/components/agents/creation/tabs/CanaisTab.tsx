@@ -17,23 +17,23 @@ import { toast } from 'sonner'
 import { WidgetDoSite } from '@/components/agents/creation/WidgetDoSite'
 import { WIDGET_PADRAO, type ConfiguracaoDoWidget } from '@/lib/widget-config'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Switch } from '@venn/ui/switch'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { InstagramConnect } from '@/components/agents/creation/InstagramConnect'
 import { MetaEmbeddedSignup } from '@/components/agents/creation/MetaEmbeddedSignup'
 import { apelidoDaLinha } from '@/lib/linha'
 import { formatPhone } from '@/lib/phone'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { WhatsAppQRModal } from '../WhatsAppQRModal'
 
 /**

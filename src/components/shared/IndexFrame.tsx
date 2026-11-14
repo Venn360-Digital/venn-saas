@@ -2,9 +2,9 @@
 
 import { Search, X } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O quadro das telas de índice — Pacientes, Etiquetas, Produtos, Departamentos,

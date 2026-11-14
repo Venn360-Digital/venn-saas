@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Check, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { SettingsCard } from '@/components/shared/TabsFrame'
 
 /**

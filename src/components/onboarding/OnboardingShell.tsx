@@ -3,7 +3,7 @@
 import { Check } from 'lucide-react'
 
 import { Logo } from '@/components/brand/Logo'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A moldura do cadastro: um cartão de tamanho fixo, centrado nos dois eixos.

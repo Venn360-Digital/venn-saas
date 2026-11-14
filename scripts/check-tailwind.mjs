@@ -49,9 +49,9 @@ const ENTRADAS = ['src/app/globals.css', 'apps/odontobox360/src/app/globals.css'
  * — fica apenas menos preciso sobre QUAL arquivo foi alcançado.
  */
 const SENTINELAS = [
-    { classe: 'in-data-[side=left]:cursor-w-resize', deArquivo: 'components/ui/sidebar.tsx' },
-    { classe: 'peer-data-[variant=inset]:rounded-xl', deArquivo: 'components/ui/sidebar.tsx' },
-    { classe: 'group-data-[collapsible=icon]:hidden', deArquivo: 'components/ui/sidebar.tsx' },
+    { classe: 'in-data-[side=left]:cursor-w-resize', deArquivo: 'ui/src/sidebar.tsx' },
+    { classe: 'peer-data-[variant=inset]:rounded-xl', deArquivo: 'ui/src/sidebar.tsx' },
+    { classe: 'group-data-[collapsible=icon]:hidden', deArquivo: 'ui/src/sidebar.tsx' },
 ]
 
 /**

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, LogOut } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 
 /**
  * A tarja de "você está dentro da conta de um cliente".

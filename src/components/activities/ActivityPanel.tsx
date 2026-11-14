@@ -3,16 +3,16 @@
 import Link from 'next/link'
 import { BellRing, Check, Repeat, RotateCcw } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@venn/ui/select'
 import { InlineField } from '@/components/shared/InlineField'
 import { MaskedInput } from '@/components/shared/MaskedInput'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
 import { ACTIVITY_TYPES } from '@/lib/activity-types'
 import { MASKS, dateFromMask, maskDigitsFromIso, prettyPhone } from '@/lib/masks'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export interface ActivityPanelItem {
     id: string

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { FileText, Film, ImageIcon, Loader2, Mic, Paperclip } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface MediaMessage {
     id: string

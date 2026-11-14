@@ -3,9 +3,9 @@
 import { useId, useState } from 'react'
 import { Check, Loader2, Plus, X } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
+import { Button } from '@venn/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@venn/ui/dialog'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O diálogo de cadastro — o quadro padrão de todo "Novo".

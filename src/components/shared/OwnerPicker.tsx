@@ -8,8 +8,8 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/select'
+import { cn } from '@venn/ui/utils'
 
 export interface OwnerOption {
     userId: string

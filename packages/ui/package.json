@@ -1,0 +1,21 @@
+{
+    "name": "@venn/ui",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "// exports": "Pacote SOURCE-ONLY: publica `.tsx` cru, sem passo de build. É interno (nunca vai a registro nenhum), o vite resolve TS de workspace nativamente, e o alvo Next o compila por `transpilePackages`. Um passo de build aqui só acrescentaria um artefato para ficar desatualizado. O padrão `./*` casa `@venn/ui/button` com `./src/button.tsx`; `utils` e `use-mobile` são `.ts` e por isso vêm declarados antes, já que o padrão mais específico ganha.",
+    "exports": {
+        "./utils": "./src/utils.ts",
+        "./use-mobile": "./src/use-mobile.ts",
+        "./*": "./src/*.tsx"
+    },
+    "// dependencies": "Nenhuma declarada de propósito: react, radix, lucide, clsx e tailwind-merge vêm do app que consome, e com `node-linker=hoisted` a resolução é plana. Declarar versões aqui abriria a porta para duas cópias de React na árvore — que em componente de UI significa hook quebrado em runtime, não erro de build.",
+    "peerDependencies": {
+        "react": "*",
+        "react-dom": "*"
+    },
+    "peerDependenciesMeta": {
+        "react": { "optional": false },
+        "react-dom": { "optional": false }
+    }
+}

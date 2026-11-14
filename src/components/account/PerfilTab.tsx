@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import { Camera, Save, ShieldCheck, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { PhoneInput } from '@/components/shared/PhoneInput'
@@ -11,7 +11,7 @@ import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ALCANCE_DO_PAPEL, ROTULO_DO_PAPEL } from '@/lib/papeis'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@venn/ui/badge'
 
 interface UserProfile {
     id: string

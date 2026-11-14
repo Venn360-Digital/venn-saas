@@ -4,16 +4,16 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import { IndexFrame } from '@/components/shared/IndexFrame'
 import { FilterPill } from '@/components/shared/FilterPill'
 import { DataTable, type Column } from '@/components/shared/DataTable'

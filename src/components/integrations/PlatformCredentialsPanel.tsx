@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ShieldCheck, Terminal } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface ProviderRow {
     provider: string

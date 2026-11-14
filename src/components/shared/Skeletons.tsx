@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton } from '@venn/ui/skeleton'
 
 /**
  * O esqueleto da tabela, e **só ele**.

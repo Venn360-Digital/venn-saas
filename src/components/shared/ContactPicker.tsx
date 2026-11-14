@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Check, Loader2, Plus, User, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Command,
     CommandEmpty,
@@ -12,10 +12,10 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
-} from '@/components/ui/command'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+} from '@venn/ui/command'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@venn/ui/popover'
 import { formatPhone, phoneIssue } from '@/lib/phone'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 

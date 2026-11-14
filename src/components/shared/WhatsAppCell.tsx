@@ -2,10 +2,10 @@
 
 import { Loader2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@venn/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { WhatsAppMark } from '@/components/shared/WhatsAppMark'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export interface WhatsAppTarget {
     id?: string

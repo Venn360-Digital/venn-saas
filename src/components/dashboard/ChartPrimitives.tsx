@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * As peças de que os nove gráficos são feitos.

@@ -4,9 +4,9 @@ import { CalendarClock } from 'lucide-react'
 
 import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@venn/ui/switch'
 import { PICKER_RAMP } from '@/lib/palette'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 
 export interface EspecialistaPanelItem {
     id: string

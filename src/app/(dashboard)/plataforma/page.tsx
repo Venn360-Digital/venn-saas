@@ -5,12 +5,12 @@ import { Eye, Gift, LogIn, ShieldCheck, Unlock } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Badge } from '@venn/ui/badge'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { BRAND } from '@/config/brand'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O console da Venn360: as contas deste app, e o que dá para fazer com elas.

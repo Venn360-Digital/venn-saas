@@ -25,8 +25,9 @@ const BASELINE_FILE = join(ROOT, 'scripts', 'color-baseline.json')
  */
 const ALLOWED = [
     // Vendored shadcn primitives. They carry upstream's own classes, and a
-    // `shadcn add` would overwrite any edit we made here anyway.
-    'src/components/ui/',
+    // `shadcn add` would overwrite any edit we made here anyway. Mudaram para
+    // `packages/ui` na Fase 2; `conferirAllowlist` é que cobrou esta linha.
+    'packages/ui/src/',
     // The single component that renders a user-chosen hex from the database.
     'src/components/shared/TagChip.tsx',
     // Renders above ThemeProvider, where CSS variables are not guaranteed.

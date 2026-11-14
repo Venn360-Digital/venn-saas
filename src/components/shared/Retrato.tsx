@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * A foto de quem está na conversa — e o nome enquanto ela não chega.

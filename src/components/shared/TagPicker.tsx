@@ -4,10 +4,10 @@ import { useMemo, useState } from 'react'
 import { Check, Loader2, Plus, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import { DEFAULT_ENTITY_COLOR, PICKER_RAMP } from '@/lib/palette'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export interface PickableTag {
     id: string

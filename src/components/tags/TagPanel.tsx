@@ -4,7 +4,7 @@ import { InlineField } from '@/components/shared/InlineField'
 import { PanelField, PanelSection, RecordPanel, usePanelSave } from '@/components/shared/RecordPanel'
 import { TagChip } from '@/components/shared/TagChip'
 import { PICKER_RAMP } from '@/lib/palette'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 export interface TagPanelItem {
     id: string

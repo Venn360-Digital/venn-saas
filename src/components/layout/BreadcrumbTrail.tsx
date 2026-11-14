@@ -12,7 +12,7 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb'
+} from '@venn/ui/breadcrumb'
 
 /**
  * The trail lives in the topbar, so every screen is oriented the same way —

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Check, ChevronsUpDown, Hospital } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -12,8 +12,8 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/dropdown-menu'
+import { cn } from '@venn/ui/utils'
 import { trocarDeUnidade, useUnidades, type UnidadeAberta } from '@/hooks/useUnidades'
 
 /**

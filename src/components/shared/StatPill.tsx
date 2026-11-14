@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Um número da faixa de números clicáveis — a linha 1 da Tela 02.

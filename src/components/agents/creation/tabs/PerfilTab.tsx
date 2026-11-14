@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
+import { Label } from '@venn/ui/label'
+import { Slider } from '@venn/ui/slider'
 import { OPENAI_MODELS } from '@/lib/llm/models'
 import { GRUPOS_DE_FUSOS, rotuloDoFuso } from '@/lib/fusos'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { SettingsCard } from '@/components/shared/TabsFrame'
 import {
     Select,
@@ -20,7 +20,7 @@ import {
     SelectLabel,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import { InstrucoesData, PerfilData } from '@/types/agent-creation'
 
 type AgentFunction = NonNullable<PerfilData['agentFunction']>

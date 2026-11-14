@@ -8,7 +8,7 @@ import { CamposSomenteLeitura } from '@/components/agents/creation/CamposSomente
 import { EsperaDoFormulario } from '@/components/agents/creation/EsperaDoFormulario'
 import { marcarSujo } from '@/components/agents/creation/unsaved'
 import { usePermissions } from '@/hooks/usePermissions'
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { CondicoesTab } from '@/components/agents/creation/tabs/CondicoesTab'
 import { PreferenciasTab } from '@/components/agents/creation/tabs/PreferenciasTab'
 import { useAgentCommands } from '@/hooks/useAgentCommands'

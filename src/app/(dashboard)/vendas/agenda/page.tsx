@@ -3,13 +3,13 @@
 import { ACTIVITY_TYPES as SHARED_ACTIVITY_TYPES } from '@/lib/activity-types'
 import { useState, useEffect, useMemo } from 'react'
 import { BellRing, Briefcase, Calendar, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, Circle, Columns3, List, Pencil, Plus, Repeat, Trash2, User, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/select'
+import { cn } from '@venn/ui/utils'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'

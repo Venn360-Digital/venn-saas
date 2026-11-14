@@ -6,8 +6,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, LogOut, User, Settings, Volume2, VolumeX, Clock} from 'lucide-react'
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@venn/ui/avatar'
+import { Button } from '@venn/ui/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -15,14 +15,14 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@venn/ui/dropdown-menu'
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
-} from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+} from '@venn/ui/popover'
+import { cn } from '@venn/ui/utils'
+import { SidebarTrigger } from '@venn/ui/sidebar'
 import { BreadcrumbTrail } from '@/components/layout/BreadcrumbTrail'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { GatilhoDaEquipe } from '@/components/equipe/GatilhoDaEquipe'

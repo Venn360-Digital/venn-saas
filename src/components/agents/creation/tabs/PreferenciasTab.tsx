@@ -1,15 +1,15 @@
 'use client'
 
-import { Switch } from '@/components/ui/switch'
-import { Slider } from '@/components/ui/slider'
+import { Switch } from '@venn/ui/switch'
+import { Slider } from '@venn/ui/slider'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
+} from '@venn/ui/select'
+import { Input } from '@venn/ui/input'
 import { SettingsCard, SettingsRow } from '@/components/shared/TabsFrame'
 import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-preferences'
 

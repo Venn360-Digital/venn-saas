@@ -2,7 +2,7 @@
 
 import { Check, GraduationCap, Sparkles } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@venn/ui/badge'
 import { PLAN_LIST, TREINAMENTO_DE_AGENTE, TRIAL, formatPrice, redesDoPlano } from '@/lib/plans'
 import {
     CICLOS,
@@ -11,7 +11,7 @@ import {
     valorDaFatura,
     type BillingCycle,
 } from '@/lib/plan-limits'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface Step2PlanProps {
     data: { plan: string; cycle: BillingCycle }

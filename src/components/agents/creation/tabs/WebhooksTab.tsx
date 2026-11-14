@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
 import { Plus, Trash2, ChevronDown, ChevronUp, Activity, AlertCircle, CheckCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 interface Webhook {
     id?: string

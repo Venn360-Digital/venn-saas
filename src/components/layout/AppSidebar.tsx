@@ -11,13 +11,13 @@ import {
 
 import { ClinicBrand } from '@/components/layout/ClinicBrand'
 import type { UnidadeAberta } from '@/hooks/useUnidades'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { Badge } from '@venn/ui/badge'
+import { Progress } from '@venn/ui/progress'
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+} from '@venn/ui/collapsible'
 import {
     Sidebar,
     SidebarContent,
@@ -31,7 +31,7 @@ import {
     SidebarMenuSub,
     SidebarMenuSubButton,
     SidebarMenuSubItem,
-} from '@/components/ui/sidebar'
+} from '@venn/ui/sidebar'
 import { navSections, type NavSection } from '@/lib/nav'
 import { usePermissions } from '@/hooks/usePermissions'
 import { NavSecondary } from './NavSecondary'

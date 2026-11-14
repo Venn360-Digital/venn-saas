@@ -6,7 +6,7 @@ import { Check, Clock, Flag, Trophy, Undo2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useNow } from '@/hooks/useNow'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { CreatableSelect } from '@/components/shared/CreatableSelect'
 import { useOutcomeReasons, type Outcome } from '@/hooks/useOutcomeReasons'
 

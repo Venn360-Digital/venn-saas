@@ -4,7 +4,7 @@ import Link from 'next/link'
 import * as React from 'react'
 import { type LucideIcon } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 import {
     SidebarGroup,
@@ -12,7 +12,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-} from '@/components/ui/sidebar'
+} from '@venn/ui/sidebar'
 
 /**
  * The group the sidebar-08 block pins to the bottom with `mt-auto`.

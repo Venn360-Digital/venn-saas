@@ -2,8 +2,8 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-import { useSidebar } from '@/components/ui/sidebar'
-import { cn } from '@/lib/utils'
+import { useSidebar } from '@venn/ui/sidebar'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O botão de recolher e abrir a sidebar, sentado na linha que separa a

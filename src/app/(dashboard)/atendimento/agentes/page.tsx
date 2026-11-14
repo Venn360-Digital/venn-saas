@@ -7,9 +7,9 @@ import { Agent } from '@venn/db'
 import { Bot, Eye, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { useEsperaLonga } from '@/hooks/useEsperaLonga'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { FormField } from '@/components/shared/FormField'
@@ -19,7 +19,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import { useUnidades } from '@/hooks/useUnidades'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'

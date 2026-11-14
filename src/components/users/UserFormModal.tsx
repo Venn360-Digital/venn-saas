@@ -3,23 +3,23 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Avatar, AvatarFallback } from '@venn/ui/avatar'
+import { Checkbox } from '@venn/ui/checkbox'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
+import { Switch } from '@venn/ui/switch'
+import { RadioGroup, RadioGroupItem } from '@venn/ui/radio-group'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
+} from '@venn/ui/select'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog, SummaryCard } from '@/components/shared/RecordDialog'
 import { StatusBadge, WORKSPACE_ROLE } from '@/components/shared/StatusBadge'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 import { PhoneInput } from '@/components/shared/PhoneInput'
 import { phoneIssue } from '@/lib/phone'
 import { ROTULO_DO_PAPEL } from '@/lib/papeis'

@@ -4,16 +4,16 @@ import { useEffect, useState } from 'react'
 import { Loader2, Plus, Trash2, Trophy, X } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/dialog'
+import { Input } from '@venn/ui/input'
+import { cn } from '@venn/ui/utils'
 
 interface Reason {
     id: string

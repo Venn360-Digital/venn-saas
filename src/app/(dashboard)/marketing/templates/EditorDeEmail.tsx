@@ -13,9 +13,9 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Textarea } from '@venn/ui/textarea'
 import { FormField } from '@/components/shared/FormField'
 import { RecordDialog } from '@/components/shared/RecordDialog'
 import { BRAND } from '@/config/brand'

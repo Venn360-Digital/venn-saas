@@ -2,8 +2,8 @@
 
 import type { LucideIcon } from 'lucide-react'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O modo de visualização — lista · quadro · calendário; trilho · quadro ·

@@ -3,15 +3,15 @@
 import { MoreVertical, type LucideIcon } from 'lucide-react'
 import * as React from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/dropdown-menu'
+import { cn } from '@venn/ui/utils'
 
 interface RowActionsProps {
     /**

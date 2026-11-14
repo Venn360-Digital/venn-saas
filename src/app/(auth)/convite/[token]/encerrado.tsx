@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 import type { EstadoDoConvite } from '@/lib/convite/estado'
-import { Button } from '@/components/ui/button'
+import { Button } from '@venn/ui/button'
 import { Logo } from '@/components/brand/Logo'
 
 /**

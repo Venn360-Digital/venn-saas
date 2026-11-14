@@ -6,7 +6,7 @@ import { getWorkspaceLimits } from '@/lib/limits'
 import { apelidoDaLinha } from '@/lib/linha'
 import { isPlanId } from '@/lib/plan-limits'
 import { REDES_DO_PLANO, redesDoPlano } from '@/lib/plans'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * O que está de pé agora: agentes e canais.

@@ -2,9 +2,9 @@
 
 import { forwardRef } from 'react'
 
-import { Input } from '@/components/ui/input'
+import { Input } from '@venn/ui/input'
 import { applyMask, maskCapacity, maskRest, onlyDigits } from '@/lib/masks'
-import { cn } from '@/lib/utils'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Campo com molde que aparece ao digitar: o que já entrou em tinta normal, o

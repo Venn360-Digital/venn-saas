@@ -5,18 +5,18 @@ import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { RecordDialog } from '@/components/shared/RecordDialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
+import { Switch } from '@venn/ui/switch'
+import { Checkbox } from '@venn/ui/checkbox'
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+} from '@venn/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@venn/ui/tooltip'
 
 /**
  * A grade de horários de um especialista.

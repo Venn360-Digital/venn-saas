@@ -1,7 +1,7 @@
 'use client'
 
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Input } from '@venn/ui/input'
+import { Label } from '@venn/ui/label'
 import { BRAND } from '@/config/brand'
 
 /**

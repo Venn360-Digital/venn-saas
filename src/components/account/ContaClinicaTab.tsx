@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Loader2, Plus, Save, ShoppingCart, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Badge } from '@venn/ui/badge'
+import { Button } from '@venn/ui/button'
+import { Input } from '@venn/ui/input'
 import { BandLayout, SettingsBand } from '@/components/shared/TabsFrame'
 import { TermsCard } from '@/components/account/TermsCard'
 import { FormField } from '@/components/shared/FormField'
@@ -28,8 +28,8 @@ import {
     SelectLabel,
     SelectTrigger,
     SelectValue,
-} from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+} from '@venn/ui/select'
+import { cn } from '@venn/ui/utils'
 
 /**
  * Conta da Clínica — a conta e as clínicas dela, numa guia.
