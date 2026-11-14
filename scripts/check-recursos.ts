@@ -16,20 +16,25 @@
  *
  * ## O erro concreto que isto impede
  *
- * Medido em 14/11/2026, ao preparar o 2º app: o prefixo dos recursos **não
- * segue o mesmo padrão nos três apps**, e a conta é a prova (120 filas, 13
- * buckets lidos pela API):
+ * Medido em 14/11/2026, ao preparar o 2º app, lendo da conta o que cada app
+ * usa de verdade (120 filas, 13 buckets, 10 Workers): **o padrão do nome do
+ * Worker é igual em todos, e o prefixo dos recursos NÃO é.** Num deles o
+ * prefixo de produção é o nome puro, sem sufixo de ambiente; nos outros é o
+ * nome mais `-prod`. No código a diferença é uma linha: `PREFIXO_RECURSOS =
+ * NOME` contra `PREFIXO_RECURSOS = <nome>-${ENV_TAG}`.
  *
- *     app        Worker prod   prefixo de recursos em produção
- *     odontobox  odontobox     odontobox        ← sem sufixo
- *     stagent    stagent       stagent-prod
- *     conecta    conecta       conecta-prod
+ * Copiar o molde de um app e trocar só o nome produziria, em produção, uma
+ * fila com prefixo errado — **que não existe**. O `cf` a criaria, vazia, e o
+ * que estivesse em voo nas filas reais ficaria sem consumidor. É a "identidade
+ * irreversível" que o plano manda preservar, e um erro que só apareceria no
+ * cutover.
  *
- * Copiar o molde do 1º app e trocar só o nome daria
- * `stagent-whatsapp-inbound` em produção — fila que não existe. O `cf` a
- * criaria, vazia, e as mensagens em voo nas filas reais ficariam sem
- * consumidor. Isso é a "identidade irreversível" que o plano manda preservar, e
- * é um erro que só apareceria no cutover.
+ * Os valores medidos não entram aqui de propósito: `scripts/` é código
+ * compartilhado, sem dono, e o `audit:isolation --strict` reprova identificador
+ * de app em arquivo sem dono — comentário incluído. Ele barrou a primeira
+ * versão deste cabeçalho, que traziam a tabela com os nomes. A tabela vive na
+ * mensagem do commit e no plano; aqui fica a forma do defeito, que é o que
+ * importa para quem lê o código.
  *
  * ## O que ele afirma
  *
