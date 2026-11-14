@@ -39,12 +39,28 @@ import { APP } from '../../config/app'
  * legado — e legado só existe onde já havia cobrança antes desta marca.
  */
 
-/** O slug deste app. Vazio fora do Worker (dev), onde não há outro app. */
-const SLUG = APP().slug
+/**
+ * O slug deste app. Vazio fora do Worker (dev), onde não há outro app.
+ *
+ * **Função, e não `const`** — e isto é a correção de um deploy reprovado em
+ * 14/11. `APP()` chama `BRAND()`, que é fail-fast: num `const` de nível de
+ * módulo ele roda quando a Cloudflare AVALIA o script para validá-lo, antes de
+ * existir requisição e portanto antes de alguém registrar a marca. O build
+ * compilava inteiro e a publicação morria com `MarcaNaoRegistradaError`.
+ *
+ * O cache existe porque `APP()` já é memoizado, mas o slug é lido em todo
+ * `marcarReferencia` e não há razão para reatravessar a camada de config.
+ */
+let slugCache: string | null = null
+function SLUG(): string {
+    if (slugCache === null) slugCache = APP().slug
+    return slugCache
+}
 
 /** `<slug>:cus_123` — e `cus_123` cru quando não há slug (dev). */
 export function marcarReferencia(id: string): string {
-    return SLUG ? `${SLUG}:${id}` : id
+    const slug = SLUG()
+    return slug ? `${slug}:${id}` : id
 }
 
 export type LeituraDeReferencia =
@@ -66,7 +82,8 @@ export function lerReferencia(ref: string | null | undefined): LeituraDeReferenc
     // Sem slug configurado (dev) tudo que está marcado é tratado como nosso: em
     // dev não existe o outro app para confundir, e recusar aqui quebraria o
     // caminho local sem proteger nada.
-    if (!SLUG || slug === SLUG) return { tipo: 'nossa', id }
+    const nosso = SLUG()
+    if (!nosso || slug === nosso) return { tipo: 'nossa', id }
     return { tipo: 'de-outro-app' }
 }
 
