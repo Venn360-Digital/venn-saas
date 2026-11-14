@@ -1,0 +1,10 @@
+{
+    "name": "@venn/config",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "// o que mora aqui": "Só CONTRATO: tipos e esquemas que todos os pacotes e apps compartilham, sem nenhum valor concreto. A `interface Brand` fica aqui; o `const BRAND` fica no app. É esta separação que permite `apps → core → config` sem o inverso: o core sabe a FORMA da marca sem conhecer nenhuma marca, e por isso `audit:isolation` pode proibir identificador de app dentro de `packages/**` sem exceção.",
+    "exports": {
+        "./marca": "./src/marca.ts"
+    }
+}

@@ -48,6 +48,9 @@ importers:
       '@types/bcryptjs':
         specifier: ^2.4.6
         version: 2.4.6
+      '@venn/config':
+        specifier: workspace:*
+        version: link:packages/config
       '@venn/db':
         specifier: workspace:*
         version: link:packages/db
@@ -212,6 +215,8 @@ importers:
       lightningcss-darwin-x64:
         specifier: ^1.31.1
         version: 1.33.0
+
+  packages/config: {}
 
   packages/db:
     dependencies:

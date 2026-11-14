@@ -103,6 +103,7 @@
         "@prisma/adapter-pg": "6.19.3",
         "@prisma/client": "6.19.3",
         "@types/bcryptjs": "^2.4.6",
+        "@venn/config": "workspace:*",
         "@venn/db": "workspace:*",
         "@venn/ui": "workspace:*",
         "@vinext/cloudflare": "^1.2.0",
