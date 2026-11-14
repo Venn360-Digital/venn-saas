@@ -1,4 +1,4 @@
-import { BRAND } from '@/config/brand'
+import { BRAND } from '@venn/core/marca'
 
 /**
  * O `robots.txt`, em texto cru — e é por isso que é uma rota, não `app/robots.ts`.
@@ -32,7 +32,7 @@ export const dynamic = 'force-static'
 
 export function GET(): Response {
     const corpo = [
-        `# ${BRAND.name}`,
+        `# ${BRAND().name}`,
         '#',
         '# O produto fica atrás de autenticação, então não há catálogo a indexar.',
         '# A política mesmo assim é declarada, e é de porta aberta: busca,',

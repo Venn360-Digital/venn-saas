@@ -43,10 +43,35 @@
  * 5. **O provedor de cliente está na raiz.** Os componentes `'use client'` do
  *    core leem a marca por contexto; sem o provedor na raiz, `useMarca()`
  *    lança na primeira tela.
+ * 6. **Nenhum componente de cliente chama `BRAND()`.** É o complemento exato da
+ *    regra 5: ela garante que o provedor existe, esta garante que ninguém passa
+ *    por fora dele. O registro de módulo mora no servidor — `marca-init` é
+ *    importado pelo `layout.tsx` (RSC) e pelo entrypoint do Worker, e nenhum
+ *    dos dois é avaliado no navegador. Então `BRAND()` num arquivo
+ *    `'use client'` **compila, builda, publica** e lança na tela do cliente,
+ *    que é a pior ordem possível de descobrir.
+ *
+ *    Foi um defeito meu, hoje: ao converter oito rotas de `@/config/brand`
+ *    (objeto literal do app) para o registro do core, três eram
+ *    `'use client'`. Nenhuma rede pegava — `check:marca-tardia` só olha a
+ *    AVALIAÇÃO do módulo, e esta leitura acontece no render.
+ *
+ *    O critério é o import do módulo de registro, não o nome da função: a
+ *    lição desta fase é que lista de nomes diverge calada (`APP()` e `appUrl()`
+ *    leem a marca sem escrever `BRAND(`). Importar `@venn/core/marca` é o que
+ *    o runtime usa.
+ *
+ *    Cobertura, medida e não suposta: a leitura pode também chegar ao bundle do
+ *    cliente de forma transitiva, por um módulo sem a diretiva importado por um
+ *    que a tem. Medido o fechamento dos imports de valor a partir das 198
+ *    sementes: 273 módulos alcançáveis, **zero** importando o registro. Quem
+ *    fecha esse lado é o `import 'server-only'` de `config/app.ts`, que o
+ *    bundler do Next transforma em erro de build. Esta regra cobre o caso
+ *    direto; aquele tem dono.
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { arquivosDeCodigo } from './lib/raizes-de-codigo.mjs'
+import { arquivosDeCodigo, exigirPiso, conferirAllowlist } from './lib/raizes-de-codigo.mjs'
 
 /**
  * Os dois pontos de entrada DE CADA APP, derivados — não listados.
@@ -158,11 +183,32 @@ for (const f of readdirSync('scripts').filter((n) => n.endsWith('.ts'))) {
     }
 }
 
+// ── 6. componente de cliente não chama o registro ───────────────────────
+//
+// A lista de arquivos é DERIVADA (quem tem a diretiva), e o piso existe porque
+// uma varredura que não encontra nada reporta sucesso: foi assim que a guarda
+// de uma conexão por aba ficou oca por uma fase inteira.
+const DO_CONTEXTO = ['packages/core/src/marca-contexto.tsx']
+const deCliente = arquivosDeCodigo().filter((f) =>
+    /^['"]use client['"]/m.test(readFileSync(f, 'utf8').slice(0, 200))
+)
+exigirPiso('componentes de cliente', deCliente, 150)
+conferirAllowlist('marca no cliente', DO_CONTEXTO, arquivosDeCodigo())
+for (const f of deCliente) {
+    if (DO_CONTEXTO.includes(f)) continue
+    const texto = readFileSync(f, 'utf8')
+    if (!/(?:from|import)\s*\(?\s*['"`](?:@venn\/core\/marca|\.{1,2}\/+marca)['"`]/.test(texto)) continue
+    erro(`"${f}" é 'use client' e importa o registro da marca.`)
+    console.error('  No navegador ninguém registrou a marca: `BRAND()` lança na tela, depois de')
+    console.error('  o build passar. Troque por `useMarca()` de @venn/core/marca-contexto.')
+}
+
 if (falhas > 0) {
     console.error(`\n${falhas} problema(s) no registro da marca.`)
     process.exit(1)
 }
 console.log(
     `registro da marca: ${appsDoRepo().length} app(s), ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
-    `${dosPacotes.length} arquivo(s) de pacote sem importar nada do app pelo alias`
+    `${dosPacotes.length} arquivo(s) de pacote sem importar nada do app pelo alias, ` +
+    `${deCliente.length} componente(s) de cliente sem chamar o registro`
 )

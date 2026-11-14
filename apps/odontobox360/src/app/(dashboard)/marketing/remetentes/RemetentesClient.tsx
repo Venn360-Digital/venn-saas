@@ -14,7 +14,7 @@ import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
 import { StatusBadge } from '@venn/core/components/shared/StatusBadge'
 import { usePermissions } from '@venn/core/hooks/usePermissions'
 import { useIndiceServidor } from '@venn/core/hooks/useIndiceServidor'
-import { BRAND } from '@/config/brand'
+import { useMarca } from '@venn/core/marca-contexto'
 import {
     explicacaoDoDkim,
     SITUACAO_DO_REMETENTE,
@@ -36,6 +36,10 @@ const FORM_VAZIO = { domain: '', fromLocal: 'contato', fromName: '', replyTo: ''
 type CampoDoForm = keyof typeof FORM_VAZIO
 
 export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
+    // A marca desce pelo React: no navegador o registro de módulo não existe
+    // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
+    const marca = useMarca()
+
     const { canEdit } = usePermissions()
 
     const buscar = useCallback(async () => {
@@ -148,7 +152,7 @@ export function RemetentesClient({ inicial }: { inicial: DadosIniciais }) {
                             variant="inline"
                             icon={AtSign}
                             title="Nenhum domínio ainda"
-                            description={`As campanhas de e-mail saem do domínio da ${BRAND.vocabulario.organizacao}, não de um endereço nosso — é o que faz quem recebe reconhecer quem mandou.`}
+                            description={`As campanhas de e-mail saem do domínio da ${marca.vocabulario.organizacao}, não de um endereço nosso — é o que faz quem recebe reconhecer quem mandou.`}
                             action={
                                 canEdit ? (
                                     <Button onClick={() => abrir('novo')}>
@@ -195,6 +199,10 @@ function FichaDoDominio({
     onSalvo: () => Promise<unknown> | void
     onCriado: (novo: RemetenteItem) => void
 }) {
+    // A marca desce pelo React: no navegador o registro de módulo não existe
+    // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
+    const marca = useMarca()
+
     const ehNovo = alvo === 'novo'
     const item = alvo && alvo !== 'novo' ? alvo : null
 
@@ -366,7 +374,7 @@ function FichaDoDominio({
             title={ehNovo ? 'Novo domínio' : form.domain}
             description={
                 ehNovo
-                    ? `O e-mail sai do domínio da ${BRAND.vocabulario.organizacao}. Depois de cadastrar, três registros precisam ser publicados no DNS dele.`
+                    ? `O e-mail sai do domínio da ${marca.vocabulario.organizacao}. Depois de cadastrar, três registros precisam ser publicados no DNS dele.`
                     : explicacaoDoDkim(dkimStatus)
             }
             submitLabel={podeEditar ? (ehNovo ? 'Cadastrar domínio' : 'Salvar') : undefined}

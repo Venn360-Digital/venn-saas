@@ -18,7 +18,7 @@ import { Input } from '@venn/ui/input'
 import { Textarea } from '@venn/ui/textarea'
 import { FormField } from '@venn/core/components/shared/FormField'
 import { RecordDialog } from '@venn/core/components/shared/RecordDialog'
-import { BRAND } from '@/config/brand'
+import { useMarca } from '@venn/core/marca-contexto'
 import {
     campanhaEmTexto,
     primeiroNome,
@@ -101,6 +101,9 @@ export function EditorDeEmail({
     editando: TemplateDeEmail | null
     onSalvo: () => void | Promise<void>
 }) {
+    // A marca desce pelo React: no navegador o registro de módulo não existe
+    // (quem o faz roda no servidor). Ver `marca-contexto.tsx`.
+    const marca = useMarca()
     const [nome, setNome] = useState('')
     const [assunto, setAssunto] = useState('')
     const [previa, setPrevia] = useState('')
@@ -340,7 +343,7 @@ export function EditorDeEmail({
                                 blocos,
                                 campos: { nome: 'Maria', unidade: 'Sua unidade' },
                                 assinatura: 'Sua unidade · endereço',
-                                descadastroUrl: `https://${BRAND.appHost}/descadastro/…`,
+                                descadastroUrl: `https://${marca.appHost}/descadastro/…`,
                                 preheader: previa || undefined,
                             })}
                         </pre>
