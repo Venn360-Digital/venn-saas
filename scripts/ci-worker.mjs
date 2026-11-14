@@ -28,8 +28,13 @@
  *     onboarding) que precisa de decisão de produto;
  *   - os builds (`build`, `build:vinext`): o Worker de staging compila o
  *     vinext de verdade a cada push de PR — é o build de preview dele;
- *   - a coleta de lixo do preview quando o PR fecha morreu com o ci.yml:
- *     previews órfãos voltam a acumular e a faxina é manual (`cf previews`).
+ *   - a coleta de lixo de preview que o ci.yml fazia ao fechar o PR: ela não é
+ *     mais necessária, e eu declarei o contrário por engano ao remover o
+ *     workflow. Medido em 14/11: no modelo de Previews novo cada preview tem
+ *     `auto_delete: true` e morre junto com a branch (as branches de teste
+ *     sumiram da lista ao serem apagadas; os previews restantes correspondem
+ *     1:1 a branches vivas). O job servia ao modelo legado, que vazava
+ *     namespace de Durable Object.
  */
 import { execSync, spawnSync } from 'node:child_process'
 import { mkdirSync, existsSync } from 'node:fs'
