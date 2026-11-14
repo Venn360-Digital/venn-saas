@@ -172,8 +172,34 @@ function classificar(rel: string, texto: string, permitidos: string[]): Rota | n
     return { rel, convencao: rel.split('/').pop()!, reexportar, inlinar }
 }
 
+/**
+ * O especificador do import, por extensão — e NÃO por array de fallback.
+ *
+ * As rotas misturam handlers `.ts` e páginas `.tsx` na mesma árvore, e um
+ * subpath pattern mapeia uma extensão só. A primeira saída foi o array
+ * `["./src/rotas/*.ts", "./src/rotas/*.tsx"]`, que os dois typechecks
+ * resolvem certo (provado com `--traceResolution`) — e que **o rolldown não
+ * resolve**:
+ *
+ *   Rolldown failed to resolve import "@venn/core/rotas/error"
+ *
+ * Eu havia declarado isso provado por um build de preview verde, e o build não
+ * provava nada: o ensaio morava em `rotas/_prova/**`, e no App Router **pasta
+ * que começa com `_` é privada** — o Next a exclui do roteamento. Os quatro
+ * arquivos de prova nunca entraram no grafo, nenhum import foi resolvido, e o
+ * verde era sobre o nada. Usei o prefixo `_` justamente para o ensaio não
+ * criar rota pública, e com isso desliguei o próprio teste.
+ *
+ * Então: dois subpaths explícitos, escolhidos pela extensão que este gerador
+ * já conhece. Determinístico, sem depender de como um resolvedor trata array.
+ */
+function especificador(rel: string): string {
+    const semExt = rel.replace(/\.tsx?$/, '')
+    const familia = rel.endsWith('.tsx') ? 'rotas-jsx' : 'rotas'
+    return `@venn/core/${familia}/${semExt}`
+}
+
 function wrapper(r: Rota): string {
-    const semExt = r.rel.replace(/\.tsx?$/, '')
     const linhas = [
         `/* ${MARCADOR} — não edite.`,
         ` * Conteúdo: packages/core/src/rotas/${r.rel}`,
@@ -192,7 +218,7 @@ function wrapper(r: Rota): string {
     const ordem = r.reexportar.includes('default')
         ? ['default', ...r.reexportar.filter((n) => n !== 'default')]
         : r.reexportar
-    if (ordem.length) linhas.push(`export { ${ordem.join(', ')} } from '@venn/core/rotas/${semExt}'`)
+    if (ordem.length) linhas.push(`export { ${ordem.join(', ')} } from '${especificador(r.rel)}'`)
     for (const [nome, valor] of r.inlinar) linhas.push(`export const ${nome} = ${valor}`)
     return linhas.join('\n') + '\n'
 }

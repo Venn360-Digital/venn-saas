@@ -5,5 +5,5 @@
  * estática e não atravessa um `export … from`. Re-exportados, seriam ignorados
  * em silêncio e a rota rodaria no modo errado.
  */
-export { default } from '@venn/core/rotas/(dashboard)/layout'
+export { default } from '@venn/core/rotas-jsx/(dashboard)/layout'
 export const dynamic = 'force-dynamic'

@@ -1,4 +1,4 @@
 /* GERADO por scripts/gerar-rotas.ts — não edite.
  * Conteúdo: packages/core/src/rotas/(dashboard)/marketing/campanhas/page.tsx
  */
-export { default } from '@venn/core/rotas/(dashboard)/marketing/campanhas/page'
+export { default } from '@venn/core/rotas-jsx/(dashboard)/marketing/campanhas/page'
