@@ -1,5 +1,5 @@
-import type { Account, Agent, AgentIntegration, Subscription, Workspace } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Account, Agent, AgentIntegration, Subscription, Workspace } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import {
     type IntegrationConfig,
     type ChannelProvider,

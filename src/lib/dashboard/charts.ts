@@ -1,8 +1,8 @@
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 import { FUSO_DO_NEGOCIO, partesNoFuso } from '@/lib/fuso'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { fimDoDia, inicioDoDia } from '@/lib/fuso'
 
 /**

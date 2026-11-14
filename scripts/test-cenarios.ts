@@ -28,7 +28,7 @@ import {
 } from '@/lib/conversas/resumo'
 import { acharDocumento, documentosDeFato, documentosDoAcervo, documentosDoPrompt } from '@/lib/treinamento/documentos'
 import { buildSystemPrompt } from '@/trabalhos/servicos/prompt'
-import type { Agent } from '#prisma'
+import type { Agent } from '@venn/db'
 import { tipoDoAcervo, ehDeTreinamento, TIPO_DE_CENARIO, TIPO_DE_TREINAMENTO } from '@/lib/treinamento/indexar'
 
 let passou = 0

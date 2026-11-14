@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { enderecoDoRetrato } from '@/lib/retratos'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { transmitir } from '@/trabalhos/tempo-real'

@@ -3,7 +3,7 @@ import type { OpenAIEmbeddings } from '@langchain/openai'
 import { DocumentChunker } from './chunker'
 import { criarEmbeddings } from './embeddings'
 import type { RagDocType } from '@/lib/queue/definitions'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * Corta uma fonte em trechos, vetoriza cada um e grava.

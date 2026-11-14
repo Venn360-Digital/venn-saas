@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { feriadosNacionais } from '@/lib/holidays'
 import { anoNoFuso } from '@/lib/fuso'

@@ -1,5 +1,5 @@
-import { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
+import { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import { accountIdOf, assinaturaDaUnidade, unidadesDaConta, type Unidades } from '@/lib/account'
 import type { CanalDeCampanha } from '@/lib/marketing/apresentacao'
 import { limitesEfetivos, planNameFor } from '@/lib/plan-limits'

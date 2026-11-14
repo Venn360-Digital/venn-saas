@@ -5,7 +5,7 @@ import { BRAND } from '@/config/brand'
 import { MANAGER_ROLES, requireRole } from '@/lib/auth/workspace'
 import { TEMPLATES } from '@/lib/email/templates'
 import { estadoDoConvite, podeReenviar, podeRevogar, vencimentoDe } from '@/lib/convite/estado'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { sendEmail } from '@/lib/email/send'
 import { sortearToken } from '@/lib/convite/token'
 

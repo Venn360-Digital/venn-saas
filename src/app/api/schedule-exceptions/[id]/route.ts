@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

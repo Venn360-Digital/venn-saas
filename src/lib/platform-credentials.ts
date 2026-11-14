@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { platformSecretName, readVaultSecret, vaultSecretOrigin } from '@/lib/vault'
 import { nomeDeAmbiente } from '@/lib/secrets/ambiente'

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { daContaDaUnidade } from '@/lib/account'
 
 /**

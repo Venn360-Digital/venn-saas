@@ -1,8 +1,8 @@
 import 'server-only'
 import { cache } from 'react'
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 import { cookies } from 'next/headers'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { contaAssumida } from '@/lib/plataforma/acesso'
 

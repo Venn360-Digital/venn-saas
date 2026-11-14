@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { createLogger } from '@/trabalhos/registro'
 import type { AgentWebhookJob } from '@/lib/queue/definitions'
 

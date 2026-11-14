@@ -2,7 +2,7 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers'
 
-import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@/lib/prisma'
+import { descartarCliente, escopoDoPrisma, type EscopoDoPrisma } from '@venn/db/cliente'
 import {
     MAX_TRANSICOES,
     minutosDeEspera,

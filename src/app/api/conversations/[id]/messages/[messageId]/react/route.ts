@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { resolveConversationLine } from '@/lib/conversation-line'
 import { conversationScope, currentMembership, type WorkspaceRole } from '@/lib/auth/workspace'
 import { resolveIntegration } from '@/lib/whatsapp'

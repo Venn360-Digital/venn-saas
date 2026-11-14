@@ -15,6 +15,7 @@
  *     Banco vazio + --init → migra e insere a sentinela. Sem --init → ABORTA.
  *  3. Tudo conferindo → `prisma migrate deploy`.
  */
+import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import pg from 'pg'
 
@@ -51,7 +52,12 @@ function abortar(msg) {
 }
 
 function migrar() {
-    const r = spawnSync('npx', ['prisma', 'migrate', 'deploy'], {
+    // `--schema` explícito: desde a Fase 2 do monorepo (14/11/2026) o schema
+    // mora em `packages/db/prisma/`, e sem isto o Prisma o procuraria no
+    // diretório de onde o comando foi chamado — falhando DEPOIS de a sentinela
+    // já ter aprovado, que é o pior lugar para falhar.
+    const schema = fileURLToPath(new URL('../packages/db/prisma/schema.prisma', import.meta.url))
+    const r = spawnSync('npx', ['prisma', 'migrate', 'deploy', '--schema', schema], {
         stdio: 'inherit',
         env: { ...process.env, DATABASE_URL: url },
     })

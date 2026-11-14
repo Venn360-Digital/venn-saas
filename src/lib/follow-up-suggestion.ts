@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'
 

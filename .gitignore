@@ -89,6 +89,8 @@ AGENTS.md
 # Clientes do Prisma, gerados por `prisma generate` (dois runtimes).
 # Carregam o engine nativo de ~21 MB cada: artefato, nunca fonte.
 src/generated/
+# No monorepo o cliente gerado mora dentro do pacote de banco (Fase 2, 14/11).
+packages/db/src/generated/
 
 # Artefatos de build/deploy do wrangler. Os dois que ficaram rastreados por
 # engano saíram do índice em 2026-10-24, junto com a correção da regra de

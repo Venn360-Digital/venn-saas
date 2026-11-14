@@ -1,11 +1,11 @@
 import { igualEmTempoConstante } from '@/lib/comparacao'
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { asaasWebhookToken } from '@/lib/asaas/client'
 import { QUEUE } from '@/lib/queue/definitions'
 import { entregar } from '@/lib/queue/entregar'
-import { isUniqueViolation } from '@/lib/prisma-errors'
+import { isUniqueViolation } from '@venn/db/erros'
 
 /**
  * O endpoint que o Asaas chama. Grava, responde 200, e processa na fila.

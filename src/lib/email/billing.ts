@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { BRAND } from '@/config/brand'
 import { sendEmail } from './send'
 import { CAMINHOS, renderEmail, type PassoDoEmail } from '@/lib/email/layout'

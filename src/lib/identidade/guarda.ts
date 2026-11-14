@@ -1,6 +1,6 @@
 import 'server-only'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { APP, identidadeConfigurada } from '@/config/app.config'
 
 /**

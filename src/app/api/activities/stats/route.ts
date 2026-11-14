@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember, resolveOwnerScope } from '@/lib/auth/workspace'
 import { diaNoFuso, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'

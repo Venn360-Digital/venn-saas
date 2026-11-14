@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { enderecoDoRetrato } from '@/lib/retratos'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { getPlatformAdmin } from '@/lib/platform-credentials'

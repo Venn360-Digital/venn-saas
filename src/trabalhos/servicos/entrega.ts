@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { responsavelDaLinha } from '@/lib/rules/atribuicao'
 import { donoDisponivel } from '@/lib/conversas/dono'
 import type { MotivoDaEntrega } from '@/lib/atendimento/escalada'

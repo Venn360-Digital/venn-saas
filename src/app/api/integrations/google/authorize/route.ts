@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import {
     GOOGLE_CALENDAR_SCOPES,

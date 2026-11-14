@@ -1,4 +1,4 @@
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
 /**
  * O período, aplicado ao campo que a pergunta pede.

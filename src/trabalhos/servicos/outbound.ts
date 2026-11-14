@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { QUEUE } from '@/lib/queue/definitions'
 import { emitAgentEvent } from './webhook-events'
 import { enfileirar } from '@/trabalhos/filas'

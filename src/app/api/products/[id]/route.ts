@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { isSchedulable } from '@/lib/product-categories'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 

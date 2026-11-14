@@ -1,5 +1,5 @@
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { asaas } from '@/lib/asaas/client'
 import { deOutroApp } from '@/lib/asaas/referencia'
 import { adicionaisVivos } from '@/lib/account'

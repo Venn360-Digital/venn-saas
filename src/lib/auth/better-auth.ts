@@ -1,7 +1,7 @@
 import 'server-only'
 import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { renderEmail } from '@/lib/email/layout'
 import { sendEmail } from '@/lib/email/send'
 import { APP } from '@/config/app.config'

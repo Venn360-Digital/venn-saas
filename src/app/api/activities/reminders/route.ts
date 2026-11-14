@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { currentMembership } from '@/lib/auth/workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { diaDeDataSemHora, instanteNoFuso } from '@/lib/fuso'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'

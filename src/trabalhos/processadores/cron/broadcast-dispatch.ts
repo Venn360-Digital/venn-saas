@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { QUEUE } from '@/lib/queue/definitions'
 import { enfileirar } from '@/trabalhos/filas'
 import { congelarDestinatarios } from '@/trabalhos/servicos/broadcast'

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceLimits } from '@/lib/limits'
 import { apelidoDaLinha } from '@/lib/linha'
 import { isPlanId } from '@/lib/plan-limits'

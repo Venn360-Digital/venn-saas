@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 import { DEFAULT_AUTOMATIONS, readAutomations, type Automations } from '@/lib/automations'
 import { connectedWhatsApp } from '@/lib/intake'

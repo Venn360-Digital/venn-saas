@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Agent } from '#prisma'
+import { Agent } from '@venn/db'
 import { Bot, Eye, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 

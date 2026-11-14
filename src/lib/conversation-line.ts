@@ -1,5 +1,5 @@
-import type { AgentIntegration } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { AgentIntegration } from '@venn/db'
+import prisma from '@venn/db/cliente'
 
 /**
  * Por qual linha de WhatsApp esta conversa fala.

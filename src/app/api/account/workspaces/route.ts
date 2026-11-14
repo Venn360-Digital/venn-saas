@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { adicionaisCobraveis, adicionaisVivos, contaDoMaster, unidadesDaConta, unidadesNoAr } from '@/lib/account'
 import { tetoDeUnidades } from '@/lib/plan-limits'

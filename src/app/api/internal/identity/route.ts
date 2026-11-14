@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { igualEmTempoConstante } from '@/lib/comparacao'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { APP } from '@/config/app.config'
 
 /**

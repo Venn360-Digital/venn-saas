@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 

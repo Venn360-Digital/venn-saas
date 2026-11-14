@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { assinaturaDaUnidade, daContaDaUnidade } from '@/lib/account'
 
 /**

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember } from '@/lib/auth/workspace'
 import { contaDoMaster } from '@/lib/account'
 

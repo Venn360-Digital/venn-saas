@@ -9,7 +9,7 @@ import {
     type WorkspaceMember,
     type WorkspaceRole,
 } from './workspace'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * Autorização das rotas do agente, num lugar só.

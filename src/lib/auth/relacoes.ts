@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * Confere que **id de relação vindo do navegador** pertence à clínica.

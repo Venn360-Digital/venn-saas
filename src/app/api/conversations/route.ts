@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { enderecoDoRetrato } from '@/lib/retratos'
 import {
     lerAba,
@@ -9,7 +9,7 @@ import {
     recorteDoVer,
 } from '@/lib/conversas/recortes'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
 /**
  * Quantas conversas a lista devolve por chamada.

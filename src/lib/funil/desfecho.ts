@@ -1,5 +1,5 @@
 import 'server-only'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { TEXTO_DA_PARADA, type MotivoDeParada } from './passos'
 
 /**

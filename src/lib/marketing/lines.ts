@@ -1,5 +1,5 @@
 import 'server-only'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { resolveIntegration } from '@/lib/whatsapp'
 import { metaWhatsApp } from '@/lib/whatsapp/meta-whatsapp'
 

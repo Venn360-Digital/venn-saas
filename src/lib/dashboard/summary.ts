@@ -1,6 +1,6 @@
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { FUSO_DO_NEGOCIO, diaNoFuso, fimDoDia, inicioDoDia, inicioDoDiaUtc, somarDias } from '@/lib/fuso'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 

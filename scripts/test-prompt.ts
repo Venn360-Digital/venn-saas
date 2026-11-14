@@ -19,7 +19,7 @@
  */
 import { buildSystemPrompt, type DocumentoNoPrompt } from '@/trabalhos/servicos/prompt'
 import { acharDocumento } from '@/lib/treinamento/documentos'
-import type { Agent } from '#prisma'
+import type { Agent } from '@venn/db'
 
 let passou = 0
 let falhou = 0

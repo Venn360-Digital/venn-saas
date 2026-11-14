@@ -35,6 +35,18 @@
     // módulo de `lib/` aqui acusa `Cannot find name 'process'` — que seria um
     // erro de tipagem descrevendo algo que funciona.
     "types": ["@cloudflare/workers-types", "node"],
+    // A condição que faz `@venn/db` resolver para o cliente do **workerd**.
+    //
+    // O pacote de banco expõe os dois clientes gerados pelo campo `exports`,
+    // separados pela condição `workerd` (ver packages/db/package.json). Quem
+    // escolhe no bundle do Worker é o `CONDICOES_DO_WORKER` do vite.config;
+    // aqui, no typecheck, quem escolhe é esta linha. Sem ela o tsc resolveria
+    // o cliente de Node e conferiria o código do Worker contra os tipos
+    // errados — passando, e mentindo.
+    //
+    // Exige `moduleResolution` "bundler" ou "node16"+ — está em "bundler"
+    // acima, então vale.
+    "customConditions": ["workerd"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],

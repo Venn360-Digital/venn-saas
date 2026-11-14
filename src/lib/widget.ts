@@ -1,5 +1,5 @@
-import type { Agent, AgentIntegration } from '#prisma'
-import prisma from '@/lib/prisma'
+import type { Agent, AgentIntegration } from '@venn/db'
+import prisma from '@venn/db/cliente'
 
 /**
  * O widget do site: o que é público e o que não é.

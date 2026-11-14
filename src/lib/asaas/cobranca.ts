@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * Quem é cobrado, quem não é, e desde quando.

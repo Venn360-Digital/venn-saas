@@ -1,6 +1,6 @@
 import { cache } from 'react'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { MOEDA_PADRAO } from '@/lib/moedas'
 
 /**

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { asaas } from '@/lib/asaas/client'
 import type { PlanId } from '@/lib/plan-limits'
 

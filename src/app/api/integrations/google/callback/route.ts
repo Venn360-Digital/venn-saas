@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '#prisma'
+import { Prisma } from '@venn/db'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { usuarioDaSessao } from '@/lib/auth/sessao'
 import { currentMembership } from '@/lib/auth/workspace'
 import {

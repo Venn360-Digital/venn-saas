@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { manageAgent } from '@/lib/auth/agent'
 import { canConnectWhatsApp } from '@/lib/limits'
 import {

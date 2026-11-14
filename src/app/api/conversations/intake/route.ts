@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { requireWritable } from '@/lib/billing'
 import { MANAGER_ROLES, getWorkspaceMember } from '@/lib/auth/workspace'
 import { connectedWhatsApp, hasWhatsApp, normalizePhone, phoneVariants } from '@/lib/intake'

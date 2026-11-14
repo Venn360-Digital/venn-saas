@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { listaInteira, membroOuLogin } from '@/lib/indice-servidor'
 import { linhasDeBroadcast } from '@/lib/marketing/lines'
 import { variaveisDoTemplate } from '@/lib/marketing/templates'

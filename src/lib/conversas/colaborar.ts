@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 import { idsMencionados, notaEmTextoSimples, quemPassaAColaborar } from './mencoes'
 
 /**

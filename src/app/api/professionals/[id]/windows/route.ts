@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { z } from 'zod'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { PERMISSION_DENIED, getWorkspaceMember, hasEditorRole } from '@/lib/auth/workspace'
 
 /**

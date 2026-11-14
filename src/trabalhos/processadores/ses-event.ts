@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import type { SesEventJob } from '@/lib/queue/definitions'
 import { createLogger } from '@/trabalhos/registro'
 import {

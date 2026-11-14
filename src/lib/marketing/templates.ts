@@ -1,6 +1,6 @@
 import 'server-only'
-import { Prisma } from '#prisma'
-import prisma from '@/lib/prisma'
+import { Prisma } from '@venn/db'
+import prisma from '@venn/db/cliente'
 import type { SendTemplateInput } from '@/lib/whatsapp/types'
 import { resolverLinhaOficial } from './lines'
 

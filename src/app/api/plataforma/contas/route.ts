@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getPlatformAdmin } from '@/lib/platform-credentials'
 import { planNameFor } from '@/lib/plan-limits'
 

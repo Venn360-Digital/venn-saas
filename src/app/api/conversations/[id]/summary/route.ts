@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { conversationScope, getWorkspaceMember } from '@/lib/auth/workspace'
 import { LLMFactory } from '@/lib/llm/factory'
 import { checkCredits, spendAiCredits, trackUsage } from '@/lib/llm/usage-tracker'

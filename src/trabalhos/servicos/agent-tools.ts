@@ -1,5 +1,5 @@
-import prisma from '@/lib/prisma'
-import type { Prisma } from '#prisma'
+import prisma from '@venn/db/cliente'
+import type { Prisma } from '@venn/db'
 import { SCHEDULABLE_CATEGORIES } from '@/lib/product-categories'
 import { normalizeSearch } from '@/lib/search'
 import { areaDaDespedida, despedidaDaEntrega } from '@/lib/atendimento/escalada'

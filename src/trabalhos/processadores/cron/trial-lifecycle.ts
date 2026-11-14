@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { sendBillingEmail } from '@/lib/email/billing'
 import { createLogger } from '@/trabalhos/registro'
 

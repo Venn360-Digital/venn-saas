@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { resolveGoogleOAuthClient, type GoogleCalendarCredentials } from '@/lib/google-oauth-client'
 import { fusoDaUnidade } from '@/lib/fuso-da-unidade'
 

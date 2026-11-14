@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { APP } from '@/config/app.config'
 import { formaDoRetrato, guardarRetrato } from '@/lib/retratos'
 import { igualEmTempoConstante } from '@/lib/comparacao'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * Move os retratos que estão **dentro da coluna** para o acervo.

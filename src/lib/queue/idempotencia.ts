@@ -1,5 +1,5 @@
 import 'server-only'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 
 /**
  * A deduplicação que o `jobId` do BullMQ dava de graça.

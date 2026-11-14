@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@/lib/auth/workspace'
 import { conferirRemetente } from '@/lib/marketing/conferir-remetente'
 import { explicacaoDoDkim, registrosDeDns } from '@/lib/marketing/remetentes'

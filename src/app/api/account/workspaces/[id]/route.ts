@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getWorkspaceMember, MANAGER_ROLES } from '@/lib/auth/workspace'
 import { accountIdOf } from '@/lib/account'
-import type { Prisma } from '#prisma'
+import type { Prisma } from '@venn/db'
 import { comFusoNasConfiguracoes, lerFusoDasConfiguracoes } from '@/lib/fuso-da-unidade'
 import { FUSOS } from '@/lib/fusos'
 

@@ -51,7 +51,7 @@ function contem(rel: string, ...padroes: (RegExp | string)[]): boolean {
     return padroes.some((p) => (typeof p === 'string' ? txt.includes(p) : p.test(txt)))
 }
 
-const schema = ler('prisma/schema.prisma')
+const schema = ler('packages/db/prisma/schema.prisma')
 /** Afirma presença de um trecho em qualquer lugar do schema Prisma. */
 function noSchema(...padroes: (RegExp | string)[]): boolean {
     return padroes.some((p) => (typeof p === 'string' ? schema.includes(p) : p.test(schema)))

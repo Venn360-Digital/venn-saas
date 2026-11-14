@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { DocumentEmbedder } from '@/lib/rag/embedder'
 import { acharDocumento } from '@/lib/treinamento/documentos'
 import {

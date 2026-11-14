@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { readAutomations, MINUTOS_PARA_AUSENTE_PADRAO } from '@/lib/automations'
 import {
     destinoDaEntrega,

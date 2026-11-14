@@ -1,5 +1,5 @@
 import 'server-only'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { credenciaisDoSes, lerIdentidade } from '@/lib/email/ses'
 import { situacaoDoRemetente } from './situacao-do-remetente'
 

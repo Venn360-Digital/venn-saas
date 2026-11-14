@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { deOutroApp, marcarReferencia } from '@/lib/asaas/referencia'
 import { adicionaisCobraveis } from '@/lib/account'
 import { asaas } from '@/lib/asaas/client'

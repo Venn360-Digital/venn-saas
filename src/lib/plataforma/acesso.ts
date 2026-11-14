@@ -2,7 +2,7 @@ import 'server-only'
 
 import { cookies } from 'next/headers'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { getPlatformAdmin } from '@/lib/platform-credentials'
 import { COOKIE_ASSUMIR } from '@/lib/auth/cookies'
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dentroDoLimite, ipDaRequisicao } from '@/lib/limite'
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { contatoCriado } from '@/lib/funil/disparos'
 import { getBillingState } from '@/lib/billing'
 import { QUEUE } from '@/lib/queue/definitions'

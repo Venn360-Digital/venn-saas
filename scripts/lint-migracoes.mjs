@@ -54,7 +54,7 @@ function excecoes() {
 const base = process.argv[2] || process.env.LINT_MIGRACOES_BASE || ''
 
 function novasMigracoes() {
-    const alvo = 'prisma/migrations/'
+    const alvo = 'packages/db/prisma/migrations/'
     // Dois pontos de propósito: diff de SNAPSHOT, que não exige merge-base —
     // o clone raso do Workers Builds tem a ref mas não garante ancestralidade
     // ("no merge base", medido em 13/11). Para --diff-filter=A o resultado é o

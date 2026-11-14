@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { currentMembership } from '@/lib/auth/workspace'
 import { accountIdOf } from '@/lib/account'
 

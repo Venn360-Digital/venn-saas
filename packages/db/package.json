@@ -1,0 +1,35 @@
+{
+    "name": "@venn/db",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "//exports": "A razão de este pacote existir. O `#prisma` que o app usava era um SUBPATH IMPORT do package.json — e subpath import é escopado ao pacote que o declara: código dentro de @venn/core nunca enxergaria o `#prisma` de um app. A condição migra para o `exports` daqui, onde vale para quem importar `@venn/db`. Quem resolve a condição `workerd`: no bundle do Worker, o `CONDICOES_DO_WORKER` do vite.config; no Node, cai no `default`; no typecheck, o tsconfig.cloudflare.json via `customConditions`.",
+    "exports": {
+        ".": {
+            "workerd": "./src/generated/prisma-workerd/client.ts",
+            "default": "./src/generated/prisma/client.ts"
+        },
+        "./cliente": "./src/prisma.ts",
+        "./erros": "./src/prisma-errors.ts",
+        "./adapters": {
+            "workerd": "./src/prisma-adapters.workerd.ts",
+            "default": "./src/prisma-adapters.ts"
+        },
+        "./schema": "./prisma/schema.prisma"
+    },
+    "scripts": {
+        "generate": "prisma generate",
+        "//postinstall": "Gera os dois clientes na instalação, como o postinstall do @prisma/client fazia na raiz. Sem isto, um clone novo não compila: metade dos arquivos importa tipos que ainda não existem.",
+        "postinstall": "prisma generate"
+    },
+    "dependencies": {
+        "@neondatabase/serverless": "1.2.0",
+        "@prisma/adapter-neon": "6.19.3",
+        "@prisma/adapter-pg": "6.19.3",
+        "@prisma/client": "6.19.3",
+        "pg": "8.16.3"
+    },
+    "devDependencies": {
+        "prisma": "6.19.3"
+    }
+}

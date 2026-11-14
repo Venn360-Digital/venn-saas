@@ -1,6 +1,6 @@
 import 'server-only'
 
-import prisma from '@/lib/prisma'
+import prisma from '@venn/db/cliente'
 import { FUSO_DO_NEGOCIO } from '@/lib/fuso'
 import { FUSOS } from '@/lib/fusos'
 
