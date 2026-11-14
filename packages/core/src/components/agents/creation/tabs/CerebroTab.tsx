@@ -7,7 +7,7 @@ import { Input } from '@venn/ui/input'
 import { cn } from '@venn/ui/utils'
 import { toast } from 'sonner'
 
-import { CerebroData, KnowledgeFile, KnowledgeWebsite } from '@/types/agent-creation'
+import { CerebroData, KnowledgeFile, KnowledgeWebsite } from '../../../../types/agent-creation'
 
 interface CerebroTabProps {
     data: CerebroData

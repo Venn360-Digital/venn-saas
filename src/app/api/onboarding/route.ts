@@ -7,7 +7,7 @@ import prisma from '@venn/db/cliente'
 import { DEFAULT_MODEL } from '@venn/core/lib/llm/models'
 import { errorMessage } from '@venn/db/erros'
 import { AGENT_WIDGET_DEFAULTS, DEFAULT_PIPELINE_STAGES } from '@venn/core/lib/palette'
-import { DEFAULT_AGENT_PREFERENCES } from '@/types/agent-preferences'
+import { DEFAULT_AGENT_PREFERENCES } from '@venn/core/types/agent-preferences'
 import { DEFAULT_AUTOMATIONS } from '@venn/core/lib/automations'
 import { ESTRATEGIA_INICIAL, FUSO_INICIAL, MOTIVOS_PADRAO } from '@venn/core/lib/onboarding/padroes'
 import {

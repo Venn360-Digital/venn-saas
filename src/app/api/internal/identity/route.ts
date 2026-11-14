@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import prisma from '@venn/db/cliente'
-import { APP } from '@/config/app.config'
+import { APP } from '@venn/core/config/app'
 
 /**
  * T4 — Endpoint de identidade.
@@ -16,11 +16,11 @@ import { APP } from '@/config/app.config'
  * credencial sai daqui: só HOSTS e nomes.
  */
 export async function GET(req: NextRequest) {
-    if (!APP.identityToken) {
+    if (!APP().identityToken) {
         return NextResponse.json({ error: 'identidade não configurada' }, { status: 503 })
     }
     const token = req.headers.get('x-identity-token') ?? ''
-    if (!igualEmTempoConstante(token, APP.identityToken)) {
+    if (!igualEmTempoConstante(token, APP().identityToken)) {
         return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
     }
 
@@ -43,12 +43,12 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-        app: { slug: APP.slug, env: APP.env },
+        app: { slug: APP().slug, env: APP().env },
         db: {
             sentinela,
             host: hostSem(process.env.DATABASE_URL),
         },
-        evolution: { host: hostSem(APP.evolutionBaseUrl) },
+        evolution: { host: hostSem(APP().evolutionBaseUrl) },
         r2: {
             public: process.env.PUBLIC_STORAGE_BUCKET ?? null,
             private: process.env.PRIVATE_STORAGE_BUCKET ?? null,

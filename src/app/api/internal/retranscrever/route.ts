@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { APP } from '@/config/app.config'
+import { APP } from '@venn/core/config/app'
 import { enderecoDaMidia } from '@venn/core/lib/midia'
 import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import prisma from '@venn/db/cliente'
@@ -46,10 +46,10 @@ import { transcribeAudio } from '@venn/core/trabalhos/servicos/transcribe'
 const TETO_PADRAO = 50
 
 export async function POST(req: NextRequest) {
-    if (!APP.identityToken) {
+    if (!APP().identityToken) {
         return NextResponse.json({ error: 'identidade não configurada' }, { status: 503 })
     }
-    if (!igualEmTempoConstante(req.headers.get('x-identity-token') ?? '', APP.identityToken)) {
+    if (!igualEmTempoConstante(req.headers.get('x-identity-token') ?? '', APP().identityToken)) {
         return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
     }
 

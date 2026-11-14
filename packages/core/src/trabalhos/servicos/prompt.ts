@@ -4,7 +4,7 @@ import {
     type AgentPreferences,
     hasStoredPreferences,
     readAgentPreferences,
-} from '@/types/agent-preferences'
+} from '../../types/agent-preferences'
 import { semComentarios } from '../../lib/rag/secoes'
 import { documentosDeProcedimento, documentosDoPrompt } from '../../lib/treinamento/documentos'
 import { catalogoDeCenarios, lerCenarios, procedimentoParaOPrompt } from '../../lib/treinamento/cenarios'
@@ -28,7 +28,7 @@ export interface KnowledgeChunk {
 /**
  * As preferências do agente, com os defaults preenchidos.
  *
- * A forma vive em `@/types/agent-preferences`, junto com a tela e a API. A
+ * A forma vive em `../../types/agent-preferences`, junto com a tela e a API. A
  * interface local que existia aqui declarava `responseSpeed` como um enum de
  * texto enquanto a tela gravava segundos — e como ninguém comparava as duas, o
  * slider nunca teve efeito.

@@ -14,7 +14,7 @@ import { findModel } from '@venn/core/lib/llm/models'
 import {
     DEFAULT_AGENT_PREFERENCES,
     agentPreferencesPatchSchema,
-} from '@/types/agent-preferences'
+} from '@venn/core/types/agent-preferences'
 
 // Validation Schema for creating an agent
 /**

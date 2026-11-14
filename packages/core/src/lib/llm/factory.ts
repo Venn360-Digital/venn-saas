@@ -1,4 +1,4 @@
-import { LLMConfig, LLMProvider, LLMProviderName } from '@/types/llm'
+import { LLMConfig, LLMProvider, LLMProviderName } from '../../types/llm'
 import { OpenAIProvider } from './openai'
 import { DEFAULT_MODEL } from './models'
 

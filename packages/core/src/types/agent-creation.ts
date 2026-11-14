@@ -231,14 +231,14 @@ export interface KnowledgeDocument {
     createdAt: Date
 }
 
-// As preferências da conversa moram em `@/types/agent-preferences`, junto com o
+// As preferências da conversa moram em `./agent-preferences`, junto com o
 // schema que a API valida e o leitor que o worker usa. A cópia que vivia aqui
 // divergiu do worker em `responseSpeed` e anulou o slider.
 
 // Menu Comandos de Intenção - Regras
 
 /**
- * A forma de condição e ação vem de `@/types/rules`, que é a mesma que a API
+ * A forma de condição e ação vem de `./rules`, que é a mesma que a API
  * valida e o motor de regras executa.
  *
  * Havia uma segunda cópia aqui, e ela divergia no que importa: declarava
@@ -246,8 +246,8 @@ export interface KnowledgeDocument {
  * e número (minutos). É o mesmo tipo de duplicata que, nas preferências, deixou
  * o slider de velocidade inerte por meses.
  */
-export type { RuleCondition, RuleAction } from '@/types/rules'
-import type { RuleCondition, RuleAction } from '@/types/rules'
+export type { RuleCondition, RuleAction } from './rules'
+import type { RuleCondition, RuleAction } from './rules'
 
 export interface RuleData {
     id?: string

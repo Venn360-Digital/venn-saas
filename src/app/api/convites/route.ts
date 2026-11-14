@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { APP } from '@/config/app.config'
+import { APP } from '@venn/core/config/app'
 import { BRAND } from '@/config/brand'
 import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import { TEMPLATES } from '@venn/core/lib/email/templates'
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
      * `APP.url` tem default por produto no config, então resolve mesmo sem
      * variável de ambiente nenhuma.
      */
-    const url = `${APP.url}/convite/${token}`
+    const url = `${APP().url}/convite/${token}`
     void sendEmail({
         to: email,
         subject: `Você foi convidado para o ${BRAND.name}`,

@@ -16,7 +16,7 @@ import {
 } from '@venn/ui/select'
 import { Button } from '@venn/ui/button'
 import { Play, Square } from 'lucide-react'
-import { VozData } from '@/types/agent-creation'
+import { VozData } from '../../../../types/agent-creation'
 import { cn } from '@venn/ui/utils'
 import { SettingsCard } from '../../../shared/TabsFrame'
 

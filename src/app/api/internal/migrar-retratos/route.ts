@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { APP } from '@/config/app.config'
+import { APP } from '@venn/core/config/app'
 import { formaDoRetrato, guardarRetrato } from '@venn/core/lib/retratos'
 import { igualEmTempoConstante } from '@venn/core/lib/comparacao'
 import prisma from '@venn/db/cliente'
@@ -42,7 +42,7 @@ import prisma from '@venn/db/cliente'
 const TETO_PADRAO = 25
 
 export async function POST(req: NextRequest) {
-    if (!igualEmTempoConstante(req.headers.get('x-identity-token') ?? '', APP.identityToken)) {
+    if (!igualEmTempoConstante(req.headers.get('x-identity-token') ?? '', APP().identityToken)) {
         return NextResponse.json({ error: 'não autorizado' }, { status: 401 })
     }
 

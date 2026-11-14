@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { APP } from '@/config/app.config'
+import { APP } from '../../config/app'
 
 /**
  * A marca de qual app criou uma coisa no Asaas.
@@ -40,7 +40,7 @@ import { APP } from '@/config/app.config'
  */
 
 /** O slug deste app. Vazio fora do Worker (dev), onde não há outro app. */
-const SLUG = APP.slug
+const SLUG = APP().slug
 
 /** `<slug>:cus_123` — e `cus_123` cru quando não há slug (dev). */
 export function marcarReferencia(id: string): string {

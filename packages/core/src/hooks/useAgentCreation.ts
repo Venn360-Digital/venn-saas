@@ -7,7 +7,7 @@ import { marcarSujo } from '../components/agents/creation/unsaved'
 import {
     PerfilData, TrabalhoData, CerebroData, VozData, InstrucoesData, DocumentoGravado,
     PADROES_DO_AGENTE, MODELOS_DE_TEXTO,
-} from '@/types/agent-creation'
+} from '../types/agent-creation'
 import { ENTONACAO_PADRAO, VOZ_PADRAO } from '../lib/voz'
 import { SETOR_PADRAO } from '../components/agents/creation/tabs/TrabalhoTab'
 import { acharDocumento, DOCUMENTOS } from '../lib/treinamento/documentos'

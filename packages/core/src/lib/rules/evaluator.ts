@@ -1,4 +1,4 @@
-import { AgentRuleConfig, RuleCondition, Operator, RuleContext } from '@/types/rules'
+import { AgentRuleConfig, RuleCondition, Operator, RuleContext } from '../../types/rules'
 import { diaDaSemanaNoFuso, horaMinutoNoFuso } from '../fuso'
 import { dentroDaJanela, normalizarJanela } from './expediente'
 

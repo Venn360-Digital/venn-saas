@@ -5,7 +5,7 @@ import type { Prisma } from '@venn/db'
 import { manageAgent } from '@venn/core/lib/auth/agent'
 import { LLMFactory } from '@venn/core/lib/llm/factory'
 import { trackUsage } from '@venn/core/lib/llm/usage-tracker'
-import type { LLMProviderName } from '@/types/llm'
+import type { LLMProviderName } from '@venn/core/types/llm'
 import { OutOfCreditsError, ensaiarResposta } from '@venn/core/trabalhos/servicos/ai-reply'
 import { interpretarVeredito, promptDoJuiz, type CasoDourado } from '@venn/core/lib/avaliacao/juiz'
 import {

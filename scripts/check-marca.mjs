@@ -21,9 +21,23 @@
  *    `cloudflare/entrada.ts` cobre o que não tem — dez consumidores de fila,
  *    17 crons, três Durable Objects e um Workflow. Quatro dos arquivos que
  *    leem a marca rodam exatamente ali.
- * 3. **`packages/**` nunca importa o `brand.ts` do app.** É a direção que o
- *    monorepo existe para não ter (`core → app`), e é o que permite ao
+ * 3. **`packages/**` nunca importa NADA do app pelo alias `@/`.** É a direção
+ *    que o monorepo existe para não ter (`core → app`), e é o que permite ao
  *    `audit:isolation` proibir identificador de app dentro dos pacotes.
+ *
+ *    Começou olhando só `@/config/brand`, e isso foi estreito demais: 28
+ *    arquivos de `packages/core` importavam `@/types/…`, que resolvia para
+ *    `src/types/` do app pelo `paths` do tsconfig da raiz — e **compilava
+ *    verde**. Eram tipos de domínio no lugar errado, e passariam ao primeiro
+ *    app novo: o `paths` global aponta para UM app, então `apps/<outro>/**`
+ *    resolveria `@/types` neste. Agora a regra é o alias inteiro, não um
+ *    caminho dele.
+ *
+ *    (E o nome do app irmão não aparece acima de propósito: o
+ *    `audit:isolation --strict` reprova identificador de outro app em qualquer
+ *    arquivo, comentário incluído — foi assim que ele barrou um `.npmrc` em
+ *    13/11, e barrou este cabeçalho na primeira escrita. Comentário copiado
+ *    entre repositórios é vetor de vazamento de identidade.)
  * 4. **O provedor de cliente está na raiz.** Os componentes `'use client'` do
  *    core leem a marca por contexto; sem o provedor na raiz, `useMarca()`
  *    lança na primeira tela.
@@ -81,9 +95,14 @@ for (const f of dosPacotes) {
     // procurava só a string e reprovou o próprio `packages/core/src/marca.ts`,
     // cujo cabeçalho cita `@/config/brand` para explicar por que o registro
     // existe. Verificador que reclama de comentário ensina a ignorá-lo.
-    if (/(?:from|import|require)\s*\(?\s*['"`]@\/config\/brand['"`]/.test(texto)) {
-        erro(`"${f}" importa '@/config/brand' — é a dependência core → app que não pode existir.`)
-        console.error('  Use `BRAND()` de @venn/core/marca (servidor) ou `useMarca()` (cliente).')
+    const alias = texto.match(/(?:from|import|require)\s*\(?\s*['"`](@\/[^'"`]+)['"`]/g)
+    if (alias) {
+        const quais = [...new Set(alias.map((a) => a.match(/@\/[^'"`]+/)[0]))]
+        erro(`"${f}" importa ${quais.map((q) => `'${q}'`).join(', ')} — o alias \`@/\` é do APP.`)
+        if (quais.some((q) => q.startsWith('@/config/brand'))) {
+            console.error('  Para a marca: `BRAND()` de @venn/core/marca (servidor) ou `useMarca()` (cliente).')
+        }
+        console.error('  Para o resto: o módulo pertence ao pacote (mova-o) ou ao app (receba-o por parâmetro/props).')
     }
 }
 
@@ -103,5 +122,5 @@ if (falhas > 0) {
 }
 console.log(
     `registro da marca: ${ENTRADAS.filter((e) => e.existe).length} ponto(s) de entrada em ordem, ` +
-    `${dosPacotes.length} arquivo(s) de pacote sem importar a marca do app`
+    `${dosPacotes.length} arquivo(s) de pacote sem importar nada do app pelo alias`
 )

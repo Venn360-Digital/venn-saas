@@ -5,7 +5,7 @@ import { usuarioDaSessao } from '@venn/core/lib/auth/sessao'
 import { manageAgent, readAgent } from '@venn/core/lib/auth/agent'
 import { z } from 'zod'
 import { findModel } from '@venn/core/lib/llm/models'
-import { agentPreferencesPatchSchema } from '@/types/agent-preferences'
+import { agentPreferencesPatchSchema } from '@venn/core/types/agent-preferences'
 import { enderecoDoAvatar } from '@venn/core/lib/agents/avatar'
 
 /**

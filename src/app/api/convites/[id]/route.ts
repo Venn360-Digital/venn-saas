@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { APP } from '@/config/app.config'
+import { APP } from '@venn/core/config/app'
 import { BRAND } from '@/config/brand'
 import { MANAGER_ROLES, requireRole } from '@venn/core/lib/auth/workspace'
 import { TEMPLATES } from '@venn/core/lib/email/templates'
@@ -91,7 +91,7 @@ export async function PATCH(
         select: { expiresAt: true },
     })
 
-    const url = `${APP.url}/convite/${token}`
+    const url = `${APP().url}/convite/${token}`
     void sendEmail({
         to: convite.email,
         subject: `Você foi convidado para o ${BRAND.name}`,

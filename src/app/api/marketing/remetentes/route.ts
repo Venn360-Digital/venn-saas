@@ -4,7 +4,7 @@ import prisma from '@venn/db/cliente'
 import { currentMembership, hasEditorRole, PERMISSION_DENIED } from '@venn/core/lib/auth/workspace'
 import { criarIdentidade, credenciaisDoSes } from '@venn/core/lib/email/ses'
 import { registrosDeDns, nomeDoConfigurationSet } from '@venn/core/lib/marketing/remetentes'
-import { APP } from '@/config/app.config'
+import { APP } from '@venn/core/config/app'
 
 /**
  * Os remetentes de e-mail da unidade — os domínios por onde a campanha sai.
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
      * cliente para dizer o que a tag já diz — e criá-lo na hora exigiria
      * permissão de configuração de conta no caminho de uma requisição.
      */
-    const configurationSetName = nomeDoConfigurationSet(APP.slug)
+    const configurationSetName = nomeDoConfigurationSet(APP().slug)
 
     const resultado = await criarIdentidade(domain, configurationSetName)
     if (!resultado.ok) {

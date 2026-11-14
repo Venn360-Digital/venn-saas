@@ -1,6 +1,6 @@
 import { subDays } from 'date-fns'
 import prisma from '@venn/db/cliente'
-import { readAgentPreferences } from '@/types/agent-preferences'
+import { readAgentPreferences } from '../../../types/agent-preferences'
 import { createLogger } from '../../registro'
 
 const log = createLogger('CRON:AUTOCLOSE')

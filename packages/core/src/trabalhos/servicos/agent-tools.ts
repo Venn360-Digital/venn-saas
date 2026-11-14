@@ -4,7 +4,7 @@ import { SCHEDULABLE_CATEGORIES } from '../../lib/product-categories'
 import { normalizeSearch } from '../../lib/search'
 import { areaDaDespedida, despedidaDaEntrega } from '../../lib/atendimento/escalada'
 import { entregarAEquipe } from './entrega'
-import type { LLMTool } from '@/types/llm'
+import type { LLMTool } from '../../types/llm'
 import { createLogger } from '../registro'
 
 const log = createLogger('AGENT_TOOLS')

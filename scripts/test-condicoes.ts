@@ -22,7 +22,7 @@
  */
 import { dentroDaJanela, descreverJanela, normalizarJanela } from '@venn/core/lib/rules/expediente'
 import { RuleEvaluator } from '@venn/core/lib/rules/evaluator'
-import type { RuleContext } from '@/types/rules'
+import type { RuleContext } from '@venn/core/types/rules'
 
 let passou = 0
 let falhou = 0
