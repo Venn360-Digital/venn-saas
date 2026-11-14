@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * O portão de verificação do Worker de CI dedicado (`odontobox-ci`).
+ * O portão de verificação pré-merge — roda no build de preview do `odontobox-stg`.
  *
  * Substitui o ci.yml do GitHub Actions — removido em 13/11/2026, quando o
  * billing do GitHub provou o que o próprio ci.yml já declarava: nada ali era
@@ -8,16 +8,15 @@
  * nenhuma (os quatro merges de 10/11, e o tsc que só apareceu depois do merge).
  * O Workers Builds é quem publica — então é ele quem verifica.
  *
- * Onde isto roda: no build do Worker `odontobox-ci`, um Worker à parte ligado
- * a este mesmo repositório, cujo único produto é este portão. Ele é dedicado
- * porque o build do vinext usa ~12 dos 20 minutos de teto do Workers Builds —
- * não há folga para ESLint (102 s medidos) + ~38 provas no mesmo build. No
- * Worker dedicado, os 20 minutos são todos da verificação.
- *
- *   build command:       pnpm install --frozen-lockfile && pnpm run ci:worker
- *   deploy command:      npx -y wrangler@4 deploy -c ci/wrangler.jsonc
- *   branch de produção:  staging — push em qualquer outra branch vira build de
- *                        preview, e o check aparece no PR antes do merge.
+ * Onde isto roda: no build de PREVIEW do Worker `odontobox-stg`, pelo hook
+ * `prebuild:preview` — todo push em branch de PR constrói o preview, e o
+ * portão roda antes do build, virando o check do PR. Não existe Worker de CI
+ * dedicado, por decisão do André em 13/11: a justificativa dele era o teto de
+ * 20 min contra um build de vinext de ~12 min (medição de outubro), e essa
+ * premissa morreu quando o vinext passou ao rolldown — o build inteiro caiu
+ * para ~2-3 min, e a bateria (~8-11 min) cabe com folga. Se o build engordar
+ * de volta e encostar no teto, o arranjo dedicado volta: este script não sabe
+ * onde roda, é só mudar quem o chama.
  *
  * Localmente: `pnpm run ci:worker` roda tudo menos o gitleaks (binário Linux)
  * e as provas contra o Neon (pedem NEON_API_KEY). A ordem é a do reprova-mais-
@@ -62,31 +61,65 @@ function tenta(comando) {
 }
 
 /**
- * O lint de migração precisa de uma base de diff — e o clone do Workers Builds
- * não garante nem a ref `origin/staging` nem profundidade de histórico. A
- * cascata tenta, nesta ordem: a ref já presente; um fetch raso dela; o HEAD~1
- * (padrão do próprio lint). A base só serve se o diff de verdade funcionar
- * (ref presente mas sem merge-base no clone raso falha no diff, não no
- * rev-parse). Sem base nenhuma, o passo é PULADO com aviso alto — reprovar
- * todo PR porque o clone é raso seria pior que cobrar o lint à mão.
+ * O lint de migração e o gitleaks precisam de uma BASE de diff — só os commits
+ * novos do PR interessam aos dois. O motivo não é estético: vazamento antigo
+ * já conferido vive no `.gitleaksignore` com fingerprint preso ao SHA do
+ * commit, e no clone raso do builder o mesmo achado reaparece no SHA da
+ * fronteira do clone — varrer o histórico inteiro ali reprova TODO PR com os
+ * falsos positivos conhecidos de outro carimbo (14 deles, medido em 13/11).
+ *
+ * O clone do Workers Builds não garante nem a ref `origin/staging` nem
+ * profundidade. A cascata tenta: a ref presente; um fetch raso dela; o HEAD~1.
+ * A base só serve se o diff de verdade funcionar. Sem base nenhuma, os dois
+ * passos são PULADOS com aviso alto E com o diagnóstico de cada tentativa —
+ * reprovar todo PR porque o clone é raso seria pior que cobrar à mão.
  */
-function baseParaLintDeMigracoes() {
-    const serve = (base) => tenta(`git diff --name-only ${base}...HEAD -- prisma/migrations/`)
-    if (serve('origin/staging')) return 'origin/staging'
-    if (tenta('git fetch --depth=200 origin staging') && serve('origin/staging')) return 'origin/staging'
-    if (serve('HEAD~1')) return 'HEAD~1'
-    return null
+function baseParaVerificacoesDeDiff() {
+    const tentativas = []
+    const roda = (cmd) => {
+        try {
+            return execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'] }).toString()
+        } catch (e) {
+            const erro = String(e.stderr ?? e.message).trim().slice(0, 200)
+            tentativas.push(`${cmd} → ${erro || 'falhou sem mensagem'}`)
+            return null
+        }
+    }
+    // Dois pontos: diff de snapshot, sem exigir merge-base (clone raso não a garante).
+    const serve = (base) => roda(`git diff --name-only ${base}..HEAD`) !== null
+    let base = null
+    if (serve('origin/staging')) base = 'origin/staging'
+    else {
+        roda('git fetch --depth=200 origin staging:refs/remotes/origin/staging')
+        if (serve('origin/staging')) base = 'origin/staging'
+        else if (serve('HEAD~1')) base = 'HEAD~1'
+    }
+    if (!base) {
+        console.warn('⚠ nenhuma base de diff utilizável. O que cada tentativa disse:')
+        for (const t of tentativas) console.warn(`    ${t}`)
+        for (const cmd of ['git remote -v', 'git rev-parse --is-shallow-repository', 'git log --oneline -3', 'git branch -a']) {
+            console.warn(`    $ ${cmd}\n      ${(roda(cmd) ?? '(falhou)').trim().split('\n').join('\n      ')}`)
+        }
+    }
+    return base
 }
 
 /**
- * Varredura de segredos, pinada na mesma versão que o ci.yml usava. Só roda
- * no Linux (o container do Workers Builds); nesta máquina o aviso diz como
- * rodar à mão. Em clone raso a varredura cobre os commits disponíveis — menos
- * que o histórico inteiro, e o log declara a cobertura em vez de fingir.
+ * Varredura de segredos, pinada na mesma versão que o ci.yml usava — e, como
+ * lá, SÓ sobre os commits novos (base..HEAD): o histórico inteiro já foi
+ * conferido (allowlist no .gitleaksignore) e revarri-lo no clone raso reprova
+ * os falsos positivos conhecidos com fingerprint que não casa (ver a cascata
+ * de base acima). A varredura completa vira ato manual ocasional:
+ * `gitleaks detect --redact --log-opts="--all"` num clone cheio — rodada em
+ * 13/11: zero achados. Só roda no Linux (o binário baixado é o do builder).
  */
-function gitleaks() {
+function gitleaks(base) {
     if (process.platform !== 'linux') {
         console.warn('⚠ gitleaks pulado fora do Linux — rode à mão: gitleaks detect --redact --log-opts="--all"')
+        return
+    }
+    if (!base) {
+        console.warn('⚠ gitleaks PULADO: sem base de diff, varrer o histórico raso reprovaria falso positivo conhecido. Rode à mão num clone cheio.')
         return
     }
     const VERSAO = '8.30.1'
@@ -99,12 +132,26 @@ function gitleaks() {
             `curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSAO}/gitleaks_${VERSAO}_linux_x64.tar.gz" | tar -xz -C ${dir} gitleaks`
         )
     }
-    let raso = false
-    try {
-        raso = execSync('git rev-parse --is-shallow-repository', { encoding: 'utf8' }).trim() === 'true'
-    } catch { /* fora de um repositório git não acontece aqui */ }
-    if (raso) console.warn('⚠ clone raso: o gitleaks varre os commits disponíveis, não o histórico inteiro')
-    rodar('gitleaks (varredura de segredos)', `${bin} detect --no-banner --redact --log-opts="--all"`)
+    if (tenta(`git merge-base --is-ancestor ${base} HEAD`)) {
+        rodar(`gitleaks (segredos nos commits novos: ${base}..HEAD)`, `${bin} detect --no-banner --redact --log-opts="${base}..HEAD"`)
+        return
+    }
+    // Sem ancestralidade (clone raso), o range de commits não anda — então o
+    // escopo vira o conteúdo ATUAL dos arquivos que o PR altera: um recorte
+    // copiado para fora e varrido em dir-mode. É exatamente o que importa
+    // pré-merge: segredo novo nos arquivos tocados.
+    const arquivos = execSync(`git diff --name-only --diff-filter=ACMR ${base}..HEAD`, { encoding: 'utf8' })
+        .split('\n').filter(Boolean)
+    if (arquivos.length === 0) {
+        console.log('gitleaks: nenhum arquivo alterado ante a base — nada a varrer')
+        return
+    }
+    const recorte = 'node_modules/.cache/gitleaks/recorte'
+    execSync(`rm -rf ${recorte} && mkdir -p ${recorte}`)
+    for (const a of arquivos) {
+        if (existsSync(a)) execSync(`cp --parents ${JSON.stringify(a)} ${recorte}/`)
+    }
+    rodar(`gitleaks (arquivos alterados ante ${base}: ${arquivos.length})`, `${bin} dir ${recorte} --no-banner --redact`)
 }
 
 // ---------------------------------------------------------------------------
@@ -173,7 +220,7 @@ rodar('check:fuso (relógio em UTC)', 'pnpm run check:fuso', { TZ: 'UTC' })
 // Migração nova tem de ser compatível com o código que está no ar: o portão
 // APLICA a migração antes de publicar, então DDL destrutivo sem o marcador
 // `-- contract` tem de reprovar aqui, onde é barato.
-const base = baseParaLintDeMigracoes()
+const base = baseParaVerificacoesDeDiff()
 if (base) {
     rodar(`lint de migração (base: ${base})`, `node scripts/lint-migracoes.mjs ${base}`)
 } else {
@@ -183,7 +230,7 @@ if (base) {
     )
 }
 
-gitleaks()
+gitleaks(base)
 
 // A parte que precisa de banco de verdade, em branch descartável do Neon.
 // Sem NEON_API_KEY ela avisa alto e sai verde — ver o cabeçalho do script.

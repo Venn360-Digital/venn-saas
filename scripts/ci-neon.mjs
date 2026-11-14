@@ -12,7 +12,7 @@
  * e duas execuções na mesma branch se atropelariam. Copy-on-write: custo
  * próximo de zero.
  *
- * Precisa de NEON_API_KEY — Build Variable SECRETA do Worker `odontobox-ci`.
+ * Precisa de NEON_API_KEY — Build Variable SECRETA do Worker `odontobox-stg`.
  * Sem a chave, avisa ALTO e sai verde: mesmo contrato do ci.yml, a ausência do
  * segredo não pode reprovar o código. A string de conexão nunca é impressa.
  *
@@ -31,7 +31,7 @@ if (!CHAVE) {
         '⚠'.repeat(30) +
         '\n⚠ NEON_API_KEY ausente — provas contra o banco PULADAS.\n' +
         '⚠ Migração contra dado de verdade NÃO foi exercitada neste build.\n' +
-        '⚠ A chave mora nas Build Variables (secreta) do Worker odontobox-ci.\n' +
+        '⚠ A chave mora nas Build Variables (secreta) do Worker odontobox-stg.\n' +
         '⚠'.repeat(30)
     )
     process.exit(0)
