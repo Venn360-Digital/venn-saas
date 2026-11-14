@@ -10,7 +10,7 @@
         "lint": "eslint",
         "typecheck": "tsc --noEmit && pnpm --filter @venn/odontobox360 run typecheck",
         "lint:colors": "node scripts/lint-colors.mjs",
-        "lint:estaticos": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/lint-fuso.mjs && node scripts/check-widget.mjs && node scripts/check-tailwind.mjs && node scripts/check-marca.mjs",
+        "lint:estaticos": "node scripts/lint-colors.mjs && node scripts/lint-workspace.mjs && node scripts/lint-fuso.mjs && node scripts/check-widget.mjs && node scripts/check-tailwind.mjs && node scripts/check-marca.mjs && node scripts/lint-caminhos.mjs",
         "prebuild": "pnpm run lint:estaticos",
         "verificar": "node scripts/limpar-tipos-gerados.mjs && pnpm run typecheck && pnpm run typecheck:cloudflare && pnpm run lint:estaticos",
         "prebuild:preview": "pnpm run ci:worker",
@@ -90,7 +90,8 @@
         "check:treinamento": "tsx scripts/check-treinamento.ts",
         "test:jid": "tsx scripts/test-jid.ts",
         "test:midia": "tsx scripts/test-midia.ts",
-        "db:generate": "pnpm --filter @venn/db run generate"
+        "db:generate": "pnpm --filter @venn/db run generate",
+        "lint:caminhos": "node scripts/lint-caminhos.mjs"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

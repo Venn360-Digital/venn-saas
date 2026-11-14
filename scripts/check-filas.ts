@@ -13,7 +13,7 @@
  *     DATABASE_URL='<homologação>' npm run check:filas
  */
 import { readFileSync } from 'node:fs'
-import { resolverNoCodigo } from './lib/raizes-de-codigo.mjs'
+import { resolverNoCodigo, configuracoesDeApp } from './lib/raizes-de-codigo.mjs'
 import prisma from '@venn/db/cliente'
 import {
     gravarEvento,
@@ -165,7 +165,7 @@ async function main() {
      * sem mexer na agenda. Então o teste confere que a chamada está lá, e que
      * não há padrão de hora fixa escrito à mão no arquivo.
      */
-    const config = readFileSync('cloudflare.config.ts', 'utf8')
+    const config = readFileSync(configuracoesDeApp('cloudflare.config.ts')[0], 'utf8')
 
     ok(
         'a configuração gera os crons pela agenda, não os lista à mão',
