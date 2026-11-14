@@ -85,7 +85,8 @@ function baseParaVerificacoesDeDiff() {
             return null
         }
     }
-    const serve = (base) => roda(`git diff --name-only ${base}...HEAD`) !== null
+    // Dois pontos: diff de snapshot, sem exigir merge-base (clone raso não a garante).
+    const serve = (base) => roda(`git diff --name-only ${base}..HEAD`) !== null
     let base = null
     if (serve('origin/staging')) base = 'origin/staging'
     else {
@@ -131,7 +132,26 @@ function gitleaks(base) {
             `curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSAO}/gitleaks_${VERSAO}_linux_x64.tar.gz" | tar -xz -C ${dir} gitleaks`
         )
     }
-    rodar(`gitleaks (segredos nos commits novos: ${base}..HEAD)`, `${bin} detect --no-banner --redact --log-opts="${base}..HEAD"`)
+    if (tenta(`git merge-base --is-ancestor ${base} HEAD`)) {
+        rodar(`gitleaks (segredos nos commits novos: ${base}..HEAD)`, `${bin} detect --no-banner --redact --log-opts="${base}..HEAD"`)
+        return
+    }
+    // Sem ancestralidade (clone raso), o range de commits não anda — então o
+    // escopo vira o conteúdo ATUAL dos arquivos que o PR altera: um recorte
+    // copiado para fora e varrido em dir-mode. É exatamente o que importa
+    // pré-merge: segredo novo nos arquivos tocados.
+    const arquivos = execSync(`git diff --name-only --diff-filter=ACMR ${base}..HEAD`, { encoding: 'utf8' })
+        .split('\n').filter(Boolean)
+    if (arquivos.length === 0) {
+        console.log('gitleaks: nenhum arquivo alterado ante a base — nada a varrer')
+        return
+    }
+    const recorte = 'node_modules/.cache/gitleaks/recorte'
+    execSync(`rm -rf ${recorte} && mkdir -p ${recorte}`)
+    for (const a of arquivos) {
+        if (existsSync(a)) execSync(`cp --parents ${JSON.stringify(a)} ${recorte}/`)
+    }
+    rodar(`gitleaks (arquivos alterados ante ${base}: ${arquivos.length})`, `${bin} dir ${recorte} --no-banner --redact`)
 }
 
 // ---------------------------------------------------------------------------
