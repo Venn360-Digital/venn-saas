@@ -50,7 +50,19 @@ export type BillingEmailKind =
 function appUrl(): string {
     return process.env.NEXT_PUBLIC_APP_URL ?? `https://${BRAND().appHost}`
 }
-const PLANS_URL = `${appUrl()}/gerenciamento/conta?tab=plano`
+/**
+ * Função, e não constante — por consequência de `appUrl()` ter virado função.
+ *
+ * Era `${APP_URL}` com `APP_URL` sendo `const` de módulo que lia `BRAND.appHost`
+ * estático: funcionava. Ao trocar a leitura estática pelo registro, esta linha
+ * passou a chamar `BRAND()` na avaliação do módulo — e foi ela que derrubou o
+ * deploy de preview com `MarcaNaoRegistradaError` no startup do Worker, depois
+ * de o build compilar inteiro. `scripts/check-marca-tardia.ts` existe por causa
+ * dela.
+ */
+function plansUrl(): string {
+    return `${appUrl()}/gerenciamento/conta?tab=plano`
+}
 
 function formatDate(date: Date | null | undefined): string {
     if (!date) return ''
@@ -98,7 +110,7 @@ async function faturaEmAberto(accountId: string | undefined): Promise<string | n
 /**
  * Para onde o botão vai — **por tipo de aviso**, e não um destino para todos.
  *
- * `render` mandava os dez e-mails para `PLANS_URL`. O rótulo mudava e o link
+ * `render` mandava os dez e-mails para `plansUrl()`. O rótulo mudava e o link
  * não: "Ver a fatura" abria a guia de assinatura, "Pagar agora" idem, e o
  * "Acessar dashboard" das boas-vindas levava o cliente novo para a tela de
  * trocar de plano. Botão que não vai onde o texto promete é link quebrado, mesmo
@@ -126,13 +138,13 @@ async function ctaUrlFor(
              * evento nenhum, só uma data que passou —, então a fatura é buscada
              * no espelho que o webhook mantém.
              */
-            return fatura ?? (await faturaEmAberto(accountId)) ?? PLANS_URL
+            return fatura ?? (await faturaEmAberto(accountId)) ?? plansUrl()
         case 'welcome':
             return `${appUrl()}/dashboard`
         default:
             // Avaliação, retenção e crédito: a decisão é contratar ou trocar de
             // plano, e as três acontecem na guia de assinatura.
-            return PLANS_URL
+            return plansUrl()
     }
 }
 
