@@ -4,13 +4,13 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { marcarSujo } from '../components/agents/creation/unsaved'
-import { RuleData } from '@/types/agent-creation'
+import { RuleData } from '../types/agent-creation'
 import { idsParaApagar } from '../lib/rules/sincronizar'
 import {
     DEFAULT_AGENT_PREFERENCES,
     readAgentPreferences,
     type AgentPreferences,
-} from '@/types/agent-preferences'
+} from '../types/agent-preferences'
 
 export function useAgentCommands(agentId?: string | null) {
     const router = useRouter()

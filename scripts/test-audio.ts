@@ -12,6 +12,10 @@
  * Os bytes de abertura de cada container são montados à mão aqui: dá para
  * exercitar a decisão inteira sem rede, sem chave e sem áudio de paciente.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { FORMATO_PADRAO, formatoDeAudio, formatoDoMimetype } from '@venn/core/lib/audio/formato'
 
 let passou = 0

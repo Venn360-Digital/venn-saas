@@ -13,6 +13,10 @@
  *     responder; um procedimento é ordem de execução. Sem a distinção o modelo
  *     leria os passos *para* o paciente em vez de executá-los.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     MAX_NO_CATALOGO,
     catalogoDeCenarios,

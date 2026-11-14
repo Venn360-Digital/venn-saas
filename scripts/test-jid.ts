@@ -14,6 +14,10 @@
  * sufixo de qualquer JID, então o LID virava "telefone" — dígitos plausíveis e
  * nada mais —, e o cadastro nasceria com ele no lugar do número.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { msisdnDoJid, toMsisdn } from '@venn/core/lib/whatsapp/types'
 
 let passou = 0

@@ -1,4 +1,4 @@
-import type { LLMConteudo } from '@/types/llm'
+import type { LLMConteudo } from '../../types/llm'
 
 /**
  * O texto de um conteúdo que pode ser multimodal.

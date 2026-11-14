@@ -19,6 +19,8 @@
         "./hooks/*": "./src/hooks/*.ts",
         "./trabalhos/*": "./src/trabalhos/*.ts",
         "./cloudflare/*": "./src/cloudflare/*.ts",
+        "./types/*": "./src/types/*.ts",
+        "./config/app": "./src/config/app.ts",
         "./components/*": "./src/components/*.tsx"
     },
     "peerDependencies": {

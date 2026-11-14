@@ -1,6 +1,6 @@
 import prisma from '@venn/db/cliente'
 import { getBillingState, spendCredits } from '../billing'
-import { LLMProviderName } from '@/types/llm'
+import { LLMProviderName } from '../../types/llm'
 /**
  * `Decimal` sai do cliente gerado, não de `@prisma/client/runtime/library`.
  *

@@ -14,6 +14,10 @@
  *     preço, horário ou prazo — e um instrutor aprovando vinte sugestões em
  *     sequência transformaria isso em fonte de verdade do agente.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     LIMIAR_DE_GRUPO,
     agrupar,

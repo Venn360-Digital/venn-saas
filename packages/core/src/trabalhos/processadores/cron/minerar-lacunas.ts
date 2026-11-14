@@ -2,7 +2,7 @@ import prisma from '@venn/db/cliente'
 import { criarEmbeddings } from '../../../lib/rag/embeddings'
 import { LLMFactory } from '../../../lib/llm/factory'
 import { trackUsage } from '../../../lib/llm/usage-tracker'
-import type { LLMProviderName } from '@/types/llm'
+import type { LLMProviderName } from '../../../types/llm'
 import {
     agrupar,
     normalizarPergunta,

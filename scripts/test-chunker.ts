@@ -9,6 +9,10 @@
  * de um tratamento como se fosse de outro. Dá para exercitá-lo inteiro com
  * entradas montadas à mão, sem embedding, sem banco e sem gastar um centavo.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     montarTrechos,
     prefixar,

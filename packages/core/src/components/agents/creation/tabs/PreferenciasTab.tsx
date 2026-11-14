@@ -11,7 +11,7 @@ import {
 } from '@venn/ui/select'
 import { Input } from '@venn/ui/input'
 import { SettingsCard, SettingsRow } from '../../../shared/TabsFrame'
-import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-preferences'
+import { INTERACTION_LIMITS, type AgentPreferences } from '../../../../types/agent-preferences'
 
 /**
  * As preferências da conversa, na guia de ajustes da Tela 03.
@@ -21,7 +21,7 @@ import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-prefere
  * `SettingsCard` e `SettingsRow`, os mesmos da Conta: uma superfície só, um
  * ritmo só, e o fio entre linhas vindo do componente em vez de ser redesenhado.
  *
- * A forma dos dados vem de `@/types/agent-preferences`, que é a mesma que a API
+ * A forma dos dados vem de `../../../../types/agent-preferences`, que é a mesma que a API
  * valida e o worker lê. Esta tela já teve a sua própria cópia da interface, e foi
  * ela que deixou `responseSpeed` virar segundos aqui e um enum de texto no
  * worker — slider inerte por meses.
@@ -32,7 +32,7 @@ import { INTERACTION_LIMITS, type AgentPreferences } from '@/types/agent-prefere
  *
  * Saiu também "Manter contexto da conversa", e por motivo mais forte: desligado,
  * ele podia deixar a resposta **sem base de conhecimento nenhuma** — ver a nota
- * em `@/types/agent-preferences`. Oferecia economia de crédito que não existe
+ * em `../../../../types/agent-preferences`. Oferecia economia de crédito que não existe
  * (vinte mensagens de WhatsApp são ~600 a 1.000 tokens) em troca de piorar o
  * atendimento em silêncio. Opção que não deveria ser escolhível não é opção.
  */

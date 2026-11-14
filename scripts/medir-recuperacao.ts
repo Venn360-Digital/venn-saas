@@ -30,6 +30,10 @@
  * `MEDIR_COOKIE` com um cookie de sessão, ou `MEDIR_EMAIL` + `MEDIR_SENHA` para
  * entrar pela API. A senha nunca é impressa.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { readFileSync } from 'node:fs'
 import { acharDocumento } from '@venn/core/lib/treinamento/documentos'
 import { FOLGA_MINIMA, PISO_PADRAO } from '@venn/core/lib/rag/parametros'

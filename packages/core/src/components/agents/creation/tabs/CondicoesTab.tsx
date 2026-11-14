@@ -8,7 +8,7 @@ import { Label } from '@venn/ui/label'
 import { Textarea } from '@venn/ui/textarea'
 import { Switch } from '@venn/ui/switch'
 import { cn } from '@venn/ui/utils'
-import { RuleData, RuleCondition, RuleAction } from '@/types/agent-creation'
+import { RuleData, RuleCondition, RuleAction } from '../../../../types/agent-creation'
 import {
     DIAS_DA_SEMANA,
     JANELA_PADRAO,

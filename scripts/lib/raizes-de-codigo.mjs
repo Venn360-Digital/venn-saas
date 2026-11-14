@@ -134,7 +134,7 @@ export function exigirPiso(nome, arquivos, piso) {
  * esconde que o caminho mudou. Falhar aqui põe o erro no commit que move.
  */
 export function conferirAllowlist(nome, prefixos, arquivos) {
-    const orfaos = prefixos.filter((p) => !arquivos.some((f) => f.startsWith(p)))
+    const orfaos = prefixos.filter((p) => !arquivos.some((f) => casaPrefixo(p, f)))
     if (orfaos.length === 0) return
     console.error(`\n✖ ${nome}: ${orfaos.length} isenção(ões) não casa(m) com nenhum arquivo varrido:`)
     for (const o of orfaos) console.error(`    ${o}`)
@@ -182,4 +182,60 @@ export function resolverNoCodigo(sufixo) {
         `"${sufixo}" casa com ${achados.length} arquivos: ${achados.join(', ')}.\n` +
         'Ambíguo: use um sufixo mais longo, que diga qual deles interessa.'
     )
+}
+
+/**
+ * O prefixo de uma isenção casa o caminho, e `*` vale por UM segmento.
+ *
+ * Existe por causa dos apps: `apps/<app>/src/app/global-error.tsx` é isento em
+ * todo app, e escrever uma linha por app seria repetir a mesma decisão três
+ * vezes e esquecer a quarta. Com `apps/*' + '/src/app/global-error.tsx`, a
+ * isenção é da REGRA, não de um app.
+ *
+ * `*` não atravessa `/` de propósito: `apps/*' + '/src` tem de casar
+ * `apps/odontobox360/src` e não `apps/qualquer/coisa/src` — isenção que se
+ * alarga sozinha deixa de ser isenção.
+ */
+export function casaPrefixo(prefixo, caminho) {
+    if (!prefixo.includes('*')) return caminho.startsWith(prefixo)
+    const re = new RegExp(
+        '^' + prefixo.split('*').map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^/]+')
+    )
+    return re.test(caminho)
+}
+
+/**
+ * O caminho de um arquivo de CONFIGURAÇÃO de app — `cloudflare.config.ts`,
+ * `next.config.ts`, `vite.config.ts`.
+ *
+ * Irmão de `resolverNoCodigo`, para o que não mora em `src/`. Existe pelo mesmo
+ * motivo e pela mesma medição: ao mover o app para `apps/odontobox360/`, o
+ * `check-trabalhos` morreu com ENOENT em `cloudflare.config.ts`, que ele lia da
+ * raiz. É a quinta forma do defeito de caminho literal no mesmo dia.
+ *
+ * Com mais de um app o arquivo existe em cada um. Devolver o primeiro seria
+ * mentir sobre qual foi lido, então aqui devolve TODOS — e quem chama decide se
+ * verifica um ou os três. Lança se não houver nenhum: verificador que não acha
+ * o que verifica não pode passar.
+ */
+export function configuracoesDeApp(nome) {
+    const base = join(ROOT, 'apps')
+    const achados = []
+    if (existsSync(base)) {
+        for (const app of readdirSync(base).sort()) {
+            if (app.startsWith('_')) continue
+            const caminho = join('apps', app, nome)
+            if (existsSync(join(ROOT, caminho))) achados.push(caminho)
+        }
+    }
+    // Durante a transição o arquivo pode ainda estar na raiz.
+    if (existsSync(join(ROOT, nome))) achados.push(nome)
+    if (achados.length === 0) {
+        throw new Error(
+            `não achei "${nome}" em nenhum app nem na raiz.\n` +
+            'Se ele mudou de lugar, é o nome que precisa ser atualizado; se deixou de\n' +
+            'existir, a verificação que o lê precisa sair junto.'
+        )
+    }
+    return achados
 }

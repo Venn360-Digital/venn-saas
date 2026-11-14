@@ -14,6 +14,10 @@
  *
  *     npm run check:storage
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     CLASSES,
     ClasseBloqueadaError,

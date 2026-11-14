@@ -19,6 +19,10 @@
  *     ~12 mil, piorar a atenção do modelo no meio do contexto e mandar a conta
  *     para a margem.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     acharDocumento,
     conferirEstrutura,

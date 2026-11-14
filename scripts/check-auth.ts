@@ -22,6 +22,10 @@
  *
  *     DATABASE_URL='<homologação>' BETTER_AUTH_SECRET='<qualquer>' npm run check:auth
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { HOSTS_PERMITIDOS, ORIGEM_DE_RESERVA, auth } from '@venn/core/lib/auth/better-auth'
 import { codificarEstado, lerEstado } from '@venn/core/lib/instagram/oauth'
 import prisma from '@venn/db/cliente'

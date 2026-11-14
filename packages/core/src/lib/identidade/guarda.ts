@@ -1,7 +1,7 @@
 import 'server-only'
 
 import prisma from '@venn/db/cliente'
-import { APP, identidadeConfigurada } from '@/config/app.config'
+import { APP, identidadeConfigurada } from '../../config/app'
 
 /**
  * T3 — Verificação de identidade em runtime.
@@ -12,7 +12,7 @@ import { APP, identidadeConfigurada } from '@/config/app.config'
  * é memoizado por isolate para não martelar o banco.
  *
  * **Inerte por padrão.** Enquanto `APP_SLUG`/`APP_ENV` não estiverem setados
- * (`identidadeConfigurada === false`), retorna sempre "ok" sem tocar o banco —
+ * (`identidadeConfigurada() === false`), retorna sempre "ok" sem tocar o banco —
  * é o que garante zero mudança de comportamento na OdontoBox até a ativação em
  * produção (portão "OK produção").
  *
@@ -34,12 +34,12 @@ function hostDoBanco(): string | null {
 
 export async function verificarIdentidade(): Promise<Resultado> {
     if (cache) return cache
-    if (!identidadeConfigurada) {
+    if (!identidadeConfigurada()) {
         cache = { ok: true }
         return cache
     }
 
-    const esperado = `${APP.slug}/${APP.env}`
+    const esperado = `${APP().slug}/${APP().env}`
     try {
         const linhas =
             await prisma.$queryRaw<Array<{ slug: string; environment: string }>>`SELECT slug, environment FROM app_identity LIMIT 1`

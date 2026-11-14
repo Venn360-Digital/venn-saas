@@ -40,6 +40,10 @@
  *
  *     DATABASE_URL='<homologação>' npm run check:tenant
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import prisma from '@venn/db/cliente'
 import { conferirRelacoes } from '@venn/core/lib/auth/relacoes'
 

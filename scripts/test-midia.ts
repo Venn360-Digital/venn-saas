@@ -16,6 +16,10 @@
  *   - **nome de arquivo não é conteúdo**, e deixá-lo passar como texto é o que
  *     faz o modelo inventar o que havia dentro.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import {
     avisoDeArquivoNaoLido,
     ehImagemAnexavel,

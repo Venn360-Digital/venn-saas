@@ -9,6 +9,10 @@
  * serviço, com o agente respondendo normalmente. Foi assim que a nota de voz
  * atravessou o lançamento procurando no acervo pela string "🎵 Áudio".
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { montarConsulta, textoParaBusca } from '@venn/core/lib/rag/consulta'
 import { ehMarcadorDeMidia } from '@venn/core/lib/whatsapp/payload'
 

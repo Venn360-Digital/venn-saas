@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { APP } from '@/config/app.config'
+import { APP } from '../../config/app'
 import { sendEmail } from '../email/send'
 import { BRAND_HEX } from '../palette'
 import prisma from '@venn/db/cliente'
@@ -70,8 +70,8 @@ const campo = (rotulo: string, valor: string) =>
 
 /** A identificação do ambiente vem primeiro: são 3 apps × 2 ambientes. */
 const identidade = () => [
-    campo('Produto', `${APP.slug} / ${APP.env}`),
-    campo('Endereço', APP.url ?? '(sem url)'),
+    campo('Produto', `${APP().slug} / ${APP().env}`),
+    campo('Endereço', APP().url ?? '(sem url)'),
 ]
 
 export async function avisarQuedaDeLinha(input: {
@@ -106,7 +106,7 @@ export async function avisarQuedaDeLinha(input: {
 
         const r = await sendEmail({
             to: DESTINO,
-            subject: `[${APP.slug}/${APP.env}] WhatsApp fora do ar: ${input.label || ctx.integrationId}`,
+            subject: `[${APP().slug}/${APP().env}] WhatsApp fora do ar: ${input.label || ctx.integrationId}`,
             html,
         })
         if (!r.ok) log.error(`não consegui avisar a queda de ${input.integrationId}: ${r.error}`)
@@ -141,7 +141,7 @@ export async function avisarRetornoDeLinha(input: {
 
         const r = await sendEmail({
             to: DESTINO,
-            subject: `[${APP.slug}/${APP.env}] WhatsApp voltou: ${input.label || ctx.integrationId}`,
+            subject: `[${APP().slug}/${APP().env}] WhatsApp voltou: ${input.label || ctx.integrationId}`,
             html,
         })
         if (!r.ok) log.error(`não consegui avisar o retorno de ${input.integrationId}: ${r.error}`)

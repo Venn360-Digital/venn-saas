@@ -15,6 +15,11 @@
  *
  *     npm run check:tempo-real
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
+import { resolverNoCodigo, raizesDeCodigo } from './lib/raizes-de-codigo.mjs'
 import { decidir, TETO_DA_RAJADA_MS } from '@venn/core/lib/realtime/debounce'
 import { assinar, verificar, BilheteInvalidoError, VALIDADE_SEGUNDOS } from '@venn/core/lib/realtime/bilhete'
 import {
@@ -272,7 +277,7 @@ async function main() {
      */
     const fs = await import('node:fs')
     const { execSync } = await import('node:child_process')
-    const tela = fs.readFileSync('src/app/(dashboard)/atendimento/conversas/page.tsx', 'utf8')
+    const tela = fs.readFileSync(resolverNoCodigo('app/(dashboard)/atendimento/conversas/page.tsx'), 'utf8')
     // De `chaves`, não de `avisar`: aquele importa o Prisma por `./index`, que
     // lança na carga sem DATABASE_URL — e este teste roda sem banco.
     const { CHAVES } = await import('@venn/core/lib/outbox/chaves')
@@ -356,8 +361,13 @@ async function main() {
      * O tempo real continuaria "funcionando", só devagar o bastante para não
      * servir, e ninguém veria erro.
      */
+    // As raízes vêm derivadas: o grep varria `src` fixo, e depois de o domínio
+    // ir para `packages/core` e o app para `apps/odontobox360` ele achava ZERO
+    // emissores. Aqui o desenho original salvou a prova — a assertiva é
+    // `> 0`, então o teste FALHOU em vez de aprovar o vazio.
+    const raizes = raizesDeCodigo().join(' ')
     const emissores = execSync(
-        "grep -rl 'avisarMensagemNova\\|avisarStatusDaMensagem\\|avisarConversaAlterada' src --include=*.ts --include=*.tsx | grep -v 'outbox/avisar.ts' || true",
+        `grep -rl 'avisarMensagemNova\\|avisarStatusDaMensagem\\|avisarConversaAlterada' ${raizes} --include=*.ts --include=*.tsx | grep -v 'outbox/avisar.ts' || true`,
         { encoding: 'utf8' }
     )
         .split('\n')

@@ -16,6 +16,10 @@
  * O que cada falha costuma significar está em `diagnostico()`, no fim: o erro
  * cru do SES diz o código e nada sobre o que fazer com ele.
  */
+// PRIMEIRO de todos: registra uma marca fictícia, porque este script roda
+// código do core e o core PEDE a marca. Ver `./lib/marca-de-teste.ts`.
+import './lib/marca-de-teste.ts'
+
 import { credenciaisDoSes, enviarPorSes } from '@venn/core/lib/email/ses'
 import { campanhaEmTexto, renderCampanha, type Bloco } from '@venn/core/lib/email/blocos'
 
